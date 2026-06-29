@@ -20,10 +20,11 @@ import org.elasticsearch.core.TimeValue;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.Map;
 import java.util.Set;
 
 /**
- * Internal action that creates one or more historical TSDB backing indices to cover past timestamps.
+ * Internal action that creates one or more past TSDB backing indices to cover past timestamps.
  * Each new backing index is clamped to avoid overlap with existing backing indices.
  */
 public final class PastTimeSeriesIndexCreationAction extends ActionType<PastTimeSeriesIndexCreationAction.Response> {
@@ -39,6 +40,10 @@ public final class PastTimeSeriesIndexCreationAction extends ActionType<PastTime
 
         private final String dataStreamName;
         private final Collection<Instant> timestamps;
+
+        public Request(TimeValue masterNodeTimeout, String dataStreamName, Collection<Instant> timestamps) {
+            this(masterNodeTimeout, DEFAULT_ACK_TIMEOUT, dataStreamName, timestamps);
+        }
 
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String dataStreamName, Collection<Instant> timestamps) {
             super(masterNodeTimeout, ackTimeout);
@@ -80,31 +85,46 @@ public final class PastTimeSeriesIndexCreationAction extends ActionType<PastTime
 
     /**
      * Reports the subset of the request's timestamps that are covered by a backing index after the action completes
-     * (whether already covered before the call or covered by a newly created backing index). The caller can derive
-     * the uncovered set by subtracting these from what was requested.
+     * (whether already covered before the call or covered by a newly created backing index), and the rejected timestamps
+     * along with the reason why they could not be covered.
      */
     public static class Response extends AcknowledgedResponse {
 
         private final Set<Instant> coveredTimestamps;
+        private final Map<Instant, String> rejectedTimestamps;
 
         public Response(boolean acknowledged, Set<Instant> coveredTimestamps) {
+            this(acknowledged, coveredTimestamps, Map.of());
+        }
+
+        public Response(boolean acknowledged, Set<Instant> coveredTimestamps, Map<Instant, String> rejectedTimestamps) {
             super(acknowledged);
             this.coveredTimestamps = coveredTimestamps;
+            this.rejectedTimestamps = rejectedTimestamps;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             this.coveredTimestamps = in.readCollectionAsSet(StreamInput::readInstant);
+            this.rejectedTimestamps = in.readMap(StreamInput::readInstant, StreamInput::readString);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeCollection(coveredTimestamps, StreamOutput::writeInstant);
+            out.writeMap(rejectedTimestamps, StreamOutput::writeInstant, StreamOutput::writeString);
         }
 
         public Set<Instant> coveredTimestamps() {
             return coveredTimestamps;
+        }
+
+        /**
+         * The rejected timestamps and the reason why, mainly used for debugging purposes.
+         */
+        public Map<Instant, String> rejectedTimestamps() {
+            return rejectedTimestamps;
         }
     }
 }

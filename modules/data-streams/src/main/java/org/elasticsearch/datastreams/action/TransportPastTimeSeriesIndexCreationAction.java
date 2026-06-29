@@ -11,7 +11,6 @@ package org.elasticsearch.datastreams.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.PastTimeSeriesIndexCreationAction;
@@ -27,6 +26,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.SystemIndices;
@@ -54,8 +55,10 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.action.admin.indices.create.AutoCreateAction.AUTO_CREATE_INDEX_PRIORITY_SETTING;
@@ -104,7 +107,9 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
         ActionFilters actionFilters,
         AllocationService allocationService,
         MetadataCreateDataStreamService createDataStreamService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator,
+        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings
     ) {
         super(
             PastTimeSeriesIndexCreationAction.NAME,
@@ -123,7 +128,9 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             allocationService,
             createDataStreamService,
             systemIndices,
-            projectResolver
+            projectResolver,
+            timeSeriesEligibleWriteWindowLocator,
+            dataStreamGlobalRetentionSettings
         );
         pastTimeSeriesIndexCreationExecutor.init();
         this.taskQueue = clusterService.createTaskQueue(
@@ -144,31 +151,24 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
         String dataStreamName = request.dataStreamName();
         DataStream dataStream = project.dataStreams().get(dataStreamName);
 
-        if (dataStream == null) {
-            // No data stream — nothing can be covered.
-            listener.onFailure(new ResourceNotFoundException("Data stream [" + dataStreamName + "] not found"));
-            return;
-        }
-
-        // Checking here is sufficient because a data stream cannot be converted from leader to follower, only the other way around.
-        if (dataStream.isReplicated()) {
-            listener.onFailure(
-                new ElasticsearchException("Cannot create past TSDB backing index for replicated data stream [" + dataStreamName + "]")
-            );
+        try {
+            validateDataStream(dataStreamName, dataStream, project);
+        } catch (Exception e) {
+            listener.onFailure(e);
             return;
         }
 
         // Short-circuit when every requested timestamp is already covered by an existing backing index.
         Set<Instant> alreadyCovered = new HashSet<>();
-        boolean hasUncovered = false;
+        Set<Instant> remaining = new HashSet<>();
         for (Instant ts : request.timestamps()) {
             if (dataStream.selectTimeSeriesWriteIndex(ts, project) != null) {
                 alreadyCovered.add(ts);
             } else {
-                hasUncovered = true;
+                remaining.add(ts);
             }
         }
-        if (hasUncovered == false) {
+        if (remaining.isEmpty()) {
             listener.onResponse(new PastTimeSeriesIndexCreationAction.Response(true, alreadyCovered));
             return;
         }
@@ -177,9 +177,11 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             "past-tsdb-index-creation [" + dataStreamName + "]",
             new PastTsdbIndexCreationTask(
                 request.dataStreamName(),
-                request.timestamps().stream().mapToLong(Instant::toEpochMilli).sorted().toArray(),
+                remaining.stream().mapToLong(Instant::toEpochMilli).sorted().toArray(),
+                alreadyCovered,
                 request.ackTimeout(),
-                listener
+                listener,
+                System.currentTimeMillis()
             ),
             request.masterNodeTimeout()
         );
@@ -193,8 +195,10 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
     record PastTsdbIndexCreationTask(
         String dataStreamName,
         long[] sortedTimestamps,
+        Set<Instant> alreadyCovered,
         TimeValue ackTimeout,
-        ActionListener<PastTimeSeriesIndexCreationAction.Response> listener
+        ActionListener<PastTimeSeriesIndexCreationAction.Response> listener,
+        long requestStartTimestamp
     ) implements ClusterStateTaskListener {
 
         @Override
@@ -210,6 +214,8 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
         private final MetadataCreateDataStreamService createDataStreamService;
         private final SystemIndices systemIndices;
         private final ProjectResolver projectResolver;
+        private final TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator;
+        private final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings;
         private long indexDurationMillis;
 
         PastTimeSeriesIndexCreationExecutor(
@@ -218,13 +224,17 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             AllocationService allocationService,
             MetadataCreateDataStreamService createDataStreamService,
             SystemIndices systemIndices,
-            ProjectResolver projectResolver
+            ProjectResolver projectResolver,
+            TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator,
+            DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings
         ) {
             this.clusterService = clusterService;
             this.allocationService = allocationService;
             this.createDataStreamService = createDataStreamService;
             this.systemIndices = systemIndices;
             this.projectResolver = projectResolver;
+            this.timeSeriesEligibleWriteWindowLocator = timeSeriesEligibleWriteWindowLocator;
+            this.dataStreamGlobalRetentionSettings = dataStreamGlobalRetentionSettings;
             this.indexDurationMillis = PAST_TSDB_INDEX_DURATION.get(settings).millis();
         }
 
@@ -240,7 +250,19 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                 final var task = taskContext.getTask();
                 try (var ignored = taskContext.captureResponseHeaders()) {
                     List<String> createdIndexNames = new ArrayList<>();
-                    Set<Instant> coveredTimestamps = new HashSet<>();
+                    // We start with the already-covered timestamp
+                    Set<Instant> coveredTimestamps = new HashSet<>(task.alreadyCovered());
+                    Map<Instant, String> rejectedTimestamps = new HashMap<>();
+                    ProjectMetadata projectMetadata = state.projectState(projectResolver.getProjectId()).metadata();
+                    DataStream dataStream = projectMetadata.dataStreams().get(task.dataStreamName());
+                    long eligibleWriteWindowStart = dataStream == null
+                        ? -1L
+                        : timeSeriesEligibleWriteWindowLocator.getEligibleWriteWindowStart(
+                            dataStream,
+                            projectMetadata,
+                            dataStreamGlobalRetentionSettings.get(),
+                            task.requestStartTimestamp()
+                        );
                     state = executeTask(
                         state,
                         projectResolver,
@@ -249,7 +271,9 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                         task,
                         createdIndexNames,
                         coveredTimestamps,
-                        indexDurationMillis
+                        rejectedTimestamps,
+                        indexDurationMillis,
+                        eligibleWriteWindowStart
                     );
                     stateChanged |= createdIndexNames.isEmpty() == false;
                     taskContext.success(new ClusterStateAckListener() {
@@ -262,7 +286,13 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                         public void onAllNodesAcked() {
                             if (createdIndexNames.isEmpty()) {
                                 task.listener()
-                                    .onResponse(new PastTimeSeriesIndexCreationAction.Response(true, Set.copyOf(coveredTimestamps)));
+                                    .onResponse(
+                                        new PastTimeSeriesIndexCreationAction.Response(
+                                            true,
+                                            Set.copyOf(coveredTimestamps),
+                                            Map.copyOf(rejectedTimestamps)
+                                        )
+                                    );
                                 return;
                             }
                             ActiveShardsObserver.waitForActiveShards(
@@ -272,20 +302,38 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                                 ActiveShardCount.DEFAULT,
                                 task.ackTimeout(),
                                 multiListener.delay(task.listener())
-                                    .map(ok -> new PastTimeSeriesIndexCreationAction.Response(true, Set.copyOf(coveredTimestamps)))
+                                    .map(
+                                        ok -> new PastTimeSeriesIndexCreationAction.Response(
+                                            true,
+                                            Set.copyOf(coveredTimestamps),
+                                            Map.copyOf(rejectedTimestamps)
+                                        )
+                                    )
                             );
                         }
 
                         @Override
                         public void onAckFailure(Exception e) {
                             multiListener.delay(task.listener())
-                                .onResponse(new PastTimeSeriesIndexCreationAction.Response(false, Set.copyOf(coveredTimestamps)));
+                                .onResponse(
+                                    new PastTimeSeriesIndexCreationAction.Response(
+                                        false,
+                                        Set.copyOf(coveredTimestamps),
+                                        Map.copyOf(rejectedTimestamps)
+                                    )
+                                );
                         }
 
                         @Override
                         public void onAckTimeout() {
                             multiListener.delay(task.listener())
-                                .onResponse(new PastTimeSeriesIndexCreationAction.Response(false, Set.copyOf(coveredTimestamps)));
+                                .onResponse(
+                                    new PastTimeSeriesIndexCreationAction.Response(
+                                        false,
+                                        Set.copyOf(coveredTimestamps),
+                                        Map.copyOf(rejectedTimestamps)
+                                    )
+                                );
                         }
 
                         @Override
@@ -315,7 +363,9 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             PastTsdbIndexCreationTask task,
             List<String> createdIndexNames,
             Set<Instant> coveredTimestamps,
-            long indexDurationMillis
+            Map<Instant, String> rejectedTimestamps,
+            long indexDurationMillis,
+            long eligibleWriteWindowStart
         ) throws Exception {
             String dataStreamName = task.dataStreamName();
             long[] timestamps = task.sortedTimestamps();
@@ -323,19 +373,33 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             ProjectState projectState = clusterState.projectState(projectResolver.getProjectId());
             ProjectMetadata currentProject = projectState.metadata();
             DataStream dataStream = currentProject.dataStreams().get(dataStreamName);
-            if (dataStream == null) {
-                throw new ResourceNotFoundException("Data stream [" + dataStreamName + "] not found");
-            }
-            assert dataStream.isReplicated() == false
-                : "cannot create past TSDB backing index for replicated data stream [" + dataStreamName + "]";
+            validateDataStream(dataStreamName, dataStream, currentProject);
             ClusterState updatedClusterState = clusterState;
 
             // From the oldest to the newest
             Deque<IndexBoundaries> stack = sortAndRetrieveExistingBackingIndices(dataStream, currentProject);
+            if (stack.isEmpty()) {
+                throw new IllegalStateException(
+                    "Cannot create past TSDB backing index for data stream ["
+                        + dataStreamName
+                        + "] because it requires to have yet at least one time series backing index. Please rollover first."
+                );
+            }
             IndexBoundaries previousIndex = null;
 
             for (long ts : timestamps) {
-                assert stack.isEmpty() == false : "the data stream must have at least one backing index and it should be the latest";
+                Instant timestampInstant = Instant.ofEpochMilli(ts);
+                if (eligibleWriteWindowStart > 0 && ts < eligibleWriteWindowStart) {
+                    rejectedTimestamps.put(
+                        timestampInstant,
+                        "the document timestamp ["
+                            + timestampInstant
+                            + "] is earlier than the lifecycle permits writes, starting ["
+                            + Instant.ofEpochMilli(eligibleWriteWindowStart)
+                            + "]"
+                    );
+                    continue;
+                }
                 // Advance past indices whose range ends at or before ts.
                 while (stack.isEmpty() == false && stack.peek().end() <= ts) {
                     previousIndex = stack.pop();
@@ -343,7 +407,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                 IndexBoundaries nextIndex = stack.isEmpty() ? null : stack.peek();
                 assert nextIndex != null : "there should always be a next index, ultimately the write index";
                 if (nextIndex.start() <= ts) {
-                    coveredTimestamps.add(Instant.ofEpochMilli(ts));
+                    coveredTimestamps.add(timestampInstant);
                     continue;
                 }
 
@@ -380,7 +444,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                 createdIndexNames.add(pastIndexName);
                 // The new index is pushed on top; it becomes the anchor for any timestamps further in the past.
                 stack.push(new IndexBoundaries(indexStart, indexEnd));
-                coveredTimestamps.add(Instant.ofEpochMilli(ts));
+                coveredTimestamps.add(timestampInstant);
             }
             return updatedClusterState;
         }
@@ -414,6 +478,35 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
 
         IndexBoundaries(Instant start, Instant end) {
             this(start.toEpochMilli(), end.toEpochMilli());
+        }
+    }
+
+    private static void validateDataStream(String dataStreamName, DataStream dataStream, ProjectMetadata project) {
+        if (dataStream == null) {
+            throw new ResourceNotFoundException("Data stream [" + dataStreamName + "] not found");
+        }
+        // Checking here is sufficient because a data stream cannot be converted from leader to follower, only the other way around.
+        if (dataStream.isReplicated()) {
+            throw new IllegalArgumentException("Cannot create past TSDB backing index for replicated data stream [" + dataStreamName + "]");
+        }
+
+        if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {
+            throw new IllegalArgumentException(
+                "Cannot create past TSDB backing index for data stream ["
+                    + dataStreamName
+                    + "] with mode ["
+                    + dataStream.getIndexMode()
+                    + "], it needs to be a time series data stream."
+            );
+        }
+        Index writeIndex = dataStream.getWriteIndex();
+        IndexMetadata writeIndexMetadata = writeIndex == null ? null : project.index(writeIndex);
+        if (writeIndexMetadata == null || writeIndexMetadata.getIndexMode() != IndexMode.TIME_SERIES) {
+            throw new IllegalStateException(
+                "Cannot create past TSDB backing index for data stream ["
+                    + dataStreamName
+                    + "] because it requires to have yet at least one time series backing index. Please rollover first."
+            );
         }
     }
 

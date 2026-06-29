@@ -8,11 +8,9 @@
  */
 package org.elasticsearch.datastreams.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.PastTimeSeriesIndexCreationAction;
-import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -23,12 +21,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.action.TransportPastTimeSeriesIndexCreationAction.PastTimeSeriesIndexCreationExecutor;
@@ -37,24 +30,22 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -232,7 +223,14 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
         long ts = Instant.parse("2024-01-15T09:00:00Z").toEpochMilli();
-        var task = new PastTsdbIndexCreationTask(DATA_STREAM, new long[] { ts }, TimeValue.ZERO, ActionListener.noop());
+        var task = new PastTsdbIndexCreationTask(
+            DATA_STREAM,
+            new long[] { ts },
+            Set.of(),
+            TimeValue.ZERO,
+            ActionListener.noop(),
+            Instant.now().toEpochMilli()
+        );
         expectThrows(
             ResourceNotFoundException.class,
             () -> PastTimeSeriesIndexCreationExecutor.executeTask(
@@ -243,60 +241,91 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
                 task,
                 new ArrayList<>(),
                 new HashSet<>(),
-                INDEX_DURATION_MILLIS
+                new HashMap<>(),
+                INDEX_DURATION_MILLIS,
+                -1
             )
         );
     }
 
-    @SuppressWarnings("unchecked")
     public void testReplicatedDataStreamFails() {
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.createTaskQueue(any(), any(), any())).thenReturn(mock(MasterServiceTaskQueue.class));
-        ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.EMPTY,
-            Set.of(TransportPastTimeSeriesIndexCreationAction.PAST_TSDB_INDEX_DURATION)
-        );
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-
-        var action = new TransportPastTimeSeriesIndexCreationAction(
-            mock(TransportService.class),
-            clusterService,
-            systemIndices,
-            Settings.EMPTY,
-            threadPool,
-            mock(ActionFilters.class),
-            mock(AllocationService.class),
-            createDataStreamService,
-            projectResolver
-        );
-
-        String indexName = DataStream.getDefaultBackingIndexName(DATA_STREAM, 1);
-        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
+        ClusterState state = stateWithExisting(List.of(), Instant.now());
+        ProjectMetadata projectMetadata = state.projectState(projectId).metadata();
+        DataStream ds = projectMetadata.dataStreams().get(DATA_STREAM).copy().setReplicated(true).build();
+        ClusterState stateWithReplicated = ClusterState.builder(state)
+            .putProjectMetadata(ProjectMetadata.builder(projectMetadata).put(ds).build())
             .build();
-        DataStream replicatedDs = DataStream.builder(DATA_STREAM, List.of(indexMetadata.getIndex()))
-            .setGeneration(1)
-            .setReplicated(true)
-            .build();
-        ProjectMetadata project = ProjectMetadata.builder(projectId).put(indexMetadata, false).put(replicatedDs).build();
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
-
-        var request = new PastTimeSeriesIndexCreationAction.Request(
-            TEST_REQUEST_TIMEOUT,
-            TEST_REQUEST_TIMEOUT,
+        long ts = Instant.parse("2024-01-15T09:00:00Z").toEpochMilli();
+        var task = new PastTsdbIndexCreationTask(
             DATA_STREAM,
-            List.of(Instant.parse("2024-01-15T09:00:00Z"))
+            new long[] { ts },
+            Set.of(),
+            TimeValue.ZERO,
+            ActionListener.noop(),
+            Instant.now().toEpochMilli()
         );
+        IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> PastTimeSeriesIndexCreationExecutor.executeTask(
+                stateWithReplicated,
+                projectResolver,
+                createDataStreamService,
+                systemIndices,
+                task,
+                new ArrayList<>(),
+                new HashSet<>(),
+                new HashMap<>(),
+                INDEX_DURATION_MILLIS,
+                -1L
+            )
+        );
+        assertThat(
+            illegalArgumentException.getMessage(),
+            containsString("Cannot create past TSDB backing index for replicated data stream")
+        );
+    }
 
-        AtomicReference<Exception> capturedFailure = new AtomicReference<>();
-        action.masterOperation(mock(Task.class), request, state, ActionListener.wrap(r -> {}, capturedFailure::set));
+    public void testNotATsdbFails() {
+        ClusterState state = stateWithNoTsdbIndices();
+        long ts = Instant.parse("2024-01-15T09:00:00Z").toEpochMilli();
+        var task = new PastTsdbIndexCreationTask(
+            DATA_STREAM,
+            new long[] { ts },
+            Set.of(),
+            TimeValue.ZERO,
+            ActionListener.noop(),
+            Instant.now().toEpochMilli()
+        );
+        IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> PastTimeSeriesIndexCreationExecutor.executeTask(
+                state,
+                projectResolver,
+                createDataStreamService,
+                systemIndices,
+                task,
+                new ArrayList<>(),
+                new HashSet<>(),
+                new HashMap<>(),
+                INDEX_DURATION_MILLIS,
+                -1L
+            )
+        );
+        assertThat(illegalArgumentException.getMessage(), containsString(", it needs to be a time series data stream."));
+    }
 
-        assertThat(capturedFailure.get(), instanceOf(ElasticsearchException.class));
-        assertThat(capturedFailure.get().getMessage(), containsString(DATA_STREAM));
+    public void testResponseSerialization() throws Exception {
+        Set<Instant> covered = Set.of(Instant.parse("2024-01-15T09:00:00Z"), Instant.parse("2024-01-16T09:00:00Z"));
+        Instant rejected1 = Instant.parse("2024-01-10T09:00:00Z");
+        Instant rejected2 = Instant.parse("2024-01-05T09:00:00Z");
+        Map<Instant, String> rejections = Map.of(rejected1, "outside write window", rejected2, "index creation failed");
+        var original = new PastTimeSeriesIndexCreationAction.Response(true, covered, rejections);
+        var copy = copyWriteable(original, writableRegistry(), PastTimeSeriesIndexCreationAction.Response::new);
+        assertThat(copy.isAcknowledged(), is(true));
+        assertThat(copy.coveredTimestamps(), is(covered));
+        assertThat(copy.rejectedTimestamps().size(), is(2));
+        assertThat(copy.rejectedTimestamps().get(rejected1), equalTo("outside write window"));
+        assertThat(copy.rejectedTimestamps().get(rejected2), equalTo("index creation failed"));
     }
 
     /** Builds a ClusterState with a TSDB data stream whose backing indices cover the given time ranges. */
@@ -327,12 +356,40 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
         return IndexMetadata.builder(indexName).settings(settings).numberOfShards(1).numberOfReplicas(0).build();
     }
 
+    public void testOutsideEligibleWriteWindowFails() throws Exception {
+        Instant now = Instant.now();
+        ClusterState clusterState = stateWithExisting(List.of(), now);
+        // A 7-day write window: timestamps older than 7 days should fail.
+        long windowStart = now.minus(7, ChronoUnit.DAYS).toEpochMilli();
+
+        Instant withinWindow = now.minus(6, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MILLIS);
+        Instant outsideWindow = now.minus(30, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MILLIS);
+
+        TaskResult result = runWithWindow(clusterState, windowStart, withinWindow.toEpochMilli(), outsideWindow.toEpochMilli());
+        assertThat(result.covered(), containsInAnyOrder(withinWindow));
+        assertThat(result.rejectedTimestamps().size(), is(1));
+        assertThat(result.rejectedTimestamps().containsKey(outsideWindow), is(true));
+        assertThat(result.rejectedTimestamps().get(outsideWindow), containsString("is earlier than the lifecycle permits writes"));
+    }
+
     private TaskResult run(ClusterState state, long... timestamps) throws Exception {
+        return runWithWindow(state, -1L, timestamps);
+    }
+
+    private TaskResult runWithWindow(ClusterState state, long eligibleWriteWindowStart, long... timestamps) throws Exception {
         long[] sorted = timestamps.clone();
         java.util.Arrays.sort(sorted);
-        var task = new PastTsdbIndexCreationTask(DATA_STREAM, sorted, TimeValue.ZERO, ActionListener.noop());
+        var task = new PastTsdbIndexCreationTask(
+            DATA_STREAM,
+            sorted,
+            Set.of(),
+            TimeValue.ZERO,
+            ActionListener.noop(),
+            System.currentTimeMillis()
+        );
         List<String> createdNames = new ArrayList<>();
         Set<Instant> covered = new HashSet<>();
+        Map<Instant, String> rejectedTimestamps = new HashMap<>();
         ClusterState updatedClusterState = PastTimeSeriesIndexCreationExecutor.executeTask(
             state,
             projectResolver,
@@ -341,12 +398,19 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
             task,
             createdNames,
             covered,
-            INDEX_DURATION_MILLIS
+            rejectedTimestamps,
+            INDEX_DURATION_MILLIS,
+            eligibleWriteWindowStart
         );
-        return new TaskResult(updatedClusterState, covered, createdNames);
+        return new TaskResult(updatedClusterState, covered, createdNames, rejectedTimestamps);
     }
 
-    private record TaskResult(ClusterState state, Set<Instant> covered, List<String> createdNames) {}
+    private record TaskResult(
+        ClusterState state,
+        Set<Instant> covered,
+        List<String> createdNames,
+        Map<Instant, String> rejectedTimestamps
+    ) {}
 
     private static Instant getTimestampWithinDay(Instant now, int dayOffsets, int hourOffset) {
         return now.minus(dayOffsets, ChronoUnit.DAYS).minus(hourOffset, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MILLIS);

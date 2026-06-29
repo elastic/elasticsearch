@@ -25,12 +25,4 @@ public interface EncryptedDataHandlerProvider {
     default Collection<EncryptedDataHandler<?>> getHandlers() {
         return Collections.emptyList();
     }
-
-    /**
-     * Called by the encryption plugin after the {@link EncryptionService} has been created, before any plugin's
-     * {@code createComponents} is invoked. Implementations may store the service for use during component creation.
-     *
-     * <p>The default implementation is a no-op.
-     */
-    default void onEncryptionServiceAvailable(EncryptionService encryptionService) {}
 }

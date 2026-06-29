@@ -42,8 +42,8 @@ import java.util.function.Supplier;
  */
 public class EncryptionPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, ReloadablePlugin, HealthPlugin {
 
+    private static final SetOnce<EncryptionService> encryptionService = new SetOnce<>();
     private final List<EncryptedDataHandlerProvider> encryptedDataHandlerProviders = new ArrayList<>();
-
     private final SetOnce<ProjectEncryptionKeyService> pekService = new SetOnce<>();
     private final SetOnce<KeyRotationCoordinator> coordinator = new SetOnce<>();
     private final SetOnce<ProjectEncryptionKeyHealthIndicatorService> healthIndicatorService = new SetOnce<>();
@@ -70,11 +70,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             services.projectResolver(),
             () -> this.pekSettings
         );
-        AesGcmEncryptionService encryptionService = new AesGcmEncryptionService(
-            pekService,
-            pekService::state,
-            pekService::isEncryptionRequired
-        );
+        encryptionService.set(new AesGcmEncryptionService(pekService, pekService::state, pekService::isEncryptionRequired));
         List<EncryptedDataHandler<?>> handlers = encryptedDataHandlerProviders.stream().flatMap(p -> p.getHandlers().stream()).toList();
         EncryptedDataHandlerRegistry handlerRegistry = new EncryptedDataHandlerRegistry(handlers);
         KeyRotationCoordinator coordinator = KeyRotationCoordinator.create(
@@ -82,7 +78,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             services.threadPool(),
             services.projectResolver(),
             services.featureService(),
-            encryptionService,
+            encryptionService.get(),
             handlers,
             () -> this.pekSettings,
             pekEncryption
@@ -98,7 +94,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         this.healthIndicatorService.set(healthIndicator);
 
         List<Object> components = new ArrayList<>();
-        components.add(new PluginComponentBinding<>(EncryptionService.class, encryptionService));
+        components.add(new PluginComponentBinding<>(EncryptionService.class, encryptionService.get()));
         components.add(pekService);
         components.add(coordinator);
         components.add(healthIndicator);
@@ -170,5 +166,13 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
                 parser -> ProjectEncryptionKeyMetadata.fromXContent(parser, pekEncryption, degradedBlobHolder)
             )
         );
+    }
+
+    public static EncryptionService getEncryptionService() {
+        EncryptionService service = encryptionService.get();
+        if (service == null) {
+            throw new IllegalStateException("EncryptionService is not constructed yet");
+        }
+        return service;
     }
 }

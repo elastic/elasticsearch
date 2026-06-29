@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -28,6 +29,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 
@@ -39,7 +41,8 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
     public static final String NAME = "ai21_completions_service_settings";
 
     // Rate limit for AI21 is 10 requests / sec or 200 requests / minute. Setting default to 200 requests / minute
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(200);
+    static final int DEFAULT_REQUESTS_PER_MINUTE = 200;
+    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(DEFAULT_REQUESTS_PER_MINUTE);
 
     private static final TransportVersion ML_INFERENCE_AI21_COMPLETION_ADDED = TransportVersion.fromName(
         "ml_inference_ai21_completion_added"
@@ -63,13 +66,7 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
             Builder::new
         );
         parser.declareString(Builder::setModelId, new ParseField(MODEL_ID));
-        parser.declareObject(
-            Builder::setRateLimitSettings,
-            // An explicitly empty rate_limit object ({}) resolves to the default rate limit rather than null, so the setter is never
-            // invoked with null.
-            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, DEFAULT_RATE_LIMIT_SETTINGS).apply(p, null),
-            new ParseField(RateLimitSettings.FIELD_NAME)
-        );
+        RateLimitSettings.declareRateLimitSettings(parser, Builder::setRateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
         // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
         // Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
         parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
@@ -190,31 +187,20 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
         private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
 
         static {
-            PARSER.declareObject(
-                Update::setRateLimitSettings,
-                // A null default preserves "no change" semantics for updates: an empty or value-less rate_limit object leaves the existing
-                // rate limit untouched.
-                (p, c) -> RateLimitSettings.createParser(false, null).apply(p, null),
-                new ParseField(RateLimitSettings.FIELD_NAME)
-            );
+            RateLimitSettings.declareUpdatableRateLimitSettings(PARSER, Update::setRateLimitSettings);
         }
 
-        private RateLimitSettings rateLimitSettings;
+        private StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
 
-        private void setRateLimitSettings(@Nullable RateLimitSettings rateLimitSettings) {
+        private void setRateLimitSettings(StatefulValue<RateLimitSettings> rateLimitSettings) {
             this.rateLimitSettings = rateLimitSettings;
         }
 
         public Ai21ChatCompletionServiceSettings mergeInto(Ai21ChatCompletionServiceSettings existing) {
-            return new Ai21ChatCompletionServiceSettings(existing.modelId(), existing.mergedRateLimit(this));
+            return new Ai21ChatCompletionServiceSettings(
+                existing.modelId(),
+                applyUpdate(rateLimitSettings, existing.rateLimitSettings(), DEFAULT_RATE_LIMIT_SETTINGS)
+            );
         }
-    }
-
-    /**
-     * Resolves the rate limit settings to use after applying an update: the value supplied by the update if present, otherwise
-     * the current value.
-     */
-    private RateLimitSettings mergedRateLimit(Update update) {
-        return Objects.requireNonNullElse(update.rateLimitSettings, rateLimitSettings);
     }
 }

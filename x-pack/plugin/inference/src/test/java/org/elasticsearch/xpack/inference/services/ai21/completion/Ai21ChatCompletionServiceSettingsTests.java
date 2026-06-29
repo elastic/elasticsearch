@@ -65,7 +65,7 @@ public class Ai21ChatCompletionServiceSettingsTests extends AbstractBWCSerializa
         assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
-    public void testUpdateServiceSettings_EmptyRateLimitObject_DoesNotChangeSettings() {
+    public void testUpdateServiceSettings_EmptyRateLimitObject_UsesDefaultValue() {
         var originalServiceSettings = new Ai21ChatCompletionServiceSettings(
             INITIAL_TEST_MODEL_ID,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
@@ -74,7 +74,15 @@ public class Ai21ChatCompletionServiceSettingsTests extends AbstractBWCSerializa
             new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>()))
         );
 
-        assertThat(updatedServiceSettings, is(originalServiceSettings));
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new Ai21ChatCompletionServiceSettings(
+                    INITIAL_TEST_MODEL_ID,
+                    new RateLimitSettings(Ai21ChatCompletionServiceSettings.DEFAULT_REQUESTS_PER_MINUTE)
+                )
+            )
+        );
     }
 
     public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {

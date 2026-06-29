@@ -608,11 +608,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         }
     }
 
-    /**
-     * Minimal stored-field visitor that captures the raw (un-decoded) {@code _id} bytes. Used by {@link SliceStoredLeaf}
-     * to bypass the generic {@link Uid#decodeId} path in
-     * {@link org.elasticsearch.index.fieldvisitor.FieldsVisitor#binaryField}.
-     */
+    /** Minimal stored-field visitor that captures the raw (un-decoded) {@code _id} bytes for use by {@link SliceStoredLeaf}. */
     final class RawIdStoredFieldVisitor extends StoredFieldVisitor {
         BytesRef idBytes;
 

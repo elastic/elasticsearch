@@ -15,10 +15,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 
 /**
- * A {@link StoredFieldVisitor} that captures the raw stored {@code _id} bytes of a document without decoding them.
- * On slice-enabled indices a live document stores the plain id while a tombstone stores the compound identity term,
- * so callers that must distinguish the two (version-map restore, changes snapshots) defer decoding by reading the raw
- * bytes here.
+ * A {@link StoredFieldVisitor} that captures the raw stored {@code _id} bytes without decoding them.
+ * Slice-enabled indices store the compound identity term (id ++ slice ++ length byte) for both live docs and
+ * tombstones; the generic stored-field path decodes {@code _id} via {@code Uid.decodeId} which garbles compound
+ * bytes. This visitor captures the raw bytes so callers can use them as the uid key or decode via
+ * {@link org.elasticsearch.index.mapper.IdFieldMapper#decodeIdentity}.
  */
 final class RawIdVisitor extends StoredFieldVisitor {
     BytesRef idBytes;

@@ -58,9 +58,10 @@ public class TransportGetDatasetAction extends TransportLocalProjectMetadataActi
     ) {
         final DatasetMetadata metadata = DatasetMetadata.get(project.metadata());
         // Resolve and type-filter against the local project. Unlike view GET (ViewResolutionService), this does
-        // not consume request.getResolvedIndexExpressions(): the security layer only stores those for resolveViews
-        // requests today, so they are null here and re-resolving from indices() is equivalent. When dataset CRUD
-        // becomes remotable, consume the pre-resolved (cross-project) expressions like view GET does.
+        // not consume request.getResolvedIndexExpressions(): dataset CRUD is local-only today, so re-resolving
+        // from indices() against the local project is equivalent (the security layer stores resolved expressions
+        // for resolveViews requests or under cross-project mode, but a local dataset GET does not need them).
+        // When dataset CRUD becomes remotable, consume the pre-resolved cross-project expressions like view GET.
         final List<String> resolved = indexNameExpressionResolver.datasets(project.metadata(), request.indicesOptions(), request);
         final List<Dataset> hits = new ArrayList<>();
         for (String name : resolved) {

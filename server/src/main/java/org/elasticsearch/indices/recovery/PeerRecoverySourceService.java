@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
@@ -226,7 +226,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 request.shardId().id(),
                 request.targetNode()
             );
-            handler.recoverToTarget(ActionListener.runAfter(listener, () -> ongoingRecoveries.onRecoveryComplete(shard, handler)));
+            handler.recoverToTarget(ActionListener.runAfter(listener, () -> ongoingRecoveries.onRecoveryComplete(shard, handler, true)));
         }
     }
 
@@ -373,14 +373,16 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
         /// Called when an active recovery completes (successfully or not).
         /// Frees the throttling slot and starts any queued recoveries that now fit within the limit.
-        void onRecoveryComplete(IndexShard shard, RecoverySourceHandler handler) {
+        void onRecoveryComplete(IndexShard shard, RecoverySourceHandler handler, boolean startNewRecoveries) {
             synchronized (this) {
                 remove(shard, handler);
                 // Update the recovery stats inside the lock to ensure consistency, and to avoid briefly showing negative counters to users.
                 shard.recoveryStats().sourceRecoveryCompleted();
             }
             schedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
-            startRecoveriesUpToLimit();
+            if (startNewRecoveries) {
+                startRecoveriesUpToLimit();
+            }
         }
 
         void updateMaxConcurrentOutgoingRecoveries(int newMax) {
@@ -417,12 +419,19 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     nextRecovery.request().shardId().id(),
                     nextRecovery.request().targetNode()
                 );
-                executor.execute(
-                    ActionRunnable.wrap(
-                        ActionListener.runAfter(nextRecovery.listener(), () -> onRecoveryComplete(nextRecovery.shard(), nextHandler)),
-                        nextHandler::recoverToTarget
-                    )
-                );
+                try {
+                    executor.execute(
+                        () -> nextHandler.recoverToTarget(
+                            ActionListener.runAfter(
+                                nextRecovery.listener(),
+                                () -> onRecoveryComplete(nextRecovery.shard(), nextHandler, true)
+                            )
+                        )
+                    );
+                } catch (EsRejectedExecutionException e) {
+                    nextRecovery.listener.onFailure(e);
+                    onRecoveryComplete(nextRecovery.shard, nextHandler, false);
+                }
             }
         }
 

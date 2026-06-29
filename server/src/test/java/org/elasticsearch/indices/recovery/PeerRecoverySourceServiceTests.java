@@ -119,7 +119,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
         assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
 
-        service.ongoingRecoveries.onRecoveryComplete(primary1, handler1);
+        service.ongoingRecoveries.onRecoveryComplete(primary1, handler1, true);
         assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
         assertEquals(0, primary3.recoveryStats().currentAsSourceQueued());
         safeAwait(completedListener);
@@ -165,7 +165,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         );
         assertEquals(3, service.ongoingRecoveries.queuedRecoveryCount());
         // Newly processed recoveries will fail immediately: their target allocation ID is not in the shard's routing table
-        service.ongoingRecoveries.onRecoveryComplete(primary1, handler1);
+        service.ongoingRecoveries.onRecoveryComplete(primary1, handler1, true);
         assertEquals(List.of(1, 2, 3), callOrder);
         closeShards(primary1, primary2, primary3, primary4, primary5);
     }
@@ -514,7 +514,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             () -> service.ongoingRecoveries.reestablishRecovery(wrongIdRequest, primary, ActionListener.noop())
         );
 
-        service.ongoingRecoveries.onRecoveryComplete(primary, handler);
+        service.ongoingRecoveries.onRecoveryComplete(primary, handler, true);
         closeShards(primary);
     }
 
@@ -652,7 +652,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
 
         // Stop the service and complete handler1. Lifecycle assertions in the production code must hold.
         // The pending recovery should never start after the service moved to `State.STOPPED`.
-        runInParallel(service::stop, () -> service.ongoingRecoveries.onRecoveryComplete(primary1, handler1));
+        runInParallel(service::stop, () -> service.ongoingRecoveries.onRecoveryComplete(primary1, handler1, true));
         closeShards(primary1, primary2);
     }
 
@@ -982,7 +982,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             closeShards(shard);
 
             // Trigger cascading failures
-            service.ongoingRecoveries.onRecoveryComplete(runningShard, handler);
+            service.ongoingRecoveries.onRecoveryComplete(runningShard, handler, true);
 
             safeAwait(recoveriesCompleted);
             assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());

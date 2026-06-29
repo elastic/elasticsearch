@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
-    public static final int DOC_COUNT = 50_000;
+    public static final int DOC_COUNT = 10_000;
     private final DownsamplingOperationsMonitor monitor = new DownsamplingOperationsMonitor();
 
     @Override

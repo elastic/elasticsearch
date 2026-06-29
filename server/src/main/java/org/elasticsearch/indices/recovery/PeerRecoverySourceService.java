@@ -420,16 +420,15 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     nextRecovery.request().targetNode()
                 );
                 try {
-                    executor.execute(
-                        () -> nextHandler.recoverToTarget(
-                            ActionListener.runAfter(
-                                nextRecovery.listener(),
-                                () -> onRecoveryComplete(nextRecovery.shard(), nextHandler, true)
-                            )
-                        )
+                    final ActionListener<RecoveryResponse> wrappedListener = ActionListener.runAfter(
+                        nextRecovery.listener(),
+                        () -> onRecoveryComplete(nextRecovery.shard(), nextHandler, true)
                     );
+                    executor.execute(() -> nextHandler.recoverToTarget(wrappedListener));
                 } catch (EsRejectedExecutionException e) {
                     nextRecovery.listener.onFailure(e);
+                    // No need to call `startRecoveriesUpToLimit` for synchronous recovery completion,
+                    // the next loop iteration will be in charge of filling the free slot.
                     onRecoveryComplete(nextRecovery.shard, nextHandler, false);
                 }
             }

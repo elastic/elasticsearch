@@ -638,12 +638,6 @@ tests:
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/152115
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testRestartAfterCompletion
-  issue: https://github.com/elastic/elasticsearch/issues/152116
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testSearchPhaseFailureLeak
-  issue: https://github.com/elastic/elasticsearch/issues/152117
 - class: org.elasticsearch.index.engine.InternalEngineTests
   method: testLookupSeqNoByIdInLucene
   issue: https://github.com/elastic/elasticsearch/issues/152120
@@ -755,3 +749,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.microsoft.MicrosoftGraphAuthzPluginIT
   method: testAuthenticationSuccessful
   issue: https://github.com/elastic/elasticsearch/issues/152375
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testRotationCycleWithNoHandlers
+  issue: https://github.com/elastic/elasticsearch/issues/152412
+- class: org.elasticsearch.index.store.BytesReadHeaderIT
+  method: testMultipleIndicesAccumulateBytesRead
+  issue: https://github.com/elastic/elasticsearch/issues/152425

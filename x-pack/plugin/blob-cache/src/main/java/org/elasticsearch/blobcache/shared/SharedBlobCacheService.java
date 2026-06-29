@@ -71,6 +71,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.BiPredicate;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -349,6 +350,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         void forceEvictAsync(Predicate<K> cacheKey);
 
         int forceEvict(ShardId shard, Predicate<K> cacheKeyPredicate);
+
+        int forceEvict(ShardId shard, BiPredicate<K, Integer> regionPredicate);
 
         int demoteAll(ShardId shard);
     }
@@ -899,6 +902,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         throw new UnsupportedOperationException("cache is not an LFUCache");
     }
 
+    // used by tests
+    public long countCachedRegions(ShardId shardId, BiPredicate<KeyType, Integer> regionPredicate) {
+        if (cache instanceof LFUCache lfuCache) {
+            return lfuCache.countCachedRegions(shardId, regionPredicate);
+        }
+        throw new UnsupportedOperationException("cache is not an LFUCache");
+    }
+
     private static void throwAlreadyClosed(String message) {
         throw new AlreadyClosedException(message);
     }
@@ -942,6 +953,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         return cache.forceEvict(shard, cacheKeyPredicate);
     }
 
+    public int forceEvict(ShardId shard, BiPredicate<KeyType, Integer> regionPredicate) {
+        return cache.forceEvict(shard, regionPredicate);
+    }
+
     /**
      * Evict entries from the cache that match the given predicate asynchronously
      *
@@ -982,6 +997,28 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             @Override
             public void onFailure(Exception e) {
                 final String message = "unexpected failure in async demotion task for shard [" + shard + "]";
+                logger.error(message, e);
+                assert false : new AssertionError(message, e);
+            }
+        });
+    }
+
+    /**
+     * Submits a task to be executed asynchronously on the cache eviction thread pool,
+     * respecting the same throttling as other eviction tasks.
+     */
+    public void submitAsyncEviction(Runnable task) {
+        asyncEvictionsRunner.enqueueTask(new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (releasable) {
+                    task.run();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                final String message = "unexpected failure in async eviction task";
                 logger.error(message, e);
                 assert false : new AssertionError(message, e);
             }
@@ -2352,6 +2389,22 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     matchingEntries.add(entry);
                 }
             });
+            return forceEvictEntries(shard, matchingEntries);
+        }
+
+        @Override
+        public int forceEvict(ShardId shard, BiPredicate<KeyType, Integer> regionPredicate) {
+            final List<LFUCacheEntry> matchingEntries = new ArrayList<>();
+            keyMapping.forEach(shard, (key, entry) -> {
+                if (regionPredicate.test(key.file, key.region)) {
+                    matchingEntries.add(entry);
+                }
+            });
+            return forceEvictEntries(shard, matchingEntries);
+        }
+
+        private int forceEvictEntries(final ShardId shardId, final List<LFUCacheEntry> matchingEntries) {
+            assert matchingEntries != null;
 
             var evictedCount = 0;
             var nonZeroFrequencyEvictedCount = 0;
@@ -2361,7 +2414,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         int frequency = entry.freq;
                         boolean evicted = entry.chunk.forceEvict();
                         if (evicted && entry.chunk.volatileIO() != null) {
-                            assert shard.equals(entry.chunk.regionKey.file.shardId());
+                            assert shardId.equals(entry.chunk.regionKey.file.shardId());
                             unlinkAndRemoveForEviction(entry);
                             evictedCount++;
                             if (frequency > 0) {
@@ -2745,6 +2798,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         // used by tests
         long countCachedRegions(Predicate<KeyType> predicate) {
             return keyMapping.countMatchingKey2s(regionKey -> predicate.test(regionKey.file()));
+        }
+
+        // used by tests
+        long countCachedRegions(ShardId shardId, BiPredicate<KeyType, Integer> regionPredicate) {
+            final long[] count = new long[1];
+            keyMapping.forEach(shardId, (key, entry) -> {
+                if (regionPredicate.test(key.file(), key.region())) {
+                    count[0]++;
+                }
+            });
+            return count[0];
         }
 
         // used by tests

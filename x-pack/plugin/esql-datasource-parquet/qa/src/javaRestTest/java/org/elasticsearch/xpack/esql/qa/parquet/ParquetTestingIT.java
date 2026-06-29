@@ -30,7 +30,6 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
-import org.elasticsearch.Build;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -41,9 +40,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.datasource.parquet.PlainCompressionCodecFactory;
 import org.elasticsearch.xpack.esql.datasource.parquet.PlainParquetReadOptions;
-import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
@@ -53,7 +50,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -83,9 +79,6 @@ public class ParquetTestingIT extends ESRestTestCase {
 
     private static final String HASH = "fa255dfacf58c8bab428b5d0117d188acc8ad03f";
     private static final String BASE_URL = "https://raw.githubusercontent.com/apache/parquet-testing/" + HASH;
-
-    /** Single {@code http}-type data source every dataset in this suite binds to; created once, cleaned up at teardown. */
-    private static final String HTTP_DATA_SOURCE = "parquet_http_ds";
 
     /**
      * Good data files from apache/parquet-testing that ESQL should be able to read.
@@ -188,12 +181,6 @@ public class ParquetTestingIT extends ESRestTestCase {
 
     private static CloseableHttpClient httpClient;
 
-    /** Datasets and {@code http} data sources are gated to snapshot builds today (same gate as {@code DataSourceCrudRestIT}). */
-    @BeforeClass
-    public static void requireSnapshotBuild() {
-        assumeTrue("datasources not available in release builds yet", Build.current().isSnapshot());
-    }
-
     @BeforeClass
     public static void initHttpClient() {
         httpClient = HttpClients.createDefault();
@@ -205,21 +192,6 @@ public class ParquetTestingIT extends ESRestTestCase {
             httpClient.close();
             httpClient = null;
         }
-    }
-
-    /** Drops every data source/dataset this suite registered and clears the registry caches for the next suite in the fork. */
-    @AfterClass
-    public static void cleanupDatasets() throws IOException {
-        try {
-            DatasetRegistry.cleanup(client());
-        } finally {
-            DatasetRegistry.clearCaches();
-        }
-    }
-
-    @Before
-    public void registerHttpDataSource() throws IOException {
-        DatasetRegistry.ensureDataSource(client(), HTTP_DATA_SOURCE, "http", Map.of());
     }
 
     private final String parquetFile;
@@ -251,20 +223,15 @@ public class ParquetTestingIT extends ESRestTestCase {
 
     public void testParquetFile() throws Exception {
         String url = BASE_URL + "/" + parquetFile;
-        // Bind a dataset to the file's URL so the query reads it via FROM <dataset> (the http data source is
-        // registered once in registerHttpDataSource). Format is inferred from the .parquet extension; datasets
-        // do not take a format setting.
-        String dataset = sanitizeDatasetName(parquetFile);
-        DatasetRegistry.ensureDataset(client(), dataset, HTTP_DATA_SOURCE, url, null);
 
         if (isBadData) {
-            testBadData(dataset);
+            testBadData(url);
         } else {
-            testGoodData(url, dataset);
+            testGoodData(url);
         }
     }
 
-    private void testGoodData(String url, String dataset) throws Exception {
+    private void testGoodData(String url) throws Exception {
         logger.info("Testing good data: {}", parquetFile);
 
         byte[] parquetBytes = downloadFile(url);
@@ -275,7 +242,7 @@ public class ParquetTestingIT extends ESRestTestCase {
             // parquet-mr can't read this file (e.g. empty snappy page in datapage_v2_empty_datapage.snappy)
             // but ESQL might handle it fine — verify ESQL doesn't error out
             logger.warn("Ground truth reader failed for {}: {} — verifying ESQL reads it OK", parquetFile, e.getMessage());
-            String query = buildQuery(dataset, 100000);
+            String query = buildQuery(url, 100000);
             Map<String, Object> result = runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
             assertNotNull("ESQL should read " + parquetFile + " despite parquet-mr failure", result.get("columns"));
             return;
@@ -286,7 +253,7 @@ public class ParquetTestingIT extends ESRestTestCase {
             return;
         }
 
-        String query = buildQuery(dataset, Math.max(groundTruth.numRows + 1, 100000));
+        String query = buildQuery(url, Math.max(groundTruth.numRows + 1, 100000));
         Map<String, Object> result;
         try {
             result = runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
@@ -341,8 +308,8 @@ public class ParquetTestingIT extends ESRestTestCase {
         }
     }
 
-    private void testBadData(String dataset) throws Exception {
-        String query = buildQuery(dataset, 10000);
+    private void testBadData(String url) throws Exception {
+        String query = buildQuery(url, 10000);
         logger.info("Testing bad data: {}", parquetFile);
 
         if (BAD_DATA_READS_OK.contains(parquetFile)) {
@@ -734,17 +701,8 @@ public class ParquetTestingIT extends ESRestTestCase {
         return java.time.Instant.ofEpochMilli(epochMillis).toString();
     }
 
-    private static String buildQuery(String dataset, int limit) {
-        return "FROM " + dataset + " | LIMIT " + limit;
-    }
-
-    /**
-     * Derives a valid (lowercase, index-name-safe) dataset name from a parquet test-file path, e.g.
-     * {@code bad_data/ARROW-GH-41317.parquet} -> {@code pq_bad_data_arrow_gh_41317_parquet}. The {@code pq_}
-     * prefix guarantees a leading letter and per-file uniqueness across the parameterized suite.
-     */
-    private static String sanitizeDatasetName(String parquetFilePath) {
-        return "pq_" + parquetFilePath.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_");
+    private static String buildQuery(String url, int limit) {
+        return "EXTERNAL \"" + url + "\" | LIMIT " + limit;
     }
 
     private static byte[] downloadFile(String url) throws IOException {

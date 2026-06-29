@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushAggregateThroughUnionAll;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -28,7 +29,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 /**
- * Golden (plan) tests for {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PushAggregateThroughUnionAll}:
+ * Golden (plan) tests for {@link PushAggregateThroughUnionAll}:
  * pushing aggregates through the leaf {@code UnionAll} a heterogeneous {@code FROM} produces.
  *
  * <p>The branches are two external datasets with an <b>identical</b> schema ({@code emp_no}/{@code salary}/{@code dept}).

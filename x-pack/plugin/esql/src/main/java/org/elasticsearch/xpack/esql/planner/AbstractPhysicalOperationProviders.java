@@ -337,12 +337,11 @@ public abstract class AbstractPhysicalOperationProviders {
                         }
                     }
 
-                    AggregatorFunctionSupplier aggSupplier = supplier(aggregateFunction);
-
                     List<Integer> inputChannels = sourceAttr.stream().map(attr -> layout.get(attr.id()).channel()).toList();
                     assert inputChannels.stream().allMatch(i -> i >= 0) : inputChannels;
 
                     // apply the filter only in the initial phase - as the rest of the data is already filtered
+                    AggregatorFunctionSupplier aggSupplier;
                     if (aggregateFunction.hasFilter() && mode.isInputPartial() == false) {
                         ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(
                             foldContext,
@@ -355,7 +354,9 @@ public abstract class AbstractPhysicalOperationProviders {
                         // through the mode-aware *Factory methods, which the plain filter wrapper does not implement).
                         aggSupplier = aggregateFunction instanceof ToPartial toPartial
                             ? toPartial.supplierWithInnerFilter(evalFactory)
-                            : new FilteredAggregatorFunctionSupplier(aggSupplier, evalFactory);
+                            : new FilteredAggregatorFunctionSupplier(supplier(aggregateFunction), evalFactory);
+                    } else {
+                        aggSupplier = supplier(aggregateFunction);
                     }
                     // apply the grouping window in the final phase
                     if (mode.isOutputPartial() == false && aggregateFunction.hasWindow()) {

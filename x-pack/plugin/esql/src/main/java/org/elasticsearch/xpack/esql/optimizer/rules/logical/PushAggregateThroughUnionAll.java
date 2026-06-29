@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -308,7 +309,7 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
      * (HLL sketch, t-digest, Welford state). They are pushed by emitting {@link ToPartial} in each branch
      * and merging via {@link FromPartial} on the coordinator.
      *
-     * <p>All are {@link org.elasticsearch.xpack.esql.planner.ToAggregator}s (required by {@link ToPartial}),
+     * <p>All are {@link ToAggregator}s (required by {@link ToPartial}),
      * but ToAggregator alone is too broad (e.g. VALUES, TOP, SAMPLE), so this is an explicit whitelist.
      * MEDIAN and the histogram/foldable forms of PERCENTILE and COUNT_DISTINCT are rewritten to surrogates
      * before this rule runs and never reach it.

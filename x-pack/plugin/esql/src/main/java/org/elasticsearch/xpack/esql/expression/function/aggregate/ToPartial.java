@@ -22,6 +22,7 @@ import org.elasticsearch.compute.aggregation.ToPartialAggregatorFunction;
 import org.elasticsearch.compute.aggregation.ToPartialGroupingAggregatorFunction;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -30,7 +31,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 /**
@@ -105,6 +108,11 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
     @Override
     public ToPartial withFilter(Expression filter) {
         return new ToPartial(source(), field(), filter, window(), function);
+    }
+
+    @Override
+    public List<Attribute> aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
+        return new ArrayList<>(field().references());
     }
 
     @Override

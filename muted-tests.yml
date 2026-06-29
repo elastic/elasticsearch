@@ -608,9 +608,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.cluster.FloatHierarchicalKMeansTests
   method: testHKmeans
   issue: https://github.com/elastic/elasticsearch/issues/152027
-- class: org.elasticsearch.test.apmintegration.OtelMetricsIT
-  method: testExplicitMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/152030
 - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
   method: testRandomDirectoryIOExceptions
   issue: https://github.com/elastic/elasticsearch/issues/152037
@@ -626,9 +623,6 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerStressTestIT
   method: testMergingFallsBehindAndThenCatchesUp
   issue: https://github.com/elastic/elasticsearch/issues/152045
-- class: org.elasticsearch.search.simple.SimpleSearchIT
-  method: testIpCidrHighCardinality
-  issue: https://github.com/elastic/elasticsearch/issues/152049
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
   method: testDownsampling
   issue: https://github.com/elastic/elasticsearch/issues/152060
@@ -641,9 +635,6 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
   method: testUpdateDownsampleRound
   issue: https://github.com/elastic/elasticsearch/issues/152063
-- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
-  method: testOutageBuffersToDiskAndDrainsOnRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/152087
 - class: org.elasticsearch.xpack.esql.expression.promql.function.PromqlKibanaDefinitionGeneratorTests
   method: testGenerateDefinitions
   issue: https://github.com/elastic/elasticsearch/issues/152095
@@ -749,3 +740,30 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StUnionTests
   method: testFold {TestCase=geo_shape and geo_shape}
   issue: https://github.com/elastic/elasticsearch/issues/152323
+- class: org.elasticsearch.gradle.internal.archunit.IsolatedProjectsArchUnitSpec
+  method: the getRootProject baseline contains no stale entries
+  issue: https://github.com/elastic/elasticsearch/issues/152341
+- class: org.elasticsearch.xpack.transform.integration.TransformGetAndGetStatsIT
+  method: testGetAndGetBasicStats
+  issue: https://github.com/elastic/elasticsearch/issues/152351
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testWatcherWithApiKey {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/152355
+- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
+  method: testExplicitMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/152356
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.create/21_synthetic_source_stored/index param - field ordering}
+  issue: https://github.com/elastic/elasticsearch/issues/152364
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=update/100_synthetic_source/stored text}
+  issue: https://github.com/elastic/elasticsearch/issues/152365
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=update/100_synthetic_source/keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/152366
+- class: org.elasticsearch.test.apmintegration.OtelMetricsIT
+  method: testExplicitMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/152379
+- class: org.elasticsearch.xpack.security.authz.microsoft.MicrosoftGraphAuthzPluginIT
+  method: testAuthenticationSuccessful
+  issue: https://github.com/elastic/elasticsearch/issues/152375

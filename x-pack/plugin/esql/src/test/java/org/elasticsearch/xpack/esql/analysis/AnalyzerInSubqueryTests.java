@@ -3401,7 +3401,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("cluster"));
         assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("cluster"));
 
-        // Only the outer (left-hand) k8s relation should carry the lowered `_timeseries` attribute with the expected withoutFields; the
+        // Only the outer (left-hand) k8s relation should carry the lowered `_timeseries` attribute with the expected skipFieldNames; the
         // right-hand subquery relation must not be polluted. The outer aggregate uses sum() (not a TS-required function) so the left
         // relation's index mode is rewritten to STANDARD; the subquery uses rate() and so its relation stays TIME_SERIES.
         assertK8sRelationWithTimeseriesWithout(semiJoin.left(), IndexMode.STANDARD, Set.of("pod", "region"));
@@ -3705,7 +3705,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
 
     /**
      * Asserts that the given plan is the k8s TS source relation and that it carries a lowered {@code _timeseries}
-     * {@code TimeSeriesMetadataAttribute} with the expected {@code withoutFields}. {@code TranslateTimeSeriesWithout} injects this
+     * {@code TimeSeriesMetadataAttribute} with the expected {@code skipFieldNames}. {@code TranslateTimeSeriesWithout} injects this
      * attribute only into the main (left-hand) TS source feeding the outer aggregate, never into the subquery (right-hand) relation.
      */
     private static void assertK8sRelationWithTimeseriesWithout(

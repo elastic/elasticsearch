@@ -222,7 +222,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 request.shardId().id(),
                 request.targetNode()
             );
-            handler.recoverToTarget(ActionListener.runAfter(listener, () -> ongoingRecoveries.onRecoveryComplete(shard, handler, true)));
+            handler.recoverToTarget(ActionListener.runAfter(listener, () -> ongoingRecoveries.onRecoveryComplete(shard, handler)));
         }
     }
 
@@ -369,16 +369,14 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
         /// Called when an active recovery completes (successfully or not).
         /// Frees the throttling slot and starts any queued recoveries that now fit within the limit.
-        void onRecoveryComplete(IndexShard shard, RecoverySourceHandler handler, boolean startNewRecoveries) {
+        void onRecoveryComplete(IndexShard shard, RecoverySourceHandler handler) {
             synchronized (this) {
                 remove(shard, handler);
                 // Update the recovery stats inside the lock to ensure consistency, and to avoid briefly showing negative counters to users.
                 shard.recoveryStats().sourceRecoveryCompleted();
             }
             schedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
-            if (startNewRecoveries) {
-                startRecoveriesUpToLimit();
-            }
+            startRecoveriesUpToLimit();
         }
 
         void updateMaxConcurrentOutgoingRecoveries(int newMax) {
@@ -417,7 +415,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 );
                 final ActionListener<RecoveryResponse> wrappedListener = ActionListener.runAfter(
                     nextRecovery.listener(),
-                    () -> onRecoveryComplete(nextRecovery.shard(), nextHandler, true)
+                    () -> onRecoveryComplete(nextRecovery.shard(), nextHandler)
                 );
                 // Generic executor cannot throw `EsRejectedExecutionException` (unbounded queue + rejectAfterShutdown=false)
                 transportService.getThreadPool().generic().execute(() -> nextHandler.recoverToTarget(wrappedListener));

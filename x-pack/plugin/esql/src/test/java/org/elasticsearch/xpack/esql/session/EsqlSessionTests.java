@@ -8,20 +8,31 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.index.MappingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
 import java.util.Arrays;
@@ -29,6 +40,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
@@ -251,6 +264,75 @@ public class EsqlSessionTests extends ESTestCase {
             var resolved = Map.of(RemoteClusterAware.splitIndexName(index).getClusterGroupingKey(), List.of(index));
             return IndexResolution.valid(new EsIndex(index, Map.of(), Map.of(), resolved, resolved));
         }));
+    }
+
+    /**
+     * Wiring test: {@code preAnalyzeExternalSources} must forward the computed
+     * {@code pathsRequiringStats} set — always non-null — to {@code ExternalSourceResolver#resolve}.
+     * A {@code LIMIT}-shaped plan forwards an empty (defer-everything) set. Uses a capturing fake
+     * resolver to assert the argument actually reaches {@code resolve(...)}.
+     */
+    public void testPreAnalyzeExternalSourcesForwardsEmptySetForLimit() {
+        String path = "s3://bucket/data/*.parquet";
+        UnresolvedExternalRelation relation = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), Map.of());
+        LogicalPlan plan = new Limit(EMPTY, new Literal(EMPTY, 10, DataType.INTEGER), relation);
+
+        Set<String> captured = capturePathsRequiringStats(plan, path);
+        assertNotNull("wiring must forward a non-null set", captured);
+        assertTrue("LIMIT forwards an empty set (defer everything)", captured.isEmpty());
+    }
+
+    /**
+     * Wiring test: an ungrouped {@code STATS COUNT(*)} over an external relation forwards a set
+     * containing the relation's path, so the resolver keeps eager all-file stats aggregation for it.
+     */
+    public void testPreAnalyzeExternalSourcesForwardsPathForUngroupedStats() {
+        String path = "s3://bucket/data/*.parquet";
+        UnresolvedExternalRelation relation = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), Map.of());
+        LogicalPlan plan = new Aggregate(EMPTY, relation, List.of(), List.of());
+
+        assertEquals(Set.of(path), capturePathsRequiringStats(plan, path));
+    }
+
+    /**
+     * Drives {@code EsqlSession#preAnalyzeExternalSources} with a capturing {@link ExternalSourceResolver}
+     * and returns the {@code pathsRequiringStats} argument it forwarded to {@code resolve(...)}.
+     */
+    private static Set<String> capturePathsRequiringStats(LogicalPlan plan, String path) {
+        AtomicReference<Set<String>> captured = new AtomicReference<>();
+        AtomicBoolean resolveCalled = new AtomicBoolean();
+        ExternalSourceResolver capturingResolver = new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, null) {
+            @Override
+            public void resolve(
+                List<String> paths,
+                Map<String, Map<String, Object>> pathConfigs,
+                Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+                Set<String> pathsRequiringStats,
+                ActionListener<ExternalSourceResolution> listener
+            ) {
+                resolveCalled.set(true);
+                captured.set(pathsRequiringStats);
+                listener.onResponse(ExternalSourceResolution.EMPTY);
+            }
+        };
+
+        PreAnalyzer.PreAnalysis preAnalysis = new PreAnalyzer.PreAnalysis(
+            Map.of(),
+            List.of(),
+            List.of(),
+            Set.of(),
+            false,
+            false,
+            false,
+            List.of(path),
+            List.of()
+        );
+        EsqlSession.PreAnalysisResult result = new EsqlSession.PreAnalysisResult(Set.of(), Set.of());
+        PlainActionFuture<EsqlSession.PreAnalysisResult> future = new PlainActionFuture<>();
+        EsqlSession.preAnalyzeExternalSources(capturingResolver, plan, preAnalysis, result, future);
+        future.actionGet();
+        assertTrue("resolve must be invoked when icebergPaths is non-empty", resolveCalled.get());
+        return captured.get();
     }
 
     private static IndexResolution resolvedIndex(String indexName) {

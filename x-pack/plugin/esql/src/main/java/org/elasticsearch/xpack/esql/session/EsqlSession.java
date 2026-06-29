@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -1343,7 +1344,7 @@ public class EsqlSession {
                 executionInfo.queryProfile().indicesResolutionMarker().stop();
                 return r;
             })
-            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeExternalSources(parsed, preAnalysis, r, l))
+            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeExternalSources(externalSourceResolver, parsed, preAnalysis, r, l))
             .<PreAnalysisResult>andThen((l, r) -> {
                 // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
                 executionInfo.queryProfile().enrichResolutionMarker().start();
@@ -1476,7 +1477,10 @@ public class EsqlSession {
      * This runs in parallel with other resolution steps to avoid blocking.
      * Extracts partition filter hints from the WHERE clause for partition-aware glob rewriting.
      */
-    private void preAnalyzeExternalSources(
+    // package-private static so EsqlSessionTests can drive the wiring with a capturing
+    // ExternalSourceResolver and assert that the computed pathsRequiringStats set is forwarded.
+    static void preAnalyzeExternalSources(
+        ExternalSourceResolver externalSourceResolver,
         LogicalPlan plan,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
@@ -1491,10 +1495,16 @@ public class EsqlSession {
 
         var filterHints = PartitionFilterHintExtractor.extract(plan);
 
+        // Always non-null (empty when no ungrouped aggregate is present). A non-null set switches the
+        // resolver to selective eager stats: only the listed paths read every file's footer at
+        // planning time; the rest defer (see ExternalStatsRequirementExtractor).
+        Set<String> pathsRequiringStats = ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan);
+
         externalSourceResolver.resolve(
             preAnalysis.icebergPaths(),
             pathConfigs,
             filterHints.isEmpty() ? null : filterHints,
+            pathsRequiringStats,
             listener.map(result::withExternalSourceResolution)
         );
     }

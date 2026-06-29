@@ -47,14 +47,6 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
         verify("FROM test | INLINE STATS COUNT() BY last_name | LIMIT 10");
     }
 
-    public void testVerify_inlineStats_disabled() {
-        assumeTrue("needs approximation inline stats disabled", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled() == false);
-        assertError(
-            "FROM test | INLINE STATS COUNT() BY last_name | LIMIT 10",
-            equalTo("line 1:13: approximation not supported: query with [INLINE STATS COUNT() BY last_name] cannot be approximated")
-        );
-    }
-
     public void testVerify_lookupJoin() {
         assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
         verify(
@@ -74,43 +66,12 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
         );
     }
 
-    public void testVerify_lookupJoin_disabled() {
-        assumeTrue("needs approximation lookup join disabled", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled() == false);
-        assertError(
-            "FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()",
-            equalTo("line 1:13: approximation not supported: query with [LOOKUP JOIN test_lookup ON emp_no] cannot be approximated")
-        );
-    }
-
     public void testVerify_fork() {
         assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
         verify("FROM test | FORK (EVAL x=1 | STATS c = COUNT()) (EVAL y=1 | STATS c = COUNT())");
         verify("FROM test | FORK (EVAL x=1) (EVAL y=1) | STATS c = COUNT()");
         verify("FROM test | FORK (WHERE true) (STATS c = COUNT())");
         verify("FROM test | STATS COUNT() | FORK (WHERE true) (WHERE true)");
-    }
-
-    public void testVerify_fork_disabled() {
-        assumeTrue("needs approximation fork disabled", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled() == false);
-        assertError(
-            "FROM test | FORK (EVAL x=1 | STATS c = COUNT()) (EVAL y=1 | STATS c = COUNT())",
-            equalTo(
-                "line 1:13: approximation not supported: "
-                    + "query with [FORK (EVAL x=1 | STATS c = COUNT()) (EVAL y=1 | STATS c = COUNT())] cannot be approximated"
-            )
-        );
-        assertError(
-            "FROM test | FORK (EVAL x=1) (EVAL y=1) | STATS c = COUNT()",
-            equalTo("line 1:13: approximation not supported: query with [FORK (EVAL x=1) (EVAL y=1)] cannot be approximated")
-        );
-        assertError(
-            "FROM test | FORK (WHERE true) (STATS c = COUNT())",
-            equalTo("line 1:13: approximation not supported: query with [FORK (WHERE true) (STATS c = COUNT())] cannot be approximated")
-        );
-        assertError(
-            "FROM test | STATS COUNT() | FORK (WHERE true) (WHERE true)",
-            equalTo("line 1:29: approximation not supported: query with [FORK (WHERE true) (WHERE true)] cannot be approximated")
-        );
     }
 
     public void testVerify_nestedSubqueries() {
@@ -386,6 +347,5 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
             "FROM test | FORK (STATS MAX(emp_no)) (WHERE true) (STATS COUNT_DISTINCT(emp_no))",
             equalTo("line 1:25: approximation not supported: aggregation function [MAX(emp_no)] cannot be approximated")
         );
-
     }
 }

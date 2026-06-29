@@ -150,19 +150,19 @@ setup:
   - match: { hits.hits.2._id: "3" }
   - match: { hits.hits.3._id: "4" }
 ---
-"Search without _slice is rejected on slice-enabled index":
+"Search without _slice defaults to _all on slice-enabled index":
   - do:
-      catch: /\[_slice\] is required when \[index.slice.enabled\] is true for search request/
       search:
         index: bbq_disk_slice
         body:
           query:
             match_all: {}
 
+  - match: { hits.total.value: 4 }
+
 ---
-"KNN search requires _slice when slice indexing is enabled":
+"KNN search without _slice defaults to _all on slice-enabled index":
   - do:
-      catch: /\[_slice\] is required when \[index.slice.enabled\] is true for search request/
       search:
         index: bbq_disk_slice
         body:
@@ -171,6 +171,9 @@ setup:
             query_vector: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
             k: 1
             num_candidates: 10
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
 
 ---
 "Index requires _slice when slice indexing is enabled":

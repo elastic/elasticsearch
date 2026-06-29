@@ -16,7 +16,10 @@
           "name" : "buckets",
           "type" : "date_period",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -34,19 +37,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "date",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "date",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -64,109 +76,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "date",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "keyword",
-          "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "date"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "date",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
-        },
-        {
-          "name" : "from",
-          "type" : "date",
-          "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "text",
-          "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "date"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "date",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
-        },
-        {
-          "name" : "from",
-          "type" : "keyword",
-          "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "date",
-          "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "date"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "date",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
-        },
-        {
-          "name" : "from",
-          "type" : "keyword",
-          "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "keyword",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -184,19 +115,67 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "from",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "to",
+          "type" : "text",
+          "optional" : false,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
-          "type" : "text",
+          "type" : "date",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -214,49 +193,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
-          "type" : "text",
+          "type" : "keyword",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "date",
-          "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "date"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "date",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
-        },
-        {
-          "name" : "from",
-          "type" : "text",
-          "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "keyword",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -274,19 +232,145 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
-          "type" : "text",
+          "type" : "keyword",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "text",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "from",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "to",
+          "type" : "date",
+          "optional" : false,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "from",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "to",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "from",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "to",
+          "type" : "text",
+          "optional" : false,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -304,7 +388,10 @@
           "name" : "buckets",
           "type" : "time_duration",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -322,7 +409,10 @@
           "name" : "buckets",
           "type" : "date_period",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -340,19 +430,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "date",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "date",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -370,19 +469,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "date",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "keyword",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -400,19 +508,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "date",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "text",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -430,19 +547,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "date",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -460,19 +586,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "keyword",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -490,19 +625,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "text",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -520,19 +664,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "text",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "date",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -550,19 +703,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "text",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "keyword",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -580,19 +742,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "text",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "text",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -610,7 +781,10 @@
           "name" : "buckets",
           "type" : "time_duration",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -628,7 +802,10 @@
           "name" : "buckets",
           "type" : "double",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -646,7 +823,10 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -664,19 +844,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "double",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "double",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -694,19 +883,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "double",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "integer",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -724,49 +922,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "double",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "long",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "double",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
-        },
-        {
-          "name" : "from",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "double",
-          "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -784,19 +961,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "integer",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
-          "type" : "integer",
+          "type" : "double",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -814,19 +1000,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "integer",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
-          "type" : "long",
+          "type" : "integer",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -844,49 +1039,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
-          "type" : "long",
+          "type" : "integer",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
-          "type" : "double",
-          "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "double",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
-        },
-        {
-          "name" : "from",
           "type" : "long",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -904,19 +1078,106 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "long",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "to",
+          "type" : "double",
+          "optional" : false,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "to",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "long",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -934,7 +1195,10 @@
           "name" : "buckets",
           "type" : "long",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -952,7 +1216,10 @@
           "name" : "buckets",
           "type" : "double",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -970,7 +1237,10 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -988,19 +1258,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "double",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "double",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -1018,19 +1297,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "double",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "integer",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -1048,19 +1336,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "double",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "long",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -1078,19 +1375,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "integer",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "double",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -1108,19 +1414,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "integer",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "integer",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -1138,19 +1453,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "integer",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "long",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -1168,163 +1492,148 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "long",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "double",
-          "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
-        },
-        {
-          "name" : "from",
-          "type" : "long",
-          "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
-        },
-        {
-          "name" : "from",
-          "type" : "long",
-          "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "long",
-          "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "long",
-          "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "long",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "double",
-          "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "long",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "long",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
-        },
-        {
-          "name" : "from",
-          "type" : "double",
-          "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "double",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "to",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "to",
+          "type" : "long",
+          "optional" : false,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -1342,79 +1651,49 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
           "type" : "double",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "long",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
-        },
-        {
-          "name" : "from",
-          "type" : "double",
-          "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
-        },
-        {
-          "name" : "to",
-          "type" : "long",
-          "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "double"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "long",
-          "optional" : false,
-          "description" : "Numeric or date expression from which to derive buckets."
-        },
-        {
-          "name" : "buckets",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
-        },
-        {
-          "name" : "from",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "double",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -1432,19 +1711,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
-          "type" : "integer",
+          "type" : "double",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "integer",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -1462,19 +1750,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
-          "type" : "integer",
+          "type" : "double",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "long",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -1492,19 +1789,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
-          "type" : "long",
+          "type" : "integer",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "double",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -1522,19 +1828,28 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
-          "type" : "long",
+          "type" : "integer",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "integer",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -1552,19 +1867,145 @@
           "name" : "buckets",
           "type" : "integer",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "from",
-          "type" : "long",
+          "type" : "integer",
           "optional" : false,
-          "description" : "Start of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "to",
           "type" : "long",
           "optional" : false,
-          "description" : "End of the range. Can be a number, a date or a date expressed as a string."
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "to",
+          "type" : "double",
+          "optional" : false,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "to",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Numeric or date expression from which to derive buckets."
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Start of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        },
+        {
+          "name" : "to",
+          "type" : "long",
+          "optional" : false,
+          "description" : "End of the range. Can be a number, a date or a date expressed as a string.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -1582,7 +2023,10 @@
           "name" : "buckets",
           "type" : "long",
           "optional" : false,
-          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+          "description" : "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,

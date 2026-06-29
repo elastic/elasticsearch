@@ -338,4 +338,28 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertEquals(0L, stats.columnMin("EventDate"));
         assertEquals(totalRows - 1, stats.columnMax("EventDate"));
     }
+
+    public void testMergeStatisticsTextDropsColumnNotObservedInEveryFile() {
+        // Text partial-harvest (implicitNulls=false): file A harvested value's min/max, file B never
+        // observed value (e.g. a COUNT(*) scan). The dataset cannot serve a correct MIN(value), so
+        // value is dropped entirely -> the consumer safe-misses rather than serving A's subset min.
+        Map<String, Object> withValue = new HashMap<>();
+        withValue.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 20_000L);
+        withValue.put(SourceStatisticsSerializer.columnMinKey("value"), 1_000_000L);
+        withValue.put(SourceStatisticsSerializer.columnMaxKey("value"), 1_019_999L);
+
+        Map<String, Object> countOnly = new HashMap<>();
+        countOnly.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 20_000L);
+
+        Map<String, Object> text = SourceStatisticsSerializer.mergeStatistics(List.of(withValue, countOnly), false);
+        assertNotNull(text);
+        assertEquals("COUNT(*) stays warm", 40_000L, ((Number) text.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        assertFalse("value unobserved in some file -> dropped", text.containsKey(SourceStatisticsSerializer.columnMinKey("value")));
+        assertFalse(text.containsKey(SourceStatisticsSerializer.columnMaxKey("value")));
+
+        // Same inputs under footer semantics (implicitNulls=true) keep value's extremum: an absent
+        // column is all-null, which does not move the min/max.
+        Map<String, Object> footer = SourceStatisticsSerializer.mergeStatistics(List.of(withValue, countOnly), true);
+        assertEquals(1_000_000L, footer.get(SourceStatisticsSerializer.columnMinKey("value")));
+    }
 }

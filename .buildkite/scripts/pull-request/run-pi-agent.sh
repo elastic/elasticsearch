@@ -14,9 +14,9 @@ DEVELOCITY_API_KEY=$(vault read -field=develocity_api_token secret/ci/elastic-el
 export DEVELOCITY_API_KEY
 
 # ── bootstrap nono sandbox (cached after first run on this agent) ────────
+echo "--- nono: install"
 NONO_BIN="${HOME}/.local/bin/nono"
 if [[ ! -x "${NONO_BIN}" ]]; then
-  echo "--- Installing nono sandbox CLI"
   NONO_VERSION=$(curl -fsSL -I https://github.com/always-further/nono/releases/latest \
     | grep -i "^location:" | grep -oP 'v\K[0-9a-zA-Z.-]+' | tr -d '\r')
   NONO_ARCH=$(dpkg --print-architecture)
@@ -35,10 +35,12 @@ fi
 export PATH="${HOME}/.local/bin:${PATH}"
 
 # ── verify kernel sandbox support and pull pi profile pack ────────────
+echo "--- nono: verify sandbox + pull pi profile"
 nono setup --check-only
 nono pull always-further/pi
 
 # ── bootstrap pi-agent (cached after first run on this agent) ─────────
+echo "--- pi-agent: install"
 PI_AGENT_DIR="${HOME}/.local/pi-agent"
 if [[ ! -x "${PI_AGENT_DIR}/bin/pi-agent.js" ]]; then
 # Use the gh_token from Vault (org-level access needed for the private release repo)
@@ -67,13 +69,17 @@ rm -rf "${TMPDIR_DL}"
 fi
 
 # ── run ───────────────────────────────────────────────────────────────
-echo --- Running pi-agent analysis
+# +++ expands this section by default in the BK log so the pi-agent output
+# is immediately visible without having to open a collapsed group.
+echo "+++ pi-agent: analysis"
 
 # Hard cap: kill the agent after 30 minutes so it can't silently burn the
 # full 60-minute BK step timeout. If it hasn't finished by then it is
 # either stuck or the task is too large for a single CI step.
+# -v makes nono log each sandbox allow/deny decision for observability.
 timeout --signal=TERM --kill-after=60s 30m \
   nono run \
+    -v \
     --profile always-further/pi \
     --allow "${PI_AGENT_DIR}" \
     --allow-cwd \

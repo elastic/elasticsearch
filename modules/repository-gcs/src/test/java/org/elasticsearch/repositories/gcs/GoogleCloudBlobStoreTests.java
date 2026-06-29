@@ -13,7 +13,6 @@ import com.google.cloud.storage.StorageClass;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -166,8 +165,6 @@ public class GoogleCloudBlobStoreTests extends ESTestCase {
         final GoogleCloudStorageClientSettings clientSettings = mock(GoogleCloudStorageClientSettings.class);
         when(clientSettings.getTenaciousRetriesEnabled()).thenReturn(randomBoolean());
         when(storageService.clientSettings(any(), any())).thenReturn(clientSettings);
-        final ClusterService mockClusterService = BlobStoreTestUtil.mockClusterService();
-        when(mockClusterService.getSettings()).thenReturn(Settings.EMPTY);
         return new GoogleCloudStorageRepository(
             randomProjectIdOrDefault(),
             new RepositoryMetadata(
@@ -181,12 +178,11 @@ public class GoogleCloudBlobStoreTests extends ESTestCase {
             ),
             NamedXContentRegistry.EMPTY,
             storageService,
-            mockClusterService,
+            BlobStoreTestUtil.mockClusterService(),
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             mock(GcsRepositoryStatsCollector.class),
             SnapshotMetrics.NOOP
         );
     }
-
 }

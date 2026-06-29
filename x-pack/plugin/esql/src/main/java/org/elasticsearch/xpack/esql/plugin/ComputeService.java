@@ -37,6 +37,9 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
@@ -107,7 +110,9 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS;
@@ -172,6 +177,7 @@ public class ComputeService {
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
     private final UserAgentParserRegistry userAgentParserRegistry;
+    private final IpLocationService ipLocationService;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
@@ -205,6 +211,7 @@ public class ComputeService {
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = transportActionServices.inferenceService();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
+        this.ipLocationService = transportActionServices.ipLocationService();
         this.clusterService = transportActionServices.clusterService();
         this.projectResolver = transportActionServices.projectResolver();
         this.dataNodeComputeHandler = new DataNodeComputeHandler(
@@ -236,16 +243,36 @@ public class ComputeService {
         return formatReaderRegistry;
     }
 
-    PhysicalPlan discoverSplits(PhysicalPlan plan) {
+    PhysicalPlan discoverSplits(PhysicalPlan plan, Configuration configuration, EsqlExecutionInfo execInfo, BooleanSupplier isCancelled) {
         if (operatorFactoryRegistry == null) {
             return plan;
         }
         try {
-            PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(plan, operatorFactoryRegistry.sourceFactories());
-            return coalesceSplits(discovered);
+            SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+                plan,
+                operatorFactoryRegistry.sourceFactories(),
+                maxRecordBytes(configuration),
+                isCancelled
+            );
+            recordExternalScanStats(execInfo, result);
+            return coalesceSplits(result.plan());
+        } catch (TaskCancelledException e) {
+            // Cancellation is not a discovery failure — propagate it without the warn.
+            throw e;
         } catch (Exception e) {
             LOGGER.warn("split discovery failed for external source", e);
             throw e;
+        }
+    }
+
+    /**
+     * Adds the post-prune external scan accounting to the query profile. The counts are captured
+     * before split coalescing, so {@code splits_scanned} reflects the pre-coalesce discovered split
+     * count rather than the smaller post-coalesce count.
+     */
+    private static void recordExternalScanStats(EsqlExecutionInfo execInfo, SplitDiscoveryPhase.Result result) {
+        if (execInfo != null && result.splitsScanned() > 0) {
+            execInfo.queryProfile().addExternalScanStats(result.filesScanned(), result.splitsScanned(), result.bytesScanned());
         }
     }
 
@@ -277,8 +304,13 @@ public class ComputeService {
         };
     }
 
-    ExternalDistributionResult applyExternalDistributionStrategy(PhysicalPlan plan, Configuration configuration) {
-        List<ExternalSplit> externalSplits = collectExternalSplits(plan);
+    ExternalDistributionResult applyExternalDistributionStrategy(
+        PhysicalPlan plan,
+        Configuration configuration,
+        EsqlExecutionInfo execInfo,
+        BooleanSupplier isCancelled
+    ) {
+        List<ExternalSplit> externalSplits = collectExternalSplits(plan, configuration, execInfo, isCancelled);
         if (externalSplits.isEmpty()) {
             return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, List.of());
         }
@@ -311,12 +343,23 @@ public class ComputeService {
         }
     }
 
-    private List<ExternalSplit> collectExternalSplits(PhysicalPlan plan) {
+    private List<ExternalSplit> collectExternalSplits(
+        PhysicalPlan plan,
+        Configuration configuration,
+        EsqlExecutionInfo execInfo,
+        BooleanSupplier isCancelled
+    ) {
         List<ExternalSplit> splits = new ArrayList<>();
+        // A physical plan is produced by a single mapper, so top-level ExternalSourceExec nodes and
+        // fragment-wrapped ExternalRelation nodes never coexist: the distributed Mapper wraps every
+        // ExternalRelation in a FragmentExec (handled by discoverSplitsFromFragments below), while the
+        // LocalMapper lowers each one to a physical ExternalSourceExec. Splits already attached to a
+        // top-level ExternalSourceExec were accounted for by discoverSplits, so only the fragment path
+        // needs to record scan stats here.
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
         if (splits.isEmpty()) {
             if (canSkipSplitDiscovery(plan, formatReaderRegistry) == false) {
-                discoverSplitsFromFragments(plan, splits);
+                discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo, isCancelled);
                 if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
                     if (coalesced != splits) {
@@ -414,19 +457,35 @@ public class ComputeService {
         return result;
     }
 
-    private void discoverSplitsFromFragments(PhysicalPlan plan, List<ExternalSplit> splits) {
+    private void discoverSplitsFromFragments(
+        PhysicalPlan plan,
+        List<ExternalSplit> splits,
+        int maxRecordBytes,
+        EsqlExecutionInfo execInfo,
+        BooleanSupplier isCancelled
+    ) {
         if (operatorFactoryRegistry == null) {
             return;
         }
         plan.forEachDown(FragmentExec.class, fragment -> {
             fragment.fragment().forEachDown(ExternalRelation.class, external -> {
                 ExternalSourceExec tempExec = external.toPhysicalExec();
-                PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(tempExec, operatorFactoryRegistry.sourceFactories());
-                if (discovered instanceof ExternalSourceExec withSplits) {
+                SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+                    tempExec,
+                    operatorFactoryRegistry.sourceFactories(),
+                    maxRecordBytes,
+                    isCancelled
+                );
+                if (result.plan() instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
                 }
+                recordExternalScanStats(execInfo, result);
             });
         });
+    }
+
+    private static int maxRecordBytes(Configuration configuration) {
+        return Math.toIntExact(configuration.pragmas().maxRecordSize().getBytes());
     }
 
     static PhysicalPlan collapseExternalSourceExchanges(PhysicalPlan plan) {
@@ -699,8 +758,18 @@ public class ComputeService {
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile
     ) {
-        final PhysicalPlan splitPlan = discoverSplits(physicalPlan);
-        final ExternalDistributionResult distributionResult = applyExternalDistributionStrategy(splitPlan, configuration);
+        final PhysicalPlan splitPlan;
+        final ExternalDistributionResult distributionResult;
+        try {
+            // Phase 2 split discovery runs synchronously here and can be long (thousands of footer
+            // reads); thread the query's cancellation signal so a cancel aborts it promptly. A cancel
+            // (or any discovery failure) is surfaced through the listener rather than thrown raw.
+            splitPlan = discoverSplits(physicalPlan, configuration, execInfo, rootTask::isCancelled);
+            distributionResult = applyExternalDistributionStrategy(splitPlan, configuration, execInfo, rootTask::isCancelled);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         final PhysicalPlan resolvedPlan = distributionResult.plan();
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             resolvedPlan,
@@ -1133,11 +1202,17 @@ public class ComputeService {
         ActionListener<DriverCompletionInfo> listener
     ) {
         var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
+        LongSupplier directoryBytesRead = directoryBytesReadSupplier(searchService.getIndicesService());
+        // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
+        // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that
+        // happens on this SEARCH thread before drivers are dispatched to the ESQL_WORKER pool.
+        long bytesBefore = directoryBytesRead.getAsLong();
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
             shardContexts,
             searchService.getIndicesService().getAnalysis(),
-            plannerSettings
+            plannerSettings,
+            directoryBytesRead
         );
 
         try {
@@ -1155,6 +1230,8 @@ public class ComputeService {
                 lookupFromIndexService,
                 inferenceService,
                 userAgentParserRegistry,
+                ipLocationService,
+                projectResolver,
                 physicalOperationProviders,
                 operatorFactoryRegistry
             );
@@ -1235,6 +1312,7 @@ public class ComputeService {
                 throw new IllegalStateException("no drivers created");
             }
             LOGGER.debug("using {} drivers", drivers.size());
+            long planningBytesRead = planningBytesRead(directoryBytesRead, bytesBefore);
             // Pass the ORIGINAL plan (immutable, not transformed) for profiling
             ActionListener<Void> driverListener = addCompletionInfo(
                 listener,
@@ -1242,7 +1320,8 @@ public class ComputeService {
                 context,
                 localPlan,
                 logicalPlanString,
-                planTimeProfile
+                planTimeProfile,
+                planningBytesRead
             );
             driverRunner.executeDrivers(
                 task,
@@ -1265,7 +1344,8 @@ public class ComputeService {
         ComputeContext context,
         PhysicalPlan localPlan,
         String logicalPlanString,
-        PlanTimeProfile planTimeProfile
+        PlanTimeProfile planTimeProfile,
+        long planningBytesRead
     ) {
         /*
          * We *really* don't want to close over the localPlan because it can
@@ -1282,7 +1362,8 @@ public class ComputeService {
                     transportService.getLocalNode().getName(),
                     planString,
                     logicalPlanString,
-                    planTimeProfile
+                    planTimeProfile,
+                    planningBytesRead
                 );
                 LOGGER.debug("finished {}", driverCompletionInfo);
                 if (context.configuration().profile()) {
@@ -1295,8 +1376,26 @@ public class ComputeService {
                 }
             }
 
-            return DriverCompletionInfo.excludingProfiles(drivers);
+            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead);
         });
+    }
+
+    /**
+     * Supplier for per-thread store directory bytes used by Lucene operators and planner-time accounting.
+     * Returns zero when the {@code directory_metrics} feature flag is disabled.
+     */
+    static LongSupplier directoryBytesReadSupplier(IndicesService indicesService) {
+        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
+            return indicesService::currentStoreBytesRead;
+        }
+        return () -> 0L;
+    }
+
+    /**
+     * SEARCH-thread planner bytes read delta, matching the snapshot taken at the start of {@link #runCompute}.
+     */
+    static long planningBytesRead(LongSupplier directoryBytesRead, long bytesBefore) {
+        return Math.max(0L, directoryBytesRead.getAsLong() - bytesBefore);
     }
 
     // public for testing

@@ -838,6 +838,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
+            null,
+            null,
             esPhysicalOperationProviders(shardContexts),
             operatorFactoryRegistry
         );
@@ -871,7 +873,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FoldContext.small(),
             new IndexedByShardIdFromList<>(shardContexts),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            () -> 0L
         );
     }
 

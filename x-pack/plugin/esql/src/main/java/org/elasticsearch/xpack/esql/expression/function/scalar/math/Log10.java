@@ -38,10 +38,13 @@ public class Log10 extends UnaryScalarFunction {
         .unaryValueTransformation(Log10::new)
         .description("Calculates the decimal logarithm for all elements in the input vector.")
         .example("log10(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.LOG_DOMAIN_NOTE)
         .name("log10");
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the base-10 logarithm of a number.",
         description = "Returns the logarithm of a value to base 10. The input can "
             + "be any numeric value, the return value is always a double.\n"
             + "\n"

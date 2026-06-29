@@ -23,9 +23,11 @@ import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -35,6 +37,9 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -52,6 +57,11 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         MappedFieldType.FieldExtractPreference.DOC_VALUES,
         MappedFieldType.FieldExtractPreference.STORED };
 
+    protected static final SourceFieldMapper.Mode[] SOURCE_MODES = {
+        SourceFieldMapper.Mode.STORED,
+        SourceFieldMapper.Mode.SYNTHETIC,
+        SourceFieldMapper.Mode.COLUMNAR_STORED };
+
     /**
      * A large enough size that loading the field won't circuit break.
      */
@@ -66,22 +76,25 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             : List.of(IndexMode.STANDARD);
 
         for (IndexMode indexMode : modes) {
-            for (boolean syntheticSource : new boolean[] { false, true }) {
-                // COLUMNAR already implies synthetic source mode; skip the non-synthetic combo to avoid invalid configurations.
-                if (indexMode == IndexMode.COLUMNAR && syntheticSource == false) {
+            for (SourceFieldMapper.Mode sourceMode : SOURCE_MODES) {
+                if (indexMode.supportedSourceModes().contains(sourceMode) == false) {
                     continue;
                 }
                 for (MappedFieldType.FieldExtractPreference preference : PREFERENCES) {
-                    args.add(new Object[] { new Params(syntheticSource, preference, indexMode) });
+                    args.add(new Object[] { new Params(indexMode, sourceMode, preference) });
                 }
             }
         }
         return args;
     }
 
-    public record Params(boolean syntheticSource, MappedFieldType.FieldExtractPreference preference, IndexMode indexMode) {
-        public Params(boolean syntheticSource, MappedFieldType.FieldExtractPreference preference) {
-            this(syntheticSource, preference, IndexMode.STANDARD);
+    public record Params(IndexMode indexMode, SourceFieldMapper.Mode sourceMode, MappedFieldType.FieldExtractPreference preference) {
+        public boolean syntheticSource() {
+            return sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
+        }
+
+        public boolean isColumnarStored() {
+            return sourceMode == SourceFieldMapper.Mode.COLUMNAR_STORED;
         }
     }
 
@@ -101,13 +114,98 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     protected BlockLoaderTestCase(String fieldType, Collection<DataSourceHandler> customDataSourceHandlers, Params params) {
         this.fieldType = fieldType;
         this.params = params;
-        this.customDataSourceHandlers = customDataSourceHandlers;
+        this.customDataSourceHandlers = withSingleValueDocValues(fieldType, customDataSourceHandlers);
         this.runner = new BlockLoaderTestRunner(params);
         if (randomBoolean()) {
             runner.allowDummyDocs();
         }
 
         this.fieldName = randomAlphaOfLengthBetween(5, 10);
+    }
+
+    /**
+     * Field types whose mappers enforce single-value semantics through {@code doc_values.multi_value: false}. Only these may carry the
+     * parameter, so the coordinated single-value handler below is injected for them alone.
+     */
+    private static final Set<String> SINGLE_VALUE_ENFORCING_TYPES = Set.of(
+        "keyword",
+        "text",
+        "match_only_text",
+        "long",
+        "integer",
+        "short",
+        "byte",
+        "double",
+        "float",
+        "half_float",
+        "unsigned_long",
+        "scaled_float",
+        "boolean",
+        "date",
+        "ip"
+    );
+
+    /**
+     * On a random subset of runs (feature-flag permitting), prepend a handler that forces {@code doc_values.multi_value: false} on the
+     * target field while keeping generated documents single-valued, so the enforced mapping is exercised without rejecting documents.
+     */
+    private static Collection<DataSourceHandler> withSingleValueDocValues(String fieldType, Collection<DataSourceHandler> customHandlers) {
+        boolean singleValueRun = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
+            && SINGLE_VALUE_ENFORCING_TYPES.contains(fieldType)
+            && ESTestCase.randomBoolean();
+        if (singleValueRun == false) {
+            return customHandlers;
+        }
+        // Prepend so the single-value array wrapper takes precedence over any default wrapper for this run.
+        var handlers = new ArrayList<DataSourceHandler>();
+        handlers.add(new SingleValueDocValuesDataSourceHandler());
+        handlers.addAll(customHandlers);
+        return handlers;
+    }
+
+    /**
+     * Coordinated handler pairing two decisions that otherwise run independently: it forces {@code doc_values.multi_value: false} on
+     * single-value-enforcing fields and, in lock-step, never wraps values into arrays of length two or more. Without the coupling the
+     * enforced mapping would reject any document the array wrapper happened to make multi-valued.
+     */
+    private static final class SingleValueDocValuesDataSourceHandler implements DataSourceHandler {
+        @Override
+        public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
+            if (SINGLE_VALUE_ENFORCING_TYPES.contains(request.fieldType()) == false) {
+                // Leave non-enforcing fields (e.g. multi-field subfields of other types) to the default handlers.
+                return null;
+            }
+            // Delegate directly to the default handler to keep all other generated parameters, then only rewrite doc_values.
+            var defaults = new DefaultMappingParametersHandler().handle(request);
+            if (defaults == null) {
+                return null;
+            }
+            return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
+                var mapping = new HashMap<>(defaults.mappingGenerator().get());
+                mapping.put("doc_values", Map.of("multi_value", false));
+                return mapping;
+            });
+        }
+
+        @Override
+        public DataSourceResponse.ArrayWrapper handle(DataSourceRequest.ArrayWrapper request) {
+            // multi_value: false rejects documents with more than one value, so only ever emit a scalar, an empty array, or one element.
+            return new DataSourceResponse.ArrayWrapper(values -> () -> {
+                if (ESTestCase.randomBoolean()) {
+                    var size = ESTestCase.randomIntBetween(0, 1);
+                    return IntStream.range(0, size).mapToObj(i -> values.get()).toList();
+                }
+                return values.get();
+            });
+        }
+
+        @Override
+        public DataSourceResponse.ObjectArrayGenerator handle(DataSourceRequest.ObjectArrayGenerator request) {
+            // Arrays of objects would repeat a leaf field across elements, producing multiple values for it and tripping the
+            // single-value enforcement, so never wrap objects into arrays while this handler is active.
+            return new DataSourceResponse.ObjectArrayGenerator(Optional::empty);
+        }
+
     }
 
     @Override
@@ -210,7 +308,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
         // synthetic_source_keep is rejected on strict-columnar indices, so the fallback-through-ignored-source path can only be exercised
         // on non-strict-columnar synthetic-source indices.
-        if (params.syntheticSource && params.indexMode.isStrictColumnar() == false && randomBoolean()) {
+        if (params.syntheticSource() && params.indexMode.isStrictColumnar() == false && randomBoolean()) {
             // force fallback synthetic source in the hierarchy
             var docMapping = (Map<String, Object>) mapping.raw().get("_doc");
             var topLevelMapping = (Map<String, Object>) ((Map<String, Object>) docMapping.get("properties")).get("top");
@@ -327,12 +425,8 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     public static Settings.Builder getSettingsForParams(Params params) {
         var builder = Settings.builder();
-        if (params.syntheticSource()) {
-            builder.put("index.mapping.source.mode", "synthetic");
-        }
-        if (params.indexMode() != IndexMode.STANDARD) {
-            builder.put(IndexSettings.MODE.getKey(), params.indexMode().name());
-        }
+        builder.put("index.mapping.source.mode", params.sourceMode().name());
+        builder.put(IndexSettings.MODE.getKey(), params.indexMode().name());
         return builder;
     }
 
@@ -378,6 +472,9 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                         // synthetic_source_keep and store are forbidden on strict-columnar indices
                         mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
                         mapping.remove("store");
+                        // doc_values cannot be disabled on strict-columnar indices (a disabled field would not be
+                        // reconstructable from doc values), so let it fall back to the (enabled) default.
+                        mapping.remove(FieldMapper.DocValuesParameter.PARAMETER_NAME);
                         return mapping;
                     });
                 }

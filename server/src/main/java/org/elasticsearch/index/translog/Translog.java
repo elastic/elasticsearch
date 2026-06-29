@@ -16,7 +16,6 @@ import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -704,7 +703,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                             + "]"
                     );
                 }
-                return current.addBatch(serialized, batch.ops());
+                return current.addBatch(serialized, batch);
             } finally {
                 readLock.unlock();
             }
@@ -1915,8 +1914,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         public IndexBatch(BytesReference batchData, long primaryTerm, List<Op> ops) {
-            assert ShardBatchIndexer.BATCH_INDEXING_FEATURE_FLAG.isEnabled()
-                : "IndexBatch is only valid when the batch_indexing feature flag is enabled";
             if (ops.isEmpty()) {
                 throw new IllegalArgumentException("a batch must contain at least one document");
             }

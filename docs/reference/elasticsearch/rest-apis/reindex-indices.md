@@ -88,9 +88,9 @@ POST _reindex
 
 ## Reindex asynchronously [docs-reindex-task-api]
 
-If the request contains `wait_for_completion=false`, {{es}} performs some preflight checks, launches the request, and returns a task ID you can use to [manage](#monitor-reindex-tasks) the operation.
+If the request contains `wait_for_completion=false`, {{es}} performs some preflight checks, launches the request, and returns a `task` ID you can use to [manage](#monitor-reindex-tasks) the operation.
 
-For long-running reindexes, prefer async reindexes. Synchronous reindex keeps a client waiting on the node that received the request and this will time out.
+For long-running reindexes, prefer asynchronous reindexes. Synchronous reindex keeps a client waiting on the node that received the request and this will time out.
 
 ## Reindex multiple indices sequentially [docs-reindex-multiple-sequentially]
 
@@ -128,13 +128,13 @@ Set the underlying search keep-alive long enough that a slower batch does not ex
 ::::{applies-switch}
 
 :::{applies-item} { "stack": "ga 9.5+", "serverless": "ga" }
-Reindex reads the source with point-in-time pagination for local reindexes and for reindex from remote when the remote cluster is {{es}} 7.10 or later (so a PIT can be opened there). The top-level `scroll` parameter on the reindex request has no effect on that path.
+Reindex reads the source with point-in-time pagination for local reindexes and for reindex from remote when the remote cluster is {{es}} 7.10 or later (so a PIT can be opened there). Use [`cluster.reindex.pit.keep_alive`](/reference/elasticsearch/configuration-reference/index-management-settings.md#reindex-settings) to change how long those contexts stay open. The top-level `scroll` parameter on the reindex request has no effect on that path.
 
-Reindex from a remote cluster older than {{es}} 7.10 cannot use the PIT path and falls back to scroll; the `scroll` parameter then sets scroll keep-alive (not `cluster.reindex.pit.keep_alive`). Use [`cluster.reindex.pit.keep_alive`](/reference/elasticsearch/configuration-reference/index-management-settings.md#reindex-settings) to change how long those contexts stay open.
+Reindex from a remote cluster older than {{es}} 7.10 cannot use the PIT path and falls back to scroll. The `scroll` parameter then sets scroll keep-alive.
 :::
 
 :::{applies-item} { "stack": "ga 9.0-9.4" }
-Reindex uses scroll-based pagination for local and remote sources. The `scroll` parameter sets scroll keep-alive; allow enough time for throttling gaps between batches.
+Reindex uses scroll-based pagination for local and remote sources. The `scroll` parameter sets scroll keep-alive.
 :::
 
 ::::
@@ -328,7 +328,7 @@ POST _reindex
 ```
 % TEST[s/^/PUT source\n/]
 
-By default the reindex API reads the source in batches of 1000 documents (the search `size` on `source`). The same batch size applies whether the run uses scroll-based or point-in-time pagination. You can change it with the `size` field in the `source` element:
+By default the reindex API reads the source in batches of 1000 documents. The same batch size applies whether the run uses scroll-based or point-in-time pagination. You can change it with the `size` field in the `source` element:
 
 ```console
 POST _reindex
@@ -618,7 +618,7 @@ Setting `_version` to `null` or clearing it from the `ctx` map is like not sendi
 ## Reindex from remote [reindex-from-remote]
 ```{applies_to}
 stack: ga
-serverless: preview
+serverless: ga
 ```
 
 Reindex supports reindexing from a remote {{es}} cluster:
@@ -658,7 +658,7 @@ It is also possible (and encouraged) to authenticate with the remote cluster thr
 
 ::::{applies-switch}
 
-:::{applies-item} { "stack": "ga 9.3+", "serverless": "preview" }
+:::{applies-item} { "stack": "ga 9.3+", "serverless": "ga" }
 ```console
 POST _reindex
 {
@@ -731,7 +731,7 @@ The remote hosts that you can use depend on whether you're using the versioned {
 
   The list of allowed hosts must be configured on any node that will coordinate the reindex.
 
-* In {{serverless-full}}, all remote hosts in any {{ecloud}} region are allowed, including {{ech}} deployments and {{serverless-short}} projects. {applies_to}`serverless: preview`
+* In {{serverless-full}}, all remote hosts in any {{ecloud}} region are allowed, including {{ech}} deployments and {{serverless-short}} projects.
 
 ### Compatibility [reindex-remote-compatibility]
 

@@ -2,8 +2,8 @@
 description: Execution and HTTP constraints for PromQL in Elasticsearch, including unsupported constructs and instant-query behavior.
 navigation_title: Limitations
 applies_to:
-  stack: preview 9.4.0
-  serverless: preview
+  stack: preview 9.4, ga 9.5
+  serverless: ga
 products:
   - id: elasticsearch
 ---
@@ -13,11 +13,6 @@ products:
 PromQL reads metrics stored in [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS).
 The following constraints apply to execution in {{es}}, including the [Prometheus-compatible HTTP API](promql-http-api.md) and the {{esql}} [`PROMQL`](/reference/query-languages/esql/commands/promql.md) source command, unless stated otherwise.
 They describe behavioral differences and unsupported areas compared with upstream Prometheus.
-
-::::{warning}
-This functionality is in technical preview and might be changed or removed in a future release.
-Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
 
 ## Form-encoded POST requests (HTTP API) [promql-limitations-form-post]
 
@@ -47,16 +42,22 @@ For now, a series stops appearing in results only once all its samples fall outs
 The majority of PromQL expressions run unchanged.
 The following constructs are not evaluated yet, so they return a client error (4xx):
 
-- Binary set operators: `and`, `or`, `unless`
+- Binary set operators: `and` and `unless`. The `or` operator is supported only at the top level of an expression; nested `or` returns a client error (4xx).
 - Group modifiers: `on(...)`, `group_left`, `group_right`
-- Functions: `histogram_quantile`, `predict_linear`, `label_join`
+- Functions: see [Not yet supported](functions.md#promql-not-supported) for the full list of recognized but unimplemented functions.
+
+## Native histograms [promql-limitations-native-histograms]
+
+Prometheus native histograms are not supported yet.
+PromQL functions operate on float samples; series stored as native histograms are not evaluated.
 
 ## Metric metadata `help` (HTTP API) [promql-limitations-metadata-help]
 
 On [`/api/v1/metadata`](promql-http-api.md#promql-http-api-metadata-endpoint), each metric includes a `help` string shaped like Prometheus `HELP` lines.
-In this preview the `help` field is always an empty string. Help text from metric definitions is not surfaced yet.
+Metric definition help text is not surfaced yet, so the `help` field remains an empty string.
 
 ## Exemplar queries (HTTP API) [promql-limitations-exemplars]
 
-`/api/v1/query_exemplars` is not implemented yet.
-Turn off exemplar queries in your Prometheus-compatible client for now (for example, the Grafana data source exemplars option) so it does not call that endpoint.
+`/api/v1/query_exemplars` is not implemented yet, so exemplar queries are not supported.
+To avoid errors, turn off exemplar queries in your Prometheus-compatible client.
+In Grafana, go to **Data sources → Elasticsearch → Exemplars** and disable all configured exemplar links.

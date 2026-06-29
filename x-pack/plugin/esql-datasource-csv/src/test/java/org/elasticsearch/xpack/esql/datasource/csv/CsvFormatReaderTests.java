@@ -9,10 +9,14 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -34,6 +38,7 @@ import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -199,6 +204,78 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
             assertEquals(95.5, ((DoubleBlock) page.getBlock(1)).getDouble(0), 0.001);
         }
+    }
+
+    /**
+     * Early-close leak regression. {@code CsvFormatReader}'s batch iterator buffers one look-ahead page
+     * in {@code hasNext()}; before it extended
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator} a consumer that closed
+     * after {@code hasNext()} but before {@code next()} (a pushed-down {@code LIMIT}, a cancellation, a
+     * downstream error) left that page's blocks unreleased against the breaker. These tests drive a real
+     * read on a tracking breaker and assert usage returns to zero.
+     */
+    private static String multiRowCsv(int rows) {
+        StringBuilder sb = new StringBuilder("id:integer\n");
+        for (int i = 1; i <= rows; i++) {
+            sb.append(i).append('\n');
+        }
+        return sb.toString();
+    }
+
+    private static BlockFactory trackingBlockFactory(CircuitBreaker[] outBreaker) {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        outBreaker[0] = breaker;
+        return BlockFactory.builder(bigArrays).breaker(breaker).build();
+    }
+
+    public void testCloseAfterHasNextWithoutNextDoesNotLeak() throws IOException {
+        CircuitBreaker[] breaker = new CircuitBreaker[1];
+        BlockFactory trackingFactory = trackingBlockFactory(breaker);
+
+        StorageObject object = createStorageObject(multiRowCsv(50));
+        CsvFormatReader reader = new CsvFormatReader(trackingFactory);
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("id"), 8)) {
+            assertTrue(iterator.hasNext()); // materializes (and allocates) the first look-ahead page
+            assertThat("hasNext must have buffered a page", breaker[0].getUsed(), Matchers.greaterThan(0L));
+            // Abandon without next(): try-with-resources close() must release the buffered page.
+        }
+        assertEquals("the buffered look-ahead page must be released on early close", 0L, breaker[0].getUsed());
+    }
+
+    public void testCloseMidStreamDoesNotLeak() throws IOException {
+        CircuitBreaker[] breaker = new CircuitBreaker[1];
+        BlockFactory trackingFactory = trackingBlockFactory(breaker);
+
+        StorageObject object = createStorageObject(multiRowCsv(50));
+        CsvFormatReader reader = new CsvFormatReader(trackingFactory);
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("id"), 8)) {
+            assertTrue(iterator.hasNext());
+            iterator.next().releaseBlocks();
+            assertTrue(iterator.hasNext());
+            iterator.next().releaseBlocks();
+            assertTrue(iterator.hasNext()); // buffers a third page that we never consume
+            assertThat(breaker[0].getUsed(), Matchers.greaterThan(0L));
+        }
+        assertEquals("no page may leak when the consumer aborts mid-stream", 0L, breaker[0].getUsed());
+    }
+
+    public void testCloseAfterFullConsumptionDoesNotLeak() throws IOException {
+        CircuitBreaker[] breaker = new CircuitBreaker[1];
+        BlockFactory trackingFactory = trackingBlockFactory(breaker);
+
+        StorageObject object = createStorageObject(multiRowCsv(20));
+        CsvFormatReader reader = new CsvFormatReader(trackingFactory);
+        int totalRows = 0;
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("id"), 8)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                totalRows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(20, totalRows);
+        assertEquals("draining to exhaustion then closing must leave the breaker at zero", 0L, breaker[0].getUsed());
     }
 
     public void testReadWithBatching() throws IOException {
@@ -829,7 +906,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             Map.of("delimiter", "\t", "multi_value_syntax", "brackets")
         );
         byte[] data = "before\t[line1\nline2\nline3]\tafter\nnext\n".getBytes(StandardCharsets.UTF_8);
-        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals("before\t[line1\nline2\nline3]\tafter\n".length(), boundary);
     }
 
@@ -841,7 +918,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             Map.of("delimiter", "\t", "multi_value_syntax", "brackets")
         );
         byte[] data = "a\t[[cell\ninner]]\tb\nz\n".getBytes(StandardCharsets.UTF_8);
-        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals("a\t[[cell\ninner]]\tb\n".length(), boundary);
     }
 
@@ -852,7 +929,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             Map.of("delimiter", "\t", "multi_value_syntax", "none")
         );
         byte[] data = "before\t[not\nmvc]\tafter\nnext\n".getBytes(StandardCharsets.UTF_8);
-        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals("before\t[not\n".length(), boundary);
     }
 
@@ -863,10 +940,10 @@ public class CsvFormatReaderTests extends ESTestCase {
             Map.of("delimiter", "\t", "multi_value_syntax", "brackets")
         );
         byte[] data = "a\t[x\ny]\tb\nc\t[m\nn]\td\n".getBytes(StandardCharsets.UTF_8);
-        long firstBoundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        long firstBoundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals("a\t[x\ny]\tb\n".length(), firstBoundary);
         byte[] tail = "c\t[m\nn]\td\n".getBytes(StandardCharsets.UTF_8);
-        long secondBoundary = reader.findNextRecordBoundary(new ByteArrayInputStream(tail));
+        long secondBoundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(tail));
         assertEquals(tail.length, secondBoundary);
     }
 
@@ -1484,7 +1561,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String data = "1\ta\"b\tc\n2\td\"e\"f\"g\th\n";
         byte[] buf = data.getBytes(StandardCharsets.UTF_8);
 
-        int boundary = reader.findLastRecordBoundary(buf, buf.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(buf, buf.length);
         assertEquals("must find the terminating newline of the last complete record", buf.length - 1, boundary);
         assertEquals('\n', (char) buf[boundary]);
     }
@@ -1495,7 +1572,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String row = clickBenchShapedTsvRow();
         byte[] buf = (row + row).getBytes(StandardCharsets.UTF_8);
 
-        int boundary = reader.findLastRecordBoundary(buf, buf.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(buf, buf.length);
         assertEquals(buf.length - 1, boundary);
         assertEquals('\n', (char) buf[boundary]);
     }
@@ -1507,7 +1584,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String data = row1 + "2\td\te\n";
         byte[] buf = data.getBytes(StandardCharsets.UTF_8);
 
-        long consumed = reader.findNextRecordBoundary(new BufferedInputStream(new ByteArrayInputStream(buf)));
+        long consumed = reader.recordSplitter().findNextRecordBoundary(new BufferedInputStream(new ByteArrayInputStream(buf)));
         assertEquals(row1.length(), consumed);
     }
 
@@ -1520,8 +1597,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         String row1 = "\"a\"\"b\"\tc\n"; // quoted field a"b (doubled quote), then c
         byte[] buf = (row1 + "d\te\n").getBytes(StandardCharsets.UTF_8);
 
-        assertEquals(row1.length(), reader.findNextRecordBoundary(new BufferedInputStream(new ByteArrayInputStream(buf))));
-        assertEquals(buf.length - 1, reader.findLastRecordBoundary(buf, buf.length));
+        assertEquals(row1.length(), reader.recordSplitter().findNextRecordBoundary(new BufferedInputStream(new ByteArrayInputStream(buf))));
+        assertEquals(buf.length - 1, reader.recordSplitter().findLastRecordBoundary(buf, buf.length));
     }
 
     /** Oracle: the boundary scanner and {@link CsvFormatReader#readCsvRecord} must agree on record count, CSV and TSV. */
@@ -1550,7 +1627,15 @@ public class CsvFormatReaderTests extends ESTestCase {
             // Oracle: records produced by the real tokenizer.
             int parserRecords = 0;
             try (BufferedReader br = new BufferedReader(new StringReader(data))) {
-                while (CsvFormatReader.readCsvRecord(br, options.quoteChar(), delim, bracketAware) != null) {
+                CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
+                    br,
+                    options.quoteChar(),
+                    delim,
+                    SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                    options.encoding(),
+                    options.quoting()
+                );
+                while (recordReader.readRecord(bracketAware) != null) {
                     parserRecords++;
                 }
             }
@@ -1558,13 +1643,13 @@ public class CsvFormatReaderTests extends ESTestCase {
             // Scanner: records found by driving findNextRecordBoundary forward.
             int scannerRecords = 0;
             BufferedInputStream in = new BufferedInputStream(new ByteArrayInputStream(buf));
-            while (reader.findNextRecordBoundary(in) >= 0) {
+            while (reader.recordSplitter().findNextRecordBoundary(in) >= 0) {
                 scannerRecords++;
             }
 
             assertEquals("record count mismatch (tsv=" + tsv + ") for data:\n" + data, parserRecords, scannerRecords);
             // Buffer ends on a complete record, so the last byte is the final record boundary.
-            assertEquals(buf.length - 1, reader.findLastRecordBoundary(buf, buf.length));
+            assertEquals(buf.length - 1, reader.recordSplitter().findLastRecordBoundary(buf, buf.length));
         }
     }
 
@@ -1590,7 +1675,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 sb.append('\n');
             }
             byte[] buf = sb.toString().getBytes(StandardCharsets.UTF_8);
-            int boundary = reader.findLastRecordBoundary(buf, buf.length);
+            int boundary = reader.recordSplitter().findLastRecordBoundary(buf, buf.length);
             assertEquals("returned -1 for a buffer ending on a complete record:\n" + sb, buf.length - 1, boundary);
         }
     }
@@ -3132,20 +3217,20 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testFindNextRecordBoundarySimpleNewline() throws IOException {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         byte[] data = "field1,field2\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(data.length, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals(data.length, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextRecordBoundaryCRLF() throws IOException {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         byte[] data = "field1,field2\r\n".getBytes(StandardCharsets.UTF_8);
-        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals("field1,field2\r\n".indexOf('\n') + 1, boundary);
     }
 
     public void testFindNextRecordBoundaryNewlineInsideQuotes() throws IOException {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         byte[] data = "\"field\nwith\nnewlines\",other\nreal_boundary\n".getBytes(StandardCharsets.UTF_8);
-        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         int expected = "\"field\nwith\nnewlines\",other\n".length();
         assertEquals(expected, boundary);
     }
@@ -3153,7 +3238,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testFindNextRecordBoundaryEscapedQuotes() throws IOException {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         byte[] data = "\"value with \"\"escaped\"\" quotes\"\nrest\n".getBytes(StandardCharsets.UTF_8);
-        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         int expected = "\"value with \"\"escaped\"\" quotes\"\n".length();
         assertEquals(expected, boundary);
     }
@@ -3161,12 +3246,12 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testFindNextRecordBoundaryEofNoNewline() throws IOException {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         byte[] data = "field1,field2".getBytes(StandardCharsets.UTF_8);
-        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals(-1, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextRecordBoundaryEmptyStream() throws IOException {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(new byte[0])));
+        assertEquals(-1, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(new byte[0])));
     }
 
     public void testFindNextRecordBoundaryQuotedNewlineAcrossSplitBoundary() throws IOException {
@@ -3174,7 +3259,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Simulate a split boundary landing inside a quoted field with embedded newlines.
         // The boundary finder must skip past the quoted field to find the real record boundary.
         byte[] data = "partial,\"quoted\nfield\nwith\nnewlines\",end\nnext_record,b,c\n".getBytes(StandardCharsets.UTF_8);
-        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         int expected = "partial,\"quoted\nfield\nwith\nnewlines\",end\n".length();
         assertEquals(expected, boundary);
     }
@@ -3252,28 +3337,28 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Stray `"` inside an unquoted cell must not switch the scanner into quote mode; otherwise the
         // first `\n` is skipped and the segment boundary lands far past the next record.
         byte[] data = "1,Inch \" mark,42\n2,plain,7\n".getBytes(StandardCharsets.UTF_8);
-        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals("1,Inch \" mark,42\n".length(), boundary);
     }
 
     public void testFindNextRecordBoundaryNewlineInsideBracketMvc() throws IOException {
         CsvFormatReader reader = mvcReader(blockFactory);
         byte[] data = "before,[line1\nline2\nline3],after\nnext\n".getBytes(StandardCharsets.UTF_8);
-        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals("before,[line1\nline2\nline3],after\n".length(), boundary);
     }
 
     public void testFindNextRecordBoundaryNestedBracketMvcWithEmbeddedNewlines() throws IOException {
         CsvFormatReader reader = mvcReader(blockFactory);
         byte[] data = "a,[[cell\ninner]],b\nz\n".getBytes(StandardCharsets.UTF_8);
-        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals("a,[[cell\ninner]],b\n".length(), boundary);
     }
 
     public void testFindNextRecordBoundaryMultiValueSyntaxNoneDoesNotTreatBracketsAsMvc() throws IOException {
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "none"));
         byte[] data = "before,[not\nmvc],after\nnext\n".getBytes(StandardCharsets.UTF_8);
-        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals("before,[not\n".length(), boundary);
     }
 
@@ -3282,33 +3367,33 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testFindLastRecordBoundarySimpleTwoLines() throws IOException {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         byte[] data = "a,b\nc,d\n".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
     }
 
     public void testFindLastRecordBoundarySingleTrailingLineNoTerminator() throws IOException {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         byte[] data = "a,b\nc,d".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(3, boundary);
     }
 
     public void testFindLastRecordBoundaryEmpty() throws IOException {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        assertEquals(-1, reader.findLastRecordBoundary(new byte[0], 0));
+        assertEquals(-1, reader.recordSplitter().findLastRecordBoundary(new byte[0], 0));
     }
 
     public void testFindLastRecordBoundaryAllInsideQuotedField() throws IOException {
         // Unterminated quoted cell: no boundary; caller must grow.
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         byte[] data = "\"line one\nline two\nline three\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(-1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(-1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
     public void testFindLastRecordBoundarySkipsEmbeddedNewlineInQuotedField() throws IOException {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         byte[] data = "\"row1\nwith\nembedded\",a\nrow2,b\n".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
     }
 
@@ -3316,7 +3401,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Complete row, then an unterminated quoted field whose closing quote is in the next chunk.
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         byte[] data = "row1,a\n\"row2 starts here\nstill inside quote".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals("row1,a\n".length() - 1, boundary);
     }
 
@@ -3324,7 +3409,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Embedded \n inside [..] must not be a boundary.
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         byte[] data = "a,[v1\nv2\nv3],b\nrow2,plain,c\n".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
     }
 
@@ -3334,14 +3419,14 @@ public class CsvFormatReaderTests extends ESTestCase {
         byte[] padded = new byte[body.length + 64];
         System.arraycopy(body, 0, padded, 0, body.length);
         Arrays.fill(padded, body.length, padded.length, (byte) 0xff);
-        int boundary = reader.findLastRecordBoundary(padded, body.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(padded, body.length);
         assertEquals(body.length - 1, boundary);
     }
 
     public void testFindLastRecordBoundaryCRLF() throws IOException {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         byte[] data = "a,b\r\nc,d\r\n".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
         assertEquals('\n', data[boundary]);
     }
@@ -3350,7 +3435,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // RFC 4180: "" is a literal quote inside a quoted field, not close-then-reopen.
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         byte[] data = "\"value with \"\"escaped\"\" quotes\"\nrest\n".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
         assertEquals('\n', data[boundary]);
     }
@@ -3373,7 +3458,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testFindLastRecordBoundaryQuotedFieldsOnlyTsvSimpleTwoLines() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "a\tb\nc\td\n".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
         assertEquals('\n', data[boundary]);
     }
@@ -3381,26 +3466,26 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testFindLastRecordBoundaryQuotedFieldsOnlyTsvSingleTrailingLineNoTerminator() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "a\tb\nc\td".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(3, boundary);
     }
 
     public void testFindLastRecordBoundaryQuotedFieldsOnlyTsvEmpty() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
-        assertEquals(-1, reader.findLastRecordBoundary(new byte[0], 0));
+        assertEquals(-1, reader.recordSplitter().findLastRecordBoundary(new byte[0], 0));
     }
 
     public void testFindLastRecordBoundaryQuotedFieldsOnlyTsvNoNewline() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "a\tb\tc".getBytes(StandardCharsets.UTF_8);
-        assertEquals(-1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(-1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
     public void testFindLastRecordBoundaryQuotedFieldsOnlyEmbeddedNewlineInQuotedField() throws IOException {
         // multi_value_syntax=none routes through the QuotedFieldsOnly path; \n inside "..." is NOT a boundary.
         CsvFormatReader reader = noMvcReader(blockFactory);
         byte[] data = "\"row1\nwith\nembedded\",a\nrow2,b\n".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
     }
 
@@ -3408,7 +3493,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // One complete row, then an unterminated quoted field — open-tail contract: return the row's terminator.
         CsvFormatReader reader = noMvcReader(blockFactory);
         byte[] data = "row1,a\n\"row2 starts here\nstill inside quote".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals("row1,a\n".length() - 1, boundary);
     }
 
@@ -3416,13 +3501,13 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Unterminated quoted cell from byte 0: no boundary.
         CsvFormatReader reader = noMvcReader(blockFactory);
         byte[] data = "\"line one\nline two\nline three\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(-1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(-1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
     public void testFindLastRecordBoundaryQuotedFieldsOnlyDoubledQuoteEscape() throws IOException {
         CsvFormatReader reader = noMvcReader(blockFactory);
         byte[] data = "\"value with \"\"escaped\"\" quotes\"\nrest\n".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
         assertEquals('\n', data[boundary]);
     }
@@ -3430,7 +3515,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testFindLastRecordBoundaryQuotedFieldsOnlyCRLF() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "a\tb\r\nc\td\r\n".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
         assertEquals('\n', data[boundary]);
     }
@@ -3441,7 +3526,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         byte[] padded = new byte[body.length + 64];
         System.arraycopy(body, 0, padded, 0, body.length);
         Arrays.fill(padded, body.length, padded.length, (byte) 0xff);
-        int boundary = reader.findLastRecordBoundary(padded, body.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(padded, body.length);
         assertEquals(body.length - 1, boundary);
     }
 
@@ -3452,7 +3537,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = noMvcReader(blockFactory);
         for (int trial = 0; trial < 50; trial++) {
             byte[] data = randomQuotedFieldsCsv(randomIntBetween(0, 4096));
-            int override = reader.findLastRecordBoundary(data, data.length);
+            int override = reader.recordSplitter().findLastRecordBoundary(data, data.length);
             int oracle = referenceDefaultDriver(reader, data, data.length);
             assertEquals("trial " + trial + " input=" + new String(data, StandardCharsets.UTF_8), oracle, override);
         }
@@ -3471,7 +3556,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Replays the {@link SegmentableFormatReader#findLastRecordBoundary} default body — drives
+     * Replays the {@link RecordSplitter#findLastRecordBoundary} default body — drives
      * the current {@code findNextRecordBoundary} forward through the buffer. Used as the
      * equivalence oracle for the override.
      */
@@ -3482,7 +3567,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         int lastBoundary = -1;
         int cumulative = 0;
         while (cumulative < length) {
-            long consumed = reader.findNextRecordBoundary(new ByteArrayInputStream(buf, cumulative, length - cumulative));
+            long consumed = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(buf, cumulative, length - cumulative));
             if (consumed < 0) {
                 return lastBoundary;
             }
@@ -3496,85 +3581,85 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     public void testFindNextBoundaryQfoEmptyStream() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
-        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(new byte[0])));
+        assertEquals(-1, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(new byte[0])));
     }
 
     public void testFindNextBoundaryQfoNoTerminator() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "abc\tdef\tghi".getBytes(StandardCharsets.UTF_8);
-        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals(-1, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextBoundaryQfoLeadingNewline() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "\nrest".getBytes(StandardCharsets.UTF_8);
-        assertEquals(1, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals(1, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextBoundaryQfoSimpleRecord() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "a\tb\tc\nrest".getBytes(StandardCharsets.UTF_8);
-        assertEquals("a\tb\tc\n".length(), reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals("a\tb\tc\n".length(), reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextBoundaryQfoOpenQuoteThenEof() throws IOException {
         // Unpaired opening quote, stream ends — no boundary.
         CsvFormatReader reader = noMvcReader(blockFactory);
         byte[] data = "\"abc".getBytes(StandardCharsets.UTF_8);
-        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals(-1, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextBoundaryQfoQuotedFieldThenNewline() throws IOException {
         CsvFormatReader reader = noMvcReader(blockFactory);
         byte[] data = "\"abc\"\nrest".getBytes(StandardCharsets.UTF_8);
-        assertEquals("\"abc\"\n".length(), reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals("\"abc\"\n".length(), reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextBoundaryQfoEmbeddedNewlineInQuotes() throws IOException {
         // \n inside a quoted field is not a boundary.
         CsvFormatReader reader = noMvcReader(blockFactory);
         byte[] data = "\"line1\nline2\"\nrest".getBytes(StandardCharsets.UTF_8);
-        assertEquals("\"line1\nline2\"\n".length(), reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals("\"line1\nline2\"\n".length(), reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextBoundaryQfoDoubledQuoteIsLiteral() throws IOException {
         CsvFormatReader reader = noMvcReader(blockFactory);
         byte[] data = "\"a\"\"b\"\nrest".getBytes(StandardCharsets.UTF_8);
-        assertEquals("\"a\"\"b\"\n".length(), reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals("\"a\"\"b\"\n".length(), reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextBoundaryQfoDoubledQuoteThenNewline() throws IOException {
         // RFC quirk: doubled quote at the very end of a field, then \n.
         CsvFormatReader reader = noMvcReader(blockFactory);
         byte[] data = "\"a\"\"\"\nrest".getBytes(StandardCharsets.UTF_8);
-        assertEquals("\"a\"\"\"\n".length(), reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals("\"a\"\"\"\n".length(), reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextBoundaryQfoCloseQuoteThenOtherByte() throws IOException {
         // Close-quote followed by non-newline, non-quote byte: exit quotes, keep scanning.
         CsvFormatReader reader = noMvcReader(blockFactory);
         byte[] data = "\"a\"x\nrest".getBytes(StandardCharsets.UTF_8);
-        assertEquals("\"a\"x\n".length(), reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals("\"a\"x\n".length(), reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextBoundaryQfoCloseQuoteThenEof() throws IOException {
         // Close-quote at the very end of stream — read returns -1 on peek.
         CsvFormatReader reader = noMvcReader(blockFactory);
         byte[] data = "\"abc\"".getBytes(StandardCharsets.UTF_8);
-        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals(-1, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextBoundaryQfoCrLfReturnsAtLf() throws IOException {
-        // \r is not a terminator; only \n is. CRLF returns at the \n offset.
+        // CRLF returns after the LF byte.
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "abc\r\nrest".getBytes(StandardCharsets.UTF_8);
-        assertEquals("abc\r\n".length(), reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals("abc\r\n".length(), reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
-    public void testFindNextBoundaryQfoLoneCrIsNotABoundary() throws IOException {
+    public void testFindNextBoundaryQfoLoneCrIsBoundary() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "abc\rdef".getBytes(StandardCharsets.UTF_8);
-        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals("abc\r".length(), reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextBoundaryQfoReusesBufferedInputStream() throws IOException {
@@ -3583,51 +3668,51 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "a\tb\nc\td\n".getBytes(StandardCharsets.UTF_8);
         BufferedInputStream bis = new BufferedInputStream(new ByteArrayInputStream(data));
-        long consumed = reader.findNextRecordBoundary(bis);
+        long consumed = reader.recordSplitter().findNextRecordBoundary(bis);
         assertEquals("a\tb\n".length(), consumed);
     }
 
     public void testFindNextBoundaryQfoMultipleQuotedFields() throws IOException {
         CsvFormatReader reader = noMvcReader(blockFactory);
         byte[] data = "\"a\",\"b\",\"c\"\nrest".getBytes(StandardCharsets.UTF_8);
-        assertEquals("\"a\",\"b\",\"c\"\n".length(), reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals("\"a\",\"b\",\"c\"\n".length(), reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextBoundaryQfoTabInsideQuotedFieldIsLiteral() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "\"has\ttab\"\nrest".getBytes(StandardCharsets.UTF_8);
-        assertEquals("\"has\ttab\"\n".length(), reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals("\"has\ttab\"\n".length(), reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     // --- Branch coverage for findLastRecordBoundaryQuotedFieldsOnly ---
 
     public void testFindLastBoundaryQfoEmptyBuffer() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
-        assertEquals(-1, reader.findLastRecordBoundary(new byte[0], 0));
+        assertEquals(-1, reader.recordSplitter().findLastRecordBoundary(new byte[0], 0));
     }
 
     public void testFindLastBoundaryQfoNoNewline() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "abc\tdef\tghi".getBytes(StandardCharsets.UTF_8);
-        assertEquals(-1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(-1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
     public void testFindLastBoundaryQfoSingleNewlineAtStart() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(0, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(0, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
     public void testFindLastBoundaryQfoSingleNewlineAtEnd() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "abc\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(3, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(3, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
     public void testFindLastBoundaryQfoMultipleNewlinesReturnsLast() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "a\nb\nc\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(data.length - 1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(data.length - 1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
     public void testFindLastBoundaryQfoUnclosedQuoteSkipsLaterNewlines() throws IOException {
@@ -3635,26 +3720,26 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Two newlines outside quotes, then an open quote, then a newline inside the open region.
         byte[] data = "row1\nrow2\n\"open\nstill".getBytes(StandardCharsets.UTF_8);
         // The newline after the open quote is inside an unterminated region and must be ignored.
-        assertEquals("row1\nrow2\n".length() - 1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals("row1\nrow2\n".length() - 1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
     public void testFindLastBoundaryQfoQuoteOpenAndClosedSkipsEmbeddedNewline() throws IOException {
         CsvFormatReader reader = noMvcReader(blockFactory);
         byte[] data = "\"a\nb\",c\nrow2,x\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(data.length - 1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(data.length - 1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
     public void testFindLastBoundaryQfoDoubledQuoteIsLiteral() throws IOException {
         CsvFormatReader reader = noMvcReader(blockFactory);
         byte[] data = "\"a\"\"b\"\nrow2\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(data.length - 1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(data.length - 1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
     public void testFindLastBoundaryQfoDoubledQuoteContainsNewline() throws IOException {
         // "" inside a quoted field is literal — the field is still quoted, so \n is skipped.
         CsvFormatReader reader = noMvcReader(blockFactory);
         byte[] data = "\"a\"\"\nb\"\nrow2\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(data.length - 1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(data.length - 1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
     public void testFindLastBoundaryQfoQuoteAtVeryLastByte() throws IOException {
@@ -3662,20 +3747,20 @@ public class CsvFormatReaderTests extends ESTestCase {
         // quotes (any trailing \n is impossible anyway since the buffer ends here).
         CsvFormatReader reader = noMvcReader(blockFactory);
         byte[] data = "row1\n\"abc\"".getBytes(StandardCharsets.UTF_8);
-        assertEquals(4, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(4, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
     public void testFindLastBoundaryQfoCrLfReturnsAtLfIndex() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "a\r\nb\r\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(data.length - 1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(data.length - 1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
         assertEquals('\n', data[data.length - 1]);
     }
 
-    public void testFindLastBoundaryQfoLoneCrNotABoundary() throws IOException {
+    public void testFindLastBoundaryQfoLoneCrIsBoundary() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "a\rb\rc".getBytes(StandardCharsets.UTF_8);
-        assertEquals(-1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(3, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
     public void testFindLastBoundaryQfoLengthLessThanBuffer() throws IOException {
@@ -3686,37 +3771,37 @@ public class CsvFormatReaderTests extends ESTestCase {
         Arrays.fill(padded, body.length, padded.length, (byte) '\n');
         // Use only the first body.length bytes — trailing \n bytes in the padded region must
         // not be visited.
-        assertEquals(body.length - 1, reader.findLastRecordBoundary(padded, body.length));
+        assertEquals(body.length - 1, reader.recordSplitter().findLastRecordBoundary(padded, body.length));
     }
 
     public void testFindLastBoundaryQfoNewlineInsideUnclosedQuotedFieldAtStart() throws IOException {
         CsvFormatReader reader = noMvcReader(blockFactory);
         byte[] data = "\"abc\ndef".getBytes(StandardCharsets.UTF_8);
-        assertEquals(-1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(-1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
     public void testFindLastBoundaryQfoNoQuotesPlainNewlines() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "abc\ndef\nghi\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(data.length - 1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(data.length - 1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
     public void testFindLastBoundaryQfoQuotedNewlineThenPlainRow() throws IOException {
         // Embedded \n inside quotes then real terminator then another row.
         CsvFormatReader reader = noMvcReader(blockFactory);
         byte[] data = "\"a\nb\",c\nx,y\nz,w".getBytes(StandardCharsets.UTF_8);
-        assertEquals("\"a\nb\",c\nx,y\n".length() - 1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals("\"a\nb\",c\nx,y\n".length() - 1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
     public void testFindLastBoundaryQfoZeroLength() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
         byte[] data = "anything\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(-1, reader.findLastRecordBoundary(data, 0));
+        assertEquals(-1, reader.recordSplitter().findLastRecordBoundary(data, 0));
     }
 
     public void testFindLastBoundaryQfoNegativeLength() throws IOException {
         CsvFormatReader reader = tsvReader(blockFactory);
-        assertEquals(-1, reader.findLastRecordBoundary(new byte[0], -1));
+        assertEquals(-1, reader.recordSplitter().findLastRecordBoundary(new byte[0], -1));
     }
 
     // --- Cross-method equivalence on hand-picked inputs ---
@@ -3736,7 +3821,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             "\"a\"\nrest\n", };
         for (String s : inputs) {
             byte[] data = s.getBytes(StandardCharsets.UTF_8);
-            int override = reader.findLastRecordBoundary(data, data.length);
+            int override = reader.recordSplitter().findLastRecordBoundary(data, data.length);
             int oracle = referenceDefaultDriver(reader, data, data.length);
             assertEquals("input=" + s, oracle, override);
         }
@@ -3765,7 +3850,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         byte[] data = new byte[padding.length + suffix.length];
         System.arraycopy(padding, 0, data, 0, padding.length);
         System.arraycopy(suffix, 0, data, padding.length, suffix.length);
-        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals(8192, boundary);
     }
 
@@ -3778,7 +3863,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         byte[] data = new byte[padding.length + suffix.length];
         System.arraycopy(padding, 0, data, 0, padding.length);
         System.arraycopy(suffix, 0, data, padding.length, suffix.length);
-        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals(padding.length + 2, boundary);
     }
 
@@ -5298,7 +5383,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     /**
      * Sampling under SKIP_ROW with a tight budget exhausts and surfaces a capped budget error.
      * Sampling errors count against the SAME max_errors budget the data path uses, matching
-     * ClickHouse's input_format_allow_errors_num semantics.
+     * common database readers' error-tolerance semantics.
      */
     public void testSamplingSkipRowExceedsBudget() {
         StringBuilder csv = new StringBuilder();
@@ -6213,5 +6298,456 @@ public class CsvFormatReaderTests extends ESTestCase {
             tracking.bytesConsumed.get(),
             Matchers.lessThan((long) bytes.length / 2)
         );
+    }
+
+    // -- Multi-split _rowPosition repeatability --
+    //
+    // Same physical record must carry the same _rowPosition value regardless of which split surfaced
+    // it. The byte-offset emit (splitStartByte + bytesRead - lastRecordBytes) is the contract that
+    // makes _id (the (location, mtime, rowPosition) hash) stable across split layouts, which Security ingest dedup
+    // depends on. A regression where _rowPosition reverts to a per-iterator counter shows up here as
+    // duplicate offsets across splits or as offsets that change when the split boundary moves.
+
+    /**
+     * Pins the {@code _rowPosition} channel for a single full-file read against an unsplit file:
+     * offsets must equal each record's actual byte position in the file (header included).
+     */
+    public void testRowPositionEmitsFileGlobalByteOffsetSingleSplit() throws IOException {
+        String csv = "id:long,name:keyword\n1,Alice\n2,Bob\n3,Carol\n";
+        long[] expectedOffsets = computeRecordStartOffsets(csv, /* skipHeader= */ true);
+        assertEquals("fixture sanity: 3 data records", 3, expectedOffsets.length);
+
+        List<Long> offsets = collectRowPositions(csv, 0L, /* recordAligned= */ false, /* firstSplit= */ true, /* lastSplit= */ true);
+        assertEquals("one offset per data row", 3, offsets.size());
+        for (int i = 0; i < offsets.size(); i++) {
+            assertEquals("row " + i + " offset must equal its physical byte position", expectedOffsets[i], (long) offsets.get(i));
+        }
+    }
+
+    /**
+     * Same fixture read as two record-aligned splits at a record boundary. The two splits' offsets,
+     * concatenated, must equal the single-split offsets — i.e. the second split's first record must
+     * carry the same offset whether it surfaced under a split or as part of a whole-file read.
+     */
+    public void testRowPositionStableAcrossRecordAlignedSplits() throws IOException {
+        String csv = "id:long,name:keyword\n1,Alice\n2,Bob\n3,Carol\n";
+        long[] expectedOffsets = computeRecordStartOffsets(csv, true);
+
+        // Single split — baseline.
+        List<Long> singleSplit = collectRowPositions(csv, 0L, false, true, true);
+
+        // Split at the boundary between "2,Bob\n" and "3,Carol\n": first half contains header + rows
+        // 1 and 2; second half starts at the byte offset of "3,Carol\n".
+        long boundary = expectedOffsets[2];
+        String firstHalf = csv.substring(0, (int) boundary);
+        String secondHalf = csv.substring((int) boundary);
+        // firstSplit=true, lastSplit=false on the first half so the header is consumed; the second
+        // half is recordAligned=true with splitStartByte=boundary so it knows where in the file its
+        // first record starts.
+        List<Long> firstHalfOffsets = collectRowPositions(firstHalf, 0L, false, true, false);
+        List<Long> secondHalfOffsets = collectRowPositions(
+            secondHalf,
+            boundary,
+            /* recordAligned= */ true,
+            /* firstSplit= */ false,
+            /* lastSplit= */ true
+        );
+
+        List<Long> combined = new ArrayList<>(firstHalfOffsets);
+        combined.addAll(secondHalfOffsets);
+        assertEquals("combined two-split offsets must equal single-split offsets", singleSplit, combined);
+    }
+
+    /**
+     * Four splits, each spanning a single data record. Every record must carry the same offset it
+     * had in the unsplit read — proving the byte arithmetic does not drift on tighter slicing.
+     */
+    public void testRowPositionStableAcrossManySplits() throws IOException {
+        String csv = "id:long,name:keyword\n1,Alice\n2,Bob\n3,Carol\n4,Dave\n";
+        long[] expectedOffsets = computeRecordStartOffsets(csv, true);
+        assertEquals(4, expectedOffsets.length);
+
+        List<Long> singleSplit = collectRowPositions(csv, 0L, false, true, true);
+        assertEquals(4, singleSplit.size());
+
+        // Per-record splits. First split owns the header; subsequent splits are record-aligned and
+        // contain exactly one data record.
+        List<Long> combined = new ArrayList<>();
+        long firstDataBoundary = expectedOffsets[0];
+        String firstSplit = csv.substring(0, (int) expectedOffsets[1]); // header + row 1
+        combined.addAll(collectRowPositions(firstSplit, 0L, false, true, false));
+        for (int i = 1; i < expectedOffsets.length; i++) {
+            long start = expectedOffsets[i];
+            long end = i + 1 < expectedOffsets.length ? expectedOffsets[i + 1] : csv.length();
+            String chunk = csv.substring((int) start, (int) end);
+            boolean lastSplit = (i == expectedOffsets.length - 1);
+            combined.addAll(collectRowPositions(chunk, start, true, false, lastSplit));
+        }
+        assertEquals("per-record splits must reproduce the single-split offsets", singleSplit, combined);
+        // And every offset matches its physical byte position.
+        for (int i = 0; i < combined.size(); i++) {
+            assertEquals(expectedOffsets[i], (long) combined.get(i));
+        }
+        assertTrue("ignored boundary marker", firstDataBoundary >= 0);
+    }
+
+    /**
+     * Mid-record non-record-aligned split: the partial leading record is dropped via the
+     * {@code recordReader.readRecord(...)} call in {@code CsvFormatReader.read()}'s else-branch.
+     * The dropped record's bytes are committed to {@code recordReader.bytesRead()} so subsequent
+     * records' offsets correctly include them; this test pins that.
+     */
+    public void testRowPositionStableForNonRecordAlignedMidRecordSplit() throws IOException {
+        String csv = "id:long,name:keyword\n1,Alice\n2,Bob\n3,Carol\n";
+        long[] expectedOffsets = computeRecordStartOffsets(csv, true);
+
+        // Split boundary at byte 25 — inside "1,Alice\n" (record 1 spans bytes 21..28). The second
+        // split contains "ice\n2,Bob\n3,Carol\n"; the reader skips the leading partial "ice\n" and
+        // emits 2,Bob + 3,Carol with their file-global offsets intact.
+        long midRecordByte = 25L;
+        String secondHalf = csv.substring((int) midRecordByte);
+        List<Long> secondHalfOffsets = collectRowPositions(
+            secondHalf,
+            midRecordByte,
+            /* recordAligned= */ false,
+            /* firstSplit= */ false,
+            /* lastSplit= */ true
+        );
+
+        assertEquals("two records emitted after partial-record skip", 2, secondHalfOffsets.size());
+        assertEquals("2,Bob carries the file-global offset", expectedOffsets[1], (long) secondHalfOffsets.get(0));
+        assertEquals("3,Carol carries the file-global offset", expectedOffsets[2], (long) secondHalfOffsets.get(1));
+    }
+
+    /**
+     * Mid-record split case: a quoted field carries an embedded newline. The reader receives a
+     * non-record-aligned split that starts mid-quoted-field; it must drop the partial leading
+     * record and emit the next full record with the correct file-global offset.
+     */
+    public void testRowPositionStableForQuotedNewlineRecord() throws IOException {
+        String csv = "id:long,name:keyword\n1,\"Alice\nLong\"\n2,Bob\n3,Carol\n";
+        // Records are "1,\"Alice\nLong\"\n" (15 bytes after the 21-byte header), "2,Bob\n", "3,Carol\n".
+        long[] expectedOffsets = computeRecordStartOffsets(csv, true);
+        assertEquals(3, expectedOffsets.length);
+
+        List<Long> singleSplit = collectRowPositions(csv, 0L, false, true, true);
+        assertEquals(3, singleSplit.size());
+        assertEquals(expectedOffsets[0], (long) singleSplit.get(0));
+        assertEquals(expectedOffsets[1], (long) singleSplit.get(1));
+        assertEquals(expectedOffsets[2], (long) singleSplit.get(2));
+    }
+
+    /**
+     * Inferred-schema read (un-typed header forces {@code inferSchemaFromBatchReader}) must still
+     * emit exact file-global {@code _rowPosition} offsets across the schema-sample boundary. The
+     * sample rows are read via the recordReader-backed iterator and replayed with captured offsets;
+     * post-sample rows flow through a freshly re-created recordReader iterator. A tiny
+     * {@code schema_sample_size} makes both sides of the boundary non-empty. Pre-fix the post-sample
+     * rows ran on the Jackson bulk path and collapsed to the last-sampled record's offset.
+     */
+    public void testRowPositionExactAcrossInferredSchemaSampleBoundary() throws IOException {
+        String csv = "id,name\n1,Alice\n2,Bob\n3,Carol\n4,Dave\n5,Eve\n";
+        long[] expectedOffsets = computeRecordStartOffsets(csv, /* skipHeader= */ true);
+        assertEquals("fixture sanity: 5 data records", 5, expectedOffsets.length);
+
+        StorageObject object = createStorageObject(csv);
+        // schema_sample_size = 2: rows 1-2 sampled+replayed, rows 3-5 read post-sample. Un-typed
+        // header (id,name — no :type) routes through type inference, exercising the sample boundary.
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 2));
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(64)
+            .errorPolicy(ErrorPolicy.STRICT)
+            .projectedColumns(List.of("_rowPosition"))
+            .firstSplit(true)
+            .lastSplit(true)
+            .build();
+
+        List<Long> offsets = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = reader.read(object, context)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                LongBlock rowPos = (LongBlock) page.getBlock(0);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    offsets.add(rowPos.getLong(i));
+                }
+                page.releaseBlocks();
+            }
+        }
+        assertEquals("inferred-schema read must emit one offset per data row", 5, offsets.size());
+        for (int i = 0; i < expectedOffsets.length; i++) {
+            assertEquals(
+                "row " + i + " offset must equal its physical byte position across the sample boundary",
+                expectedOffsets[i],
+                (long) offsets.get(i)
+            );
+        }
+    }
+
+    /**
+     * Reads {@code _rowPosition} only — projects exactly the synthetic column to exercise the
+     * convert path where every column slot is the {@code _rowPosition} emit.
+     */
+    private List<Long> collectRowPositions(
+        String csvContent,
+        long splitStartByte,
+        boolean recordAligned,
+        boolean firstSplit,
+        boolean lastSplit
+    ) throws IOException {
+        StorageObject object = createStorageObject(csvContent);
+        // Use the header-on path so the reader skips the header line; resolved schema is left for
+        // first-split discovery on the first split and pre-bound on subsequent record-aligned
+        // splits via withSchema.
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        // Non-first splits do not have a header to discover from; pre-bind the schema so the iterator
+        // can skip schema inference. Production callers do this via the planner's withSchema(...)
+        // call for both record-aligned and macro-split non-first reads.
+        List<org.elasticsearch.xpack.esql.core.expression.Attribute> schema = null;
+        if (firstSplit == false) {
+            schema = List.of(
+                new org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute(
+                    org.elasticsearch.xpack.esql.core.tree.Source.EMPTY,
+                    null,
+                    "id",
+                    org.elasticsearch.xpack.esql.core.type.DataType.LONG,
+                    org.elasticsearch.xpack.esql.core.expression.Nullability.TRUE,
+                    null,
+                    false
+                ),
+                new org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute(
+                    org.elasticsearch.xpack.esql.core.tree.Source.EMPTY,
+                    null,
+                    "name",
+                    org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD,
+                    org.elasticsearch.xpack.esql.core.expression.Nullability.TRUE,
+                    null,
+                    false
+                )
+            );
+            reader = reader.withSchema(schema);
+        }
+        FormatReadContext.Builder ctxBuilder = FormatReadContext.builder()
+            .batchSize(64)
+            .errorPolicy(ErrorPolicy.STRICT)
+            .projectedColumns(List.of("_rowPosition"))
+            .firstSplit(firstSplit)
+            .lastSplit(lastSplit)
+            .recordAligned(recordAligned)
+            .splitStartByte(splitStartByte);
+        if (recordAligned) {
+            ctxBuilder.readSchema(schema);
+        }
+        List<Long> result = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = reader.read(object, ctxBuilder.build())) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                LongBlock rowPos = (LongBlock) page.getBlock(0);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    result.add(rowPos.getLong(i));
+                }
+                page.releaseBlocks();
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Computes each data record's byte offset within {@code csvContent} (UTF-8 encoded), correctly
+     * handling quoted newlines so the test's expectations match the reader's record-boundary scan.
+     */
+    private static long[] computeRecordStartOffsets(String csvContent, boolean skipHeader) {
+        byte[] bytes = csvContent.getBytes(StandardCharsets.UTF_8);
+        List<Long> starts = new ArrayList<>();
+        int i = 0;
+        int line = 0;
+        boolean inQuotes = false;
+        long recordStart = 0;
+        while (i < bytes.length) {
+            byte b = bytes[i];
+            if (b == '"' && (i + 1 >= bytes.length || bytes[i + 1] != '"')) {
+                inQuotes = !inQuotes;
+                i++;
+                continue;
+            } else if (b == '"' && i + 1 < bytes.length && bytes[i + 1] == '"') {
+                i += 2;
+                continue;
+            }
+            if (inQuotes) {
+                i++;
+                continue;
+            }
+            if (b == '\n') {
+                if (skipHeader == false || line >= 1) {
+                    starts.add(recordStart);
+                }
+                line++;
+                i++;
+                recordStart = i;
+            } else {
+                i++;
+            }
+        }
+        long[] out = new long[starts.size()];
+        for (int k = 0; k < starts.size(); k++) {
+            out[k] = starts.get(k);
+        }
+        return out;
+    }
+
+    /**
+     * Regression for https://github.com/elastic/esql-planning/issues/894: the Jackson hot data path enforces
+     * {@code max_record_size} via the upstream {@link CsvRecordCappingInputStream}. An oversized record
+     * trips the cap during the {@link java.io.BufferedReader} bulk fill (potentially before any individual
+     * row has been emitted), the {@link CsvRecordTooLargeException} propagates as an {@link IOException},
+     * and the outer {@code CsvBatchIterator.hasNext()} wraps it in a {@link RuntimeException} whose cause
+     * chain carries the original {@code "max_record_size [N]"} message.
+     */
+    public void testJacksonBulkPathPropagatesMaxRecordSizeError() {
+        int maxRecordBytes = 32;
+        String csv = "id:long,text:keyword\n1,ok\n100," + "x".repeat(maxRecordBytes) + "\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(ErrorPolicy.STRICT)
+            .maxRecordBytes(maxRecordBytes)
+            .build();
+
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, context)) {
+                while (iterator.hasNext()) {
+                    Page page = iterator.next();
+                    page.releaseBlocks();
+                }
+            }
+        });
+        Throwable rootCause = ex;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+            rootCause = rootCause.getCause();
+        }
+        assertTrue("expected a CsvRecordTooLargeException in the cause chain, got: " + ex, rootCause instanceof CsvRecordTooLargeException);
+        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+    }
+
+    /**
+     * Lenient policy still aborts the read once an oversized record trips the byte cap because the underlying
+     * {@link CsvRecordCappingInputStream} cannot resume after a thrown {@link IOException}; the destructive
+     * stream wrapper exists precisely to keep the byte-accounting monotonic with the parser's consumption.
+     * This is a deliberate tradeoff documented on
+     * {@link org.elasticsearch.xpack.esql.datasource.csv.CsvRecordCappingInputStream}: cap-too-large becomes
+     * stream-fatal on the Jackson bulk path. The bracket-aware path retains row-level recovery via
+     * {@link org.elasticsearch.xpack.esql.datasource.csv.CsvLogicalRecordReader}'s char-decoded accounting.
+     */
+    public void testJacksonBulkPathAbortsOnCapTooLargeEvenUnderLenientPolicy() {
+        int maxRecordBytes = 32;
+        String csv = "id:long,text:keyword\n1,ok\n100," + "x".repeat(maxRecordBytes) + "\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(ErrorPolicy.LENIENT)
+            .maxRecordBytes(maxRecordBytes)
+            .build();
+
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, context)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        Throwable rootCause = ex;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+            rootCause = rootCause.getCause();
+        }
+        assertTrue(
+            "lenient policy must still abort with the cap exception in the cause chain, got: " + ex,
+            rootCause instanceof CsvRecordTooLargeException
+        );
+        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+    }
+
+    /**
+     * Regression for the inferred-schema bulk-path engagement (issue #894 review feedback): when the schema is
+     * inferred at read time, the per-record sampling iterator must be torn down after sampling so the data path
+     * picks up the Jackson bulk iterator. Without this, post-sample reads stay on the slow per-record
+     * {@code CsvLogicalRecordReader} loop and the headline perf fix never engages for ad-hoc CSVs.
+     *
+     * <p>Behavioral assertion: the cap-stream wrap (active on non-bracket-aware reads) trips the cap as a
+     * stream-fatal abort once an oversized data row is reached past the sampling window — which is only
+     * possible if the bulk path is engaged after sampling. If the iterator stayed on
+     * {@code CsvRecordIterator}, the cap would surface per-row and the read would either skip (lenient) or
+     * fail with a different exception shape — neither matching the strict-mode contract asserted below.
+     */
+    public void testInferredSchemaSwitchesToJacksonBulkPathAfterSampling() {
+        int maxRecordBytes = 64;
+        StringBuilder csv = new StringBuilder("id,name\n");
+        // A handful of small rows to feed schema inference, well below the cap.
+        for (int i = 0; i < 10; i++) {
+            csv.append(i).append(",row").append(i).append('\n');
+        }
+        // Oversized data row past the sampling prefix; only the Jackson-bulk-path cap stream sees this byte
+        // span. Adding the row terminator makes the record length exceed maxRecordBytes.
+        csv.append("99,").append("x".repeat(maxRecordBytes)).append('\n');
+        StorageObject object = createStorageObject(csv.toString());
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(ErrorPolicy.STRICT)
+            .maxRecordBytes(maxRecordBytes)
+            .build();
+
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, context)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        Throwable rootCause = ex;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+            rootCause = rootCause.getCause();
+        }
+        assertTrue(
+            "inferred-schema reads must reach the cap-stream-protected bulk path after sampling, got: " + ex,
+            rootCause instanceof CsvRecordTooLargeException
+        );
+        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+    }
+
+    /**
+     * Regression for the bracket-aware row-recovery contract (issue #894 review feedback): when bracket-multi-value
+     * parsing is enabled the cap-stream wrap is suppressed in {@link CsvFormatReader#read} so the cap stays an
+     * exact, recoverable per-record check inside {@link CsvLogicalRecordReader#addBytes}. Under lenient policy an
+     * oversized row must be skipped and the surrounding rows must still parse, rather than the cap-stream-wrapped
+     * destructive abort that the non-bracket-aware path exhibits.
+     */
+    public void testBracketAwareLenientSkipsOversizedRecordAndKeepsReading() throws IOException {
+        int maxRecordBytes = 32;
+        StringBuilder csv = new StringBuilder("id:long,tags:keyword\n");
+        csv.append("1,[a,b]\n");
+        csv.append("2,[").append("x".repeat(maxRecordBytes)).append("]\n");
+        csv.append("3,[c,d]\n");
+        StorageObject object = createStorageObject(csv.toString());
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(ErrorPolicy.LENIENT)
+            .maxRecordBytes(maxRecordBytes)
+            .build();
+
+        long total = 0;
+        try (CloseableIterator<Page> iterator = reader.read(object, context)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                total += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertEquals("bracket-aware lenient must drop the oversized row and keep the surrounding rows", 2L, total);
     }
 }

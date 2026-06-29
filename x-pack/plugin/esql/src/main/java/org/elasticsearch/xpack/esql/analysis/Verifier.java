@@ -34,9 +34,9 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -132,7 +131,6 @@ public class Verifier {
 
         ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
 
-        // Temporary check before we implement https://github.com/elastic/elasticsearch/issues/141995.
         // Partially-unmapped non-keyword field references are checked before the bail-out so that a query with both
         // an UnsupportedAttribute and a PUNK field produces both errors in one batch.
         if (unmappedResolution == UnmappedResolution.LOAD) {
@@ -306,14 +304,7 @@ public class Verifier {
                 else {
                     lookup.matchFields().forEach(unresolvedExpressions);
                 }
-            }
-            // The expressions of the PromqlCommand itself are not relevant here.
-            // The promqlPlan is a separate tree and its children may contain UnresolvedAttribute expressions
-            else if (p instanceof PromqlCommand promql) {
-                promql.promqlPlan().forEachExpressionDown(Expression.class, unresolvedExpressions);
-            }
-
-            else {
+            } else {
                 p.forEachExpression(unresolvedExpressions);
             }
         });
@@ -476,7 +467,7 @@ public class Verifier {
     }
 
     /**
-     * {@code unmapped_fields="load"} does not yet support branching commands (FORK, LOOKUP JOIN, subqueries/views).
+     * {@code unmapped_fields="load"} does not yet support branching commands (FORK, subqueries/views).
      * See https://github.com/elastic/elasticsearch/issues/142033
      */
     private static void checkLoadModeDisallowedCommands(LogicalPlan plan, Failures failures) {
@@ -487,10 +478,7 @@ public class Verifier {
             if (p instanceof Subquery) {
                 failures.add(fail(p, "Subqueries and views are not supported with unmapped_fields=\"load\""));
             }
-            if (p instanceof EsRelation esRelation && esRelation.indexMode() == IndexMode.LOOKUP) {
-                failures.add(fail(p, "LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
-            }
-            if (p instanceof PromqlCommand) {
+            if (p instanceof TimeSeriesAggregate ts && ts.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND) {
                 failures.add(fail(p, "PROMQL is not supported with unmapped_fields=\"load\""));
             }
         });
@@ -570,15 +558,17 @@ public class Verifier {
     }
 
     /**
-     * Reject queries that refer to partially unmapped non-keyword fields (PUNKs) when {@code unmapped_fields="load"}.
-     * Any expression referencing a PUNK attribute is flagged as a verification failure unless it's within a conversion
-     * function or KEEP/DROP.
+     * Reject queries that refer to partially unmapped non-keyword fields (PUNKs) that couldn't be auto-cast by
+     * {@code ResolveTwoLeggedPunksInEsRelation} when {@code unmapped_fields="load"}.
+     *
+     * Expressions referencing these non-auto-castable PUNKs are flagged as a verification failure, except in KEEP/DROP.
+     *
      * <p>
      * Example
      * <p>
      * With the two indices below
      * <ol>
-     *     <li>index1 has foo(long) and bar(keyword)</li>
+     *     <li>index1 has foo(aggregate_metric_double)</li>
      *     <li>index2 has bar(keyword)</li>
      * </ol>
      *
@@ -586,13 +576,13 @@ public class Verifier {
      * <ul>
      *     <li>KEEP foo</li>
      *     <li>DROP foo*</li>
-     *     <li>EVAL x = foo::long</li>
      * </ul>
      * The following queries should fail (assume unmapped_fields="load" and reading from both indices)
      * <ul>
      *     <li>RENAME foo as x</li>
      *     <li>EVAL x = foo</li>
-     *     <li>WHERE foo > 1</li>
+     *     <li>EVAL x = foo::aggregate_metric_double</li>
+     *     <li>WHERE foo IS NOT NULL</li>
      * </ul>
      */
     private static void checkPartiallyUnmappedNonKeywordReferences(LogicalPlan plan, Failures failures, AnalyzerContext context) {
@@ -642,7 +632,7 @@ public class Verifier {
                     // punk_field::long is fine; in this case, the FieldAttribute contains a MultiTypeEsField with the conversions.
                     if (attr instanceof FieldAttribute fa
                         && punkFieldNames.contains(fa.fieldName().string())
-                        && fa.field() instanceof MultiTypeEsField == false) {
+                        && fa.field() instanceof UnionTypeEsField == false) {
                         punks.add(fa);
                     }
                 }
@@ -666,7 +656,7 @@ public class Verifier {
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             String name = prefix == null ? entry.getKey() : prefix + "." + entry.getKey();
             EsField field = entry.getValue();
-            if (field instanceof InvalidMappedField imf && imf.isPotentiallyUnmapped()) {
+            if (field instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped()) {
                 aggregator.add(name);
             }
             if (field.getProperties() != null && field.getProperties().isEmpty() == false) {

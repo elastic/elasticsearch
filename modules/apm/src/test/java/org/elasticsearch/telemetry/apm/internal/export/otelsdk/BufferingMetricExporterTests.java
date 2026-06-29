@@ -21,7 +21,7 @@ import io.opentelemetry.sdk.resources.Resource;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.Measurement;
-import org.elasticsearch.telemetry.apm.RecordingOtelMeter;
+import org.elasticsearch.telemetry.apm.RecordingOtelMeterProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -44,14 +44,14 @@ import static org.hamcrest.Matchers.not;
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class BufferingMetricExporterTests extends ESTestCase {
 
-    private RecordingOtelMeter meter;
+    private RecordingOtelMeterProvider meterProvider;
     private Path bufferDir;
     private FakeMetricExporter delegate;
     private BufferingMetricExporter exporter;
 
     @Before
     public void setupCommon() throws Exception {
-        meter = new RecordingOtelMeter();
+        meterProvider = new RecordingOtelMeterProvider();
         bufferDir = createTempDir("telemetry-buffer");
         delegate = new FakeMetricExporter();
     }
@@ -65,14 +65,11 @@ public class BufferingMetricExporterTests extends ESTestCase {
 
     private void build(Settings overrides) {
         Settings merged = Settings.builder()
-            .put("telemetry.otel.metrics.disk_buffer_size", "10mb")
-            .put("telemetry.otel.metrics.buffer_ttl", "5m")
-            // Short rotation/read times so the suite runs in seconds rather than minutes.
-            .put("telemetry.otel.metrics.disk_buffer_write_window", "100ms")
-            .put("telemetry.otel.metrics.disk_buffer_read_min_age", "200ms")
+            .put("telemetry.metrics.buffer.disk_size", "10mb")
+            .put("telemetry.metrics.buffer.ttl", "5m")
             .put(overrides)
             .build();
-        exporter = new BufferingMetricExporter(delegate, merged, bufferDir, meter);
+        exporter = new BufferingMetricExporter(delegate, merged, bufferDir, () -> meterProvider, 100, 200);
     }
 
     private CompletableResultCode exportAndWait(String name) {
@@ -92,11 +89,11 @@ public class BufferingMetricExporterTests extends ESTestCase {
 
         assertBusy(() -> assertThat(countBufferFiles(), equalTo(0)));
         assertThat(delegate.exportedNames(), hasItems("buf", "trigger"));
-        assertThat(counter("replays"), hasSize(1));
+        assertBusy(() -> assertThat(counter("replays"), hasSize(1)));
     }
 
     public void testDiskCapRotatesOldestToMakeRoom() throws Exception {
-        build(Settings.builder().put("telemetry.otel.metrics.disk_buffer_size", "1kb").build());
+        build(Settings.builder().put("telemetry.metrics.buffer.disk_size", "1kb").build());
 
         delegate.setShouldFail(true);
         assertTrue(exportAndWait("first").isSuccess());
@@ -107,7 +104,7 @@ public class BufferingMetricExporterTests extends ESTestCase {
 
     public void testTtlExpiredFilesAreNotReplayed() throws Exception {
         // TTL must be greater than the test-injected minFileAgeForRead (200ms)
-        build(Settings.builder().put("telemetry.otel.metrics.buffer_ttl", "300ms").build());
+        build(Settings.builder().put("telemetry.metrics.buffer.ttl", "300ms").build());
 
         delegate.setShouldFail(true);
         exportAndWait("expires");
@@ -135,7 +132,7 @@ public class BufferingMetricExporterTests extends ESTestCase {
     }
 
     private List<Measurement> counter(String suffix) {
-        return meter.getRecorder().getMeasurements(LONG_COUNTER, "es.apm.metrics.disk_buffer." + suffix);
+        return meterProvider.meter().getRecorder().getMeasurements(LONG_COUNTER, "es.apm.metrics.disk_buffer." + suffix);
     }
 
     private int countBufferFiles() throws Exception {

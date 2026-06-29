@@ -24,19 +24,19 @@ import java.util.concurrent.TimeUnit;
 public class APMTelemetryProvider implements TelemetryProvider {
     private final APMTracer apmTracer;
     private final APMMeterService apmMeterService;
-    private final long flushTimeoutMillis;
+    private final APMLoggingService loggingService;
 
     public APMTelemetryProvider(Settings settings, Path diskBufferPath) {
-        apmTracer = new APMTracer(settings);
         apmMeterService = new APMMeterService(settings, diskBufferPath);
-        flushTimeoutMillis = OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT.get(settings).millis();
+        apmTracer = new APMTracer(settings, apmMeterService::getHealthMeterProvider);
+        loggingService = new APMLoggingService(settings);
     }
 
     // visible for testing: pre-built service/tracer instances with stubbed suppliers
-    public APMTelemetryProvider(APMMeterService apmMeterService, APMTracer apmTracer, long flushTimeoutMillis) {
+    public APMTelemetryProvider(APMMeterService apmMeterService, APMTracer apmTracer, APMLoggingService loggingService) {
         this.apmMeterService = apmMeterService;
         this.apmTracer = apmTracer;
-        this.flushTimeoutMillis = flushTimeoutMillis;
+        this.loggingService = loggingService;
     }
 
     @Override
@@ -57,6 +57,12 @@ public class APMTelemetryProvider implements TelemetryProvider {
     public void attemptFlush() {
         CompletableResultCode metrics = apmMeterService.attemptFlushMetrics();
         CompletableResultCode traces = apmTracer.attemptFlushTraces();
-        CompletableResultCode.ofAll(List.of(metrics, traces)).join(flushTimeoutMillis, TimeUnit.MILLISECONDS);
+        CompletableResultCode logs = loggingService.forceFlush();
+        CompletableResultCode.ofAll(List.of(metrics, traces, logs))
+            .join(OtelSdkSettings.OTEL_EXPORT_FLUSH_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+    }
+
+    public APMLoggingService getLoggingService() {
+        return loggingService;
     }
 }

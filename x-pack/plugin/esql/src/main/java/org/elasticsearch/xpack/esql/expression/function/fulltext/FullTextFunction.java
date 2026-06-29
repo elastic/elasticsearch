@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -354,11 +355,15 @@ public abstract class FullTextFunction extends Function
             plan.forEachDown(LogicalPlan.class, lp -> {
                 if (commandCheck.test(lp) == false) {
                     String sourceText = lp.sourceText();
-                    String errorMessage = sourceText.split(" ")[0].toUpperCase(Locale.ROOT);
-                    if (lp instanceof UnionAll) {
+                    String errorMessage;
+                    if (lp instanceof ExternalRelation) {
+                        errorMessage = "[" + sourceText + "]";
+                    } else if (lp instanceof UnionAll) {
                         errorMessage = sourceText.length() > Node.TO_STRING_MAX_WIDTH
                             ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
                             : sourceText;
+                    } else {
+                        errorMessage = sourceText.split(" ")[0].toUpperCase(Locale.ROOT);
                     }
                     failures.add(fail(plan, "{} cannot be used after {}", typeErrorMsgProvider.apply(exp), errorMessage));
                 }
@@ -435,7 +440,7 @@ public abstract class FullTextFunction extends Function
                             "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
                             m.functionName(),
                             m.functionType(),
-                            field.sourceText()
+                            field.sourceText().isEmpty() && field instanceof Attribute attr ? attr.name() : field.sourceText()
                         )
                     );
                 }
@@ -585,13 +590,13 @@ public abstract class FullTextFunction extends Function
         return contexts.map(sc -> new ShardConfig(sc.toQuery(evaluatorQueryBuilder()), sc.searcher()));
     }
 
-    // TODO: this should likely be replaced by calls to FieldAttribute#fieldName; the MultiTypeEsField case looks
-    // wrong if `fieldAttribute` is a subfield, e.g. `parent.child` - multiTypeEsField#getName will just return `child`.
+    // TODO: this should likely be replaced by calls to FieldAttribute#fieldName; the UnionTypeEsField case looks
+    // wrong if `fieldAttribute` is a subfield, e.g. `parent.child` - EsField#getName will just return `child`.
     protected String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {
         String fieldName = fieldAttribute.name();
-        if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
-            // If we have multiple field types, we allow the query to be done, but getting the underlying field name
-            fieldName = multiTypeEsField.getName();
+        if (fieldAttribute.field() instanceof UnionTypeEsField unionTypeEsField) {
+            // If we have multiple field types, we allow the query to be done, but get the underlying field name
+            fieldName = unionTypeEsField.getName();
         }
         return fieldName;
     }
@@ -623,6 +628,11 @@ public abstract class FullTextFunction extends Function
                 checkFullTextFunctionsInFilter(f, failures, true);
             }
         };
+    }
+
+    @Override
+    public boolean requiresQueryBuilderRewrite() {
+        return false == isRuntimeSearch();
     }
 
     /**

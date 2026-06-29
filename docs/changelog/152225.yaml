@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 152225
+summary: Upgrade qa/vector opentelemetry dependency for security vulnerability
+type: upgrade

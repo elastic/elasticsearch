@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -66,7 +66,7 @@ public final class ExternalStatsRequirementExtractor {
      * @return the set of literal path strings whose resolution must eagerly aggregate global stats
      */
     public static Set<String> pathsRequiringEagerStats(LogicalPlan unresolvedPlan) {
-        Set<String> result = new LinkedHashSet<>();
+        Set<String> result = new HashSet<>();
         collect(unresolvedPlan, false, result);
         return result;
     }
@@ -96,10 +96,8 @@ public final class ExternalStatsRequirementExtractor {
             return; // leaf: no children below a relation
         }
 
-        for (Object child : node.children()) {
-            if (child instanceof Node<?> childNode) {
-                collect(childNode, ungroupedAggAbove, result);
-            }
+        for (Node<?> child : node.children()) {
+            collect(child, ungroupedAggAbove, result);
         }
     }
 

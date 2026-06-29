@@ -56,6 +56,18 @@ public class ExternalStatsRequirementExtractorTests extends ESTestCase {
         assertEquals(Set.of(PATH), ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan));
     }
 
+    public void testUngroupedStatsBelowOtherNodesStillRequiresEagerStats() {
+        // STATS COUNT(*) | LIMIT 5 — the ungrouped aggregate is not the plan root. The
+        // ancestor-anywhere walk still propagates the flag down to the relation. This mirrors what
+        // optimization can produce: nodes above the aggregate are irrelevant to detection, only the
+        // aggregate-to-relation ancestry matters, and that ancestry is preserved across the
+        // prune/pushdown rules that reshape the plan between parsing and the physical fast path.
+        LogicalPlan agg = ungroupedAggregate(externalRelation(PATH));
+        LogicalPlan plan = new Limit(SRC, intLiteral(5), agg);
+
+        assertEquals(Set.of(PATH), ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan));
+    }
+
     public void testGroupedStatsDoesNotRequireEagerStats() {
         // STATS COUNT(*) BY g -> grouped aggregate, path absent
         LogicalPlan plan = new Aggregate(SRC, externalRelation(PATH), List.of(unresolved("g")), List.<NamedExpression>of());

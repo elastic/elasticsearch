@@ -17,8 +17,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.transport.TransportRequest;
 

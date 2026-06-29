@@ -197,6 +197,7 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTaskExecutor;
 import org.elasticsearch.xpack.stateless.recovery.PITRelocationService;
+import org.elasticsearch.xpack.stateless.recovery.PitRelocationMetrics;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
 import org.elasticsearch.xpack.stateless.recovery.RemoveRefreshClusterBlockService;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
@@ -782,7 +783,14 @@ public class StatelessPlugin extends Plugin
         if (projectResolver.get().supportsMultipleProjects()) {
             clusterService.addStateApplier(objectStoreService);
         }
-        var cacheService = createSharedBlobCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics, clusterService);
+        var cacheService = createSharedBlobCacheService(
+            nodeEnvironment,
+            settings,
+            threadPool,
+            blobCacheMetrics,
+            clusterService,
+            indicesService
+        );
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
         var cacheBlobReaderService = setAndGet(
@@ -1004,6 +1012,8 @@ public class StatelessPlugin extends Plugin
         );
         components.add(splitSourceService);
         // PIT relocation
+        var pitRelocationMetrics = new PitRelocationMetrics(services.telemetryProvider().getMeterRegistry());
+        components.add(pitRelocationMetrics);
         var pitRelocationService = setAndGet(this.pitRelocationService, new PITRelocationService());
         components.add(pitRelocationService);
 
@@ -1058,7 +1068,8 @@ public class StatelessPlugin extends Plugin
         Settings settings,
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
-        ClusterService clusterService
+        ClusterService clusterService,
+        IndicesService indicesService
     ) {
         StatelessSharedBlobCacheService statelessSharedBlobCacheService = new StatelessSharedBlobCacheService(
             nodeEnvironment,
@@ -1066,6 +1077,7 @@ public class StatelessPlugin extends Plugin
             threadPool,
             blobCacheMetrics,
             clusterService,
+            indicesService,
             metricHolder
         );
         statelessSharedBlobCacheService.assertInvariants();
@@ -1301,6 +1313,7 @@ public class StatelessPlugin extends Plugin
             SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING,
             SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,
             SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING,
+            SharedBlobCacheWarmingService.WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
@@ -1514,6 +1527,12 @@ public class StatelessPlugin extends Plugin
                 @Override
                 public void onStoreClosed(ShardId shardId) {
                     getClosedShardService().onStoreClose(shardId);
+                    final var cacheService = sharedBlobCacheService.get();
+                    // TODO consider removing the flag guard once performance is verified
+                    if (cacheService.isCacheBoostPreferenceEnabled()) {
+                        final Predicate<ShardId> hasShard = indicesService.get().hasShardPredicate();
+                        cacheService.demoteAllAsync(shardId, id -> hasShard.test(id) == false);
+                    }
                 }
             });
 

@@ -111,6 +111,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("ds_dataset_create_read_metadata_datasource", "x-pack-test-password", "ds_dataset_create_read_metadata_datasource", false)
         .user("ds_dataset_read_metadata", "x-pack-test-password", "ds_dataset_read_metadata", false)
         .user("ds_dataset_delete", "x-pack-test-password", "ds_dataset_delete", false)
+        .user("ds_dataset_query_no_datasource", "x-pack-test-password", "ds_dataset_query_no_datasource", false)
+        .user("ds_dataset_query_dls", "x-pack-test-password", "ds_dataset_query_dls", false)
+        .user("ds_dataset_query_fls", "x-pack-test-password", "ds_dataset_query_fls", false)
+        .user("ds_dataset_query_partial", "x-pack-test-password", "ds_dataset_query_partial", false)
         .build();
 
     @Override
@@ -2458,6 +2462,169 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertOK(client().performRequest(get));
 
         Request delete = new Request("DELETE", "/_query/dataset/" + datasetName);
+        setUser(delete, "test-admin");
+        assertOK(client().performRequest(delete));
+    }
+
+    /**
+     * {@code FROM <dataset>} requires the index {@code read} privilege on the dataset name — the name is routed
+     * through the security filter before the rewrite strips it from the plan. A principal without read on the name
+     * gets the same {@code Unknown index} error a missing index produces — like unauthorized indices and views,
+     * dataset existence is not revealed.
+     */
+    public void testFromDatasetDeniedWithoutReadOnName() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String dataset = createSecurityItDatasetAsAdmin();
+        try {
+            // user5 can run ES|QL (read on `index`) but has no privilege on `security_it_ds_*`.
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("user5", "FROM " + dataset + " | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString("Unknown index [" + dataset + "]"));
+
+            // Under a wildcard the unauthorized dataset is filtered from expansion, so the pattern matches
+            // nothing — same as a wildcard over unauthorized indices: an empty success, never dataset data.
+            Response wildcardResp = runESQLCommand("user5", "FROM " + dataset + "* | STATS COUNT(*)");
+            assertOK(wildcardResp);
+            Map<String, Object> wildcardMap = entityAsMap(wildcardResp);
+            assertThat(wildcardMap.get("values"), anyOf(equalTo(List.of()), equalTo(List.of(List.of(0)))));
+        } finally {
+            deleteDatasetAsAdmin(dataset);
+        }
+    }
+
+    /**
+     * Read on the dataset name is sufficient — no datasource privilege required. The parent datasource's
+     * credentials are settled at create time (PUT), not re-checked per query, so a role with index {@code read}
+     * on the dataset name but no {@code global.data_source} grant passes authorization. It then fails reading the
+     * (nonexistent) external resource, which must not look like an authorization failure or a hidden name.
+     */
+    public void testFromDatasetAllowedWithDatasetReadOnly() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String dataset = createSecurityItDatasetAsAdmin();
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_no_datasource", "FROM " + dataset + " | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), not(equalTo(HttpStatus.SC_FORBIDDEN)));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), not(equalTo(HttpStatus.SC_UNAUTHORIZED)));
+            assertThat(ex.getMessage(), not(containsString("Unknown index [" + dataset + "]")));
+            assertThat(ex.getMessage(), not(containsString("unauthorized")));
+        } finally {
+            deleteDatasetAsAdmin(dataset);
+        }
+    }
+
+    /** Datasets are incompatible with DLS/FLS: a DLS-restricted role targeting a dataset via FROM is rejected. */
+    public void testFromDatasetDeniedWithDlsOnName() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String dataset = createSecurityItDatasetAsAdmin();
+        try {
+            // ds_dataset_query_dls has read on `security_it_ds_*` but that read carries a DLS query.
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_dls", "FROM " + dataset + " | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+            assertThat(ex.getMessage(), containsString("document or field level security"));
+        } finally {
+            deleteDatasetAsAdmin(dataset);
+        }
+    }
+
+    /**
+     * {@code FROM authorized_ds, unauthorized_ds} fails with {@code Unknown index [unauthorized_ds]} — an explicitly
+     * named dataset the caller can't read errors like a missing index (400) instead of silently returning partial data
+     * for the authorized one. The denial is produced by routing the names through the rbac engine.
+     */
+    public void testFromDatasetMixedAuthorizedAndUnauthorizedRejected() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        // ds_dataset_query_partial can read security_it_ds_keep_* but not security_it_ds_drop_*.
+        final String authorized = createSecurityItDatasetAsAdmin("security_it_ds_keep_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+        final String denied = createSecurityItDatasetAsAdmin("security_it_ds_drop_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_partial", "FROM " + authorized + "," + denied + " | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString("Unknown index [" + denied + "]"));
+        } finally {
+            deleteDatasetAsAdmin(authorized);
+            deleteDatasetAsAdmin(denied);
+        }
+    }
+
+    /**
+     * A wildcard that partially matches authorized datasets, combined with an explicitly-named unauthorized dataset in
+     * the same FROM: the wildcard silently keeps only the authorized matches, but the explicit unauthorized name still
+     * errors with {@code Unknown index} (it is not silently dropped).
+     */
+    public void testFromDatasetWildcardPartialWithExplicitUnauthorized() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String authorized = createSecurityItDatasetAsAdmin("security_it_ds_keep_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+        final String denied = createSecurityItDatasetAsAdmin("security_it_ds_drop_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+        try {
+            // security_it_ds_keep_* matches only the authorized dataset; the explicit denied one must still error.
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_partial", "FROM security_it_ds_keep_*," + denied + " | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString("Unknown index [" + denied + "]"));
+        } finally {
+            deleteDatasetAsAdmin(authorized);
+            deleteDatasetAsAdmin(denied);
+        }
+    }
+
+    /** Datasets are incompatible with FLS: an FLS-restricted role targeting a dataset via FROM is rejected (mirrors DLS). */
+    public void testFromDatasetDeniedWithFlsOnName() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String dataset = createSecurityItDatasetAsAdmin();
+        try {
+            // ds_dataset_query_fls has read on security_it_ds_* but that read carries a field_security grant.
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_fls", "FROM " + dataset + " | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+            assertThat(ex.getMessage(), containsString("document or field level security"));
+        } finally {
+            deleteDatasetAsAdmin(dataset);
+        }
+    }
+
+    /** Registers a randomly-named dataset under {@link #SECURITY_IT_SHARED_DATASOURCE} as test-admin; returns its name. */
+    private String createSecurityItDatasetAsAdmin() throws IOException {
+        return createSecurityItDatasetAsAdmin("security_it_ds_authz_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT));
+    }
+
+    /** Registers a dataset with the given name under {@link #SECURITY_IT_SHARED_DATASOURCE} as test-admin. */
+    private String createSecurityItDatasetAsAdmin(String name) throws IOException {
+        Request put = new Request("PUT", "/_query/dataset/" + name);
+        XContentBuilder body = JsonXContent.contentBuilder();
+        body.startObject();
+        body.field("data_source", SECURITY_IT_SHARED_DATASOURCE);
+        body.field("resource", "s3://security-it-denied-bucket/denied/*.parquet");
+        body.endObject();
+        put.setJsonEntity(Strings.toString(body));
+        setUser(put, "test-admin");
+        assertOK(client().performRequest(put));
+        return name;
+    }
+
+    private void deleteDatasetAsAdmin(String name) throws IOException {
+        Request delete = new Request("DELETE", "/_query/dataset/" + name);
         setUser(delete, "test-admin");
         assertOK(client().performRequest(delete));
     }

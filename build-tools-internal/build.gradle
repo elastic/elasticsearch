@@ -31,6 +31,10 @@ gradlePlugin {
   // with the java-gradle-plugin
   automatedPublishing = false
   plugins {
+    base {
+      id = 'elasticsearch.base'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchBasePlugin'
+    }
     build {
       id = 'elasticsearch.build'
       implementationClass = 'org.elasticsearch.gradle.internal.BuildPlugin'
@@ -154,6 +158,10 @@ gradlePlugin {
     foreignLibrary {
       id = 'elasticsearch.foreign-library'
       implementationClass = 'org.elasticsearch.gradle.internal.foreign.ForeignLibraryPlugin'
+    }
+    foreignApi {
+      id = 'elasticsearch.foreign-api'
+      implementationClass = 'org.elasticsearch.gradle.internal.ForeignApiPlugin'
     }
     embeddedProvider {
       id = 'elasticsearch.embedded-providers'
@@ -367,6 +375,9 @@ dependencies {
   testImplementation buildLibs.spock.junit4
   testImplementation buildLibs.json.assert
   integTestImplementation buildLibs.xmlunit.core
+  testImplementation(buildLibs.archunit) {
+    because 'architecture rules enforcing Gradle best practices on build logic'
+  }
 
 }
 

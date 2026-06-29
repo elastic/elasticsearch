@@ -250,7 +250,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(extractedTimeSeries.fieldName().string(), equalTo(SourceFieldMapper.NAME));
         FunctionEsField extractedField = as(extractedTimeSeries.field(), FunctionEsField.class);
         var functionConfig = as(extractedField.functionConfig(), BlockLoaderFunctionConfig.TimeSeriesMetadata.class);
-        assertThat(functionConfig.withoutFields(), hasItem("pod"));
+        assertThat(functionConfig.skipFieldNames(), hasItem("pod"));
     }
 
     public void testNestedWithoutOverByProducesConcreteOutput() {
@@ -359,6 +359,52 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
 
     public void testWithoutPostfixSyntaxPlans() {
         planPromql("PROMQL index=k8s step=1h result=(sum(avg_over_time(network.cost[1h])) without (pod, region))");
+    }
+
+    /**
+     * Regression test for OTel passthrough alias exclusion: {@code without(cpu)} on an OTel TSDB index must
+     * resolve the short label name {@code cpu} to the concrete passthrough dimension {@code attributes.cpu},
+     * so the {@code _timeseries} block loader receives the concrete field name and correctly excludes it.
+     * Before the fix, the plan passed {@code "cpu"} in {@code excludedFields()} but the block loader compared
+     * against {@code "attributes.cpu"} (the concrete field name) and the exclusion never matched.
+     */
+    public void testWithoutOtelAttributeShortNameExcludesConcretePassthroughDimension() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=otel-metrics step=1h result=(sum without (cpu) (metrics.system.cpu.time))", false)
+        );
+
+        var timeSeriesMetadata = plan.collect(EsRelation.class)
+            .stream()
+            .flatMap(relation -> relation.output().stream())
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(TimeSeriesMetadataAttribute.class::cast)
+            .findFirst()
+            .orElse(null);
+        assertNotNull(timeSeriesMetadata);
+        assertThat(timeSeriesMetadata.excludedFields(), hasItem("cpu"));
+    }
+
+    /**
+     * Regression test for OTel resource-attributes passthrough alias exclusion. The plan-level fix does not
+     * strip {@code resource.attributes.} prefix, so {@code excludedFields()} contains {@code "host.name"} (the
+     * short root-level alias). The block loader fix resolves the alias to the concrete dimension
+     * {@code resource.attributes.host.name} via {@code MappingLookup.getFieldType}, ensuring the exclusion
+     * actually matches the dimension the loader enumerates.
+     */
+    public void testWithoutResourceAttributeShortNameExcludesConcretePassthroughDimension() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=otel-metrics step=1h result=(sum without (host.name) (metrics.system.cpu.time))", false)
+        );
+
+        var timeSeriesMetadata = plan.collect(EsRelation.class)
+            .stream()
+            .flatMap(relation -> relation.output().stream())
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(TimeSeriesMetadataAttribute.class::cast)
+            .findFirst()
+            .orElse(null);
+        assertNotNull(timeSeriesMetadata);
+        assertThat(timeSeriesMetadata.excludedFields(), hasItem("host.name"));
     }
 
     public void testWithoutTrailingCommaPlans() {

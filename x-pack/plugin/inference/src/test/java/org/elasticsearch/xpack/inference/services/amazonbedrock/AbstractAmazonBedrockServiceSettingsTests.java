@@ -62,7 +62,12 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
     /**
      * Creates a settings instance with the given common fields and defaults (typically {@code null}) for any task-specific fields.
      */
-    protected abstract T createServiceSettings(String region, String model, AmazonBedrockProvider provider, RateLimitSettings rateLimitSettings);
+    protected abstract T createServiceSettings(
+        String region,
+        String model,
+        AmazonBedrockProvider provider,
+        RateLimitSettings rateLimitSettings
+    );
 
     /**
      * The task-specific immutable fields an update request must reject, in addition to the common {@code region}, {@code model} and

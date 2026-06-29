@@ -94,7 +94,7 @@ FROM web_traffic | WHERE @timestamp >= NOW()-1w
                  | LIMIT 25
 ```
 
-Larger sample sizes improve accuracy at the cost of reduced speedup. As long as the sample size remains well below the total row count, you will still see performance benefits.
+Larger sample sizes improve accuracy at the cost of reduced speedup. As long as the sample size remains well below the total row count, you will still see performance benefits. If the sample size is a large fraction of all source documents, all documents are used instead and exact results are returned. The reason is that the cost of sampling and confidence interval computation outweighs the benefits of approximation. In this case zero-width confidence intervals are returned, indicating exact results.
 
 
 ## Queries that use index summary statistics

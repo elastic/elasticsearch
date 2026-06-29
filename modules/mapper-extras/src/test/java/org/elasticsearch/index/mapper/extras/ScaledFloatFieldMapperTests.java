@@ -460,10 +460,17 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             // Here we mostly want to verify behavior of arrays that contain malformed
             // values since there are modifications specific to synthetic source.
             if (ignoreMalformedEnabled && randomBoolean()) {
-                List<Supplier<Object>> choices = List.of(
-                    () -> randomAlphaOfLengthBetween(1, 10),
-                    () -> Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))
-                );
+                List<Supplier<Object>> choices;
+                if (isColumnar) {
+                    // Columnar mode uses subobjects:false, so object values are flattened into dynamic sub-fields
+                    // instead of being rejected by ignore_malformed, breaking the round-trip comparison.
+                    choices = List.of(() -> randomAlphaOfLengthBetween(1, 10));
+                } else {
+                    choices = List.of(
+                        () -> randomAlphaOfLengthBetween(1, 10),
+                        () -> Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))
+                    );
+                }
                 var malformedInput = randomFrom(choices).get();
                 return new Value(malformedInput, null, malformedInput);
             }

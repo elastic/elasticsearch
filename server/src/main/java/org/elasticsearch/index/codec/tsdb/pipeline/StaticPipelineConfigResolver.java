@@ -91,10 +91,7 @@ public final class StaticPipelineConfigResolver implements PipelineConfigResolve
     }
 
     private static boolean useOrdinalLargeBlock(final FieldContext context) {
-        if (context.isDimension() == false) {
-            return false;
-        }
-        return context.mappedFieldType() == MappedFieldType.IP;
+        return context.mappedFieldType() == MappedFieldType.IP && context.isDimension();
     }
 
     private static boolean useSplitDelta(final FieldContext context) {

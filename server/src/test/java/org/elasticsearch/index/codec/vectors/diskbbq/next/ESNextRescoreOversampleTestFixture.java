@@ -100,7 +100,14 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             int seq = flushSequence.getAndIncrement();
             float ov = seq == 0 ? oversampleSegmentA : oversampleSegmentB;
-            return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, ov));
+            return Optional.of(
+                new IvfSegmentConfig(
+                    ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+                    ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                    false,
+                    ov
+                )
+            );
         };
         Codec codec = createDiskBbqCodec(flushConfig, mergeConfigResolver);
         IndexWriterConfig iwc = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
@@ -131,7 +138,14 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             int seq = flushSequence.getAndIncrement();
             float ov = seq == 0 ? oversampleSegmentA : oversampleSegmentB;
-            return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, ov));
+            return Optional.of(
+                new IvfSegmentConfig(
+                    ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+                    ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                    false,
+                    ov
+                )
+            );
         };
         Codec codec = createDiskBbqCodec(flushConfig, mergeConfigResolverForBothPhases);
 
@@ -181,9 +195,23 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             int seq = flushSequence.getAndIncrement();
             if (seq == 0) {
-                return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
+                return Optional.of(
+                    new IvfSegmentConfig(
+                        ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+                        ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                        false,
+                        2f
+                    )
+                );
             }
-            return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
+            return Optional.of(
+                new IvfSegmentConfig(
+                    ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+                    ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
+                    false,
+                    3f
+                )
+            );
         };
         Codec codec = createDiskBbqCodec(flushConfig, IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster));
         IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
@@ -216,9 +244,23 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             int seq = flushSequence.getAndIncrement();
             if (seq == 0) {
-                return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
+                return Optional.of(
+                    new IvfSegmentConfig(
+                        ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+                        ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                        false,
+                        2f
+                    )
+                );
             }
-            return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
+            return Optional.of(
+                new IvfSegmentConfig(
+                    ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+                    ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
+                    false,
+                    3f
+                )
+            );
         };
         Codec codec = createDiskBbqCodec(flushConfig, IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster));
         IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
@@ -246,7 +288,12 @@ public final class ESNextRescoreOversampleTestFixture {
         if (encoding == null) {
             return null;
         }
-        return new IvfSegmentConfig(encoding, persistedPreconditionOnLeaf(leaf), persistedOversampleOnLeaf(leaf));
+        return new IvfSegmentConfig(
+            ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+            encoding,
+            persistedPreconditionOnLeaf(leaf),
+            persistedOversampleOnLeaf(leaf)
+        );
     }
 
     public static ESNextDiskBBQVectorsFormat.QuantEncoding persistedQuantEncodingOnLeaf(LeafReader leaf) throws IOException {

@@ -103,4 +103,9 @@ public class OpenAiEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
     public TaskType getTaskType() {
         return model.getTaskType();
     }
+
+    @Override
+    public void onAuthenticationFailure() {
+        model.secretsApplier().onAuthenticationFailure();
+    }
 }

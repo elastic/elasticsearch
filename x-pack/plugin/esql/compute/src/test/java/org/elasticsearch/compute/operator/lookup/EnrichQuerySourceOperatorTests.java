@@ -55,10 +55,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -125,7 +127,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
                     directoryData.searchExecutionContext,
-                    warnings()
+                    warnings(),
+                    () -> 0L
                 )
             ) {
                 Page page = queryOperator.getOutput();
@@ -189,7 +192,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
                     directoryData.searchExecutionContext,
-                    warnings()
+                    warnings(),
+                    () -> 0L
                 )
             ) {
                 Map<Integer, Set<Integer>> actualPositions = new HashMap<>();
@@ -235,7 +239,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                 0,
                 directoryData.searchExecutionContext,
-                warnings()
+                warnings(),
+                () -> 0L
             );
 
             // SourceOperator.canProduceMoreDataWithoutExtraInput() returns false by default
@@ -306,7 +311,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                 0,
                 directoryData.searchExecutionContext,
-                warnings()
+                warnings(),
+                () -> 0L
             );
 
             // SourceOperator.canProduceMoreDataWithoutExtraInput() returns false by default
@@ -379,7 +385,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
                     directoryData.searchExecutionContext,
-                    warnings()
+                    warnings(),
+                    () -> 0L
                 )
             ) {
                 Page page = queryOperator.getOutput();
@@ -397,6 +404,63 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
                 "Line 1:1: java.lang.IllegalArgumentException: multi-value found"
             );
+        }
+    }
+
+    public void testBytesRead() throws Exception {
+        long countStep = 31L;
+        AtomicLong counter = new AtomicLong();
+        // Each call to the supplier increments the counter by countStep
+        var directoryBytesRead = (java.util.function.LongSupplier) () -> counter.addAndGet(countStep);
+
+        // Use enough terms to guarantee multiple pages with small maxPageSize
+        int numTerms = 30;
+        List<List<String>> directoryTermsList = IntStream.range(0, numTerms).mapToObj(i -> List.of("term-" + i)).toList();
+        List<List<String>> inputTermsList = IntStream.range(0, numTerms).mapToObj(i -> List.of("term-" + i)).toList();
+
+        try (var directoryData = makeDirectoryWith(directoryTermsList); var inputTerms = makeTermsBlock(inputTermsList)) {
+            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
+            Page inputPage = new Page(inputTerms);
+            // Small maxPageSize forces multiple getOutput() calls
+            int maxPageSize = 5;
+            try (
+                EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
+                    blockFactory,
+                    maxPageSize,
+                    queryList,
+                    inputPage,
+                    BlockOptimization.NONE,
+                    new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
+                    0,
+                    directoryData.searchExecutionContext,
+                    warnings(),
+                    directoryBytesRead
+                )
+            ) {
+                // Initial status: no bytes read yet
+                assertThat(queryOperator.status().bytesRead(), equalTo(0L));
+
+                int pages = 0;
+                long lastBytesRead = 0L;
+                while (queryOperator.isFinished() == false) {
+                    Page page = queryOperator.getOutput();
+                    if (page != null) {
+                        pages++;
+                        // bytes_read should be monotonically increasing across pages
+                        long currentBytesRead = queryOperator.status().bytesRead();
+                        assertThat(currentBytesRead, greaterThan(lastBytesRead));
+                        lastBytesRead = currentBytesRead;
+                        page.releaseBlocks();
+                    }
+                }
+                // With 30 terms and maxPageSize=5, expect multiple pages
+                assertThat(pages, greaterThan(1));
+
+                // This doesn't actually test the real bytes read, just tests that if there were any bytes counted,
+                // the operator would retain the correct count.
+                long bytesRead = queryOperator.status().bytesRead();
+                assertThat(bytesRead, equalTo(pages * countStep));
+            }
         }
     }
 

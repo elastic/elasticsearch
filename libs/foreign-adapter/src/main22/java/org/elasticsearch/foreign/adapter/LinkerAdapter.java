@@ -7,13 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.foreign;
+package org.elasticsearch.foreign.adapter;
 
 import java.lang.foreign.Linker;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles.Lookup;
 
-public class LinkerHelperUtil {
+public final class LinkerAdapter {
 
     static final Linker.Option[] ALLOW_HEAP_ACCESS = new Linker.Option[] { Linker.Option.critical(true) };
 
@@ -31,5 +31,5 @@ public class LinkerHelperUtil {
         return rawHandle;
     }
 
-    private LinkerHelperUtil() {}
+    private LinkerAdapter() {}
 }

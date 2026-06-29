@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.foreign;
+package org.elasticsearch.foreign.adapter;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemoryLayout;
@@ -15,9 +15,9 @@ import java.lang.foreign.MemorySegment;
 import java.lang.invoke.VarHandle;
 
 /**
- * Utility methods to act on MemorySegment apis which have changed in subsequent JDK releases.
+ * Adapts MemorySegment APIs that changed between JDK 21 and 22+.
  */
-public class MemorySegmentUtil {
+public final class MemorySegmentAdapter {
 
     public static String getString(MemorySegment segment, long offset) {
         return segment.getUtf8String(offset);
@@ -32,7 +32,7 @@ public class MemorySegmentUtil {
     }
 
     /**
-     * Return a {@link VarHandle} to access an element within the given memory segment.
+     * Return a {@link VarHandle} to access an element within the given memory layout.
      *
      * Note: This is no-op in Java 21, see the Java 22 implementation.
      *
@@ -44,5 +44,5 @@ public class MemorySegmentUtil {
         return layout.varHandle(element);
     }
 
-    private MemorySegmentUtil() {}
+    private MemorySegmentAdapter() {}
 }

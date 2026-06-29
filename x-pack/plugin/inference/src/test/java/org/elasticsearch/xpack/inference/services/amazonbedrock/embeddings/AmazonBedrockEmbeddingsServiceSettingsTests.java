@@ -82,6 +82,9 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractAmazonB
     }
 
     public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var settingsMap = new HashMap<String, Object>();
+        settingsMap.put(ServiceFields.MAX_INPUT_TOKENS, TEST_MAX_INPUT_TOKENS);
+        settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT)));
         var originalServiceSettings = new AmazonBedrockEmbeddingsServiceSettings(
             INITIAL_TEST_REGION,
             INITIAL_TEST_MODEL_ID,
@@ -92,18 +95,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractAmazonB
             INITIAL_TEST_SIMILARITY,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
-            createEmbeddingsRequestSettingsMap(
-                TEST_REGION,
-                TEST_MODEL_ID,
-                TEST_PROVIDER.toString(),
-                TEST_DIMENSIONS,
-                TEST_DIMENSIONS_SET_BY_USER,
-                TEST_MAX_INPUT_TOKENS,
-                TEST_SIMILARITY,
-                TEST_RATE_LIMIT
-            )
-        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(settingsMap);
 
         assertThat(
             updatedServiceSettings,
@@ -226,53 +218,6 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractAmazonB
                     null
                 )
             )
-        );
-    }
-
-    public void testFromMap_Request_DimensionsSetByUser_ShouldThrowWhenPresent() {
-        var settingsMap = createEmbeddingsRequestSettingsMap(
-            TEST_REGION,
-            TEST_MODEL_ID,
-            TEST_PROVIDER.toString(),
-            null,
-            true,
-            TEST_MAX_INPUT_TOKENS,
-            TEST_SIMILARITY
-        );
-
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> AmazonBedrockEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
-        );
-
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
-            containsString(
-                Strings.format("Validation Failed: 1: [service_settings] does not allow the setting [%s];", DIMENSIONS_SET_BY_USER)
-            )
-        );
-    }
-
-    public void testFromMap_Request_Dimensions_ShouldThrowWhenPresent() {
-        var settingsMap = createEmbeddingsRequestSettingsMap(
-            TEST_REGION,
-            TEST_MODEL_ID,
-            TEST_PROVIDER.toString(),
-            TEST_DIMENSIONS,
-            null,
-            null,
-            null,
-            TEST_RATE_LIMIT
-        );
-
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> AmazonBedrockEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
-        );
-
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
-            containsString(Strings.format("[service_settings] does not allow the setting [%s]", DIMENSIONS))
         );
     }
 

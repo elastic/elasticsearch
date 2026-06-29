@@ -12,6 +12,7 @@ import org.elasticsearch.foreign.LibraryProvider;
 module org.elasticsearch.foreign {
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
+    requires transitive org.elasticsearch.foreign.adapter;
 
     exports org.elasticsearch.foreign;
 

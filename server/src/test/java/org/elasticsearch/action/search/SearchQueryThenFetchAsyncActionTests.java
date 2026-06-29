@@ -99,7 +99,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicBoolean canReturnNullResponse = new AtomicBoolean(false);
         // Collect birth refs to release after latch.await(), mirroring InboundHandler's
         // response.decRef() that runs after handleResponse returns.
-        List<QuerySearchResult> resultsToRelease = new ArrayList<>();
+        List<QuerySearchResult> resultsToRelease = Collections.synchronizedList(new ArrayList<>());
         var transportService = mock(TransportService.class);
         when(transportService.getLocalNode()).thenReturn(primaryNode);
         SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null) {
@@ -327,7 +327,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicBoolean canReturnNullResponse = new AtomicBoolean(false);
         // Collect birth refs to release after latch.await(), mirroring InboundHandler's
         // response.decRef() that runs after handleResponse returns.
-        List<QuerySearchResult> resultsToRelease = new ArrayList<>();
+        List<QuerySearchResult> resultsToRelease = Collections.synchronizedList(new ArrayList<>());
         var transportService = mock(TransportService.class);
         when(transportService.getLocalNode()).thenReturn(primaryNode);
         SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null) {

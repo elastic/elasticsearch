@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * Loads {@code _source} for high-cardinality fields in strictly columnar index mode that store their values in document order via the
@@ -32,6 +33,7 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
 
     private final String name;
     private final String countFieldName;
+    private final Function<BytesRef, BytesRef> converter;
 
     private NumericDocValues counts;
     private BinaryDocValues values;
@@ -46,8 +48,17 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
     private int[] lengths = new int[8];
 
     public ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(String name) {
+        this(name, Function.identity());
+    }
+
+    /**
+     * @param converter converts each non-null decoded slot before it is written as a utf8 string. Doc values that aren't directly
+     *                  serializable as utf8 (ex. the {@code IpFieldMapper} encoded form) supply a converter; others use the identity.
+     */
+    public ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(String name, Function<BytesRef, BytesRef> converter) {
         this.name = Objects.requireNonNull(name);
         this.countFieldName = name + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        this.converter = Objects.requireNonNull(converter);
     }
 
     @Override
@@ -144,7 +155,8 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
                 if (lengths[i] < 0) {
                     b.nullValue();
                 } else {
-                    b.utf8Value(blobBytes, offsets[i], lengths[i]);
+                    BytesRef converted = converter.apply(new BytesRef(blobBytes, offsets[i], lengths[i]));
+                    b.utf8Value(converted.bytes, converted.offset, converted.length);
                 }
             }
         } else {

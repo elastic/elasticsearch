@@ -310,7 +310,7 @@ stack: preview 9.4, ga 9.5
 serverless: ga
 ```
 
-Use the `approximation` parameter to enable [fast approximation for `STATS` queries](esql-query-approximation).
+Use the `approximation` parameter to enable [fast approximation for `STATS` queries](esql-query-approximation.md).
 If not specified, defaults to `false`.
 
 For example:

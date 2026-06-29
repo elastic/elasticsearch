@@ -229,7 +229,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
                 return MessageDigests.digest(in, MessageDigests.md5());
             } catch (IOException e) {
                 logger.warn(
-                    "failed to read file [{}] while checking for file changes [{}], will assuming file has been modified",
+                    "failed to read file [{}] while checking for file changes [{}], will assume file has been modified",
                     path,
                     e.toString()
                 );

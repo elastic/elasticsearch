@@ -95,8 +95,8 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
 
     /**
      * A single field of the audit line: its JSON key and how its value is encoded.
-     * {@code prefix} is the precomputed {@code , "name":} separator that precedes every field value in the JSON output; pre-computing it
-     * for performance reasons.
+     * {@code prefix} is the {@code , "name":} separator that precedes every field value in the JSON output; used during serialization.
+     * Precomputing it for performance reasons.
      */
     record LogField(String name, FieldType type, String prefix) {
         LogField(String name, FieldType type) {
@@ -106,8 +106,7 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
 
     /**
      * The ordered set of fields that may appear in an audit line. The order matches the order in which the fields appear in the
-     * {@code appender.audit_rolling.layout.pattern}, so the rendered line is byte-for-byte compatible with the previous
-     * {@code %varsNotEmpty{%map{...}}}-driven layout. A field absent from an entry is simply skipped during formatting.
+     * previous {@code appender.audit_rolling.layout.pattern}, so the rendered line is byte-for-byte compatible with the older layout.
      */
     record LogFormat(LogField[] fields, Map<String, Integer> indexByName) {
         static LogFormat of(LogField... fields) {
@@ -124,10 +123,6 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
         }
     }
 
-    /**
-     * The audit line field layout, mirroring {@code appender.audit_rolling.layout.pattern}. {@code type} and {@code timestamp} are
-     * emitted by literal converters in the pattern (not by this message), so they are intentionally absent here.
-     */
     static final LogFormat AUDIT_FORMAT = LogFormat.of(
         new LogField(CLUSTER_NAME_FIELD_NAME, FieldType.STRING),
         new LogField(CLUSTER_UUID_FIELD_NAME, FieldType.STRING),
@@ -199,11 +194,6 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
         }
     }
 
-    /**
-     * Sets the value for {@code name}, or does nothing if {@code value} is {@code null} or {@code name} is not part of the format.
-     * Returns {@code this} for chaining. A {@code null} value mirrors the previous behavior where an absent or empty map entry was not
-     * rendered. Setting a field that was already set overwrites it, as with the previous map-backed message.
-     */
     FastLogEntryAccumulator with(String name, Object value) {
         if (value == null) {
             return this;
@@ -215,17 +205,13 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
         return this;
     }
 
-    /**
-     * Returns the currently set value for {@code name}, or {@code null} if it is unset or not part of the format.
-     */
+
     Object get(String name) {
         final int index = format.indexOf(name);
         return index < 0 ? null : values[index];
     }
 
-    /**
-     * Clears the value for {@code name} if it is part of the format.
-     */
+
     void remove(String name) {
         final int index = format.indexOf(name);
         if (index >= 0) {
@@ -252,7 +238,7 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
     public void formatTo(StringBuilder buffer) {
         String rendered = this.rendered;
         if (rendered == null) {
-            final StringBuilder sb = new StringBuilder(1024);
+            final StringBuilder sb = new StringBuilder(1024); //derived via profiling to minimize resizing for a typical accessGranted.
             final JsonStringEncoder jsonStringEncoder = JsonStringEncoder.getInstance();
             final LogField[] fields = format.fields();
             for (int i = 0; i < fields.length; i++) {

@@ -443,16 +443,15 @@ public class HierarchicalKMeans<V> {
             V v = priors.vectorValue(i);
             ops.addScaled(clusterSizes[i], v, sums[c]);
         }
-        V[] result = ops.newCentroidArray(nonZero, dimension);
+        V[] result = ops.newCentroidArrayShallow(nonZero);
         int outIdx = 0;
         for (int c = 0; c < k; c++) {
             if (totalSizes[c] > 0) {
-                // Divide the float sums and write into the native centroid
                 float invSize = 1.0f / totalSizes[c];
                 for (int d = 0; d < dimension; d++) {
                     sums[c][d] *= invSize;
                 }
-                ops.initCentroidFromFloat(result[outIdx], sums[c], dimension);
+                result[outIdx] = ops.centroidFromFloat(sums[c], dimension);
                 outIdx++;
             }
         }

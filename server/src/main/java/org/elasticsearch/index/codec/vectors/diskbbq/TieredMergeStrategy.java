@@ -143,7 +143,7 @@ public class TieredMergeStrategy<V> {
      * @return a merge action ready to execute
      */
     // TODO: CentroidData is not yet generic on main — it uses ClusteringFloatVectorValues internally.
-    // Once CentroidData is generified to CentroidData<V> (as part of the byte DiskBBQ reader work),
+    // Once CentroidData is generified to CentroidData<V> (as part of the subsequent byte DiskBBQ reader work),
     // this method signature should change to CentroidData<V>[] and the unchecked casts below can be removed.
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public MergeAction<V> selectAction(int[] segmentSizes, int[] segmentCentroids, IVFVectorsReader.CentroidData[] centroidData) {

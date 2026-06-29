@@ -98,9 +98,10 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
     /**
      * Pins the dataset CRUD vocabulary against the query path: the coordinator-level data-shape keys a
      * dataset accepts must be exactly {@code COORDINATOR_KEYS} minus the EXTERNAL-only allowlist
-     * ({@code format}/{@code reader}) and the internal {@code _datasource} envelope. If a future change
+     * ({@code reader}) and the internal {@code _datasource} envelope. {@code format} is a first-class
+     * dataset setting and so must be present in {@code COORDINATOR_DATASET_KEYS}. If a future change
      * adds a coordinator key without either exposing it on the dataset or allowlisting it as
-     * EXTERNAL-only, this fails — so a real option cannot silently become EXTERNAL-only (or vice versa).
+     * EXTERNAL-only, this fails, so a real option cannot silently become EXTERNAL-only (or vice versa).
      */
     public void testDatasetCoordinatorKeysTrackCoordinatorKeys() {
         Set<String> expected = new TreeSet<>(FileSourceFactory.COORDINATOR_KEYS);
@@ -110,6 +111,17 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
             "dataset coordinator keys must equal COORDINATOR_KEYS minus the EXTERNAL-only allowlist and the internal _datasource key",
             expected,
             new TreeSet<>(FileDataSourceValidator.COORDINATOR_DATASET_KEYS)
+        );
+    }
+
+    public void testExternalOnlyKeysIsExactlyReader() {
+        assertEquals(Set.of(FormatNameResolver.CONFIG_READER), FileSourceFactory.EXTERNAL_ONLY_KEYS);
+    }
+
+    public void testFormatIsAFirstClassDatasetKey() {
+        assertTrue(
+            "format must be part of the dataset vocabulary now that it is a first-class setting",
+            FileDataSourceValidator.COORDINATOR_DATASET_KEYS.contains(FormatNameResolver.CONFIG_FORMAT)
         );
     }
 

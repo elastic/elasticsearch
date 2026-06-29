@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -81,11 +82,33 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         "schema_sample_size"
     );
 
+    // Stands in for the EsqlPlugin-built resolver: csv is the only known format, mapped from the
+    // ".csv" extension, with CSV_CONFIG_KEYS as its format-specific keys.
+    private static final Set<String> KNOWN_FORMATS = Set.of("csv");
+
+    private static final FileDataSourceValidator.FormatConfigKeyResolver CSV_RESOLVER =
+        new FileDataSourceValidator.FormatConfigKeyResolver() {
+            @Override
+            public Set<String> configKeysForFormat(String formatName) {
+                return "csv".equals(formatName) ? CSV_CONFIG_KEYS : null;
+            }
+
+            @Override
+            public String formatForExtension(String extension) {
+                return ".csv".equals(extension) ? "csv" : null;
+            }
+
+            @Override
+            public Set<String> knownFormats() {
+                return KNOWN_FORMATS;
+            }
+        };
+
     private final DataSourceValidator formatAwareValidator = new FileDataSourceValidator(
         "s3",
         S3Configuration::fromMap,
         Set.of("s3", "s3a", "s3n")
-    ).withFormatConfigKeyResolver(ext -> ".csv".equals(ext) ? CSV_CONFIG_KEYS : null, Set.of(".gz"));
+    ).withFormatConfigKeyResolver(CSV_RESOLVER, Set.of(".gz"));
 
     public void testValidateDatasourceWithCredentials() {
         var result = validator.validateDatasource(Map.of("access_key", "AKIA123", "secret_key", "secret", "region", "us-east-1"));
@@ -337,10 +360,20 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("target_split_size", "1024")));
     }
 
-    public void testValidateDatasetFormatStaysExternalOnly() {
-        // format/reader remain EXTERNAL-only dev knobs: they are NOT accepted as dataset settings.
-        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("format", "csv")));
+    public void testReaderStaysExternalOnly() {
+        // reader remains an EXTERNAL-only dev knob: it is never accepted as a dataset setting, with or
+        // without a format-aware validator.
         expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("reader", "java")));
+        expectThrows(
+            ValidationException.class,
+            () -> formatAwareValidator.validateDataset(Map.of(), "s3://b/data.csv", Map.of("reader", "java"))
+        );
+    }
+
+    public void testNoResolverRejectsFormat() {
+        // Without a FormatConfigKeyResolver the validator cannot validate a format value, so format
+        // (and any format-specific key) is rejected, preserving pre-feature behavior.
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("format", "csv")));
     }
 
     // --- Format-aware validation tests ---
@@ -417,6 +450,94 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         expectThrows(
             ValidationException.class,
             () -> validator.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of("delimiter", ";"))
+        );
+    }
+
+    // --- Explicit `format` setting + resolved-format validation ---
+
+    public void testExplicitFormatEnablesFormatSettingOnBarePrefix() {
+        // The headline bug fix: a bare prefix (no extension) carries no format, but an explicit
+        // `format` lets it accept that format's settings.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "csv", "delimiter", "|"));
+        assertEquals("csv", result.get("format"));
+        assertEquals("|", result.get("delimiter"));
+    }
+
+    public void testExplicitFormatStored() {
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "csv"));
+        assertEquals("csv", result.get("format"));
+    }
+
+    public void testExplicitFormatIsCaseInsensitive() {
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "CSV", "delimiter", "|"));
+        assertEquals("|", result.get("delimiter"));
+    }
+
+    public void testExplicitFormatOverridesExtension() {
+        // Explicit format wins over the resource extension.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/data.parquet", Map.of("format", "csv", "delimiter", "|"));
+        assertEquals("csv", result.get("format"));
+        assertEquals("|", result.get("delimiter"));
+    }
+
+    public void testExplicitFormatRejectsForeignSetting() {
+        // delimiter is not a key of... a format with no such key; here csv has it, so use an unknown key.
+        expectThrows(
+            ValidationException.class,
+            () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "csv", "not_a_csv_key", "x"))
+        );
+    }
+
+    public void testWhitespacePaddedFormatAccepted() {
+        // format is normalized (trim, then lowercase) identically at create and query time, so
+        // surrounding whitespace is tolerated rather than rejected.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", " CSV ", "delimiter", "|"));
+        assertEquals("|", result.get("delimiter"));
+    }
+
+    public void testUnknownExplicitFormatRejected() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "bogus"))
+        );
+        assertEquals(List.of(FileDataSourceValidator.unknownFormatError("bogus", KNOWN_FORMATS)), e.validationErrors());
+    }
+
+    public void testUnknownExplicitFormatWithFormatKeyYieldsSingleError() {
+        // A bad explicit format short-circuits: exactly one error, no extra "set format"/unknown-setting noise.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "bogus", "delimiter", "|"))
+        );
+        assertEquals(List.of(FileDataSourceValidator.unknownFormatError("bogus", KNOWN_FORMATS)), e.validationErrors());
+    }
+
+    public void testUnknownFormatWithFormatSettingGivesSetFormatHint() {
+        // No explicit format, unknown extension, format-specific setting present: targeted hint.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("delimiter", "|"))
+        );
+        assertEquals(List.of(FileDataSourceValidator.cannotDetermineFormatError("s3://test", Set.of("delimiter"))), e.validationErrors());
+    }
+
+    public void testUnknownFormatBaseSettingsOnlyAccepted() {
+        // No explicit format, unknown extension, only base settings -> accepted (resolves per-file at query).
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("partition_detection", "hive"));
+        assertEquals("hive", result.get("partition_detection"));
+    }
+
+    public void testFormatAutoFallsBackToExtension() {
+        // `auto` means "infer from extension": a .csv resource then accepts CSV settings.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of("format", "auto", "delimiter", "|"));
+        assertEquals("|", result.get("delimiter"));
+    }
+
+    public void testFormatAutoOnBarePrefixWithFormatSettingRejected() {
+        // `auto` + no extension cannot resolve a format, so a format-specific setting is rejected.
+        expectThrows(
+            ValidationException.class,
+            () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "auto", "delimiter", "|"))
         );
     }
 }

@@ -24,14 +24,23 @@ import java.util.Set;
  * Resolution priority:
  * <ol>
  *   <li>{@code reader} config key — reader alias mapped to format name</li>
- *   <li>{@code format} config key — explicit format override</li>
+ *   <li>{@code format} config key: explicit format override (the sentinel {@link #FORMAT_AUTO}
+ *       and an empty value mean "no override" and fall through to the extension)</li>
  *   <li>File extension extracted from the source path</li>
  * </ol>
  */
 public final class FormatNameResolver {
 
-    static final String CONFIG_FORMAT = "format";
+    public static final String CONFIG_FORMAT = "format";
     static final String CONFIG_READER = "reader";
+
+    /**
+     * Sentinel {@code format} value meaning "no explicit override, infer from the resource
+     * extension". Shared with the dataset CRUD validator so the create path and this read path
+     * treat {@code auto} identically. Without this, a stored or EXTERNAL {@code format=auto} would
+     * reach {@code registry.byName("auto")} and throw.
+     */
+    public static final String FORMAT_AUTO = "auto";
 
     /** Reader alias accepted in {@code WITH {"reader": "..."}} for the parquet-rs native reader. */
     public static final String READER_PARQUET_RS = "parquet-rs";
@@ -57,7 +66,7 @@ public final class FormatNameResolver {
         if (config != null) {
             Object readerOverride = config.get(CONFIG_READER);
             if (readerOverride != null) {
-                String alias = readerOverride.toString().toLowerCase(Locale.ROOT);
+                String alias = readerOverride.toString().trim().toLowerCase(Locale.ROOT);
                 String formatName = READER_ALIAS_TO_FORMAT.get(alias);
                 if (formatName != null) {
                     return formatName;
@@ -65,8 +74,8 @@ public final class FormatNameResolver {
             }
             Object formatOverride = config.get(CONFIG_FORMAT);
             if (formatOverride != null) {
-                String name = formatOverride.toString().toLowerCase(Locale.ROOT);
-                if (name.isEmpty() == false) {
+                String name = formatOverride.toString().trim().toLowerCase(Locale.ROOT);
+                if (name.isEmpty() == false && name.equals(FORMAT_AUTO) == false) {
                     return name;
                 }
             }
@@ -98,7 +107,7 @@ public final class FormatNameResolver {
         if (config != null) {
             Object readerOverride = config.get(CONFIG_READER);
             if (readerOverride != null) {
-                String alias = readerOverride.toString().toLowerCase(Locale.ROOT);
+                String alias = readerOverride.toString().trim().toLowerCase(Locale.ROOT);
                 String formatName = READER_ALIAS_TO_FORMAT.get(alias);
                 if (formatName == null) {
                     throw new IllegalArgumentException("Unknown reader [" + alias + "]; supported values: " + supportedReaderAliases());
@@ -107,8 +116,8 @@ public final class FormatNameResolver {
             }
             Object formatOverride = config.get(CONFIG_FORMAT);
             if (formatOverride != null) {
-                String name = formatOverride.toString().toLowerCase(Locale.ROOT);
-                if (name.isEmpty() == false) {
+                String name = formatOverride.toString().trim().toLowerCase(Locale.ROOT);
+                if (name.isEmpty() == false && name.equals(FORMAT_AUTO) == false) {
                     return registry.byName(name);
                 }
             }

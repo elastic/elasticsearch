@@ -405,6 +405,8 @@ class SegmentOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         private int doc = -1;
         private boolean exhausted = false;       // no competitive documents remain in this segment
         private PriorityQueue<PostingsEnum> disjunction; // null => no pruning yet (pass through)
+        private long disjunctionMinOrd = -1;     // ordinal window the current disjunction was built for (-1 = none)
+        private long disjunctionMaxOrd = -1;
         private boolean pruningCounted = false;  // whether this segment has been counted as having pruned
 
         SegmentCompetitiveIterator(LeafReaderContext context) {
@@ -490,6 +492,12 @@ class SegmentOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                 disjunction = null; // too wide to enumerate; fall back to a full pass
                 return;
             }
+            if (disjunction != null && minOrd == disjunctionMinOrd && maxOrd == disjunctionMaxOrd) {
+                // The competitive window is unchanged - the queue's worst key moved within the same leading-source value
+                // (e.g. only a secondary source advanced). Keep the existing disjunction and its already-advanced postings
+                // instead of re-opening them from the start, which on a low-cardinality leading field dominates the scan.
+                return;
+            }
             final Terms terms = context.reader().terms(fieldType.name());
             if (terms == null) {
                 disjunction = null;
@@ -515,6 +523,8 @@ class SegmentOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                 pq.add(postings);
             }
             disjunction = pq;
+            disjunctionMinOrd = minOrd;
+            disjunctionMaxOrd = maxOrd;
             if (pruningCounted == false) {
                 segmentsDynamicPruningUsed++;
                 pruningCounted = true;

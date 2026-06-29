@@ -115,17 +115,11 @@ public class FastLogEntryAccumulatorTests extends ESTestCase {
     }
 
     public void testStringArrayField() {
-        assertThat(
-            render(entry().with("beta", new Object[] { "x", "y", "z" })),
-            equalTo(", \"beta\":[\"x\",\"y\",\"z\"]")
-        );
+        assertThat(render(entry().with("beta", new Object[] { "x", "y", "z" })), equalTo(", \"beta\":[\"x\",\"y\",\"z\"]"));
     }
 
     public void testStringArraySkipsNullElements() {
-        assertThat(
-            render(entry().with("beta", new Object[] { "a", null, "c" })),
-            equalTo(", \"beta\":[\"a\",\"c\"]")
-        );
+        assertThat(render(entry().with("beta", new Object[] { "a", null, "c" })), equalTo(", \"beta\":[\"a\",\"c\"]"));
     }
 
     public void testStringArrayAllNullsProducesEmptyArray() {
@@ -139,10 +133,7 @@ public class FastLogEntryAccumulatorTests extends ESTestCase {
     }
 
     public void testMultipleStringFieldsCommaSeparated() {
-        assertThat(
-            render(entry().with("alpha", "a1").with("delta", "d1")),
-            equalTo(", \"alpha\":\"a1\", \"delta\":\"d1\"")
-        );
+        assertThat(render(entry().with("alpha", "a1").with("delta", "d1")), equalTo(", \"alpha\":\"a1\", \"delta\":\"d1\""));
     }
 
     public void testPrintableAsciiIsPassedThroughVerbatim() {
@@ -221,24 +212,15 @@ public class FastLogEntryAccumulatorTests extends ESTestCase {
     }
 
     public void testStringArrayWithSpecialChars() {
-        assertThat(
-            render(entry().with("beta", new Object[] { "a\"b", "c\\d" })),
-            equalTo(", \"beta\":[\"a\\\"b\",\"c\\\\d\"]")
-        );
+        assertThat(render(entry().with("beta", new Object[] { "a\"b", "c\\d" })), equalTo(", \"beta\":[\"a\\\"b\",\"c\\\\d\"]"));
     }
 
     public void testStringArrayWithUnicodeElements() {
-        assertThat(
-            render(entry().with("beta", new Object[] { "ñoño", "用户" })),
-            equalTo(", \"beta\":[\"ñoño\",\"用户\"]")
-        );
+        assertThat(render(entry().with("beta", new Object[] { "ñoño", "用户" })), equalTo(", \"beta\":[\"ñoño\",\"用户\"]"));
     }
 
     public void testStringArrayWithEmojiElement() {
-        assertThat(
-            render(entry().with("beta", new Object[] { "flag 🏴" })),
-            equalTo(", \"beta\":[\"flag 🏴\"]")
-        );
+        assertThat(render(entry().with("beta", new Object[] { "flag 🏴" })), equalTo(", \"beta\":[\"flag 🏴\"]"));
     }
 
     public void testFormatToProducesSameResultOnRepeatedCalls() {

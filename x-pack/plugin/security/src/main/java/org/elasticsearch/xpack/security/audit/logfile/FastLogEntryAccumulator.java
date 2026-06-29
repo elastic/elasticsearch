@@ -122,7 +122,7 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
         }
     }
 
-    static final LogFormat AUDIT_FORMAT = LogFormat.of(
+    private static final LogFormat AUDIT_FORMAT = LogFormat.of(
         new LogField(CLUSTER_NAME_FIELD_NAME, FieldType.STRING),
         new LogField(CLUSTER_UUID_FIELD_NAME, FieldType.STRING),
         new LogField(NODE_NAME_FIELD_NAME, FieldType.STRING),
@@ -204,12 +204,10 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
         return this;
     }
 
-
     Object get(String name) {
         final int index = format.indexOf(name);
         return index < 0 ? null : values[index];
     }
-
 
     void remove(String name) {
         final int index = format.indexOf(name);
@@ -237,7 +235,7 @@ final class FastLogEntryAccumulator implements Message, StringBuilderFormattable
     public void formatTo(StringBuilder buffer) {
         String rendered = this.rendered;
         if (rendered == null) {
-            final StringBuilder sb = new StringBuilder(1024); //derived via profiling to minimize resizing for a typical accessGranted.
+            final StringBuilder sb = new StringBuilder(1024); // derived via profiling to minimize resizing for a typical accessGranted.
             final JsonStringEncoder jsonStringEncoder = JsonStringEncoder.getInstance();
             final LogField[] fields = format.fields();
             for (int i = 0; i < fields.length; i++) {

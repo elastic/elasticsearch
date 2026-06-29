@@ -66,24 +66,6 @@ import static org.mockito.Mockito.when;
  * deterministic so two runs are directly comparable, and the harness only touches stable public API of {@link LoggingAuditTrail}, so
  * it compiles and runs unchanged against both the optimized and the pre-optimization implementations.
  *
- * <p><b>Producing before/after numbers (commit, then revert):</b>
- * <pre>
- *   # 0. JAVA_HOME must point at a JDK 25 (e.g. a Gradle-provisioned one under ~/.gradle/jdks)
- *   # 1. Commit the profiling test on its own so it survives the revert below:
- *   git add x-pack/plugin/security/src/test/java/org/elasticsearch/xpack/security/audit/logfile/LoggingAuditTrailProfilingTests.java
- *   git commit -m "Add audit access_granted profiling harness"
- *   # 2. Commit the optimization (the new accumulator + LoggingAuditTrail + log4j2.properties):
- *   git add -A &amp;&amp; git commit -m "Speed up audit log entry construction"
- *   # 3. Profile the NEW code:
- *   ./gradlew :x-pack:plugin:security:test --tests "*LoggingAuditTrailProfilingTests" \
- *       -Dtests.audit.profile=true -Dtests.output=always
- *   # 4. Revert ONLY the optimization commit (the profiling commit from step 1 stays in place):
- *   git revert --no-edit HEAD
- *   # 5. Profile the OLD code (same command as step 3), then compare the two "avg ns/op" lines.
- *   # 6. Restore the optimization when done:
- *   git revert --no-edit HEAD
- * </pre>
- *
  * <p>Iteration counts can be tuned with {@code -Dtests.audit.profile.warmup} and {@code -Dtests.audit.profile.iterations}.
  */
 public class LoggingAuditTrailProfilingTests extends ESTestCase {
@@ -181,7 +163,11 @@ public class LoggingAuditTrailProfilingTests extends ESTestCase {
         // in-memory capturing appender, which renders each entry via the audit layout, should consume the events.
         final LoggerContext loggerContext = (LoggerContext) LogManager.getContext(false);
         final LoggerConfig loggerConfig = loggerContext.getConfiguration().getLoggerConfig(capturingLogger.getName());
-        assertThat("expected a dedicated logger config for the capturing logger", loggerConfig.getName(), equalTo(capturingLogger.getName()));
+        assertThat(
+            "expected a dedicated logger config for the capturing logger",
+            loggerConfig.getName(),
+            equalTo(capturingLogger.getName())
+        );
         loggerConfig.setAdditive(false);
         loggerContext.updateLoggers();
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, capturingLogger, threadContext);

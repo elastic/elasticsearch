@@ -26,11 +26,10 @@ import org.elasticsearch.core.Nullable;
  * @param metricRole      the {@link MetricRole} of the field, or {@code null} when the
  *                        field is not a time-series metric
  * @param mappedFieldType the codec-local mirror of the mapper field type, or {@code null}
- *                        when unknown. Used by ordinal routing to upgrade IP dimension
- *                        fields to a larger block size.
- * @param isDimension     {@code true} if the field is a TSDB dimension; used together
- *                        with {@link #mappedFieldType} to select a larger ordinal block
- *                        size for IP dimension fields
+ *                        when unknown. Used to refine codec configuration per field type
+ *                        as needed.
+ * @param isDimension     {@code true} if the field is a TSDB dimension; used together with
+ *                        {@link #mappedFieldType} to refine codec configuration as needed.
  */
 public record FieldContext(
     int blockSize,

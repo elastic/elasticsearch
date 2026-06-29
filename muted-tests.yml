@@ -752,3 +752,9 @@ tests:
 - class: org.elasticsearch.index.store.BytesReadHeaderIT
   method: testMultipleIndicesAccumulateBytesRead
   issue: https://github.com/elastic/elasticsearch/issues/152425
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/152439
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/152440

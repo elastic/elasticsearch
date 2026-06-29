@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -41,7 +42,17 @@ public class InferenceIndex {
     public static boolean inferenceIndexHasV4Mappings(ProjectMetadata projectMetadata) {
         IndexMetadata indexMetadata = projectMetadata.index(InferenceIndex.INDEX_NAME);
         if (indexMetadata == null) {
-            // The index doesn't exist yet, so we can assume when it is created, it will have v4 mappings.
+            // The primary index name may have become an alias after a system index migration
+            // (e.g. ".inference" → ".inference-reindexed-for-10"). ProjectMetadata.index() only
+            // resolves concrete names, so we must fall back to the indices lookup, mirroring the
+            // pattern used by SystemIndexMappingUpdateService.getSystemIndexMetadata().
+            IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(InferenceIndex.INDEX_NAME);
+            if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
+                indexMetadata = projectMetadata.getIndexSafe(indexAbstraction.getWriteIndex());
+            }
+        }
+        if (indexMetadata == null) {
+            // The index truly doesn't exist yet — it will be created with v4 mappings.
             return true;
         }
         MappingMetadata mappingMetadata = indexMetadata.mapping();

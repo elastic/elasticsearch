@@ -569,7 +569,9 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeFalse("the legacy format keeps the original value in _source", useLegacyFormat);
         final String dvFieldName = SemanticTextField.getOriginalValuesFieldName("field");
-        // Use an index version before the synthetic-source gate: columnar applies the new behavior on all indices regardless of version.
+        // Deliberately use an index version BEFORE the synthetic-source gate: in columnar mode the input is always stored in doc
+        // values regardless of index version (columnar is unreleased), so the version gate applies only to non-columnar synthetic
+        // source. This verifies columnar acceptance does not depend on the index version.
         final IndexVersion indexVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES);
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             // Mapping creation succeeding is the assertion: the columnar "every field reconstructable from doc values" check passes.

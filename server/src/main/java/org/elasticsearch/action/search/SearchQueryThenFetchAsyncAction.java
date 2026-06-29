@@ -170,6 +170,11 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             trackTotalHitsUpTo,
             super.buildShardSearchRequest(shardIt, listener.requestIndex)
         );
+        // if we already received a search result we can inform the shard that it
+        // can return a null response if the request rewrites to match none rather
+        // than creating an empty response in the search thread pool.
+        // Note that, we have to disable this shortcut for queries that create a context (scroll and search context).
+        request.canReturnNullResponseIfMatchNoDocs(hasShardResponse() && request.scroll() == null);
         getSearchTransport().sendExecuteQuery(connection, request, getTask(), listener);
     }
 
@@ -346,6 +351,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final int totalShards;
         private final long absoluteStartMillis;
         private final String localClusterAlias;
+        private final boolean enableShardResultsSkipRequest;
 
         private NodeQueryRequest(SearchRequest searchRequest, int totalShards, long absoluteStartMillis, String localClusterAlias) {
             this.shards = new ArrayList<>();
@@ -354,6 +360,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             this.totalShards = totalShards;
             this.absoluteStartMillis = absoluteStartMillis;
             this.localClusterAlias = localClusterAlias;
+            this.enableShardResultsSkipRequest = ShardSearchRequest.SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST_FEATURE_FLAG.isEnabled();
         }
 
         private NodeQueryRequest(StreamInput in) throws IOException {
@@ -364,6 +371,19 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             this.totalShards = in.readVInt();
             this.absoluteStartMillis = in.readLong();
             this.localClusterAlias = in.readOptionalString();
+            if (in.getTransportVersion().supports(ShardSearchRequest.SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST)) {
+                // Data nodes adapt their response, hence skip including the shard search request in their results whenever possible,
+                // depending on the version of the coordinating node. This can't be a simple version check though, because it needs
+                // to account for the cross-cluster scenario where the shard request / response is proxied via a node that supports
+                // the feature back to a coordinating node that does not. The version of the channel that the data node writes the
+                // response back to supports the feature, but the coordinating node that originated the request does not set the flag
+                // if it is on an older version that does not support rebuilding the shard search request from its own data.
+                // Batched execution requires the flag to be set to NodeQueryRequest, as the shard search requests are created on the
+                // data nodes for each shard upon receiving the batch request.
+                this.enableShardResultsSkipRequest = in.readBoolean();
+            } else {
+                this.enableShardResultsSkipRequest = false;
+            }
         }
 
         @Override
@@ -380,6 +400,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             out.writeVInt(totalShards);
             out.writeLong(absoluteStartMillis);
             out.writeOptionalString(localClusterAlias);
+            if (out.getTransportVersion().supports(ShardSearchRequest.SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST)) {
+                out.writeBoolean(enableShardResultsSkipRequest);
+            }
         }
 
         @Override
@@ -714,7 +737,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
     }
 
     /**
-     * Builds an request for the initial search phase.
+     * Builds a shard search request for the query phase on each data node, upon receiving
+     * a {@link NodeQueryRequest} from the coordinating node.
      *
      * @param shardIndex the index of the shard that is used in the coordinator node to
      *                   tiebreak results with identical sort values
@@ -732,7 +756,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         int totalShardCount,
         long absoluteStartMillis,
         boolean hasResponse,
-        SplitShardCountSummary splitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary,
+        boolean enableShardResultsSkipRequest
     ) {
         ShardSearchRequest shardRequest = new ShardSearchRequest(
             originalIndices,
@@ -746,7 +771,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             clusterAlias,
             searchContextId,
             searchContextKeepAlive,
-            splitShardCountSummary
+            splitShardCountSummary,
+            enableShardResultsSkipRequest
         );
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather
@@ -785,7 +811,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             nodeQueryRequest.totalShards,
                             nodeQueryRequest.absoluteStartMillis,
                             state.hasResponse.getAcquire(),
-                            shardToQuery.splitShardCountSummary
+                            shardToQuery.splitShardCountSummary,
+                            nodeQueryRequest.enableShardResultsSkipRequest
                         )
                     ),
                     state.task,

@@ -82,7 +82,7 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.assertNotPar
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 // This test can run very long in serverless configurations
-@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 45 * TimeUnits.MINUTE)
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Rule(order = Integer.MIN_VALUE)

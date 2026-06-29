@@ -57,10 +57,8 @@ import static org.hamcrest.Matchers.not;
  * them. Proves that the parser → dataset rewriter → external-source resolver → analyzer →
  * execution pipeline wires up the way the PR description claims.
  *
- * <p>Single-node by design: a cluster-state diff that only registers/removes a dataset leaves a stale indices
- * lookup ({@code ProjectMetadataDiff.apply} ignores {@code DatasetMetadata}) and trips
- * {@code assertIndicesLookupDoesNotNeedToBeRebuilt} on the non-master nodes applying it; coverage of that path is
- * out of scope here.
+ * <p>Single-node by design; this exercises the {@code FROM <dataset>} pipeline, not cluster-state propagation across
+ * nodes (covered by {@code ProjectMetadataTests#testDatasetChangeViaDiffRebuildsIndicesLookup}).
  */
 // TODO: revert to multi-node (drop numClientNodes/supportsDedicatedMasters) once elastic/elasticsearch#152144
 // (rebuild indices lookup when a cluster-state diff changes datasets) is merged.

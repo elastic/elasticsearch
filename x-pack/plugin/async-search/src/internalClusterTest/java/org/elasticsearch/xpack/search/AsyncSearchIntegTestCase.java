@@ -154,12 +154,13 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         ensureAllSearchContextsReleased();
 
         internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {});
-        // Ensure shards are ready before unpausing the maintenance service. If we unpaused first,
-        // the maintenance service could dispatch a DeleteByQueryRequest to a shard that is still
-        // INITIALIZING, hitting the waitForSearchReady path. The resulting reader context would be
-        // registered after ensureAllSearchContextsReleased() passes, causing a spurious
-        // assertNoInFlightContext() failure in subsequent-test teardown.
+        // The restarted node gets a new, unpaused maintenance service that the pre-restart pause did
+        // not cover. It can dispatch a DeleteByQueryRequest to a still-INITIALIZING shard, registering
+        // an async waitForSearchReady callback that opens a reader context only after the shard starts.
+        // Wait for shards to start, then pause and drain any such in-flight contexts before unpausing.
         ensureYellow(ASYNC_RESULTS_INDEX, indexName);
+        pauseMaintenanceService();
+        ensureAllSearchContextsReleased();
         unpauseMaintenanceService();
     }
 

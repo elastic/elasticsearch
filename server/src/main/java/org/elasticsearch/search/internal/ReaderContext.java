@@ -18,6 +18,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -129,7 +130,9 @@ public class ReaderContext implements Releasable {
      * <code>keepAliveInMillis</code>.
      */
     public Releasable markAsUsed(long keepAliveInMillis) {
-        refCounted.incRef();
+        if (refCounted.tryIncRef() == false) {
+            throw new SearchContextMissingException(id);
+        }
         tryUpdateKeepAlive(keepAliveInMillis);
         return Releasables.releaseOnce(() -> {
             this.lastAccessTime.accumulateAndGet(nowInMillis(), Math::max);

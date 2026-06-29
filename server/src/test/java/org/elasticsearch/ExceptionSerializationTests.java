@@ -292,6 +292,20 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertNull(serialize.getCause());
     }
 
+    public void testRemoteResourceNotSupportedException() throws IOException {
+        // Both metadata lists (views + datasets) must survive the wire round-trip at the support transport version.
+        var version = org.elasticsearch.TransportVersion.fromName("indices_options_resolve_datasets");
+        var ex = serialize(
+            new org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException(
+                java.util.List.of("c1:v1", "c2:v2"),
+                java.util.List.of("c3:d1")
+            ),
+            version
+        );
+        assertThat(ex.views(), equalTo(java.util.List.of("c1:v1", "c2:v2")));
+        assertThat(ex.datasets(), equalTo(java.util.List.of("c3:d1")));
+    }
+
     public void testParsingException() throws IOException {
         ParsingException ex = serialize(new ParsingException(1, 2, "fobar", null));
         assertNull(ex.getIndex());

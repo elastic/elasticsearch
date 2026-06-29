@@ -40,7 +40,8 @@ public class RemoteDatasetNotSupportedException extends ElasticsearchException {
      * The qualified names of the remote datasets that triggered this exception.
      */
     public List<String> datasets() {
-        return getMetadata(DATASET_NAMES_KEY);
+        List<String> datasets = getMetadata(DATASET_NAMES_KEY);
+        return datasets == null ? List.of() : datasets;
     }
 
     private static String message(List<String> datasets) {

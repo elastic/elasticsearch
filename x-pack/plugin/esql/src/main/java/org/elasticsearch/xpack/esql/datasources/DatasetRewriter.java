@@ -320,9 +320,9 @@ public final class DatasetRewriter {
 
         // CPS: an exact (non-wildcard) dataset name has no wildcard to re-emit, so its remote half rides a
         // DatasetShadowRelation — a remote index of the same name federates in, a remote dataset/view of the same
-        // name fails (the detection rail). See DatasetShadowRelation for the full lifecycle. This whole rail is gated
-        // by the esql_external_datasources feature flag: datasetNames is non-empty only when datasets exist, which
-        // the flag must enable, so the shadow machinery stays inert until datasets are turned on.
+        // name fails (the detection rail). See DatasetShadowRelation for the full lifecycle. This stays inert until
+        // datasets exist: datasetNames is non-empty only once datasets are registered, which the upstream
+        // esql_external_datasources feature flag controls — this method enforces no flag check of its own.
         if (crossProjectEnabled) {
             children.addAll(crossProjectExactNameShadows(relation, datasetNames));
         }

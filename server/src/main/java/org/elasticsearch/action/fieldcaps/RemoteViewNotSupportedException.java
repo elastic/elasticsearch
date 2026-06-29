@@ -40,7 +40,8 @@ public class RemoteViewNotSupportedException extends ElasticsearchException {
      * The qualified names of the remote views that triggered this exception.
      */
     public List<String> views() {
-        return getMetadata(VIEW_NAMES_KEY);
+        List<String> views = getMetadata(VIEW_NAMES_KEY);
+        return views == null ? List.of() : views;
     }
 
     private static String message(List<String> views) {

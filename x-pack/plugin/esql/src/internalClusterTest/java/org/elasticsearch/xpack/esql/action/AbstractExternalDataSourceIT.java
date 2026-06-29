@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
@@ -83,24 +82,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
  * <p>A single {@link #requireFeatureFlag()} {@code @Before} gates every subclass on the external-datasources
  * feature flag (which also gates {@code FROM <dataset>} resolution), so subclasses do not repeat the assume.
  *
- * <p>Pinned to a single node ({@code numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false}),
- * matching {@code FromDatasetIT} / {@code AbstractExternalMetadataMatrixIT}. This is a <em>temporary</em>
- * workaround for a bug on {@code main}: {@code ProjectMetadataDiff.apply} reuses the previous indices lookup
- * when indices/data streams/views are unchanged but ignores {@code DatasetMetadata}, so a cluster-state diff
- * that only registers/removes a dataset — which is exactly what a {@code FROM <dataset>} query does — leaves a
- * stale lookup and trips {@code assertIndicesLookupDoesNotNeedToBeRebuilt} ("expected not to have to rebuild the
- * indices lookup ... added keys: [&lt;dataset&gt;]") on the non-master nodes applying the diff. With a single
- * node there is no separate diff-applying node, so the assertion never fires. Subclasses that pin their query to
- * a coordinator (via a {@code run()} override on {@code internalCluster().getMasterName()}) are unaffected — the
- * single node is both master and data node. This annotation is inherited by subclasses that do not declare their
- * own {@code @ClusterScope}.
- *
- * <p>Does not override {@code getPragmas()} — that varies per concrete test, so subclasses keep their own.
+ * <p>Deliberately imposes no {@code @ClusterScope} and does not override {@code getPragmas()} — both
+ * vary per concrete test, so subclasses keep their own.
  */
-// TODO: revert this single-node pinning (here and on the subclasses that redeclare @ClusterScope) once
-// elastic/elasticsearch#152144 (rebuild indices lookup when a cluster-state diff changes datasets) is merged,
-// so the suite regains multi-node coverage of the FROM <dataset> path.
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTestCase {
 
     protected static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);

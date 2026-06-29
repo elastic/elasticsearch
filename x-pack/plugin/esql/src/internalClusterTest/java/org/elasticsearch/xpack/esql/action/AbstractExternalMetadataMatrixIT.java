@@ -68,12 +68,10 @@ import static org.hamcrest.Matchers.nullValue;
  * lays down the same canonical 3-row fixture (in file order {@code emp_no} 1,2,3) so the assertions
  * hold uniformly across formats.
  *
- * <p>Single-node by design, matching {@link FromDatasetIT}: a cluster-state diff that only registers/removes a
- * dataset leaves a stale indices lookup ({@code ProjectMetadataDiff.apply} ignores {@code DatasetMetadata}) and
- * trips {@code assertIndicesLookupDoesNotNeedToBeRebuilt} on the non-master nodes applying it.
+ * <p>Single-node by design, matching {@link FromDatasetIT}: this exercises the per-format reader/metadata surface,
+ * not cluster-state propagation across nodes (covered by
+ * {@code ProjectMetadataTests#testDatasetChangeViaDiffRebuildsIndicesLookup}).
  */
-// TODO: revert to multi-node (drop numClientNodes/supportsDedicatedMasters) once elastic/elasticsearch#152144
-// (rebuild indices lookup when a cluster-state diff changes datasets) is merged.
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlIntegTestCase {
 

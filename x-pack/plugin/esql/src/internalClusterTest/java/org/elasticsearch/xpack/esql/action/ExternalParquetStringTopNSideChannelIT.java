@@ -44,9 +44,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * row groups that cannot contain a globally competitive row. This is the string counterpart to
  * {@link ExternalParquetNumericTopNSideChannelIT}.
  */
-// TODO: revert to multi-node (drop numClientNodes/supportsDedicatedMasters) once elastic/elasticsearch#152144 is
-// merged; see AbstractExternalDataSourceIT for the rationale behind the temporary single-node pinning.
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class ExternalParquetStringTopNSideChannelIT extends AbstractExternalDataSourceIT {
 
     private static final TimeValue LONG_TIMEOUT = TimeValue.timeValueMinutes(2);

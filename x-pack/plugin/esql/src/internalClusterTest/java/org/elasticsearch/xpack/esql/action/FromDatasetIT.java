@@ -60,8 +60,6 @@ import static org.hamcrest.Matchers.not;
  * <p>Single-node by design; this exercises the {@code FROM <dataset>} pipeline, not cluster-state propagation across
  * nodes (covered by {@code ProjectMetadataTests#testDatasetChangeViaDiffRebuildsIndicesLookup}).
  */
-// TODO: revert to multi-node (drop numClientNodes/supportsDedicatedMasters) once elastic/elasticsearch#152144
-// (rebuild indices lookup when a cluster-state diff changes datasets) is merged.
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 

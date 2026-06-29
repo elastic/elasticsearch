@@ -38,9 +38,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * and {@code EsqlQueryProfile.dataset_resolution} are populated when {@code FROM <dataset>}
  * queries execute against a local Parquet fixture.
  */
-// TODO: revert to multi-node (drop numClientNodes/supportsDedicatedMasters) once elastic/elasticsearch#152144 is
-// merged; see AbstractExternalDataSourceIT for the rationale behind the temporary single-node pinning.
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
 
     @Override

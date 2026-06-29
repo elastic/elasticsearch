@@ -1737,6 +1737,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     }
                 } else if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
                     yield DataType.DATETIME;
+                } else if (logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation) {
+                    // TIME_MILLIS: stored as INT32 but ESQL represents time values as LONG
+                    yield DataType.LONG;
                 } else if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
                     yield DataType.DOUBLE;
                 }
@@ -1752,6 +1755,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 } else if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
                     yield DataType.DOUBLE;
                 }
+                // TIME_MICROS/TIME_NANOS: both map to LONG; readColumnBlock scales TIME_MICROS ×1_000
                 yield DataType.LONG;
             }
             case INT96 -> DataType.DATETIME;
@@ -1762,6 +1766,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 }
                 if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
                     yield DataType.DOUBLE;
+                }
+                if (logical instanceof LogicalTypeAnnotation.BsonLogicalTypeAnnotation) {
+                    yield DataType.UNSUPPORTED;
+                }
+                if (logical instanceof LogicalTypeAnnotation.IntervalLogicalTypeAnnotation) {
+                    // INTERVAL is 12 bytes representing months+days+ms layout and had no single ESQL equivalent:
+                    // DATE_PERIOD is year/quarter/months/week/days, and TIME_DURATION is hours/minutes/secs/millis.
+                    yield DataType.UNSUPPORTED;
                 }
                 yield DataType.KEYWORD;
             }
@@ -2169,6 +2181,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 case BOOLEAN -> readBooleanColumn(cr, info.maxDefLevel(), rowsToRead);
                 case INTEGER -> readIntColumn(cr, info.maxDefLevel(), rowsToRead);
                 case LONG, UNSIGNED_LONG -> {
+                    if (info.logicalType() instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+                        if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
+                            // TIME_MILLIS: physical INT32, widen to long (raw ms value, no unit conversion)
+                            yield readInt32WidenedToLongColumn(cr, info.maxDefLevel(), rowsToRead, true);
+                        }
+                        yield readLongColumn(cr, info.maxDefLevel(), rowsToRead, ParquetColumnDecoding.timeNanoMultiplier(time));
+                    }
                     var logicalType = (LogicalTypeAnnotation.IntLogicalTypeAnnotation) info.logicalType();
                     if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
                         // A plain INT32 with no logical-type annotation is historically "signed"
@@ -2179,7 +2198,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                             logicalType == null || logicalType.isSigned()
                         );
                     }
-                    yield readLongColumn(cr, info.maxDefLevel(), rowsToRead);
+                    yield readLongColumn(cr, info.maxDefLevel(), rowsToRead, 1L);
                 }
                 case DOUBLE -> readDoubleColumn(cr, info, rowsToRead);
                 case KEYWORD, TEXT -> {
@@ -2252,7 +2271,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }
 
-        private Block readLongColumn(ColumnReader cr, int maxDef, int rows) {
+        private Block readLongColumn(ColumnReader cr, int maxDef, int rows, long multiplier) {
             long[] values = UninitializedArrays.newLongArray(rows);
             BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
@@ -2261,7 +2280,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     isNull.set(i);
                     noNulls = false;
                 } else {
-                    values[i] = cr.getLong();
+                    values[i] = cr.getLong() * multiplier;
                 }
                 cr.consume();
             }

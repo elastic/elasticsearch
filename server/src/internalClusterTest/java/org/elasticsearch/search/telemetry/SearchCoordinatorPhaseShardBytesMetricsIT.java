@@ -9,13 +9,16 @@
 
 package org.elasticsearch.search.telemetry;
 
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.InnerHitBuilder;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -27,7 +30,6 @@ import org.elasticsearch.search.query.ThrowingQueryBuilder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -63,21 +65,27 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * Multi-node integration tests for the coordinator-level per-request shard response bytes histograms
  * in {@link SearchResponseMetrics}.
  *
- * <p>Unlike the single-node {@code ShardResponseBytesMetricsTests}, this class places index shards on
- * a node that is different from the coordinating node so that real inter-node transport serialization
- * fires. This ensures that the byte counts recorded in the histograms are non-zero and reflect actual
+ * <p>Uses coordinating only nodes so that real inter-node transport serialization fires.
+ * This ensures that the byte counts recorded in the histograms are non-zero and reflect actual
  * deserialized response sizes.
- *
- * <p>The cluster has exactly two data nodes. Each test pins all index shards to one node and sends
- * searches from the other node, which therefore acts as a pure coordinator.
  */
-@ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 1)
 public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "shard_bytes_metrics_it";
 
-    private String dataNode;
-    private String coordinatorNode;
+    private int numShards;
+    private String coordOnlyNode;
+
+    @Override
+    protected int minimumNumberOfShards() {
+        return 2;
+    }
+
+    @Override
+    protected int numberOfReplicas() {
+        return 0;
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -100,22 +108,17 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
 
     @Before
     public void setUpRemoteShardIndex() {
-        dataNode = internalCluster().getRandomDataNodeName();
-        final String chosenDataNode = dataNode;
-        coordinatorNode = internalCluster().getNodeNameThat(
-            settings -> DiscoveryNode.canContainData(settings) && Node.NODE_NAME_SETTING.get(settings).equals(chosenDataNode) == false
-        );
+        coordOnlyNode = internalCluster().getNodeNameThat(settings -> DiscoveryNode.canContainData(settings) == false);
 
         // Two shards so the batched path sends a NodeQueryRequest with size > 1.
         // (A single-shard request falls back to executeAsSingleRequest in the batched path.)
-        prepareCreate(INDEX_NAME).setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.require._name", dataNode)
-                .build()
-        ).setMapping("field", "type=keyword").get();
+        prepareCreate(INDEX_NAME).setMapping("field", "type=keyword").get();
         ensureGreen(INDEX_NAME);
+        GetSettingsResponse getSettingsResponse = client().admin()
+            .indices()
+            .getSettings(new GetSettingsRequest(TimeValue.MINUS_ONE))
+            .actionGet();
+        numShards = Integer.valueOf(getSettingsResponse.getSetting(INDEX_NAME, IndexMetadata.SETTING_NUMBER_OF_SHARDS));
 
         prepareIndex(INDEX_NAME).setId("1").setSource("field", "value1").setRefreshPolicy(IMMEDIATE).get();
         prepareIndex(INDEX_NAME).setId("2").setSource("field", "value2").setRefreshPolicy(IMMEDIATE).get();
@@ -135,12 +138,12 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
 
     public void testBatchedQueryThenFetchRecordsNonZeroBytes() {
         assertSearchHitsWithoutFailures(
-            client(coordinatorNode).prepareSearch(INDEX_NAME).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(matchAllQuery()),
+            client(coordOnlyNode).prepareSearch(INDEX_NAME).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(matchAllQuery()),
             "1",
             "2"
         );
 
-        TestTelemetryPlugin plugin = getPlugin(coordinatorNode);
+        TestTelemetryPlugin plugin = getPlugin(coordOnlyNode);
 
         List<Measurement> queryRequestMeasurements = plugin.getLongHistogramMeasurement(QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
         assertEquals("one query request observation per search request", 1, queryRequestMeasurements.size());
@@ -163,12 +166,12 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
         updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
         try {
             assertSearchHitsWithoutFailures(
-                client(coordinatorNode).prepareSearch(INDEX_NAME).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(matchAllQuery()),
+                client(coordOnlyNode).prepareSearch(INDEX_NAME).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(matchAllQuery()),
                 "1",
                 "2"
             );
 
-            TestTelemetryPlugin plugin = getPlugin(coordinatorNode);
+            TestTelemetryPlugin plugin = getPlugin(coordOnlyNode);
 
             List<Measurement> queryRequestMeasurements = plugin.getLongHistogramMeasurement(QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
             assertEquals("one query request observation per search request", 1, queryRequestMeasurements.size());
@@ -192,12 +195,12 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
 
     public void testDfsQueryThenFetchRecordsNonZeroBytes() {
         assertSearchHitsWithoutFailures(
-            client(coordinatorNode).prepareSearch(INDEX_NAME).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(matchAllQuery()),
+            client(coordOnlyNode).prepareSearch(INDEX_NAME).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(matchAllQuery()),
             "1",
             "2"
         );
 
-        TestTelemetryPlugin plugin = getPlugin(coordinatorNode);
+        TestTelemetryPlugin plugin = getPlugin(coordOnlyNode);
 
         List<Measurement> dfsRequestMeasurements = plugin.getLongHistogramMeasurement(DFS_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
         assertEquals("one dfs request observation per search request", 1, dfsRequestMeasurements.size());
@@ -230,7 +233,7 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
 
     public void testCanMatchRecordsNonZeroBytes() {
         assertSearchHitsWithoutFailures(
-            client(coordinatorNode).prepareSearch(INDEX_NAME)
+            client(coordOnlyNode).prepareSearch(INDEX_NAME)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(matchAllQuery())
                 .addSort(fieldSort("_doc")),
@@ -238,7 +241,7 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
             "2"
         );
 
-        TestTelemetryPlugin plugin = getPlugin(coordinatorNode);
+        TestTelemetryPlugin plugin = getPlugin(coordOnlyNode);
 
         List<Measurement> canMatchMeasurements = plugin.getLongHistogramMeasurement(CAN_MATCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
         assertEquals("one can_match observation per request", 1, canMatchMeasurements.size());
@@ -266,19 +269,13 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
      */
     public void testFieldCollapsingExpandSearchesAreTrackedSeparately() {
         final String collapseIndex = "collapse_expand_it";
-        prepareCreate(collapseIndex).setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.require._name", dataNode)
-                .build()
-        ).setMapping("group", "type=keyword").get();
+        prepareCreate(collapseIndex).setMapping("group", "type=keyword").get();
         ensureGreen(collapseIndex);
         prepareIndex(collapseIndex).setId("1").setSource("group", "g1").setRefreshPolicy(IMMEDIATE).get();
         prepareIndex(collapseIndex).setId("2").setSource("group", "g2").setRefreshPolicy(IMMEDIATE).get();
         try {
             assertSearchHitsWithoutFailures(
-                client(coordinatorNode).prepareSearch(collapseIndex)
+                client(coordOnlyNode).prepareSearch(collapseIndex)
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setQuery(matchAllQuery())
                     .setCollapse(new CollapseBuilder("group").setInnerHits(new InnerHitBuilder("ih").setSize(1))),
@@ -286,7 +283,7 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
                 "2"
             );
 
-            TestTelemetryPlugin plugin = getPlugin(coordinatorNode);
+            TestTelemetryPlugin plugin = getPlugin(coordOnlyNode);
 
             // parent search = 1 observation; 2 expand sub-searches = 2 more observations; total = 3
             List<Measurement> queryResultMeasurements = plugin.getLongHistogramMeasurement(QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
@@ -345,10 +342,11 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
      * Query request and result bytes must grow when aggs are requested
      */
     public void testQueryResultBytesReflectAggregationResults() {
-        TestTelemetryPlugin plugin = getPlugin(coordinatorNode);
+        TestTelemetryPlugin plugin = getPlugin(coordOnlyNode);
 
+        Client client = client(coordOnlyNode);
         assertSearchHitsWithoutFailures(
-            client(coordinatorNode).prepareSearch(INDEX_NAME).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(matchAllQuery()),
+            client.prepareSearch(INDEX_NAME).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(matchAllQuery()),
             "1",
             "2"
         );
@@ -357,7 +355,7 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
         plugin.resetMeter();
 
         assertSearchHitsWithoutFailures(
-            client(coordinatorNode).prepareSearch(INDEX_NAME)
+            client.prepareSearch(INDEX_NAME)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(matchAllQuery())
                 .addAggregation(AggregationBuilders.terms("by_field").field("field")),
@@ -382,14 +380,11 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
      * Fetch request and result bytes must grow when more hits are requested
      */
     public void testFetchBytesGrowWithSize() {
-        TestTelemetryPlugin plugin = getPlugin(coordinatorNode);
-
+        TestTelemetryPlugin plugin = getPlugin(coordOnlyNode);
+        Client coordOnlyNodeClient = client(coordOnlyNode);
         // Fetch the single top hit → one ShardFetchSearchRequest to one shard.
         assertResponse(
-            client(coordinatorNode).prepareSearch(INDEX_NAME)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .setQuery(matchAllQuery())
-                .setSize(1),
+            coordOnlyNodeClient.prepareSearch(INDEX_NAME).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(matchAllQuery()).setSize(1),
             response -> assertFalse("search timed out", response.isTimedOut())
         );
         long fetchRequestBytesSize1 = sumHistogram(plugin, FETCH_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
@@ -398,10 +393,7 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
 
         // Fetch both hits → one ShardFetchSearchRequest per shard.
         assertSearchHitsWithoutFailures(
-            client(coordinatorNode).prepareSearch(INDEX_NAME)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .setQuery(matchAllQuery())
-                .setSize(10),
+            coordOnlyNodeClient.prepareSearch(INDEX_NAME).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(matchAllQuery()).setSize(10),
             "1",
             "2"
         );
@@ -434,11 +426,12 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
      * </ul>
      */
     public void testDfsBytesReflectQueryAndAggregationContent() {
-        TestTelemetryPlugin plugin = getPlugin(coordinatorNode);
+        TestTelemetryPlugin plugin = getPlugin(coordOnlyNode);
 
+        Client coordOnlyNodeClient = client(coordOnlyNode);
         // Baseline: matchAllQuery produces trivial DFS results (no term statistics).
         assertSearchHitsWithoutFailures(
-            client(coordinatorNode).prepareSearch(INDEX_NAME).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(matchAllQuery()),
+            coordOnlyNodeClient.prepareSearch(INDEX_NAME).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(matchAllQuery()),
             "1",
             "2"
         );
@@ -450,7 +443,7 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
 
         // Term query: DfsSearchResult carries term statistics → larger DFS result and query request.
         assertSearchHitsWithoutFailures(
-            client(coordinatorNode).prepareSearch(INDEX_NAME)
+            coordOnlyNodeClient.prepareSearch(INDEX_NAME)
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .setQuery(termQuery("field", "value1")),
             "1"
@@ -470,7 +463,7 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
 
         // Aggregation: QuerySearchResult includes partial agg buckets → larger DFS query result.
         assertSearchHitsWithoutFailures(
-            client(coordinatorNode).prepareSearch(INDEX_NAME)
+            coordOnlyNodeClient.prepareSearch(INDEX_NAME)
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .setQuery(matchAllQuery())
                 .addAggregation(AggregationBuilders.terms("by_field").field("field")),
@@ -492,10 +485,11 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
      * Can-match request bytes must reflect the size of the serialized query
      */
     public void testCanMatchRequestBytesReflectQueryComplexity() {
-        TestTelemetryPlugin plugin = getPlugin(coordinatorNode);
+        TestTelemetryPlugin plugin = getPlugin(coordOnlyNode);
 
+        Client coordOnlyNodeClient = client(coordOnlyNode);
         assertSearchHitsWithoutFailures(
-            client(coordinatorNode).prepareSearch(INDEX_NAME)
+            coordOnlyNodeClient.prepareSearch(INDEX_NAME)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(matchAllQuery())
                 .addSort(fieldSort("_doc")),
@@ -506,7 +500,7 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
         plugin.resetMeter();
 
         assertSearchHitsWithoutFailures(
-            client(coordinatorNode).prepareSearch(INDEX_NAME)
+            coordOnlyNodeClient.prepareSearch(INDEX_NAME)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(boolQuery().must(matchAllQuery()))
                 .addSort(fieldSort("_doc")),
@@ -523,13 +517,14 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
     }
 
     public void testChunkedAndNonChunkedFetchProduceConsistentByteMeasurements() {
-        TestTelemetryPlugin plugin = getPlugin(coordinatorNode);
+        TestTelemetryPlugin plugin = getPlugin(coordOnlyNode);
 
+        Client coordOnlyNodeClient = client(coordOnlyNode);
         // Disable chunked fetch: ShardFetchSearchRequest is sent directly without coordinator fields.
         updateClusterSettings(Settings.builder().put(SearchService.FETCH_PHASE_CHUNKED_ENABLED.getKey(), false));
         try {
             assertSearchHitsWithoutFailures(
-                client(coordinatorNode).prepareSearch(INDEX_NAME).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(matchAllQuery()),
+                coordOnlyNodeClient.prepareSearch(INDEX_NAME).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(matchAllQuery()),
                 "1",
                 "2"
             );
@@ -543,7 +538,7 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
             updateClusterSettings(Settings.builder().put(SearchService.FETCH_PHASE_CHUNKED_ENABLED.getKey(), true));
 
             assertSearchHitsWithoutFailures(
-                client(coordinatorNode).prepareSearch(INDEX_NAME).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(matchAllQuery()),
+                coordOnlyNodeClient.prepareSearch(INDEX_NAME).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(matchAllQuery()),
                 "1",
                 "2"
             );
@@ -593,50 +588,57 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
     /**
      * Verifies that in the DFS phase, when all remote shards fail, request bytes are recorded
      * (serialisation of the {@code DfsSearchRequest} happens before the error) but result bytes
-     * are not. The DFS phase sends one transport request per shard; a failed shard's error
-     * response goes through {@code handleException()}, bypassing {@code handler.read()}, so no
-     * result bytes are counted.
+     * are not.
      */
     public void testDfsPhaseRemoteShardErrorRecordsRequestBytesOnly() {
         final String localIndex = "local-shards-error-test";
-        prepareCreate(localIndex).setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.require._name", coordinatorNode)
-                .build()
-        ).get();
-        ensureGreen(localIndex);
         prepareIndex(localIndex).setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
+        ThrowingQueryBuilder failingQuery = new ThrowingQueryBuilder(
+            randomLong(),
+            new RuntimeException("intentional remote shard failure"),
+            INDEX_NAME
+        );
+
+        Client coordOnlyNodeClient = client(coordOnlyNode);
         try {
-            ThrowingQueryBuilder failingQuery = new ThrowingQueryBuilder(
-                randomLong(),
-                new RuntimeException("intentional remote shard failure"),
-                INDEX_NAME
+            // use the throwing query, although it does not fail for the index being queried
+            assertSearchHitsWithoutFailures(
+                coordOnlyNodeClient.prepareSearch(localIndex).setQuery(failingQuery).setSearchType(SearchType.DFS_QUERY_THEN_FETCH),
+                "1"
             );
 
-            SearchResponse response = client(coordinatorNode).prepareSearch(INDEX_NAME, localIndex)
-                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(failingQuery)
-                .setAllowPartialSearchResults(true)
-                .get();
-            try {
-                assertThat(response.getFailedShards(), equalTo(2));
-            } finally {
-                response.decRef();
-            }
-
-            TestTelemetryPlugin plugin = getPlugin(coordinatorNode);
-
-            // DfsSearchRequests were serialised before the shards returned errors.
+            TestTelemetryPlugin plugin = getPlugin(coordOnlyNode);
             List<Measurement> dfsRequestBytes = plugin.getLongHistogramMeasurement(DFS_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
             assertThat(dfsRequestBytes, hasSize(1));
-            assertThat(dfsRequestBytes.get(0).getLong(), greaterThan(0L));
-
-            // Error responses bypass handler.read() so no result bytes are recorded.
+            long dsfRequestBytesLocalIndex = dfsRequestBytes.get(0).getLong();
+            assertThat(dsfRequestBytesLocalIndex, greaterThan(0L));
             List<Measurement> dfsResultBytes = plugin.getLongHistogramMeasurement(DFS_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
-            assertThat(dfsResultBytes, empty());
+            assertThat(dfsResultBytes, hasSize(1));
+            long dfsResultBytesLocalIndex = dfsResultBytes.get(0).getLong();
+            assertThat(dfsResultBytesLocalIndex, greaterThan(0L));
+
+            plugin.resetMeter();
+
+            // localIndex succeeds, so we move past the dfs phase
+            assertResponse(
+                coordOnlyNodeClient.prepareSearch(INDEX_NAME, localIndex)
+                    .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                    .setQuery(failingQuery)
+                    .setAllowPartialSearchResults(true),
+                response -> assertThat(response.getFailedShards(), equalTo(numShards))
+            );
+
+            dfsRequestBytes = plugin.getLongHistogramMeasurement(DFS_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
+            assertThat(dfsRequestBytes, hasSize(1));
+            // we hit more shards hence requests use more bytes
+            assertThat(dfsRequestBytes.get(0).getLong(), greaterThan(dsfRequestBytesLocalIndex));
+
+            // Error responses are not tracked besides that of localIndex which succeeds
+            dfsResultBytes = plugin.getLongHistogramMeasurement(DFS_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
+            assertThat(dfsResultBytes, hasSize(1));
+            assertEquals(dfsResultBytesLocalIndex, dfsResultBytes.get(0).getLong());
+
         } finally {
             indicesAdmin().prepareDelete(localIndex).get();
         }
@@ -646,20 +648,11 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
      * Verifies that in the batched QUERY_THEN_FETCH path, when all remote shards fail, BOTH
      * request bytes and result bytes are recorded. In the batched path the coordinator sends a
      * single {@code NodeQueryRequest} to the data node and receives a {@code NodeQueryResponse}
-     * that carries per-shard exceptions as payload rather than as a transport-level error. The
-     * coordinator always deserialises the full response via {@code handler.read()}, so result
-     * bytes are non-zero even though every shard in the batch failed.
+     * that carries per-shard exceptions as payload rather than as a transport-level error.
      */
     public void testBatchedQueryPhaseShardErrorRecordsBothRequestAndResultBytes() {
+        // we use this local index to ensure that we go past the query phase
         final String localIndex = "local-shards-error-test";
-        prepareCreate(localIndex).setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.require._name", coordinatorNode)
-                .build()
-        ).get();
-        ensureGreen(localIndex);
         prepareIndex(localIndex).setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         try {
@@ -669,29 +662,41 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
                 INDEX_NAME
             );
 
-            SearchResponse response = client(coordinatorNode).prepareSearch(INDEX_NAME, localIndex)
-                .setQuery(failingQuery)
-                .setAllowPartialSearchResults(true)
-                .get();
-            try {
-                assertThat(response.getFailedShards(), equalTo(2));
-            } finally {
-                response.decRef();
-            }
+            Client coordOnlyNodeClient = client(coordOnlyNode);
+            // query only the local index and record the baseline for result bytes
+            assertSearchHitsWithoutFailures(
+                coordOnlyNodeClient.prepareSearch(localIndex).setQuery(failingQuery).setAllowPartialSearchResults(true),
+                "1"
+            );
 
-            TestTelemetryPlugin plugin = getPlugin(coordinatorNode);
-
-            // NodeQueryRequest was serialised before the shards returned errors.
+            TestTelemetryPlugin plugin = getPlugin(coordOnlyNode);
             List<Measurement> queryRequestBytes = plugin.getLongHistogramMeasurement(QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
             assertThat(queryRequestBytes, hasSize(1));
-            assertThat(queryRequestBytes.get(0).getLong(), greaterThan(0L));
+            long queryRequestBytesLocalIndex = queryRequestBytes.get(0).getLong();
+            assertThat(queryRequestBytesLocalIndex, greaterThan(0L));
+            List<Measurement> queryResultBytes = plugin.getLongHistogramMeasurement(QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
+            assertThat(queryResultBytes, hasSize(1));
+            long queryResultBytesLocalIndex = queryResultBytes.get(0).getLong();
+            assertThat(queryResultBytesLocalIndex, greaterThan(0L));
+
+            plugin.resetMeter();
+
+            assertResponse(
+                coordOnlyNodeClient.prepareSearch(INDEX_NAME, localIndex).setQuery(failingQuery).setAllowPartialSearchResults(true),
+                response -> assertThat(response.getFailedShards(), equalTo(numShards))
+            );
+
+            // NodeQueryRequest was serialised before the shards returned errors.
+            queryRequestBytes = plugin.getLongHistogramMeasurement(QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME);
+            assertThat(queryRequestBytes, hasSize(1));
+            assertThat(queryRequestBytes.get(0).getLong(), greaterThan(queryRequestBytesLocalIndex));
 
             // NodeQueryResponse is always deserialised via handler.read() — per-shard exceptions
             // are payload, not transport-level errors — so result bytes are non-zero even though
             // every shard in the batch failed.
-            List<Measurement> queryResultBytes = plugin.getLongHistogramMeasurement(QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
+            queryResultBytes = plugin.getLongHistogramMeasurement(QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
             assertThat(queryResultBytes, hasSize(1));
-            assertThat(queryResultBytes.get(0).getLong(), greaterThan(0L));
+            assertThat(queryResultBytes.get(0).getLong(), greaterThan(queryResultBytesLocalIndex));
         } finally {
             indicesAdmin().prepareDelete(localIndex).get();
         }
@@ -703,9 +708,12 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
     public void testAllShardsFailedRecordsNoBytes() {
         ThrowingQueryBuilder failingQuery = new ThrowingQueryBuilder(randomLong(), new RuntimeException("intentional failure"), INDEX_NAME);
 
-        expectThrows(Exception.class, () -> client(coordinatorNode).prepareSearch(INDEX_NAME).setQuery(failingQuery).get());
+        expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> client(coordOnlyNode).prepareSearch(INDEX_NAME).setQuery(failingQuery).get()
+        );
 
-        TestTelemetryPlugin plugin = getPlugin(coordinatorNode);
+        TestTelemetryPlugin plugin = getPlugin(coordOnlyNode);
         assertThat(plugin.getLongHistogramMeasurement(QUERY_SHARD_REQUEST_BYTES_HISTOGRAM_NAME), empty());
         assertThat(plugin.getLongHistogramMeasurement(QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME), empty());
     }
@@ -719,28 +727,34 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
      * before the second document goes into the final {@link org.elasticsearch.search.fetch.FetchSearchResult}.
      */
     public void testChunkedFetchCountsIntermediateChunkBytes() {
+        // Use a single shard index so all docs are co-located for this test
         // Add a field that is stored in _source but not indexed, so we can store large values
         // without hitting Lucene's term-size limit or keyword indexing restrictions.
-        indicesAdmin().preparePutMapping(INDEX_NAME)
-            .setSource("{\"properties\":{\"bigdata\":{\"type\":\"keyword\",\"index\":false,\"doc_values\":false}}}", XContentType.JSON)
+        prepareCreate("chunked_test_index").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
+            .setMapping("{\"properties\":{\"bigdata\":{\"type\":\"keyword\",\"index\":false,\"doc_values\":false}}}")
             .get();
 
         // Each document source is ~300 KB. With the 256 KB chunk threshold, the first document
         // fills an intermediate BytesTransportRequest chunk; the second becomes the last chunk
         // embedded in FetchSearchResult.
         String bigdata = "x".repeat(300_000);
-        prepareIndex(INDEX_NAME).setId("large1").setSource("field", "large_doc", "bigdata", bigdata).setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex(INDEX_NAME).setId("large2").setSource("field", "large_doc", "bigdata", bigdata).setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("chunked_test_index").setId("large1")
+            .setSource("field", "large_doc", "bigdata", bigdata)
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        prepareIndex("chunked_test_index").setId("large2")
+            .setSource("field", "large_doc", "bigdata", bigdata)
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        updateClusterSettings(Settings.builder().put(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.getKey(), "256kb"));
-        TestTelemetryPlugin plugin = getPlugin(coordinatorNode);
+        TestTelemetryPlugin plugin = getPlugin(coordOnlyNode);
         try {
+            Client coordOnlyNodeClient = client(coordOnlyNode);
+            updateClusterSettings(Settings.builder().put(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.getKey(), "256kb"));
             // Non-chunked baseline: a single FetchSearchResult carries both documents.
             updateClusterSettings(Settings.builder().put(SearchService.FETCH_PHASE_CHUNKED_ENABLED.getKey(), false));
             assertSearchHitsWithoutFailures(
-                client(coordinatorNode).prepareSearch(INDEX_NAME)
-                    .setSearchType(SearchType.QUERY_THEN_FETCH)
-                    .setQuery(termQuery("field", "large_doc")),
+                coordOnlyNodeClient.prepareSearch("chunked_test_index").setQuery(termQuery("field", "large_doc")),
                 "large1",
                 "large2"
             );
@@ -751,9 +765,7 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
             // Both must be counted so the total approximates the non-chunked total.
             updateClusterSettings(Settings.builder().put(SearchService.FETCH_PHASE_CHUNKED_ENABLED.getKey(), true));
             assertSearchHitsWithoutFailures(
-                client(coordinatorNode).prepareSearch(INDEX_NAME)
-                    .setSearchType(SearchType.QUERY_THEN_FETCH)
-                    .setQuery(termQuery("field", "large_doc")),
+                coordOnlyNodeClient.prepareSearch("chunked_test_index").setQuery(termQuery("field", "large_doc")),
                 "large1",
                 "large2"
             );
@@ -776,6 +788,7 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
                     .putNull(SearchService.FETCH_PHASE_CHUNKED_ENABLED.getKey())
                     .putNull(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.getKey())
             );
+            indicesAdmin().prepareDelete("chunked_test_index").get();
         }
     }
 }

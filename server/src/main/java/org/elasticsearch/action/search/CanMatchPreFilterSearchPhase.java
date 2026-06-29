@@ -220,16 +220,15 @@ final class CanMatchPreFilterSearchPhase {
                 listener.addListener(new ActionListener<>() {
                     @Override
                     public void onResponse(CanMatchResult canMatchResult) {
-                        searchResponseMetrics.recordSearchPhaseShardResultBytes(
-                            PHASE_NAME,
-                            phase.canMatchResultBytesRead.sum(),
-                            searchRequestAttributes
-                        );
-                        searchResponseMetrics.recordSearchPhaseShardRequestBytes(
-                            PHASE_NAME,
-                            phase.canMatchRequestBytesWritten.sum(),
-                            searchRequestAttributes
-                        );
+                        long resultBytes = phase.canMatchResultBytesRead.sumThenReset();
+                        long requestBytes = phase.canMatchRequestBytesWritten.sumThenReset();
+                        if (resultBytes > 0) {
+                            assert requestBytes > 0 : "successful responses from remote nodes must have corresponding request bytes set";
+                            searchResponseMetrics.recordSearchPhaseShardResultBytes(PHASE_NAME, resultBytes, searchRequestAttributes);
+                        }
+                        if (requestBytes > 0) {
+                            searchResponseMetrics.recordSearchPhaseShardRequestBytes(PHASE_NAME, requestBytes, searchRequestAttributes);
+                        }
                     }
 
                     @Override

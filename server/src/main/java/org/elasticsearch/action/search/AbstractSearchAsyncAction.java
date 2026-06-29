@@ -398,7 +398,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 searchResponseMetrics.recordSearchPhaseShardRequestBytes(currentPhase, requestBytes, searchRequestAttributes);
             }
             assert currentPhase.equals(ExpandSearchPhase.NAME) == false || (requestBytes == 0 && resultBytes == 0)
-                : "no bytes tracked for the expand phase, whose sub-searches are tracked individually";
+                : "bytes should not be tracked for the expand phase, whose sub-searches are tracked individually";
             var nextPhase = nextPhaseSupplier.get();
             if (logger.isTraceEnabled()) {
                 final String resultsFrom = results.getSuccessfulResults()

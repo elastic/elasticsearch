@@ -93,11 +93,36 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
     }
 
     /**
-     * A per-aggregate filter on a heavy aggregate blocks the pushdown: {@code ToPartial} cannot carry a per-aggregate
-     * filter through the grouping path, so the aggregate stays on the coordinator over the {@code UnionAll} output.
+     * Ungrouped {@code STATS} where every aggregate shares one filter: {@code ExtractAggregateCommonFilter} hoists the
+     * predicate to a query-level {@code WHERE} before this rule runs. That {@code WHERE} is pushed into the branches,
+     * making the {@code UnionAll} non-leaf, so the heavy aggregate stays on the coordinator over the filtered rows.
      */
-    public void testFilteredHeavyNotPushed() {
+    public void testFilteredHeavyExtractedToQueryFilter() {
         runHeavyGoldenTest("FROM heavy_a, heavy_b | STATS d = COUNT_DISTINCT(emp_no) WHERE salary > 0");
+    }
+
+    /**
+     * Ungrouped {@code STATS} mixing an unfiltered {@code COUNT(*)} and a filtered heavy aggregate. The filters differ,
+     * so {@code ExtractAggregateCommonFilter} cannot hoist a common {@code WHERE}; the filtered heavy aggregate keeps
+     * its per-aggregate filter, which rides on the per-branch {@code ToPartial} while the inner aggregate is unfiltered.
+     */
+    public void testMixedFilteredHeavyPushed() {
+        runHeavyGoldenTest("FROM heavy_a, heavy_b | STATS c = COUNT(*), d = COUNT_DISTINCT(emp_no) WHERE salary > 0");
+    }
+
+    /** Grouped + filtered heavy aggregate: the per-group intermediate state is computed over only the matching rows. */
+    public void testFilteredGroupedHeavyPushed() {
+        runHeavyGoldenTest("FROM heavy_a, heavy_b | STATS d = COUNT_DISTINCT(emp_no) WHERE salary > 0 BY dept");
+    }
+
+    /** The filtered intermediate-state path is aggregate-agnostic: a grouped filtered {@code PERCENTILE} pushes too. */
+    public void testFilteredGroupedPercentilePushed() {
+        runHeavyGoldenTest("FROM heavy_a, heavy_b | STATS p = PERCENTILE(salary, 50) WHERE salary > 0 BY dept");
+    }
+
+    /** The filtered intermediate-state path is aggregate-agnostic: a grouped filtered {@code STD_DEV} pushes too. */
+    public void testFilteredGroupedStdDevPushed() {
+        runHeavyGoldenTest("FROM heavy_a, heavy_b | STATS s = STD_DEV(salary) WHERE salary > 0 BY dept");
     }
 
     /**

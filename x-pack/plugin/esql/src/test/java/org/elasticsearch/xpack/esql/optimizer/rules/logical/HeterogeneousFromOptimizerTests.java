@@ -884,8 +884,8 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
      * {@link PushAggregateThroughUnionAll} must push a grouped heavy aggregate
      * ({@code COUNT_DISTINCT(emp_no) BY dept}) into both branches via the intermediate-state path: each branch
      * groups by the shared grouping id and emits a {@link ToPartial}; the combiner groups by the same id and
-     * merges with {@link FromPartial}. This is the grouped happy path (the grouped + filtered variant is
-     * descoped, see {@link #testFilteredHeavyAggNotPushed}).
+     * merges with {@link FromPartial}. This is the grouped happy path (the per-aggregate filter variant rides the
+     * same path with the filter on the {@link ToPartial}, see {@link #testFilteredHeavyAggPushedThroughLeafUnionAll}).
      */
     public void testGroupedHeavyAggPushedThroughLeafUnionAll() {
         ReferenceAttribute unionDept = new ReferenceAttribute(EMPTY, "dept", INTEGER);
@@ -1009,13 +1009,12 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     /**
-     * A <em>filtered</em> heavy aggregate ({@code COUNT_DISTINCT(emp_no) WHERE salary > 0}) must NOT be pushed:
-     * the branch would emit a {@link ToPartial}, but {@link ToPartial} cannot carry a per-aggregate filter
-     * through the grouping execution path, so the whole {@code STATS} falls back to coordinator-side
-     * aggregation over the UnionAll output. A filtered <em>algebraic</em> aggregate still pushes (covered by
-     * {@link #testFilteredAlgebraicAggPushedThroughLeafUnionAll}).
+     * A <em>filtered</em> heavy aggregate ({@code COUNT_DISTINCT(emp_no) WHERE salary > 0}) pushes through the
+     * intermediate-state path: the filter is carried on the per-branch {@link ToPartial} node (resolved to that
+     * branch's attribute), while the wrapped {@link CountDistinct} is left unfiltered. The combiner stays a
+     * filterless {@link FromPartial} since the branches already filtered.
      */
-    public void testFilteredHeavyAggNotPushed() {
+    public void testFilteredHeavyAggPushedThroughLeafUnionAll() {
         ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
         ReferenceAttribute unionSalary = new ReferenceAttribute(EMPTY, "salary", INTEGER);
 
@@ -1033,16 +1032,43 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         Alias cdAlias = new Alias(EMPTY, "d", cdFiltered);
         Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(cdAlias));
 
-        assertSame(aggregate, new PushAggregateThroughUnionAll().apply(aggregate));
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        Aggregate outerAgg = as(result, Aggregate.class);
+        // combiner FromPartial is filterless (data already filtered in the branches)
+        FromPartial combiner = as(as(outerAgg.aggregates().get(0), Alias.class).child(), FromPartial.class);
+        assertThat(combiner.hasFilter(), equalTo(false));
+        assertThat(combiner.function(), instanceOf(CountDistinct.class));
+
+        UnionAll newUnionAll = as(outerAgg.child(), UnionAll.class);
+        ToPartial b1ToPartial = as(
+            as(as(newUnionAll.children().get(0), Aggregate.class).aggregates().get(0), Alias.class).child(),
+            ToPartial.class
+        );
+        assertThat(b1ToPartial.dataType(), equalTo(DataType.PARTIAL_AGG));
+        assertThat(b1ToPartial.hasFilter(), equalTo(true));
+        assertThat(as(b1ToPartial.filter(), GreaterThan.class).left(), equalTo(esSalary));
+        // the wrapped aggregate is the branch-resolved COUNT_DISTINCT, with the filter stripped off
+        CountDistinct b1Cd = as(b1ToPartial.function(), CountDistinct.class);
+        assertThat(b1Cd.field(), equalTo(esEmpNo));
+        assertThat(b1Cd.hasFilter(), equalTo(false));
+
+        ToPartial b2ToPartial = as(
+            as(as(newUnionAll.children().get(1), Aggregate.class).aggregates().get(0), Alias.class).child(),
+            ToPartial.class
+        );
+        assertThat(as(b2ToPartial.filter(), GreaterThan.class).left(), equalTo(extSalary));
+        assertThat(as(b2ToPartial.function(), CountDistinct.class).field(), equalTo(extEmpNo));
     }
 
     /**
-     * Decomposability is all-or-nothing per {@code STATS}: a single non-decomposable aggregate blocks the rewrite
-     * for every sibling. Here a pushable {@code COUNT(*)} sits next to a filtered {@code COUNT_DISTINCT} (which is
-     * not pushed); the whole {@code STATS} must stay on top of the UnionAll so the algebraic column is not split in
-     * isolation.
+     * A {@code STATS} mixing a pushable {@code COUNT(*)} and a filtered {@code COUNT_DISTINCT} fully decomposes:
+     * the algebraic column splits as usual and the filtered heavy column rides the intermediate-state path with the
+     * filter carried on its per-branch {@link ToPartial}.
      */
-    public void testMixedFilteredHeavyAndAlgebraicNotPushed() {
+    public void testMixedFilteredHeavyAndAlgebraicPushed() {
         ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
         ReferenceAttribute unionSalary = new ReferenceAttribute(EMPTY, "salary", INTEGER);
 
@@ -1060,7 +1086,22 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         Alias cdAlias = new Alias(EMPTY, "d", new CountDistinct(EMPTY, unionEmpNo, null).withFilter(salaryFilter));
         Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(countAlias, cdAlias));
 
-        assertSame(aggregate, new PushAggregateThroughUnionAll().apply(aggregate));
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        Aggregate outerAgg = as(result, Aggregate.class);
+        assertThat(as(outerAgg.aggregates().get(0), Alias.class).child(), instanceOf(Sum.class));
+        assertThat(as(outerAgg.aggregates().get(1), Alias.class).child(), instanceOf(FromPartial.class));
+
+        UnionAll newUnionAll = as(outerAgg.child(), UnionAll.class);
+        for (LogicalPlan branch : newUnionAll.children()) {
+            Aggregate branchAgg = as(branch, Aggregate.class);
+            assertThat(as(branchAgg.aggregates().get(0), Alias.class).child(), instanceOf(Count.class));
+            ToPartial toPartial = as(as(branchAgg.aggregates().get(1), Alias.class).child(), ToPartial.class);
+            assertThat(toPartial.hasFilter(), equalTo(true));
+            assertThat(as(toPartial.function(), CountDistinct.class).hasFilter(), equalTo(false));
+        }
     }
 
     /**

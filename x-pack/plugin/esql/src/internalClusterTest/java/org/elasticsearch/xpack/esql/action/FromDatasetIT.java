@@ -894,10 +894,11 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Grouped + filtered COUNT_DISTINCT across a heterogeneous FROM. This shape <b>hung the query</b> when the
-     * filter was carried on a pushed-down {@code ToPartial} (the grouping execution path asserts on
-     * {@code ToPartial.groupingAggregator()}). It is now descoped: filtered heavy aggregates run on the
-     * coordinator. This test is the regression guard that the grouped + filtered case completes and is correct.
+     * Grouped + filtered COUNT_DISTINCT across a heterogeneous FROM. The per-aggregate filter is pushed down into
+     * each branch on the {@code ToPartial} node, and the physical layer wraps the inner aggregator so each branch
+     * folds only the matching rows into its per-group intermediate state. This shape previously <b>hung the query</b>
+     * (the grouping path drives {@code ToPartial} through the mode-aware factory, which the plain filter wrapper does
+     * not implement); this test is the end-to-end regression guard that it now completes and is correct.
      *
      * <p>ES {@code cdg_idx}: (dept=1,emp_no=1,salary=10),(dept=1,emp_no=2,salary=20),(dept=2,emp_no=9,salary=5).
      * Dataset: (dept=1,emp_no=2,salary=30),(dept=2,emp_no=8,salary=40).

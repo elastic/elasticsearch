@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -58,10 +59,11 @@ import java.util.Set;
  * ({@code MEDIAN}&rarr;{@code PERCENTILE}, {@code AVG}&rarr;{@code SUM}/{@code COUNT}), so they decompose
  * transitively through the cases above.
  *
- * <p><b>Filters:</b> a filtered algebraic aggregate ({@code SUM(x) WHERE ...}) pushes normally. A filtered
- * intermediate-state aggregate is left to aggregate on the coordinator: {@link ToPartial} cannot carry a
- * per-aggregate filter through the grouping execution path, so the whole {@code STATS} is not decomposed when
- * a heavy aggregate has a filter.
+ * <p><b>Filters:</b> a per-aggregate filter ({@code COUNT_DISTINCT(x) WHERE ...}) pushes in both paths. For
+ * the algebraic path the filtered aggregate is emitted as-is per branch. For the intermediate-state path the
+ * filter is carried on the {@link ToPartial} node (the inner aggregate stays unfiltered); the physical layer
+ * then wraps the inner aggregator in a filtered supplier so the branch filters before folding into its
+ * intermediate state. See {@code ToPartial#supplierWithInnerFilter} and the planner's aggregate factory.
  *
  * <p>Transformation sketch (two-branch case). {@code c}/{@code s} take the algebraic path; {@code d} (a heavy
  * aggregate) takes the intermediate-state path, so its partial column is typed {@code PARTIAL_AGG} and is
@@ -280,20 +282,15 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
      * algebraic combiner ({@link #isAlgebraicDecomposable}) and those that merge via intermediate
      * state ({@link #isIntermediateDecomposable}).
      *
-     * <p>A filtered intermediate-state aggregate is <b>not</b> decomposed: the branch would emit a
-     * {@link ToPartial}, but {@link ToPartial} cannot carry a per-aggregate filter through the grouping
-     * execution path (its supplier only implements the {@code *Factory} methods, while the filter wrapper
-     * delegates to the direct {@code groupingAggregator}). Such aggregates fall back to coordinator-side
-     * aggregation over the UnionAll output. Filtered <em>algebraic</em> aggregates push normally.
+     * <p>Per-aggregate filters decompose in both families: a filtered algebraic aggregate is emitted as-is per
+     * branch, and a filtered intermediate-state aggregate carries its filter on the {@link ToPartial} node so the
+     * branch filters before folding into its intermediate state (see {@link #buildBranchPartial}).
      */
     private static boolean isDecomposable(AggregateFunction aggFn) {
         if (AggregateFunction.NO_WINDOW.equals(aggFn.window()) == false) {
             return false;
         }
-        if (isAlgebraicDecomposable(aggFn)) {
-            return true;
-        }
-        return isIntermediateDecomposable(aggFn) && aggFn.hasFilter() == false;
+        return isAlgebraicDecomposable(aggFn) || isIntermediateDecomposable(aggFn);
     }
 
     /**
@@ -332,14 +329,21 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
      * Builds the expression a branch emits for a single aggregate. For the algebraic path this is the
      * branch-resolved aggregate itself; for the intermediate-state path it is a {@link ToPartial} wrapping it.
      *
-     * <p>Intermediate-state aggregates reaching this point are unfiltered ({@link #isDecomposable} rejects
-     * filtered ones), so the {@link ToPartial} carries no filter.
+     * <p>When the intermediate-state aggregate carries a per-aggregate filter, the filter is moved onto the
+     * {@link ToPartial} node and the wrapped inner aggregate is left unfiltered. The planner then applies the filter
+     * to the inner aggregator in the branch's initial phase (see {@code ToPartial#supplierWithInnerFilter}), so the
+     * branch folds only the matching rows into its intermediate state. An unfiltered aggregate takes the simple
+     * {@code ToPartial(aggFn, aggFn)} form unchanged.
      */
     private static Expression buildBranchPartial(AggregateFunction resolvedAggFn) {
         if (isIntermediateDecomposable(resolvedAggFn) == false) {
             return resolvedAggFn;
         }
-        return new ToPartial(resolvedAggFn.source(), resolvedAggFn, resolvedAggFn);
+        if (resolvedAggFn.hasFilter() == false) {
+            return new ToPartial(resolvedAggFn.source(), resolvedAggFn, resolvedAggFn);
+        }
+        AggregateFunction unfilteredInner = resolvedAggFn.withFilter(Literal.TRUE);
+        return new ToPartial(resolvedAggFn.source(), unfilteredInner, resolvedAggFn.filter(), AggregateFunction.NO_WINDOW, unfilteredInner);
     }
 
     /**

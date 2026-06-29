@@ -950,7 +950,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             final var task = newRecoveryTask();
 
             final int queuedRecoveryCount = 1000;
-            final var recoveriesCompleted = new CountDownLatch(queuedRecoveryCount);
+            final var recoveriesCompleted = new CountDownLatch(queuedRecoveryCount + 1);
 
             schedulingListeners.addListener(new RecoverySchedulingListener() {
                 @Override

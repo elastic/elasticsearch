@@ -241,15 +241,13 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
 
         internalCluster().awaitNodeVacated(indexName, shutdownNode);
 
-        assertBusy(() -> {
-            long regionCount = cacheService.countCachedRegions(shardPredicate(shardId));
-            assertThat(regionCount, greaterThan(0L));
-            assertThat(
-                "cache regions should not be demoted when node is shutting down",
-                SharedBlobCacheServiceTestUtils.countCachedRegionsByFreq(cacheService, shardPredicate(shardId)),
-                equalTo(freqsBeforeShutdown)
-            );
-        });
+        long regionCount = cacheService.countCachedRegions(shardPredicate(shardId));
+        assertThat(regionCount, greaterThan(0L));
+        assertThat(
+            "cache regions should not be demoted when node is shutting down",
+            SharedBlobCacheServiceTestUtils.countCachedRegionsByFreq(cacheService, shardPredicate(shardId)),
+            equalTo(freqsBeforeShutdown)
+        );
     }
 
     private static Settings cacheBoostPreferenceTestSettings() {

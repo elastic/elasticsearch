@@ -254,7 +254,7 @@ public final class SourceStatisticsSerializer {
             Set<String> nullCountSeenInThisFile = new HashSet<>();
             for (Map.Entry<String, Object> entry : stats.entrySet()) {
                 String key = entry.getKey();
-                Fold fold = StatFolds.foldFor(key);
+                StatFold fold = StatFolds.foldFor(key);
                 if (fold == null) {
                     continue;
                 }
@@ -274,7 +274,7 @@ public final class SourceStatisticsSerializer {
                 }
                 Object existing = acc.get(key);
                 Object folded = existing == null ? fold.first(entry.getValue()) : fold.apply(existing, entry.getValue());
-                if (folded == Fold.POISON) {
+                if (folded == StatFold.POISON) {
                     poisoned.add(key);
                     acc.remove(key);
                 } else {

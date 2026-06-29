@@ -22,7 +22,7 @@ package org.elasticsearch.xpack.esql.datasources;
  * downstream safe-miss. The fold needs no type tag on the value — incompatibility is detected by the
  * merge itself.
  */
-enum Fold {
+enum StatFold {
     MIN {
         @Override
         Object apply(Object a, Object b) {

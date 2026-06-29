@@ -15,31 +15,31 @@ import static org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerialize
 import static org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.STATS_SIZE_BYTES;
 
 /**
- * Maps a flat {@code _stats.*} statistic key to its {@link Fold} law, so a statistics combine folds
+ * Maps a flat {@code _stats.*} statistic key to its {@link StatFold} law, so a statistics combine folds
  * each key by its own rule instead of overwriting.
  *
  * <p>This is what makes the combine clobber-proof: a site merging statistics looks up
  * {@link #foldFor} per key and folds — different statistics live under different keys and cannot
  * collide; the same statistic folds by its law and cannot overwrite. The fold law lives once, here +
- * {@link Fold}, never re-implemented at a combine site.
+ * {@link StatFold}, never re-implemented at a combine site.
  */
 final class StatFolds {
 
     private StatFolds() {}
 
     /** The fold law for a flat statistic key, or {@code null} if the key is not a foldable statistic. */
-    static Fold foldFor(String key) {
+    static StatFold foldFor(String key) {
         if (key.endsWith(MIN_SUFFIX)) {
-            return Fold.MIN;
+            return StatFold.MIN;
         }
         if (key.endsWith(MAX_SUFFIX)) {
-            return Fold.MAX;
+            return StatFold.MAX;
         }
         if (key.equals(STATS_ROW_COUNT)
             || key.equals(STATS_SIZE_BYTES)
             || key.endsWith(NULL_COUNT_SUFFIX)
             || key.endsWith(SIZE_BYTES_SUFFIX)) {
-            return Fold.SUM;
+            return StatFold.SUM;
         }
         return null;
     }

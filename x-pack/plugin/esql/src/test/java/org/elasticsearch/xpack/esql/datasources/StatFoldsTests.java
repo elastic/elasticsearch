@@ -16,15 +16,15 @@ import org.elasticsearch.test.ESTestCase;
 public class StatFoldsTests extends ESTestCase {
 
     public void testExtremaFoldByMinMax() {
-        assertSame(Fold.MIN, StatFolds.foldFor("_stats.columns.value.min"));
-        assertSame(Fold.MAX, StatFolds.foldFor("_stats.columns.value.max"));
+        assertSame(StatFold.MIN, StatFolds.foldFor("_stats.columns.value.min"));
+        assertSame(StatFold.MAX, StatFolds.foldFor("_stats.columns.value.max"));
     }
 
     public void testCountsAndSizesFoldBySum() {
-        assertSame(Fold.SUM, StatFolds.foldFor("_stats.row_count"));
-        assertSame(Fold.SUM, StatFolds.foldFor("_stats.size_bytes"));
-        assertSame(Fold.SUM, StatFolds.foldFor("_stats.columns.value.null_count"));
-        assertSame(Fold.SUM, StatFolds.foldFor("_stats.columns.value.size_bytes"));
+        assertSame(StatFold.SUM, StatFolds.foldFor("_stats.row_count"));
+        assertSame(StatFold.SUM, StatFolds.foldFor("_stats.size_bytes"));
+        assertSame(StatFold.SUM, StatFolds.foldFor("_stats.columns.value.null_count"));
+        assertSame(StatFold.SUM, StatFolds.foldFor("_stats.columns.value.size_bytes"));
     }
 
     public void testNonStatisticKeyHasNoFold() {

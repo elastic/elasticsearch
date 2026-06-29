@@ -9,8 +9,8 @@ Enables [query approximation](/reference/query-languages/esql/esql-query-approxi
 
 **Type**: `boolean` `map_param`
 
-Map entries: 
-    - `rows` (`[integer]`): Number of sampled rows used for approximating the query. Must be at least 10,000. Null uses the system default.
+Map entries:
+- `rows` (`[integer]`): Number of sampled rows used for approximating the query. Must be at least 10,000. Null uses the system default.
 - `confidence_level` (`[double]`): Confidence level of the computed confidence intervals. Default is 0.90. Null disables computing confidence intervals.
 
 
@@ -39,4 +39,3 @@ FROM many_numbers | STATS median=MEDIAN(sv)
 | median:double | _approximation_confidence_interval(median):double | _approximation_certified(median):boolean |
 | --- | --- | --- |
 | 356.0 | [353.73, 358.79] | true |
-

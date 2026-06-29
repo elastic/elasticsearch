@@ -822,9 +822,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         private final NumericDocValues valueMinima;
         private final NumericDocValues valueMaxima;
 
-        private int currentDocId = -1;
         private final CompressedExponentialHistogram tempHistogram = new CompressedExponentialHistogram();
-        private final DocIdSetIterator docIdSetIterator;
+        private int advanceExactFailedDoc = -2;
 
         DocValuesReader(LeafReader leafReader, String fullPath) throws IOException {
             histoDocValues = leafReader.getBinaryDocValues(fullPath);
@@ -833,37 +832,6 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             valueSums = leafReader.getNumericDocValues(valuesSumSubFieldName(fullPath));
             valueMinima = leafReader.getNumericDocValues(valuesMinSubFieldName(fullPath));
             valueMaxima = leafReader.getNumericDocValues(valuesMaxSubFieldName(fullPath));
-            if (valueCounts == null) {
-                currentDocId = DocIdSetIterator.NO_MORE_DOCS;
-            }
-            docIdSetIterator = new DocIdSetIterator() {
-
-                @Override
-                public int docID() {
-                    return currentDocId;
-                }
-
-                @Override
-                public int nextDoc() throws IOException {
-                    if (valueCounts != null) {
-                        currentDocId = valueCounts.nextDoc();
-                    }
-                    return currentDocId;
-                }
-
-                @Override
-                public int advance(int target) throws IOException {
-                    if (valueCounts != null) {
-                        currentDocId = valueCounts.advance(target);
-                    }
-                    return currentDocId;
-                }
-
-                @Override
-                public long cost() {
-                    return valueCounts != null ? valueCounts.cost() : 0;
-                }
-            };
         }
 
         boolean hasAnyValues() {
@@ -872,18 +840,30 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
         @Override
         public boolean advanceExact(int docId) throws IOException {
-            boolean isPresent = valueCounts != null && valueCounts.advanceExact(docId);
-            currentDocId = isPresent ? docId : -1;
-            return isPresent;
+            if (valueCounts == null) {
+                return false;
+            }
+            boolean present = valueCounts.advanceExact(docId);
+            advanceExactFailedDoc = present ? -2 : docId;
+            return present;
+        }
+
+        private int currentDocId() {
+            if (valueCounts == null) {
+                throw new IllegalStateException("No histogram present for current document id");
+            }
+            int docId = valueCounts.docID();
+            if (docId < 0 || docId == DocIdSetIterator.NO_MORE_DOCS || docId == advanceExactFailedDoc) {
+                throw new IllegalStateException("No histogram present for current document id");
+            }
+            return docId;
         }
 
         @Override
         public ExponentialHistogram histogramValue() throws IOException {
-            if (currentDocId == -1 || currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
-                throw new IllegalStateException("No histogram present for current document id");
-            }
-            boolean histoPresent = histoDocValues.advanceExact(currentDocId);
-            boolean zeroThresholdPresent = zeroThresholds.advanceExact(currentDocId);
+            int docId = currentDocId();
+            boolean histoPresent = histoDocValues.advanceExact(docId);
+            boolean zeroThresholdPresent = zeroThresholds.advanceExact(docId);
             assert zeroThresholdPresent && histoPresent;
 
             BytesRef encodedHistogram = histoDocValues.binaryValue();
@@ -891,20 +871,20 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             long valueCount = valueCounts.longValue();
             double valueSum;
             if (valueCount > 0) {
-                boolean valueSumsPresent = valueSums.advanceExact(currentDocId);
+                boolean valueSumsPresent = valueSums.advanceExact(docId);
                 assert valueSumsPresent;
                 valueSum = NumericUtils.sortableLongToDouble(valueSums.longValue());
             } else {
-                valueSum = 0.0; // empty histogram has sum of 0.0, but we store null in the doc values
+                valueSum = 0.0;
             }
             double valueMin;
-            if (valueMinima != null && valueMinima.advanceExact(currentDocId)) {
+            if (valueMinima != null && valueMinima.advanceExact(docId)) {
                 valueMin = NumericUtils.sortableLongToDouble(valueMinima.longValue());
             } else {
                 valueMin = Double.NaN;
             }
             double valueMax;
-            if (valueMaxima != null && valueMaxima.advanceExact(currentDocId)) {
+            if (valueMaxima != null && valueMaxima.advanceExact(docId)) {
                 valueMax = NumericUtils.sortableLongToDouble(valueMaxima.longValue());
             } else {
                 valueMax = Double.NaN;
@@ -920,11 +900,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
         @Override
         public double sumValue() throws IOException {
-            if (currentDocId == -1 || currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
-                throw new IllegalStateException("No histogram present for current document id");
-            }
-            if (valueSums == null || valueSums.advanceExact(currentDocId) == false) {
-                // empty histogram, must have sum of 0.0
+            int docId = currentDocId();
+            if (valueSums == null || valueSums.advanceExact(docId) == false) {
                 return 0.0;
             }
             return NumericUtils.sortableLongToDouble(valueSums.longValue());
@@ -932,11 +909,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
         @Override
         public double minValue() throws IOException {
-            if (currentDocId == -1 || currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
-                throw new IllegalStateException("No histogram present for current document id");
-            }
-            if (valueMinima == null || valueMinima.advanceExact(currentDocId) == false) {
-                // empty histogram
+            int docId = currentDocId();
+            if (valueMinima == null || valueMinima.advanceExact(docId) == false) {
                 return Double.POSITIVE_INFINITY;
             }
             return NumericUtils.sortableLongToDouble(valueMinima.longValue());
@@ -944,11 +918,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
         @Override
         public double maxValue() throws IOException {
-            if (currentDocId == -1 || currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
-                throw new IllegalStateException("No histogram present for current document id");
-            }
-            if (valueMaxima == null || valueMaxima.advanceExact(currentDocId) == false) {
-                // empty histogram
+            int docId = currentDocId();
+            if (valueMaxima == null || valueMaxima.advanceExact(docId) == false) {
                 return Double.NEGATIVE_INFINITY;
             }
             return NumericUtils.sortableLongToDouble(valueMaxima.longValue());
@@ -956,7 +927,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
         @Override
         public DocIdSetIterator docIdIterator() {
-            return docIdSetIterator;
+            return valueCounts != null ? valueCounts : DocIdSetIterator.empty();
         }
     }
 

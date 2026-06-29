@@ -465,12 +465,8 @@ public class Verifier {
     }
 
     /**
-     * {@code unmapped_fields="load"} does not yet support PROMQL.
-     * Subqueries and views are supported (see https://github.com/elastic/elasticsearch/issues/142033): an unmapped field referenced
-     * inside one branch is loaded only in that branch, while a field referenced after the union is broadcast-loaded into every branch's
-     * {@code EsRelation} sources - branches that keep it in their output surface the {@code _source} value, and branches that DROP/RENAME
-     * or aggregate it away null-fill it at the union without suppressing sibling materialization (matching mapped-field alignment).
-     * Cross-branch type conflicts are caught by {@code UnionAll.checkUnionAll}.
+     * {@code unmapped_fields="load"} does not yet support PROMQL. FORK, subqueries and views are handled by
+     * {@code ResolveUnmapped#load}; cross-branch type conflicts by {@code UnionAll#checkUnionAll}. See #142033.
      */
     private static void checkLoadModeDisallowedCommands(LogicalPlan plan, Failures failures) {
         plan.forEachDown(p -> {

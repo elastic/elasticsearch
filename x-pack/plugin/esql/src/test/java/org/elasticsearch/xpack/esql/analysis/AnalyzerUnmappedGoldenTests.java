@@ -396,11 +396,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    // Reproducer for the MV_EXPAND-vs-KEEP divergence: the first branch references unmapped_message through a generating command
-    // (MV_EXPAND), so it surfaces as a ReferenceAttribute in the FORK output union. The sibling WHERE branch does not reference the
-    // field; since all FORK branches share the same source index it must still be loaded into that branch's own source (Decision A in
-    // #142033) rather than null-filled - the load-align decision keys off the field name, not the (now transformed) representative's
-    // runtime type. Without the fix the sibling branch null-fills unmapped_message while the KEEP analog above loads it.
+    // MV_EXPAND makes unmapped_message a ReferenceAttribute in branch 1's output; the sibling WHERE branch must still load it
+    // (matched by name, not the transformed type) since all FORK branches share one source. #142033
     public void testForkLoadsUnmappedFieldExpandedInOneBranchOnly() throws Exception {
         runTests("""
             FROM partial_mapping_sample_data
@@ -421,9 +418,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    // does_not_exist is referenced only in the WHERE branch, but the LOOKUP JOIN branch must still surface it: a LEFT join preserves
-    // its left-hand columns, so under load it is loaded into the join branch's own (left) source and flows through the join rather than
-    // being null-filled (#142033). Without the fix the join branch null-fills it while the sibling branch loads the real value.
+    // does_not_exist is referenced only in the WHERE branch; the LEFT LOOKUP JOIN branch still loads it into its left source and
+    // flows it through the join rather than null-filling. #142033
     public void testForkLoadsUnmappedFieldAcrossLookupJoinBranch() throws Exception {
         runTests("""
             FROM employees
@@ -449,9 +445,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    // gender is text in employees_gender_text and missing in employees_no_gender, so it is a single-type partially-unmapped field
-    // (a "two-legged PUNK"). Routing it through a FORK output must preserve its TEXT type rather than flagging it as a
-    // type conflict (UNSUPPORTED), since it loads from the indices where it is mapped and is null where.
+    // gender is a two-legged PUNK (TEXT in employees_gender_text, unmapped in employees_no_gender); a FORK output must preserve its
+    // TEXT type, not flag it UNSUPPORTED.
     public void testForkKeepsSingleTypePartiallyUnmappedTextField() throws Exception {
         runTests("""
             FROM employees_gender_text, employees_no_gender
@@ -476,16 +471,11 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    // Subquery (UnionAll) counterpart of testForkWidensSingleTypePartiallyUnmappedShortField: the first branch is a multi-index
-    // relation where id is a two-legged short PUNK (short in apps_short, unmapped in partial_mapping_sample_data). It must surface as
-    // INTEGER on the UnionAll output so checkUnionAll does not reject it with an [INTEGER] vs [SHORT] conflict (the widening fix must
-    // apply to UnionAll/views, not only Fork).
+    // UnionAll counterpart of testForkWidensSingleTypePartiallyUnmappedShortField: id (two-legged short PUNK) must surface as INTEGER
+    // on the UnionAll output, so the widening fix applies to UnionAll/views too, not just Fork.
     public void testSubqueryWidensSingleTypePartiallyUnmappedShortField() throws Exception {
-        // Both branches make id a two-legged short PUNK (short in apps_short, unmapped in partial_mapping_sample_data) and only KEEP it
-        // (a non-KEYWORD PUNK may be projected but not used in an expression under load). Under load the branches and the UnionAll
-        // output must agree on the widened INTEGER type; without the widening fix on the UnionAll output path, checkUnionAll would
-        // report an [INTEGER] vs [SHORT] conflict. (A plain non-PUNK short branch is intentionally avoided: subqueries do not auto-widen
-        // numerics, so unioning a loaded PUNK short with a plain short legitimately conflicts as [short, integer] under load.)
+        // Both branches make id a two-legged short PUNK and only KEEP it; branches and UnionAll output must agree on the widened INTEGER
+        // type, else checkUnionAll reports [INTEGER] vs [SHORT]. (Plain short avoided: subqueries don't auto-widen numerics.)
         runTests("""
             FROM (FROM apps_short, partial_mapping_sample_data | KEEP id),
                  (FROM apps_short, partial_mapping_sample_data | KEEP id)
@@ -495,9 +485,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    // A genuine multi-type conflict (short in all_types, long in all_types_short_as_long, unmapped in all_types_no_short) is NOT a
-    // two-legged PUNK (types().size() > 1), so it must stay UNSUPPORTED through the FORK output. KEEP-only is tolerated; checkFork
-    // skips the UNSUPPORTED column rather than reporting a spurious conflict.
+    // A genuine multi-type conflict (short/long/unmapped) is not a two-legged PUNK (types > 1), so it stays UNSUPPORTED through the
+    // FORK output; KEEP-only is tolerated (checkFork skips it).
     public void testForkThreeWayTypeConflictShortLongUnmappedStaysUnsupported() throws Exception {
         runTests("""
             FROM all_types, all_types_short_as_long, all_types_no_short
@@ -682,9 +671,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    // does_not_exist1 is referenced inside the languages branch, so it is loaded only there (in-branch scope) and null-filled in the
-    // employees branch; does_not_exist2 is referenced only in the outer WHERE and is unmapped everywhere, so it is loaded from _source
-    // in all branches (#142033).
+    // does_not_exist1 is in-branch (loaded only in the languages branch, null-filled in employees); does_not_exist2 is outer-only and
+    // unmapped everywhere, so loaded from _source in all branches. #142033
     public void testSubqueryAndMainQuery() throws Exception {
         assumeTrue(
             "Requires subquery in FROM command support",
@@ -698,9 +686,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    // Outer-only reference over a union that mixes an index branch and a ROW (LocalRelation) branch: does_not_exist is loaded from
-    // _source into the employees EsRelation, while the ROW branch - which cannot load from _source - is null-filled by
-    // ResolveRefs#resolveFork alignment, so the outer reference still resolves over the union.
+    // Outer-only reference over a union of an index branch and a ROW branch: does_not_exist loads from _source into the employees
+    // EsRelation, while the ROW branch (can't load) is null-filled by resolveFork alignment. #142033
     public void testSubqueryWithRowBranchOuterReference() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         assumeTrue("Requires ROW source subqueries", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
@@ -747,9 +734,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    // does_not_exist is referenced only in the outer SORT and is unmapped everywhere, so it is loaded from _source in all branches
-    // (#142033). The main branch surfaces the loaded keyword; the STATS branch loads it at its source but STATS drops it, so that
-    // branch null-fills the column at the union.
+    // does_not_exist is outer-only and unmapped everywhere, so loaded in all branches (#142033): the main branch surfaces it; the STATS
+    // branch loads it but STATS drops it, so it null-fills at the union.
     public void testSubqueryAfterUnionAllOfStatsAndMain() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runTests("""
@@ -795,9 +781,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, STAGES);
     }
 
-    // Nullify-only: under load, salary is unmapped in languages and is loaded as a KEYWORD inside the AVG(salary) branch, which AVG
-    // rejects ("argument of [AVG(salary)] must be ... numeric ..."). That is a legitimate load-mode semantic, unrelated to the
-    // subquery scoping under test, so this query is exercised in nullify mode only.
+    // Nullify-only: under load, salary loads as KEYWORD inside AVG(salary), which AVG rejects (numeric required) - a legitimate
+    // load-mode semantic unrelated to the subquery scoping under test.
     public void testSubquerysWithMainAndStatsOnly() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runTestsNullifyOnly("""
@@ -1142,9 +1127,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    // does_not_exist is referenced after the subqueries; the languages branch DROPs it, so it does not surface there and is null-filled,
-    // while the employees branch materializes it from _source - matching how a mapped field aligns across branches (#142033). The
-    // in-branch DROP no longer suppresses the outer-reference broadcast to the sibling, because the branch no longer surfaces the column.
+    // Outer reference: the languages branch DROPs does_not_exist so it doesn't surface there (null-filled), while employees materializes
+    // it from _source - the in-branch DROP no longer suppresses the broadcast to the sibling. #142033
     public void testSubqueryDropInBranchMaterializesSibling() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runTests("""
@@ -1185,9 +1169,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code, does_not_exist)"));
     }
 
-    // does_not_exist is referenced only inside the languages branch WHERE: under load it is loaded into that branch's source
-    // (Decision A) and null-filled in the employees branch. emp_no/language_code are each present in a single branch and null-filled
-    // in the other through the union output.
+    // does_not_exist is in-branch (loaded in the languages branch, null-filled in employees); emp_no/language_code each exist in one
+    // branch and null-fill in the other through the union output. Decision A, #142033.
     public void testSubquery() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runTests("""
@@ -1196,11 +1179,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    // does_not_exist is referenced only in the outer WHERE and is unmapped everywhere, so it is loaded from _source in all branches
-    // (#142033); the ::LONG cast then applies per branch via union-type conversion ($$does_not_exist$converted_to$long). The loaded
-    // source is added only to the non-lookup EsRelations - the languages_lookup relation on the LOOKUP JOIN's right side is left untouched.
-    // The value of the test is confirming that load mode handles a branching subquery mixing a plain source, a filtered source and a
-    // LOOKUP JOIN without hitting the (now lifted) restriction.
+    // does_not_exist is outer-only and unmapped everywhere, so loaded in all branches (#142033); the ::LONG cast applies per branch via
+    // union-type conversion, and the lookup right-side relation is left untouched. Confirms load handles a mixed branching subquery.
     public void testSubqueryWithLookupJoin() throws Exception {
         assumeTrue(
             "Requires subquery in FROM command support",

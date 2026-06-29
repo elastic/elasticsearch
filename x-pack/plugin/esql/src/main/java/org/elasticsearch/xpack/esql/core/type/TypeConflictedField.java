@@ -77,9 +77,8 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
     }
 
     /**
-     * The ES|QL surface type for a two-legged PUNK: its single mapped type widened (e.g. {@code SHORT -> INTEGER}). This is the type
-     * the field must carry once it surfaces in the analyzed plan, so that the implicit load path matches an explicit cast and so that
-     * the branch attributes agree with the Fork/UnionAll output type. Only valid when {@link #isSingleTypePotentiallyUnmapped()}.
+     * The single mapped type widened to its ES|QL surface type (e.g. {@code SHORT -> INTEGER}), so the implicit load matches an
+     * explicit cast and agrees with the Fork/UnionAll output. Only valid when {@link #isSingleTypePotentiallyUnmapped()}.
      */
     public DataType singleMappedTypeWidened() {
         return singleMappedType().widenSmallNumeric();

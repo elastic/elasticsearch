@@ -169,39 +169,14 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     }
 
     /**
-     * This method introduces field extractors - via "insisted", {@link PotentiallyUnmappedKeywordEsField} wrapped in
-     * {@link FieldAttribute} - for every attribute in {@code unresolved}, within the {@link EsRelation}s in the plan accessible from
-     * the given {@code plan}.
-     * <p>
-     * It also "patches" the introduced attributes through the plan, where needed (like through Fork/UnionAll).
-     * <p>
-     * Loading is scope-aware with respect to subqueries and views ({@link UnionAll}, including {@code ViewUnionAll}). Because the rule is
-     * applied bottom-up, a field referenced inside one branch is loaded when the rule fires on that branch's subtree (which contains no
-     * {@code UnionAll}, so it takes the simple, source-spanning path below) - sibling branches are not touched and are later null-filled by
-     * {@code ResolveRefs#resolveFork} alignment. This keeps an in-branch reference scoped to its own independent source (see
-     * <a href="https://github.com/elastic/elasticsearch/issues/142033">#142033</a>).
-     * <p>
-     * When the rule instead fires on a node spanning a {@code UnionAll} (an outer reference, mentioned only after the subqueries/views), a
-     * field surfaced (mapped, or loaded by an in-branch reference and kept in the branch output) by some branch is left to resolve through
-     * the union output - we must not leak a single branch's in-branch load into its siblings. A field not surfaced by any branch was
-     * referenced only above the union, so it is loaded from {@code _source} in <i>all</i> branches that can surface it (the
-     * {@link EsRelation} sources), exactly as {@code FROM idx1, idx2 | KEEP missing} loads it from every index. Crucially, a branch that
-     * references a field only to {@code DROP}/{@code RENAME} it away does not surface it, so that branch no longer suppresses the broadcast
-     * to its siblings and the field still materializes there - just as a mapped field would be aligned across branches. Non-{@link
-     * EsRelation} sources (Row/LocalRelation) cannot load from {@code _source}; a branch that does not surface the column (a Row/LocalRelation
-     * source, or a pipeline that drops it, e.g. a non-grouping STATS) is null-filled by {@code ResolveRefs#resolveFork} alignment, which uses
-     * the union representative's type so the loaded keyword and the null-filled siblings reconcile.
-     * <p>
-     * Cross-branch type conflicts are caught later by {@code UnionAll#checkUnionAll}.
+     * Inserts {@link PotentiallyUnmappedKeywordEsField} loaders (insisted keywords wrapped in {@link FieldAttribute}) for
+     * {@code unresolved} into the plan's {@link EsRelation}s, scope-aware across subqueries/views: an outer reference (surfaced by
+     * no {@link UnionAll} branch) is broadcast into all branches; an in-branch reference stays scoped to its own source. See #142033.
      */
     private static LogicalPlan load(LogicalPlan plan, Set<UnresolvedAttribute> unresolved) {
         // TODO: this will need to be revisited for non-lookup joining or scenarios where we won't want extraction from specific sources
         if (plan.anyMatch(p -> p instanceof UnionAll)) {
-            // A field surfaced by some branch (mapped, or loaded by an in-branch reference and kept in the branch's output) stays scoped
-            // to that branch and resolves through the union output; only a field not surfaced by any branch is a pure outer reference,
-            // broadcast-loaded into all branches that can surface it (#142033). Using the branches' surfaced outputs - rather than the
-            // deep EsRelation outputs - means a branch that references a field only to DROP/RENAME it away no longer suppresses the
-            // broadcast to its siblings, so the field still materializes there, exactly as a mapped field would be aligned across branches.
+            // Outer references only: a name already surfaced by a branch resolves through the union output. #142033
             Set<String> surfacedByAnyBranch = unionBranchOutputNames(plan);
             LinkedHashSet<UnresolvedAttribute> outerReferences = new LinkedHashSet<>();
             for (UnresolvedAttribute ua : unresolved) {
@@ -215,9 +190,8 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     }
 
     /**
-     * Adds {@code _source} keyword loaders for {@code toLoad} to every (non-LOOKUP) {@link EsRelation} reachable from {@code plan}.
-     * Non-{@link EsRelation} sources (Row/LocalRelation) cannot load from {@code _source} and are left for {@code ResolveRefs#resolveFork}
-     * to null-fill during branch alignment.
+     * Adds {@code _source} keyword loaders for {@code toLoad} to every non-LOOKUP {@link EsRelation} reachable from {@code plan};
+     * Row/LocalRelation sources can't load from {@code _source} and are left for {@code ResolveRefs#resolveFork} to null-fill.
      */
     private static LogicalPlan loadIntoSources(LogicalPlan plan, Set<UnresolvedAttribute> toLoad) {
         return plan.transformUp(EsRelation.class, esr -> {
@@ -227,10 +201,8 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     }
 
     /**
-     * The names surfaced by any branch of a {@link UnionAll} (subquery / view) - i.e. what each branch's pipeline actually outputs to the
-     * union. A field surfaced by some branch (mapped, or loaded by an in-branch reference that the branch keeps in its output) resolves
-     * through the union output and is not broadcast into siblings. A field referenced inside a branch only to be dropped/renamed away is
-     * not surfaced, so an outer reference still broadcast-loads it into every branch that can surface it - matching mapped-field behavior.
+     * The names output to the union by any {@link UnionAll} branch. A name not surfaced here (e.g. referenced only to be
+     * dropped/renamed away) is treated as an outer reference and broadcast-loaded into every branch. See #142033.
      */
     private static Set<String> unionBranchOutputNames(LogicalPlan plan) {
         Set<String> names = new HashSet<>();

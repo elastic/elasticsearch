@@ -1480,10 +1480,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<LogicalPlan> newSubPlans = new ArrayList<>();
             List<Attribute> outputUnion = Fork.outputUnion(fork.children());
             List<String> forkColumns = outputUnion.stream().map(Attribute::name).toList();
-            // The load-from-_source alignment below applies to FORK only: its branches share a single source index. Subqueries
-            // and views (UnionAll / ViewUnionAll) read from independent sources and are handled separately (see #142033).
+            // FORK branches share one source index, so load-align across them; subqueries/views (UnionAll) read independent
+            // sources and are handled in ResolveUnmapped. See #142033.
             boolean loadAlignAcrossBranches = unmappedResolution == UnmappedResolution.LOAD && fork instanceof UnionAll == false;
-            // Field names loadable from _source as unmapped keywords anywhere in the FORK, used to decide load vs null-fill below.
             Set<String> forkLoadableUnmappedKeywordNames = loadAlignAcrossBranches ? loadableUnmappedKeywordNames(fork) : Set.of();
 
             for (LogicalPlan logicalPlan : fork.children()) {
@@ -1501,15 +1500,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Alias> aliases = new ArrayList<>(missing.size());
                 List<FieldAttribute> toLoad = new ArrayList<>();
                 for (Attribute attr : missing) {
-                    // With unmapped_fields="load", a column missing from this branch but loaded (as a keyword from _source) in a
-                    // sibling branch must be loaded here too rather than null-filled: all FORK branches read from the same source
-                    // index, so the field is available in every branch (see https://github.com/elastic/elasticsearch/issues/142033).
-                    // We load it into this branch's own source relation so it surfaces in the branch output; null-filling it instead
-                    // would shadow the value loaded from _source. Branches that cannot surface a loaded field (an aggregation,
-                    // projection or non-index source in the way) fall back to null-filling, which also keeps the alignment terminating.
-                    // The loadability check is by field name rather than the representative's runtime type: a sibling branch that
-                    // references the field through a generating command (MV_EXPAND, EVAL, DISSECT, GROK, ...) surfaces it as a
-                    // ReferenceAttribute in the output union, which must not hide its loadable-from-_source origin.
+                    // A keyword loaded from _source in a sibling branch is loaded here too (not null-filled), unless this branch
+                    // can't surface it. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...) doesn't hide it. #142033
                     if (loadAlignAcrossBranches
                         && forkLoadableUnmappedKeywordNames.contains(attr.name())
                         && branchCanSurfaceLoadedField(logicalPlan)) {
@@ -1541,8 +1533,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         }
                         return newFields.isEmpty() ? esr : esr.withAdditionalAttributes(newFields);
                     });
-                    // only mark the plan changed when the relation actually gained fields, so an already-loaded
-                    // (but not-yet-surfaced) field does not force an endless fixed-point iteration
+                    // mark changed only if the relation gained fields, else the fixed-point iteration never terminates
                     if (withLoaded != logicalPlan) {
                         logicalPlan = withLoaded;
                         changed = true;
@@ -1613,12 +1604,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Names of fields loadable from {@code _source} as unmapped keywords ({@link PotentiallyUnmappedKeywordEsField}) anywhere in
-         * the FORK branches' source relations. Because all FORK branches read the same source index, a field loaded in one branch is
-         * loadable in every branch; {@link #resolveFork} uses this to load such a field into a sibling branch that does not reference it
-         * (so it surfaces the real {@code _source} value) instead of null-filling it. Scanning the {@link EsRelation}s rather than the
-         * branch outputs is what makes this robust when the referencing branch transforms the field into a {@code ReferenceAttribute}
-         * (e.g. MV_EXPAND, EVAL, DISSECT, GROK), which would otherwise hide its loadable origin in the branch output.
+         * Names loaded as unmapped keywords ({@link PotentiallyUnmappedKeywordEsField}) by any FORK branch's {@link EsRelation}.
+         * Scans the relations, not branch outputs, so a referencing generating command (EVAL/MV_EXPAND/...) can't hide the origin.
          */
         private static Set<String> loadableUnmappedKeywordNames(Fork fork) {
             Set<String> names = new HashSet<>();
@@ -1638,10 +1625,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Whether an unmapped keyword field loaded from {@code _source} at a FORK branch's source relation would surface in the
-         * branch output, used by {@link #resolveFork} to decide between loading and null-filling a missing column under
-         * {@code unmapped_fields="load"}. Walks from the branch root to its leaf following column-preserving unary plans; returns
-         * {@code true} only when the leaf is a loadable {@link EsRelation} (non-LOOKUP).
+         * Whether a keyword loaded at this branch's source would reach the branch output: true only if walking column-preserving
+         * unary plans from the root reaches a non-LOOKUP {@link EsRelation} (a Project/Aggregate in the way drops it).
          */
         private static boolean branchCanSurfaceLoadedField(LogicalPlan branch) {
             LogicalPlan plan = branch;

@@ -195,9 +195,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             """, "line 4:8: Unknown column [does_not_exist]");
     }
 
-    // unmapped_fields="load" now supports subqueries (see #142033); does_not_exist1/2 are outer-only references unmapped in every
-    // branch, so they are loaded from _source in all branches (loaded into the non-lookup sources; branches that drop the column - e.g.
-    // the STATS branch - null-fill it at the union), and the statement analyzes successfully (LOOKUP JOIN inside a branch is fine).
+    // load now supports subqueries (#142033): outer-only does_not_exist1/2 load in all branches (null-filled where dropped, e.g. the
+    // STATS branch) and the statement analyzes successfully (LOOKUP JOIN inside a branch is fine).
     public void testSubquerysMixAndLookupJoinLoad() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
 
@@ -610,10 +609,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         );
     }
 
-    // Decision C (#142033): language_code is mapped as INTEGER in the languages branch but unmapped (loaded as KEYWORD) in the test
-    // subquery branch. The two branches surface conflicting types for the same column. KEEP-ing the column is tolerated (it becomes an
-    // unsupported union attribute, autocast deferred to #141912), but using it forces type resolution, which UnionAll#checkUnionAll
-    // rejects.
+    // Decision C (#142033): language_code is INTEGER in one branch and unmapped-as-KEYWORD in the other. KEEP-ing the column is
+    // tolerated (autocast deferred to #141912), but using it forces type resolution, which UnionAll#checkUnionAll rejects.
     public void testLoadModeDisallowsCrossBranchTypeConflict() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         test().addLanguages().statementError(setUnmappedLoad("""
@@ -1200,9 +1197,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 """,
             allOf(
                 containsString("Found 6 problems"),
-                // field.aaa is referenced before the FORK, so it is duplicated into each of the 3 branches; field.bbb is referenced in
-                // a single branch but, under unmapped_fields="load", a field loaded in one FORK branch is loaded in every branch so the
-                // FORK output stays aligned. Both subfields therefore fail flattened-subfield loading once per branch (3 times each).
+                // field.aaa (before the FORK) and field.bbb (in one branch, loaded into all under load) each fail flattened-subfield
+                // loading once per branch - 3 times each.
                 containsString(
                     "line 2:14: Loading subfield [field.aaa] when parent [field] is of flattened field type is not supported with "
                         + "unmapped_fields=\"load\""

@@ -44,10 +44,8 @@ public final class Expressions {
      * <ul>
      *   <li>A {@link FieldAttribute} backed by a {@link TypeConflictedField} (ambiguous type across indices) is converted
      *   to an {@link UnsupportedAttribute} via {@link FieldAttribute#flagTypeConflicts()}, so the analyzer can surface a
-     *   clear user-facing error. The one exception is a potentially-unmapped field with a single mapped type (a
-     *   "two-legged PUNK", e.g. a TEXT field mapped in some indices and absent in others): that is not a genuine
-     *   conflict, so its single type is preserved on the {@link ReferenceAttribute}, mirroring
-     *   {@code Analyzer.UnionTypesCleanup}, so it surfaces unchanged through a Fork/UnionAll output.</li>
+     *   clear user-facing error. Exception: a two-legged PUNK ({@link TypeConflictedField#isSingleTypePotentiallyUnmapped()})
+     *   keeps its single mapped type on the {@link ReferenceAttribute} so it surfaces through a Fork/UnionAll output.</li>
      *   <li>An {@link ExternalMetadataAttribute} is rebuilt as the same subtype with the preserved id. The
      *   "virtual column" identity must survive operators that re-class their output (e.g. {@code Fork.refreshedOutput})
      *   because downstream rules such as {@code Analyzer.planWithoutSyntheticAttributes} (which strips
@@ -74,9 +72,7 @@ public final class Expressions {
             NameId id = existing != null ? existing.id() : new NameId();
             Attribute refAttr = switch (exp) {
                 case FieldAttribute fa when fa.field() instanceof TypeConflictedField tcf -> {
-                    // A potentially-unmapped field with a single mapped type (a "two-legged PUNK", e.g. a TEXT field that has no
-                    // auto-cast converter) is not a genuine type conflict: it loads from the indices where it is mapped and is null
-                    // where unmapped
+                    // A two-legged PUNK is not a genuine conflict: keep its single mapped type instead of flagging it.
                     if (tcf.isSingleTypePotentiallyUnmapped()) {
                         yield new ReferenceAttribute(
                             fa.source(),

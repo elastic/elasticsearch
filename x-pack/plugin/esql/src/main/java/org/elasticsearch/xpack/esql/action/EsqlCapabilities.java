@@ -3059,9 +3059,7 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN,
 
         /**
-         * Support for {@code unmapped_fields="load"} mode with {@code FORK}, subqueries and views
-         * ({@code UnionAll} / {@code ViewUnionAll}). Previously these combinations were rejected at query validation time.
-         * see <a href="https://github.com/elastic/elasticsearch/issues/142033">Issue #142033</a>
+         * Support for {@code unmapped_fields="load"} with {@code FORK}, subqueries and views (previously rejected). See #142033.
          */
         OPTIONAL_FIELDS_LOAD_WITH_FORK_SUBQUERIES_AND_VIEWS,
 

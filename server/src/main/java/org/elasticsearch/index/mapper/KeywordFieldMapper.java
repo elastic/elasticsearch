@@ -1579,7 +1579,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             assert fieldType.docValuesType() == DocValuesType.NONE;
             if (fieldType().usesArrayOrderBinaryDocValues()) {
                 // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls.
-                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(context.doc(), fieldType().name(), binaryValue);
+                if (context.isPartOfArray() == false) {
+                    MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordSingleValue(context.doc(), fieldType().name(), binaryValue);
+                } else {
+                    MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(context.doc(), fieldType().name(), binaryValue);
+                }
             } else {
                 dvFactory.addBinaryField(
                     context.doc(),

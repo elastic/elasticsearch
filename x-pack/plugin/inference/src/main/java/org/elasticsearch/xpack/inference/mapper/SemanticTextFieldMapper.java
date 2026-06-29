@@ -373,7 +373,24 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support multi-fields");
             }
 
-            return (SemanticTextFieldMapper) super.build(context);
+            SemanticTextFieldMapper mapper = (SemanticTextFieldMapper) super.build(context);
+            if (useLegacyFormat == false) {
+                // The new format stores the original input in an internal [<field>.input] binary doc values column, so a multi-field
+                // with that name would write to the same Lucene field. Reserve the name to prevent the collision.
+                for (FieldMapper multiField : mapper.multiFields()) {
+                    if (multiField.leafName().equals(SemanticTextField.INPUT_FIELD)) {
+                        throw new IllegalArgumentException(
+                            CONTENT_TYPE
+                                + " field ["
+                                + leafName()
+                                + "] cannot have a multi-field named ["
+                                + SemanticTextField.INPUT_FIELD
+                                + "]; that name is reserved for the field's internal doc values storage"
+                        );
+                    }
+                }
+            }
+            return mapper;
         }
 
         @Override

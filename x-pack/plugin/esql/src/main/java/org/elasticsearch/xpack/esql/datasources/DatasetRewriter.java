@@ -337,7 +337,19 @@ public final class DatasetRewriter {
             // accepted on external datasets; values are framework-synthesized by the COMPOSED path.
             // The dataset name rides alongside so the per-file _index synthesizer can populate
             // _index with the user-facing identifier rather than the underlying resource path.
-            children.add(new UnresolvedExternalRelation(relation.source(), path, merged, relation.metadataFields(), name));
+            UnresolvedExternalRelation external = new UnresolvedExternalRelation(
+                relation.source(),
+                path,
+                merged,
+                relation.metadataFields(),
+                name
+            );
+            // Wrap each dataset's relation in a first-class Dataset node (LOCAL). The wrapper is transparent to
+            // resolution — PreAnalyzer's UnresolvedExternalRelation path collection and the ResolveExternalRelations
+            // rule both descend into the child, resolving it into the identical ExternalRelation produced today — and the
+            // Mapper lowers the LOCAL Dataset by mapping that resolved child, so the external read is byte-identical. The
+            // distinct node is what lets a REMOTE / MATERIALIZED dataset be lowered opaquely, off the inline-EXTERNAL path.
+            children.add(new org.elasticsearch.xpack.esql.plan.logical.Dataset(relation.source(), name, external));
         }
         // Cross-project (CPS): a wildcard that matched a dataset locally may also match indices in linked projects.
         // Mirror ViewResolver — keep the original wildcard as a sibling UnresolvedRelation so the remote half resolves

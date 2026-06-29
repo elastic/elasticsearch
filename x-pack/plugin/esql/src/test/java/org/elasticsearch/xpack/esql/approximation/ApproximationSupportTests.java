@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
+import org.elasticsearch.xpack.esql.plan.logical.Dataset;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -184,6 +185,10 @@ public class ApproximationSupportTests extends ESTestCase {
         MetricsInfo.class,
         ExternalRelation.class,
         TsInfo.class,
+
+        // A FROM <dataset> source wrapper, lowered by the Mapper before execution. Like ExternalRelation it is an
+        // opaque external source that does not participate in approximation.
+        Dataset.class,
 
         // Boundary-aware view lowering: these are produced only during optimization, when InlineView lowers a
         // REMOTE / MATERIALIZED view to a first-class source leaf. Like ExternalRelation, they are opaque sources

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Dataset;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -41,10 +42,12 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MaterializedDatasetExec;
 import org.elasticsearch.xpack.esql.plan.physical.MaterializedReadExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteDatasetExec;
 import org.elasticsearch.xpack.esql.plan.physical.RemoteViewExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -67,10 +70,32 @@ public class Mapper {
     public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
         // We ignore the version for now, but it's fine to use later for plans that work
         // differently from some version and up.
-        return mapInner(versionedPlan.inner());
+        return mapInner(lowerLocalDatasets(versionedPlan.inner()));
+    }
+
+    /**
+     * Strips every {@link Dataset.Boundary#LOCAL} {@code Dataset} wrapper, replacing it with its relation child, before
+     * the logical plan is mapped. This is the LOCAL parity anchor: after stripping, the tree is byte-identical to today's
+     * (an unwrapped resolved {@code ExternalRelation}), so the rest of mapping — and any fragment the wrapper would
+     * otherwise have ended up inside (a {@code FragmentExec} serializes its whole logical fragment) — is unchanged.
+     * <p>
+     * This is Mapper-local lowering, not an optimizer rule: a LOCAL dataset carries no inline-vs-not decision, so there is
+     * nothing for the optimizer to decide and nothing the pushdown rules need to see differently. A {@code REMOTE} /
+     * {@code MATERIALIZED} {@code Dataset} is left in place for {@link #mapDataset} to lower to its physical exec.
+     */
+    private static LogicalPlan lowerLocalDatasets(LogicalPlan plan) {
+        return plan.transformUp(Dataset.class, d -> d.boundary() == Dataset.Boundary.LOCAL ? d.relation() : d);
     }
 
     private PhysicalPlan mapInner(LogicalPlan p) {
+        // Boundary-aware dataset lowering. A Dataset is a first-class node that survives analysis + optimization (datasets
+        // have no inline-vs-not decision, so there is no optimizer fold rule — unlike views). It is a UnaryPlan, so it
+        // must be intercepted before the generic unary dispatch below. The model is additive: a 4th boundary slots in by
+        // adding a Dataset.Boundary constant + a case here, leaving the existing three untouched.
+        if (p instanceof Dataset dataset) {
+            return mapDataset(dataset);
+        }
+
         if (p instanceof LeafPlan leaf) {
             return mapLeaf(leaf);
         }
@@ -88,6 +113,49 @@ public class Mapper {
         }
 
         return MapperUtils.unsupported(p);
+    }
+
+    /**
+     * Boundary-aware lowering of a {@link Dataset}, the three-way decision at the heart of first-class datasets.
+     * <ul>
+     *   <li><b>LOCAL</b> — map the dataset's relation child (the resolved {@code ExternalRelation} the dataset produces
+     *       today), reaching the exact same physical lowering an unwrapped dataset reaches. This is the parity anchor:
+     *       byte-identical to today's external read.</li>
+     *   <li><b>REMOTE</b> — the body does not execute locally; lower to a {@link RemoteDatasetExec} carrying the
+     *       federation handle and the resolved schema.</li>
+     *   <li><b>MATERIALIZED</b> — lower to a {@link MaterializedDatasetExec} carrying the backing-index ref and the
+     *       resolved schema.</li>
+     * </ul>
+     * The REMOTE / MATERIALIZED execs are POC stubs — the decision + node + lowering path are real, the cross-cluster /
+     * backing-store source operators are not built yet.
+     */
+    private PhysicalPlan mapDataset(Dataset dataset) {
+        return switch (dataset.boundary()) {
+            case LOCAL -> mapInner(dataset.relation());
+            case REMOTE -> new RemoteDatasetExec(dataset.source(), dataset.datasetName(), remoteHandle(dataset), dataset.output());
+            case MATERIALIZED -> new MaterializedDatasetExec(
+                dataset.source(),
+                dataset.datasetName(),
+                backingIndex(dataset),
+                dataset.output()
+            );
+        };
+    }
+
+    private static String remoteHandle(Dataset dataset) {
+        Dataset.LoweringTarget target = dataset.loweringTarget();
+        if (target == null || target.handle() == null) {
+            throw new IllegalArgumentException("REMOTE dataset [" + dataset.datasetName() + "] has no remote-execution handle to lower");
+        }
+        return target.handle();
+    }
+
+    private static String backingIndex(Dataset dataset) {
+        Dataset.LoweringTarget target = dataset.loweringTarget();
+        if (target == null || target.backingIndex() == null) {
+            throw new IllegalArgumentException("MATERIALIZED dataset [" + dataset.datasetName() + "] has no backing index to lower");
+        }
+        return target.backingIndex();
     }
 
     private PhysicalPlan mapLeaf(LeafPlan leaf) {

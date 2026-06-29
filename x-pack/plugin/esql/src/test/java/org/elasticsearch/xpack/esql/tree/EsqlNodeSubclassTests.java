@@ -503,6 +503,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == org.elasticsearch.xpack.esql.plan.logical.View.LoweringTarget.class) {
             // View.LoweringTarget is a record (final), cannot be mocked; build a deterministic remote target.
             return org.elasticsearch.xpack.esql.plan.logical.View.LoweringTarget.remote(randomAlphaOfLength(8));
+        } else if (argClass == org.elasticsearch.xpack.esql.plan.logical.Dataset.LoweringTarget.class) {
+            // Dataset.LoweringTarget is a record (final), cannot be mocked; build a deterministic remote target.
+            return org.elasticsearch.xpack.esql.plan.logical.Dataset.LoweringTarget.remote(randomAlphaOfLength(8));
         } else if (argClass == org.elasticsearch.xpack.esql.plan.LinkedIndexPattern.class) {
             // LinkedIndexPattern is a record (final), cannot be mocked; build a deterministic instance.
             return new org.elasticsearch.xpack.esql.plan.LinkedIndexPattern(

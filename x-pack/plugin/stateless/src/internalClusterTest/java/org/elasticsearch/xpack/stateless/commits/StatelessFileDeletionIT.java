@@ -1522,6 +1522,9 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             // but the inactivity monitor won't run on its own.
             .put(StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueMinutes(30))
             .put(StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING.getKey(), TimeValue.timeValueMillis(1))
+            // Disable the VBCC notification window so that VBCCs are released immediately after upload, allowing the awaiterOnBccRelease
+            // mechanism (below) to guarantee commit references are freed before the refresh that triggers commit deletion.
+            .put(StatelessCommitService.STATELESS_COMMITS_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(), TimeValue.ZERO)
             .build();
         startMasterOnlyNode(nodeSettings);
         var indexNode = startIndexNode(nodeSettings);

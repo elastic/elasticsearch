@@ -26,6 +26,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
@@ -254,6 +255,44 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
 
         return cacheDirectory.openInput(name, context);
+    }
+
+    /**
+     * Opens a file for reading, preferring local disk if the file is still locally available (regardless of upload status). This
+     * bypasses the normal {@link #openInput} routing that prevents local reads once a file is marked as uploaded. Used by
+     * {@link org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit} to serve BCC chunk requests directly from local
+     * disk during the notification window. Falls back to the blob store cache directory if the file is not locally available.
+     */
+    public IndexInput openInputPreferLocal(String name, IOContext context) throws IOException {
+        boolean hasLocalRef;
+        try (var ignored = readLock.acquire()) {
+            var ref = localFiles.get(name);
+            hasLocalRef = ref != null && ref.hasReferences();
+        }
+        if (hasLocalRef) {
+            // The caller (VirtualBatchedCompoundCommit) holds a local file ref keeping the file on disk.
+            // Unlike openInput/ReopeningIndexInput, this returns a plain IndexInput that is read and closed
+            // in the same thread, so no READONCE→DEFAULT conversion is needed.
+            return super.openInput(name, context);
+        }
+        return cacheDirectory.openInput(name, context);
+    }
+
+    /**
+     * Acquires a reference to a local file via {@link LocalFileRef#tryIncRef()}, keeping it on disk even after
+     * {@link LocalFileRef#markAsUploaded()} has been called. Returns a no-op {@link Releasable} if the file is not locally available
+     * (e.g. it was from an older BCC and has already been freed from disk). The caller must close the returned {@link Releasable} when
+     * the local file is no longer needed.
+     */
+    public Releasable tryAcquireLocalFileRef(String name) {
+        LocalFileRef ref;
+        try (var ignored = readLock.acquire()) {
+            ref = localFiles.get(name);
+        }
+        if (ref != null && ref.tryIncRef()) {
+            return ref::decRef;
+        }
+        return () -> {};
     }
 
     @Override

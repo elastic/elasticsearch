@@ -2297,7 +2297,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             // Assert all commits are uploaded
             assertBusy(() -> {
                 assertThat(testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId), nullValue());
-                assertThat(testHarness.commitService.hasPendingBccUploads(testHarness.shardId), is(false));
+                assertThat(testHarness.commitService.hasBccUploadInProgress(testHarness.shardId), is(false));
                 final BlobContainer blobContainer = testHarness.objectStoreService.getProjectBlobContainer(
                     testHarness.shardId,
                     primaryTerm

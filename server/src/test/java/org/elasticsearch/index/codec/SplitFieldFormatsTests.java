@@ -41,12 +41,12 @@ import java.util.Arrays;
  * than co-mingling fields in shared files or bundling everything into a {@code .cfs}), while remaining fully readable.
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // keep listAll() free of stray files so per-field file counts are exact
-public class IsolatedFieldFormatsTests extends ESTestCase {
+public class SplitFieldFormatsTests extends ESTestCase {
 
     private static final String[] DV_FIELDS = { "dv_a", "dv_b", "dv_c" };
     private static final int NUM_DOCS = 5;
 
-    public void testIsolatedSegmentHasOneFileSetPerField() throws IOException {
+    public void testSplitSegmentHasOneFileSetPerField() throws IOException {
         try (Directory dir = newDirectory()) {
             writeDocs(dir, true);
             String[] files = dir.listAll();
@@ -57,20 +57,20 @@ public class IsolatedFieldFormatsTests extends ESTestCase {
         }
     }
 
-    public void testNonIsolatedSegmentCoMinglesFieldsInSharedFiles() throws IOException {
+    public void testNonSplitSegmentCoMinglesFieldsInSharedFiles() throws IOException {
         try (Directory dir = newDirectory()) {
             writeDocs(dir, false);
             String[] files = dir.listAll();
-            // Without isolation all doc-values fields share a single .dvd/.dvm pair.
+            // Without per-field files all doc-values fields share a single .dvd/.dvm pair.
             assertEquals("expected a single shared .dvd", 1, countSuffix(files, ".dvd"));
             assertEquals("expected a single shared .dvm", 1, countSuffix(files, ".dvm"));
             assertRoundTrip(dir);
         }
     }
 
-    private void writeDocs(Directory dir, boolean isolate) throws IOException {
+    private void writeDocs(Directory dir, boolean split) throws IOException {
         IndexWriterConfig iwc = new IndexWriterConfig(new StandardAnalyzer());
-        iwc.setCodec(createCodec(isolate));
+        iwc.setCodec(createCodec(split));
         // Keep compound files off in both cases so the per-field file layout is observable on disk. In production the
         // compound_format threshold still bundles small segments; per-field files only stay loose for larger segments.
         iwc.setUseCompoundFile(false);
@@ -88,10 +88,10 @@ public class IsolatedFieldFormatsTests extends ESTestCase {
         }
     }
 
-    private Codec createCodec(boolean isolate) throws IOException {
+    private Codec createCodec(boolean split) throws IOException {
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
-            .put(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.getKey(), isolate)
+            .put(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.getKey(), split)
             .build();
         MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings, "test");
         mapperService.merge("type", new CompressedXContent("{\"properties\":{}}"), MapperService.MergeReason.MAPPING_UPDATE);

@@ -24,7 +24,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import java.io.IOException;
 
 /**
- * Thin delegating Lucene format wrappers that isolate one field's data into its own segment files.
+ * Thin delegating Lucene format wrappers that split one field's data into its own segment files.
  * <p>
  * Lucene's per-field formats key their file layout on the format <em>instance</em> (bumping the file suffix per format
  * name), so handing out a distinct wrapper instance per field gives each field its own suffix, and therefore its own
@@ -33,21 +33,21 @@ import java.io.IOException;
  *
  * @see PerFieldFormatSupplier
  */
-final class IsolatedFieldFormats {
+final class SplitFieldFormats {
 
-    private IsolatedFieldFormats() {}
+    private SplitFieldFormats() {}
 
-    /** Returns the underlying delegate format if {@code format} is an isolation wrapper, otherwise {@code format} itself. */
+    /** Returns the underlying delegate format if {@code format} is a split-field wrapper, otherwise {@code format} itself. */
     static PostingsFormat unwrap(PostingsFormat format) {
         return format instanceof Postings wrapper ? wrapper.delegate : format;
     }
 
-    /** Returns the underlying delegate format if {@code format} is an isolation wrapper, otherwise {@code format} itself. */
+    /** Returns the underlying delegate format if {@code format} is a split-field wrapper, otherwise {@code format} itself. */
     static DocValuesFormat unwrap(DocValuesFormat format) {
         return format instanceof DocValues wrapper ? wrapper.delegate : format;
     }
 
-    /** Returns the underlying delegate format if {@code format} is an isolation wrapper, otherwise {@code format} itself. */
+    /** Returns the underlying delegate format if {@code format} is a split-field wrapper, otherwise {@code format} itself. */
     static KnnVectorsFormat unwrap(KnnVectorsFormat format) {
         return format instanceof KnnVectors wrapper ? wrapper.delegate : format;
     }

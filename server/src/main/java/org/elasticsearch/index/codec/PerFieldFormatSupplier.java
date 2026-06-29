@@ -94,9 +94,9 @@ public class PerFieldFormatSupplier {
     // per-field Lucene formats write it to its own files. The caches keep the per-field instance stable across calls,
     // which is required: the per-field writers dedupe consumers by format identity within a segment.
     private final boolean perFieldFiles;
-    private final Map<String, DocValuesFormat> isolatedDocValuesFormats;
-    private final Map<String, PostingsFormat> isolatedPostingsFormats;
-    private final Map<String, KnnVectorsFormat> isolatedKnnVectorsFormats;
+    private final Map<String, DocValuesFormat> splitDocValuesFormats;
+    private final Map<String, PostingsFormat> splitPostingsFormats;
+    private final Map<String, KnnVectorsFormat> splitKnnVectorsFormats;
 
     @SuppressWarnings("this-escape")
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
@@ -128,26 +128,26 @@ public class PerFieldFormatSupplier {
             );
         this.perFieldFiles = mapperService != null && mapperService.getIndexSettings().perFieldFiles();
         if (perFieldFiles) {
-            this.isolatedDocValuesFormats = new ConcurrentHashMap<>();
-            this.isolatedPostingsFormats = new ConcurrentHashMap<>();
-            this.isolatedKnnVectorsFormats = new ConcurrentHashMap<>();
+            this.splitDocValuesFormats = new ConcurrentHashMap<>();
+            this.splitPostingsFormats = new ConcurrentHashMap<>();
+            this.splitKnnVectorsFormats = new ConcurrentHashMap<>();
         } else {
-            this.isolatedDocValuesFormats = null;
-            this.isolatedPostingsFormats = null;
-            this.isolatedKnnVectorsFormats = null;
+            this.splitDocValuesFormats = null;
+            this.splitPostingsFormats = null;
+            this.splitKnnVectorsFormats = null;
         }
     }
 
     private PostingsFormat maybeWrap(String field, PostingsFormat format) {
-        return perFieldFiles ? isolatedPostingsFormats.computeIfAbsent(field, f -> new IsolatedFieldFormats.Postings(format)) : format;
+        return perFieldFiles ? splitPostingsFormats.computeIfAbsent(field, f -> new SplitFieldFormats.Postings(format)) : format;
     }
 
     private DocValuesFormat maybeWrap(String field, DocValuesFormat format) {
-        return perFieldFiles ? isolatedDocValuesFormats.computeIfAbsent(field, f -> new IsolatedFieldFormats.DocValues(format)) : format;
+        return perFieldFiles ? splitDocValuesFormats.computeIfAbsent(field, f -> new SplitFieldFormats.DocValues(format)) : format;
     }
 
     private KnnVectorsFormat maybeWrap(String field, KnnVectorsFormat format) {
-        return perFieldFiles ? isolatedKnnVectorsFormats.computeIfAbsent(field, f -> new IsolatedFieldFormats.KnnVectors(format)) : format;
+        return perFieldFiles ? splitKnnVectorsFormats.computeIfAbsent(field, f -> new SplitFieldFormats.KnnVectors(format)) : format;
     }
 
     private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {

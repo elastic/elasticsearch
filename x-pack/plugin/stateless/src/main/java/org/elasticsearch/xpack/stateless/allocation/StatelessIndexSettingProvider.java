@@ -51,7 +51,7 @@ public class StatelessIndexSettingProvider implements IndexSettingProvider {
         }
         additionalSettings.put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), StatelessPlugin.NAME);
 
-        // In stateless, isolate each field into its own files by default, and align the compound threshold with one blob
+        // In stateless, split each field into its own files by default, and align the compound threshold with one blob
         // cache region: segments larger than a region keep their per-field files loose (so reads/prewarm can target a
         // field's regions) while smaller ones stay compound. Explicit user/template settings win.
         final boolean perFieldFiles;

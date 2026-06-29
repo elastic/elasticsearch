@@ -9,12 +9,14 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.xcontent.XContentParseException;
 
@@ -66,7 +68,14 @@ public class RestSearchScrollAction extends BaseRestHandler {
                 }
             }
         });
-        return channel -> client.searchScroll(searchScrollRequest, new RestRefCountedChunkedToXContentListener<>(channel));
+        return channel -> client.searchScroll(
+            searchScrollRequest,
+            RestActions.wrapWithSearchMetricsHeader(
+                client.threadPool().getThreadContext(),
+                SearchResponse::getDirectoryMetrics,
+                new RestRefCountedChunkedToXContentListener<>(channel)
+            )
+        );
     }
 
     @Override

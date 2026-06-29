@@ -10,27 +10,48 @@ package org.elasticsearch.xpack.esql.session.schema;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.action.TransportResolveSchemaAction;
+import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.inference.InferenceResolution;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
+import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.session.NoClustersToSearchException;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,12 +69,16 @@ import java.util.function.BiFunction;
  */
 public final class SchemaService {
 
+    private static final Logger LOGGER = LogManager.getLogger(SchemaService.class);
+
     private final IndexSchemaProvider indexProvider;
     private final ViewSchemaProvider viewProvider;
     private final DatasetSchemaProvider datasetProvider;
     private final List<AbstractionSchemaProvider> providers;
     private final RemoteClusterService remoteClusterService;
     private final Executor executor;
+    private final PreAnalyzer preAnalyzer;
+    private final TransportVersion localClusterMinimumVersion;
 
     public SchemaService(
         IndexResolver indexResolver,
@@ -65,10 +90,14 @@ public final class SchemaService {
         PlanTelemetry planTelemetry,
         Verifier verifier,
         Client client,
-        Executor executor
+        Executor executor,
+        PreAnalyzer preAnalyzer,
+        TransportVersion localClusterMinimumVersion
     ) {
         this.remoteClusterService = remoteClusterService;
         this.executor = executor;
+        this.preAnalyzer = preAnalyzer;
+        this.localClusterMinimumVersion = localClusterMinimumVersion;
         this.indexProvider = new IndexSchemaProvider(
             indexResolver,
             remoteClusterService,
@@ -93,6 +122,347 @@ public final class SchemaService {
         this.providers = providers;
         this.remoteClusterService = null;
         this.executor = null;
+        this.preAnalyzer = null;
+        this.localClusterMinimumVersion = null;
+    }
+
+    /**
+     * The single kind-blind entry the session calls to turn a parsed plan into a fully schema-resolved, analyzed plan.
+     * The session hands over the parsed plan and the per-query inputs and never names an index-abstraction kind: the
+     * per-kind sequencing (views, datasets, main indices, lookup indices, external sources) lives here.
+     *
+     * <p>The sequence is split into the same two phases as the legacy session flow, so it is behaviour-identical:
+     * <ul>
+     *   <li><b>one-shot prologue</b> — view expansion (+ in-subquery verification), the dataset rewrite, pre-analysis,
+     *       and the field-name seed. These run exactly once; the dataset authorization round-trips and the seed are
+     *       never re-issued on a retry.</li>
+     *   <li><b>retried index body</b> — main-index resolution, the CCS prune/no-clusters checks, lookup-index
+     *       resolution, external-source resolution, enrich, inference and analyze. A filter-driven
+     *       {@link VerificationException} re-enters {@link #resolveIndicesAndAnalyze} without the request filter,
+     *       re-running only this body.</li>
+     * </ul>
+     *
+     * <p>The genuinely session-owned, non-schema interludes are supplied by {@code delegate}: building the
+     * {@link Configuration} (with its telemetry / EXPLAIN-unwrap / IP-download side effects) right after view
+     * resolution, enrich- and inference-id resolution (so their resolvers stay in the session), and the analyzer leaf.
+     */
+    public void resolvePlan(
+        LogicalPlan parsedPlan,
+        ProjectMetadata projectMetadata,
+        String projectRouting,
+        BiFunction<String, String, LogicalPlan> viewParser,
+        UnmappedResolution unmappedResolution,
+        EsqlExecutionInfo executionInfo,
+        QueryBuilder requestFilter,
+        PlanResolutionDelegate delegate,
+        ActionListener<Versioned<LogicalPlan>> listener
+    ) {
+        var viewResolutionProfile = executionInfo.queryProfile().viewResolution();
+        viewResolutionProfile.start();
+        replaceViews(parsedPlan, projectRouting, viewParser, listener.delegateFailureAndWrap((l, viewResolution) -> {
+            // Validate: no InSubquery expressions should survive view and subquery resolution.
+            InSubqueryResolver.verify(viewResolution.plan());
+            viewResolutionProfile.stop();
+            // The session builds the Configuration (and runs its telemetry / EXPLAIN-unwrap / IP-download side effects)
+            // from the view-resolved result, handing back the plan to pre-analyze and the Configuration to drive the rest.
+            PlanResolutionDelegate.Prepared prepared = delegate.afterViewResolution(viewResolution);
+            resolveDatasetsAndAnalyze(
+                prepared.plan(),
+                unmappedResolution,
+                prepared.configuration(),
+                executionInfo,
+                requestFilter,
+                delegate,
+                projectMetadata,
+                l
+            );
+        }));
+    }
+
+    private void resolveDatasetsAndAnalyze(
+        LogicalPlan parsed,
+        UnmappedResolution unmappedResolution,
+        Configuration configuration,
+        EsqlExecutionInfo executionInfo,
+        QueryBuilder requestFilter,
+        PlanResolutionDelegate delegate,
+        ProjectMetadata projectMetadata,
+        ActionListener<Versioned<LogicalPlan>> logicalPlanListener
+    ) {
+        var datasetResolutionProfile = executionInfo.queryProfile().datasetResolution();
+        datasetResolutionProfile.start();
+        // Authorize and rewrite FROM targets that resolve to datasets into UnresolvedExternalRelation so the rest of
+        // pre-analysis + analysis treats them identically to the inline EXTERNAL command. Only datasets the caller can
+        // read are rewritten (the resolve is a security-filtered action); the rest of analysis runs in the callback once
+        // it completes. The resolve bails synchronously when no FROM pattern could match a registered dataset.
+        resolveDatasets(parsed, projectMetadata, logicalPlanListener.delegateFailureAndWrap((l, rewrittenPlan) -> {
+            datasetResolutionProfile.stop();
+            analyzeRewrittenPlan(
+                rewrittenPlan,
+                unmappedResolution,
+                configuration,
+                executionInfo,
+                requestFilter,
+                delegate,
+                projectMetadata,
+                l
+            );
+        }));
+    }
+
+    private void analyzeRewrittenPlan(
+        LogicalPlan parsed,
+        UnmappedResolution unmappedResolution,
+        Configuration configuration,
+        EsqlExecutionInfo executionInfo,
+        QueryBuilder requestFilter,
+        PlanResolutionDelegate delegate,
+        ProjectMetadata projectMetadata,
+        ActionListener<Versioned<LogicalPlan>> logicalPlanListener
+    ) {
+        var preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
+        preAnalysisProfile.start();
+        PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
+        preAnalysisProfile.stop();
+        // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also
+        // in case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with
+        // an older node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may
+        // cause bugs.
+        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
+            parsed,
+            preAnalysis.enriches().isEmpty() == false,
+            unmappedResolution == UnmappedResolution.LOAD
+        ).withMinimumTransportVersion(localClusterMinimumVersion);
+        String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
+        // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer,
+        // even when index resolution is retried without the filter (e.g. because the filter covers an empty time range).
+        // Extraction uses configuration::absoluteStartedTimeInMillis (fixed at request start), so it is safe to do here.
+        TimestampBounds timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
+            requestFilter,
+            configuration::absoluteStartedTimeInMillis
+        );
+
+        resolveIndicesAndAnalyze(
+            parsed,
+            unmappedResolution,
+            configuration,
+            executionInfo,
+            description,
+            requestFilter,
+            timestampBounds,
+            preAnalysis,
+            result,
+            delegate,
+            projectMetadata,
+            logicalPlanListener
+        );
+    }
+
+    private void resolveIndicesAndAnalyze(
+        LogicalPlan parsed,
+        UnmappedResolution unmappedResolution,
+        Configuration configuration,
+        EsqlExecutionInfo executionInfo,
+        String description,
+        QueryBuilder requestFilter,
+        TimestampBounds timestampBounds,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        PreAnalysisResult result,
+        PlanResolutionDelegate delegate,
+        ProjectMetadata projectMetadata,
+        ActionListener<Versioned<LogicalPlan>> logicalPlanListener
+    ) {
+        executionInfo.queryProfile().indicesResolutionMarker().start();
+        // TODO this is a quick hack to alleviate the pressure off of https://github.com/elastic/elasticsearch/issues/145920. A btter
+        // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
+        boolean trackedUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD || parsed.anyMatch(p -> p instanceof Insist);
+        boolean nullify = parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
+        SchemaContext schemaCtx = new SchemaContext(
+            executionInfo,
+            configuration,
+            preAnalysis,
+            requestFilter,
+            trackedUnmappedFieldIndices,
+            result.fieldNames(),
+            result.minimumTransportVersion()
+        );
+        SubscribableListener.<PreAnalysisResult>newForked(l -> resolveMainIndices(schemaCtx, projectMetadata, result, l))
+            .andThenApply(r -> {
+                if (r.indexResolution().isEmpty() == false // Rule out ROW case with no FROM clauses
+                    && executionInfo.isCrossClusterSearch()
+                    && executionInfo.getRunningClusterAliases().findAny().isEmpty()) {
+                    LOGGER.debug("No more clusters to search, ending analysis stage");
+                    throw new NoClustersToSearchException();
+                }
+                // Check if a subquery need to be pruned. If some but not all the subqueries has invalid index resolution,
+                // try to prune it by setting IndexResolution to EMPTY_SUBQUERY. Analyzer.PruneEmptyUnionAllBranch will
+                // take care of removing the subquery during analysis.
+                // If all subqueries have invalid index resolution, we should fail in Analyzer's verifier.
+                if (r.indexResolution().isEmpty() == false // it is not a row
+                    && r.indexResolution().size() > 1 // there is a subquery
+                    && executionInfo.isCrossClusterSearch()) {
+                    Collection<IndexResolution> indexResolutions = r.indexResolution().values();
+                    boolean hasInvalid = indexResolutions.stream().anyMatch(ir -> ir.isValid() == false);
+                    boolean hasValid = indexResolutions.stream().anyMatch(IndexResolution::isValid);
+                    // Only if there is partial invalid index resolutions in subqueries
+                    if (hasInvalid && hasValid) {
+                        // iterate the index resolution and replace it with EMPTY_SUBQUERY if the index resolution is invalid
+                        r.indexResolution().forEach((indexPattern, indexResolution) -> {
+                            if (indexResolution.isValid() == false) {
+                                LOGGER.debug("Index pattern [{}] does not match valid indices, pruning the subquery", indexPattern);
+                                r.withIndices(indexPattern, IndexResolution.EMPTY_SUBQUERY);
+                            }
+                        });
+                        // check if there is a cluster that does not have any valid index resolution, if so mark it as skipped
+                        executionInfo.getRunningClusterAliases().forEach(clusterAlias -> {
+                            boolean clusterHasValidIndex = r.indexResolution()
+                                .values()
+                                .stream()
+                                .anyMatch(ir -> ir.isValid() && ir.get().originalIndices().get(clusterAlias) != null);
+                            if (clusterHasValidIndex == false) {
+                                String errorMsg = "no valid indices found in any subquery {}";
+                                LOGGER.debug(errorMsg, EsqlCCSUtils.inClusterName(clusterAlias));
+                                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
+                                    executionInfo,
+                                    clusterAlias,
+                                    EsqlExecutionInfo.Cluster.Status.SKIPPED,
+                                    new VerificationException(errorMsg, EsqlCCSUtils.inClusterName(clusterAlias))
+                                );
+                            }
+                        });
+                    }
+                }
+                return r;
+            })
+            .<PreAnalysisResult>andThen((l, r) -> resolveLookupIndices(schemaCtx, projectMetadata, r, l))
+            .andThenApply(r -> {
+                executionInfo.queryProfile().indicesResolutionMarker().stop();
+                return r;
+            })
+            .<PreAnalysisResult>andThen((l, r) -> {
+                if (preAnalysis.icebergPaths().isEmpty()) {
+                    l.onResponse(r);
+                } else {
+                    resolveExternalSources(parsed, preAnalysis.icebergPaths(), l.map(r::withExternalSourceResolution));
+                }
+            })
+            .<PreAnalysisResult>andThen((l, r) -> {
+                // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
+                delegate.resolveEnrich(preAnalysis, r.minimumTransportVersion(), l.map(r::withEnrichResolution));
+            })
+            .<PreAnalysisResult>andThen((l, r) -> delegate.resolveInference(preAnalysis, l.map(r::withInferenceResolution)))
+            .<Versioned<LogicalPlan>>andThen((l, r) -> {
+                analyzeWithRetry(
+                    parsed,
+                    nullify ? UnmappedResolution.NULLIFY : unmappedResolution,
+                    configuration,
+                    executionInfo,
+                    description,
+                    requestFilter,
+                    timestampBounds,
+                    preAnalysis,
+                    r,
+                    delegate,
+                    projectMetadata,
+                    l
+                );
+            })
+            .addListener(logicalPlanListener);
+    }
+
+    private void analyzeWithRetry(
+        LogicalPlan parsed,
+        UnmappedResolution unmappedResolution,
+        Configuration configuration,
+        EsqlExecutionInfo executionInfo,
+        String description,
+        QueryBuilder requestFilter,
+        TimestampBounds timestampBounds,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        PreAnalysisResult result,
+        PlanResolutionDelegate delegate,
+        ProjectMetadata projectMetadata,
+        ActionListener<Versioned<LogicalPlan>> listener
+    ) {
+        LOGGER.debug("Analyzing the plan ({})", description);
+        try {
+            if (result.indexResolution().values().stream().anyMatch(IndexResolution::isValid) || requestFilter != null) {
+                // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
+                // when the resolution result is not valid for a different reason.
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
+                    executionInfo,
+                    result.indexResolution().values(),
+                    result.linkedResolution().values(),
+                    requestFilter != null
+                );
+            }
+            TimeSpanMarker analysisProfile = executionInfo.queryProfile().analysis();
+            analysisProfile.start();
+            LogicalPlan plan = delegate.analyze(parsed, unmappedResolution, configuration, result, timestampBounds);
+            analysisProfile.stop();
+            LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
+            // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
+            listener.onResponse(new Versioned<>(plan, result.minimumTransportVersion()));
+        } catch (VerificationException ve) {
+            LOGGER.debug("Analyzing the plan ({}) failed with {}", description, ve.getDetailedMessage());
+            if (requestFilter == null) {
+                // if the initial request didn't have a filter, then just pass the exception back to the user
+                listener.onFailure(ve);
+            } else {
+                // retrying the index resolution without index filtering.
+                executionInfo.clusterInfo.clear();
+                resolveIndicesAndAnalyze(
+                    parsed,
+                    unmappedResolution,
+                    configuration,
+                    executionInfo,
+                    "second attempt, without filter",
+                    null,
+                    timestampBounds,
+                    preAnalysis,
+                    result,
+                    delegate,
+                    projectMetadata,
+                    listener
+                );
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * The session-owned, non-schema interludes the kind-blind {@link #resolvePlan} sequence calls back into: building
+     * the {@link Configuration} from the view-resolved result (with telemetry / EXPLAIN-unwrap / IP-download side
+     * effects), enrich- and inference-id resolution (their resolvers stay in the session), and the analyzer leaf
+     * (re-run inside the filter retry). These are the steps that are not index-abstraction schema discovery.
+     */
+    public interface PlanResolutionDelegate {
+        /**
+         * Right after view resolution and in-subquery verification (the view-resolution profile marker already
+         * stopped), build the {@link Configuration} and run the session's view/plan telemetry, EXPLAIN unwrap and IP
+         * download side effects. Returns the plan to pre-analyze (EXPLAIN-unwrapped) and the Configuration that drives
+         * resolution and execution.
+         */
+        Prepared afterViewResolution(ViewResolver.ViewResolutionResult viewResolution);
+
+        /** Resolve the enrich policies referenced by the query. */
+        void resolveEnrich(PreAnalyzer.PreAnalysis preAnalysis, TransportVersion minimumVersion, ActionListener<EnrichResolution> listener);
+
+        /** Resolve the inference ids referenced by the query. */
+        void resolveInference(PreAnalyzer.PreAnalysis preAnalysis, ActionListener<InferenceResolution> listener);
+
+        /** Run the analyzer leaf on the schema-resolved plan. */
+        LogicalPlan analyze(
+            LogicalPlan parsed,
+            UnmappedResolution unmappedResolution,
+            Configuration configuration,
+            PreAnalysisResult result,
+            TimestampBounds timestampBounds
+        ) throws Exception;
+
+        /** The plan to pre-analyze and the Configuration to drive resolution and execution, produced after view resolution. */
+        record Prepared(LogicalPlan plan, Configuration configuration) {}
     }
 
     /**

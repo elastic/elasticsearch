@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
@@ -77,12 +78,15 @@ public class EsqlCCSUtils {
      * the onFailure handler determines whether to return an empty successful result or a 4xx/5xx error.
      */
     abstract static class CssPartialErrorsActionListener implements ActionListener<Versioned<LogicalPlan>> {
-        private final Configuration configuration;
+        // Supplied lazily: the Configuration is built during the schema-resolution prologue (after view resolution),
+        // which is after this listener is constructed. The empty-result path only fires once the body is under way,
+        // by which point the Configuration is present.
+        private final Supplier<Configuration> configuration;
         private final EsqlExecutionInfo executionInfo;
         private final ActionListener<Versioned<Result>> listener;
 
         CssPartialErrorsActionListener(
-            Configuration configuration,
+            Supplier<Configuration> configuration,
             EsqlExecutionInfo executionInfo,
             ActionListener<Versioned<Result>> listener
         ) {
@@ -97,7 +101,7 @@ public class EsqlCCSUtils {
                 updateExecutionInfoToReturnEmptyResult(executionInfo, e);
                 listener.onResponse(
                     new Versioned<>(
-                        new Result(Analyzer.NO_FIELDS, List.of(), Map.of(), configuration, DriverCompletionInfo.EMPTY, executionInfo),
+                        new Result(Analyzer.NO_FIELDS, List.of(), Map.of(), configuration.get(), DriverCompletionInfo.EMPTY, executionInfo),
                         TransportVersion.current()
                     )
                 );
@@ -223,7 +227,7 @@ public class EsqlCCSUtils {
      * @param indexResolutions - The collection of IndexResolution objects produced by field-caps
      * @param usedFilter - Whether the query had a request-level filter.
      */
-    static void updateExecutionInfoWithClustersWithNoMatchingIndices(
+    public static void updateExecutionInfoWithClustersWithNoMatchingIndices(
         EsqlExecutionInfo executionInfo,
         Collection<IndexResolution> indexResolutions,
         Collection<IndexResolution> linkedResolution,

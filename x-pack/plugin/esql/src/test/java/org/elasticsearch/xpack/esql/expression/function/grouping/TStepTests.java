@@ -295,6 +295,17 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
         return params.subList(0, tsIndex);
     }
 
+    /**
+     * Filters out implicitly injected parameters to ensure CONSTANT hint validation
+     * only checks declared @Param arguments.
+     */
+    public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
+        assertThat(params.size(), anyOf(equalTo(2), equalTo(4)));
+        int tsIndex = params.size() - 1;
+        assertThat(params.get(tsIndex).type(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
+        return params.subList(0, tsIndex);
+    }
+
     public void testAnchorsGridAtRangeStart() {
         for (DataType timestampType : TIMESTAMP_TYPES) {
             Duration step = Duration.ofMinutes(5);

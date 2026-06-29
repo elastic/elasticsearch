@@ -27,7 +27,10 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.Releasable;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -225,6 +228,29 @@ final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncR
         private ReleasableContentBufferEntity(HttpEntity wrappedEntity, Releasable releasable) {
             super(wrappedEntity);
             this.releasable = releasable;
+        }
+
+        @Override
+        public InputStream getContent() throws IOException {
+            return new FilterInputStream(super.getContent()) {
+                @Override
+                public void close() throws IOException {
+                    try {
+                        super.close();
+                    } finally {
+                        ReleasableContentBufferEntity.this.close();
+                    }
+                }
+            };
+        }
+
+        @Override
+        public void writeTo(OutputStream outStream) throws IOException {
+            try {
+                super.writeTo(outStream);
+            } finally {
+                close();
+            }
         }
 
         @Override

@@ -13,6 +13,7 @@ import org.apache.http.ContentTooLongException;
 import org.apache.http.HttpResponse;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.StatusLine;
+import org.apache.http.entity.BufferedHttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHttpResponse;
@@ -116,6 +117,22 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
         HttpResponse result = consumer.getResult();
         assertThat(result.getEntity(), instanceOf(Releasable.class));
         ((Releasable) result.getEntity()).close();
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testBufferingNonRepeatableEntityReleasesReservation() throws Exception {
+        TrackingBreaker breaker = new TrackingBreaker();
+        BreakerAwareHeapBufferedAsyncResponseConsumer consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 1024);
+
+        consumer.responseReceived(responseWithContentLength(512));
+        consumer.consumeContent(new FixedBytesContentDecoder(512), null);
+        consumer.responseCompleted(null);
+
+        HttpResponse result = consumer.getResult();
+        assertThat(breaker.getUsed(), equalTo(512L));
+
+        BufferedHttpEntity buffered = new BufferedHttpEntity(result.getEntity());
+        assertThat(buffered.getContentLength(), equalTo(512L));
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 

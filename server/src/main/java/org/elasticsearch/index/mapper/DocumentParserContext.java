@@ -127,7 +127,9 @@ public abstract class DocumentParserContext {
 
         @Override
         public FieldArrayContext getOffSetContext() {
-            return in.getOffSetContext();
+            FieldArrayContext offsetContext = in.getOffSetContext();
+            offsetContext.setCurrentDoc(doc());
+            return offsetContext;
         }
 
         @Override
@@ -636,6 +638,7 @@ public abstract class DocumentParserContext {
         if (fieldArrayContext == null) {
             fieldArrayContext = new FieldArrayContext();
         }
+        fieldArrayContext.setCurrentDoc(doc());
         return fieldArrayContext;
     }
 
@@ -651,6 +654,16 @@ public abstract class DocumentParserContext {
 
     public boolean isImmediateParentAnArray() {
         return lastSetToken == XContentParser.Token.START_ARRAY;
+    }
+
+    /**
+     * Returns {@code true} when the value currently being parsed is part of an array: either its immediate XContent parent is an array (a
+     * leaf array such as {@code "f": ["a","b"]}), or it sits inside one or more object arrays higher up the path (such as
+     * {@code "obj": [{"f":"a"}, {"f":"b"}]}). In both cases the field can receive multiple values for the same document, so callers that
+     * store values in document order should treat it as a multi-valued column rather than a single scalar.
+     */
+    public boolean isPartOfArray() {
+        return isImmediateParentAnArray() || inArrayScope();
     }
 
     /**

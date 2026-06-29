@@ -117,7 +117,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private volatile int resultTruncationDefaultSize;
     private volatile int timeseriesResultTruncationMaxSize;
     private volatile int timeseriesResultTruncationDefaultSize;
-    private volatile boolean fieldExtractEnabled;
 
     @Inject
     @SuppressWarnings("this-escape")
@@ -264,8 +263,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             .addSettingsUpdateConsumer(AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE, v -> {
                 timeseriesResultTruncationDefaultSize = v;
             });
-        fieldExtractEnabled = EsqlPlugin.FIELD_EXTRACT_ENABLED.get(clusterService.getSettings());
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(EsqlPlugin.FIELD_EXTRACT_ENABLED, v -> fieldExtractEnabled = v);
     }
 
     /**
@@ -362,8 +359,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 resultTruncationMaxSize,
                 resultTruncationDefaultSize,
                 timeseriesResultTruncationMaxSize,
-                timeseriesResultTruncationDefaultSize,
-                fieldExtractEnabled
+                timeseriesResultTruncationDefaultSize
             ),
             enrichPolicyResolver,
             viewResolver,

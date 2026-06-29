@@ -220,19 +220,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Setting.Property.Dynamic
     );
 
-    /**
-     * Kill switch for the {@code field_extract} function in ES|QL. Independent of {@link #FLATTENED_ENABLED}: it lets
-     * an operator keep querying {@code flattened} fields while disabling only the {@code field_extract}
-     * pushdown/block-loader fusion paths. When {@code false}, any query using {@code field_extract} is rejected during
-     * analysis.
-     */
-    public static final Setting<Boolean> FIELD_EXTRACT_ENABLED = Setting.boolSetting(
-        "esql.query.field_extract.enabled",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_WARN_SETTING = Setting.timeSetting(
         "esql.querylog.threshold.warn",
         TimeValue.timeValueMillis(-1),
@@ -539,7 +526,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 QUERY_ALLOW_PARTIAL_RESULTS,
                 LOOKUP_JOIN_STREAMING,
                 FLATTENED_ENABLED,
-                FIELD_EXTRACT_ENABLED,
                 ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
                 ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
                 ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,

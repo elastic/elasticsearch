@@ -488,6 +488,27 @@ public class IndexResolver {
         return new CollectedFieldCaps(fieldsCaps, indexMappingHashToDuplicateCount, fieldToMappedIndices);
     }
 
+    /**
+     * Decides whether {@code type} can be used as-is, or whether the field must be downgraded to
+     * {@link DataType#UNSUPPORTED}. Besides the usual transport-version/feature gating, this enforces the
+     * {@code esql.query.flattened.enabled} kill switch: when that switch is off, {@code flattened} fields are reported as
+     * unsupported, reverting to the pre-flattened-support behavior (a {@code FROM} still returns the column, but as
+     * unsupported, and any explicit use of it errors).
+     */
+    private static boolean isTypeSupported(DataType type, FieldsInfo fieldsInfo) {
+        if (type == FLATTENED && fieldsInfo.flattenedDataTypeEnabled() == false) {
+            return false;
+        }
+        if (type.supportedVersion().supportedOn(fieldsInfo.minTransportVersion(), fieldsInfo.currentBuildIsSnapshot())) {
+            return true;
+        }
+        return switch (type) {
+            case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.useAggregateMetricDoubleWhenNotSupported();
+            case DENSE_VECTOR -> fieldsInfo.useDenseVectorWhenNotSupported();
+            default -> false;
+        };
+    }
+
     private static EsField createField(
         FieldsInfo fieldsInfo,
         String name,
@@ -500,20 +521,7 @@ public class IndexResolver {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
         DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
-        boolean typeSupported;
-        if (type == FLATTENED && fieldsInfo.flattenedDataTypeEnabled() == false) {
-            // esql.query.flattened.enabled kill switch: treat flattened as unsupported, reverting to the
-            // pre-flattened-support behavior (FROM still works and returns the column as unsupported, explicit use errors).
-            typeSupported = false;
-        } else {
-            typeSupported = type.supportedVersion().supportedOn(fieldsInfo.minTransportVersion(), fieldsInfo.currentBuildIsSnapshot)
-                || switch (type) {
-                    case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.useAggregateMetricDoubleWhenNotSupported;
-                    case DENSE_VECTOR -> fieldsInfo.useDenseVectorWhenNotSupported;
-                    default -> false;
-                };
-        }
-        if (false == typeSupported) {
+        if (isTypeSupported(type, fieldsInfo) == false) {
             type = UNSUPPORTED;
         }
         boolean aggregatable = first.isAggregatable();

@@ -16,8 +16,7 @@ public record AnalyzerSettings(
     int resultTruncationMaxSize,
     int resultTruncationDefaultSize,
     int timeseriesResultTruncationMaxSize,
-    int timeseriesResultTruncationDefaultSize,
-    boolean fieldExtractEnabled
+    int timeseriesResultTruncationDefaultSize
 ) {
     public static final Setting<Integer> QUERY_RESULT_TRUNCATION_MAX_SIZE = Setting.intSetting(
         "esql.query.result_truncation_max_size",

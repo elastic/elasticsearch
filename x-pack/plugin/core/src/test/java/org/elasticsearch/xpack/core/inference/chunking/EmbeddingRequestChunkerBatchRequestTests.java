@@ -15,7 +15,12 @@ import java.util.List;
 
 public class EmbeddingRequestChunkerBatchRequestTests extends InferenceObjectRamBytesUsedTest<EmbeddingRequestChunker.BatchRequest> {
 
-    private static final EmbeddingRequestChunker.Request REQUEST = new EmbeddingRequestChunker.Request(0, 0, new Chunker.ChunkOffset(0, 5), new InferenceString(DataType.TEXT, "document"));
+    private static final EmbeddingRequestChunker.Request REQUEST = new EmbeddingRequestChunker.Request(
+        0,
+        0,
+        new Chunker.ChunkOffset(0, 5),
+        new InferenceString(DataType.TEXT, "document")
+    );
 
     @Override
     public EmbeddingRequestChunker.BatchRequest objectToEstimate() {
@@ -26,7 +31,16 @@ public class EmbeddingRequestChunkerBatchRequestTests extends InferenceObjectRam
     public List<EmbeddingRequestChunker.BatchRequest> objectsToEstimateWithLargerInput() {
         return List.of(
             // Request with larger chunk
-            new EmbeddingRequestChunker.BatchRequest(List.of(new EmbeddingRequestChunker.Request(REQUEST.inputIndex(), REQUEST.chunkIndex(), new Chunker.ChunkOffset(0, 10), REQUEST.input()))),
+            new EmbeddingRequestChunker.BatchRequest(
+                List.of(
+                    new EmbeddingRequestChunker.Request(
+                        REQUEST.inputIndex(),
+                        REQUEST.chunkIndex(),
+                        new Chunker.ChunkOffset(0, 10),
+                        REQUEST.input()
+                    )
+                )
+            ),
             // More requests
             new EmbeddingRequestChunker.BatchRequest(List.of(REQUEST, REQUEST))
         );

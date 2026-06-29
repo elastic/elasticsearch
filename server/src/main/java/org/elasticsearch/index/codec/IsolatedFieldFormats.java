@@ -24,16 +24,12 @@ import org.apache.lucene.index.SegmentWriteState;
 import java.io.IOException;
 
 /**
- * Thin delegating Lucene format wrappers that isolate a single field's data into its own set of segment files.
+ * Thin delegating Lucene format wrappers that isolate one field's data into its own segment files.
  * <p>
- * Lucene's per-field formats ({@code PerFieldPostingsFormat}, the doc-values {@code XPerFieldDocValuesFormat} fork and
- * {@code PerFieldKnnVectorsFormat}) group fields onto a shared file set by keying their internal consumer map on the
- * format <em>instance</em> (object identity) while bumping the file suffix per format <em>name</em>. By handing out a
- * distinct wrapper instance per field — each reporting the delegate's registered format name — every field
- * gets its own suffix, and therefore its own files, while remaining fully readable: on the read path the per-field
- * readers resolve the format by name via SPI, so the wrapper is only ever an indirection at write time.
- * <p>
- * The wrappers do not register themselves with the codec SPI; they are never looked up by name, only delegated through.
+ * Lucene's per-field formats key their file layout on the format <em>instance</em> (bumping the file suffix per format
+ * name), so handing out a distinct wrapper instance per field gives each field its own suffix, and therefore its own
+ * files. The wrapper reports the delegate's registered name, so reads resolve the real format via SPI; it only exists on
+ * the write path and is never registered with or looked up through the codec SPI.
  *
  * @see PerFieldFormatSupplier
  */

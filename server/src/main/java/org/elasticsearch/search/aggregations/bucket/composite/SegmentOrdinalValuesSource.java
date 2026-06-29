@@ -71,7 +71,7 @@ class SegmentOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private SortedSetDocValues lookup;                   // current segment doc values
     private long currentValue;                           // encoded ordinal of the current document (even = real ord)
     private long afterEncoded = MISSING;                 // encoded after value for the current segment
-    private LeafReaderContext preparedLeaf;              // segment the forced-lead-value (producer) path has set up
+    private LeafReaderContext preparedLeaf;              // segment this source has resolved doc values and remapped slots for
 
     // Dynamic pruning: once the composite queue is full we know the largest competitive key, so we can skip documents
     // whose value is out of range using the inverted index.
@@ -297,12 +297,28 @@ class SegmentOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         }
     }
 
+    /**
+     * Resolve this segment's doc values and, the first time the segment is seen, remap the queue slots into its ordinal
+     * space and encode the after value. The doc values are re-resolved on every call: they are a forward-only iterator,
+     * and on the {@link TermsSortedDocsProducer} path the producer re-scans the segment's documents once per
+     * leading-source term, so a non-leading source (which reads its doc values for each of those documents) must not
+     * reuse an iterator already advanced past them. The remap is O(size) and only changes at segment boundaries, so it is
+     * cached. Composite collection over an ordinal source is single-threaded (see
+     * {@code TermsValuesSourceBuilder#supportsParallelCollection}), so this per-segment state needs no synchronization.
+     */
+    private void prepareSegment(LeafReaderContext context) throws IOException {
+        lookup = docValuesFunc.apply(context);
+        if (context != preparedLeaf) {
+            preparedLeaf = context;
+            remapSlots();
+            afterEncoded = afterValue != null ? encode(afterValue) : MISSING;
+            totalSegments++;
+        }
+    }
+
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
-        lookup = docValuesFunc.apply(context);
-        remapSlots();
-        afterEncoded = afterValue != null ? encode(afterValue) : MISSING;
-        totalSegments++;
+        prepareSegment(context);
         final SegmentCompetitiveIterator competitiveIterator = mayDynamicallyPrune() ? new SegmentCompetitiveIterator(context) : null;
         currentCompetitiveIterator = competitiveIterator;
         final SortedDocValues singleton = DocValues.unwrapSingleton(lookup);
@@ -350,17 +366,9 @@ class SegmentOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     LeafBucketCollector getLeafCollector(Comparable<BytesRef> value, LeafReaderContext context, LeafBucketCollector next)
         throws IOException {
         // Forced-lead-value path, driven by {@link TermsSortedDocsProducer}: the producer walks the terms dictionary in
-        // order and feeds us, term by term, only documents that contain {@code value}. The per-segment setup (resolve doc
-        // values, remap the queue slots, encode the after value) must run once per segment, not once per term, so it is
-        // guarded on the leaf context. {@code value} is always present in this segment, so its encoding is a real (even)
-        // ordinal, and it is constant for every document of this term.
-        if (context != preparedLeaf) {
-            preparedLeaf = context;
-            lookup = docValuesFunc.apply(context);
-            remapSlots();
-            afterEncoded = afterValue != null ? encode(afterValue) : MISSING;
-            totalSegments++;
-        }
+        // order and feeds us, term by term, only documents that contain {@code value}. {@code value} is therefore present
+        // in this segment, so its encoding is a real (even) ordinal, and it is constant for every document of this term.
+        prepareSegment(context);
         currentValue = encode((BytesRef) value);
         assert (currentValue & 1L) == 0L : "forced lead value [" + value + "] is absent from the segment";
         return next;

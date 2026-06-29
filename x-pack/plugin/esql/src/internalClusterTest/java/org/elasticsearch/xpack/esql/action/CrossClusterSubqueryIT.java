@@ -47,11 +47,11 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
     }
 
     private static void checkSubqueryWithRowSupport() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        assumeTrue("Requires subquery with ROW as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
     }
 
     private static void checkSubqueryWithTSSupport() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires subquery with TS as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
     }
 
     public void testSubquery() {
@@ -903,7 +903,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
     }
 
     public void testSubqueryWithRowAndLookupIndicesExistOnClustersReferencedBySubquery() {
-        assumeTrue("waiting on the fix to https://github.com/elastic/elasticsearch/pull/151850", false);
         checkSubqueryWithRowSupport();
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup_remote", 10);
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup_remote", 10);
@@ -935,7 +934,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
     }
 
     public void testSubqueryWithRowAndLookupIndicesMissingOnClustersReferencedBySubquery() {
-        assumeTrue("waiting on the fix to https://github.com/elastic/elasticsearch/pull/151850", false);
         checkSubqueryWithRowSupport();
 
         VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
@@ -944,14 +942,16 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
                 (ROW v = TO_LONG(4))
             | LOOKUP JOIN missing_lookup ON v == lookup_key
             """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:missing_lookup]"));
+        // The main-query LOOKUP JOIN reads from both cluster-a (logs-*) and the local cluster (the ROW branch), so the
+        // lookup index is resolved against both and the single combined field-caps request reports both as missing.
+        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:missing_lookup,missing_lookup]"));
 
         ex = expectThrows(VerificationException.class, () -> runQuery("""
             FROM
                 cluster-a:logs-*,
                 (ROW v = TO_LONG(4) | LOOKUP JOIN missing_lookup ON v == lookup_key)
             """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:missing_lookup]"));
+        assertThat(ex.getMessage(), containsString("Unknown index [missing_lookup]"));
     }
 
     public void testSubqueryWithTS() {
@@ -1063,7 +1063,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
     }
 
     public void testSubqueryWithTSAndLookupIndicesExistOnClustersReferencedBySubquery() {
-        assumeTrue("waiting on the fix to https://github.com/elastic/elasticsearch/pull/151850", false);
         checkSubqueryWithTSSupport();
         populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
         populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
@@ -1110,12 +1109,14 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
                  | WHERE host == "h1"
                  | EVAL key = TO_LONG(cpu)
                  | LOOKUP JOIN values_lookup_1 ON key == lookup_key
+                 | RENAME lookup_key AS lookup_key_1, lookup_tag AS lookup_tag_1
                  | LOOKUP JOIN values_lookup ON key == lookup_key
                  | KEEP cluster_tag, key, lookup_tag),
                 (TS remote-b:metrics
                  | WHERE host == "h1"
                  | EVAL key = TO_LONG(cpu)
                  | LOOKUP JOIN values_lookup_2 ON key == lookup_key
+                 | RENAME lookup_key AS lookup_key_2, lookup_tag AS lookup_tag_2
                  | LOOKUP JOIN values_lookup ON key == lookup_key
                  | KEEP cluster_tag, key, lookup_tag)
             | SORT cluster_tag, key
@@ -1139,8 +1140,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testSubqueryWithTimeSeriesAndLookupIndexMissingOnClustersReferencedBySubquery() {
-        assumeTrue("waiting on the fix to https://github.com/elastic/elasticsearch/pull/151850", false);
+    public void testSubqueryWithTSAndLookupIndexMissingOnClustersReferencedBySubquery() {
         checkSubqueryWithTSSupport();
         populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
         populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
@@ -1163,7 +1163,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
                  | EVAL key = TO_LONG(cpu)
                  | LOOKUP JOIN missing_lookup ON key == lookup_key)
             """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:missing_lookup,remote-b:missing_lookup]"));
+        assertThat(ex.getMessage(), containsString("Unknown index [remote-b:missing_lookup]"));
 
         // (2) two TS subqueries joining the same missing lookup index: the lookup is scoped to both remotes.
         ex = expectThrows(VerificationException.class, () -> runQuery("""

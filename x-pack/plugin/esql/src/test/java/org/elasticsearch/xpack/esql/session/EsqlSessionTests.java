@@ -34,7 +34,6 @@ import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -130,10 +129,38 @@ public class EsqlSessionTests extends ESTestCase {
             assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution), equalTo(Set.of("remote")));
         }
         {
-            // joining to a row
+            // joining to a row: a ROW has no index relation but produces data on the coordinator, so the lookup index must
+            // be resolved on the local (coordinating) cluster
             var plan = TEST_PARSER.parseQuery("ROW key=1 | LOOKUP JOIN lookup ON key");
             var resolution = createIndexResolution();
-            assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution), empty());
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
+        }
+        {
+            // main-query join over a union of a remote index and a ROW: both local and remote cluster are in scope
+            var plan = TEST_PARSER.parseQuery("FROM remote:index, (ROW key=1) | LOOKUP JOIN lookup ON key");
+            var resolution = createIndexResolution("remote:index");
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "remote"))
+            );
+        }
+        {
+            // join nested inside a ROW subquery: only the local cluster is in scope
+            var plan = TEST_PARSER.parseQuery("FROM remote:index, (ROW key=1 | LOOKUP JOIN lookup ON key)");
+            var resolution = createIndexResolution("remote:index");
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
+        }
+        {
+            // join nested inside a subquery on remote index: only remote cluster is in scope
+            var plan = TEST_PARSER.parseQuery("FROM (ROW key=1), (FROM remote:index | LOOKUP JOIN lookup ON key)");
+            var resolution = createIndexResolution("remote:index");
+            assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution), equalTo(Set.of("remote")));
         }
         {
             // multiple joins

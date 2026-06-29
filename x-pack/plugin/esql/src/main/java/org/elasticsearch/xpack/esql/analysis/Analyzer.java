@@ -1356,17 +1356,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Whether {@code plan} reads from a non-lookup index, as opposed to a purely local source such as {@code ROW} /
          * {@link LocalRelation}.
+         * <p>
+         * Only {@link EsRelation} needs to be considered: this runs from {@link #resolveLookupJoin} inside
+         * {@link ResolveRefs}, which is guarded by {@code childrenResolved()}, so by the time we get here the left
+         * subtree is fully resolved and cannot contain an {@link UnresolvedRelation}.
          */
         private static boolean leftSideReadsFromIndices(LogicalPlan plan) {
-            return plan.anyMatch(p -> {
-                if (p instanceof EsRelation relation) {
-                    return relation.indexMode() != IndexMode.LOOKUP;
-                }
-                if (p instanceof UnresolvedRelation relation) {
-                    return relation.indexMode() != IndexMode.LOOKUP;
-                }
-                return false;
-            });
+            return plan.anyMatch(p -> p instanceof EsRelation relation && relation.indexMode() != IndexMode.LOOKUP);
         }
 
         /**

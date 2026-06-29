@@ -104,6 +104,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -1438,6 +1439,12 @@ public class EsqlSession {
      * Derives the scope (set of clusters) where the lookup join index needs to be found.
      * For example for a query like `FROM (FROM cluster-1:index-1 | LOOKUP JOIN dictionary-1),(FROM cluster-2:index-2)`
      * `dictionary-1` must be found only on `cluster-1` as joining is not performed on `cluster-2`.
+     * <p>
+     * Each index source on the left contributes the clusters its pattern resolved to. In addition, a local-only source on
+     * the left (e.g. a {@code ROW} branch, which produces data on the coordinator but carries no index relation) feeds data
+     * from the local cluster into the join, so the local cluster is added to the scope as well. These two contributions are
+     * independent and can both apply, e.g. `FROM cluster-1:index-1,(ROW ...) | LOOKUP JOIN dictionary-1` requires
+     * `dictionary-1` on both `cluster-1` and the local cluster.
      */
     static Set<String> computeLookupJoinIndexScope(
         LogicalPlan plan,
@@ -1453,6 +1460,12 @@ public class EsqlSession {
                         scope.addAll(resolution.get().originalIndices().keySet());
                     }
                 });
+                // A ROW on the left has no index relation but still feeds local-cluster data into the join, so the lookup index must also
+                // be resolvable locally. The tests that validate this behavior is in
+                // CrossClusterSubqueryIT.testSubqueryWithRowAndLookupIndicesMissingOnClustersReferencedBySubquery
+                if (lj.left().anyMatch(Row.class::isInstance)) {
+                    scope.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                }
             }
         });
         return scope;

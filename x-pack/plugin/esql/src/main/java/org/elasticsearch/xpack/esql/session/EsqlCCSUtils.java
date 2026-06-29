@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -178,7 +179,19 @@ public class EsqlCCSUtils {
         if (executionInfo.getClusters().isEmpty()) {
             return Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);// Happens when joining to ROW
         }
-        return executionInfo.getRunningClusterAliases().filter(clusterAliases::contains).collect(toSet());
+        // Use a LinkedHashSet so the local cluster (added below) is always iterated last, giving a deterministic qualified
+        // lookup expression (e.g. "cluster-a:idx,idx" rather than a hash-ordered variant) for error messages.
+        Set<String> running = new LinkedHashSet<>(
+            executionInfo.getRunningClusterAliases().filter(clusterAliases::contains).collect(toSet())
+        );
+        // The local (coordinating) cluster is always available and is never skip_unavailable, but it is only tracked as a
+        // running cluster in the execution info when the query actually resolved a local index. A lookup scoped to the local
+        // cluster (e.g. a ROW- or local-only sourced LOOKUP JOIN in an otherwise cross-cluster query) must still be resolved
+        // locally, so retain it whenever it is requested even if it is not tracked as a running cluster.
+        if (clusterAliases.contains(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+            running.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        }
+        return running;
     }
 
     static void updateExecutionInfoWithUnavailableClusters(

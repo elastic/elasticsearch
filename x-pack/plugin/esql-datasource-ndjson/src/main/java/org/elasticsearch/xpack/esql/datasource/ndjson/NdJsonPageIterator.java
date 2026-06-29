@@ -222,8 +222,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 // under-counted partial result is never published to the stats cache. The decoder has
                 // already emitted the client-facing partial-results warning.
                 if (pageDecoder.truncated()) {
-                    logger.info(
-                        "NDJSON read of [{}] truncated at byte [{}]: a record exceeded max_record_size",
+                    logger.warn(
+                        "NDJSON read of [{}] truncated at byte [{}]: a record exceeded max_record_size; results are partial",
                         sourceLocation,
                         pageDecoder.truncatedAtByte()
                     );

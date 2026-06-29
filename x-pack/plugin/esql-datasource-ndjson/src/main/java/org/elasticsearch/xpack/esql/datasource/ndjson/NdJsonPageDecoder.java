@@ -101,7 +101,7 @@ public class NdJsonPageDecoder implements Closeable {
     /**
      * Index of the synthetic {@code _rowPosition} attribute in {@link #projectedAttributes}, or
      * {@code -1} when not projected. When non-negative, each decoded record's file-global start
-     * byte is emitted into this slot (see {@link #recordFileOffset()}).
+     * byte is emitted into this slot (see {@link #recordFileOffset(long)}).
      */
     private final int rowPositionSlot;
     /**
@@ -520,23 +520,24 @@ public class NdJsonPageDecoder implements Closeable {
 
     /**
      * Throws the strict-policy {@code max_record_size} failure for a record whose parsed span is
-     * {@code spanBytes}. Mirrors {@link NdJsonRecordSplitter}'s message so the user-facing wording is
-     * identical regardless of which layer detects the overflow.
+     * {@code spanBytes}. Shares {@link NdJsonRecordSplitter}'s {@code NDJSON line exceeded max_record_size [N]}
+     * prefix so the user-facing wording is consistent regardless of which layer detects the overflow, and
+     * appends the decode-time span for diagnostics.
      */
     private IOException recordTooLarge(long spanBytes) {
-        return new IOException(
-            "NDJSON record exceeded max_record_size [" + maxRecordBytes + "]: record spans at least [" + spanBytes + "] bytes"
-        );
+        return new IOException("NDJSON line exceeded max_record_size [" + maxRecordBytes + "]: spans at least [" + spanBytes + "] bytes");
     }
 
     /**
-     * File-global byte offset of the parser's current logical position. {@link #parserSliceStart} is
-     * the parser slice's absolute start within {@link #sourceBytes} (updated on recovery);
+     * File-global byte offset of a record whose slice-relative start is {@code startSliceOffset} (captured via
+     * {@link #parserSliceByteOffset()} before {@code decodeObject} advances the parser). {@link #parserSliceStart}
+     * is the parser slice's absolute start within {@link #sourceBytes} (updated on recovery);
      * {@link #initialSliceStart} relativizes it so the result stays anchored to {@link #recordOffsetBase}.
-     * Stable across split layouts because it is the record's intrinsic position in the file.
+     * Stable across split layouts because it is the record's intrinsic position in the file. Single source of
+     * the offset formula shared by the strict and lenient decode loops.
      */
-    private long recordFileOffset() {
-        return recordOffsetBase + (parserSliceStart - initialSliceStart) + parser.getCurrentLocation().getByteOffset();
+    private long recordFileOffset(long startSliceOffset) {
+        return recordOffsetBase + (parserSliceStart - initialSliceStart) + startSliceOffset;
     }
 
     Page decodePage() throws IOException {
@@ -584,7 +585,7 @@ public class NdJsonPageDecoder implements Closeable {
             // offset feeds the max_record_size span check; the file-global offset feeds _rowPosition.
             boolean trackOffset = capEnforced || rowPositionSlot >= 0;
             long startSliceOffset = trackOffset ? parserSliceByteOffset() : 0L;
-            long recordOffset = trackOffset ? recordOffsetBase + (parserSliceStart - initialSliceStart) + startSliceOffset : 0L;
+            long recordOffset = trackOffset ? recordFileOffset(startSliceOffset) : 0L;
 
             try {
                 decoder.decodeObject(parser, false);
@@ -593,13 +594,14 @@ public class NdJsonPageDecoder implements Closeable {
             }
 
             if (capEnforced) {
-                // span is the parsed JSON object's byte length (opening '{' through closing '}'); it omits the
-                // line terminator, so it is up to a couple of bytes under the splitter's terminator-inclusive
-                // count. That can only make the decoder slightly more permissive at very small caps, never
-                // stricter, so it never spuriously rejects a record a coordinator chunk already accepted. The
-                // record was fully decoded before this check (the buffer is already bounded — byte-array
-                // segments are <= 16 MiB and Jackson's StreamReadConstraints bound a single streamed token),
-                // which trades a fail-fast pre-scan for the single-pass decode that issue 965 requires.
+                // span runs from just after the record's opening '{' (startSliceOffset was captured after
+                // nextToken consumed START_OBJECT) through its closing '}', so it omits both the opening brace
+                // and the line terminator — a couple of bytes under the splitter's terminator-inclusive count.
+                // That can only make the decoder slightly more permissive at very small caps, never stricter, so
+                // it never spuriously rejects a record a coordinator chunk already accepted. The record was fully
+                // decoded before this check (the buffer is already bounded — byte-array segments are <= 16 MiB and
+                // Jackson's StreamReadConstraints bound a single streamed token), which trades a fail-fast
+                // pre-scan for the single-pass decode that issue 965 requires.
                 long span = parserSliceByteOffset() - startSliceOffset;
                 if (span > maxRecordBytes) {
                     // Keep the failed row out of the emitted-rows counter (the finally adds totalRowCount).
@@ -653,7 +655,7 @@ public class NdJsonPageDecoder implements Closeable {
             // the max_record_size span check; the file-global offset feeds _rowPosition and truncation.
             boolean trackOffset = capEnforced || rowPositionSlot >= 0;
             long startSliceOffset = trackOffset ? parserSliceByteOffset() : 0L;
-            long recordOffset = trackOffset ? recordOffsetBase + (parserSliceStart - initialSliceStart) + startSliceOffset : 0L;
+            long recordOffset = trackOffset ? recordFileOffset(startSliceOffset) : 0L;
 
             try {
                 decoder.setupBuilders(rowScratch);

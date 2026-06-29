@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -106,7 +105,7 @@ public final class ParallelParsingCoordinator {
         int parallelism,
         Executor executor
     ) throws IOException {
-        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, null, false, true, null);
+        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, null, false, true, null, 0L);
     }
 
     /**
@@ -123,7 +122,7 @@ public final class ParallelParsingCoordinator {
         Executor executor,
         ErrorPolicy errorPolicy
     ) throws IOException {
-        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, errorPolicy, false, true, null);
+        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, errorPolicy, false, true, null, 0L);
     }
 
     /**
@@ -155,7 +154,8 @@ public final class ParallelParsingCoordinator {
             errorPolicy,
             splitStartsAtRecordBoundary,
             true,
-            null
+            null,
+            0L
         );
     }
 
@@ -188,7 +188,8 @@ public final class ParallelParsingCoordinator {
             errorPolicy,
             splitStartsAtRecordBoundary,
             splitIncludesFileLeader,
-            null
+            null,
+            0L
         );
     }
 
@@ -199,7 +200,11 @@ public final class ParallelParsingCoordinator {
      * on the calling thread). Callers that resolve the {@code max_concurrent_open_segments} pragma
      * or care about cross-thread stats capture use the 12-arg overload.
      *
-     * @param readSchema planner-bound read schema, or {@code null} for per-file inference
+     * @param readSchema     planner-bound read schema, or {@code null} for per-file inference
+     * @param baseFileOffset file-global byte offset of {@code storageObject}'s first byte (i.e. the macro
+     *                       split's {@code FileSplit.offset()}). {@code 0} for whole-file reads. Added to each
+     *                       segment's split-relative offset so readers emit file-global, split-invariant
+     *                       record positions on the {@code _rowPosition} channel.
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -211,7 +216,8 @@ public final class ParallelParsingCoordinator {
         ErrorPolicy errorPolicy,
         boolean splitStartsAtRecordBoundary,
         boolean splitIncludesFileLeader,
-        List<Attribute> readSchema
+        List<Attribute> readSchema,
+        long baseFileOffset
     ) throws IOException {
         return parallelRead(
             reader,
@@ -224,8 +230,10 @@ public final class ParallelParsingCoordinator {
             splitStartsAtRecordBoundary,
             splitIncludesFileLeader,
             readSchema,
+            baseFileOffset,
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
-            null
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
         );
     }
 
@@ -305,6 +313,7 @@ public final class ParallelParsingCoordinator {
             splitStartsAtRecordBoundary,
             splitIncludesFileLeader,
             readSchema,
+            0L,
             maxConcurrentOpenSegments,
             captureSink,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
@@ -312,7 +321,8 @@ public final class ParallelParsingCoordinator {
     }
 
     /**
-     * Full-control overload that also takes the {@code max_record_size} cap used by record splitters.
+     * Full-control overload that also takes the {@code max_record_size} cap used by record splitters
+     * and the file-global byte base offset.
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -325,6 +335,7 @@ public final class ParallelParsingCoordinator {
         boolean splitStartsAtRecordBoundary,
         boolean splitIncludesFileLeader,
         List<Attribute> readSchema,
+        long baseFileOffset,
         int maxConcurrentOpenSegments,
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         int maxRecordBytes
@@ -353,6 +364,7 @@ public final class ParallelParsingCoordinator {
             .firstSplit(splitIncludesFileLeader)
             .recordAligned(splitStartsAtRecordBoundary)
             .readSchema(readSchema)
+            .splitStartByte(baseFileOffset)
             .maxRecordBytes(maxRecordBytes)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
@@ -377,6 +389,7 @@ public final class ParallelParsingCoordinator {
             effectivePolicy,
             splitIncludesFileLeader,
             readSchema,
+            baseFileOffset,
             captureSink,
             maxRecordBytes
         );
@@ -496,6 +509,7 @@ public final class ParallelParsingCoordinator {
         private final boolean splitIncludesFileLeader;
         @Nullable
         private final List<Attribute> readSchema;
+        private final long baseFileOffset;
         /**
          * Consumer-owned per-file stats sink. Captured at construction so each segment worker can
          * bind it around {@code reader.read(...).close()} — the text-format readers' close hooks
@@ -540,6 +554,7 @@ public final class ParallelParsingCoordinator {
             ErrorPolicy errorPolicy,
             boolean splitIncludesFileLeader,
             List<Attribute> readSchema,
+            long baseFileOffset,
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
             int maxRecordBytes
         ) {
@@ -550,6 +565,7 @@ public final class ParallelParsingCoordinator {
             this.errorPolicy = errorPolicy;
             this.splitIncludesFileLeader = splitIncludesFileLeader;
             this.readSchema = readSchema;
+            this.baseFileOffset = baseFileOffset;
             this.captureSink = captureSink;
             this.maxRecordBytes = maxRecordBytes;
             this.segments = segments;
@@ -630,6 +646,18 @@ public final class ParallelParsingCoordinator {
         private void readSegment(int segmentIndex, long offset, long length) throws Exception {
             boolean lastSplit = segmentIndex == segments.size() - 1;
             StorageObject segObj = new RangeStorageObject(storageObject, offset, length);
+            // Coverage in absolute file coordinates: segment offsets are relative to this (possibly
+            // macro-split) storage object, so add its base file offset. The reconciler unions
+            // contributions by this range across all segments, macro-splits, and nodes — disjoint
+            // ranges sum, a range re-observed by a sibling FORK scan dedups. {@code lastSplit} flags
+            // the segment that reaches this object's tail; the truly final range (highest offset, on
+            // the file's last macro-split) carries it, which is what the completeness check reads.
+            long baseOffset = storageObject instanceof RangeStorageObject r ? r.offset() : 0L;
+            ExternalStatsCapture.Coverage coverage = new ExternalStatsCapture.Coverage(
+                baseOffset + offset,
+                baseOffset + offset + length,
+                lastSplit
+            );
 
             // Per-flag semantics:
             // - firstSplit: only segment 0 owns the file's leading bytes (and any header).
@@ -655,6 +683,7 @@ public final class ParallelParsingCoordinator {
                 .lastSplit(lastSplit)
                 .recordAligned(true)
                 .readSchema(readSchema)
+                .splitStartByte(baseFileOffset + offset)
                 .maxRecordBytes(maxRecordBytes)
                 .build();
 
@@ -666,7 +695,7 @@ public final class ParallelParsingCoordinator {
             // worker threads are reused across queries by the shared executor, and a leaked binding would
             // poison subsequent tasks. The inner stream closes first, so the close hook's record() call runs
             // with the sink still bound; then the handle restores the previous binding.
-            ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
+            ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink, coverage) : () -> {};
             try (bound) {
                 try (CloseableIterator<Page> pages = reader.read(segObj, ctx)) {
                     while (pages.hasNext()) {
@@ -758,10 +787,7 @@ public final class ParallelParsingCoordinator {
         private void checkError() {
             Throwable t = firstError.get();
             if (t != null) {
-                if (t instanceof RuntimeException re) {
-                    throw re;
-                }
-                throw new RuntimeException("Parallel parsing failed", t);
+                throw ExternalFailures.surface(t, "Parallel parsing failed");
             }
         }
 
@@ -770,15 +796,11 @@ public final class ParallelParsingCoordinator {
             if (closed) {
                 return;
             }
-            // Decide whether to publish a finalize marker before flipping closed=true: the marker means
-            // "every segment finished cleanly and the consumer drained the whole file, so the per-chunk
-            // partials shipped to ExternalStatsCapture represent the complete file." In the as-ready model
-            // that is: no error, every worker has finished (remainingSegments == 0) and the shared queue is
-            // empty (the consumer took every page) — an early close (e.g. LIMIT) leaves one or the other
-            // non-terminal. Captured before flipping closed=true, which short-circuits the workers' enqueue
-            // loops; we only treat it as clean if they had already drained naturally.
-            // `buffered != null` means a hasNext() handed a page out that next() never consumed — an early close
-            // (LIMIT, cancellation, downstream error), so the file was not fully drained: not a clean completion.
+            // Decide clean completion before flipping closed: no error, every segment finished
+            // (remainingSegments == 0), and the consumer drained the shared queue with no page parked.
+            // An early close (LIMIT, cancellation) leaves a segment cut off mid-parse — a partial row
+            // count under that segment's full byte range — which the coverage tiling could otherwise
+            // accept as complete and cache as an under-count. So a non-clean scan poisons the file.
             boolean cleanCompletion = firstError.get() == null && remainingSegments.get() == 0 && sharedQueue.isEmpty() && buffered == null;
             closed = true;
             // Release the page parked by a hasNext() with no following next(); drainQueue() only sees the shared
@@ -796,34 +818,13 @@ public final class ParallelParsingCoordinator {
                 Thread.currentThread().interrupt();
             }
             drainQueue();
-            if (cleanCompletion && firstError.get() == null) {
-                publishFinalizeMarker();
-            }
-        }
-
-        /**
-         * Signals the coordinator-side reconciler that the per-chunk partials shipped via
-         * {@link ExternalStatsCapture#record} cover
-         * the entire file cleanly. Without this marker, partial contributions are discarded.
-         */
-        private void publishFinalizeMarker() {
-            try {
-                Instant lastMod = storageObject.lastModified();
-                long mtimeMillis = lastMod != null ? lastMod.toEpochMilli() : -1L;
-                if (mtimeMillis < 0) {
-                    return;
-                }
-                Map<String, Object> marker = new HashMap<>();
-                marker.put(ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
-                marker.put(ExternalStats.FINALIZE_CHUNKS_KEY, Boolean.TRUE);
-                ExternalStatsCapture.record(storageObject.path().toString(), marker);
-            } catch (IOException e) {
-                logger.debug(
-                    () -> "ParallelParsingCoordinator: skipping finalize marker for ["
-                        + storageObject.path()
-                        + "] — lastModified() unavailable",
-                    e
-                );
+            // Coverage tiling at the reconciler establishes completeness for a clean scan; an early/error
+            // close can leave a segment with a partial count under a full range, so discard the file's
+            // contributions when the scan did not drain cleanly.
+            if (cleanCompletion == false && captureSink != null) {
+                Map<String, Object> poison = new HashMap<>();
+                poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
+                ExternalStatsCapture.record(storageObject.path().toString(), poison);
             }
         }
 

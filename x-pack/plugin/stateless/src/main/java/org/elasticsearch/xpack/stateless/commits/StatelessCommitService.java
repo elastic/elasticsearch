@@ -1072,9 +1072,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         commitState.ensureMaxGenerationToUploadForFlush(generation);
     }
 
-    public long getMaxGenerationToUploadForFlush(ShardId shardId) {
+    public long getMaxPendingOrUploadedGeneration(ShardId shardId) {
         final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
-        return commitState.getMaxGenerationToUploadForFlush();
+        return commitState.getMaxPendingOrUploadedGeneration();
     }
 
     /**
@@ -1168,7 +1168,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return commitCleaner;
     }
 
-    public record RecoveryInfoFromSource(@Nullable SourceBlobsInfo sourceBlobsInfo, boolean hasRecentIdLookup) {}
+    public record RecoveryInfoFromSource(
+        @Nullable SourceBlobsInfo sourceBlobsInfo,
+        Set<BlobFile> lastCommitBlobs,
+        boolean lastCommitIsHollow,
+        boolean hasRecentIdLookup
+    ) {}
 
     public record SourceBlobsInfo(BlobFile latestBlobFile, long latestBlobFileLength, Set<BlobFile> otherBlobs) {}
 
@@ -1274,7 +1279,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          */
         private final AtomicLong uploadedGenerationNotified = new AtomicLong(EMPTY_GENERATION_NOTIFIED_SENTINEL);
         private volatile long maxGenerationToUpload = Long.MAX_VALUE;
-        private final AtomicLong maxGenerationToUploadForFlush = new AtomicLong(-1);
         // Does not need to be volatile because it uses reads/writes of state for visibility
         private boolean relocated = false;
         private volatile State state = State.RUNNING;
@@ -1526,15 +1530,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 : null;
         }
 
+        /**
+         * Schedule VBCC freeze and upload for the specified {@code generation}. The caller can be sure that the required
+         * generation is either uploaded or scheduled for upload when the method returns.
+         */
         public void ensureMaxGenerationToUploadForFlush(long generation) {
             if (isClosed()) {
                 return;
             }
-            final long previousMaxGeneration = maxGenerationToUploadForFlush.getAndUpdate(v -> Math.max(v, generation));
-            if (previousMaxGeneration >= generation) {
-                return;
-            }
-
             final var virtualBcc = getCurrentVirtualBcc();
             if (virtualBcc == null) {
                 assert assertGenerationIsUploadedOrPending(generation);
@@ -1546,7 +1549,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             assert virtualBcc.getMaxGeneration() >= generation
-                : "requested generation ["
+                : shardId
+                    + " requested generation ["
                     + generation
                     + "] is larger than the max available generation ["
                     + virtualBcc.getMaxGeneration()
@@ -2133,7 +2137,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             final var maxUploadedCcGen = getMaxUploadedGeneration();
             if (generation > maxUploadedCcGen) {
                 final String message = format(
-                    "generation [%s] is not covered by either maxUploadedGeneration [%s] or maxPendingUploadBcc [%s] on node [%s]",
+                    "%s generation [%s] is not covered by either maxUploadedGeneration [%s] or maxPendingUploadBcc [%s] on node [%s]",
+                    shardId,
                     generation,
                     maxUploadedCcGen,
                     maxPendingUploadBcc,
@@ -2563,8 +2568,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
-        public long getMaxGenerationToUploadForFlush() {
-            return maxGenerationToUploadForFlush.get();
+        public long getMaxPendingOrUploadedGeneration() {
+            // Read order is important
+            final long maxPendingUploadBcc = getMaxPendingUploadBcc().map(VirtualBatchedCompoundCommit::getMaxGeneration).orElse(-1L);
+            final long maxUploadedCcGen = getMaxUploadedGeneration();
+            return Math.max(maxPendingUploadBcc, maxUploadedCcGen);
         }
 
         public void markIndexDeleting() {

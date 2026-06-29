@@ -18,7 +18,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesRangeQuery;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
@@ -73,7 +74,10 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             true,
-            false
+            false,
+            false,
+            IndexVersion.current(),
+            null
         );
 
         String ip = "2001:db8::2:1";
@@ -84,7 +88,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         assertEquals(convertToDocValuesQuery(query), ftOnlyDocValues.termQuery(ip, MOCK_CONTEXT));
         BytesRef encodedIp = new BytesRef(InetAddressPoint.encode(inetIp));
         assertEquals(
-            new SlowCustomBinaryDocValuesRangeQuery("field", encodedIp, encodedIp),
+            new ScanningBinaryDocValuesRangeQuery("field", encodedIp, encodedIp),
             ftOnlyBinaryDocValues.termQuery(ip, MOCK_CONTEXT)
         );
 
@@ -96,7 +100,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         assertEquals(convertToDocValuesQuery(query), ftOnlyDocValues.termQuery(ip, MOCK_CONTEXT));
         encodedIp = new BytesRef(InetAddressPoint.encode(inetIp));
         assertEquals(
-            new SlowCustomBinaryDocValuesRangeQuery("field", encodedIp, encodedIp),
+            new ScanningBinaryDocValuesRangeQuery("field", encodedIp, encodedIp),
             ftOnlyBinaryDocValues.termQuery(ip, MOCK_CONTEXT)
         );
 
@@ -108,7 +112,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         assertEquals(query, ftOnlyIndex.termQuery(prefix, MOCK_CONTEXT));
         assertEquals(convertToDocValuesQuery(query), ftOnlyDocValues.termQuery(prefix, MOCK_CONTEXT));
         assertEquals(
-            new SlowCustomBinaryDocValuesRangeQuery(
+            new ScanningBinaryDocValuesRangeQuery(
                 "field",
                 new BytesRef(((PointRangeQuery) query).getLowerPoint()),
                 new BytesRef(((PointRangeQuery) query).getUpperPoint())
@@ -126,7 +130,10 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             false,
-            false
+            false,
+            false,
+            IndexVersion.current(),
+            null
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("::1", MOCK_CONTEXT));
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
@@ -362,7 +369,10 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             false,
-            false
+            false,
+            false,
+            IndexVersion.current(),
+            null
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

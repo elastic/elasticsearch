@@ -109,20 +109,32 @@ public final class StreamingParallelParsingCoordinator {
             executor,
             errorPolicy,
             null,
+            0L,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             null
         );
     }
 
     /**
+     * Variant that propagates the planner-resolved {@code readSchema}. Mirrors the same parameter on
+     * {@link ParallelParsingCoordinator#parallelRead}; the streaming path must thread it so multi-file
+     * globs over gzip/zstd/bz2 inputs honor the planner's typing instead of re-inferring per file.
+     * Pass {@code null} when no read schema is bound.
+     *
+     * @param baseFileOffset file-global byte offset added to each chunk's decompressed start byte before it
+     *                       is handed to the reader as {@link FormatReadContext#splitStartByte()}. Stream-only
+     *                       compressed inputs are not macro-split, so this is {@code 0}; the decompressed
+     *                       cumulative offset is the logical file-global offset on its own.
+     * <p>
      * Full-control overload that takes both the {@code max_record_size} grow-loop bound and an
      * explicit consumer-owned {@code captureSink} for per-chunk source-stats contributions. Each
      * chunk is parsed on a worker thread; this coordinator binds {@code captureSink} on that worker
      * around the per-chunk {@link CloseableIterator#close()} so text-format readers' close hooks
      * publish into the same map the consumer-thread wrapper sees. Pass {@code null} for the sink
-     * when no capture is desired (tests, benchmarks). When {@code storageObject} is non-null its
-     * path and mtime are stamped on every chunk so per-chunk partials and the outer finalize marker
-     * reconcile under the real file key (see {@link ParallelParsingCoordinator}).
+     * when no capture is desired (tests, benchmarks). When {@code storageObject} is non-null its path
+     * is stamped on every chunk and each chunk carries its decompressed-stream coverage range, so the
+     * coordinator reconciler can union the chunks under the real file key (see
+     * {@link ParallelParsingCoordinator}).
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -134,6 +146,7 @@ public final class StreamingParallelParsingCoordinator {
         Executor executor,
         ErrorPolicy errorPolicy,
         @Nullable List<Attribute> readSchema,
+        long baseFileOffset,
         int maxRecordBytes,
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
     ) throws IOException {
@@ -153,6 +166,7 @@ public final class StreamingParallelParsingCoordinator {
                 .batchSize(batchSize)
                 .errorPolicy(effectivePolicy)
                 .readSchema(readSchema)
+                .splitStartByte(baseFileOffset)
                 .maxRecordBytes(maxRecordBytes)
                 .build();
             return reader.read(new InputStreamStorageObject(decompressedStream), ctx);
@@ -168,6 +182,7 @@ public final class StreamingParallelParsingCoordinator {
             executor,
             effectivePolicy,
             readSchema,
+            baseFileOffset,
             maxRecordBytes,
             captureSink
         );
@@ -194,6 +209,8 @@ public final class StreamingParallelParsingCoordinator {
         /** See {@link FormatReadContext#readSchema()}. {@code null} = per-file inference. */
         @Nullable
         private final List<Attribute> readSchema;
+        /** Added to each chunk's decompressed start byte; see {@link #parallelRead}'s {@code baseFileOffset}. */
+        private final long baseFileOffset;
         /**
          * Consumer-owned per-file stats sink. Captured at construction so each chunk's parser worker
          * can bind it around {@code reader.read(...).close()} — see {@link ExternalStatsCapture} for
@@ -266,6 +283,7 @@ public final class StreamingParallelParsingCoordinator {
             Executor executor,
             ErrorPolicy errorPolicy,
             @Nullable List<Attribute> readSchema,
+            long baseFileOffset,
             int maxRecordBytes,
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
         ) {
@@ -275,6 +293,7 @@ public final class StreamingParallelParsingCoordinator {
             this.batchSize = batchSize;
             this.errorPolicy = errorPolicy;
             this.readSchema = readSchema;
+            this.baseFileOffset = baseFileOffset;
             this.maxRecordBytes = maxRecordBytes;
             this.captureSink = captureSink;
             this.bufferPoolSize = parallelism + 1;
@@ -292,7 +311,7 @@ public final class StreamingParallelParsingCoordinator {
             this.executor = executor;
 
             @SuppressWarnings("unchecked")
-            ArrayBlockingQueue<Page>[] queues = new ArrayBlockingQueue[pageQueueRingSize];
+            ArrayBlockingQueue<Page>[] queues = (ArrayBlockingQueue<Page>[]) new ArrayBlockingQueue<?>[pageQueueRingSize];
             this.pageQueues = queues;
             for (int i = 0; i < pageQueueRingSize; i++) {
                 pageQueues[i] = new ArrayBlockingQueue<>(16);
@@ -348,6 +367,11 @@ public final class StreamingParallelParsingCoordinator {
             byte[] carry = null;
             int carryLen = 0;
             int chunkIndex = 0;
+            // Running offset of the next chunk in the decompressed stream. Each dispatched chunk
+            // covers [coverageStart, coverageStart + dispatchedLength); the sequential segmentator
+            // makes these tile [0, decompressedLength) deterministically for a given (file, config),
+            // so the reconciler can union them by range and dedup a sibling scan's identical chunks.
+            long coverageStart = 0;
 
             try {
                 while (closed == false && firstError.get() == null) {
@@ -386,8 +410,9 @@ public final class StreamingParallelParsingCoordinator {
                             if (chunkIndex == 0) {
                                 bindSchemaFromFirstChunk(buf, totalBytes);
                             }
-                            if (dispatchChunk(chunkIndex, buf, totalBytes, true)) {
+                            if (dispatchChunk(chunkIndex, coverageStart, buf, totalBytes, true)) {
                                 chunkIndex++;
+                                coverageStart += totalBytes;
                             } else {
                                 recycleBuffer(buf);
                                 break;
@@ -405,8 +430,9 @@ public final class StreamingParallelParsingCoordinator {
                                 if (chunkIndex == 0) {
                                     bindSchemaFromFirstChunk(grown, grown.length);
                                 }
-                                if (dispatchChunk(chunkIndex, grown, grown.length, true)) {
+                                if (dispatchChunk(chunkIndex, coverageStart, grown, grown.length, true)) {
                                     chunkIndex++;
+                                    coverageStart += grown.length;
                                 } else {
                                     recycleBuffer(grown);
                                     break;
@@ -419,8 +445,9 @@ public final class StreamingParallelParsingCoordinator {
                                 if (chunkIndex == 0) {
                                     bindSchemaFromFirstChunk(grown, validLen);
                                 }
-                                if (dispatchChunk(chunkIndex, grown, validLen, false)) {
+                                if (dispatchChunk(chunkIndex, coverageStart, grown, validLen, false)) {
                                     chunkIndex++;
+                                    coverageStart += validLen;
                                 } else {
                                     recycleBuffer(grown);
                                     break;
@@ -442,8 +469,9 @@ public final class StreamingParallelParsingCoordinator {
                     if (chunkIndex == 0) {
                         bindSchemaFromFirstChunk(buf, validLen);
                     }
-                    if (dispatchChunk(chunkIndex, buf, validLen, isEof)) {
+                    if (dispatchChunk(chunkIndex, coverageStart, buf, validLen, isEof)) {
                         chunkIndex++;
+                        coverageStart += validLen;
                         if (isEof) break;
                     } else {
                         recycleBuffer(buf);
@@ -500,7 +528,7 @@ public final class StreamingParallelParsingCoordinator {
          *         {@link #chunksDispatched} is unchanged and the caller must {@link #recycleBuffer(byte[])}
          *         when {@code buffer} is pool-sized (oversized temporary buffers are simply dropped).
          */
-        private boolean dispatchChunk(int index, byte[] buffer, int length, boolean last) {
+        private boolean dispatchChunk(int index, long coverageStart, byte[] buffer, int length, boolean last) {
             try {
                 dispatchPermits.acquire();
             } catch (InterruptedException e) {
@@ -513,7 +541,7 @@ public final class StreamingParallelParsingCoordinator {
                 return false;
             }
             try {
-                chunkQueue.put(new Chunk(index, buffer, length, last));
+                chunkQueue.put(new Chunk(index, coverageStart, buffer, length, last));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 firstError.compareAndSet(null, e);
@@ -578,6 +606,7 @@ public final class StreamingParallelParsingCoordinator {
                     .lastSplit(true)
                     .recordAligned(true)
                     .readSchema(readSchema)
+                    .splitStartByte(baseFileOffset + chunk.coverageStart())
                     .maxRecordBytes(maxRecordBytes)
                     .build();
                 // Bind the consumer-owned sink on this worker so the reader's close hook reaches
@@ -587,7 +616,12 @@ public final class StreamingParallelParsingCoordinator {
                 // across queries, a leaked binding would route subsequent tasks' record() calls
                 // into the prior query's sink. Inner closes first, so record() runs with the sink
                 // still bound, then the handle restores the previous binding.
-                ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
+                ExternalStatsCapture.Handle bound = captureSink != null
+                    ? ExternalStatsCapture.bind(
+                        captureSink,
+                        new ExternalStatsCapture.Coverage(chunk.coverageStart(), chunk.coverageStart() + chunk.length(), chunk.last())
+                    )
+                    : () -> {};
                 try (bound) {
                     try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
                         while (pages.hasNext()) {
@@ -912,10 +946,7 @@ public final class StreamingParallelParsingCoordinator {
         private void checkError() {
             Throwable t = firstError.get();
             if (t != null) {
-                if (t instanceof RuntimeException re) {
-                    throw re;
-                }
-                throw new RuntimeException("Streaming parallel parsing failed", t);
+                throw ExternalFailures.surface(t, "Streaming parallel parsing failed");
             }
         }
 
@@ -968,9 +999,11 @@ public final class StreamingParallelParsingCoordinator {
             if (closed) {
                 return;
             }
-            // Mirror ParallelParsingCoordinator: decide clean completion before flipping closed so
-            // an in-flight segmentator/parser cannot enqueue after we've observed full consumption.
-            boolean cleanCompletion = firstError.get() == null && currentChunk >= chunksDispatched.get();
+            // Flip closed first: a segmentator already past the if(closed) check in dispatchChunk can
+            // still enqueue one more chunk and spawn its parser. cleanCompletion is therefore evaluated
+            // *after* the drain loop below — where chunksDispatched is final and no parser is in flight —
+            // not here, where reading chunksDispatched could miss that late dispatch and falsely conclude
+            // the scan drained cleanly (skipping the poison and caching an under-count).
             closed = true;
             // Wake any consumer parked on {@link #waitForReady()}; isReadyNow now returns true on closed.
             signalReady();
@@ -997,36 +1030,23 @@ public final class StreamingParallelParsingCoordinator {
                 Thread.currentThread().interrupt();
             }
             drainAllQueues();
-            if (cleanCompletion && firstError.get() == null && captureSink != null) {
-                publishFinalizeMarker();
+            // Now safe to evaluate: chunksDispatched is final (the drain loop waited for every spawned
+            // parser, including any dispatched in the close race window) and the consumer's currentChunk
+            // is fixed. Clean = no error and the consumer drained every dispatched chunk. An early close
+            // (LIMIT, cancellation) leaves chunks unconsumed — and a parser cut off mid-chunk records a
+            // partial row count under that chunk's full byte range, which the coverage tiling would
+            // otherwise accept as complete and cache as an under-count. So a non-clean scan poisons the
+            // file's contributions: the reconciler discards them.
+            boolean cleanCompletion = firstError.get() == null && currentChunk >= chunksDispatched.get();
+            if (cleanCompletion == false && captureSink != null && storageObject != null) {
+                poisonCapturedStats(storageObject.path().toString());
             }
         }
 
-        /**
-         * Signals the coordinator-side reconciler that the per-chunk partials shipped via
-         * {@link ExternalStatsCapture#record} cover the entire decompressed file cleanly.
-         */
-        private void publishFinalizeMarker() {
-            if (storageObject == null) {
-                return;
-            }
-            try {
-                Instant mtime = storageObject.lastModified();
-                if (mtime == null) {
-                    return;
-                }
-                Map<String, Object> marker = new HashMap<>();
-                marker.put(ExternalStats.MTIME_MILLIS_KEY, mtime.toEpochMilli());
-                marker.put(ExternalStats.FINALIZE_CHUNKS_KEY, Boolean.TRUE);
-                ExternalStatsCapture.record(storageObject.path().toString(), marker);
-            } catch (IOException e) {
-                logger.debug(
-                    () -> "StreamingParallelParsingCoordinator: skipping finalize marker for ["
-                        + storageObject.path()
-                        + "] — lastModified() unavailable",
-                    e
-                );
-            }
+        private void poisonCapturedStats(String path) {
+            Map<String, Object> poison = new HashMap<>();
+            poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
+            ExternalStatsCapture.record(path, poison);
         }
 
         private void drainAllQueues() {
@@ -1047,7 +1067,7 @@ public final class StreamingParallelParsingCoordinator {
         }
     }
 
-    private record Chunk(int index, byte[] buffer, int length, boolean last) {}
+    private record Chunk(int index, long coverageStart, byte[] buffer, int length, boolean last) {}
 
     /**
      * Minimal StorageObject wrapping an InputStream for the parallelism=1 fallback path.

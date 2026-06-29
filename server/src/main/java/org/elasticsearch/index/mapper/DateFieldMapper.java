@@ -257,19 +257,16 @@ public final class DateFieldMapper extends FieldMapper {
         return (DateFieldMapper) in;
     }
 
-    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
-        true,
-        DocValuesParameter.Values.Cardinality.LOW,
-        true
-    );
+    private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
+        boolean multiValue = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false
+            || FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue);
+    }
 
     public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index;
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.of(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> toType(m).docValuesParameters()
-        );
+        private final DocValuesParameter docValuesParameters;
         private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -320,6 +317,10 @@ public final class DateFieldMapper extends FieldMapper {
             this.resolution = resolution;
             this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
+            this.docValuesParameters = DocValuesParameter.of(
+                defaultDocValuesParameters(indexSettings),
+                m -> toType(m).docValuesParameters()
+            );
             this.ignoreMalformed = Parameter.boolParam(
                 "ignore_malformed",
                 true,
@@ -1326,12 +1327,7 @@ public final class DateFieldMapper extends FieldMapper {
         if (fieldType().hasDocValuesSkipper()) {
             dvFactory.addNumericField(context.doc(), fieldType().name(), timestamp);
         } else if (indexed && docValuesParameters.enabled()) {
-            context.doc()
-                .add(
-                    docValuesParameters.multiValue()
-                        ? new LongField(fieldType().name(), timestamp, Field.Store.NO)
-                        : new SingleValuedLongField(fieldType().name(), timestamp)
-                );
+            context.doc().add(new LongField(fieldType().name(), timestamp, Field.Store.NO));
         } else if (docValuesParameters.enabled()) {
             dvFactory.addNumericField(context.doc(), fieldType().name(), timestamp);
         } else if (indexed) {

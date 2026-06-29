@@ -46,6 +46,7 @@ public class FromBase64 extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Decodes a base64 string.",
         description = "Decode a base64 string.",
         examples = @Example(file = "string", tag = "from_base64")
     )

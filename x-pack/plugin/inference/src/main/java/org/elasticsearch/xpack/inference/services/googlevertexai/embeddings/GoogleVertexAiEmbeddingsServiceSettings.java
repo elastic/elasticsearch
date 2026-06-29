@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,12 +37,15 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARIT
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveIntegerLessThanOrEqualToMax;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.LOCATION;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils.GOOGLE_VERTEX_AI_CONFIGURABLE_MAX_BATCH_SIZE;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils.GOOGLE_VERTEX_AI_OPTIONAL_LOCATION;
 
 public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObject
     implements
@@ -53,14 +57,10 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
     // See online prediction requests per minute: https://cloud.google.com/vertex-ai/docs/quotas.
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(30_000);
 
-    protected static final TransportVersion GOOGLE_VERTEX_AI_CONFIGURABLE_MAX_BATCH_SIZE = TransportVersion.fromName(
-        "google_vertex_ai_configurable_max_batch_size"
-    );
-
     public static GoogleVertexAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
 
-        var location = extractRequiredString(map, LOCATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var location = extractOptionalString(map, LOCATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var projectId = extractRequiredString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var maxInputTokens = extractOptionalPositiveInteger(
@@ -169,7 +169,7 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
     private final Boolean dimensionsSetByUser;
 
     public GoogleVertexAiEmbeddingsServiceSettings(
-        String location,
+        @Nullable String location,
         String projectId,
         String modelId,
         Boolean dimensionsSetByUser,
@@ -216,7 +216,10 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
     }
 
     public GoogleVertexAiEmbeddingsServiceSettings(StreamInput in) throws IOException {
-        this.location = in.readString();
+        var locationFromStreamInput = in.getTransportVersion().supports(GOOGLE_VERTEX_AI_OPTIONAL_LOCATION)
+            ? in.readOptionalString()
+            : in.readString();
+        this.location = Strings.isNullOrEmpty(locationFromStreamInput) ? null : locationFromStreamInput;
         this.projectId = in.readString();
         this.modelId = in.readString();
         this.dimensionsSetByUser = in.readBoolean();
@@ -236,6 +239,7 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         return projectId;
     }
 
+    @Nullable
     public String location() {
         return location;
     }
@@ -301,7 +305,11 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(location);
+        if (out.getTransportVersion().supports(GOOGLE_VERTEX_AI_OPTIONAL_LOCATION)) {
+            out.writeOptionalString(location);
+        } else {
+            out.writeString(Objects.requireNonNullElse(location, ""));
+        }
         out.writeString(projectId);
         out.writeString(modelId);
         out.writeBoolean(dimensionsSetByUser);
@@ -316,7 +324,9 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        builder.field(LOCATION, location);
+        if (location != null) {
+            builder.field(LOCATION, location);
+        }
         builder.field(PROJECT_ID, projectId);
         builder.field(MODEL_ID, modelId);
         if (maxInputTokens != null) {
@@ -364,5 +374,10 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
             rateLimitSettings,
             dimensionsSetByUser
         );
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

@@ -40,6 +40,7 @@ public class MvAvg extends AbstractMultivalueFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Averages the values in a multi-value field.",
         description = "Converts a multivalued field into a single valued field containing the average of all of the values.",
         examples = @Example(file = "math", tag = "mv_avg")
     )

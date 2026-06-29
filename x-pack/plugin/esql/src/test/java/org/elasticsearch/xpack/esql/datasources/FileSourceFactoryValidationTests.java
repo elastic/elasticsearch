@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -92,6 +93,34 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
 
     public void testPartitionConfigKeysMatchConstants() {
         assertConfigKeysMatchConstants(PartitionConfig.class, PartitionConfig.CONFIG_KEYS);
+    }
+
+    /**
+     * Pins the dataset CRUD vocabulary against the query path: the coordinator-level data-shape keys a
+     * dataset accepts must be exactly {@code COORDINATOR_KEYS} minus the EXTERNAL-only allowlist
+     * ({@code format}/{@code reader}) and the internal {@code _datasource} envelope. If a future change
+     * adds a coordinator key without either exposing it on the dataset or allowlisting it as
+     * EXTERNAL-only, this fails — so a real option cannot silently become EXTERNAL-only (or vice versa).
+     */
+    public void testDatasetCoordinatorKeysTrackCoordinatorKeys() {
+        Set<String> expected = new TreeSet<>(FileSourceFactory.COORDINATOR_KEYS);
+        expected.removeAll(FileSourceFactory.EXTERNAL_ONLY_KEYS);
+        expected.remove(ExternalSourceResolver.DATASOURCE_CONFIG_KEY);
+        assertEquals(
+            "dataset coordinator keys must equal COORDINATOR_KEYS minus the EXTERNAL-only allowlist and the internal _datasource key",
+            expected,
+            new TreeSet<>(FileDataSourceValidator.COORDINATOR_DATASET_KEYS)
+        );
+    }
+
+    /**
+     * The EXTERNAL-only allowlist must itself be a subset of the coordinator keys; otherwise it would
+     * be excluding keys the query path does not actually recognise, masking a typo.
+     */
+    public void testExternalOnlyKeysAreCoordinatorKeys() {
+        Set<String> missing = new TreeSet<>(FileSourceFactory.EXTERNAL_ONLY_KEYS);
+        missing.removeAll(FileSourceFactory.COORDINATOR_KEYS);
+        assertTrue("EXTERNAL_ONLY_KEYS not in COORDINATOR_KEYS: " + missing, missing.isEmpty());
     }
 
     /**

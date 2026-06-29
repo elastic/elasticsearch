@@ -412,6 +412,41 @@ public class VerifierTests extends ESTestCase {
             "from test* METADATA _id, _index, _score | FORK (where true) (where true) | FUSE",
             equalTo("1:76: cannot use [double] as an input of FUSE. Consider using [DROP double] before FUSE.")
         );
+
+        // Testing the combo of FORK w/ an unsupported and multi-typed field
+        analyzer.error(
+            "from test* | FORK (where true) | eval x = multi_typed",
+            equalTo(
+                "1:43: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]"
+            )
+        );
+    }
+
+    public void testForkUnsupportedFields() {
+        // After FORK, unsupported-type fields should still produce "Cannot use field [...] with unsupported type [...]",
+        // not the degraded "found value [...] type [unsupported]" message (#147603).
+        TestAnalyzer agesAnalyzer = analyzer().addIndex("ages", "mapping-ages.json").stripErrorPrefix(true);
+        agesAnalyzer.error(
+            "from ages | FORK (where true) | eval x = concat(age_range, \"abc\")",
+            containsString("Cannot use field [age_range] with unsupported type [integer_range]")
+        );
+        agesAnalyzer.error(
+            "from ages | FORK (where true) | eval x = mv_slice(age_range, 2, 3)",
+            containsString("Cannot use field [age_range] with unsupported type [integer_range]")
+        );
+        agesAnalyzer.error(
+            "from ages | FORK (where true) | eval x = age_range",
+            containsString("Cannot use field [age_range] with unsupported type [integer_range]")
+        );
+        agesAnalyzer.error(
+            "from ages | FORK (where true) | sort age_range asc",
+            containsString("Cannot use field [age_range] with unsupported type [integer_range]")
+        );
+        agesAnalyzer.error(
+            "from ages | FORK (where true) | where age_range is null",
+            containsString("Cannot use field [age_range] with unsupported type [integer_range]")
+        );
     }
 
     public void testRoundFunctionInvalidInputs() {
@@ -697,7 +732,7 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error(
             "from test | stats max(emp_no) by bucket(hire_date, 5, 1 day, 1 month)",
             containsString(
-                "third argument of [bucket(hire_date, 5, 1 day, 1 month)] must be [datetime or string], "
+                "third argument of [bucket(hire_date, 5, 1 day, 1 month)] must be [datetime, date_nanos or string], "
                     + "found value [1 day] type [date_period]"
             )
         );
@@ -705,7 +740,7 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error(
             "from test | stats max(emp_no) by bucket(hire_date, 5, \"2000-01-01\", 1 month)",
             containsString(
-                "fourth argument of [bucket(hire_date, 5, \"2000-01-01\", 1 month)] must be [datetime or string], "
+                "fourth argument of [bucket(hire_date, 5, \"2000-01-01\", 1 month)] must be [datetime, date_nanos or string], "
                     + "found value [1 month] type [date_period]"
             )
         );
@@ -1581,6 +1616,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFlattenedSorting() {
+        assumeTrue("Requires FLATTENED_DATATYPE capability", EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled());
         var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
         index.error("FROM flattened_otel_logs | SORT attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
         index.error("FROM flattened_otel_logs | SORT resource.attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
@@ -1756,13 +1792,13 @@ public class VerifierTests extends ESTestCase {
 
     public void testRenameOrDropTimestampWithTBucket() {
         k8s().error(
-            "TS k8s | RENAME @timestamp AS newTs | STATS max(max_over_time(network.eth0.tx))  BY tbucket = tbucket(1hour)",
-            equalTo("1:95: [tbucket(1hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
+            "TS k8s | RENAME @timestamp AS newTs | STATS max(variance_over_time(network.eth0.tx))  BY tbucket = tbucket(1hour)",
+            equalTo("1:100: [tbucket(1hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         k8s().error(
-            "TS k8s | DROP @timestamp | STATS max(max_over_time(network.eth0.tx)) BY tbucket = tbucket(1hour)",
-            equalTo("1:83: [tbucket(1hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
+            "TS k8s | DROP @timestamp | STATS max(variance_over_time(network.eth0.tx)) BY tbucket = tbucket(1hour)",
+            equalTo("1:88: [tbucket(1hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
@@ -2612,8 +2648,8 @@ public class VerifierTests extends ESTestCase {
             "row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")",
             equalTo(
                 "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
-                    + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, dense_vector, double, flattened, geo_point, "
-                    + "geo_shape, geohash, geohex, geotile, integer, ip, keyword, "
+                    + "[boolean, cartesian_point, cartesian_shape, date_nanos, date_range, datetime, dense_vector, double, flattened, "
+                    + "geo_point, geo_shape, geohash, geohex, geotile, integer, ip, keyword, "
                     + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]"
             )
         );

@@ -736,6 +736,68 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     }
 
     /**
+     * Walks a keyword composite page by page with a {@code size} smaller than the number of distinct values, the way a
+     * transform grouping by a keyword does. Under a match_all query the leading source drives collection through a
+     * {@link TermsSortedDocsProducer}: each page seeks to the after key in the terms dictionary and early-terminates once
+     * the queue is full, instead of scanning every document. This exercises that producer path together with
+     * {@link SegmentOrdinalValuesSource}'s forced-lead-value collector, including a multi-valued document, and asserts
+     * every page is correct end to end.
+     */
+    public void testKeywordPaginationDrivenByTermsProducer() throws Exception {
+        final List<Map<String, List<Object>>> dataset = Arrays.asList(
+            createDocument("keyword", "a"),
+            createDocument("keyword", "c"),
+            createDocument("keyword", "a"),
+            createDocument("keyword", "e"),
+            createDocument("keyword", "c"),
+            createDocument("keyword", "d"),
+            createDocument("keyword", Arrays.asList("b", "f")) // multi-valued: counts towards both b and f
+        );
+        // Counts: a=2, b=1, c=2, d=1, e=1, f=1; distinct ascending order is a,b,c,d,e,f.
+
+        // Page 1: no after key.
+        testSearchCase(Collections.singletonList(Queries.ALL_DOCS_INSTANCE), dataset, () -> {
+            TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field("keyword");
+            return new CompositeAggregationBuilder("name", Collections.singletonList(terms)).size(2);
+        }, (InternalComposite result) -> {
+            assertEquals(2, result.getBuckets().size());
+            assertEquals("{keyword=b}", result.afterKey().toString());
+            assertEquals("{keyword=a}", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(0).getDocCount());
+            assertEquals("{keyword=b}", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(1).getDocCount());
+        });
+
+        // Page 2: after the previous page's last key.
+        testSearchCase(Collections.singletonList(Queries.ALL_DOCS_INSTANCE), dataset, () -> {
+            TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field("keyword");
+            return new CompositeAggregationBuilder("name", Collections.singletonList(terms)).size(2)
+                .aggregateAfter(Collections.singletonMap("keyword", "b"));
+        }, (InternalComposite result) -> {
+            assertEquals(2, result.getBuckets().size());
+            assertEquals("{keyword=d}", result.afterKey().toString());
+            assertEquals("{keyword=c}", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(0).getDocCount());
+            assertEquals("{keyword=d}", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(1).getDocCount());
+        });
+
+        // Final page: drains the remaining buckets.
+        testSearchCase(Collections.singletonList(Queries.ALL_DOCS_INSTANCE), dataset, () -> {
+            TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field("keyword");
+            return new CompositeAggregationBuilder("name", Collections.singletonList(terms)).size(2)
+                .aggregateAfter(Collections.singletonMap("keyword", "d"));
+        }, (InternalComposite result) -> {
+            assertEquals(2, result.getBuckets().size());
+            assertEquals("{keyword=f}", result.afterKey().toString());
+            assertEquals("{keyword=e}", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(0).getDocCount());
+            assertEquals("{keyword=f}", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(1).getDocCount());
+        });
+    }
+
+    /**
      * This is just a template for migrating to the test case execution in {@link AggregatorTestCase}, it doesn't test anything new.
      */
     public void testUsingTestCase() throws Exception {

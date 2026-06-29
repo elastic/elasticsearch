@@ -67,6 +67,9 @@ final class CompositeValuesCollectorQueue extends ObjectArrayPriorityQueue<Integ
 
     private LongArray docCounts;
     private boolean afterKeyIsSet = false;
+    // The segment the value-to-slot map was last rebuilt for, so the rebuild fires once per segment boundary and not once
+    // per forced lead value on the {@link TermsSortedDocsProducer} path (which calls getLeafCollector once per term).
+    private LeafReaderContext lastMapRebuildContext;
 
     /**
      * Constructs a composite queue with the specified size and sources.
@@ -312,8 +315,13 @@ final class CompositeValuesCollectorQueue extends ObjectArrayPriorityQueue<Integ
         // every collection path funnels through - and not only in the public getLeafCollector, because the index-sort
         // path (processLeafFromQuery) bypasses the public method. The priority-queue order is preserved because the
         // encoding is monotonic in _key in every segment, so no re-heapify is needed.
-        if (requiresMapRebuild) {
+        //
+        // Rebuild once per segment, not once per call: the TermsSortedDocsProducer drives the leading source with a forced
+        // lead value once per term, but slot encodings only shift at segment boundaries; within a segment addIfCompetitive
+        // keeps the map consistent incrementally. Without this guard the producer path would rebuild O(size) per term.
+        if (requiresMapRebuild && context != lastMapRebuildContext) {
             rebuildMap();
+            lastMapRebuildContext = context;
         }
         return collector;
     }

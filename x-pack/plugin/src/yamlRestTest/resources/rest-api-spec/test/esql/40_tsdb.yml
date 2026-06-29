@@ -1018,7 +1018,7 @@ PromQL missing field outside the command fails under nullify:
           parameters: []
           capabilities: [promql_command_v0, fix_promql_time_bucket_v2, optional_fields_nullify_tech_preview]
       reason: "PromQL support with unmapped_fields=nullify"
-  # PromQL is a collapsing aggregate, so a missing field after the pipe is not nullified.
+  # PromQL collapses to an aggregate, so a field after the pipe is not nullified.
   - do:
       catch: /Unknown column \[does_not_exist\]/
       esql.query:

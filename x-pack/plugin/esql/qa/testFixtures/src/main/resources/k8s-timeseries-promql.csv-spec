@@ -1130,7 +1130,7 @@ PROMQL index=k8s step=1h result=(rate(unmapped.metric[1h])) | SORT result;
 result:double | step:datetime | _timeseries:keyword
 ;
 
-// unmapped_fields="nullify" does not change PROMQL's handling of unmapped fields inside the command.
+// nullify doesn't affect PROMQL's handling of unmapped fields inside the command.
 nullify_unmapped_metric_cross_series
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2

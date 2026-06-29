@@ -1208,8 +1208,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         );
     }
 
-    // Unlike load (rejected outright), nullify is allowed with PromQL; but a missing field after the collapsing
-    // aggregate still fails (as after a non-grouping STATS).
+    // nullify is allowed with PromQL (unlike load), but a field after the collapsing aggregate still fails.
     public void testUnmappedFieldNullifyWithPromQl() {
         TestAnalyzer analyzer = test().addIndex("test", "tsdb-mapping.json");
 

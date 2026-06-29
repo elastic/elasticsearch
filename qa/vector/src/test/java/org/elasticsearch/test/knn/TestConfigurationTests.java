@@ -90,6 +90,41 @@ public class TestConfigurationTests extends ESTestCase {
         }
     }
 
+    public void testNumDeletedDocsParsing() throws Exception {
+        String json = """
+            {
+              "doc_vectors": ["/path/to/docs"],
+              "dimensions": 128,
+              "num_docs": 1000,
+              "num_deleted_docs": 100,
+              "delete_seed": 42
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            TestConfiguration config = TestConfiguration.fromXContent(parser);
+            assertEquals(1000, config.numDocs());
+            assertEquals(100, config.numDeletedDocs());
+            assertEquals(42L, config.deleteSeed());
+        }
+    }
+
+    public void testNumDeletedDocsValidation() throws Exception {
+        String json = """
+            {
+              "doc_vectors": ["/path/to/docs"],
+              "dimensions": 128,
+              "num_docs": 100,
+              "num_deleted_docs": 100
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> TestConfiguration.fromXContent(parser));
+            assertTrue(e.getMessage(), e.getMessage().contains("num_deleted_docs"));
+        }
+    }
+
     public void testHelp() throws Exception {
         KnnIndexTester.main(new String[] { "--help" });
     }

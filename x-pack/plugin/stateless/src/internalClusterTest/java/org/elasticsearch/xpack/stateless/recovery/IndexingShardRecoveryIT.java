@@ -20,7 +20,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -937,7 +937,12 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
         logger.info("--> generating {} commit(s) for index [{}] with {} upload max. commits", numCommits, indexName, uploadMaxCommits);
         for (int i = 0; i < numCommits; i++) {
             int numDocs = randomIntBetween(25, 50);
-            indexDocs(indexName, numDocs, bulkRequest -> bulkRequest.setRefreshPolicy(RefreshPolicy.IMMEDIATE));
+            // Refresh all shards explicitly to ensure each shard creates a new commit per iteration. Using
+            // RefreshPolicy.IMMEDIATE on the bulk only refreshes shards that received documents, so when a
+            // multi-shard bulk happens to skip a shard (e.g. all docs route to other shards), that shard
+            // would otherwise miss a generation increment and the per-shard commit assertions would fail.
+            indexDocs(indexName, numDocs, bulkRequest -> bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE));
+            refresh(indexName);
             totalDocs += numDocs;
         }
         return new DocsAndCommits(totalDocs, numCommits);

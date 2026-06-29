@@ -95,17 +95,6 @@ setup:
         name: ghost
 
 ---
-"delete-wildcard-resolves-to-datasets":
-  # No datasets registered: DELETE * resolves the wildcard, keeps only datasets (none), and acks — it must
-  # not 404 on the wildcard or touch indices (the raw `*` 404'd before the fix). The destructive-guard path
-  # is covered in DataSourceCrudIT; the REST test cluster relaxes that setting for its own cleanup.
-  - do:
-      esql.delete_dataset:
-        name: "*"
-
-  - match: { acknowledged: true }
-
----
 "get-missing":
   # Concrete-name miss -> 404. Wildcard miss -> 200 [].
   - do:

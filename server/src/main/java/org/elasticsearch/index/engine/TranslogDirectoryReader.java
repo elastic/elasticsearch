@@ -198,7 +198,11 @@ final class TranslogDirectoryReader extends DirectoryReader {
         boolean rootDocOnly,
         Translog.Index operation
     ) {
-        final String id = Uid.decodeId(operation.uid());
+        // operation.uid() is the compound identity term for a slice index (Uid.encodeCompoundId) or a plain
+        // encodeId for a non-slice index. Extract the user-visible id accordingly so the re-parse feeds the
+        // mapper the correct plain id (the mapper rebuilds all three _id terms from id + routing).
+        final boolean sliceEnabled = engineConfig.getIndexSettings().isSliceEnabled();
+        final String id = sliceEnabled ? Uid.decodeCompoundId(operation.uid()) : Uid.decodeId(operation.uid());
         final ParsedDocument parsedDocs = documentParser.parseDocument(
             new SourceToParse(id, operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()),
             mappingLookup
@@ -356,15 +360,10 @@ final class TranslogDirectoryReader extends DirectoryReader {
             this.engineConfig = engineConfig;
             this.onSegmentCreated = onSegmentCreated;
             this.directory = directory;
-            // A realtime GET seeks the engine identity term. For a slice index that is the compound term, but the
-            // translog Index op carries the plain uid + routing, so reconstruct the compound here for the FakeTerms seek.
-            // (The fake stored _id below stays plain — it is read straight from operation.uid().)
-            // Go through encodeIdentity (the single source of truth) so a missing routing fails with the same clear
-            // IllegalArgumentException as every other path rather than an opaque NPE inside Uid.encodeCompoundId.
-            final boolean sliceEnabled = engineConfig.getIndexSettings().isSliceEnabled();
-            this.uid = sliceEnabled
-                ? IdFieldMapper.encodeIdentity(true, Uid.decodeId(operation.uid()), operation.routing())
-                : operation.uid();
+            // A realtime GET seeks the engine identity term, which is operation.uid() — the compound identity bytes for
+            // a slice index, or the plain encodeId for a non-slice index. Translog.Index now carries the compound uid
+            // directly (built by prepareIndex → encodeIdentity), so no reconstruction is needed.
+            this.uid = operation.uid();
         }
 
         private LeafReader getDelegate() {

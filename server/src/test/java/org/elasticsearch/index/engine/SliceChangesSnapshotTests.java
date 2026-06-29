@@ -83,10 +83,10 @@ public class SliceChangesSnapshotTests extends EngineTestCase {
         }
     }
 
-    public void testSliceIndexRecoversPlainIdAndRouting() throws Exception {
+    public void testSliceIndexRecoversCompoundUidAndRouting() throws Exception {
         final String id = "doc-1";
         final String slice = "slice-7";
-        // Parse a live slice doc (preParse stores the plain _id and _routing=slice plus the two indexed terms) and index it
+        // Parse a live slice doc (preParse stores the compound _id plus the two indexed terms) and index it
         // under the compound identity term, mirroring the write path.
         ParsedDocument doc = parseDocument(engine.engineConfig.getMapperService(), id, slice);
         engine.index(new Engine.Index(Uid.encodeCompoundId(id, slice), primaryTerm.get(), doc));
@@ -106,9 +106,10 @@ public class SliceChangesSnapshotTests extends EngineTestCase {
             Translog.Operation op = snapshot.next();
             assertThat(op, instanceOf(Translog.Index.class));
             Translog.Index index = (Translog.Index) op;
-            // The Index op carries the PLAIN id (plain uid) + routing(slice); replay re-parses and rebuilds the two terms.
-            assertEquals(Uid.encodeId(id), index.uid());
-            assertEquals(id, Uid.decodeId(index.uid()));
+            // The Index op carries the compound uid; replay decodes the plain id + routing from it.
+            assertEquals(Uid.encodeCompoundId(id, slice), index.uid());
+            assertEquals(id, Uid.decodeCompoundId(index.uid()));
+            assertEquals(slice, Uid.sliceFromCompoundId(index.uid()));
             assertEquals(slice, index.routing());
             assertThat("only the single index op should be present", snapshot.next(), nullValue());
         }

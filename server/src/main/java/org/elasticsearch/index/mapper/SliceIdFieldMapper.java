@@ -28,10 +28,14 @@ import java.util.List;
  * A mapper for the {@code _id} field of a slice-enabled index. Each document indexes two terms into {@code _id} —
  * a slice-free <em>search</em> term {@code encodeId(id) ++ [0x00]} (drives {@code ids}/{@code term} search) and a
  * <em>compound</em> term {@code encodeId(id) ++ slice ++ [len]} (the engine identity term: uniqueness/versioning/
- * GET/delete). The user-visible id stays the plain {@code encodeId(id)}: in {@link #DOCUMENT} mode it is a stored field,
- * and in {@link #COLUMNAR} mode it is binary doc values (no stored field), mirroring {@link ProvidedIdFieldMapper} so a
- * slice-enabled index composes with columnar {@code _id}. See {@link Uid#encodeCompoundId(String, String)} /
- * {@link Uid#searchTerm(String)} for the layout and why the two term-spaces are structurally disjoint.
+ * GET/delete). The compound bytes are also the value stored in the {@code _id} field itself: in {@link #DOCUMENT}
+ * mode as a stored field, and in {@link #COLUMNAR} mode as binary doc values. This uniform storage (live docs and
+ * delete tombstones alike carry the compound) keeps the engine, recovery, and translog paths free of live-vs-tombstone
+ * branching. The user-visible plain id and the slice are recovered at the presentation layer only, via
+ * {@link IdFieldMapper#decodeIdentity} / {@link Uid#decodeCompoundId(BytesRef)} /
+ * {@link Uid#sliceFromCompoundId(BytesRef)} — mirroring TSDB's synthetic-id approach. See
+ * {@link Uid#encodeCompoundId(String, String)} / {@link Uid#searchTerm(String)} for the layout and why the two
+ * term-spaces are structurally disjoint.
  */
 public class SliceIdFieldMapper extends IdFieldMapper {
 
@@ -110,26 +114,29 @@ public class SliceIdFieldMapper extends IdFieldMapper {
         // Slice-free search term drives ids/term search; the compound term (== Engine.Operation.uid()) scopes
         // uniqueness/versioning/GET/delete by (slice, id). Both are indexed-only (not stored), in both modes.
         context.doc().add(new StringField(NAME, Uid.searchTerm(id), Field.Store.NO));
-        context.doc().add(new StringField(NAME, Uid.encodeCompoundId(id, slice), Field.Store.NO));
-        // The plain id is surfaced unchanged by GET/_source/synthetic-source. In document mode it is a stored field; in
-        // columnar mode it is binary doc values (read back by the doc-values IdLoader / columnar ops-recovery).
-        final BytesRef encoded = Uid.encodeId(id);
+        final BytesRef compound = Uid.encodeCompoundId(id, slice);
+        context.doc().add(new StringField(NAME, compound, Field.Store.NO));
+        // The compound bytes are also stored as the _id value (stored field in document mode, binary doc values in
+        // columnar mode). Live docs and delete tombstones carry the same compound bytes, eliminating any live-vs-tombstone
+        // branching in the engine and recovery paths. The plain user id and slice are recovered at the presentation layer
+        // only (IdFieldMapper.decodeIdentity / Uid.decodeCompoundId).
         if (columnar) {
-            context.doc().add(new BinaryDocValuesField(NAME, encoded));
+            context.doc().add(new BinaryDocValuesField(NAME, compound));
         } else {
-            context.doc().add(new StoredField(NAME, encoded));
+            context.doc().add(new StoredField(NAME, compound));
         }
     }
 
     @Override
     public void postParse(DocumentParserContext context) {
         if (columnar) {
-            // Mirrors ProvidedIdFieldMapper#postParse.
+            // Mirrors ProvidedIdFieldMapper#postParse. Nested (non-root) documents share the root's compound _id so that
+            // binary doc values on every segment doc carry the same opaque identity bytes as the root doc.
             var iterator = context.nonRootDocuments().iterator();
             if (iterator.hasNext()) {
-                final BytesRef encoded = Uid.encodeId(context.id());
+                final BytesRef compound = Uid.encodeCompoundId(context.id(), context.sourceToParse().routing());
                 while (iterator.hasNext()) {
-                    iterator.next().add(new BinaryDocValuesField(NAME, encoded));
+                    iterator.next().add(new BinaryDocValuesField(NAME, compound));
                 }
             }
         }

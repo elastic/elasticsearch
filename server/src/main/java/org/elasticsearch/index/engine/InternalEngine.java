@@ -26,7 +26,6 @@ import org.apache.lucene.index.MergeScheduler;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
-import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -95,7 +94,6 @@ import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -4076,10 +4074,6 @@ public class InternalEngine extends Engine {
             .build();
         final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         final StoredFieldLoader storedFieldLoader = StoredFieldLoader.fromSpecSequential(new StoredFieldsSpec(false, true, Set.of("_id")));
-        // A slice index keys the version map by the compound (slice, id) identity term, which differs from the stored
-        // _id: a live doc stores the plain encodeId(id) (reconstruct the compound with the doc's _routing), while a
-        // delete tombstone stores the compound directly (use it as-is — it has no _routing, and decoding it as a plain
-        // id would corrupt it). The raw _id is in binary doc values for a columnar index, otherwise in stored fields.
         final boolean columnar = engineConfig.getMapperService().mappingLookup().isColumnarId();
         for (LeafReaderContext leaf : directoryReader.leaves()) {
             final Scorer scorer = weight.scorer(leaf);
@@ -4090,7 +4084,6 @@ public class InternalEngine extends Engine {
             final DocIdSetIterator iterator = scorer.iterator();
             var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, null);
             var leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leaf.reader(), null);
-            final SortedDocValues routingDocValues = sliceEnabled ? leaf.reader().getSortedDocValues(RoutingFieldMapper.NAME) : null;
             final BinaryDocValues sliceIdDocValues = (sliceEnabled && columnar)
                 ? DocValues.getBinary(leaf.reader(), IdFieldMapper.NAME)
                 : null;
@@ -4106,7 +4099,6 @@ public class InternalEngine extends Engine {
                 final String id;
                 final BytesRef uid;
                 if (sliceEnabled) {
-                    // Raw _id bytes (binary doc values in columnar mode, else stored fields); null => a noop tombstone.
                     final BytesRef rawId = columnar
                         ? (sliceIdDocValues.advanceExact(docId) ? BytesRef.deepCopyOf(sliceIdDocValues.binaryValue()) : null)
                         : readRawStoredId(leaf, docId);
@@ -4114,17 +4106,8 @@ public class InternalEngine extends Engine {
                         assert isTombstone;
                         continue;
                     }
-                    if (isTombstone) {
-                        uid = rawId; // the tombstone _id already IS the compound identity term
-                        id = Uid.decodeCompoundId(rawId);
-                    } else {
-                        id = Uid.decodeId(rawId); // a live doc stores the plain id; rebuild the compound from it + routing
-                        String routing = leafStoredFieldLoader.routing();
-                        if (routing == null && routingDocValues != null && routingDocValues.advanceExact(docId)) {
-                            routing = routingDocValues.lookupOrd(routingDocValues.ordValue()).utf8ToString();
-                        }
-                        uid = Uid.encodeCompoundId(id, routing);
-                    }
+                    uid = rawId;
+                    id = Uid.decodeCompoundId(rawId);
                 } else {
                     id = leafIdLoader.getId(docId);
                     if (id == null) {
@@ -4152,7 +4135,6 @@ public class InternalEngine extends Engine {
         refresh("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL, true);
     }
 
-    /** Read the raw stored {@code _id} bytes for a document (used for slice indices in document mode), or {@code null}. */
     private static BytesRef readRawStoredId(LeafReaderContext leaf, int docId) throws IOException {
         final RawIdVisitor visitor = new RawIdVisitor();
         leaf.reader().storedFields().document(docId, visitor);

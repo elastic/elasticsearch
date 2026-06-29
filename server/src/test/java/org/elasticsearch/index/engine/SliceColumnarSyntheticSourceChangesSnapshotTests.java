@@ -17,7 +17,7 @@ import org.junit.Before;
 /**
  * The slice + columnar {@code _id} scenarios from {@link SliceColumnarChangesSnapshotTests} run through
  * {@link LuceneSyntheticSourceChangesSnapshot} (synthetic recovery source). This exercises the synthetic snapshot's
- * columnar read of the plain id (live docs) and the compound identity term (delete tombstones) from binary doc values.
+ * columnar read of the compound identity term (both live docs and delete tombstones) from binary doc values.
  */
 public class SliceColumnarSyntheticSourceChangesSnapshotTests extends SliceSyntheticSourceChangesSnapshotTests {
 

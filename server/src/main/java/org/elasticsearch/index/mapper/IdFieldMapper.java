@@ -126,6 +126,16 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     }
 
     /**
+     * Decode the user-visible plain {@code _id} string from the bytes that are stored in the {@code _id} stored field
+     * or binary doc value. For a slice-enabled index the stored bytes are the compound identity term
+     * ({@link Uid#encodeCompoundId(String, String)}); for a non-slice index they are the plain
+     * {@link Uid#encodeId(String)} bytes. This is the symmetric counterpart of {@link #encodeIdentity}.
+     */
+    public static String decodeIdentity(boolean sliceEnabled, BytesRef storedBytes) {
+        return sliceEnabled ? Uid.decodeCompoundId(storedBytes) : Uid.decodeId(storedBytes);
+    }
+
+    /**
      * Create a {@link Field} corresponding to a synthetic {@code _id} field, which is not indexed and not stored but instead computed at
      * runtime.
      */

@@ -11,11 +11,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -45,7 +47,8 @@ import java.util.TreeSet;
  * Responsible for loading the _id from stored fields, doc values, or for TSDB synthesizing the _id from the routing, _tsid
  * and @timestamp fields.
  */
-public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdLoader, IdLoader.DocValuesIdLoader {
+public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdLoader, IdLoader.DocValuesIdLoader,
+    IdLoader.SliceStoredIdLoader, IdLoader.SliceDocValuesIdLoader {
 
     /**
      * @return returns an {@link IdLoader} instance to load the value of the _id field.
@@ -80,10 +83,13 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         var idFieldMapper = mappingLookup.getMapping().getMetadataMapperByName(IdFieldMapper.NAME);
         boolean columnar = (idFieldMapper instanceof ProvidedIdFieldMapper provided && provided.isColumnarMode())
             || (idFieldMapper instanceof SliceIdFieldMapper slice && slice.isColumnarMode());
+        // For a slice-enabled index the stored/doc-value _id is the compound identity term; use a dedicated slice loader
+        // that decodes via IdFieldMapper.decodeIdentity rather than the plain Uid.decodeId.
+        boolean sliceEnabled = indexSettings.isSliceEnabled();
         if (columnar) {
-            return fromDocValues();
+            return sliceEnabled ? new SliceDocValuesIdLoader() : new DocValuesIdLoader();
         }
-        return fromLeafStoredFieldLoader();
+        return sliceEnabled ? new SliceStoredIdLoader() : new StoredIdLoader();
     }
 
     /**
@@ -118,7 +124,8 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     /**
      * Returns a leaf instance for a leaf reader that returns the _id for segment level doc ids.
      */
-    sealed interface Leaf permits StoredLeaf, TsIdLeaf, DocValuesLeaf, LazyTsIdLeaf, LazyLegacyTsIdLeaf, LazyDocValuesIdLeaf {
+    sealed interface Leaf permits StoredLeaf, SliceStoredLeaf, TsIdLeaf, DocValuesLeaf, LazyTsIdLeaf, LazyLegacyTsIdLeaf,
+        LazyDocValuesIdLeaf {
 
         /**
          * @param subDocId The segment level doc id for which the return the _id
@@ -399,13 +406,28 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     }
 
     final class StoredIdLoader implements IdLoader {
-        public StoredIdLoader() {
-
-        }
+        public StoredIdLoader() {}
 
         @Override
         public Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
             return new StoredLeaf(loader);
+        }
+
+        @Override
+        public BlockLoader blockLoader(ByteSizeValue ordinalsByteSize) {
+            return new BlockStoredFieldsReader.IdBlockLoader();
+        }
+    }
+
+    /**
+     * Loads the {@code _id} for a slice-enabled index in document (non-columnar) mode. The stored {@code _id} is the
+     * compound identity term ({@link Uid#encodeCompoundId}); this loader reads raw bytes and decodes them via
+     * {@link IdFieldMapper#decodeIdentity} rather than the plain {@link Uid#decodeId} used by {@link StoredIdLoader}.
+     */
+    final class SliceStoredIdLoader implements IdLoader {
+        @Override
+        public Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            return new SliceStoredLeaf(reader);
         }
 
         @Override
@@ -559,7 +581,58 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     }
 
     /**
-     * Loads the {@code _id} from sorted doc values. Used when the index is in columnar mode.
+     * {@link Leaf} for a slice-enabled index in document (non-columnar) mode. The stored {@code _id} is the compound
+     * identity term ({@link Uid#encodeCompoundId}); reading it via the generic {@link StoredLeaf} would garble the id
+     * because {@link org.elasticsearch.index.fieldvisitor.FieldsVisitor} decodes via {@link Uid#decodeId}. Instead,
+     * this leaf reads the raw bytes directly from Lucene stored fields and decodes via
+     * {@link IdFieldMapper#decodeIdentity}.
+     */
+    final class SliceStoredLeaf implements Leaf {
+
+        private final LeafReader reader;
+        private final RawIdStoredFieldVisitor visitor = new RawIdStoredFieldVisitor();
+
+        SliceStoredLeaf(LeafReader reader) {
+            this.reader = reader;
+        }
+
+        @Override
+        public String getId(int subDocId) {
+            visitor.reset();
+            try {
+                reader.storedFields().document(subDocId, visitor);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return visitor.idBytes == null ? null : IdFieldMapper.decodeIdentity(true, visitor.idBytes);
+        }
+    }
+
+    /**
+     * Minimal stored-field visitor that captures the raw (un-decoded) {@code _id} bytes. Used by {@link SliceStoredLeaf}
+     * to bypass the generic {@link Uid#decodeId} path in
+     * {@link org.elasticsearch.index.fieldvisitor.FieldsVisitor#binaryField}.
+     */
+    final class RawIdStoredFieldVisitor extends StoredFieldVisitor {
+        BytesRef idBytes;
+
+        void reset() {
+            idBytes = null;
+        }
+
+        @Override
+        public Status needsField(FieldInfo fieldInfo) {
+            return IdFieldMapper.NAME.equals(fieldInfo.name) ? Status.YES : Status.NO;
+        }
+
+        @Override
+        public void binaryField(FieldInfo fieldInfo, byte[] value) {
+            idBytes = new BytesRef(value);
+        }
+    }
+
+    /**
+     * Loads the {@code _id} from binary doc values (columnar mode, non-slice indices).
      */
     final class DocValuesIdLoader implements IdLoader {
 
@@ -567,7 +640,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         public Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
             BinaryDocValues binaryDocValues = DocValues.getBinary(reader, IdFieldMapper.NAME);
             if (docIdsInLeaf == null) {
-                return new LazyDocValuesIdLeaf(binaryDocValues);
+                return new LazyDocValuesIdLeaf(binaryDocValues, false);
             }
             BytesRef[] encodedIds = new BytesRef[docIdsInLeaf.length];
             for (int i = 0; i < docIdsInLeaf.length; i++) {
@@ -576,7 +649,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 assert found : "_id doc value missing for docId " + docId;
                 encodedIds[i] = BytesRef.deepCopyOf(binaryDocValues.binaryValue());
             }
-            return new DocValuesLeaf(docIdsInLeaf, encodedIds);
+            return new DocValuesLeaf(docIdsInLeaf, encodedIds, false);
         }
 
         @Override
@@ -584,7 +657,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             return new BlockDocValuesReader.DocValuesBlockLoader() {
                 @Override
                 public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-                    return new IdDocValuesReader(breaker, context);
+                    return new IdDocValuesReader(breaker, context, false);
                 }
 
                 @Override
@@ -593,52 +666,98 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 }
             };
         }
+    }
 
-        private static class IdDocValuesReader extends BlockDocValuesReader {
+    /**
+     * Loads the {@code _id} from binary doc values for a slice-enabled index in columnar mode. The doc values carry the
+     * compound identity term ({@link Uid#encodeCompoundId}); this loader decodes them via
+     * {@link IdFieldMapper#decodeIdentity} to recover the user-visible plain id.
+     */
+    final class SliceDocValuesIdLoader implements IdLoader {
 
-            private final TrackingBinaryDocValues dvs;
-            private final BytesRef scratch = new BytesRef();
-
-            IdDocValuesReader(CircuitBreaker breaker, LeafReaderContext ctx) throws IOException {
-                super(null);
-                dvs = TrackingBinaryDocValues.get(breaker, ctx, IdFieldMapper.NAME);
+        @Override
+        public Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            BinaryDocValues binaryDocValues = DocValues.getBinary(reader, IdFieldMapper.NAME);
+            if (docIdsInLeaf == null) {
+                return new LazyDocValuesIdLeaf(binaryDocValues, true);
             }
-
-            @Override
-            protected int docId() {
-                return dvs.docValues().docID();
+            BytesRef[] encodedIds = new BytesRef[docIdsInLeaf.length];
+            for (int i = 0; i < docIdsInLeaf.length; i++) {
+                int docId = docIdsInLeaf[i];
+                boolean found = binaryDocValues.advanceExact(docId);
+                assert found : "_id doc value missing for docId " + docId;
+                encodedIds[i] = BytesRef.deepCopyOf(binaryDocValues.binaryValue());
             }
+            return new DocValuesLeaf(docIdsInLeaf, encodedIds, true);
+        }
 
-            @Override
-            public String toString() {
-                return "IdDocValuesReader";
-            }
-
-            @Override
-            public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-                throws IOException {
-                try (var builder = factory.bytesRefs(docs.count() - offset)) {
-                    for (int i = offset; i < docs.count(); i++) {
-                        read(docs.get(i), builder);
-                    }
-                    return builder.build();
+        @Override
+        public BlockLoader blockLoader(ByteSizeValue ordinalsByteSize) {
+            return new BlockDocValuesReader.DocValuesBlockLoader() {
+                @Override
+                public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+                    return new IdDocValuesReader(breaker, context, true);
                 }
-            }
 
-            private void read(int docId, BlockLoader.BytesRefBuilder builder) throws IOException {
-                if (dvs.docValues().advanceExact(docId) == false) {
-                    builder.appendNull();
-                    return;
+                @Override
+                public Builder builder(BlockFactory factory, int expectedCount) {
+                    return factory.bytesRefs(expectedCount);
                 }
-                BytesRef encodedId = dvs.docValues().binaryValue();
-                String decodedId = Uid.decodeId(encodedId);
-                builder.appendBytesRef(BlockSourceReader.toBytesRef(scratch, decodedId));
-            }
+            };
+        }
+    }
 
-            @Override
-            public void close() {
-                dvs.close();
+    /**
+     * Block-level doc-values reader for the {@code _id} field. Shared by {@link DocValuesIdLoader} and
+     * {@link SliceDocValuesIdLoader}; the {@code sliceEnabled} flag controls whether the stored bytes are decoded as
+     * compound ({@link IdFieldMapper#decodeIdentity}) or plain ({@link Uid#decodeId}).
+     */
+    final class IdDocValuesReader extends BlockDocValuesReader {
+
+        private final TrackingBinaryDocValues dvs;
+        private final boolean sliceEnabled;
+        private final BytesRef scratch = new BytesRef();
+
+        IdDocValuesReader(CircuitBreaker breaker, LeafReaderContext ctx, boolean sliceEnabled) throws IOException {
+            super(null);
+            dvs = TrackingBinaryDocValues.get(breaker, ctx, IdFieldMapper.NAME);
+            this.sliceEnabled = sliceEnabled;
+        }
+
+        @Override
+        protected int docId() {
+            return dvs.docValues().docID();
+        }
+
+        @Override
+        public String toString() {
+            return "IdDocValuesReader";
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+            throws IOException {
+            try (var builder = factory.bytesRefs(docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    read(docs.get(i), builder);
+                }
+                return builder.build();
             }
+        }
+
+        private void read(int docId, BlockLoader.BytesRefBuilder builder) throws IOException {
+            if (dvs.docValues().advanceExact(docId) == false) {
+                builder.appendNull();
+                return;
+            }
+            BytesRef encodedId = dvs.docValues().binaryValue();
+            String decodedId = IdFieldMapper.decodeIdentity(sliceEnabled, encodedId);
+            builder.appendBytesRef(BlockSourceReader.toBytesRef(scratch, decodedId));
+        }
+
+        @Override
+        public void close() {
+            dvs.close();
         }
     }
 
@@ -649,9 +768,11 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     final class LazyDocValuesIdLeaf implements Leaf {
 
         private final BinaryDocValues binaryDocValues;
+        private final boolean sliceEnabled;
 
-        LazyDocValuesIdLeaf(BinaryDocValues binaryDocValues) {
+        LazyDocValuesIdLeaf(BinaryDocValues binaryDocValues, boolean sliceEnabled) {
             this.binaryDocValues = binaryDocValues;
+            this.sliceEnabled = sliceEnabled;
         }
 
         @Override
@@ -660,7 +781,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 boolean found = binaryDocValues.advanceExact(subDocId);
                 assert found;
                 BytesRef encoded = binaryDocValues.binaryValue();
-                return Uid.decodeId(encoded.bytes, encoded.offset, encoded.length);
+                return IdFieldMapper.decodeIdentity(sliceEnabled, encoded);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -671,12 +792,14 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
         private final BytesRef[] encodedIds;
         private final int[] docIdsInLeaf;
+        private final boolean sliceEnabled;
 
         private int idx = -1;
 
-        DocValuesLeaf(int[] docIdsInLeaf, BytesRef[] encodedIds) {
+        DocValuesLeaf(int[] docIdsInLeaf, BytesRef[] encodedIds, boolean sliceEnabled) {
             this.encodedIds = encodedIds;
             this.docIdsInLeaf = docIdsInLeaf;
+            this.sliceEnabled = sliceEnabled;
         }
 
         @Override
@@ -687,7 +810,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                     "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + subDocId + " instead"
                 );
             }
-            return Uid.decodeId(encodedIds[idx]);
+            return IdFieldMapper.decodeIdentity(sliceEnabled, encodedIds[idx]);
         }
     }
 

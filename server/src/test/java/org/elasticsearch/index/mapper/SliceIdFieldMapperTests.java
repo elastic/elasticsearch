@@ -62,7 +62,7 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
         assertThat(query, equalTo(expected));
     }
 
-    public void testDocumentModeStoresPlainId() throws Exception {
+    public void testDocumentModeStoresCompoundId() throws Exception {
         Settings settings = Settings.builder()
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
             .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
@@ -73,8 +73,10 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
         String id = randomAlphaOfLengthBetween(1, 16);
         ParsedDocument doc = mapperService.documentMapper().parse(source(id, b -> {}, "slice-1"));
         List<IndexableField> idFields = doc.rootDoc().getFields(IdFieldMapper.NAME);
-        // Two indexed terms (search + compound) plus a stored field carrying the plain id; no doc values.
-        assertThat(idFields, hasItem(storedField(Uid.encodeId(id))));
+        // Two indexed terms (search + compound) plus a stored field carrying the compound id; no doc values.
+        // The compound bytes are also the stored value, matching tombstone storage and eliminating live-vs-tombstone
+        // branching in the engine/recovery paths.
+        assertThat(idFields, hasItem(storedField(Uid.encodeCompoundId(id, "slice-1"))));
         assertThat(idFields, hasItem(indexedTerm(Uid.searchTerm(id))));
         assertThat(idFields, hasItem(indexedTerm(Uid.encodeCompoundId(id, "slice-1"))));
         for (IndexableField f : idFields) {
@@ -82,7 +84,7 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
         }
     }
 
-    public void testColumnarModeStoresPlainIdInBinaryDocValues() throws Exception {
+    public void testColumnarModeStoresCompoundIdInBinaryDocValues() throws Exception {
         assumeTrue("columnar _id requires the extended doc values feature flag", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
@@ -95,7 +97,7 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
         String id = randomAlphaOfLengthBetween(1, 16);
         ParsedDocument doc = mapperService.documentMapper().parse(source(id, b -> {}, "slice-1"));
         List<IndexableField> idFields = doc.rootDoc().getFields(IdFieldMapper.NAME);
-        // The same two indexed terms (search + compound) but the plain id is in binary doc values, not a stored field.
+        // The same two indexed terms (search + compound) but the compound id is in binary doc values, not a stored field.
         assertThat(idFields, hasItem(indexedTerm(Uid.searchTerm(id))));
         assertThat(idFields, hasItem(indexedTerm(Uid.encodeCompoundId(id, "slice-1"))));
         IndexableField docValues = null;
@@ -105,8 +107,8 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
                 docValues = f;
             }
         }
-        assertNotNull("columnar mode must keep the plain id in binary doc values", docValues);
-        assertThat(docValues.binaryValue(), equalTo(Uid.encodeId(id)));
+        assertNotNull("columnar mode must keep the compound id in binary doc values", docValues);
+        assertThat(docValues.binaryValue(), equalTo(Uid.encodeCompoundId(id, "slice-1")));
     }
 
     private static SliceIdFieldMapper sliceIdMapper(MapperService mapperService) {

@@ -21,14 +21,13 @@
 // reordered columns, and widening, exercising the full resolver → planner → reader → adapter
 // pipeline against actual fixture files (not synthetic in-memory inputs).
 //
-// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. On dataset-capable
-// backends (S3) the harness registers the dataset and runs the FROM query verbatim; on the others it rebuilds
-// the equivalent EXTERNAL query. Dataset names encode the WITH options (union) so the same name always carries
-// the same settings.
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. The harness registers
+// the dataset on every storage backend and runs the FROM query verbatim. Dataset names encode the WITH options
+// (union) so the same name always carries the same settings.
 // =========================================================================================
 
 multiFileUnionByNameRecipe
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
@@ -47,7 +46,7 @@ dave         | 60       | london
 ;
 
 multiFileUnionByNameRecipeWithPruning
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
@@ -83,7 +82,7 @@ dave         | london
 // =========================================================================================
 
 multiFileUnionByNameTypeDrift
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: external_union_by_name_keyword_fallback

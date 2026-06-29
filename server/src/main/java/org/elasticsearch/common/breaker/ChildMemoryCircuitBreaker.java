@@ -18,6 +18,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -39,6 +40,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private final LongCounter trippedCountMeter;
     private final LongUpDownCounter memoryHeldMeter;
     private final Map<String, Object> uncategorizedHeldAttributes;
+    private final Map<String, Map<String, Object>> categoryAttributeCache;
 
     /**
      * Attribute key identifying the breaker on the legacy {@link CircuitBreakerMetrics#ES_BREAKER_TRIP_COUNT_TOTAL} counter.
@@ -55,15 +57,15 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     /**
      * Attribute key on the memory gauges identifying the (bounded) category a charge was admitted/released under. The value is
      * derived from the caller-supplied label via {@link #categoryFor(String)} and is always one of {@link #KNOWN_CATEGORIES} or
-     * {@link #UNCATEGORIZED_RELEASE}, so this dimension can never explode the metric's time-series cardinality.
+     * {@link #CATEGORY_UNCATEGORIZED}, so this dimension can never explode the metric's time-series cardinality.
      */
     public static final String CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE = "es_breaker_category";
 
     /**
-     * Category value used for releases that go through the unlabeled {@link #addWithoutBreaking(long)} path, and the fallback
-     * bucket for any label that is not one of the {@link #KNOWN_CATEGORIES}.
+     * Category value for any charge or release that does not map to one of the {@link #KNOWN_CATEGORIES}: the fallback for
+     * unrecognized labels and the bucket used by the unlabeled {@link #addWithoutBreaking(long)} path.
      */
-    public static final String UNCATEGORIZED_RELEASE = "uncategorized";
+    public static final String CATEGORY_UNCATEGORIZED = "uncategorized";
 
     /** Per-phase retained query memory charged by {@link org.elasticsearch.index.query.AbstractQueryBuilder#toQuery}. */
     public static final String CATEGORY_QUERY = "query";
@@ -119,8 +121,14 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             BREAKER_METRIC_TYPE_ATTRIBUTE,
             this.name,
             CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
-            UNCATEGORIZED_RELEASE
+            CATEGORY_UNCATEGORIZED
         );
+        final Map<String, Map<String, Object>> cache = new HashMap<>(KNOWN_CATEGORIES.size() + 1);
+        for (String category : KNOWN_CATEGORIES) {
+            cache.put(category, Map.of(BREAKER_METRIC_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, category));
+        }
+        cache.put(CATEGORY_UNCATEGORIZED, this.uncategorizedHeldAttributes);
+        this.categoryAttributeCache = Map.copyOf(cache);
     }
 
     /**
@@ -170,6 +178,9 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      * Add a number of bytes, tripping the circuit breaker if the aggregated estimates are above the limit. Automatically trips the breaker
      * if the memory limit is set to 0. Will never trip the breaker if the limit is set to -1, but can still be used to aggregate
      * estimations.
+     * <p>
+     * Only positive {@code bytes} values are recorded on the {@code es.breaker.memory.held.usage} gauge. Callers that need to release
+     * memory and keep the gauge balanced must use {@link #addWithoutBreaking(long, String)} with the same label as the original admit.
      *
      * @param bytes number of bytes to add to the breaker
      */
@@ -295,30 +306,26 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
 
     /**
      * Builds the {@code es.breaker.memory.held.usage} attributes for {@code label}, mapping the free-text label to a bounded
-     * {@code es_breaker_category} via {@link #categoryFor(String)}. Reuses the cached {@link #uncategorizedHeldAttributes} for the
-     * common uncategorized case to avoid allocating a map on the hot path.
+     * {@code es_breaker_category} via {@link #categoryFor(String)}. Returns a pre-computed cached map for every valid category
+     * (including {@link #CATEGORY_UNCATEGORIZED}) so no allocation occurs on the hot path.
      */
     private Map<String, Object> heldAttributes(String label) {
-        final String category = categoryFor(label);
-        if (UNCATEGORIZED_RELEASE.equals(category)) {
-            return uncategorizedHeldAttributes;
-        }
-        return Map.of(BREAKER_METRIC_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, category);
+        return categoryAttributeCache.get(categoryFor(label));
     }
 
     /**
-     * Maps a free-text breaker label to one of the bounded {@link #KNOWN_CATEGORIES}, or {@link #UNCATEGORIZED_RELEASE} when the
+     * Maps a free-text breaker label to one of the bounded {@link #KNOWN_CATEGORIES}, or {@link #CATEGORY_UNCATEGORIZED} when the
      * label is unrecognized or {@code null}. For composite labels of the form {@code <category>[<detail>]} (e.g.
      * {@code preallocate[aggregations]}) or {@code <category>:<detail>} (e.g. {@code range:my_field}) only the {@code <category>}
      * prefix - the text before the first {@code '['} or {@code ':'} - is matched, so the per-detail suffix adds no cardinality.
      */
     static String categoryFor(String label) {
         if (label == null) {
-            return UNCATEGORIZED_RELEASE;
+            return CATEGORY_UNCATEGORIZED;
         }
         final int separator = firstSeparator(label);
         final String base = separator >= 0 ? label.substring(0, separator) : label;
-        return KNOWN_CATEGORIES.contains(base) ? base : UNCATEGORIZED_RELEASE;
+        return KNOWN_CATEGORIES.contains(base) ? base : CATEGORY_UNCATEGORIZED;
     }
 
     /** Index of the first {@code '['} or {@code ':'} in {@code label}, or {@code -1} when neither is present. */
@@ -332,6 +339,10 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             return bracket;
         }
         return Math.min(bracket, colon);
+    }
+
+    void recordHeldDelta(long bytes, String label) {
+        this.memoryHeldMeter.add(bytes, heldAttributes(label));
     }
 
     private void adjustUsedBytes(long bytes) {

@@ -131,7 +131,7 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
 
         @Override
         public void addWithoutBreaking(long bytes) {
-            addWithoutBreakingInternal(bytes, ChildMemoryCircuitBreaker.UNCATEGORIZED_RELEASE);
+            addWithoutBreakingInternal(bytes, ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED);
         }
 
         @Override
@@ -186,11 +186,18 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
                  *
                  * The held gauge, however, still carries the +preallocated admit recorded under
                  * category="preallocate[<label>]" at construction; left alone it would accumulate a permanent
-                 * positive per preallocation. Cancel just that gauge entry, without disturbing real used bytes, by
-                 * re-bucketing the reservation into the uncategorized category (the two ops net to zero real bytes).
+                 * positive per preallocation. Cancel just that gauge entry by re-bucketing the reservation into
+                 * the uncategorized category. We use recordHeldDelta rather than addWithoutBreaking to avoid
+                 * transiently inflating the real used counter between the two corrections, which could otherwise
+                 * cause a concurrent checkParentLimit call to see a spuriously high value and trip the parent.
                  */
-                next.addWithoutBreaking(preallocated, ChildMemoryCircuitBreaker.UNCATEGORIZED_RELEASE);
-                next.addWithoutBreaking(-preallocated, preallocateLabel);
+                if (next instanceof ChildMemoryCircuitBreaker cb) {
+                    cb.recordHeldDelta(preallocated, ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED);
+                    cb.recordHeldDelta(-preallocated, preallocateLabel);
+                } else {
+                    next.addWithoutBreaking(preallocated, ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED);
+                    next.addWithoutBreaking(-preallocated, preallocateLabel);
+                }
             }
             closed = true;
         }

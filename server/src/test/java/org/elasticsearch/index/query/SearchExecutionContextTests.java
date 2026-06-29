@@ -698,13 +698,15 @@ public class SearchExecutionContextTests extends ESTestCase {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
 
-        // Charge the pre-flight reservation.
-        context.addCircuitBreakerMemory(1000L, "reservation");
+        context.addCircuitBreakerMemory(1000L, "wildcard");
         assertEquals(1000L, breaker.used);
         assertEquals(1000L, context.getQueryConstructionMemoryUsed());
 
-        // Swap the reservation for the (smaller) actual charge.
-        context.addCircuitBreakerMemory(250L, 1000L, "actual");
+        context.addCircuitBreakerMemory(0L, 1000L, "wildcard");
+        assertEquals(0L, breaker.used);
+        assertEquals(0L, context.getQueryConstructionMemoryUsed());
+
+        context.addCircuitBreakerMemory(250L, "query");
         assertEquals(250L, breaker.used);
         assertEquals(250L, context.getQueryConstructionMemoryUsed());
 
@@ -716,8 +718,8 @@ public class SearchExecutionContextTests extends ESTestCase {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
 
-        context.addCircuitBreakerMemory(100L, "reservation");
-        context.addCircuitBreakerMemory(500L, 100L, "actual");
+        context.addCircuitBreakerMemory(100L, "wildcard");
+        context.addCircuitBreakerMemory(500L, 100L, "wildcard");
 
         assertEquals(500L, breaker.used);
         assertEquals(500L, context.getQueryConstructionMemoryUsed());

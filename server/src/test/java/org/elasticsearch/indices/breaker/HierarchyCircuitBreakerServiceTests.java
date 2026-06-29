@@ -1092,7 +1092,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                     ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
                     CircuitBreaker.REQUEST,
                     ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
-                    ChildMemoryCircuitBreaker.UNCATEGORIZED_RELEASE
+                    ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED
                 )
             )
         );
@@ -1104,7 +1104,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
     /**
      * Unbounded or user-defined labels (e.g. field names, action names) must not become distinct {@code es_breaker_category}
      * values, otherwise the gauge's time-series cardinality would grow without bound. Such labels collapse into the single
-     * {@link ChildMemoryCircuitBreaker#UNCATEGORIZED_RELEASE} bucket.
+     * {@link ChildMemoryCircuitBreaker#CATEGORY_UNCATEGORIZED} bucket.
      */
     public void testMemoryHeldBucketsUnknownLabelsUnderUncategorized() {
         final RecordingMeterRegistry meter = new RecordingMeterRegistry();
@@ -1135,7 +1135,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             .map(m -> m.attributes().get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE))
             .collect(Collectors.toSet());
 
-        assertEquals(Set.of(ChildMemoryCircuitBreaker.UNCATEGORIZED_RELEASE), categories);
+        assertEquals(Set.of(ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED), categories);
     }
 
     public void testMemoryHeldNotUpdatedWhenParentTripsAdmission() {
@@ -1178,7 +1178,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             .stream()
             .filter(m -> CircuitBreaker.REQUEST.equals(m.attributes().get(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE)))
             .filter(
-                m -> ChildMemoryCircuitBreaker.UNCATEGORIZED_RELEASE.equals(
+                m -> ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED.equals(
                     m.attributes().get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE)
                 )
             )

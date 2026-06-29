@@ -148,7 +148,7 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
             ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
             CircuitBreaker.REQUEST,
             ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
-            ChildMemoryCircuitBreaker.UNCATEGORIZED_RELEASE
+            ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED
         );
 
         final Map<Map<String, Object>, Long> heldByAttrs = meter.getRecorder()

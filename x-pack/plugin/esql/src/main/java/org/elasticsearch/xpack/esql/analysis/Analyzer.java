@@ -141,6 +141,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dataset;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -303,7 +304,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // translate metric aggregates early before they are converted to nested expressions
             new TranslateTimeSeriesAggregate(),
             new ApplyWindowFilter(),
-            new UnionTypesCleanup()
+            new UnionTypesCleanup(),
+            // Must run last in analysis: folds every LOCAL Dataset wrapper to its resolved relation child so the
+            // post-analysis Verifier (and every downstream optimizer/mapper rule) sees the identical bare
+            // ExternalRelation produced before datasets became a first-class node — the LOCAL parity anchor.
+            new LowerLocalDataset()
         )
     );
     public static final TransportVersion ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION = TransportVersion.fromName(
@@ -4075,6 +4080,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      *   \_EsRelation[sample_data][...]
      * </pre>
      */
+    /**
+     * Folds a {@link Dataset.Boundary#LOCAL} {@link Dataset} to its resolved relation child, the LOCAL parity anchor for
+     * first-class datasets. This is the dataset analogue of {@code InlineView}'s {@code case LOCAL -> view.body()}: a LOCAL
+     * dataset carries no inline-vs-not decision, so its wrapper is pure scaffolding that exists only to let a
+     * {@code REMOTE} / {@code MATERIALIZED} dataset be lowered opaquely by the {@code Mapper}. Stripping the LOCAL wrapper
+     * leaves the byte-identical bare {@link ExternalRelation} the rewrite produced before datasets became a first-class
+     * node, so every downstream consumer is unchanged.
+     * <p>
+     * Unlike {@code InlineView} (which folds in the operator-optimization batch), this fold runs as the <b>last analyzer
+     * rule</b>, before {@code Verifier}. The full-text verifier's {@code checkCommandsBeforeExpression} allow-lists the
+     * exact relation node a QSTR/KQL function may sit above; a surviving {@code Dataset} wrapper is not on that list and
+     * would change the rejection message (e.g. {@code after [FROM employees]} would degrade to {@code after [FROM]}).
+     * Folding before verification keeps the message — and all post-analysis behaviour — identical to today.
+     * <p>
+     * {@code REMOTE} / {@code MATERIALIZED} datasets are left in place for the {@code Mapper} to lower to their physical
+     * execs, exactly as {@code InlineView} leaves the non-LOCAL view boundaries to their own lowering.
+     */
+    private static class LowerLocalDataset extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            return plan.transformUp(Dataset.class, d -> d.boundary() == Dataset.Boundary.LOCAL ? d.relation() : d);
+        }
+    }
+
     private static class PruneEmptyUnionAllBranch extends ParameterizedAnalyzerRule<UnionAll, AnalyzerContext> {
 
         @Override

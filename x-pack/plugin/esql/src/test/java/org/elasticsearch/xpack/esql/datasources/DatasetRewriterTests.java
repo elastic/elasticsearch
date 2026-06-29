@@ -81,8 +81,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewrite(relationOf("logs"), project);
 
-        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
-        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        UnresolvedExternalRelation out = external(rewritten);
         assertThat(tablePathString(out), equalTo("s3://logs/*.parquet"));
         assertThat(datasourceParamValue(out, "region"), equalTo("us-east-1"));
         assertThat(paramValue(out, "format"), equalTo("parquet"));
@@ -94,7 +93,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         LogicalPlan rewritten = rewrite(relationOf("logs"), project);
-        assertThat(paramValue((UnresolvedExternalRelation) rewritten, "region"), equalTo("eu-west-2"));
+        assertThat(paramValue(external(rewritten), "region"), equalTo("eu-west-2"));
     }
 
     public void testMultipleDatasetsProduceUnionAll() {
@@ -108,8 +107,8 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
-        assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
-        assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
+        external(union.children().get(0));
+        external(union.children().get(1));
     }
 
     public void testMixedDatasetsAndNonDatasetsRejected() {
@@ -176,8 +175,7 @@ public class DatasetRewriterTests extends ESTestCase {
         );
         LogicalPlan rewritten = rewrite(relation, project);
 
-        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
-        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        UnresolvedExternalRelation out = external(rewritten);
         assertThat("metadata fields preserved verbatim", out.metadataFields(), hasSize(2));
         assertThat(out.metadataFields().get(0).name(), equalTo(MetadataAttribute.INDEX));
         assertThat(out.metadataFields().get(1).name(), equalTo("_id"));
@@ -209,7 +207,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         LogicalPlan rewritten = rewrite(relationOf("logs"), project);
-        assertThat(datasourceParamValue((UnresolvedExternalRelation) rewritten, "region"), equalTo("us-east-1"));
+        assertThat(datasourceParamValue(external(rewritten), "region"), equalTo("us-east-1"));
     }
 
     // ---- Pattern expansion (parity with FROM <index> patterns via IndexNameExpressionResolver) ----
@@ -226,8 +224,8 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
-        assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
-        assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
+        external(union.children().get(0));
+        external(union.children().get(1));
     }
 
     public void testWildcardMatchingNoDatasetsLeavesPlanUnchanged() {
@@ -304,7 +302,7 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(rewritten, instanceOf(UnionAll.class));
         List<LogicalPlan> children = rewritten.children();
         assertThat(children, hasSize(2));
-        assertThat(children.get(0), instanceOf(UnresolvedExternalRelation.class));
+        external(children.get(0));
         assertThat(children.get(1), instanceOf(UnresolvedRelation.class));
         assertThat(((UnresolvedRelation) children.get(1)).indexPattern().indexPattern(), equalTo("logs_*"));
     }
@@ -317,7 +315,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewriteWithAuthorized(relationOf("logs_*"), project, Set.of("logs_dataset"));
 
-        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+        external(rewritten);
     }
 
     public void testExplicitDatasetNameUnderCpsNotPreserved() {
@@ -329,7 +327,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("logs_dataset"), project, Set.of("logs_dataset"));
 
-        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+        external(rewritten);
     }
 
     public void testNonStringSettingsArePreservedThroughCarrier() {
@@ -351,8 +349,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewrite(relationOf("logs"), project);
 
-        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
-        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        UnresolvedExternalRelation out = external(rewritten);
         assertThat(datasourceParamValue(out, "max_connections"), equalTo(50));
         assertThat(datasourceParamValue(out, "request_timeout_ms"), equalTo(30000L));
         assertThat(datasourceParamValue(out, "use_compression"), equalTo(Boolean.TRUE));
@@ -368,7 +365,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewrite(relationOf("logs"), project);
 
-        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        UnresolvedExternalRelation out = external(rewritten);
         Object accessKey = datasourceParamValue(out, "access_key");
         assertThat(accessKey, instanceOf(String.class));
         assertThat(accessKey, equalTo("AKIAEXAMPLE_SECRET_VALUE"));
@@ -386,7 +383,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         LogicalPlan rewritten = rewrite(relationOf("logs"), project);
 
-        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        UnresolvedExternalRelation out = external(rewritten);
         Object accessKey = datasourceParamValue(out, "access_key");
         assertThat("encrypted secret stays an EncryptedData carrier on the live config map", accessKey, instanceOf(EncryptedData.class));
         assertSame("carrier is forwarded by reference", carrier, accessKey);
@@ -412,8 +409,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_test", test));
 
         LogicalPlan rewritten = rewrite(relationOf("logs_*,-logs_test"), project);
-        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
-        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        UnresolvedExternalRelation out = external(rewritten);
         assertThat(tablePathString(out), equalTo("s3://a/"));
     }
 
@@ -483,7 +479,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         UnresolvedRelation relation = relationOf("logs-2026-05-05");
         LogicalPlan rewritten = rewrite(relation, project);
-        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+        external(rewritten);
     }
 
     public void testNonMatchingExclusionLeavesDatasetsAlone() {
@@ -509,8 +505,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b, "logs_c", c));
 
         LogicalPlan rewritten = rewrite(relationOf("logs_*,-logs_a,-logs_b"), project);
-        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
-        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        UnresolvedExternalRelation out = external(rewritten);
         assertThat(tablePathString(out), equalTo("s3://c/"));
     }
 
@@ -563,7 +558,7 @@ public class DatasetRewriterTests extends ESTestCase {
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(3));
         for (LogicalPlan child : union.children()) {
-            assertThat(child, instanceOf(UnresolvedExternalRelation.class));
+            external(child);
         }
     }
 
@@ -576,8 +571,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
 
         LogicalPlan rewritten = rewriteWithAuthorized(relationOf("logs_*"), project, Set.of("logs_a"));
-        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
-        assertThat(tablePathString((UnresolvedExternalRelation) rewritten), equalTo("s3://a/"));
+        assertThat(tablePathString(external(rewritten)), equalTo("s3://a/"));
     }
 
     public void testWildcardAllUnauthorizedLeavesPlanUnchanged() {
@@ -695,6 +689,19 @@ public class DatasetRewriterTests extends ESTestCase {
     private static DatasetRewriter.DatasetResolution resolve(String rawPattern, ProjectMetadata project, Set<String> authorized) {
         String[] raw = Strings.splitStringByCommaToArray(rawPattern);
         return DatasetRewriter.resolve(authorized.toArray(String[]::new), raw, project, RESOLVER);
+    }
+
+    /**
+     * Unwrap the first-class {@link org.elasticsearch.xpack.esql.plan.logical.Dataset} node the rewrite now produces for
+     * each dataset, returning its {@link UnresolvedExternalRelation} child. The rewrite layer wraps every dataset in a
+     * LOCAL {@code Dataset} node (the analyzer's {@code LowerLocalDataset} rule later folds it back to this same child for
+     * parity); these tests assert on the relation, so they unwrap the shape here.
+     */
+    private static UnresolvedExternalRelation external(LogicalPlan plan) {
+        assertThat(plan, instanceOf(org.elasticsearch.xpack.esql.plan.logical.Dataset.class));
+        LogicalPlan child = ((org.elasticsearch.xpack.esql.plan.logical.Dataset) plan).child();
+        assertThat(child, instanceOf(UnresolvedExternalRelation.class));
+        return (UnresolvedExternalRelation) child;
     }
 
     private static UnresolvedRelation relationOf(String pattern) {

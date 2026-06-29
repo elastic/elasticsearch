@@ -70,28 +70,16 @@ public class Mapper {
     public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
         // We ignore the version for now, but it's fine to use later for plans that work
         // differently from some version and up.
-        return mapInner(lowerLocalDatasets(versionedPlan.inner()));
-    }
-
-    /**
-     * Strips every {@link Dataset.Boundary#LOCAL} {@code Dataset} wrapper, replacing it with its relation child, before
-     * the logical plan is mapped. This is the LOCAL parity anchor: after stripping, the tree is byte-identical to today's
-     * (an unwrapped resolved {@code ExternalRelation}), so the rest of mapping — and any fragment the wrapper would
-     * otherwise have ended up inside (a {@code FragmentExec} serializes its whole logical fragment) — is unchanged.
-     * <p>
-     * This is Mapper-local lowering, not an optimizer rule: a LOCAL dataset carries no inline-vs-not decision, so there is
-     * nothing for the optimizer to decide and nothing the pushdown rules need to see differently. A {@code REMOTE} /
-     * {@code MATERIALIZED} {@code Dataset} is left in place for {@link #mapDataset} to lower to its physical exec.
-     */
-    private static LogicalPlan lowerLocalDatasets(LogicalPlan plan) {
-        return plan.transformUp(Dataset.class, d -> d.boundary() == Dataset.Boundary.LOCAL ? d.relation() : d);
+        return mapInner(versionedPlan.inner());
     }
 
     private PhysicalPlan mapInner(LogicalPlan p) {
-        // Boundary-aware dataset lowering. A Dataset is a first-class node that survives analysis + optimization (datasets
-        // have no inline-vs-not decision, so there is no optimizer fold rule — unlike views). It is a UnaryPlan, so it
-        // must be intercepted before the generic unary dispatch below. The model is additive: a 4th boundary slots in by
-        // adding a Dataset.Boundary constant + a case here, leaving the existing three untouched.
+        // Boundary-aware dataset lowering. A Dataset is a first-class node that survives optimization. The LOCAL boundary
+        // is already folded to its relation child by the analyzer's LowerLocalDataset rule (the parity anchor — it must
+        // run before the post-analysis Verifier), so only REMOTE / MATERIALIZED datasets reach here. A Dataset is a
+        // UnaryPlan, so it must be intercepted before the generic unary dispatch below. The model is additive: a 4th
+        // boundary slots in by adding a Dataset.Boundary constant + a case in mapDataset, leaving the existing three
+        // untouched.
         if (p instanceof Dataset dataset) {
             return mapDataset(dataset);
         }
@@ -118,9 +106,9 @@ public class Mapper {
     /**
      * Boundary-aware lowering of a {@link Dataset}, the three-way decision at the heart of first-class datasets.
      * <ul>
-     *   <li><b>LOCAL</b> — map the dataset's relation child (the resolved {@code ExternalRelation} the dataset produces
-     *       today), reaching the exact same physical lowering an unwrapped dataset reaches. This is the parity anchor:
-     *       byte-identical to today's external read.</li>
+     *   <li><b>LOCAL</b> — normally folded away in analysis by {@code LowerLocalDataset} (the parity anchor) and so does
+     *       not reach here; kept as an exhaustive, defensive branch that maps the dataset's relation child (the resolved
+     *       {@code ExternalRelation}) to reach the identical physical lowering an unwrapped dataset reaches.</li>
      *   <li><b>REMOTE</b> — the body does not execute locally; lower to a {@link RemoteDatasetExec} carrying the
      *       federation handle and the resolved schema.</li>
      *   <li><b>MATERIALIZED</b> — lower to a {@link MaterializedDatasetExec} carrying the backing-index ref and the

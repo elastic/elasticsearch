@@ -30,10 +30,13 @@ import java.util.Objects;
  * {@link Boundary#REMOTE} / {@link Boundary#MATERIALIZED} dataset is constructed directly with a target (the relation
  * child carries only its schema); its body never executes locally.
  * <p>
- * Unlike a view, a dataset has no inline-vs-not decision, so there is <b>no optimizer fold rule</b>: the {@code Dataset}
- * node survives the optimizer untouched and the {@code Mapper} lowers it boundary-aware. A {@link Boundary#LOCAL} dataset
- * lowers to exactly the external read its child produces today (the parity anchor); {@link Boundary#REMOTE} /
- * {@link Boundary#MATERIALIZED} lower to first-class physical execs.
+ * A {@link Boundary#LOCAL} dataset is folded to its relation child by the analyzer's {@code LowerLocalDataset} rule —
+ * the dataset analogue of {@code InlineView}'s {@code case LOCAL -> view.body()}, but run as the <em>last analyzer
+ * rule</em> (not in the optimizer like {@code InlineView}) so the fold completes before the post-analysis {@code Verifier}
+ * runs: a surviving {@code Dataset} wrapper would otherwise change the full-text verifier's QSTR/KQL rejection message.
+ * After the fold the LOCAL plan is byte-identical to today's bare {@link ExternalRelation} (the parity anchor).
+ * {@link Boundary#REMOTE} / {@link Boundary#MATERIALIZED} datasets keep their boundary through analysis and the optimizer,
+ * and the {@code Mapper} lowers them to first-class physical execs.
  * <p>
  * The model is additive: a 4th boundary slots in by adding a {@link Boundary} constant, a {@link LoweringTarget} field
  * for its per-mode data, and a {@code Mapper} case — no change to the existing three.

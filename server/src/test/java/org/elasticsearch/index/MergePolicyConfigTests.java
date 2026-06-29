@@ -20,6 +20,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -66,22 +67,31 @@ public class MergePolicyConfigTests extends ESTestCase {
         assertThat(mp.getMaxCFSSegmentSizeMB(), equalTo(maxCFSSize.getMbFrac()));
     }
 
-    public void testPerFieldFilesLowersCompoundFormatDefault() {
-        // Per-field files defaults the compound threshold to one shared-blob-cache region (16 MB) instead of 1 GB: larger
-        // segments get their own per-field files, while smaller ones stay compound. Compound files are not disabled.
-        Settings settings = Settings.builder().put(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.getKey(), true).build();
-        MergePolicy mp = new MergePolicyConfig(logger, indexSettings(settings)).getMergePolicy(randomBoolean());
+    public void testPerFieldFilesLowersCompoundFormatDefaultOnStateless() {
+        // In stateless, per-field files default the compound threshold to one shared-blob-cache region (16 MB) instead of
+        // 1 GB: larger segments get their own per-field files, smaller ones stay compound. Compound files are not disabled.
+        Settings indexSettings = Settings.builder().put(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.getKey(), true).build();
+        Settings nodeSettings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        MergePolicy mp = new MergePolicyConfig(logger, indexSettings(indexSettings, nodeSettings)).getMergePolicy(randomBoolean());
         assertThat(mp.getNoCFSRatio(), equalTo(1.0));
         assertThat(mp.getMaxCFSSegmentSizeMB(), equalTo(ByteSizeValue.ofMb(16).getMbFrac()));
     }
 
-    public void testExplicitCompoundFormatWinsOverPerFieldFilesDefault() {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.getKey(), true)
-            .put(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(), "1gb")
-            .build();
+    public void testPerFieldFilesKeepsDefaultCompoundFormatOnStateful() {
+        // Without stateless the region rationale doesn't apply, so per-field files keeps the standard 1 GB default.
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.getKey(), true).build();
         MergePolicy mp = new MergePolicyConfig(logger, indexSettings(settings)).getMergePolicy(randomBoolean());
         assertThat(mp.getMaxCFSSegmentSizeMB(), equalTo(ByteSizeValue.ofGb(1).getMbFrac()));
+    }
+
+    public void testExplicitCompoundFormatWinsOverPerFieldFilesDefault() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.getKey(), true)
+            .put(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(), "256mb")
+            .build();
+        Settings nodeSettings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        MergePolicy mp = new MergePolicyConfig(logger, indexSettings(indexSettings, nodeSettings)).getMergePolicy(randomBoolean());
+        assertThat(mp.getMaxCFSSegmentSizeMB(), equalTo(ByteSizeValue.ofMb(256).getMbFrac()));
     }
 
     private static IndexSettings indexSettings(Settings settings) {

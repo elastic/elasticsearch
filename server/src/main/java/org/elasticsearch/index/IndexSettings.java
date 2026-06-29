@@ -779,10 +779,10 @@ public final class IndexSettings {
     /**
      * Whether each field's per-field Lucene formats (postings, doc values, vectors) are written to their own files, so a
      * non-compound segment holds at most one file per field per format instead of co-mingling fields in shared files.
-     * Compound files are not disabled: enabling this lowers the default {@code index.compound_format} threshold to one
-     * shared-blob-cache region (16 MB), so segments above a region keep their per-field files loose while smaller ones
-     * stay compound. Defaults to {@code true} for strict columnar index modes, which require it; other indices may set
-     * it freely.
+     * Compound files are not disabled: in stateless, enabling this lowers the default {@code index.compound_format}
+     * threshold to one shared-blob-cache region (16 MB) so segments above a region keep their per-field files loose while
+     * smaller ones stay compound. Defaults to {@code true} for strict columnar index modes, which require it; other
+     * indices may set it freely.
      */
     public static final Setting<Boolean> INDEX_PER_FIELD_FILES_SETTING = Setting.boolSetting(
         "index.codec.per_field_files",

@@ -15,6 +15,7 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -274,7 +275,7 @@ public final class MergePolicyConfig {
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     public static final String INDEX_MERGE_ENABLED = "index.merge.enabled";
 
-    // When per-field files are enabled, the compound threshold defaults to one shared-blob-cache region (16 MB).
+    // In stateless, per-field files default the compound threshold to one shared-blob-cache region (16 MB).
     private static final CompoundFileThreshold PER_FIELD_FILES_COMPOUND_FORMAT = new CompoundFileThreshold(ByteSizeValue.ofMb(16));
 
     MergePolicyConfig(Logger logger, IndexSettings indexSettings) {
@@ -364,11 +365,14 @@ public final class MergePolicyConfig {
     }
 
     private static CompoundFileThreshold resolveCompoundFormatThreshold(IndexSettings indexSettings) {
-        // With per-field files, default the compound threshold to one shared-blob-cache region (16 MB): segments larger
-        // than a region get their own per-field files (so reads/prewarm can target a field's regions), while smaller
-        // segments stay compound to avoid a file explosion across the many small segments. Flush still always compounds,
-        // and an explicit index.compound_format value wins.
-        if (indexSettings.perFieldFiles() && INDEX_COMPOUND_FORMAT_SETTING.exists(indexSettings.getSettings()) == false) {
+        // In stateless, default the compound threshold for per-field files to one shared-blob-cache region (16 MB):
+        // segments larger than a region get their own per-field files (so reads/prewarm can target a field's regions),
+        // while smaller segments stay compound to avoid a file explosion across the many small segments. The region
+        // rationale is specific to the blob cache, so this only applies in stateless; stateful keeps the 1 GB default.
+        // Flush still always compounds, and an explicit index.compound_format value wins.
+        if (indexSettings.perFieldFiles()
+            && DiscoveryNode.isStateless(indexSettings.getNodeSettings())
+            && INDEX_COMPOUND_FORMAT_SETTING.exists(indexSettings.getSettings()) == false) {
             return PER_FIELD_FILES_COMPOUND_FORMAT;
         }
         return indexSettings.getValue(INDEX_COMPOUND_FORMAT_SETTING);

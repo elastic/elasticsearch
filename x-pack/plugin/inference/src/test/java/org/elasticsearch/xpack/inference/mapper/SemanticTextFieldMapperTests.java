@@ -855,6 +855,21 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("cannot have a multi-field named [input]"));
     }
 
+    public void testMultiFieldNamedInputIsAccepted() throws IOException {
+        // At an index version before the original values are stored in doc values, the [<field>.input] column is not reserved, so
+        // a multi-field named [input] stays valid. This verifies the gating does not invalidate indices created at an older version.
+        assumeFalse("multi-fields are rejected entirely in the legacy format", useLegacyFormat);
+        IndexVersion indexVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES);
+        MapperService mapperService = createMapperServiceWithIndexVersion(fieldMapping(b -> {
+            b.field("type", "semantic_text");
+            b.field("inference_id", "my_inference_id");
+            b.startObject("fields");
+            b.startObject("input").field("type", "keyword").endObject();
+            b.endObject();
+        }), useLegacyFormat, indexVersion);
+        assertNotNull(mapperService.mappingLookup().getMapper("field.input"));
+    }
+
     public void testMultiFieldsSupport() throws IOException {
         if (useLegacyFormat) {
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {

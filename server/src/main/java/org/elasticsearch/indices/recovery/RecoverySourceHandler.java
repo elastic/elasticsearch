@@ -204,7 +204,7 @@ public class RecoverySourceHandler {
     }
 
     private void recoverToTarget(RetentionLease retentionLease, Consumer<Exception> onFailure) throws IOException {
-        final Closeable retentionLock = shard.acquireHistoryRetentionLock();
+        final Releasable retentionLock = shard.acquireHistoryRetentionLock();
         resources.add(retentionLock);
         final long startingSeqNo;
         final boolean isSequenceNumberBasedRecovery = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
@@ -1234,7 +1234,7 @@ public class RecoverySourceHandler {
                 );
                 /*
                  * if the recovery process fails after disabling primary mode on the source shard, both relocation source and
-                 * target are failed (see {@link IndexShard#updateRoutingEntry}).
+                 * target are failed (see {@link IndexShard#updateShardState}).
                  */
             }));
         } else {

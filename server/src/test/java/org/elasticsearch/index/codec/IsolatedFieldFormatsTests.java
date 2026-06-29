@@ -71,8 +71,8 @@ public class IsolatedFieldFormatsTests extends ESTestCase {
     private void writeDocs(Directory dir, boolean isolate) throws IOException {
         IndexWriterConfig iwc = new IndexWriterConfig(new StandardAnalyzer());
         iwc.setCodec(createCodec(isolate));
-        // Keep compound files off in both cases so the per-field file layout is observable on disk; the engine wiring that
-        // disables compound files when isolating is covered by MergePolicyConfigTests / EngineConfig.
+        // Keep compound files off in both cases so the per-field file layout is observable on disk. In production the
+        // compound_format threshold still bundles small segments; per-field files only stay loose for larger segments.
         iwc.setUseCompoundFile(false);
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         try (IndexWriter w = new IndexWriter(dir, iwc)) {

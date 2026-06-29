@@ -777,9 +777,11 @@ public final class IndexSettings {
     );
 
     /**
-     * Whether each field's per-field Lucene formats (postings, doc values, vectors) are written to their own files and
-     * compound files are disabled, so a segment holds at most one file per field per format. Defaults to {@code true}
-     * for strict columnar index modes, which require it; other indices may set it freely.
+     * Whether each field's per-field Lucene formats (postings, doc values, vectors) are written to their own files, so a
+     * non-compound segment holds at most one file per field per format instead of co-mingling fields in shared files.
+     * Compound files still apply: small segments are bundled by the {@code index.compound_format} threshold, only larger
+     * segments keep their per-field files loose. Defaults to {@code true} for strict columnar index modes, which require
+     * it; other indices may set it freely.
      */
     public static final Setting<Boolean> INDEX_PER_FIELD_FILES_SETTING = Setting.boolSetting(
         "index.codec.per_field_files",
@@ -2471,8 +2473,8 @@ public final class IndexSettings {
     }
 
     /**
-     * Whether each field's per-field Lucene formats are written to their own files and compound files are disabled, so a
-     * segment holds at most one file per field per format. Defaults to {@code true} for strict columnar index modes.
+     * Whether each field's per-field Lucene formats are written to their own files (subject to the {@code compound_format}
+     * threshold, which still bundles small segments). Defaults to {@code true} for strict columnar index modes.
      *
      * @see #INDEX_PER_FIELD_FILES_SETTING
      */

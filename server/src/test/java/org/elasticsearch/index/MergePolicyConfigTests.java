@@ -66,26 +66,13 @@ public class MergePolicyConfigTests extends ESTestCase {
         assertThat(mp.getMaxCFSSegmentSizeMB(), equalTo(maxCFSSize.getMbFrac()));
     }
 
-    public void testIsolatingFieldFormatsDisablesCompoundFiles() {
-        // When field formats are isolated, merged segments must never be bundled into a compound file, and an explicit
-        // (even dynamic) index.compound_format value must not be able to re-enable it.
-        Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.getKey(), true)
-            .put(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(), randomFrom("true", "1gb", "0.9"))
-            .build();
-        IndexSettings indexSettings = indexSettings(settings);
-        assertThat(indexSettings.getMergePolicy(randomBoolean()).getNoCFSRatio(), equalTo(0.0));
-        // A dynamic update to compound_format still cannot turn compound files back on.
-        indexSettings.updateIndexMetadata(
-            newIndexMeta(
-                "index",
-                Settings.builder()
-                    .put(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.getKey(), true)
-                    .put(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(), "true")
-                    .build()
-            )
-        );
-        assertThat(indexSettings.getMergePolicy(randomBoolean()).getNoCFSRatio(), equalTo(0.0));
+    public void testPerFieldFilesKeepsCompoundFormat() {
+        // Per-field files must NOT disable compound files: small segments still get bundled via the compound_format
+        // threshold (only segments above it are left as loose per-field files), so the compound behaviour is unchanged.
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.getKey(), true).build();
+        MergePolicy mp = new MergePolicyConfig(logger, indexSettings(settings)).getMergePolicy(randomBoolean());
+        assertThat(mp.getNoCFSRatio(), equalTo(1.0));
+        assertThat(mp.getMaxCFSSegmentSizeMB(), equalTo(ByteSizeValue.ofGb(1).getMbFrac()));
     }
 
     private static IndexSettings indexSettings(Settings settings) {

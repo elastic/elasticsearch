@@ -19,10 +19,13 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 
+import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.Cardinality.HIGH;
+import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.Cardinality.LOW;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 
 /**
@@ -46,7 +49,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         );
     }
 
-    private static FieldMapper.DocValuesParameter.Values docValuesParams(boolean supportsDocValues) {
+    private static FieldMapper.DocValuesParameter.Values docValuesParams(boolean supportsDocValues, boolean isColumnar) {
         // currently, only text fields support doc values, so if doc_values aren't supported, then there is no reason to generate them
         if (supportsDocValues == false) {
             return FieldMapper.DocValuesParameter.Values.DISABLED;
@@ -57,18 +60,15 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
             return FieldMapper.DocValuesParameter.Values.DISABLED;
         }
 
+        // Columnar mode always enables text doc values (see TextFieldMapper.defaultDocValuesParameters) so DISABLED is not valid option
+        if (isColumnar) {
+            return new FieldMapper.DocValuesParameter.Values(true, randomFrom(LOW, HIGH), randomBoolean());
+        }
+
         // multi_value: false enforces single-value semantics and is only meaningful when doc_values is enabled.
         return switch (randomInt(2)) {
-            case 0 -> new FieldMapper.DocValuesParameter.Values(
-                true,
-                FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                randomBoolean()
-            );
-            case 1 -> new FieldMapper.DocValuesParameter.Values(
-                true,
-                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-                randomBoolean()
-            );
+            case 0 -> new FieldMapper.DocValuesParameter.Values(true, LOW, randomBoolean());
+            case 1 -> new FieldMapper.DocValuesParameter.Values(true, HIGH, randomBoolean());
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();
         };
@@ -114,7 +114,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
                 KeywordFieldSyntheticSourceSupport.randomDocValuesParams(false),
                 isColumnar
             );
-            this.docValues = docValuesParams(supportsDocValues);
+            this.docValues = docValuesParams(supportsDocValues, isColumnar);
         }
 
         @Override

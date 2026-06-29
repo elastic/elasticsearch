@@ -16,6 +16,7 @@ import org.apache.logging.log4j.core.StringLayout;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
+import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.Nullable;
 
@@ -99,7 +100,7 @@ public class CapturingLogger {
         public final List<String> trace = new ArrayList<>();
 
         private MockAppender(final String name, StringLayout layout) throws IllegalAccessException {
-            super(name, null, layout);
+            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), layout);
         }
 
         @Override

@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.GZIPOutputStream;
@@ -72,6 +73,12 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractEsqlIntegTestCase
      */
     private static final int GIANT_RECORD_BYTES = 4 * 1024 * 1024;
 
+    /**
+     * {@link EsqlPluginWithEnterpriseOrTrialLicense} suppresses {@link ExtensiblePlugin#loadExtensions} to keep the
+     * IT base lean (extensions can pull in heavy deps); we need extensions ON so the datasource plugins added in
+     * {@link #nodePlugins()} can register their format readers / storage providers via SPI. This subclass restores the
+     * default behavior — call {@code super} explicitly.
+     */
     public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
         @Override
         public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
@@ -129,12 +136,14 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractEsqlIntegTestCase
 
     /**
      * Non-strict policy ({@code error_mode: skip_row}): the read truncates at the oversized record and
-     * returns the {@link #LEADING_ROWS} rows parsed before it, instead of failing the whole query, AND
-     * the client receives a prominent partial-results {@code Warning} so the (under-counting)
-     * {@code COUNT(*)} is not silent. The query runs through a chosen coordinator and we read that
-     * node's accumulated response {@code Warning} headers — proving the warning recorded on the forked
-     * parse-worker thread is re-emitted on the driver thread and propagates all the way to the client,
-     * not just to a hand-bound test {@code ThreadContext}.
+     * returns the {@link #LEADING_ROWS} rows parsed before it, instead of failing the whole query. The
+     * truncation is signalled to the client two ways: a prominent partial-results {@code Warning} (so the
+     * under-counting {@code COUNT(*)} is not silent) and the structured {@code is_partial} response flag
+     * (so the under-count is machine-detectable). The query runs through a chosen coordinator and we read
+     * that node's accumulated response {@code Warning} headers — proving the warning recorded on the forked
+     * parse-worker thread is re-emitted on the driver thread and propagates all the way to the client, not
+     * just to a hand-bound test {@code ThreadContext}; the {@code is_partial} flag rides back from whichever
+     * driver ran the external read (coordinator or data node) through {@code DriverCompletionInfo}.
      */
     public void testSkipRowPolicyReturnsPartialResultsAndWarnsClient() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
@@ -149,6 +158,7 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractEsqlIntegTestCase
             DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
             CountDownLatch latch = new CountDownLatch(1);
             AtomicLong count = new AtomicLong(-1);
+            AtomicBoolean partial = new AtomicBoolean(false);
             List<String> warnings = new CopyOnWriteArrayList<>();
             AtomicReference<Exception> failure = new AtomicReference<>();
             // ActionListener.wrap (not the run() helper) so we can read both the partial count and the
@@ -158,6 +168,7 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractEsqlIntegTestCase
                 try {
                     List<List<Object>> values = getValuesList(response);
                     count.set(((Number) values.get(0).get(0)).longValue());
+                    partial.set(response.isPartial());
                     ThreadContext threadContext = internalCluster().getInstance(TransportService.class, coordinator.getName())
                         .getThreadPool()
                         .getThreadContext();
@@ -178,6 +189,7 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractEsqlIntegTestCase
                 "client must receive a prominent partial-results truncation Warning, got: " + warnings,
                 warnings.stream().anyMatch(w -> w.contains("results are partial") && w.contains("truncated at byte"))
             );
+            assertTrue("a truncated lenient read must flip the response is_partial flag", partial.get());
         } finally {
             Files.deleteIfExists(file);
         }

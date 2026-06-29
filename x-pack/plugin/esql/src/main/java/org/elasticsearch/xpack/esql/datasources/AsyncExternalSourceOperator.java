@@ -152,7 +152,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             buffer.bytesRead(),
             readNanos,
             formatReaderStatus,
-            buffer.capturedSourceMetadataSnapshot()
+            buffer.capturedSourceMetadataSnapshot(),
+            buffer.isPartial()
         );
     }
 
@@ -169,6 +170,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
         private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
 
+        private static final TransportVersion ESQL_EXTERNAL_PARTIAL_RESULTS = TransportVersion.fromName("esql_external_partial_results");
+
         private final int pagesWaiting;
         private final int pagesEmitted;
         private final long rowsEmitted;
@@ -182,6 +185,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         private final long readNanos;
         private final FormatReaderStatus formatReader;
         private final Map<String, List<Map<String, Object>>> capturedSourceMetadata;
+        private final boolean partial;
 
         Status(
             int pagesWaiting,
@@ -196,7 +200,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             long bytesRead,
             long readNanos,
             FormatReaderStatus formatReader,
-            Map<String, List<Map<String, Object>>> capturedSourceMetadata
+            Map<String, List<Map<String, Object>>> capturedSourceMetadata,
+            boolean partial
         ) {
             this.pagesWaiting = pagesWaiting;
             this.pagesEmitted = pagesEmitted;
@@ -211,6 +216,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             this.readNanos = readNanos;
             this.formatReader = formatReader;
             this.capturedSourceMetadata = capturedSourceMetadata == null ? Map.of() : capturedSourceMetadata;
+            this.partial = partial;
         }
 
         Status(StreamInput in) throws IOException {
@@ -256,6 +262,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             } else {
                 capturedSourceMetadata = Map.of();
             }
+            partial = in.getTransportVersion().supports(ESQL_EXTERNAL_PARTIAL_RESULTS) && in.readBoolean();
         }
 
         @Override
@@ -287,11 +294,19 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                     }
                 }
             }
+            if (out.getTransportVersion().supports(ESQL_EXTERNAL_PARTIAL_RESULTS)) {
+                out.writeBoolean(partial);
+            }
         }
 
         @Override
         public Map<String, List<Map<String, Object>>> capturedSourceMetadata() {
             return capturedSourceMetadata;
+        }
+
+        @Override
+        public boolean partial() {
+            return partial;
         }
 
         @Override
@@ -379,6 +394,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             builder.field("current_split", currentSplit);
             builder.field("bytes_read", bytesRead);
             builder.field("read_nanos", readNanos);
+            builder.field("partial", partial);
             builder.startObject("format_reader");
             if (formatReader != null) {
                 formatReader.toXContent(builder, params);
@@ -411,6 +427,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 && currentSplit == status.currentSplit
                 && bytesRead == status.bytesRead
                 && readNanos == status.readNanos
+                && partial == status.partial
                 && Objects.equals(formatReader, status.formatReader)
                 && Objects.equals(thisFailureMsg, otherFailureMsg)
                 && Objects.equals(capturedSourceMetadata, status.capturedSourceMetadata);
@@ -431,7 +448,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 bytesRead,
                 readNanos,
                 formatReader,
-                capturedSourceMetadata
+                capturedSourceMetadata,
+                partial
             );
         }
 

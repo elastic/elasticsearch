@@ -91,6 +91,12 @@ public final class StaticPipelineConfigResolver implements PipelineConfigResolve
     }
 
     private static boolean useOrdinalLargeBlock(final FieldContext context) {
+        // NOTE: IP dimensions hold a per-host IP, or a per-host list of IPs as the standard OTel
+        // collector emits. Dimensions are clustered by the _tsid sort, so that value repeats
+        // contiguously within a host: a single IP as a run, a repeated list as a cycle. A larger
+        // ordinal block captures both; longer runs amortize per-block overhead and longer cycles
+        // stay within maxCycleLength (blockSize / 4). Non-dimension IP fields are not clustered,
+        // so they form neither.
         return context.mappedFieldType() == MappedFieldType.IP && context.isDimension();
     }
 

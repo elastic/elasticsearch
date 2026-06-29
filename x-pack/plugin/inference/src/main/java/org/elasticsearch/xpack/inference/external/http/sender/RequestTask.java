@@ -22,7 +22,6 @@ class RequestTask implements RejectableTask {
     private final RequestManager requestCreator;
     private final InferenceInputs inferenceInputs;
     private final TimedListener<InferenceServiceResults> timedListener;
-    private final CircuitBreaker circuitBreaker;
 
     RequestTask(
         RequestManager requestCreator,
@@ -37,12 +36,11 @@ class RequestTask implements RejectableTask {
         this.timedListener = new TimedListener<>(
             timeout,
             // runAfter makes sure that this is only executed once (uses assertOnce internally)
-            ActionListener.runAfter(listener, () -> getCircuitBreaker().addWithoutBreaking(-estimatedRamBytesUsed)),
+            ActionListener.runAfter(listener, () -> circuitBreaker.addWithoutBreaking(-estimatedRamBytesUsed)),
             threadPool,
             requestCreator.inferenceEntityId()
         );
         this.inferenceInputs = Objects.requireNonNull(inferenceInputs);
-        this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
     }
 
     @Override
@@ -73,10 +71,5 @@ class RequestTask implements RejectableTask {
     @Override
     public RequestManager getRequestManager() {
         return requestCreator;
-    }
-
-    // visible for testing
-    CircuitBreaker getCircuitBreaker() {
-        return circuitBreaker;
     }
 }

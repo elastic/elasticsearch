@@ -509,7 +509,7 @@ public class S3StorageProvider implements StorageProvider {
         if (config == null || config.resolveAuthModeOrNull() == null) {
             return ". If accessing a public bucket, set auth=anonymous. "
                 + "Otherwise, provide credentials via access_key and secret_key, "
-                + "or configure keyless authentication with role_arn and jwt_audience";
+                + "or configure keyless authentication with role_arn";
         }
         return "";
     }

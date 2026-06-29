@@ -199,5 +199,4 @@ public final class Uid {
             default -> decodeBase64Id(idBytes, offset, length);
         };
     }
-
 }

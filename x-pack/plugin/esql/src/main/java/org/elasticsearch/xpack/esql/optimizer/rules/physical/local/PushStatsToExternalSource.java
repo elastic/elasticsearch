@@ -89,7 +89,20 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
         ExternalSourceExec externalExec = info.externalExec();
         AttributeMap<Attribute> aliasReplacedBy = info.aliasReplacedBy();
         Expression filterCondition = info.filterCondition();
-        boolean implicitNullsForAbsentColumn = implicitNullsForAbsentColumn(externalExec, ctx);
+
+        // Consulting the format's implicit-nulls declaration requires the registry. Honor the
+        // ExternalOptimizerContext.NONE contract — treat a missing registry as "no information" and bail —
+        // mirroring PushAggregatesToExternalSource exactly. (A NONE context never carries an ExternalSourceExec
+        // today, but bailing keeps the two rules and the documented contract in lockstep.)
+        FormatReaderRegistry formatReaderRegistry = ctx == null || ctx.external() == null ? null : ctx.external().formatReaderRegistry();
+        if (formatReaderRegistry == null) {
+            return aggregateExec;
+        }
+        FormatReader formatReader = formatReaderRegistry.findByName(externalExec.sourceType());
+        if (formatReader == null || formatReader.aggregatePushdownSupport() == AggregatePushdownSupport.UNSUPPORTED) {
+            return aggregateExec;
+        }
+        boolean implicitNullsForAbsentColumn = formatReader.aggregatePushdownSupport().appliesImplicitNullsForAbsentColumn();
 
         AggregatorMode mode = aggregateExec.getMode();
         if (mode != AggregatorMode.SINGLE && mode != AggregatorMode.INITIAL) {
@@ -177,30 +190,6 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
         }
 
         return new LocalSourceExec(aggregateExec.source(), outputAttrs, LocalSupplier.of(new Page(blocks)));
-    }
-
-    /**
-     * Resolves the format reader's "absent column means all-null" semantics for the source. Footer formats
-     * (Parquet/ORC) emit a stat for every physically present column, so an absent column key genuinely means
-     * all-null and a column-stat lookup is correct; text formats harvest partially, so an absent key means
-     * "not harvested" and the lookup must safe-miss (see
-     * {@link ExternalSourceAggregatePushdown#columnStatUnservable}). Defaults to the footer assumption when the
-     * format reader registry is unavailable: a real external read always registers its format reader, so this
-     * default only affects synthetic/registry-less contexts and never serves a wrong text answer there.
-     */
-    private static boolean implicitNullsForAbsentColumn(ExternalSourceExec externalExec, LocalPhysicalOptimizerContext ctx) {
-        if (ctx == null || ctx.external() == null) {
-            return true;
-        }
-        FormatReaderRegistry registry = ctx.external().formatReaderRegistry();
-        if (registry == null) {
-            return true;
-        }
-        FormatReader formatReader = registry.findByName(externalExec.sourceType());
-        if (formatReader == null || formatReader.aggregatePushdownSupport() == AggregatePushdownSupport.UNSUPPORTED) {
-            return true;
-        }
-        return formatReader.aggregatePushdownSupport().appliesImplicitNullsForAbsentColumn();
     }
 
     private static Object resolveFromStats(

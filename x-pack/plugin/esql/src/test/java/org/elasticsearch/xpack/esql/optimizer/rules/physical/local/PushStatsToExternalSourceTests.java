@@ -120,6 +120,14 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         as(applyRuleText(agg), AggregateExec.class);
     }
 
+    public void testNotPushedWithNullFormatReaderRegistry() {
+        var agg = aggregateExec(externalSource(statsMetadata(1000L, null, null, null)), countStarAlias());
+
+        // NONE context carries no registry: consulting external capabilities is impossible, so the rule bails
+        // (the ExternalOptimizerContext.NONE contract), mirroring PushAggregatesToExternalSource.
+        as(new PushStatsToExternalSource().apply(agg, nullRegistryContext()), AggregateExec.class);
+    }
+
     public void testMinPushedDown() {
         Map<String, Object> metadata = statsMetadata(100L, "age", 0L, null);
         metadata.put("_stats.columns.age.min", 18);
@@ -697,13 +705,31 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
     }
 
     private static PhysicalPlan applyRule(AggregateExec agg) {
-        // No registry → the rule defaults to the footer implicit-nulls assumption, so these tests exercise the
-        // footer (Parquet/ORC) pushdown that PushStats has always done.
-        return new PushStatsToExternalSource().apply(agg, nullRegistryContext());
+        // Footer (Parquet) reader: appliesImplicitNullsForAbsentColumn() is true, so the safe-miss guard is inert
+        // and these tests exercise the footer pushdown PushStats has always done.
+        return new PushStatsToExternalSource().apply(agg, buildContext(buildParquetRegistry()));
     }
 
     private static PhysicalPlan applyRuleText(AggregateExec agg) {
         return new PushStatsToExternalSource().apply(agg, buildContext(buildTextRegistry()));
+    }
+
+    private static FormatReaderRegistry buildParquetRegistry() {
+        FormatReaderRegistry registry = new FormatReaderRegistry(null);
+        AggregatePushdownSupport parquetSupport = (aggregates, groupings) -> {
+            if (groupings.isEmpty() == false) {
+                return AggregatePushdownSupport.Pushability.NO;
+            }
+            for (Expression agg : aggregates) {
+                if (agg instanceof Count || agg instanceof Min || agg instanceof Max) {
+                    continue;
+                }
+                return AggregatePushdownSupport.Pushability.NO;
+            }
+            return AggregatePushdownSupport.Pushability.YES;
+        };
+        registry.registerLazy("parquet", (settings, blockFactory) -> new StubFormatReader(parquetSupport), null, null);
+        return registry;
     }
 
     /**

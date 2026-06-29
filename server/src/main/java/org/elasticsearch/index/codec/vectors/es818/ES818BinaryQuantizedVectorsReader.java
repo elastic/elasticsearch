@@ -479,6 +479,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
             binarizedQueryData.writeInt(Float.floatToIntBits(r.lowerInterval()));
             binarizedQueryData.writeInt(Float.floatToIntBits(r.upperInterval()));
             binarizedQueryData.writeInt(Float.floatToIntBits(r.additionalCorrection()));
+            assert r.quantizedComponentSum() >= 0 && r.quantizedComponentSum() <= 0xffff;
             binarizedQueryData.writeShort((short) r.quantizedComponentSum());
         }
         return docsWithField;

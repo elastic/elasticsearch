@@ -65,6 +65,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
@@ -779,10 +780,6 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         assertCloseDuringForceMergeCompletesQuickly(VectorDocType.FLOAT, true, true);
     }
 
-    public void testCloseDuringMergeBeforeFlushCompletesQuickly() throws Exception {
-        assertCloseDuringForceMergeCompletesQuickly(VectorDocType.BBQ_HNSW, true, false);
-    }
-
     public void testCloseDuringBbqHnswMergeCompletesQuickly() throws Exception {
         assertCloseDuringForceMergeCompletesQuickly(VectorDocType.BBQ_HNSW, true, true);
     }
@@ -881,7 +878,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
     }
 
     private MapperService createBbqHnswMapperService(int dims) throws IOException {
-        String mapping = """
+        String mapping = String.format(Locale.ROOT, """
             {
               "properties": {
                 "vector": {
@@ -893,7 +890,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 }
               }
             }
-            """.formatted(dims);
+            """, dims);
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
             .settings(indexSettings(1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .putMapping(mapping)

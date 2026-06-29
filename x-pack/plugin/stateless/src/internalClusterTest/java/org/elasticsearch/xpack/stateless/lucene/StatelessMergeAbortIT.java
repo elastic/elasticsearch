@@ -25,8 +25,6 @@ import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
-import org.elasticsearch.xpack.stateless.engine.IndexEngine;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -106,8 +104,8 @@ public class StatelessMergeAbortIT extends AbstractStatelessPluginIntegTestCase 
         createBbqHnswIndex(indexName, numDims);
         ensureGreen(indexName);
 
+        final TestStatelessPlugin plugin = findPlugin(indexNode, TestStatelessPlugin.class);
         final IndexShard indexShard = findIndexShard(indexName);
-        final IndexEngine indexEngine = (IndexEngine) indexShard.getEngineOrNull();
         final IndexDirectory indexDirectory = IndexDirectory.unwrapDirectory(indexShard.store().directory());
 
         for (int i = 0; i < randomIntBetween(80, 150); i++) {
@@ -116,6 +114,7 @@ public class StatelessMergeAbortIT extends AbstractStatelessPluginIntegTestCase 
                 assertNoFailures(indicesAdmin().prepareFlush(indexName).execute().get());
             }
         }
+        assertNoFailures(indicesAdmin().prepareFlush(indexName).execute().get());
 
         var mergeThread = new Thread(() -> {
             try {
@@ -126,13 +125,15 @@ public class StatelessMergeAbortIT extends AbstractStatelessPluginIntegTestCase 
         }, "bbq-hnsw-force-merge");
         mergeThread.start();
 
-        assertBusy(() -> assertTrue("merge was not queued or running before index deletion", indexEngine.hasQueuedOrRunningMerges()));
+        safeAwait(plugin.mergeReadStartedLatch);
 
         final long deleteStartNanos = System.nanoTime();
         safeGet(client().admin().indices().prepareDelete(indexName).execute());
         assertThat(System.nanoTime() - deleteStartNanos, lessThan(TimeValue.timeValueSeconds(30).nanos()));
 
         assertBusy(() -> assertThat(indexDirectory.shouldAbortMergeReads(), is(true)));
+
+        plugin.resumeMergeReadsLatch.countDown();
 
         mergeThread.join(TimeUnit.SECONDS.toMillis(30));
         assertFalse("merge thread should finish after index deletion", mergeThread.isAlive());

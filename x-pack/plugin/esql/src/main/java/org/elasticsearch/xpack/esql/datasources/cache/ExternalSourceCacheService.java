@@ -341,7 +341,8 @@ public class ExternalSourceCacheService implements Closeable {
         for (SourceStatsContribution.StripeFragment f : chain) {
             maps.add(toFlatMap(f.stats(), f.mtimeMillis(), f.configFingerprint()));
         }
-        Map<String, Object> folded = maps.size() == 1 ? maps.get(0) : SourceStatisticsSerializer.mergeStatistics(maps);
+        // false: text-only fold (see foldCommittedStripes) — an absent column is "not harvested", not all-null.
+        Map<String, Object> folded = maps.size() == 1 ? maps.get(0) : SourceStatisticsSerializer.mergeStatistics(maps, false);
         if (folded != null && maps.size() > 1) {
             // mergeStatistics rebuilds from the _stats.* keys only; re-attach the keying fields.
             if (mtimeMillis >= 0) {
@@ -575,9 +576,15 @@ public class ExternalSourceCacheService implements Closeable {
                 return null; // ordinal missing — knowledge incomplete, keep accumulating
             }
         }
+        // implicitNullsForAbsentColumn=false: stripe deltas are text-only, and under the default PROJECTED
+        // scope different cold queries harvest different columns, so an entry's stripes can carry non-uniform
+        // column sets. A column absent from a stripe means "not harvested by that scan," NOT "all-null" — the
+        // footer (true) contract would fold that stripe's rows into the column's null_count and under-count
+        // COUNT(col) / serve a subset MIN/MAX. false drops a column missing from any stripe so it safe-misses,
+        // matching the cross-file text merge in ExternalSourceResolver.
         Map<String, Object> whole = stripes.size() == 1
             ? new HashMap<>(stripes.get(0))
-            : SourceStatisticsSerializer.mergeStatistics(stripes);
+            : SourceStatisticsSerializer.mergeStatistics(stripes, false);
         if (whole != null) {
             if (delta.mtimeMillis() >= 0) {
                 whole.put(ExternalStats.MTIME_MILLIS_KEY, delta.mtimeMillis());

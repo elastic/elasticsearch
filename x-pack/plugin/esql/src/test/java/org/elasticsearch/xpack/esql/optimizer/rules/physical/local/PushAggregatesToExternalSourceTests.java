@@ -58,6 +58,20 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 public class PushAggregatesToExternalSourceTests extends ESTestCase {
 
+    public void testServableExtremumRejectsUnrepresentableButAllowsLosslessNarrowing() {
+        // Same-type and lossless cases are served.
+        assertEquals(5L, ExternalSourceAggregatePushdown.servableExtremum(5L, DataType.LONG));
+        assertEquals(5L, ExternalSourceAggregatePushdown.servableExtremum(5L, DataType.INTEGER)); // ORC long-for-int narrows exactly
+        assertEquals(5.0, ExternalSourceAggregatePushdown.servableExtremum(5.0, DataType.DOUBLE));
+        assertEquals(5.0, ExternalSourceAggregatePushdown.servableExtremum(5.0, DataType.LONG)); // exact integral double, buildBlock -> 5
+        assertEquals("a", ExternalSourceAggregatePushdown.servableExtremum("a", DataType.KEYWORD));
+        // Unrepresentable in the resolved integral type -> safe-miss (null), never coerce-overflow.
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum(1.0e20, DataType.LONG)); // beyond long range
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum(5.5, DataType.LONG)); // fractional
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum(3.0e10, DataType.INTEGER)); // beyond int range
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum(null, DataType.LONG));
+    }
+
     private static final ReferenceAttribute AGE = referenceAttribute("age", DataType.INTEGER);
     private static final ReferenceAttribute SCORE = referenceAttribute("score", DataType.DOUBLE);
 

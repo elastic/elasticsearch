@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -39,6 +40,16 @@ import java.util.Objects;
  * request processing thread.
  */
 public final class SplitStats implements org.elasticsearch.xpack.esql.datasources.spi.SplitStats, Writeable {
+
+    /**
+     * Gates the per-column {@code valueCount} on the wire. {@link SplitStats} is serialized under
+     * {@code FileSplit}'s {@code ESQL_SPLIT_STATS_COMPACT} gate; this newer field is read/written only when
+     * both peers support it, otherwise it defaults to {@code -1} (= "not available", COUNT(col) falls back to
+     * {@code rowCount - nullCount}). Reuses this PR's transport version — both the warm-aggregate profile and
+     * this {@code valueCount} wire addition ship together, so one version marks both (a TV name may gate
+     * fields in more than one class).
+     */
+    static final TransportVersion ESQL_SPLIT_STATS_VALUE_COUNT = TransportVersion.fromName("esql_external_warm_aggregate_profile");
 
     private static final Logger logger = LogManager.getLogger(SplitStats.class);
 
@@ -102,6 +113,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         this.mins = new Object[colCount];
         this.maxs = new Object[colCount];
         this.sizesBytes = new long[colCount];
+        boolean withValueCount = in.getTransportVersion().supports(ESQL_SPLIT_STATS_VALUE_COUNT);
         for (int i = 0; i < colCount; i++) {
             int segLen = in.readVInt();
             columnSegmentOrdinals[i] = new int[segLen];
@@ -109,7 +121,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
                 columnSegmentOrdinals[i][j] = in.readVInt();
             }
             nullCounts[i] = in.readZLong();
-            valueCounts[i] = in.readZLong();
+            valueCounts[i] = withValueCount ? in.readZLong() : -1L;
             if (in.readBoolean()) {
                 mins[i] = in.readGenericValue();
             }
@@ -129,6 +141,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             out.writeString(seg);
         }
         out.writeVInt(columnCount());
+        boolean withValueCount = out.getTransportVersion().supports(ESQL_SPLIT_STATS_VALUE_COUNT);
         for (int i = 0; i < columnCount(); i++) {
             int[] segs = columnSegmentOrdinals[i];
             out.writeVInt(segs.length);
@@ -136,7 +149,9 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
                 out.writeVInt(ord);
             }
             out.writeZLong(nullCounts[i]);
-            out.writeZLong(valueCounts[i]);
+            if (withValueCount) {
+                out.writeZLong(valueCounts[i]);
+            }
             if (mins[i] != null) {
                 out.writeBoolean(true);
                 out.writeGenericValue(mins[i]);

@@ -325,19 +325,24 @@ public final class SourceStatisticsSerializer {
                 }
             }
         } else {
-            // Text partial-harvest pass: a column absent from any file's stats is "not harvested" (the
-            // file may physically contain it), not "all null". The merge cannot serve a correct
-            // COUNT/MIN/MAX for it, so drop it entirely -- downstream safe-misses (re-scans) rather than
-            // undercounting (COUNT) or serving a subset extremum (MIN/MAX).
+            // Text partial-harvest pass: a column absent from a NON-EMPTY contribution is "not harvested"
+            // (the contribution had rows but didn't observe it), not "all null". The merge cannot serve a
+            // correct COUNT/MIN/MAX for it, so drop it entirely -- downstream safe-misses (re-scans) rather
+            // than undercounting (COUNT) or serving a subset extremum (MIN/MAX). An EMPTY (0-row)
+            // contribution is exempt: it legitimately carries no column stats (e.g. a record-empty edge
+            // stripe in the byte-range cover), so a column's absence there is not "unharvested".
             for (String colName : allColumns) {
-                boolean observedInEveryFile = true;
-                for (Set<String> cols : perFileColumns) {
-                    if (cols.contains(colName) == false) {
-                        observedInEveryFile = false;
+                boolean observedInEveryNonEmptyFile = true;
+                for (int i = 0; i < perFileColumns.size(); i++) {
+                    if (perFileRowCounts[i] == 0) {
+                        continue; // empty contribution: no rows, so it doesn't count against column presence
+                    }
+                    if (perFileColumns.get(i).contains(colName) == false) {
+                        observedInEveryNonEmptyFile = false;
                         break;
                     }
                 }
-                if (observedInEveryFile == false) {
+                if (observedInEveryNonEmptyFile == false) {
                     acc.remove(columnNullCountKey(colName));
                     acc.remove(columnValueCountKey(colName));
                     acc.remove(columnMinKey(colName));

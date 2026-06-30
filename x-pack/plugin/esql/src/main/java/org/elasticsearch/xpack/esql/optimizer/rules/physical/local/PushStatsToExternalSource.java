@@ -262,7 +262,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
             if (ExternalSourceAggregatePushdown.columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
                 return null;
             }
-            return stats.columnMin(ref.name());
+            return ExternalSourceAggregatePushdown.servableExtremum(stats.columnMin(ref.name()), ref.dataType());
         }
         return null;
     }
@@ -280,7 +280,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
             if (ExternalSourceAggregatePushdown.columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
                 return null;
             }
-            return stats.columnMax(ref.name());
+            return ExternalSourceAggregatePushdown.servableExtremum(stats.columnMax(ref.name()), ref.dataType());
         }
         return null;
     }

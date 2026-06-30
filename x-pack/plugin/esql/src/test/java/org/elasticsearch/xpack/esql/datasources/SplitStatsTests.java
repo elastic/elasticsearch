@@ -109,6 +109,32 @@ public class SplitStatsTests extends ESTestCase {
         assertEquals(Double.NaN, SplitStats.mergedMax(null, Double.NaN));
     }
 
+    public void testValueCountWireGatedByTransportVersion() throws IOException {
+        // valueCount is gated on a transport version. A peer at an older version (that still serializes
+        // SplitStats, e.g. ESQL_SPLIT_STATS_COMPACT) must not see the field; it defaults to -1 so COUNT(col)
+        // falls back to rowCount - nullCount. Verifies the BWC gate, not just the current-version round-trip.
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
+        int tags = b.addColumn("tags");
+        b.nullCount(tags, 10);
+        b.valueCount(tags, 270);
+        SplitStats stats = b.build();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(FileSplit.ESQL_SPLIT_STATS_COMPACT); // predates the valueCount gate
+        stats.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(FileSplit.ESQL_SPLIT_STATS_COMPACT);
+        SplitStats back = new SplitStats(in);
+        assertEquals("valueCount absent on the wire before its gate -> -1 (COUNT falls back)", -1L, back.columnValueCount("tags"));
+        // nullCount (an older field) still round-trips at the older version.
+        assertEquals(10L, back.columnNullCount("tags"));
+
+        // At the current version it DOES round-trip (sanity vs the gated case above).
+        BytesStreamOutput cur = new BytesStreamOutput();
+        stats.writeTo(cur);
+        assertEquals(270L, new SplitStats(cur.bytes().streamInput()).columnValueCount("tags"));
+    }
+
     public void testBulkAddColumn() {
         SplitStats.Builder builder = new SplitStats.Builder().rowCount(500).sizeInBytes(10000);
         int ord = builder.addColumn("score", 5L, 0.0, 100.0, 2000);

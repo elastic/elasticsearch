@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.MergedSplitStats;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
@@ -56,6 +57,34 @@ public final class ExternalSourceAggregatePushdown {
         boolean implicitNullsForAbsentColumn
     ) {
         return implicitNullsForAbsentColumn == false && stats.hasColumn(name) == false;
+    }
+
+    /**
+     * Returns a cached MIN/MAX extremum if it can be served as {@code type} without loss, else {@code null}
+     * (safe-miss). A harvest may legitimately hand a wider Java type than the column's ESQL type — a
+     * {@code Long} for an {@code INTEGER} column narrows exactly and {@code buildBlock} handles it. But a
+     * floating value that is NOT an exact integer in range for an integral column would overflow when
+     * {@code buildBlock} coerces it via {@code longValue()}/{@code intValue()} (e.g. a {@code Double} past
+     * {@code Long.MAX} reaching a {@code LONG}-resolved column whose stripes were harvested under a divergent
+     * inferred type). Rather than serve overflow garbage, safe-miss so a full scan answers.
+     */
+    static Object servableExtremum(Object value, DataType type) {
+        if (value == null) {
+            return null;
+        }
+        boolean integral = switch (type) {
+            case INTEGER, LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG, COUNTER_LONG -> true;
+            default -> false;
+        };
+        if (integral && (value instanceof Double || value instanceof Float)) {
+            double d = ((Number) value).doubleValue();
+            long asLong = (long) d;
+            boolean exact = Double.isFinite(d)
+                && (double) asLong == d
+                && (type != DataType.INTEGER || (asLong >= Integer.MIN_VALUE && asLong <= Integer.MAX_VALUE));
+            return exact ? value : null;
+        }
+        return value;
     }
 
     /**

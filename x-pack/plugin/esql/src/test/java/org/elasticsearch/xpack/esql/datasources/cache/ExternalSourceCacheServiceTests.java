@@ -846,6 +846,49 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testStripeFoldDropsColumnMissingFromSomeStripe() throws Exception {
+        // Under the default PROJECTED scope, different cold queries harvest different columns, so one file's
+        // committed stripes can carry non-uniform column sets. The text within-file fold uses
+        // implicitNullsForAbsentColumn=false: a column present in only SOME stripes is DROPPED (so the serve
+        // safe-misses), NOT folded under the footer implicit-nulls contract (which would fold the missing
+        // stripe's rows into the column's null_count and under-count COUNT(col) / serve a subset MIN/MAX).
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/events.ndjson";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of("format", "ndjson"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG, Nullability.TRUE, null, false),
+                new ReferenceAttribute(Source.EMPTY, null, "b", DataType.LONG, Nullability.TRUE, null, false)
+            );
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(schema, "ndjson", path, Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp"), Map.of())
+            );
+
+            // stripe 0 harvested only column a; stripe 1 (EOF) harvested only column b.
+            Map<String, Object> s0 = stripeFragment(mtime, "fp", 60L, 100L, 0, 0, 100, true, true, false);
+            s0.put(SourceStatisticsSerializer.columnValueCountKey("a"), 60L);
+            s0.put(SourceStatisticsSerializer.columnNullCountKey("a"), 0L);
+            Map<String, Object> s1 = stripeFragment(mtime, "fp", 40L, 100L, 1, 100, 180, true, true, true);
+            s1.put(SourceStatisticsSerializer.columnValueCountKey("b"), 40L);
+            s1.put(SourceStatisticsSerializer.columnNullCountKey("b"), 0L);
+
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(s0, s1)));
+
+            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            // rowCount still folds (60 + 40), but neither column survives -> COUNT(a)/COUNT(b) safe-miss.
+            assertEquals(100L, ((Number) enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+            assertFalse(
+                "column a, present in only one stripe, must be dropped (safe-miss) not implicit-null-folded",
+                enriched.safeMetadata().containsKey(SourceStatisticsSerializer.columnValueCountKey("a"))
+            );
+            assertFalse(
+                "column b, present in only one stripe, must be dropped (safe-miss)",
+                enriched.safeMetadata().containsKey(SourceStatisticsSerializer.columnValueCountKey("b"))
+            );
+        }
+    }
+
     public void testReconcileAccumulatesStripesAcrossQueries() throws Exception {
         // Stripe knowledge composes across queries: query A commits stripe 0 (no EOF observed), query B
         // commits stripe 1 + EOF; the whole-file fold fires only once the union is complete.

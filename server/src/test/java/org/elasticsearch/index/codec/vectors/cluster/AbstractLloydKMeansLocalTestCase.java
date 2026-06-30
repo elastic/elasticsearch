@@ -81,10 +81,10 @@ public abstract class AbstractLloydKMeansLocalTestCase<V> extends ESTestCase {
 
         KMeansIntermediate<V> kMeansIntermediate = new KMeansIntermediate<>(centroids, assignments, i -> assignmentOrdinals[i]);
         KMeansLocal<V> kMeansLocal = new LloydKMeansLocalSerial<>(ops, sampleSize, maxIterations);
-        kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+        var result = kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
 
         assertEquals(nClusters, centroids.length);
-        assertNotNull(kMeansIntermediate.soarAssignments());
+        assertNotNull(result.overspill());
     }
 
     public void testKMeansNeighborsAllZero() throws IOException {
@@ -121,10 +121,10 @@ public abstract class AbstractLloydKMeansLocalTestCase<V> extends ESTestCase {
 
         KMeansIntermediate<V> kMeansIntermediate = new KMeansIntermediate<>(centroids, assignments, i -> assignmentOrdinals[i]);
         KMeansLocal<V> kMeansLocal = new LloydKMeansLocalSerial<>(ops, sampleSize, maxIterations);
-        kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+        var result = kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
 
         assertEquals(nClusters, centroids.length);
-        assertNotNull(kMeansIntermediate.soarAssignments());
+        assertNotNull(result.overspill());
         assertCentroidsAreZero(centroids);
     }
 

@@ -498,7 +498,9 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             FROM partial_mapping_sample_data
             | FORK (WHERE message == "42")
                    (WHERE message == "Connected to 10.1.0.3!")
-            | WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" OR message == "Connected to 10.1.0.3!" | KEEP unmapped_message)
+            | WHERE unmapped_message IN (FROM partial_mapping_sample_data
+                                        | WHERE message == "42" OR message == "Connected to 10.1.0.3!"
+                                        | KEEP unmapped_message)
             | KEEP message, unmapped_message
             """);
     }
@@ -506,7 +508,10 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     public void testLoadModeRejectsUnmappedInSubqueryLeftKeyInsideFork() {
         expectInSubqueryLeftKeyRejected("unmapped_message", """
             FROM partial_mapping_sample_data
-            | FORK (WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message) | KEEP message, unmapped_message)
+            | FORK (WHERE unmapped_message IN (FROM partial_mapping_sample_data
+                                               | WHERE message == "42"
+                                               | KEEP unmapped_message)
+                    | KEEP message, unmapped_message)
                    (WHERE message == "Connected to 10.1.0.3!" | KEEP message, unmapped_message)
             | KEEP message, unmapped_message
             """);

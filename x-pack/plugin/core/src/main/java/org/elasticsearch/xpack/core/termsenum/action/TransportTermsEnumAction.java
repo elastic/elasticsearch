@@ -744,7 +744,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 return;
             }
             try {
-                if (resolveCrossProject && complete) {
+                if (resolveCrossProject) {
                     ResolvedIndexExpressions localResolved = request.getResolvedIndexExpressions();
                     if (localResolved != null) {
                         ElasticsearchException validationEx = CrossProjectIndexResolutionValidator.validate(

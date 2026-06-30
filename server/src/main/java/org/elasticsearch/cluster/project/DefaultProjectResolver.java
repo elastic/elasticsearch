@@ -13,8 +13,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.tasks.Task;
 
 import java.util.Collection;
 import java.util.Map;
@@ -54,6 +56,16 @@ public class DefaultProjectResolver implements ProjectResolver {
     public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
         if (projectId.equals(Metadata.DEFAULT_PROJECT_ID)) {
             body.run();
+        } else {
+            throw new IllegalArgumentException("Cannot execute on a project other than [" + Metadata.DEFAULT_PROJECT_ID + "]");
+        }
+    }
+
+    @Override
+    public ThreadContext.StoredContext storeContextForProject(ProjectId projectId, ThreadContext threadContext) {
+        if (projectId.equals(Metadata.DEFAULT_PROJECT_ID)) {
+            assert threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER) == null;
+            return threadContext.newStoredContext();
         } else {
             throw new IllegalArgumentException("Cannot execute on a project other than [" + Metadata.DEFAULT_PROJECT_ID + "]");
         }

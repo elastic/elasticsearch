@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.AbstractProjectResolver;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
@@ -88,22 +90,23 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var projectId2 = randomUniqueProjectId();
         final var projectId3 = randomUniqueProjectId();
 
-        final var service = new ThrottlingRecoveryService(threadPool, newClusterService(1), new CompositeRecoverySchedulingListener());
+        final var service = new ThrottlingRecoveryService(
+            threadPool,
+            multiProjectResolver,
+            newClusterService(1),
+            new CompositeRecoverySchedulingListener()
+        );
 
         final var firstRecoveryRunning = new CountDownLatch(1);
         final var firstRecoveryProceed = new CountDownLatch(1);
         final var thirdRecoveryDone = new CountDownLatch(1);
 
-        service.enqueue(
-            RecoveryListener.NOOP,
-            newRecoveryState(),
-            stats,
-            listener -> multiProjectResolver.executeOnProject(projectId1, () -> {
-                firstRecoveryRunning.countDown();
-                safeAwait(firstRecoveryProceed);
-                listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-            })
-        );
+        service.enqueue(projectId1, RecoveryListener.NOOP, newRecoveryState(), stats, listener -> {
+            assertThat(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId1.id()));
+            firstRecoveryRunning.countDown();
+            safeAwait(firstRecoveryProceed);
+            listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+        });
 
         safeAwait(firstRecoveryRunning);
 
@@ -115,7 +118,9 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {}
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                assertThat(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId2.id()));
+            }
 
             @Override
             public void onRecoveryAborted() {
@@ -123,14 +128,17 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
         };
 
-        service.enqueue(secondListener, newRecoveryState(), stats, listener -> multiProjectResolver.executeOnProject(projectId2, () -> {
+        service.enqueue(projectId2, secondListener, newRecoveryState(), stats, ignored -> {
+            assertThat(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId2.id()));
             throw new RuntimeException("test simulated failure");
-        }));
+        });
 
         // Test the success path
         final var thirdListener = new RecoveryListener() {
             @Override
-            public void onRecoveryDone(RecoveryState state, ShardLongFieldRange t, ShardLongFieldRange e) {}
+            public void onRecoveryDone(RecoveryState state, ShardLongFieldRange t, ShardLongFieldRange e) {
+                assertThat(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId3.id()));
+            }
 
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
@@ -142,10 +150,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 fail("recovery aborted");
             }
         };
-        service.enqueue(thirdListener, newRecoveryState(), stats, listener -> multiProjectResolver.executeOnProject(projectId3, () -> {
+        service.enqueue(projectId3, thirdListener, newRecoveryState(), stats, listener -> {
+            assertThat(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId3.id()));
             listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
             thirdRecoveryDone.countDown();
-        }));
+        });
 
         assertThat(service.currentQueueSize(), equalTo(2));
         firstRecoveryProceed.countDown();
@@ -155,7 +164,12 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testSynchronousTaskRunsOnProvidedThreadPoolAndNotifiesUserListener() {
         // Use real threads instead of DeterministicTaskQueue to verify actual threading behavior below
         final var recoveryType = randomFrom(RecoverySource.Type.values());
-        final var service = new ThrottlingRecoveryService(threadPool, newClusterService(1), new CompositeRecoverySchedulingListener());
+        final var service = new ThrottlingRecoveryService(
+            threadPool,
+            DefaultProjectResolver.INSTANCE,
+            newClusterService(1),
+            new CompositeRecoverySchedulingListener()
+        );
         final var callerThread = Thread.currentThread();
         final var executionThread = new AtomicReference<Thread>();
         final var consumerReturned = new CountDownLatch(1);
@@ -182,7 +196,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
         };
         expectedStats.targetRecoveryQueued(recoveryType);
-        service.enqueue(userListener, newRecoveryState(recoveryType), stats, schedulingListener -> {
+        service.enqueue(ProjectId.DEFAULT, userListener, newRecoveryState(recoveryType), stats, schedulingListener -> {
             executionThread.set(Thread.currentThread());
 
             expectedStats.targetRecoveryDequeuedAndStarted(recoveryType);
@@ -202,7 +216,12 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     /// Asynchronous task: consumer returns before the scheduling listener receives a terminal callback.
     public void testAsynchronousTaskListenerNotificationAfterConsumerReturns() {
         // Use real threads instead of DeterministicTaskQueue to be able to use safeAwait below
-        final var service = new ThrottlingRecoveryService(threadPool, newClusterService(1), new CompositeRecoverySchedulingListener());
+        final var service = new ThrottlingRecoveryService(
+            threadPool,
+            DefaultProjectResolver.INSTANCE,
+            newClusterService(1),
+            new CompositeRecoverySchedulingListener()
+        );
         final var consumerReturned = new CountDownLatch(1);
         final var recoveryDone = new CountDownLatch(1);
         final var userListener = new RecoveryListener() {
@@ -225,7 +244,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 fail("recovery aborted");
             }
         };
-        service.enqueue(userListener, newRecoveryState(), stats, schedulingListener -> {
+        service.enqueue(ProjectId.DEFAULT, userListener, newRecoveryState(), stats, schedulingListener -> {
             threadPool.generic().execute(() -> {
                 safeAwait(consumerReturned);
                 schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
@@ -242,6 +261,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final int maxConcurrentRecoveries = between(2, 5);
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
             newClusterService(maxConcurrentRecoveries),
             new CompositeRecoverySchedulingListener()
         );
@@ -275,7 +295,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         long initialTime = taskQueue.getCurrentTimeMillis();
         for (int i = 0; i < totalEnqueuedTasks; i++) {
             final var ordinal = i;
-            service.enqueue(trackingListener, newRecoveryState(), stats, schedulingListener -> {
+            service.enqueue(ProjectId.DEFAULT, trackingListener, newRecoveryState(), stats, schedulingListener -> {
                 int current = running.incrementAndGet();
                 peakConcurrent.accumulateAndGet(current, Integer::max);
                 // Schedule completion for the future
@@ -314,6 +334,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var clusterService = newClusterService(2);
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
             clusterService,
             new CompositeRecoverySchedulingListener()
         );
@@ -322,7 +343,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         // Delay completion until we explicitly trigger time jump
         final long completionTime = taskQueue.getCurrentTimeMillis() + 100;
         for (int i = 0; i < 10; i++) {
-            service.enqueue(RecoveryListener.NOOP, newRecoveryState(), stats, schedulingListener -> {
+            service.enqueue(ProjectId.DEFAULT, RecoveryListener.NOOP, newRecoveryState(), stats, schedulingListener -> {
                 started.incrementAndGet();
                 taskQueue.scheduleAt(
                     completionTime,
@@ -348,6 +369,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var clusterService = newClusterService(3);
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
             clusterService,
             new CompositeRecoverySchedulingListener()
         );
@@ -358,7 +380,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final long initialTime = taskQueue.getCurrentTimeMillis();
         for (int i = 0; i < 6; i++) {
             final var ordinal = i;
-            service.enqueue(new RecoveryListener() {
+            service.enqueue(ProjectId.DEFAULT, new RecoveryListener() {
                 @Override
                 public void onRecoveryDone(
                     RecoveryState state,
@@ -423,6 +445,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
             newClusterService(1),
             new CompositeRecoverySchedulingListener()
         );
@@ -452,6 +475,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 }
             };
             service.enqueue(
+                ProjectId.DEFAULT,
                 userListener,
                 newRecoveryState(),
                 stats,
@@ -471,6 +495,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
             newClusterService(1),
             new CompositeRecoverySchedulingListener()
         );
@@ -519,13 +544,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
         };
 
-        service.enqueue(
-            firstListener,
-            newRecoveryState(),
-            stats,
-            ignored -> { throw new RuntimeException("test recovery task injected failure"); }
-        );
-        service.enqueue(secondListener, newRecoveryState(), stats, schedulingListener -> {
+        service.enqueue(ProjectId.DEFAULT, firstListener, newRecoveryState(), stats, ignored -> {
+            throw new RuntimeException("test recovery task injected failure");
+        });
+        service.enqueue(ProjectId.DEFAULT, secondListener, newRecoveryState(), stats, schedulingListener -> {
             assertTrue("first task should have completed before second one started", firstTaskFailed.get());
             schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         });
@@ -539,6 +561,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
             newClusterService(1),
             new CompositeRecoverySchedulingListener()
         );
@@ -587,8 +610,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
         };
 
-        service.enqueue(firstListener, newRecoveryState(), stats, RecoveryListener::onRecoveryAborted);
-        service.enqueue(secondListener, newRecoveryState(), stats, schedulingListener -> {
+        service.enqueue(ProjectId.DEFAULT, firstListener, newRecoveryState(), stats, RecoveryListener::onRecoveryAborted);
+        service.enqueue(ProjectId.DEFAULT, secondListener, newRecoveryState(), stats, schedulingListener -> {
             assertTrue("first task should have completed before second one started", firstTaskAborted.get());
             schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         });
@@ -602,6 +625,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
             newClusterService(1),
             new CompositeRecoverySchedulingListener()
         );
@@ -627,14 +651,14 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
         };
 
-        service.enqueue(runningTaskListener, newRecoveryState(), stats, listener -> {
+        service.enqueue(ProjectId.DEFAULT, runningTaskListener, newRecoveryState(), stats, listener -> {
             runningTaskDispatched.set(true);
             taskQueue.scheduleAt(
                 taskQueue.getCurrentTimeMillis() + 1000,
                 () -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
             );
         });
-        service.enqueue(new RecoveryListener() {
+        service.enqueue(ProjectId.DEFAULT, new RecoveryListener() {
             @Override
             public void onRecoveryDone(
                 RecoveryState state,
@@ -669,13 +693,14 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
             newClusterService(1),
             new CompositeRecoverySchedulingListener()
         );
         service.close();
 
         final var aborted = new AtomicBoolean();
-        service.enqueue(new RecoveryListener() {
+        service.enqueue(ProjectId.DEFAULT, new RecoveryListener() {
             @Override
             public void onRecoveryDone(
                 RecoveryState state,
@@ -711,6 +736,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var clusterService = newClusterService(maxConcurrency.get());
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
             clusterService,
             new CompositeRecoverySchedulingListener()
         );
@@ -755,30 +781,32 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                     // idempotent
                     service.close();
                 }
-                taskQueue.scheduleNow(() -> service.enqueue(trackingListener, recoveryState, stats, schedulingListener -> {
-                    assertThat(running.incrementAndGet(), lessThanOrEqualTo(maxConcurrency.get()));
-                    final var currentTime = taskQueue.getCurrentTimeMillis();
-                    taskQueue.scheduleAt(currentTime + randomIntBetween(0, 100), () -> {
-                        running.decrementAndGet();
-                        // Randomly choose completion type
-                        if (randomBoolean()) {
-                            schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-                        } else {
+                taskQueue.scheduleNow(
+                    () -> service.enqueue(ProjectId.DEFAULT, trackingListener, recoveryState, stats, schedulingListener -> {
+                        assertThat(running.incrementAndGet(), lessThanOrEqualTo(maxConcurrency.get()));
+                        final var currentTime = taskQueue.getCurrentTimeMillis();
+                        taskQueue.scheduleAt(currentTime + randomIntBetween(0, 100), () -> {
+                            running.decrementAndGet();
+                            // Randomly choose completion type
                             if (randomBoolean()) {
-                                schedulingListener.onRecoveryAborted();
+                                schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
                             } else {
-                                schedulingListener.onRecoveryFailure(
-                                    new RecoveryFailedException(
-                                        recoveryState,
-                                        null,
-                                        new RuntimeException("test recovery task injected failure")
-                                    ),
-                                    false
-                                );
+                                if (randomBoolean()) {
+                                    schedulingListener.onRecoveryAborted();
+                                } else {
+                                    schedulingListener.onRecoveryFailure(
+                                        new RecoveryFailedException(
+                                            recoveryState,
+                                            null,
+                                            new RuntimeException("test recovery task injected failure")
+                                        ),
+                                        false
+                                    );
+                                }
                             }
-                        }
-                    });
-                }));
+                        });
+                    })
+                );
                 taskQueue.runAllRunnableTasks();
                 while (randomBoolean() && taskQueue.hasDeferredTasks()) {
                     if (service.isClosed()) {
@@ -811,6 +839,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var peakLimit = new AtomicInteger(initialMaxConcurrentRecoveries);
         final var throttlingRecoveryService = new ThrottlingRecoveryService(
             threadPool,
+            DefaultProjectResolver.INSTANCE,
             clusterService,
             new CompositeRecoverySchedulingListener()
         );
@@ -883,7 +912,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                         refCounted.incRef();
                         runningOrPending.incrementAndGet();
                         tasksEnqueued.incrementAndGet();
-                        throttlingRecoveryService.enqueue(trackingListener, recoveryState, stats, schedulingListener -> {
+                        throttlingRecoveryService.enqueue(ProjectId.DEFAULT, trackingListener, recoveryState, stats, schedulingListener -> {
                             peakRunning.accumulateAndGet(running.incrementAndGet(), Integer::max);
                             runStressInboundRecoveryTask(recoveryState, schedulingListener, running);
                         });

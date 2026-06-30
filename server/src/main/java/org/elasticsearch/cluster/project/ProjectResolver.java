@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
 
 import java.util.Collection;
@@ -84,4 +85,14 @@ public interface ProjectResolver extends ProjectIdResolver {
      *                               It is an error to attempt to override the active project-id
      */
     <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E;
+
+    /**
+     * Configures the execution context so that any calls to resolve a project will return the project specified by
+     * {@code projectId}, and returns the previous context. Closing the returned context restores the context to its
+     * original state.
+     *
+     * @throws IllegalStateException If there is already a project-id set in the execution context.
+     *                               It is an error to attempt to override the active project-id
+     */
+    ThreadContext.StoredContext storeContextForProject(ProjectId projectId, ThreadContext threadContext);
 }

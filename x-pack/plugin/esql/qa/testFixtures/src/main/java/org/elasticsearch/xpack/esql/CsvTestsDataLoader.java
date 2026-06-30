@@ -34,6 +34,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.view.RestPutViewAction;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -77,8 +78,6 @@ public class CsvTestsDataLoader {
     private static final Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
     private static final int BULK_DATA_SIZE = 100_000;
-    private static final String VIEW_SUPPORT_PROBE_NAME = "esql-view-support-probe";
-    private static final String VIEW_SUPPORT_PROBE_QUERY = "{\"query\":\"ROW x = 1\"}";
 
     private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
         .setWarningsHandler(
@@ -261,6 +260,9 @@ public class CsvTestsDataLoader {
         new TestDataset("dense_vector_text"),
         new TestDataset("mv_text"),
         new TestDataset("dense_vector"),
+        new TestDataset("dense_vector").withIndex("dense_vector_unmapped")
+            .withDynamic("false")
+            .withTypeMapping(removeFields("float_vector")),
         new TestDataset("dense_vector_coalesce").withRequiredCapabilities(EsqlCapabilities.Cap.COALESCE_DENSE_VECTOR),
         new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT),
         new TestDataset("dense_vector_arithmetic"),
@@ -311,7 +313,8 @@ public class CsvTestsDataLoader {
             "metric_temporality-settings.json"
         ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V9),
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json"),
-        new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv")
+        new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
+        new TestDataset("trim_test")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:
@@ -835,48 +838,38 @@ public class CsvTestsDataLoader {
     }
 
     public static boolean clusterSupportsViews(RestClient client) throws IOException {
-        final Set<Integer> unsupportedViewCrudStatusCodes = Set.of(400, 405, 410, 500);
-        final Set<Integer> ignoredProbeDeleteStatusCodes = Set.of(400, 404, 405, 410, 500);
+        // Step 1: check whether ALL nodes have basic views support (allMatch semantics).
+        if (checkCapability(client, "POST", "/_query", "views_crud_as_index_actions") == false) {
+            return false;
+        }
 
-        // Step 1: check whether ALL nodes understand views via /_capabilities (allMatch semantics).
+        // Step 2: check whether ALL nodes support PUT /_query/view in the current cluster mode.
+        // RestPutViewAction declares VIEWS_PUT_SERVERLESS_SCOPE in supportedCapabilities() only when
+        // @ServerlessScope(Scope.PUBLIC) is present. Old serverless nodes lack this annotation and
+        // therefore do not report this capability. /_capabilities with allMatch semantics returns
+        // supported=false for any mixed cluster that contains such a node, correctly preventing view
+        // loading from being attempted when it would fail on some nodes.
+        //
+        // In stateful mixed-cluster BWC tests where the old node has views but predates the
+        // views_put_serverless_scope capability (introduced 2026-06-19), this check also returns
+        // false and views tests are skipped rather than run. That is a conservative but safe
+        // outcome: tests skip instead of failing with "index not found".
+        return checkCapability(client, "PUT", "/_query/view/test", RestPutViewAction.VIEWS_PUT_SERVERLESS_SCOPE);
+    }
+
+    private static boolean checkCapability(RestClient client, String method, String path, String capability) throws IOException {
         Request capRequest = new Request("GET", "/_capabilities");
-        capRequest.addParameter("method", "POST");
-        capRequest.addParameter("path", "/_query");
-        capRequest.addParameter("capabilities", "views_crud_as_index_actions");
+        capRequest.addParameter("method", method);
+        capRequest.addParameter("path", path);
+        capRequest.addParameter("capabilities", capability);
         try {
             Response capResponse = client.performRequest(capRequest);
             ObjectMapper mapper = new ObjectMapper();
             JsonNode json = mapper.readTree(capResponse.getEntity().getContent());
             JsonNode supported = json.get("supported");
-            if (supported == null || supported.asBoolean() == false) {
-                return false;
-            }
+            return supported != null && supported.asBoolean();
         } catch (ResponseException e) {
             return false;
-        }
-
-        // Step 2: probe the API path used by loadView (PUT /_query/view/{name}). In serverless mode
-        // an old node can still pass generic checks and read probes, but reject PUT with 410 because
-        // RestPutViewAction lacks the required @ServerlessScope.
-        try {
-            Request createProbeView = new Request("PUT", "/_query/view/" + VIEW_SUPPORT_PROBE_NAME);
-            createProbeView.setJsonEntity(VIEW_SUPPORT_PROBE_QUERY);
-            client.performRequest(createProbeView);
-            try {
-                client.performRequest(new Request("DELETE", "/_query/view/" + VIEW_SUPPORT_PROBE_NAME));
-            } catch (ResponseException e) {
-                if (ignoredProbeDeleteStatusCodes.contains(e.getResponse().getStatusLine().getStatusCode()) == false) {
-                    throw e;
-                }
-            }
-            return true;
-        } catch (ResponseException e) {
-            int code = e.getResponse().getStatusLine().getStatusCode();
-            // Serverless restriction (410) or old servers not supporting this view API path.
-            if (unsupportedViewCrudStatusCodes.contains(code)) {
-                return false;
-            }
-            throw e;
         }
     }
 

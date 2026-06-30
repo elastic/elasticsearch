@@ -322,6 +322,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_LOAD_KEYWORD_WITH_MULTIFIELDS,
 
         /**
+         * Don't implicitly cast a partially unmapped {@code dense_vector} field under {@code unmapped_fields="load"}.
+         * See https://github.com/elastic/elasticsearch/issues/152184.
+         */
+        OPTIONAL_FIELDS_FIX_PARTIALLY_UNMAPPED_DENSE_VECTOR,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */
@@ -438,23 +444,23 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.
          */
-        FLATTENED_DATATYPE(Build.current().isSnapshot()),
+        FLATTENED_DATATYPE,
 
         /**
          * Flattened field keys are returned in alphabetical order.
          */
-        FLATTENED_DATATYPE_SORTED_KEYS(Build.current().isSnapshot()),
+        FLATTENED_DATATYPE_SORTED_KEYS,
 
         /**
          * Flattened fields apply {@code null_value} replacement when loading from {@code _source},
          * matching the doc-values behaviour applied at index time.
          */
-        FLATTENED_DATATYPE_NULL_VALUE(Build.current().isSnapshot()),
+        FLATTENED_DATATYPE_NULL_VALUE,
 
         /**
          * Support for the {@code field_extract} function, which reads a sub-key from a {@code flattened} field root.
          */
-        FIELD_EXTRACT_FUNCTION(Build.current().isSnapshot()),
+        FIELD_EXTRACT_FUNCTION,
 
         /**
          * Pushdown optimizations for {@code field_extract(<flattened root>, "<literal key>")}: block-loader
@@ -468,7 +474,7 @@ public class EsqlCapabilities {
          * must require this capability so they skip on mixed clusters where any data node still
          * runs the per-row evaluator.
          */
-        FIELD_EXTRACT_FLATTENED_PUSHDOWN(Build.current().isSnapshot()),
+        FIELD_EXTRACT_FLATTENED_PUSHDOWN,
 
         /**
          * The per-row evaluator for {@code field_extract(<flattened root>, "<key>")} returns a multi-value
@@ -492,7 +498,7 @@ public class EsqlCapabilities {
          * Lucene, must require this capability so they skip on mixed clusters where any data node still fuses
          * mapped sub-keys and returns {@code null}.
          */
-        FIELD_EXTRACT_MAPPED_SUBFIELD_RETURNS_VALUE(Build.current().isSnapshot()),
+        FIELD_EXTRACT_MAPPED_SUBFIELD_RETURNS_VALUE,
 
         /**
          * A {@code flattened} root that declares mapped sub-fields (e.g. {@code KEEP attributes}) is always loaded
@@ -504,7 +510,7 @@ public class EsqlCapabilities {
          * shape must require this capability so they skip on mixed clusters where an older data node still builds the
          * root from doc values, rendering mapped sub-fields with their native type and dropping a bare text sub-field.
          */
-        FLATTENED_ROOT_STRINGIFIES_MAPPED_SUBFIELDS(Build.current().isSnapshot()),
+        FLATTENED_ROOT_STRINGIFIES_MAPPED_SUBFIELDS,
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -1434,6 +1440,13 @@ public class EsqlCapabilities {
          */
         VIEWS_CRUD_AS_INDEX_ACTIONS(VIEWS_WITH_NO_BRANCHING.isEnabled()),
         /**
+         * Signals that {@code PUT /_query/view/{name}} is exposed with {@code @ServerlessScope(Scope.PUBLIC)}.
+         * Old nodes in a mixed cluster predate this annotation and will not report this capability via
+         * {@code /_capabilities}, so any mixed cluster containing such a node correctly returns
+         * {@code supported=false}.
+         */
+        VIEWS_PUT_SERVERLESS_SCOPE(VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled()),
+        /**
          * Views with branching (requires subqueries/FORK).
          */
         VIEWS_WITH_BRANCHING(VIEWS_WITH_NO_BRANCHING.isEnabled() && SUBQUERY_IN_FROM_COMMAND.isEnabled()),
@@ -2324,6 +2337,12 @@ public class EsqlCapabilities {
         PROMQL_ABSENT_LABEL_MATCHING,
 
         /**
+         * Support for the PromQL {@code offset} modifier, implemented as a constant time shift of the evaluation
+         * timestamp. Heterogeneous offsets within a single source-backed binary operator remain unsupported.
+         */
+        PROMQL_OFFSET_MODIFIER(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results
          * into one multi-valued row per series.
          */
@@ -3061,18 +3080,18 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
-        FN_EQUALS_FLATTENED(Build.current().isSnapshot()),
+        FN_EQUALS_FLATTENED,
 
         /**
          * Support for the {@code !=} operator on the root of a {@code flattened} field in ES|QL.
          */
-        FN_NOT_EQUALS_FLATTENED(Build.current().isSnapshot()),
+        FN_NOT_EQUALS_FLATTENED,
 
         /**
          * Support for using a {@code flattened} field as a grouping key in
          * {@code STATS … BY} and {@code LIMIT N BY}.
          */
-        GROUP_BY_FLATTENED(Build.current().isSnapshot()),
+        GROUP_BY_FLATTENED,
 
         /**
          * Fix for {@code ReorderLimitProjectAndOrderBy} unconditionally lifting an {@code OrderBy} above a renaming/dropping
@@ -3229,6 +3248,12 @@ public class EsqlCapabilities {
          * child output.
          */
         PROMQL_HISTOGRAM_QUANTILE_IMPLICIT_LE,
+
+        /**
+         * Fixes a bug in the planner where {@code TS} queries without an outer aggregation (group by all)
+         * would wrongly fail with an {@link IllegalStateException} if any aggregation had a filter.
+         */
+        FIX_GROUP_BY_ALL_AGGREGATION_FILTERS,
 
         /**
          * Fix for PromQL {@code without} and ES|QL {@code TS_WITHOUT}: passthrough alias names (e.g. OTel

@@ -30,6 +30,8 @@ import java.util.Locale;
  * {@link Highlight#postAnalysisVerification} reuses {@link #validate} so invalid values fail during analysis rather
  * than only later during local planning.
  */
+// TODO: add an analyzer name field here once the "analyzer" option is supported.
+
 public record HighlightOptions(
     String preTag,
     String postTag,

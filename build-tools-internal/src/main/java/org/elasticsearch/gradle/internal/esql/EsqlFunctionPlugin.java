@@ -99,11 +99,15 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
             File tempDir = project.file("build/testrun/test/temp/" + folder);
             File commandsExamplesFile = new File(tempDir, "commands.examples");
             FileTree mdFiles = project.fileTree(
-                new File(project.getRootDir(), "docs/reference/query-languages/" + folder + "/_snippets/commands/examples/"),
+                new File(
+                    project.getLayout().getSettingsDirectory().getAsFile(),
+                    "docs/reference/query-languages/" + folder + "/_snippets/commands/examples/"
+                ),
                 tree -> tree.include("**/*.csv-spec/*.md")
             );
 
-            Path docFolder = new File(project.getRootDir(), "docs/reference/query-languages/" + folder).toPath();
+            Path docFolder = new File(project.getLayout().getSettingsDirectory().getAsFile(), "docs/reference/query-languages/" + folder)
+                .toPath();
             File snippetsDocFolder = docFolder.resolve("_snippets").toFile();
             File imagesDocFolder = docFolder.resolve("images").toFile();
             File kibanaDocFolder = docFolder.resolve("kibana").toFile();

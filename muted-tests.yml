@@ -761,3 +761,6 @@ tests:
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testConsecutiveRotations
   issue: https://github.com/elastic/elasticsearch/issues/152472
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testRelocationWithConcurrentIndexing {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/152486

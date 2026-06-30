@@ -30,7 +30,7 @@ Two columnar index modes are available:
 `logsdb_columnar`
 :   A columnar store with logging-oriented defaults. It inherits all behavior of the `columnar` mode and additionally:
     - Applies a default mapping that includes a `@timestamp` field (and optionally `host.name`).
-    - Enables sort-field-based routing by default (`index.logsdb.route_on_sort_fields: true`), which routes documents based on the configured index sort fields rather than a routing path.
+    - Enables indexing sorting if `@timestamp` and `host.name` mappings exist.
 
     Use this mode for log data.
 
@@ -126,6 +126,11 @@ Dynamic mapping behavior is controlled through configuration param `dynamic` tha
 - **false**: Unmapped fields are not mapped or stored. Data in unmapped fields are lost.
 - **strict**: Documents containing unmapped fields don't get indexed, raising indexing errors instead.
 - **runtime**: This option is not supported in columnar mode.
+
+### Dynamic false [dynamic-false]
+
+If dynamic false has been configured, then only fields that are explicitly mapped in the mappings are stored.
+Fields that are not explicitly mapped in the mappings are not stored and therefor are lost.
 
 ## Auto flattening [auto-flattening]
 

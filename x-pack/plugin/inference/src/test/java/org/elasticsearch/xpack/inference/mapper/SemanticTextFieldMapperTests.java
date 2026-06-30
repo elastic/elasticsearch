@@ -14,6 +14,7 @@ import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -40,6 +41,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -57,7 +60,9 @@ import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
@@ -83,6 +88,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.client.NoOpClient;
@@ -95,6 +102,7 @@ import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
@@ -144,6 +152,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.ge
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettingsOtherThan;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomMultimodalEmbedding;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -298,6 +307,34 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         return createMapperService(indexVersion, settings, mappings);
     }
 
+    /**
+     * Creates a (non-legacy) mapper service at the given index version and source mode. With {@code synthetic} or
+     * {@code columnar_stored}, the field stores its original input value(s) in the internal binary doc values field; with
+     * {@code stored}, the original value is kept in {@code _source}.
+     */
+    private MapperService createMapperServiceWithSourceMode(
+        XContentBuilder mappings,
+        IndexVersion indexVersion,
+        SourceFieldMapper.Mode mode
+    ) throws IOException {
+        var settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion)
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), false)
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), mode)
+            .build();
+        return createMapperService(indexVersion, settings, mappings);
+    }
+
+    private MapperService createColumnarMapperService(XContentBuilder mappings, IndexVersion indexVersion, IndexMode indexMode)
+        throws IOException {
+        var settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion)
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), false)
+            .put(IndexSettings.MODE.getKey(), indexMode.getName())
+            .build();
+        return createMapperService(indexVersion, settings, mappings);
+    }
+
     private static void validateIndexVersion(IndexVersion indexVersion, boolean useLegacyFormat) {
         if (useLegacyFormat == false
             && indexVersion.before(IndexVersions.INFERENCE_METADATA_FIELDS)
@@ -413,6 +450,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             null,
             null,
             false,
+            false,
             Map.of()
         );
     }
@@ -472,6 +510,147 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             MapperService iterMapperService = createMapperServiceWithIndexVersion(fieldMapping, useLegacyFormat, indexVersion);
             assertInferenceEndpoints(iterMapperService, fieldName, expectedId, expectedId);
         }
+    }
+
+    /**
+     * The original input value of a {@code semantic_text} field is stored in an internal binary doc values field so that
+     * {@code _source} can be rebuilt from doc values alone. This verifies the round-trip for a single value, multiple values
+     * (order and duplicates preserved), and that the internal {@code inference} subtree does not leak into the rebuilt source.
+     */
+    public void testOriginalValueRoundTripFromDocValues() throws IOException {
+        assumeFalse("the legacy format keeps the original value in _source", useLegacyFormat);
+        MapperService mapperService = createMapperServiceWithSourceMode(
+            fieldMapping(this::minimalMapping),
+            IndexVersion.current(),
+            SourceFieldMapper.Mode.SYNTHETIC
+        );
+        DocumentMapper mapper = mapperService.documentMapper();
+
+        assertThat(syntheticSource(mapper, b -> b.field("field", "some text")), equalTo("{\"field\":\"some text\"}"));
+        // Document order and duplicates are preserved for multi-valued fields.
+        assertThat(syntheticSource(mapper, b -> b.array("field", "b", "a", "b")), equalTo("{\"field\":[\"b\",\"a\",\"b\"]}"));
+        // A single-element array is rebuilt as a scalar (standard synthetic-source normalization, not specific to this field).
+        assertThat(syntheticSource(mapper, b -> b.array("field", "only")), equalTo("{\"field\":\"only\"}"));
+        // A null value leaves the field absent from the rebuilt source.
+        assertThat(syntheticSource(mapper, b -> b.nullField("field")), equalTo("{}"));
+    }
+
+    /**
+     * The internal binary doc values store for the original input is only written for indices created on or after
+     * {@link IndexVersions#SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES}; older indices keep the released behavior (original value in
+     * {@code _source} / {@code _ignored_source}).
+     */
+    public void testOriginalValuesStoredOnlyForNewIndices() throws IOException {
+        assumeFalse("the legacy format keeps the original value in _source", useLegacyFormat);
+        final String dvFieldName = SemanticTextField.getOriginalValuesFieldName("field");
+
+        MapperService current = createMapperServiceWithSourceMode(
+            fieldMapping(this::minimalMapping),
+            IndexVersion.current(),
+            SourceFieldMapper.Mode.SYNTHETIC
+        );
+        ParsedDocument currentDoc = current.documentMapper().parse(source(b -> b.field("field", "hello")));
+        assertNotNull("new indices store the original value in doc values", currentDoc.rootDoc().getField(dvFieldName));
+
+        IndexVersion previous = IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES);
+        MapperService old = createMapperServiceWithSourceMode(
+            fieldMapping(this::minimalMapping),
+            previous,
+            SourceFieldMapper.Mode.SYNTHETIC
+        );
+        ParsedDocument oldDoc = old.documentMapper().parse(source(b -> b.field("field", "hello")));
+        assertNull("pre-feature indices do not store the original value in doc values", oldDoc.rootDoc().getField(dvFieldName));
+    }
+
+    /**
+     * Columnar index modes reject any field whose {@code _source} is not reconstructable from doc values. A {@code semantic_text}
+     * field is accepted because its original value is stored in doc values and its internal {@code inference} sub-fields (e.g.
+     * {@code offset_source}) are exempt - they are not part of {@code _source} but are reconstructed into {@code _inference_fields}.
+     * The value round-trip itself is covered by {@link #testOriginalValueRoundTripFromDocValues()} (the loader is identical).
+     */
+    public void testSemanticTextAcceptedInColumnar() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeFalse("the legacy format keeps the original value in _source", useLegacyFormat);
+        final String dvFieldName = SemanticTextField.getOriginalValuesFieldName("field");
+        // Deliberately use an index version BEFORE the synthetic-source gate: in columnar mode the input is always stored in doc
+        // values regardless of index version (columnar is unreleased), so the version gate applies only to non-columnar synthetic
+        // source. This verifies columnar acceptance does not depend on the index version.
+        final IndexVersion indexVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES);
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            // Mapping creation succeeding is the assertion: the columnar "every field reconstructable from doc values" check passes.
+            MapperService mapperService = createColumnarMapperService(fieldMapping(this::minimalMapping), indexVersion, indexMode);
+            ParsedDocument doc = mapperService.documentMapper()
+                .parse(source(b -> b.field("@timestamp", "2024-01-01T00:00:00Z").field("field", "some text")));
+            assertNotNull("original value stored in doc values for columnar _source reconstruction", doc.rootDoc().getField(dvFieldName));
+        }
+    }
+
+    /**
+     * When {@code _source} is reconstructed from doc values, retrieving the field (the {@code fields} option, highlighting) reads the
+     * original value from its binary doc values column rather than {@code _source}. This verifies the value fetcher reads the doc
+     * values (order and duplicates preserved) and declares no {@code _source} requirement, so the fetch phase need not rebuild it.
+     */
+    public void testOriginalValueFetchedFromDocValues() throws IOException {
+        assumeFalse("the legacy format keeps the original value in _source", useLegacyFormat);
+        MapperService mapperService = createMapperServiceWithSourceMode(
+            fieldMapping(this::minimalMapping),
+            IndexVersion.current(),
+            SourceFieldMapper.Mode.SYNTHETIC
+        );
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", "alpha", "beta", "alpha")));
+
+        SearchExecutionContext searchContext = createSearchExecutionContext(mapperService);
+        ValueFetcher fetcher = searchContext.getFieldType("field").valueFetcher(searchContext, null);
+        assertThat(fetcher, instanceOf(OriginalValuesDocValuesFetcher.class));
+        assertThat(fetcher.storedFieldsSpec(), equalTo(StoredFieldsSpec.NO_REQUIREMENTS));
+
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
+            LeafReaderContext leaf = reader.leaves().get(0);
+            fetcher.setNextReader(leaf);
+            // An empty Source proves the values come from doc values and not from _source.
+            List<Object> values = fetcher.fetchValues(Source.empty(XContentType.JSON), 0, new ArrayList<>());
+            assertThat(values, contains("alpha", "beta", "alpha"));
+        });
+    }
+
+    /**
+     * The semantic highlighter declares it can highlight without {@code _source} only when every inference source field is
+     * retrievable from doc values, so the fetch phase does not rebuild {@code _source} for it. When the original value is kept in
+     * {@code _source} (stored mode), it must still load {@code _source}.
+     */
+    public void testHighlighterAvoidsSourceWhenValuesInDocValues() throws IOException {
+        assumeFalse("the legacy format keeps the original value in _source", useLegacyFormat);
+        SemanticTextHighlighter highlighter = new SemanticTextHighlighter();
+
+        MapperService synthetic = createMapperServiceWithSourceMode(
+            fieldMapping(this::minimalMapping),
+            IndexVersion.current(),
+            SourceFieldMapper.Mode.SYNTHETIC
+        );
+        SearchExecutionContext syntheticContext = createSearchExecutionContext(synthetic);
+        assertTrue(highlighter.canHighlightWithoutSource(syntheticContext.getFieldType("field"), syntheticContext));
+
+        MapperService stored = createMapperServiceWithSourceMode(
+            fieldMapping(this::minimalMapping),
+            IndexVersion.current(),
+            SourceFieldMapper.Mode.STORED
+        );
+        SearchExecutionContext storedContext = createSearchExecutionContext(stored);
+        assertFalse(highlighter.canHighlightWithoutSource(storedContext.getFieldType("field"), storedContext));
+    }
+
+    /**
+     * When a {@code semantic_text} field is fed by {@code copy_to} from a plain text field, the highlighter also loads that text
+     * field. Since it is only retrievable from {@code _source}, the highlighter cannot skip {@code _source} even in synthetic source.
+     */
+    public void testHighlighterRequiresSourceWhenCopyToSourceFieldNeedsIt() throws IOException {
+        assumeFalse("the legacy format keeps the original value in _source", useLegacyFormat);
+        MapperService mapperService = createMapperServiceWithSourceMode(mapping(b -> {
+            b.startObject("body").field("type", "text").field("copy_to", "field").endObject();
+            b.startObject("field").field("type", "semantic_text").field("inference_id", "test_model").endObject();
+        }), IndexVersion.current(), SourceFieldMapper.Mode.SYNTHETIC);
+        SearchExecutionContext context = createSearchExecutionContext(mapperService);
+        assertFalse(new SemanticTextHighlighter().canHighlightWithoutSource(context.getFieldType("field"), context));
     }
 
     public void testIndexSettingWithCustomInferenceId() throws Exception {
@@ -656,6 +835,39 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             }), useLegacyFormat));
             assertThat(e.getMessage(), containsString("Wrong [task_type], expected text_embedding, embedding, or sparse_embedding"));
         }
+    }
+
+    public void testMultiFieldNamedInputIsRejected() throws IOException {
+        // The new format stores the original input in an internal [<field>.input] doc values column; a multi-field with that name
+        // would write to the same Lucene field, so it is rejected. (Multi-fields are rejected outright in the legacy format.)
+        assumeFalse("multi-fields are rejected entirely in the legacy format", useLegacyFormat);
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES,
+            IndexVersion.current()
+        );
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperServiceWithIndexVersion(fieldMapping(b -> {
+            b.field("type", "semantic_text");
+            b.field("inference_id", "my_inference_id");
+            b.startObject("fields");
+            b.startObject("input").field("type", "keyword").endObject();
+            b.endObject();
+        }), useLegacyFormat, indexVersion));
+        assertThat(e.getMessage(), containsString("cannot have a multi-field named [input]"));
+    }
+
+    public void testMultiFieldNamedInputIsAccepted() throws IOException {
+        // At an index version before the original values are stored in doc values, the [<field>.input] column is not reserved, so
+        // a multi-field named [input] stays valid. This verifies the gating does not invalidate indices created at an older version.
+        assumeFalse("multi-fields are rejected entirely in the legacy format", useLegacyFormat);
+        IndexVersion indexVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES);
+        MapperService mapperService = createMapperServiceWithIndexVersion(fieldMapping(b -> {
+            b.field("type", "semantic_text");
+            b.field("inference_id", "my_inference_id");
+            b.startObject("fields");
+            b.startObject("input").field("type", "keyword").endObject();
+            b.endObject();
+        }), useLegacyFormat, indexVersion);
+        assertNotNull(mapperService.mappingLookup().getMapper("field.input"));
     }
 
     public void testMultiFieldsSupport() throws IOException {

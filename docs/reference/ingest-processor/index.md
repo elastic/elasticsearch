@@ -1,5 +1,7 @@
 ---
 navigation_title: "Processor reference"
+mapped_pages:
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/processors.html
 ---
 # Ingest processor reference
 

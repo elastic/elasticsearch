@@ -98,8 +98,12 @@ public class QuerySettings {
         Special notes about the `LOAD` option:
         - `FORK`, `LOOKUP JOIN`, subqueries, and views are not yet supported anywhere in the query.
         - Referencing subfields of `flattened` parents is not supported.
-        - Partially unmapped non-keyword fields can be used in expressions. Values remain typed where mapped and are `null`
-          for rows from indices where the field is unmapped.
+        - Partially unmapped non-keyword fields can be used in expressions.
+
+        - Partially unmapped non-`keyword` fields can be used in expressions. If it is mapped to a single type and there's an available
+          conversion from `keyword` to that type, the implicit conversion will be applied. If there's no available conversion, and an
+          explicit one has not been provided by the user, values remain typed where mapped and are `null` for rows from indices where the
+          field is unmapped.
         """)
     @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = """
         Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,

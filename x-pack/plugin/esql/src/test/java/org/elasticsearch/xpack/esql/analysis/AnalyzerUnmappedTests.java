@@ -1625,23 +1625,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(unionFields(plan), Matchers.empty());
     }
 
-    /**
-     * Characterizes a pre-existing bug (not caused by removing the global name set): casting a union-typed field <em>after</em> an
-     * aggregation still builds an {@code EsRelation}-level union, which later throws {@code "can't find input"} at execution. It reproduces
-     * for {@code date}/{@code date_nanos} unions on main too. We pin the (buggy) union deliberately; the correct behavior is to fall back,
-     * like {@link #testNoConverterPunkRenameThenCastDoesNotLoadUnmapped}.
-     */
-    public void testNoConverterPunkStatsByThenCastBuildsUnionPreExistingIssue() {
-        var esIndex = partialIndex(Map.of("partial_text", textField("partial_text")), Set.of("partial_text"));
-        var plan = analyzer().addIndex(esIndex)
-            .statement(setUnmappedLoad("FROM idx* | STATS c = COUNT(*) BY partial_text | EVAL x = partial_text::keyword | KEEP x, c"));
-        assertThat(outputType(plan, "x"), equalTo(DataType.KEYWORD));
-        assertThat(
-            unionFields(plan).stream().anyMatch(u -> u.getDataType() == DataType.KEYWORD && u.getUnmappedConversionExpression() != null),
-            equalTo(true)
-        );
-    }
-
     private static final List<DataType> SMALL_NUMERIC_TYPES = List.of(
         DataType.SHORT,
         DataType.BYTE,

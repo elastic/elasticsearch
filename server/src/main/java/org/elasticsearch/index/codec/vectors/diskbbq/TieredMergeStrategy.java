@@ -147,6 +147,12 @@ public class TieredMergeStrategy<V> {
     // this method signature should change to CentroidData<V>[] and the unchecked casts below can be removed.
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public MergeAction<V> selectAction(int[] segmentSizes, int[] segmentCentroids, IVFVectorsReader.CentroidData[] centroidData) {
+        if (ops != CentroidOps.FLOAT) {
+            throw new UnsupportedOperationException(
+                "selectAction with non-float CentroidOps requires generified CentroidData<V>; "
+                    + "this guard will be removed once CentroidData is parameterized by vector type"
+            );
+        }
         Strategy strategy = selectStrategy(segmentSizes, segmentCentroids);
         return switch (strategy) {
             case INSERTION -> {

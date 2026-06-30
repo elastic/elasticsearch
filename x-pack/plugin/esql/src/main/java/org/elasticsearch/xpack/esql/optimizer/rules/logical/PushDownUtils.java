@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 
@@ -260,16 +262,67 @@ class PushDownUtils {
      * branch is {@code Project > Eval? > Subquery}.
      */
     static boolean isLeafUnionAll(UnionAll unionAll) {
-        return unionAll.children().stream().allMatch(c -> {
-            if (c instanceof EsRelation || c instanceof ExternalRelation) {
-                return true;
-            }
-            if (c instanceof Project p) {
-                LogicalPlan child = p.child();
-                return child instanceof EsRelation || child instanceof ExternalRelation;
-            }
-            return false;
-        });
+        return unionAll.children().stream().allMatch(PushDownUtils::isDirectLeafBranch);
+    }
+
+    /**
+     * A single direct-leaf {@link UnionAll} branch: an {@link EsRelation}/{@link ExternalRelation},
+     * or a {@link Project} directly wrapping one of those leaves. This is the per-branch predicate
+     * behind {@link #isLeafUnionAll}.
+     */
+    private static boolean isDirectLeafBranch(LogicalPlan branch) {
+        if (branch instanceof EsRelation || branch instanceof ExternalRelation) {
+            return true;
+        }
+        if (branch instanceof Project p) {
+            LogicalPlan child = p.child();
+            return child instanceof EsRelation || child instanceof ExternalRelation;
+        }
+        return false;
+    }
+
+    /**
+     * Returns {@code true} when {@link PushAggregateThroughUnionAll} may decompose an
+     * {@link Aggregate} over this {@code unionAll} into per-branch partial aggregates plus a
+     * coordinator combine. Every branch must be one of:
+     * <ul>
+     *   <li>the direct-leaf shape {@link #isLeafUnionAll} accepts (heterogeneous-FROM), or</li>
+     *   <li>a subquery shape ({@code Project? > Eval? > Subquery}, or a bare {@link Subquery} that
+     *   {@code CombineProjections} may leave behind) whose wrapped sub-pipeline contains no
+     *   {@link PipelineBreaker}.</li>
+     * </ul>
+     *
+     * <p>A branch carrying its own pipeline breaker (an inner aggregation, sort, or limit) would make
+     * a per-branch partial aggregate redundant. Because a {@code UnionAll}'s branches must keep a
+     * homogeneous output schema, the rewrite is all-or-nothing: a single such branch disqualifies the
+     * whole {@code UnionAll} and the aggregation stays on the coordinator. {@link OrderBy} is a
+     * {@link PipelineBreaker}, so the breaker scan covers sorts too.
+     *
+     * <p>This positive shape match (rather than a "no breaker anywhere" scan) also keeps the rule from
+     * firing on shapes it must reject, e.g. {@code Filter > Relation} (a pushed-down query filter) or
+     * a double {@code Project}. It also prevents infinite re-firing: after the rewrite each branch is
+     * {@code Aggregate > ...}, whose top node is not a recognised wrapper, so this returns {@code false}
+     * on the combiner's {@code UnionAll}.
+     */
+    static boolean canDecomposeAggregateThroughUnionAll(UnionAll unionAll) {
+        return unionAll.children().stream().allMatch(PushDownUtils::isDecomposableAggregateBranch);
+    }
+
+    private static boolean isDecomposableAggregateBranch(LogicalPlan branch) {
+        if (isDirectLeafBranch(branch)) {
+            return true;
+        }
+        LogicalPlan plan = branch;
+        if (plan instanceof Project project) {
+            plan = project.child();
+        }
+        if (plan instanceof Eval eval) {
+            plan = eval.child();
+        }
+        if (plan instanceof Subquery subquery) {
+            return subquery.child().anyMatch(n -> n instanceof PipelineBreaker) == false;
+        }
+        return false;
     }
 
     public static Map<Expression, Expression> outputMap(LogicalPlan plan, LogicalPlan otherPlan) {

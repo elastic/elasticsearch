@@ -74,3 +74,56 @@ distinct_emp:long | gender:keyword
 0                 | "F"
 57                | "M"
 ;
+
+// Subquery shape: one branch is a plain dataset, the other a subquery (FROM emp_b | WHERE gender == "M") that filters
+// to the 57 male employees. The partial aggregate is pushed onto each branch (including over the subquery's Filter),
+// then merged. emp_a contributes all 100 rows / 100 distinct emp_no; the subquery branch contributes 57 rows whose
+// emp_no are a subset of emp_a's. So COUNT(*) = 100 + 57 = 157 while COUNT_DISTINCT unions back to 100. Proves the
+// subquery-shape pushdown produces the same merged results as the non-pushed coordinator aggregation.
+heavyAggregatesMergedAcrossSubquery
+required_capability: external_command
+required_capability: subquery_in_from_command
+dataset: emp_a: "{{employees_no_mv}}"
+dataset: emp_b: "{{employees_no_mv}}"
+
+FROM emp_a, (FROM emp_b | WHERE gender == "M")
+| STATS total = COUNT(*), distinct_emp = COUNT_DISTINCT(emp_no);
+
+total:long | distinct_emp:long
+157        | 100
+;
+
+// Subquery shape, grouped. emp_a contributes F=33, M=57, null=10; the subquery branch contributes only its 57 M rows.
+// Merged per group: F=33, M=57+57=114, null=10. Proves the grouped subquery-shape merge is correct.
+heavyAggregatesGroupedMergedAcrossSubquery
+required_capability: external_command
+required_capability: subquery_in_from_command
+dataset: emp_a: "{{employees_no_mv}}"
+dataset: emp_b: "{{employees_no_mv}}"
+
+FROM emp_a, (FROM emp_b | WHERE gender == "M")
+| STATS c = COUNT(*) BY gender
+| SORT gender;
+
+c:long | gender:keyword
+33     | "F"
+114    | "M"
+10     | null
+;
+
+// Subquery shape with an interior pipeline breaker (SORT + LIMIT). The breaker disqualifies the pushdown, so the
+// aggregation stays on the coordinator; the merged results must still be correct. The subquery branch contributes its
+// 5 smallest emp_no rows, so COUNT(*) = 100 + 5 = 105 and COUNT_DISTINCT unions back to 100 (those 5 are a subset of
+// emp_a's emp_no). Proves the not-pushed (bail-out) path produces the same results as if it had pushed.
+heavyAggregatesMergedAcrossSubqueryWithInnerLimit
+required_capability: external_command
+required_capability: subquery_in_from_command
+dataset: emp_a: "{{employees_no_mv}}"
+dataset: emp_b: "{{employees_no_mv}}"
+
+FROM emp_a, (FROM emp_b | SORT emp_no | LIMIT 5)
+| STATS total = COUNT(*), distinct_emp = COUNT_DISTINCT(emp_no);
+
+total:long | distinct_emp:long
+105        | 100
+;

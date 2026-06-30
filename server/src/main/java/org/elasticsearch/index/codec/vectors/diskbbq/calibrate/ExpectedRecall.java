@@ -45,13 +45,15 @@ public final class ExpectedRecall {
         0.4786286704993665,
         0.2369268850561891 };
 
+    private static final int RERANK_WINDOW_RANK_MULTIPLIER = 20;
+
     private ExpectedRecall() {}
 
     /**
      * Expected recall@k when reranking top-n candidates: average of expected recall for ranks 1..k.
      *
      * @param similarityFunction the vector similarity metric
-     * @param N                  total number of documents in the corpus
+     * @param numDocs            total number of documents in the corpus
      * @param manifoldIntercept  manifold model intercept
      * @param invDim             manifold model slope
      * @param errorStd           quantization error standard deviation
@@ -61,17 +63,17 @@ public final class ExpectedRecall {
      */
     public static double expectedRecallAtK(
         VectorSimilarityFunction similarityFunction,
-        int N,
+        int numDocs,
         double manifoldIntercept,
         double invDim,
         double errorStd,
         int k,
         int n
     ) {
-        int maxRank = 20 * n;
+        int maxRank = Math.min(RERANK_WINDOW_RANK_MULTIPLIER * n, numDocs); // at most numDocs ranks
         double[] rankDistances = new double[maxRank];
         for (int i = 0; i < maxRank; i++) {
-            rankDistances[i] = ManifoldModel.expectedRankDistance(similarityFunction, manifoldIntercept, invDim, N, i + 1);
+            rankDistances[i] = ManifoldModel.expectedRankDistance(similarityFunction, manifoldIntercept, invDim, numDocs, i + 1);
         }
 
         double total = 0;
@@ -135,7 +137,7 @@ public final class ExpectedRecall {
      */
     static double probabilityRankLessThanN(double[] rankDistances, double errorStd, int rankThreshold, double x) {
         double mu = 0, stddevSq = 0;
-        int limit = Math.min(20 * rankThreshold, rankDistances.length);
+        int limit = Math.min(RERANK_WINDOW_RANK_MULTIPLIER * rankThreshold, rankDistances.length);
         for (int i = 0; i < limit; i++) {
             double fx = normalCdf(x, rankDistances[i], errorStd);
             mu += fx;

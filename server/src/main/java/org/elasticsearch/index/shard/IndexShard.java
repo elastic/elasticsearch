@@ -2019,8 +2019,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ///
     /// @throws IndexShardNotRecoveringException if the shard is not in `CREATED` or `RECOVERING` state
     /// @throws IllegalStateException if the ongoing recovery is not of a supported type
-    /// @throws UnsupportedOperationException if called for a PEER recovery after the primary handover has already occurred
-    public void requestRecoveryCancellation(RecoveryCancelledException cause) {
+    /// @throws ShardRecoveryNotCancellableException if called for a PEER recovery after the primary handover has already occurred
+    public void requestRecoveryCancellation(RecoveryCancelledException cause) throws ShardRecoveryNotCancellableException {
         synchronized (mutex) {
             if (state == IndexShardState.CREATED) {
                 // Recovery type not yet known. Store the flag.
@@ -2037,9 +2037,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 case LOCAL_SHARDS, SNAPSHOT, EXISTING_STORE, EMPTY_STORE -> recoveryCancellationRequest = cause;
                 case PEER -> {
                     if (replicationTracker.isPrimaryMode()) {
-                        throw new UnsupportedOperationException(
-                            "cannot cancel primary relocation recovery after primary handover on shard " + shardId
-                        );
+                        throw new ShardRecoveryNotCancellableException(shardId, "primary handover already happened");
                     }
                     recoveryCancellationRequest = cause;
                 }

@@ -3672,7 +3672,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testRequestRecoveryCancellationSetsFlagForCreatedShard() throws IOException {
+    public void testRequestRecoveryCancellationSetsFlagForCreatedShard() throws Exception {
         final IndexShard shard = newShard(true);
         assertThat(shard.state(), equalTo(IndexShardState.CREATED));
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
@@ -3683,7 +3683,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testRequestRecoveryCancellationSetsFlagForStoreRecovery() throws IOException {
+    public void testRequestRecoveryCancellationSetsFlagForStoreRecovery() throws Exception {
         final IndexShard shard = reinitShard(newStartedShard(true));
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
@@ -3694,7 +3694,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testRequestRecoveryCancellationSetsFlagForPeerRecovery() throws IOException {
+    public void testRequestRecoveryCancellationSetsFlagForPeerRecovery() throws Exception {
         final IndexMetadata metadata = newTestIndexMetadata();
         final IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "node1", metadata, null);
         recoverShardFromStore(primary);
@@ -3746,8 +3746,8 @@ public class IndexShardTests extends IndexShardTestCase {
 
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         final RecoveryCancelledException cause = new RecoveryCancelledException(target.shardId(), null, localNode);
-        final UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
+        final ShardRecoveryNotCancellableException e = expectThrows(
+            ShardRecoveryNotCancellableException.class,
             () -> target.requestRecoveryCancellation(cause)
         );
         assertThat(e.getMessage(), containsString("cannot cancel primary relocation recovery after primary handover on shard"));
@@ -3757,7 +3757,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(source, target);
     }
 
-    public void testCancellationFlagSetInCreatedStateCancelsNonPeerRecovery() throws IOException {
+    public void testCancellationFlagSetInCreatedStateCancelsNonPeerRecovery() throws Exception {
         final IndexShard shard = reinitShard(newStartedShard(true));
         assertThat(shard.state(), equalTo(IndexShardState.CREATED));
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
@@ -3769,7 +3769,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testCancellationFlagSetInCreatedStateCancelsPeerRecovery() throws IOException {
+    public void testCancellationFlagSetInCreatedStateCancelsPeerRecovery() throws Exception {
         final IndexMetadata metadata = newTestIndexMetadata();
         final IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "node1", metadata, null);
         recoverShardFromStore(primary);

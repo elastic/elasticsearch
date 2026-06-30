@@ -22,6 +22,7 @@ import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.shard.ShardRecoveryNotCancellableException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
@@ -140,26 +141,26 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
         assert recoverySource != null : "recovery source cannot be null when shard is recovering";
         final RecoverySource.Type recoveryType = recoverySource.getType();
 
-        switch (recoveryType) {
-            case PEER -> {
-                try {
+        try {
+            switch (recoveryType) {
+                case PEER -> {
                     // [IndexShard#requestRecoveryCancellation] is used for primary relocation. It sets the pre-handover
                     // cancellation flag to block the potential handover if it hasn't happened yet.
                     // If this is a primary relocation, and the primary handover is already done,
-                    // [IndexShard#requestRecoveryCancellation] throws an UnsupportedOperationException and the
+                    // [IndexShard#requestRecoveryCancellation] throws an ShardRecoveryNotCancellableException and the
                     // cancellation is skipped.
                     // Both this flag and directCancelRecovery below may independently trigger a shard-failure notification
                     // to the master, but the master handles duplicate failures for the same allocation ID gracefully.
                     indexShard.requestRecoveryCancellation(new RecoveryCancelledException(shardId, null, clusterService.localNode()));
                     peerRecoveryTargetService.directCancelRecovery(shardId, allocationId);
-                } catch (UnsupportedOperationException e) {
-                    logger.debug("cancellation flag cannot be set on {}: {}", shardId, e.getMessage());
                 }
+                case EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, EMPTY_STORE -> indexShard.requestRecoveryCancellation(
+                    new RecoveryCancelledException(shardId, null, clusterService.localNode())
+                );
+                case RESHARD_SPLIT -> throw new UnsupportedOperationException("direct cancellation during a reshard split is unsupported");
             }
-            case EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, EMPTY_STORE -> indexShard.requestRecoveryCancellation(
-                new RecoveryCancelledException(shardId, null, clusterService.localNode())
-            );
-            case RESHARD_SPLIT -> throw new UnsupportedOperationException("direct cancellation during a reshard split is unsupported");
+        } catch (ShardRecoveryNotCancellableException e) {
+            logger.debug("cancellation flag cannot be set on {} for recovery type {}: {}", shardId, recoveryType, e.getMessage());
         }
     }
 }

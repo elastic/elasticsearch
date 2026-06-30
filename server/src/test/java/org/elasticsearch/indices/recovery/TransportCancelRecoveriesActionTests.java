@@ -90,7 +90,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testActionResponseIncludesAllCancelledRecoveriesInQueue() {
+    public void testActionResponseIncludesAllCancelledRecoveriesInQueue() throws Exception {
         final var shardId0 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
         final var allocationId0 = UUIDs.randomBase64UUID();
         final var shardId1 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 1);
@@ -153,7 +153,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         assertThrows((RecoveryCancelledException.class), indexShard::ensureRecoveryNotCancelled);
     }
 
-    public void testCancelIfStartedFalseCancelsQueuedRecoveryButSkipsDirectCancellation() {
+    public void testCancelIfStartedFalseCancelsQueuedRecoveryButSkipsDirectCancellation() throws Exception {
         final var shardId0 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
         final var allocationId0 = UUIDs.randomBase64UUID();
         final var shardId1 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 1);
@@ -202,7 +202,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         indexShard.ensureRecoveryNotCancelled();
     }
 
-    public void testActionIgnoresMissingIndex() {
+    public void testActionIgnoresMissingIndex() throws Exception {
         final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
         final var allocationId = UUIDs.randomBase64UUID();
 
@@ -218,7 +218,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         assertTrue(response.cancelledInQueue().isEmpty());
     }
 
-    public void testActionIgnoresShardNotRecovering() {
+    public void testActionIgnoresShardNotRecovering() throws Exception {
         final var indexName = randomIndexName();
         final var shardId = new ShardId(indexName, UUIDs.randomBase64UUID(), 0);
         final var allocationId = UUIDs.randomBase64UUID();
@@ -240,7 +240,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         indexShard.ensureRecoveryNotCancelled();
     }
 
-    public void testCancellationIgnoredWhenAllocationIdDoesNotMatch() {
+    public void testCancellationIgnoredWhenAllocationIdDoesNotMatch() throws Exception {
         final var shardId0 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
         final var allocationId0 = UUIDs.randomBase64UUID();
         final var shardId1 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 1);
@@ -286,7 +286,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         taskQueue.runAllTasks();
     }
 
-    public void testExceptionInOneCancellationDoesNotAffectOthers() {
+    public void testExceptionInOneCancellationDoesNotAffectOthers() throws Exception {
         final var shardId0 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
         final var allocationId0 = UUIDs.randomBase64UUID();
         final var shardId1 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 1);
@@ -342,7 +342,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         assertThrows((RecoveryCancelledException.class), indexShard0::ensureRecoveryNotCancelled);
     }
 
-    public void testReshardSplitCancellationIsNotSupported() {
+    public void testReshardSplitCancellationIsNotSupported() throws Exception {
         final var indexName = randomIndexName();
         final var shardId = new ShardId(indexName, UUIDs.randomBase64UUID(), 0);
         final var allocationId = UUIDs.randomBase64UUID();
@@ -383,7 +383,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         indexShard.ensureRecoveryNotCancelled();
     }
 
-    public void testCancellationStoredAndAppliedWhenShardNotYetCreated() {
+    public void testCancellationStoredAndAppliedWhenShardNotYetCreated() throws Exception {
         final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
         final var allocationId = UUIDs.randomBase64UUID();
 
@@ -451,7 +451,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         return indexService;
     }
 
-    private static IndexShard mockIndexShard(ShardId shardId, String allocationId) {
+    private static IndexShard mockIndexShard(ShardId shardId, String allocationId) throws Exception {
         final var indexShard = mock(IndexShard.class);
         final var routing = ShardRouting.newUnassigned(
             shardId,

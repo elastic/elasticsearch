@@ -9,10 +9,10 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,6 +20,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /// Transport action for batch cancellation of now-undesired recoveries.
@@ -30,7 +31,7 @@ public class CancelRecoveriesAction {
     public static final ActionType<Response> TYPE = new ActionType<>("internal:index/shard/recovery/cancel_recoveries");
 
     /// Request to cancel multiple recoveries in a single batch.
-    public static class Request extends ActionRequest {
+    public static class Request extends UntypedActionRequest {
         private final long clusterStateVersion;
         private final List<ShardRecoveryCancellation> shardRecoveryCancellations;
 
@@ -63,6 +64,20 @@ public class CancelRecoveriesAction {
 
         public List<ShardRecoveryCancellation> cancellations() {
             return shardRecoveryCancellations;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            final Request request = (Request) o;
+            return clusterStateVersion == request.clusterStateVersion
+                && shardRecoveryCancellations.equals(request.shardRecoveryCancellations);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(clusterStateVersion, shardRecoveryCancellations);
         }
     }
 
@@ -103,6 +118,19 @@ public class CancelRecoveriesAction {
         /// Returns the allocation IDs of recoveries that were cancelled from the throttling queue.
         public Set<String> cancelledInQueue() {
             return cancelledInQueue;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            final Response response = (Response) o;
+            return cancelledInQueue.equals(response.cancelledInQueue);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(cancelledInQueue);
         }
     }
 }

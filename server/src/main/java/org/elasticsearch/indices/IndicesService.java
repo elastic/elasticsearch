@@ -193,6 +193,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -421,7 +422,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.searchStatsSettings = new SearchStatsSettings(clusterService.getClusterSettings());
         this.storeMetricHolder = builder.storeMetricsHolder;
         this.directoryMetricHolderMap = builder.directoryMetricHolderMap;
-        this.throttlingRecoveryService = new ThrottlingRecoveryService(threadPool.generic(), clusterService);
+        this.throttlingRecoveryService = builder.throttlingRecoveryService;
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -435,7 +436,6 @@ public class IndicesService extends AbstractLifecycleComponent
         stopLatch.countDown();
         clusterService.removeApplier(timestampFieldMapperService);
         timestampFieldMapperService.doStop();
-        throttlingRecoveryService.close();
 
         ThreadPool.terminate(danglingIndicesThreadPoolExecutor, 10, TimeUnit.SECONDS);
 
@@ -645,6 +645,16 @@ public class IndicesService extends AbstractLifecycleComponent
         assert indexService.indexUUID().equals(index.getUUID())
             : "uuid mismatch local: " + indexService.indexUUID() + " incoming: " + index.getUUID();
         return indexService;
+    }
+
+    /**
+     * Returns a predicate that is {@code true} for shards open on this node.
+     */
+    public Predicate<ShardId> hasShardPredicate() {
+        return shardId -> {
+            final IndexService indexService = indexService(shardId.getIndex());
+            return indexService != null && indexService.hasShard(shardId.id());
+        };
     }
 
     /**
@@ -998,6 +1008,7 @@ public class IndicesService extends AbstractLifecycleComponent
         throttlingRecoveryService.enqueue(
             recoveryListener,
             recoveryState,
+            indexShard.recoveryStats(),
             listener -> projectResolver.executeOnProject(
                 projectId,
                 () -> indexShard.startRecovery(

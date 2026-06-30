@@ -2,7 +2,7 @@
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
   "type" : "time",
   "name" : "days_in_month",
-  "description" : "returns the number of days in the month of each of those timestamps (in UTC)",
+  "description" : "Returns the number of days in the month for each of the input timestamps (in UTC). Returned values are from 28 to 31.",
   "signatures" : [
     {
       "params" : [

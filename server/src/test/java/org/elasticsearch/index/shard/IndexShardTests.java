@@ -78,7 +78,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -132,6 +131,7 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
@@ -3217,7 +3217,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         IndexShard primary = newShard(routing, metadata, null, config -> new InternalEngine(config) {
             @Override
-            public List<Engine.IndexResult> indexBatch(List<Engine.Index> operations, EirfBatch batch) throws IOException {
+            public List<Engine.IndexResult> indexBatch(List<Engine.Index> operations, SourceBatch batch) throws IOException {
                 assert batch == null;
                 recoveryBatchCalls.incrementAndGet();
                 return super.indexBatch(operations, batch);

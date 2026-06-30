@@ -31,6 +31,7 @@ import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeSer
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.lookup.BlockOptimization;
+import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Nullable;
@@ -132,7 +133,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             projectResolver,
             plannerSettings
         );
-        this.executionPlanner = new LookupExecutionPlanner(blockFactory, bigArrays, localBreakerSettings);
+        this.executionPlanner = new LookupExecutionPlanner(
+            blockFactory,
+            bigArrays,
+            localBreakerSettings,
+            directoryBytesReadSupplier(indicesService)
+        );
         this.exchangeService = exchangeService;
     }
 
@@ -260,8 +266,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     @Override
-    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) {
-        return new LookupResponse(pages, blockFactory);
+    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory, long bytesRead) {
+        return new LookupResponse(pages, blockFactory, null, bytesRead);
     }
 
     @Override
@@ -524,15 +530,13 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         private List<Page> pages;
         @Nullable
         private final String planString;
+        private final long bytesRead;
 
-        LookupResponse(List<Page> pages, BlockFactory blockFactory) {
-            this(pages, blockFactory, null);
-        }
-
-        LookupResponse(List<Page> pages, BlockFactory blockFactory, @Nullable String planString) {
+        LookupResponse(List<Page> pages, BlockFactory blockFactory, @Nullable String planString, long bytesRead) {
             super(blockFactory);
             this.pages = pages;
             this.planString = planString;
+            this.bytesRead = bytesRead;
         }
 
         LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -548,6 +552,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 } else {
                     this.planString = null;
                 }
+                this.bytesRead = in.getTransportVersion().supports(EnrichQuerySourceOperator.Status.ESQL_ENRICH_BYTES_READ)
+                    ? in.readVLong()
+                    : 0L;
                 this.pages = readPages;
                 success = true;
             } finally {
@@ -566,11 +573,19 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (out.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
                 out.writeOptionalString(planString);
             }
+            if (out.getTransportVersion().supports(EnrichQuerySourceOperator.Status.ESQL_ENRICH_BYTES_READ)) {
+                out.writeVLong(bytesRead);
+            }
         }
 
         @Nullable
         public String planString() {
             return planString;
+        }
+
+        @Override
+        public long bytesRead() {
+            return bytesRead;
         }
 
         @Override
@@ -597,12 +612,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 return false;
             }
             LookupResponse that = (LookupResponse) o;
-            return Objects.equals(pages, that.pages) && Objects.equals(planString, that.planString);
+            return Objects.equals(pages, that.pages) && Objects.equals(planString, that.planString) && bytesRead == that.bytesRead;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pages, planString);
+            return Objects.hash(pages, planString, bytesRead);
         }
 
         @Override
@@ -784,7 +799,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             clusterService.getClusterName().value(),
             releasables,
             ActionListener.wrap(
-                ignored -> responseListener.onResponse(new LookupResponse(List.of(), blockFactory, planString)),
+                ignored -> responseListener.onResponse(new LookupResponse(List.of(), blockFactory, planString, 0L)),
                 responseListener::onFailure
             )
         );

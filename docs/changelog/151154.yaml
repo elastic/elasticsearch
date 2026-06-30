@@ -1,0 +1,6 @@
+pr: 151154
+summary: Fix `matrix_stats` aggregation builder equals/hashCode to include `missingMap` and `multiValueMode`
+area: Aggregations
+type: bug
+issues:
+ - 151153

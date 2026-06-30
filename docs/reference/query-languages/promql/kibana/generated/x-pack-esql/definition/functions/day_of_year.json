@@ -2,7 +2,7 @@
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
   "type" : "time",
   "name" : "day_of_year",
-  "description" : "returns the day of the year for each of those timestamps (in UTC). Returned values are from 1 to 366.",
+  "description" : "Returns the day of the year for each of the input timestamps (in UTC). Returned values are from 1 to 366.",
   "signatures" : [
     {
       "params" : [

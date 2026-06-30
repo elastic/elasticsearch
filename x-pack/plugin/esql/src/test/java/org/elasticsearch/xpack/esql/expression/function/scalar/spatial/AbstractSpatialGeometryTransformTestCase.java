@@ -60,12 +60,20 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
         return 100;
     }
 
+    /**
+     * Maximum vertex count for randomly-generated shapes used in these tests. Geometry transform
+     * operations such as ST_SIMPLIFY and ST_SIMPLIFYPRESERVETOPOLOGY rely on JTS algorithms that
+     * use recursion proportional to vertex count (e.g. {@code TaggedLineStringSimplifier}), so we
+     * cap complexity to avoid {@link StackOverflowError} in multithreaded test execution.
+     */
+    private static final int MAX_TEST_GEOMETRY_POINTS = 100;
+
     public static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataType dataType) {
         return switch (dataType) {
             case GEO_POINT -> TestCaseSupplier.geoPointCases(() -> false).getFirst();
-            case GEO_SHAPE -> TestCaseSupplier.geoShapeCases(() -> false).getFirst();
+            case GEO_SHAPE -> TestCaseSupplier.geoShapeCases(() -> false, MAX_TEST_GEOMETRY_POINTS).getFirst();
             case CARTESIAN_POINT -> TestCaseSupplier.cartesianPointCases(() -> false).getFirst();
-            case CARTESIAN_SHAPE -> TestCaseSupplier.cartesianShapeCases(() -> false).getFirst();
+            case CARTESIAN_SHAPE -> TestCaseSupplier.cartesianShapeCases(() -> false, MAX_TEST_GEOMETRY_POINTS).getFirst();
             default -> throw new IllegalArgumentException("Unsupported datatype: " + dataType);
         };
     }
@@ -183,7 +191,7 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
             Geometry jtsGeometry = UNSPECIFIED.wkbToJtsGeometry(wkb);
             Geometry result = jtsOp.apply(jtsGeometry, parameter);
             return UNSPECIFIED.jtsGeometryToWkb(result);
-        } catch (Exception e) {
+        } catch (Exception | StackOverflowError e) {
             throw new AssumptionViolatedException("Skipping invalid test case");
         }
     }

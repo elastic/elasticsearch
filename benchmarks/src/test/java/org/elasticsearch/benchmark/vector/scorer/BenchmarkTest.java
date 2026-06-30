@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.benchmark.vector.VectorImplementation;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
@@ -31,7 +32,7 @@ import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPO
 public class BenchmarkTest extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    protected static Iterable<Object[]> generateParameters(Field... paramsFields) {
+    public static Iterable<Object[]> generateParameters(Field... paramsFields) {
         List<Object[]> params = Arrays.stream(paramsFields).map(f -> {
             String[] values = f.getAnnotation(Param.class).value();
             return Arrays.copyOf(values, values.length, Object[].class);

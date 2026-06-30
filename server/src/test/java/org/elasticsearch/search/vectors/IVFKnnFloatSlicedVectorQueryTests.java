@@ -29,7 +29,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
@@ -61,9 +60,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void setUpIVFKnnFloatSlicedVectorQuery() throws Exception {
         format = new ESNextDiskBBQVectorsFormat(128, 4, SLICE_FIELD);
         // only one slice so it behaves as a normal index
         this.numSlices = 1;
@@ -104,37 +101,6 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
             Query filter = new TermQuery(new Term("id", "text"));
             query = getKnnVectorQuery("field", new float[] { 0.0f, 1.0f }, 10, filter);
             assertEquals("IVFKnnFloatSlicedVectorQuery:field[0.0,...][10][" + SLICE_FIELD + "=[0]][id:text]", query.toString("ignored"));
-        }
-    }
-
-    /**
-     * Unlike {@link AbstractIVFKnnVectorQueryTestCase#testBitSetQuery()}, sliced search intersects the
-     * filter iterator with the slice doc-id range before materializing accept bits, so it never calls
-     * {@link org.apache.lucene.util.BitSetIterator#getBitSet()} and supports filters that do not allow
-     * bitset reuse.
-     */
-    @Override
-    public void testBitSetQuery() throws IOException {
-        IndexWriterConfig iwc = newIndexWriterConfig();
-        decorateIWC(iwc);
-        try (Directory dir = newDirectoryForTest(); IndexWriter w = new IndexWriter(dir, iwc)) {
-            final int numDocs = 100;
-            final int dim = 30;
-            for (int i = 0; i < numDocs; ++i) {
-                Document d = getDocumentToIndex();
-                d.add(getKnnVectorField("vector", randomVector(dim)));
-                w.addDocument(d);
-            }
-            w.commit();
-
-            try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                // Same fixture as AbstractIVFKnnVectorQueryTestCase#testBitSetQuery(): an empty FixedBitSet
-                // (all bits clear) behind a BitSetIterator; non-sliced search fails fatally in getBitSet().
-                Query filter = new ThrowingBitSetQuery(new FixedBitSet(numDocs));
-                TopDocs topDocs = searcher.search(getKnnVectorQuery("vector", randomVector(dim), 10, filter), numDocs);
-                assertEquals(0, topDocs.scoreDocs.length);
-            }
         }
     }
 
@@ -273,6 +239,15 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
                         TopDocs topDocs = getTopDocs(searcher, expectedDocs, vector, filterQuery, querySlices);
                         assertTopDocs(applyFilter, expectedDocs, topDocs, reader, filterField, filterValue, querySlices);
                     }
+                    {
+                        // all slices
+                        int expectedDocs = 0;
+                        for (int j = 0; j < numSlices; j++) {
+                            expectedDocs += applyFilter ? docsPerSliceFiltered[j] : docsPerSlice[j];
+                        }
+                        TopDocs topDocs = getTopDocs(searcher, expectedDocs, vector, filterQuery);
+                        assertEquals(expectedDocs, topDocs.scoreDocs.length);
+                    }
                     // invalid slice
                     TopDocs topDocs = getTopDocs(searcher, 0, vector, filterQuery, -1);
                     assertEquals(0, topDocs.scoreDocs.length);
@@ -281,13 +256,20 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
         }
     }
 
-    private TopDocs getTopDocs(IndexSearcher searcher, int expectedDocs, float[] vector, Query filterQuery, int... slice)
+    private TopDocs getTopDocs(IndexSearcher searcher, int expectedDocs, float[] vector, Query filterQuery, int... slices)
         throws IOException {
-        BytesRef[] sliceRef = new BytesRef[slice.length];
-        for (int i = 0; i < slice.length; i++) {
-            sliceRef[i] = new BytesRef("" + slice[i]);
+        BytesRef[] sliceRef;
+        int k;
+        if (slices != null) {
+            sliceRef = new BytesRef[slices.length];
+            for (int i = 0; i < slices.length; i++) {
+                sliceRef[i] = new BytesRef("" + slices[i]);
+            }
+            k = 2 * Math.max(1, expectedDocs);
+        } else {
+            sliceRef = null;
+            k = expectedDocs;
         }
-        int k = 2 * Math.max(1, expectedDocs);
         Query kvq = new IVFKnnFloatSlicedVectorQuery("vector", vector, k, k, filterQuery, 1.0f, testResolver(), SLICE_FIELD, sliceRef);
         return searcher.search(kvq, k);
     }

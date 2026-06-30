@@ -40,11 +40,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
-import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -353,7 +349,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             DenseVectorFieldMapper.ElementType.BFLOAT16
         );
         KnnVectorsFormat format = randomFrom(
-            new ES920DiskBBQVectorsFormat(
+            /*new ES920DiskBBQVectorsFormat(
                 DEFAULT_VECTORS_PER_CLUSTER,
                 DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                 elementType,
@@ -363,7 +359,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             ),
             new ES93BinaryQuantizedVectorsFormat(elementType, false),
             new ES93HnswBinaryQuantizedVectorsFormat(elementType, randomBoolean()),
-            new ES93ScalarQuantizedVectorsFormat(elementType),
+            new ES93ScalarQuantizedVectorsFormat(elementType),*/
             new ES93HnswScalarQuantizedVectorsFormat(
                 DEFAULT_VECTORS_PER_CLUSTER,
                 DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,

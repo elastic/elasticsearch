@@ -143,7 +143,7 @@ public class GoogleCloudStorageClientSettings {
     static final Setting.AffixSetting<Boolean> GCS_TENACIOUS_RETRIES_ENABLED_SETTING = Setting.affixKeySetting(
         PREFIX,
         "tenacious_retries.enabled",
-        key -> Setting.boolSetting(key, false, Setting.Property.NodeScope)
+        key -> Setting.boolSetting(key, true, Setting.Property.NodeScope)
     );
 
     /** The credentials used by the client to connect to the Storage endpoint. */

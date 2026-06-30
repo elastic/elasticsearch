@@ -1,26 +1,30 @@
 ---
 setup:
   - requires:
-      cluster_features: ["mapper.keyword.store_high_cardinality_in_binary_doc_values", "mapper.ip.doc_values_cardinality_option"]
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.keyword.columnar_default_high_cardinality"]
       reason: "testing binary doc values search"
 
   - do:
       indices.create:
         index:  test
         body:
+          settings:
+            index:
+              mode: columnar
           mappings:
             dynamic: false
             properties:
               keyword:
                 type: keyword
                 index: false
-                doc_values:
-                  cardinality: high
               ip:
                 type: ip
                 index: false
-                doc_values:
-                  cardinality: high
 
   - do:
       index:

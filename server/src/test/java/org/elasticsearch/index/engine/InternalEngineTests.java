@@ -181,7 +181,7 @@ import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
-import java.util.function.ToLongBiFunction;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -245,7 +245,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     /**
      * Encodes the given ops' sources into an {@link EirfBatch} that can be passed to
-     * {@link Engine#indexBatch(List, EirfBatch)}. The bytes are copied so the caller does not need to
+     * {@link Engine#indexBatch(List, org.elasticsearch.sourcebatch.SourceBatch)}. The bytes are copied so the caller does not need to
      * manage the encoder's recycler lifecycle.
      */
     private static EirfBatch encodeAsEirfBatch(List<Engine.Index> operations) throws IOException {
@@ -772,7 +772,7 @@ public class InternalEngineTests extends EngineTestCase {
                 store,
                 createTempDir(),
                 LocalCheckpointTracker::new,
-                (engine, operation) -> seqNos.get(counter.getAndIncrement())
+                (engine) -> seqNos.get(counter.getAndIncrement())
             );
             for (int i = 0; i < docs; i++) {
                 final String id = Integer.toString(i);
@@ -5075,13 +5075,13 @@ public class InternalEngineTests extends EngineTestCase {
      *                                number
      * @return a sequence number generator
      */
-    private ToLongBiFunction<Engine, Engine.Operation> getStallingSeqNoGenerator(
+    private ToLongFunction<Engine> getStallingSeqNoGenerator(
         final AtomicReference<CountDownLatch> latchReference,
         final CyclicBarrier barrier,
         final AtomicBoolean stall,
         final AtomicLong expectedLocalCheckpoint
     ) {
-        return (engine, operation) -> {
+        return (engine) -> {
             final long seqNo = generateNewSeqNo(engine);
             final CountDownLatch latch = latchReference.get();
             if (stall.get()) {
@@ -5342,7 +5342,7 @@ public class InternalEngineTests extends EngineTestCase {
                 .build();
             noOpEngine = new InternalEngine(noopEngineConfig, IndexWriter.MAX_DOCS, supplier) {
                 @Override
-                protected long doGenerateSeqNoForOperation(Operation operation) {
+                protected long doGenerateSeqNo() {
                     throw new UnsupportedOperationException();
                 }
             };
@@ -5816,7 +5816,7 @@ public class InternalEngineTests extends EngineTestCase {
                 null,
                 localCheckpointTrackerSupplier,
                 null,
-                (engine, operation) -> seqNoGenerator.getAndIncrement()
+                (engine) -> seqNoGenerator.getAndIncrement()
             )
         ) {
             final String id = "id";
@@ -8358,6 +8358,83 @@ public class InternalEngineTests extends EngineTestCase {
         Engine.Index op2 = new Engine.Index(newUid(doc2), primaryTerm.get() + 1, doc2);
         var updates = List.of(op1, op2);
         expectThrows(AssertionError.class, () -> engine.indexBatch(updates, encodeAsEirfBatch(updates)));
+    }
+
+    public void testIndexBatchSeqNosAreContiguous() throws IOException {
+        // All successful ops in a primary batch should receive a contiguous range of sequence numbers.
+        int batchSize = randomIntBetween(2, 20);
+        List<Engine.Index> ops = new ArrayList<>(batchSize);
+        for (int i = 0; i < batchSize; i++) {
+            ops.add(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+        }
+        long seqNoBefore = engine.getLocalCheckpointTracker().getMaxSeqNo();
+        List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
+
+        assertThat(results, hasSize(batchSize));
+        long firstSeqNo = seqNoBefore + 1;
+        for (int i = 0; i < batchSize; i++) {
+            assertThat(results.get(i).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat(results.get(i).getSeqNo(), equalTo(firstSeqNo + i));
+        }
+    }
+
+    public void testIndexBatchProcessedCheckpointAdvancesAfterBatch() throws IOException {
+        int batchSize = randomIntBetween(2, 20);
+        List<Engine.Index> ops = new ArrayList<>(batchSize);
+        for (int i = 0; i < batchSize; i++) {
+            ops.add(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+        }
+        long checkpointBefore = engine.getProcessedLocalCheckpoint();
+        List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
+
+        assertThat(results, hasSize(batchSize));
+        long expectedCheckpoint = checkpointBefore + batchSize;
+        assertThat(engine.getProcessedLocalCheckpoint(), equalTo(expectedCheckpoint));
+        for (Engine.IndexResult result : results) {
+            assertThat(engine.getLocalCheckpointTracker().hasProcessed(result.getSeqNo()), equalTo(true));
+        }
+    }
+
+    public void testIndexBatchCheckpointWithVersionConflicts() throws IOException {
+        // Version-conflict ops are preflight errors that do not get seq nos — the remaining ops
+        // should still form a contiguous range and advance the checkpoint correctly.
+        ParsedDocument doc = createParsedDoc("1", null);
+        Engine.IndexResult firstResult = indexDoc(engine, indexForDoc(doc));
+        assertThat(firstResult.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        engine.refresh("test");
+        engine.refresh("test");
+
+        // conflicting op: stale if-seq-no
+        Engine.Index conflicting = new Engine.Index(
+            newUid(doc),
+            doc,
+            UNASSIGNED_SEQ_NO,
+            primaryTerm.get(),
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            false,
+            firstResult.getSeqNo() + 100,
+            firstResult.getTerm()
+        );
+        ParsedDocument doc2 = createParsedDoc("2", null);
+        Engine.Index goodOp = indexForDoc(doc2);
+
+        long checkpointBefore = engine.getProcessedLocalCheckpoint();
+        List<Engine.Index> ops = List.of(conflicting, goodOp);
+        List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
+
+        assertThat(results, hasSize(2));
+        // conflicting op: failure, no seq no assigned
+        assertThat(results.get(0).getResultType(), equalTo(Engine.Result.Type.FAILURE));
+        assertThat(results.get(0).getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+        // good op: success, gets exactly one new seq no
+        assertThat(results.get(1).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        assertThat(results.get(1).getSeqNo(), equalTo(checkpointBefore + 1));
+        // processed checkpoint advances by exactly one (the one real op)
+        assertThat(engine.getProcessedLocalCheckpoint(), equalTo(checkpointBefore + 1));
     }
 
     private static void releaseCommitRef(Map<IndexCommit, Engine.IndexCommitRef> commits, long generation) {

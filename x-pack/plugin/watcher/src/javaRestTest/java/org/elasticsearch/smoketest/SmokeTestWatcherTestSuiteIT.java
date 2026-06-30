@@ -107,8 +107,11 @@ public class SmokeTestWatcherTestSuiteIT extends WatcherRestTestCase {
             indexWatch(watchId, builder);
         }
 
-        // check watch count
-        assertWatchCount(1);
+        // check watch count — wrap in assertBusy because when the .watches index is created for the
+        // first time, the WatcherLifeCycleService detects the new shard allocation and triggers a
+        // reload (pauseExecution + async reloadInner). During the pause window the watch count is 0;
+        // it becomes 1 once reloadInner finishes loading watches from the index.
+        assertBusy(() -> assertWatchCount(1));
 
         // check watch history
         ObjectPath objectPath = getWatchHistoryEntry(watchId);

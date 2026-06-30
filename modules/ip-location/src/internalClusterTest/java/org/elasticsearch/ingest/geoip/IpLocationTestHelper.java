@@ -12,6 +12,8 @@ package org.elasticsearch.ingest.geoip;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
@@ -48,6 +50,15 @@ public final class IpLocationTestHelper {
     private static final Logger logger = LogManager.getLogger(IpLocationTestHelper.class);
 
     public static final String DATABASES_INDEX = GeoIpDownloader.DATABASES_INDEX;
+
+    /**
+     * The set of databases served by {@link fixture.geoip.GeoIpHttpFixture}.
+     */
+    public static final String[] FIXTURE_DATABASES = new String[] {
+        "GeoLite2-City.mmdb",
+        "GeoLite2-Country.mmdb",
+        "GeoLite2-ASN.mmdb",
+        "MyCustomGeoLite2-City.mmdb" };
 
     private IpLocationTestHelper() {}
 
@@ -165,13 +176,27 @@ public final class IpLocationTestHelper {
     }
 
     /**
-     * Asserts that every node relevant for {@code consumer} (per
-     * {@link IpLocationDownloadConsumers#isRelevantForNode(IpLocationConsumer, org.elasticsearch.cluster.node.DiscoveryNode)}) has
-     * downloaded and loaded exactly {@code expectedDatabases}. Also asserts that at least one such node exists,
-     * so a test cluster topology that accidentally has no relevant node fails loudly rather than passing vacuously.
+     * Waits until all nodes relevant for {@code consumer} have downloaded the fixture databases
+     * <strong>and</strong> the databases are functionally usable (a lookup returns non-null).
      */
-    public static void awaitAllRelevantNodesDownloadedDatabases(Client client, IpLocationConsumer consumer, String... expectedDatabases)
-        throws Exception {
+    public static void awaitAllDatabasesAvailable(InternalTestCluster cluster, IpLocationConsumer consumer) throws Exception {
+        awaitAllDatabasesDownloaded(cluster.client(), consumer);
+        assertBusy(() -> {
+            for (String nodeName : cluster.getNodeNames()) {
+                DiscoveryNode node = cluster.clusterService(nodeName).localNode();
+                if (IpLocationDownloadConsumers.isRelevantForNode(consumer, node) == false) {
+                    continue;
+                }
+                IpLocationService service = cluster.getInstance(IpLocationService.class, nodeName);
+                for (String db : FIXTURE_DATABASES) {
+                    IpDataLookup lookup = service.createIpDataLookup(ProjectId.DEFAULT.id(), db, null);
+                    assertNotNull("database [" + db + "] should be available for lookup on node [" + nodeName + "]", lookup);
+                }
+            }
+        });
+    }
+
+    private static void awaitAllDatabasesDownloaded(Client client, IpLocationConsumer consumer) throws Exception {
         assertBusy(() -> {
             GeoIpStatsAction.Response response = client.execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
             assertThat(response.getNodes(), not(empty()));
@@ -186,7 +211,7 @@ public final class IpLocationTestHelper {
                 assertThat(
                     "node [" + nodeResponse.getNode().getName() + "] (relevant for " + consumer + ") should have all downloaded databases",
                     nodeResponse.getDatabases(),
-                    containsInAnyOrder(expectedDatabases)
+                    containsInAnyOrder(FIXTURE_DATABASES)
                 );
             }
         });

@@ -233,6 +233,9 @@ final class DefaultSearchContext extends SearchContext {
                     minimumDocsPerSlice
                 );
             }
+            if (circuitBreaker != null) {
+                this.searcher.setCircuitBreaker(circuitBreaker);
+            }
             closeFuture.addListener(ActionListener.releasing(Releasables.wrap(engineSearcher, searcher)));
             this.relativeTimeSupplier = relativeTimeSupplier;
             this.timeout = timeout;

@@ -164,8 +164,9 @@ setup:
 "text multi-value array order":
   # text/match_only_text array ordering requires explicit doc_values:true; columnar mode does not force doc values on.
   - requires:
-      cluster_features: [ "mapper.columnar.maintain_array_order_ip_text" ]
-      reason: "Columnar array ordering for text fields is part of the part-4 mapper wiring"
+      cluster_features: [ "mapper.columnar.maintain_array_order_ip_text", "mapper.columnar.inline_array_order_binary_doc_values" ]
+      reason: "Columnar array ordering for text fields is part of the part-4 mapper wiring, and stores array order inline in binary
+        doc values, which is not readable by nodes that still use the sidecar .offsets layout"
   - do:
       indices.create:
         index: test_columnar
@@ -214,8 +215,9 @@ setup:
 ---
 "match_only_text multi-value array order":
   - requires:
-      cluster_features: [ "mapper.columnar.maintain_array_order_ip_text" ]
-      reason: "Columnar array ordering for match_only_text fields is part of the part-4 mapper wiring"
+      cluster_features: [ "mapper.columnar.maintain_array_order_ip_text", "mapper.columnar.inline_array_order_binary_doc_values" ]
+      reason: "Columnar array ordering for match_only_text fields is part of the part-4 mapper wiring, and stores array order inline in
+        binary doc values, which is not readable by nodes that still use the sidecar .offsets layout"
   - do:
       indices.create:
         index: test_columnar
@@ -310,6 +312,10 @@ setup:
 
 ---
 "keyword multi-value array order":
+  # High-cardinality keyword in columnar mode stores array order inline in binary doc values rather than a sidecar .offsets field.
+  - requires:
+      cluster_features: [ "mapper.columnar.inline_array_order_binary_doc_values" ]
+      reason: "Inline binary doc-values array order is not readable by nodes that still use the sidecar .offsets layout"
   - do:
       indices.create:
         index: test_columnar

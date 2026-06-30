@@ -7,12 +7,11 @@
 
 package org.elasticsearch.compute.lucene.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -20,8 +19,10 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -46,6 +47,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static org.apache.lucene.search.ScoreMode.COMPLETE;
 import static org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES;
@@ -84,7 +86,8 @@ public class LuceneSourceOperator extends LuceneOperator {
             int maxPageSize,
             int limit,
             boolean needsScore,
-            LongSupplier directoryBytesRead
+            LongSupplier directoryBytesRead,
+            int minDocsPerSlice
         ) {
             super(
                 shardContexts,
@@ -98,7 +101,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                 limit,
                 needsScore,
                 shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES,
-                directoryBytesRead
+                directoryBytesRead,
+                minDocsPerSlice
             );
             this.refCounteds = shardContexts;
             this.maxPageSize = maxPageSize;
@@ -157,39 +161,77 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
 
         /**
-         * Select the {@link PartitioningStrategy} based on the {@link Query}.
+         * Select the {@link PartitioningStrategy} based on the (already rewritten) {@link Query}.
          * <ul>
+         *     <li>{@link MatchNoDocsQuery} at the root → {@link PartitioningStrategy#SHARD} (minimal overhead for an empty result).</li>
+         *     <li>{@link MatchAllDocsQuery} at the root → {@link PartitioningStrategy#DOC} (cheap scorer, maximize CPU usage).</li>
          *     <li>
-         *         If the {@linkplain Query} matches <strong>no</strong> documents then this will
-         *         use the {@link PartitioningStrategy#SHARD} strategy so we minimize the overhead
-         *         of finding nothing.
-         *     </li>
-         *     <li>
-         *         If the {@linkplain Query} matches <strong>all</strong> documents then this will
-         *         use the {@link PartitioningStrategy#DOC} strategy because the overhead of using
-         *         that strategy for {@link MatchAllDocsQuery} is very low, and we need as many CPUs
-         *         as we can get to process all the documents.
-         *     </li>
-         *     <li>
-         *         Otherwise use the {@link PartitioningStrategy#SEGMENT} strategy because it's
-         *         overhead is generally low.
+         *         Otherwise walk the full query tree (including compound clauses such as
+         *         {@code BooleanQuery}, {@code IndexOrDocValuesQuery}, and {@code MUST_NOT} branches)
+         *         via a {@link QueryVisitor}. If any sub-query is costly to build a scorer for
+         *         (point ranges, multi-term wrappers — see {@link #isCostlyToBuildScorer}), pick
+         *         {@link PartitioningStrategy#SEGMENT}; else {@link PartitioningStrategy#DOC}.
          *     </li>
          * </ul>
          */
         private static PartitioningStrategy highSpeedAutoStrategy(Query query) {
             Query unwrapped = unwrapQuery(query);
             log.trace("highSpeedAutoStrategy {} {}", query, unwrapped);
-            return switch (unwrapped) {
-                case BooleanQuery bq -> highSpeedAutoStrategyForBoolean(bq);
-                case MatchAllDocsQuery q -> DOC;
-                case MatchNoDocsQuery q -> SHARD;
-                case IndexOrDocValuesQuery q -> highSpeedAutoStrategy(q.getIndexQuery());
-                default -> costlyToBuildScorer(unwrapped) ? SEGMENT : DOC;
-            };
+            if (unwrapped instanceof MatchAllDocsQuery) {
+                return DOC;
+            }
+            if (unwrapped instanceof MatchNoDocsQuery) {
+                return SHARD;
+            }
+            return containsCostlyClause(query) ? SEGMENT : DOC;
+        }
+
+        /**
+         * Walk the full query tree and return {@code true} if any sub-query is costly to build a
+         * scorer for. Uses a {@link QueryVisitor}, so this handles arbitrary nesting:
+         * {@code BooleanQuery} (incl. {@code MUST_NOT} clauses), {@code IndexOrDocValuesQuery},
+         * {@code DisjunctionMaxQuery}, and any other compound structure that Lucene knows how to
+         * walk via {@link Query#visit}.
+         */
+        static boolean containsCostlyClause(Query query) {
+            boolean[] found = { false };
+            query.visit(new QueryVisitor() {
+                @Override
+                public void consumeTerms(Query q, Term... terms) {
+                    if (isCostlyToBuildScorer(q)) {
+                        found[0] = true;
+                    }
+                }
+
+                @Override
+                public void consumeTermsMatching(Query q, String field, Supplier<ByteRunAutomaton> automaton) {
+                    if (isCostlyToBuildScorer(q)) {
+                        found[0] = true;
+                    }
+                }
+
+                @Override
+                public void visitLeaf(Query q) {
+                    if (isCostlyToBuildScorer(q)) {
+                        found[0] = true;
+                    }
+                }
+
+                @Override
+                public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                    if (isCostlyToBuildScorer(parent)) {
+                        found[0] = true;
+                    }
+                    // Visit every branch including MUST_NOT — a costly negated clause still has to be
+                    // resolved at scorer-build time, so it should still steer us to SEGMENT.
+                    return this;
+                }
+            });
+            return found[0];
         }
 
         // copied from UsageTrackingQueryCachingPolicy
-        private static boolean costlyToBuildScorer(Query query) {
+        static boolean isCostlyToBuildScorer(Query query) {
             if (query instanceof MultiTermQuery || query instanceof PointRangeQuery || query instanceof PointInSetQuery) {
                 return true;
             }
@@ -215,19 +257,6 @@ public class LuceneSourceOperator extends LuceneOperator {
                         return query;
                 }
             }
-        }
-
-        /**
-         * Select the {@link PartitioningStrategy} for a {@link BooleanQuery}.
-         */
-        private static PartitioningStrategy highSpeedAutoStrategyForBoolean(BooleanQuery query) {
-            for (BooleanClause c : query) {
-                var strategy = highSpeedAutoStrategy(c.query());
-                if (strategy != DOC) {
-                    return strategy;
-                }
-            }
-            return DOC;
         }
     }
 

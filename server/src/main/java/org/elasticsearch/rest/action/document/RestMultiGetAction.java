@@ -13,6 +13,7 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -75,8 +76,18 @@ public class RestMultiGetAction extends BaseRestHandler {
         }
 
         FetchSourceContext defaultFetchSource = FetchSourceContext.parseFromRestRequest(request);
+        // Top-level routing/_slice become the per-item default (each doc may still override with its own routing/_slice).
+        final SliceIndexing.ParsedRouting defaultRouting = SliceIndexing.parseRoutingOrSliceWithProvenance(request);
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            multiGetRequest.add(request.param("index"), sFields, defaultFetchSource, request.param("routing"), parser, allowExplicitIndex);
+            multiGetRequest.add(
+                request.param("index"),
+                sFields,
+                defaultFetchSource,
+                defaultRouting.routing(),
+                defaultRouting.fromSlice(),
+                parser,
+                allowExplicitIndex
+            );
         }
 
         return channel -> client.multiGet(multiGetRequest, new RestChunkedToXContentListener<>(channel));

@@ -2536,7 +2536,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            true
         );
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         service.executeQueryPhase(request, task, future.delegateFailure((l, r) -> {
@@ -2573,7 +2574,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            true
         );
         service.executeQueryPhase(request, task, future);
         IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, future::actionGet);
@@ -2612,7 +2614,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            true
         );
         service.executeQueryPhase(request, task, future);
 
@@ -2650,7 +2653,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            true
         );
         service.executeQueryPhase(request, task, future);
 

@@ -46,6 +46,9 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -53,7 +56,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
-import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -71,8 +73,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.STORE_BYTES_READ_HISTOGRAM_NAME;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class AbstractSearchAsyncActionTests extends ESTestCase {
@@ -81,6 +86,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     private final Set<ShardSearchContextId> releasedContexts = new CopyOnWriteArraySet<>();
     private TestThreadPool threadPool;
     private TransportService mockTransportService;
+    private RecordingMeterRegistry meterRegistry;
 
     @After
     public void cleanTransportService() {
@@ -134,8 +140,11 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         );
         SearchTransportService searchTransportService = new SearchTransportService(mockTransportService, null, null);
 
-        return new AbstractSearchAsyncAction<SearchPhaseResult>(
-            "test",
+        this.meterRegistry = new RecordingMeterRegistry();
+        SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(meterRegistry);
+
+        return new AbstractSearchAsyncAction<>(
+            "query",
             logger,
             null,
             searchTransportService,
@@ -156,7 +165,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             results,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            Mockito.mock(SearchResponseMetrics.class),
+            searchResponseMetrics,
             Map.of(),
             false
         ) {
@@ -320,7 +329,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals("Partial shards failure (" + (numShards - 1) + " shards unavailable)", searchPhaseExecutionException.getMessage());
-        assertEquals("test", searchPhaseExecutionException.getPhaseName());
+        assertEquals("query", searchPhaseExecutionException.getPhaseName());
         assertEquals(0, searchPhaseExecutionException.shardFailures().length);
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
     }
@@ -651,6 +660,46 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 numShards * perShardBytes,
                 action.getMergedDirectoryMetrics().metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead()
             );
+        }
+    }
+
+    public void testRecordStoreMetricsReportsMergedBytesRead() {
+        int numShards = randomIntBetween(1, 5);
+        long expectedBytesRead = 0;
+        try (ArraySearchPhaseResults<SearchPhaseResult> results = new ArraySearchPhaseResults<>(numShards)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+                new SearchRequest(),
+                results,
+                ActionListener.noop(),
+                true,
+                new AtomicLong()
+            );
+            for (int i = 0; i < numShards; i++) {
+                long shardBytes = (i + 1) * 13L;
+                expectedBytesRead += shardBytes;
+                action.accumulateDirectoryMetrics(storeMetrics(shardBytes));
+            }
+            action.recordStoreMetrics(action.getMergedDirectoryMetrics());
+            List<Measurement> measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, STORE_BYTES_READ_HISTOGRAM_NAME);
+            assertThat(measurements, hasSize(1));
+            assertThat(measurements.get(0).value(), equalTo(expectedBytesRead));
+        }
+    }
+
+    public void testRecordStoreMetricsSkipsEmpty() {
+        try (ArraySearchPhaseResults<SearchPhaseResult> results = new ArraySearchPhaseResults<>(1)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+                new SearchRequest(),
+                results,
+                ActionListener.noop(),
+                true,
+                new AtomicLong()
+            );
+            action.recordStoreMetrics(DirectoryMetrics.EMPTY);
+            List<Measurement> measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, STORE_BYTES_READ_HISTOGRAM_NAME);
+            assertThat(measurements, empty());
         }
     }
 

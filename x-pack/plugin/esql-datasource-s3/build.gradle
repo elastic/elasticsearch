@@ -6,6 +6,7 @@
  */
 
 apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.esql-release'
 
@@ -96,6 +97,45 @@ dependencies {
   // S3 fixture for in-process unit tests of S3StorageProvider against a fake S3 endpoint.
   testImplementation project(':test:fixtures:s3-fixture')
   testImplementation project(':test:fixtures:aws-fixture-utils')
+
+  // Java REST tests for workload identity auth against the S3 + STS + Pod-Identity fixtures.
+  javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
+  javaRestTestImplementation project(xpackModule('esql:qa:server'))
+  javaRestTestImplementation project(xpackModule('esql'))
+
+  // S3 + AWS auth fixtures: spin up an S3 endpoint, an STS endpoint (for IRSA), and a
+  // container-credentials endpoint (for EKS Pod Identity) inside the test JVM.
+  javaRestTestImplementation project(':test:fixtures:s3-fixture')
+  javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
+  javaRestTestImplementation project(':test:fixtures:aws-sts-fixture')
+
+  // The DEFAULT distribution already bundles every esql-datasource-* module these tests need,
+  // so no .module()/.plugin() calls are required on the cluster builder. Mapper plugins are not
+  // part of DEFAULT and still need to be provisioned explicitly for the test cluster.
+  clusterPlugins project(':plugins:mapper-size')
+  clusterPlugins project(':plugins:mapper-murmur3')
+}
+
+tasks.named('javaRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+  baseClass 'org.elasticsearch.test.ESTestCase'
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution('esql-datasource-s3 is bundled only in the default distribution')
+  maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
+
+  // STS round-trips push first-request latency above the default REST client timeout; mirror
+  // the longer timeouts used by the Azure ITs.
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+
+  testLogging {
+    events = ["passed", "skipped", "failed"]
+    exceptionFormat = "full"
+    showStandardStreams = false
+  }
 }
 
 tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).configureEach {

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
+import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -127,6 +129,7 @@ public class PlanWritables {
             TopN.ENTRY,
             TopNBy.ENTRY,
             UriParts.ENTRY,
+            IpLocation.ENTRY,
             MetricsInfo.ENTRY,
             RegisteredDomain.ENTRY,
             TsInfo.ENTRY,
@@ -167,6 +170,7 @@ public class PlanWritables {
             TopNExec.ENTRY,
             TopNByExec.ENTRY,
             UriPartsExec.ENTRY,
+            IpLocationExec.ENTRY,
             MetricsInfoExec.ENTRY,
             RegisteredDomainExec.ENTRY,
             TsInfoExec.ENTRY,

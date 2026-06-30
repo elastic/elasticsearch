@@ -593,7 +593,7 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
         }
     }
 
-    // This method issues search request to retrieves the database chunks from the .geoip_databases index and passes
+    // This method issues a search request to retrieve the database chunks from the .geoip_databases index and passes
     // them to the chunkConsumer (which appends the data to a tmp file). This method forks to the generic thread pool to do the search.
     void retrieveDatabase(
         ProjectId projectId,
@@ -717,7 +717,7 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
     // --- IpLocationService implementation ---
 
     @Override
-    public IpDataLookup createIpDataLookup(String projectIdStr, String databaseFile, java.util.List<String> propertyNames) {
+    public IpDataLookup createIpDataLookup(String projectIdStr, String databaseFile, List<String> propertyNames) {
         ProjectId pid = ProjectId.fromId(projectIdStr);
         DatabaseReaderLazyLoader loader = getDatabaseReaderLazyLoader(pid, databaseFile);
         if (loader == null) {
@@ -727,7 +727,7 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
             String dbType = loader.getDatabaseType();
             IpDataLookupFactory factory = IpDataLookupFactories.get(dbType, databaseFile);
             InternalIpDataLookup internalLookup = factory.create(propertyNames);
-            IpDataLookupInfo info = new IpDataLookupInfoImpl(internalLookup.getProperties(), dbType);
+            IpDataLookupInfo info = new IpDataLookupInfoImpl(internalLookup.getProperties(), factory.defaultProperties(), dbType);
             return new IpDataLookupImpl(this, pid, databaseFile, dbType, internalLookup, info);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -750,7 +750,7 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
         if (database == null) {
             return null;
         }
-        return new IpDataLookupInfoImpl(database.properties(), dbType);
+        return new IpDataLookupInfoImpl(database.properties(), database.defaultProperties(), dbType);
     }
 
     @Override

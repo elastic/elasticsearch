@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
@@ -210,7 +212,12 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
 
         return switch (supersetType) {
             case BOOLEAN -> new MvContainsBooleanEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
-            case BYTES_REF -> new MvContainsBytesRefEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+            case BYTES_REF -> new MvContainsBytesRefEvaluator.Factory(
+                source(),
+                context -> new BytesRef(),
+                toEvaluator.apply(left()),
+                toEvaluator.apply(right())
+            );
             case DOUBLE -> new MvContainsDoubleEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case INT -> new MvContainsIntEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case LONG -> new MvContainsLongEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
@@ -288,7 +295,12 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
     }
 
     @Evaluator(extraName = "BytesRef", allNullsIsNull = false)
-    static boolean process(@Position int position, BytesRefBlock superset, BytesRefBlock subset) {
+    static boolean process(
+        @Position int position,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch,
+        BytesRefBlock superset,
+        BytesRefBlock subset
+    ) {
         if (superset == subset || subset.areAllValuesNull()) {
             return true;
         }
@@ -296,7 +308,6 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         final var valueCount = subset.getValueCount(position);
         final var startIndex = subset.getFirstValueIndex(position);
         var value = new BytesRef();
-        var scratch = new BytesRef();
         for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
             // we pass in a reference, but sometimes we only get a return value, see ConstantBytesRefVector.getBytesRef
             value = subset.getBytesRef(valueIndex, value);

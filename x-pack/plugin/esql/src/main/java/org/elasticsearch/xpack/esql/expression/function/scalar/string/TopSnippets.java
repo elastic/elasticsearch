@@ -68,6 +68,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -441,7 +442,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         @Fixed MemoryIndexChunkScorer scorer,
         @Fixed int numSnippets,
         @Fixed boolean docOrder,
-        @Fixed(includeInToString = false) PassageFormatter highlightFormatter
+        @Fixed(includeInToString = false) PassageFormatter highlightFormatter,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
     ) {
         if (queryString == null) {
             throw new IllegalArgumentException("single-value function encountered multi-value");
@@ -451,7 +453,6 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             builder.appendNull();
             return;
         }
-        BytesRef scratch = new BytesRef();
         int firstValueIndex = field.getFirstValueIndex(position);
 
         // Collect all chunks from all field values upfront so we build one index.
@@ -585,7 +586,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             scorer,
             numSnippets,
             docOrder,
-            highlightFormatter
+            highlightFormatter,
+            context -> new BytesRef()
         );
     }
 }

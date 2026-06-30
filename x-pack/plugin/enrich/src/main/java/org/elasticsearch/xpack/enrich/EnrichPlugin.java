@@ -6,9 +6,11 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -117,6 +119,56 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         Setting.Property.NodeScope
     );
 
+    /**
+     * The maximum number of enrich policies that may exist at once. Enrich policies are stored in the cluster state, which is held in
+     * heap on every node and serialized on every cluster state update, so an unbounded number of policies can destabilize the cluster.
+     * This is a safety limit; it is only enforced when creating a new policy, so existing policies above the limit continue to work.
+     */
+    public static final Setting<Integer> ENRICH_MAX_POLICIES = Setting.intSetting(
+        "enrich.max_policies",
+        1000,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * The maximum length (in characters) allowed for the {@code match_field} and each entry of {@code enrich_fields} of an enrich policy.
+     * These are document field names, which are realistically short; bounding their length keeps a single policy from bloating the cluster
+     * state. This is a safety limit and is only enforced when creating a new policy.
+     */
+    public static final Setting<Integer> ENRICH_MAX_FIELD_NAME_LENGTH = Setting.intSetting(
+        "enrich.max_field_name_length",
+        1024,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * The maximum serialized size of a single enrich policy. This bounds the total contribution of one policy (including its query,
+     * indices, and fields) to the cluster state. This is a safety limit and is only enforced when creating a new policy.
+     */
+    public static final Setting<ByteSizeValue> ENRICH_MAX_POLICY_SIZE = Setting.byteSizeSetting(
+        "enrich.max_policy_size",
+        ByteSizeValue.ofKb(256),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * The maximum combined serialized size of <em>all</em> enrich policies. Per-policy and per-count limits do not bound the aggregate --
+     * many policies each just under the per-policy limit can still accumulate enough data in the cluster state to destabilize the cluster
+     * (cluster state is held in heap on every node and re-serialized on every update). This caps that aggregate. It is only enforced when
+     * creating a new policy, so existing policies above the limit continue to work.
+     */
+    public static final Setting<ByteSizeValue> ENRICH_MAX_TOTAL_METADATA_SIZE = Setting.byteSizeSetting(
+        "enrich.max_total_metadata_size",
+        ByteSizeValue.ofMb(25),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private static final String QUEUE_CAPACITY_SETTING_NAME = "enrich.coordinator_proxy.queue_capacity";
     public static final Setting<Integer> COORDINATOR_PROXY_QUEUE_CAPACITY = new Setting<>(QUEUE_CAPACITY_SETTING_NAME, settings -> {
         int maxConcurrentRequests = COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS.get(settings);
@@ -157,6 +209,8 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     private final Settings settings;
     private final EnrichCache enrichCache;
     private final long maxCacheSize;
+    // Captured in createComponents so REST handlers can read live (dynamically-updatable) cluster settings at request time.
+    private final SetOnce<ClusterService> clusterService = new SetOnce<>();
 
     public EnrichPlugin(final Settings settings) {
         this.settings = settings;
@@ -230,7 +284,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         return List.of(
             new RestGetEnrichPolicyAction(),
             new RestDeleteEnrichPolicyAction(),
-            new RestPutEnrichPolicyAction(),
+            new RestPutEnrichPolicyAction(() -> clusterService.get().getClusterSettings().get(ENRICH_MAX_POLICY_SIZE)),
             new RestExecuteEnrichPolicyAction(),
             new RestEnrichStatsAction()
         );
@@ -238,6 +292,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        clusterService.set(services.clusterService());
         EnrichPolicyLocks enrichPolicyLocks = new EnrichPolicyLocks();
         EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(
             settings,
@@ -295,6 +350,10 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
             COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST,
             COORDINATOR_PROXY_QUEUE_CAPACITY,
             ENRICH_MAX_FORCE_MERGE_ATTEMPTS,
+            ENRICH_MAX_POLICIES,
+            ENRICH_MAX_FIELD_NAME_LENGTH,
+            ENRICH_MAX_POLICY_SIZE,
+            ENRICH_MAX_TOTAL_METADATA_SIZE,
             CACHE_SIZE,
             CACHE_SIZE_BWC
         );

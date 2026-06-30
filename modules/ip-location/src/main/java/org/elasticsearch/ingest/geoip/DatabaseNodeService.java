@@ -326,6 +326,16 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
         }
         // Eager downloading keeps ingest-capable nodes' databases retrieved and loaded locally even before any
         // pipeline registers an IpLocationConsumer, mirroring the downloader's `eager || hasConsumers` behavior.
+        //
+        // Note on the eager -> non-eager transition: if eager was the *only* reason a database was loaded (no
+        // consumer was ever registered, so the consumers custom is absent) and eager is later turned off, the loaded
+        // databases are intentionally preserved rather than dropped. We cannot prune them here, because the only
+        // signal available in that case is `consumers == null`, which is deliberately overloaded as the rolling-upgrade
+        // "preserve" state (see the three-state comment below) -- pruning on absent would risk silently degrading
+        // ingest mid-upgrade, and a single cluster state can't distinguish "eager was the only reason" from
+        // "the master hasn't written the custom metadata yet". The footprint is bounded to the fixed set of databases, and the
+        // per-node tmp directory is wiped on startup. The normal paths still reclaim them once they apply: a consumer
+        // registered then removed (consumers present+empty -> dropProjectAndShutdown), project removal, or node restart.
         boolean eagerOnIngestNode = eagerDownloadSupplier.get() && localNode.isIngestNode();
         state.forEachProject(projectState -> {
             if (eagerOnIngestNode) {

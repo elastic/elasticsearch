@@ -40,9 +40,20 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Decomposes an {@link Aggregate} whose child is a direct-leaf {@link UnionAll}
- * (heterogeneous FROM) into per-branch partial aggregates combined by a final
- * merge aggregate.
+ * Decomposes an {@link Aggregate} whose child is a {@link UnionAll} into per-branch partial
+ * aggregates combined by a final merge aggregate. This fires on two branch shapes (see
+ * {@link PushDownUtils#canDecomposeAggregateThroughUnionAll}): the direct-leaf shape a
+ * heterogeneous {@code FROM} produces ({@code EsRelation}/{@code ExternalRelation}, optionally under a
+ * {@code Project}), and the subquery shape ({@code Project? > Eval? > Subquery}, or a bare
+ * {@code Subquery}) that {@code FROM idx, (FROM ds | ...)} and views produce. A branch whose
+ * sub-pipeline already contains its own pipeline breaker (aggregation, sort, or limit) disqualifies the
+ * whole {@code UnionAll} (the rewrite is all-or-nothing because branches must keep a homogeneous
+ * output schema), so the aggregation stays on the coordinator.
+ *
+ * <p>The per-branch partial aggregate is placed directly on top of each branch (below the
+ * {@code UnionAll}). For a subquery branch the physical mapper folds the {@code Project}/{@code Eval}/
+ * {@code Subquery} wrappers into the data-node fragment and splits the partial aggregate, so the
+ * initial aggregation runs next to the data exactly as it does for the leaf shape.
  *
  * <p>Two kinds of aggregate are decomposed, via two combine strategies:
  * <ul>
@@ -100,7 +111,7 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
         if (!(aggregate.child() instanceof UnionAll unionAll)) {
             return aggregate;
         }
-        if (PushDownUtils.isLeafUnionAll(unionAll) == false) {
+        if (PushDownUtils.canDecomposeAggregateThroughUnionAll(unionAll) == false) {
             return aggregate;
         }
 
@@ -225,7 +236,9 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
                 );
             }
         }
-        UnionAll newUnionAll = new UnionAll(unionAll.source(), newBranches, unionOutput);
+        // Preserve the concrete UnionAll subtype (e.g. ViewUnionAll keeps its named-subquery metadata),
+        // mirroring how PushDownFilterAndLimitIntoUnionAll rebuilds branches via replaceChildren.
+        UnionAll newUnionAll = unionAll.replaceSubPlansAndOutput(newBranches, unionOutput);
 
         // Build the outer combiner Aggregate.
         // Groupings reference the shared grouping IDs from the UnionAll output.

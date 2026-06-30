@@ -1,0 +1,15 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[],[SUM($$partial$$c{r$}#0,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_throw[KEYWORD]) AS c#1],SINGLE,[$$c$sum{r}#2, $$c$seen{r}#3],null]
+  \_MergeExec[[$$partial$$c{r$}#0]]
+    |_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$c#0],FINAL,[$$partial$$c$count{r}#4, $$partial$$c$seen{r}#5],null]
+    | \_ExchangeExec[[$$partial$$c$count{r}#4, $$partial$$c$seen{r}#5],true]
+    |   \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$c#0]]
+\_ExternalRelation[s3://bucket/heavy_a.parquet][parquet][emp_no{r}#6, salary{r}#7, dept{r}#8]<>]]
+    \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$c#0],FINAL,[$$partial$$c$count{r}#9, $$partial$$c$seen{r}#10],null]
+      \_ExchangeExec[[$$partial$$c$count{r}#9, $$partial$$c$seen{r}#10],true]
+        \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$c#0]]
+\_Subquery[]
+  \_Filter[salary{r}#11 > 0[INTEGER]]
+    \_ExternalRelation[s3://bucket/heavy_b.parquet][parquet][emp_no{r}#12, salary{r}#11, dept{r}#13]<>]]

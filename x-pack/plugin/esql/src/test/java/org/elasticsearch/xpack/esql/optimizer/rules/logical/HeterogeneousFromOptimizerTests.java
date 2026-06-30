@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
@@ -41,21 +42,26 @@ import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -74,9 +80,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Unit tests that verify optimizer pushdown rules behave correctly for the heterogeneous FROM shape —
- * a direct-leaf {@link UnionAll} where children are {@link EsRelation} or {@link ExternalRelation}
- * (rather than the subquery-shape where children are {@code Project > Eval? > Subquery}).
+ * Unit tests that verify optimizer pushdown rules behave correctly for the shapes a multi-source
+ * {@code FROM} produces: the direct-leaf {@link UnionAll} where children are {@link EsRelation} or
+ * {@link ExternalRelation}, and the subquery shape where children are {@code Project > Eval? > Subquery}
+ * (what {@code FROM idx, (FROM ds | ...)} and views produce). {@link PushAggregateThroughUnionAll}
+ * decomposes aggregates over both shapes; the other pushdown rules are exercised here on the leaf shape.
  */
 public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimizerTests {
 
@@ -459,16 +467,17 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     /**
-     * {@link PushAggregateThroughUnionAll} must not push aggregates into a subquery-shape
-     * UnionAll whose children are doubly-wrapped (Project → Project → Relation), which
-     * does not match the leaf-union pattern ({@link PushDownUtils#isLeafUnionAll}).
+     * {@link PushAggregateThroughUnionAll} must not push aggregates into a {@code UnionAll} whose children are
+     * doubly-wrapped (Project → Project → Relation): this matches neither the direct-leaf shape nor the
+     * {@code Project? > Eval? > Subquery} shape that {@link PushDownUtils#canDecomposeAggregateThroughUnionAll}
+     * accepts.
      */
     public void testNonLeafUnionAllAggNotPushed() {
         ReferenceAttribute unionField = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
         FieldAttribute esEmpNo = getFieldAttribute("emp_no", INTEGER);
         EsRelation esRelation = relation().withAttributes(List.of(esEmpNo));
 
-        // Double-wrap to produce a shape that isLeafUnionAll does not recognise as a leaf
+        // Double-wrap to produce a shape the gate does not recognise (peeling one Project leaves another Project).
         Project innerProject = new Project(EMPTY, esRelation, List.of(esEmpNo));
         Project project = new Project(EMPTY, innerProject, List.of(esEmpNo));
 
@@ -479,7 +488,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
 
         LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
 
-        // Rule must not fire — subquery-shape UnionAll is not eligible
+        // Rule must not fire: the doubly-wrapped UnionAll is not an eligible shape.
         assertSame(aggregate, result);
     }
 
@@ -1189,6 +1198,407 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     // -------------------------------------------------------------------------
+    // PushAggregateThroughUnionAll: subquery shape (Project > Eval? > Subquery)
+    // -------------------------------------------------------------------------
+
+    /**
+     * {@link PushAggregateThroughUnionAll} must decompose {@code COUNT(*)} over a subquery-shaped
+     * {@link UnionAll} (each branch {@code Project > Subquery > Relation}), placing a per-branch
+     * {@code COUNT(*)} on top of each branch and a {@code SUM} combiner on the coordinator, the same
+     * decomposition as the leaf shape.
+     */
+    public void testCountStarPushedThroughSubqueryUnionAll() {
+        ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
+
+        EsRelation esRelation = relation().withAttributes(List.of(getFieldAttribute("emp_no", INTEGER)));
+        ExternalRelation extRelation = externalRelation(List.of(extAttr("emp_no", INTEGER)));
+
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(subqueryBranch(esRelation), subqueryBranch(extRelation)), List.of(unionEmpNo));
+
+        Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(countAlias));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        Aggregate outerAgg = as(result, Aggregate.class);
+        Alias outerAlias = as(outerAgg.aggregates().get(0), Alias.class);
+        assertThat(outerAlias.id(), equalTo(countAlias.id())); // original output ID preserved
+        assertThat(outerAlias.child(), instanceOf(Sum.class));
+
+        UnionAll newUnionAll = as(outerAgg.child(), UnionAll.class);
+        assertThat(newUnionAll.children(), hasSize(2));
+        for (LogicalPlan branch : newUnionAll.children()) {
+            // The partial aggregate sits on top of the (still intact) Project > Subquery wrappers.
+            Aggregate branchAgg = as(branch, Aggregate.class);
+            Project branchProject = as(branchAgg.child(), Project.class);
+            as(branchProject.child(), Subquery.class);
+            assertThat(as(branchAgg.aggregates().get(0), Alias.class).child(), instanceOf(Count.class));
+        }
+    }
+
+    /**
+     * {@link PushAggregateThroughUnionAll} must resolve an aggregate's field reference to each branch's
+     * own attribute through the {@code Project > Subquery} wrappers, rewriting the partial aggregate
+     * against that branch's own column ids, here for {@code SUM(salary)}.
+     */
+    public void testSumFieldResolvedThroughSubqueryUnionAll() {
+        ReferenceAttribute unionSalary = new ReferenceAttribute(EMPTY, "salary", INTEGER);
+
+        FieldAttribute esSalary = getFieldAttribute("salary", INTEGER);
+        EsRelation esRelation = relation().withAttributes(List.of(esSalary));
+        Attribute extSalary = extAttr("salary", INTEGER);
+        ExternalRelation extRelation = externalRelation(List.of(extSalary));
+
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(subqueryBranch(esRelation), subqueryBranch(extRelation)), List.of(unionSalary));
+
+        Alias sumAlias = new Alias(EMPTY, "s", new Sum(EMPTY, unionSalary));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(sumAlias));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        UnionAll newUnionAll = as(as(result, Aggregate.class).child(), UnionAll.class);
+        // Branch 1: SUM(salary{f}) resolved to the EsRelation's field attribute (reached through the wrappers).
+        Sum b1Sum = as(as(as(newUnionAll.children().get(0), Aggregate.class).aggregates().get(0), Alias.class).child(), Sum.class);
+        assertThat(b1Sum.field(), equalTo(esSalary));
+        // Branch 2: resolved to the ExternalRelation's attribute.
+        Sum b2Sum = as(as(as(newUnionAll.children().get(1), Aggregate.class).aggregates().get(0), Alias.class).child(), Sum.class);
+        assertThat(b2Sum.field(), equalTo(extSalary));
+    }
+
+    /**
+     * {@link PushAggregateThroughUnionAll} must decompose a grouped heavy aggregate
+     * ({@code COUNT_DISTINCT(emp_no) BY dept}) over the subquery shape via the intermediate-state path:
+     * each branch emits a {@link ToPartial} and the combiner merges with {@link FromPartial}.
+     */
+    public void testGroupedHeavyAggPushedThroughSubqueryUnionAll() {
+        ReferenceAttribute unionDept = new ReferenceAttribute(EMPTY, "dept", INTEGER);
+        ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
+
+        EsRelation esRelation = relation().withAttributes(
+            List.of(getFieldAttribute("dept", INTEGER), getFieldAttribute("emp_no", INTEGER))
+        );
+        ExternalRelation extRelation = externalRelation(List.of(extAttr("dept", INTEGER), extAttr("emp_no", INTEGER)));
+
+        UnionAll unionAll = new UnionAll(
+            EMPTY,
+            List.of(subqueryBranch(esRelation), subqueryBranch(extRelation)),
+            List.of(unionDept, unionEmpNo)
+        );
+
+        Alias cdAlias = new Alias(EMPTY, "d", new CountDistinct(EMPTY, unionEmpNo, null));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(unionDept), List.of(cdAlias, unionDept));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        Aggregate outerAgg = as(result, Aggregate.class);
+        assertThat(
+            as(as(outerAgg.aggregates().get(0), Alias.class).child(), FromPartial.class).function(),
+            instanceOf(CountDistinct.class)
+        );
+
+        UnionAll newUnionAll = as(outerAgg.child(), UnionAll.class);
+        assertThat(newUnionAll.output().get(0).dataType(), equalTo(DataType.PARTIAL_AGG));
+        for (LogicalPlan branch : newUnionAll.children()) {
+            Aggregate branchAgg = as(branch, Aggregate.class);
+            assertThat(branchAgg.groupings(), hasSize(1));
+            assertThat(as(branchAgg.aggregates().get(0), Alias.class).child(), instanceOf(ToPartial.class));
+        }
+    }
+
+    /**
+     * {@link PushAggregateThroughUnionAll} must accept a subquery branch with an {@link Eval} wrapper
+     * ({@code Project > Eval > Subquery}, the shape union alignment produces when schemas differ) and
+     * still decompose.
+     */
+    public void testSubqueryUnionAllWithEvalWrapperPushed() {
+        ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
+
+        EsRelation esRelation = relation().withAttributes(List.of(getFieldAttribute("emp_no", INTEGER)));
+        ExternalRelation extRelation = externalRelation(List.of(extAttr("emp_no", INTEGER)));
+
+        // An Eval that introduces a null-filled column, as union alignment does for a missing column.
+        Alias nullBonus = new Alias(EMPTY, "bonus", new Literal(EMPTY, null, INTEGER));
+
+        UnionAll unionAll = new UnionAll(
+            EMPTY,
+            List.of(subqueryBranchWithEval(esRelation, nullBonus), subqueryBranchWithEval(extRelation, nullBonus)),
+            List.of(unionEmpNo)
+        );
+
+        Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(countAlias));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        UnionAll newUnionAll = as(as(result, Aggregate.class).child(), UnionAll.class);
+        for (LogicalPlan branch : newUnionAll.children()) {
+            Aggregate branchAgg = as(branch, Aggregate.class);
+            Project branchProject = as(branchAgg.child(), Project.class);
+            Eval branchEval = as(branchProject.child(), Eval.class);
+            as(branchEval.child(), Subquery.class);
+        }
+    }
+
+    /**
+     * {@link PushAggregateThroughUnionAll} must decompose over a {@link UnionAll} that mixes a direct-leaf
+     * branch ({@link EsRelation}) with a subquery branch ({@code Project > Subquery > ExternalRelation}).
+     */
+    public void testMixedLeafAndSubqueryBranchesPushed() {
+        ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
+
+        EsRelation esRelation = relation().withAttributes(List.of(getFieldAttribute("emp_no", INTEGER)));
+        ExternalRelation extRelation = externalRelation(List.of(extAttr("emp_no", INTEGER)));
+
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, subqueryBranch(extRelation)), List.of(unionEmpNo));
+
+        Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(countAlias));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        UnionAll newUnionAll = as(as(result, Aggregate.class).child(), UnionAll.class);
+        // Leaf branch becomes Aggregate > EsRelation; subquery branch becomes Aggregate > Project > Subquery.
+        as(as(newUnionAll.children().get(0), Aggregate.class).child(), EsRelation.class);
+        as(as(as(newUnionAll.children().get(1), Aggregate.class).child(), Project.class).child(), Subquery.class);
+    }
+
+    /**
+     * {@link PushAggregateThroughUnionAll} must accept a bare {@link Subquery} branch (no {@code Project}/{@code Eval}
+     * wrapper), the shape {@code CombineProjections} can leave behind, and still decompose.
+     */
+    public void testBareSubqueryBranchPushed() {
+        ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
+
+        EsRelation esRelation = relation().withAttributes(List.of(getFieldAttribute("emp_no", INTEGER)));
+        ExternalRelation extRelation = externalRelation(List.of(extAttr("emp_no", INTEGER)));
+
+        UnionAll unionAll = new UnionAll(
+            EMPTY,
+            List.of(new Subquery(EMPTY, esRelation), new Subquery(EMPTY, extRelation)),
+            List.of(unionEmpNo)
+        );
+
+        Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(countAlias));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        UnionAll newUnionAll = as(as(result, Aggregate.class).child(), UnionAll.class);
+        for (LogicalPlan branch : newUnionAll.children()) {
+            as(as(branch, Aggregate.class).child(), Subquery.class);
+        }
+    }
+
+    /**
+     * {@link PushAggregateThroughUnionAll} must decompose a grouped algebraic aggregate
+     * ({@code COUNT(*) BY dept}) over the subquery shape, placing a per-branch grouped {@code COUNT} on each branch.
+     */
+    public void testGroupedCountStarPushedThroughSubqueryUnionAll() {
+        ReferenceAttribute unionDept = new ReferenceAttribute(EMPTY, "dept", INTEGER);
+
+        EsRelation esRelation = relation().withAttributes(List.of(getFieldAttribute("dept", INTEGER)));
+        ExternalRelation extRelation = externalRelation(List.of(extAttr("dept", INTEGER)));
+
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(subqueryBranch(esRelation), subqueryBranch(extRelation)), List.of(unionDept));
+
+        Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(unionDept), List.of(countAlias, unionDept));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        Aggregate outerAgg = as(result, Aggregate.class);
+        assertThat(as(outerAgg.aggregates().get(0), Alias.class).child(), instanceOf(Sum.class));
+        UnionAll newUnionAll = as(outerAgg.child(), UnionAll.class);
+        for (LogicalPlan branch : newUnionAll.children()) {
+            Aggregate branchAgg = as(branch, Aggregate.class);
+            assertThat(branchAgg.groupings(), hasSize(1));
+            assertThat(as(branchAgg.aggregates().get(0), Alias.class).child(), instanceOf(Count.class));
+            as(branchAgg.child(), Project.class);
+        }
+    }
+
+    /**
+     * {@link PushAggregateThroughUnionAll} must resolve an aggregate's field reference to a column an {@link Eval}
+     * inside the subquery wrapper chain renames ({@code Project > Eval[bonus = salary] > Subquery}), proving field
+     * resolution reaches the Eval-produced attribute on each branch.
+     */
+    public void testEvalAliasedFieldAggResolvedThroughSubqueryUnionAll() {
+        ReferenceAttribute unionBonus = new ReferenceAttribute(EMPTY, "bonus", INTEGER);
+
+        FieldAttribute esSalary = getFieldAttribute("salary", INTEGER);
+        EsRelation esRelation = relation().withAttributes(List.of(esSalary));
+        Alias esBonus = new Alias(EMPTY, "bonus", esSalary);
+        Attribute extSalary = extAttr("salary", INTEGER);
+        ExternalRelation extRelation = externalRelation(List.of(extSalary));
+        Alias extBonus = new Alias(EMPTY, "bonus", extSalary);
+
+        UnionAll unionAll = new UnionAll(
+            EMPTY,
+            List.of(evalRenameSubqueryBranch(esRelation, esBonus), evalRenameSubqueryBranch(extRelation, extBonus)),
+            List.of(unionBonus)
+        );
+
+        Alias sumAlias = new Alias(EMPTY, "s", new Sum(EMPTY, unionBonus));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(sumAlias));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        UnionAll newUnionAll = as(as(result, Aggregate.class).child(), UnionAll.class);
+        Sum b1Sum = as(as(as(newUnionAll.children().get(0), Aggregate.class).aggregates().get(0), Alias.class).child(), Sum.class);
+        assertThat(b1Sum.field(), equalTo(esBonus.toAttribute()));
+        Sum b2Sum = as(as(as(newUnionAll.children().get(1), Aggregate.class).aggregates().get(0), Alias.class).child(), Sum.class);
+        assertThat(b2Sum.field(), equalTo(extBonus.toAttribute()));
+    }
+
+    /**
+     * The bail-all guard is union-wide: a {@link UnionAll} mixing a clean direct-leaf branch with a subquery branch
+     * whose interior carries a pipeline breaker ({@link TopN}) must not push at all.
+     */
+    public void testMixedLeafAndBreakerSubqueryNotPushed() {
+        ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
+
+        EsRelation leaf = relation().withAttributes(List.of(getFieldAttribute("emp_no", INTEGER)));
+        EsRelation inner = relation().withAttributes(List.of(getFieldAttribute("emp_no", INTEGER)));
+        Order order = new Order(EMPTY, inner.output().get(0), Order.OrderDirection.ASC, null);
+        LogicalPlan breakerBranch = subqueryBranch(new TopN(EMPTY, inner, List.of(order), new Literal(EMPTY, 10, INTEGER), false));
+
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(leaf, breakerBranch), List.of(unionEmpNo));
+
+        Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(countAlias));
+
+        assertSame(aggregate, new PushAggregateThroughUnionAll().apply(aggregate));
+    }
+
+    /**
+     * The rewrite must preserve the concrete {@link UnionAll} subtype. A {@link ViewUnionAll} (view-produced)
+     * must stay a {@link ViewUnionAll} with its named-subquery metadata intact, rather than being downgraded to a
+     * plain {@link UnionAll}, since this rule now fires on the subquery-shaped unions views produce.
+     */
+    public void testViewUnionAllSubtypePreserved() {
+        ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
+
+        EsRelation esRelation = relation().withAttributes(List.of(getFieldAttribute("emp_no", INTEGER)));
+        ExternalRelation extRelation = externalRelation(List.of(extAttr("emp_no", INTEGER)));
+
+        LinkedHashMap<String, LogicalPlan> namedBranches = new LinkedHashMap<>();
+        namedBranches.put("view_a", esRelation);
+        namedBranches.put("view_b", extRelation);
+        ViewUnionAll viewUnionAll = new ViewUnionAll(EMPTY, namedBranches, List.of(unionEmpNo));
+
+        Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
+        Aggregate aggregate = new Aggregate(EMPTY, viewUnionAll, List.of(), List.of(countAlias));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        ViewUnionAll newViewUnionAll = as(as(result, Aggregate.class).child(), ViewUnionAll.class);
+        assertThat(newViewUnionAll.namedSubqueries().keySet(), contains("view_a", "view_b"));
+    }
+
+    /**
+     * {@link PushAggregateThroughUnionAll} must NOT push when a subquery branch's sub-pipeline already
+     * contains its own {@link Aggregate}: a conflicting pipeline breaker disqualifies the whole rewrite.
+     */
+    public void testInnerAggregateBranchNotPushed() {
+        assertSubqueryInteriorBreakerBailsOut(
+            esRelation -> new Aggregate(EMPTY, esRelation, List.of(), List.of(new Alias(EMPTY, "emp_no", new Count(EMPTY, Literal.TRUE))))
+        );
+    }
+
+    /**
+     * {@link PushAggregateThroughUnionAll} must NOT push when a subquery branch already contains a
+     * {@link TopN} (sort + limit), a conflicting pipeline breaker.
+     */
+    public void testInnerTopNBranchNotPushed() {
+        assertSubqueryInteriorBreakerBailsOut(esRelation -> {
+            Attribute empNo = esRelation.output().get(0);
+            Order order = new Order(EMPTY, empNo, Order.OrderDirection.ASC, null);
+            return new TopN(EMPTY, esRelation, List.of(order), new Literal(EMPTY, 10, INTEGER), false);
+        });
+    }
+
+    /**
+     * {@link PushAggregateThroughUnionAll} must NOT push when a subquery branch already contains a bare
+     * {@link OrderBy} ({@code OrderBy} is itself a {@code PipelineBreaker}).
+     */
+    public void testInnerOrderByBranchNotPushed() {
+        assertSubqueryInteriorBreakerBailsOut(esRelation -> {
+            Attribute empNo = esRelation.output().get(0);
+            Order order = new Order(EMPTY, empNo, Order.OrderDirection.ASC, null);
+            return new OrderBy(EMPTY, esRelation, List.of(order));
+        });
+    }
+
+    /**
+     * {@link PushAggregateThroughUnionAll} must NOT push when a subquery branch already contains its own
+     * {@link Limit}, a conflicting pipeline breaker.
+     */
+    public void testInnerLimitBranchNotPushed() {
+        assertSubqueryInteriorBreakerBailsOut(esRelation -> new Limit(EMPTY, new Literal(EMPTY, 10, INTEGER), esRelation));
+    }
+
+    /**
+     * Builds a two-branch subquery-shaped {@link UnionAll} where each branch's sub-pipeline is wrapped by
+     * {@code interior} (a conflicting pipeline breaker over an {@link EsRelation} of {@code emp_no}) and
+     * asserts {@link PushAggregateThroughUnionAll} leaves the plan unchanged.
+     */
+    private void assertSubqueryInteriorBreakerBailsOut(UnaryOperator<LogicalPlan> interior) {
+        ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
+
+        LogicalPlan branch1 = subqueryBranch(interior.apply(relation().withAttributes(List.of(getFieldAttribute("emp_no", INTEGER)))));
+        LogicalPlan branch2 = subqueryBranch(interior.apply(relation().withAttributes(List.of(getFieldAttribute("emp_no", INTEGER)))));
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(branch1, branch2), List.of(unionEmpNo));
+
+        Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(countAlias));
+
+        assertSame(aggregate, new PushAggregateThroughUnionAll().apply(aggregate));
+    }
+
+    /** A subquery-shaped branch: {@code Project > Subquery > plan}, the Project re-exposing {@code plan}'s output. */
+    private static LogicalPlan subqueryBranch(LogicalPlan plan) {
+        Subquery subquery = new Subquery(EMPTY, plan);
+        return new Project(EMPTY, subquery, new ArrayList<>(plan.output()));
+    }
+
+    /** A subquery-shaped branch with an Eval wrapper: {@code Project > Eval[evalAlias] > Subquery > plan}. */
+    private static LogicalPlan subqueryBranchWithEval(LogicalPlan plan, Alias evalAlias) {
+        Subquery subquery = new Subquery(EMPTY, plan);
+        Eval eval = new Eval(EMPTY, subquery, List.of(evalAlias));
+        List<Attribute> output = new ArrayList<>(plan.output());
+        output.add(evalAlias.toAttribute());
+        return new Project(EMPTY, eval, output);
+    }
+
+    /**
+     * A subquery branch that exposes only an Eval-renamed column:
+     * {@code Project[renameAlias] > Eval[renameAlias] > Subquery > plan}.
+     */
+    private static LogicalPlan evalRenameSubqueryBranch(LogicalPlan plan, Alias renameAlias) {
+        Subquery subquery = new Subquery(EMPTY, plan);
+        Eval eval = new Eval(EMPTY, subquery, List.of(renameAlias));
+        return new Project(EMPTY, eval, List.of(renameAlias.toAttribute()));
+    }
+
+    // -------------------------------------------------------------------------
     // Full-pipeline tests (parse → DatasetRewriter → analyze → optimize)
     //
     // Unlike the isolated-rule tests above, these run the complete LogicalPlanOptimizer
@@ -1258,6 +1668,47 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     /**
+     * Full-pipeline subquery shape: {@code FROM employees, (FROM ext_emps | WHERE emp_no > 1000) | STATS c = COUNT(*)}
+     * exercises {@link PushDownFilterAndLimitIntoUnionAll} pushing the filter into the subquery branch, then
+     * {@link PushAggregateThroughUnionAll} decomposing over the resulting subquery-shaped {@link UnionAll}. The
+     * aggregate must become a coordinator {@code SUM} over branches that each carry a per-branch {@code COUNT}, with
+     * the subquery branch retaining its pushed-down {@link Filter} beneath the partial aggregate.
+     */
+    public void testFullPipelineAggDecomposedThroughSubqueryUnionAll() {
+        assumeTrue("requires external datasources feature flag", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan result = optimizedSubqueryHeterogeneousPlan("FROM employees, ext_emps | STATS c = COUNT(*)");
+        assertValidPlan(result);
+
+        Limit limit = as(result, Limit.class);
+        Aggregate outerAgg = as(limit.child(), Aggregate.class);
+        assertThat("outer combiner for COUNT(*) must be SUM", as(outerAgg.aggregates().get(0), Alias.class).child(), instanceOf(Sum.class));
+
+        UnionAll unionAll = as(outerAgg.child(), UnionAll.class);
+        assertThat(unionAll.children(), hasSize(2));
+        boolean sawFilteredSubqueryBranch = false;
+        for (LogicalPlan branch : unionAll.children()) {
+            Aggregate branchAgg = as(branch, Aggregate.class);
+            assertThat(
+                "each branch must carry a COUNT partial",
+                as(branchAgg.aggregates().get(0), Alias.class).child(),
+                instanceOf(Count.class)
+            );
+            List<Filter> filters = new ArrayList<>();
+            branchAgg.forEachDown(Filter.class, filters::add);
+            List<Subquery> subqueries = new ArrayList<>();
+            branchAgg.forEachDown(Subquery.class, subqueries::add);
+            if (filters.isEmpty() == false && subqueries.isEmpty() == false) {
+                sawFilteredSubqueryBranch = true;
+            }
+        }
+        assertThat(
+            "the subquery branch must keep its pushed-down filter under the partial aggregate",
+            sawFilteredSubqueryBranch,
+            equalTo(true)
+        );
+    }
+
+    /**
      * Full-pipeline: {@code FROM employees, ext_emps | STATS c = COUNT(*) BY salary | KEEP c}
      * exercises the interaction between {@link PruneColumns} and {@link PushAggregateThroughUnionAll}.
      * {@code KEEP c} causes PruneColumns to drop {@code salary} from the aggregate's
@@ -1318,28 +1769,42 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         // UnionAll structure that DatasetRewriter would have produced.
         var rewritten = parsed.transformUp(
             UnresolvedRelation.class,
-            r -> new UnionAll(
-                r.source(),
-                List.of(
-                    new UnresolvedRelation(
-                        r.source(),
-                        new IndexPattern(r.source(), "employees"),
-                        r.frozen(),
-                        List.of(),
-                        r.indexMode(),
-                        null
-                    ),
-                    new UnresolvedExternalRelation(
-                        r.source(),
-                        Literal.keyword(r.source(), EXT_EMPS_RESOURCE),
-                        Map.of(),
-                        List.of(),
-                        "ext_emps"
-                    )
-                ),
-                List.of()
-            )
+            r -> new UnionAll(r.source(), List.of(unresolvedEmployees(r), unresolvedExtEmps(r)), List.of())
         );
+        return analyzeAndOptimizeHeterogeneous(rewritten);
+    }
+
+    /**
+     * Subquery-shaped counterpart to {@link #optimizedHeterogeneousPlan}: the {@code ext_emps} branch is wrapped in
+     * {@code Subquery > Filter[emp_no > 1000]}, the shape {@code FROM employees, (FROM ext_emps | WHERE emp_no > 1000)}
+     * produces. This exercises the full optimizer ordering where {@code PushDownFilterAndLimitIntoUnionAll} pushes into
+     * the subquery branch before {@link PushAggregateThroughUnionAll} decomposes the aggregate over it.
+     *
+     * <p>Callers must guard on {@link EsqlCapabilities.Cap#DATASET_IN_FROM_COMMAND}.
+     */
+    private LogicalPlan optimizedSubqueryHeterogeneousPlan(String query) {
+        var parsed = TEST_PARSER.parseQuery(query);
+        var rewritten = parsed.transformUp(UnresolvedRelation.class, r -> {
+            UnresolvedExternalRelation extEmps = unresolvedExtEmps(r);
+            Filter innerFilter = new Filter(
+                r.source(),
+                extEmps,
+                new GreaterThan(r.source(), new UnresolvedAttribute(r.source(), "emp_no"), new Literal(r.source(), 1000, INTEGER))
+            );
+            return new UnionAll(r.source(), List.of(unresolvedEmployees(r), new Subquery(r.source(), innerFilter)), List.of());
+        });
+        return analyzeAndOptimizeHeterogeneous(rewritten);
+    }
+
+    private static UnresolvedRelation unresolvedEmployees(UnresolvedRelation r) {
+        return new UnresolvedRelation(r.source(), new IndexPattern(r.source(), "employees"), r.frozen(), List.of(), r.indexMode(), null);
+    }
+
+    private static UnresolvedExternalRelation unresolvedExtEmps(UnresolvedRelation r) {
+        return new UnresolvedExternalRelation(r.source(), Literal.keyword(r.source(), EXT_EMPS_RESOURCE), Map.of(), List.of(), "ext_emps");
+    }
+
+    private LogicalPlan analyzeAndOptimizeHeterogeneous(LogicalPlan rewritten) {
         var extEmpsSource = new ExternalSourceResolution.ResolvedSource(new ExternalSourceMetadata() {
             @Override
             public String location() {

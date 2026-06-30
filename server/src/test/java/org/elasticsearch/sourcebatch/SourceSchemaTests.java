@@ -7,14 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.eirf;
+package org.elasticsearch.sourcebatch;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class EirfSchemaTests extends ESTestCase {
+public class SourceSchemaTests extends ESTestCase {
 
     public void testEmptySchemaHasRoot() {
-        EirfSchema schema = new EirfSchema();
+        SourceSchema schema = new SourceSchema();
         assertEquals(1, schema.nonLeafCount());
         assertEquals(0, schema.leafCount());
         assertEquals("", schema.getNonLeafName(0));
@@ -22,7 +22,7 @@ public class EirfSchemaTests extends ESTestCase {
     }
 
     public void testAppendNonLeafIdempotent() {
-        EirfSchema schema = new EirfSchema();
+        SourceSchema schema = new SourceSchema();
         int idx1 = schema.appendNonLeaf("user", 0);
         int idx2 = schema.appendNonLeaf("user", 0);
         assertEquals(idx1, idx2);
@@ -30,7 +30,7 @@ public class EirfSchemaTests extends ESTestCase {
     }
 
     public void testAppendLeafIdempotent() {
-        EirfSchema schema = new EirfSchema();
+        SourceSchema schema = new SourceSchema();
         int idx1 = schema.appendLeaf("name", 0);
         int idx2 = schema.appendLeaf("name", 0);
         assertEquals(idx1, idx2);
@@ -38,7 +38,7 @@ public class EirfSchemaTests extends ESTestCase {
     }
 
     public void testSameLeafNameDifferentParents() {
-        EirfSchema schema = new EirfSchema();
+        SourceSchema schema = new SourceSchema();
         int user = schema.appendNonLeaf("user", 0);
         int admin = schema.appendNonLeaf("admin", 0);
         int leaf1 = schema.appendLeaf("name", user);
@@ -48,7 +48,7 @@ public class EirfSchemaTests extends ESTestCase {
     }
 
     public void testFindNonLeaf() {
-        EirfSchema schema = new EirfSchema();
+        SourceSchema schema = new SourceSchema();
         int user = schema.appendNonLeaf("user", 0);
         assertEquals(user, schema.findNonLeaf("user", 0));
         assertEquals(-1, schema.findNonLeaf("nonexistent", 0));
@@ -56,14 +56,14 @@ public class EirfSchemaTests extends ESTestCase {
     }
 
     public void testFindLeaf() {
-        EirfSchema schema = new EirfSchema();
+        SourceSchema schema = new SourceSchema();
         int leaf = schema.appendLeaf("name", 0);
         assertEquals(leaf, schema.findLeaf("name", 0));
         assertEquals(-1, schema.findLeaf("nonexistent", 0));
     }
 
     public void testGetFullPathFlat() {
-        EirfSchema schema = new EirfSchema();
+        SourceSchema schema = new SourceSchema();
         int nameIdx = schema.appendLeaf("name", 0);
         int ageIdx = schema.appendLeaf("age", 0);
         assertEquals("name", schema.getFullPath(nameIdx));
@@ -71,7 +71,7 @@ public class EirfSchemaTests extends ESTestCase {
     }
 
     public void testGetFullPathOneLevel() {
-        EirfSchema schema = new EirfSchema();
+        SourceSchema schema = new SourceSchema();
         int user = schema.appendNonLeaf("user", 0);
         int nameIdx = schema.appendLeaf("name", user);
         int ageIdx = schema.appendLeaf("age", user);
@@ -80,7 +80,7 @@ public class EirfSchemaTests extends ESTestCase {
     }
 
     public void testGetFullPathDeepNesting() {
-        EirfSchema schema = new EirfSchema();
+        SourceSchema schema = new SourceSchema();
         int a = schema.appendNonLeaf("a", 0);
         int b = schema.appendNonLeaf("b", a);
         int c = schema.appendNonLeaf("c", b);
@@ -89,7 +89,7 @@ public class EirfSchemaTests extends ESTestCase {
     }
 
     public void testGetFullPathMixed() {
-        EirfSchema schema = new EirfSchema();
+        SourceSchema schema = new SourceSchema();
         int user = schema.appendNonLeaf("user", 0);
         int nameIdx = schema.appendLeaf("name", user);
         int statusIdx = schema.appendLeaf("status", 0);
@@ -98,7 +98,7 @@ public class EirfSchemaTests extends ESTestCase {
     }
 
     public void testGetNonLeafChain() {
-        EirfSchema schema = new EirfSchema();
+        SourceSchema schema = new SourceSchema();
         int a = schema.appendNonLeaf("a", 0);
         int b = schema.appendNonLeaf("b", a);
 

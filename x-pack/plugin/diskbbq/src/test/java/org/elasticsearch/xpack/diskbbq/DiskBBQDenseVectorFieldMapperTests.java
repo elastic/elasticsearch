@@ -122,7 +122,7 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
             "foo",
             Settings.builder()
                 .put(IndexSettings.SLICE_ENABLED.getKey(), true)
-                .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
+
                 .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
                 .build()
         ).getSettings();

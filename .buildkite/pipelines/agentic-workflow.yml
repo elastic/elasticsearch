@@ -13,46 +13,28 @@
 #   pull-request-fix       — self-heal a failing pull request    (needs PR_URL)
 #   pull-request-creation  — implement a task and open a PR      (needs ISSUE_URL)
 #
-# Trigger from the UI (fill the input step) or via the Buildkite API with the
-# vars pre-set so the input step is skipped, e.g.:
+# Trigger from the Buildkite UI (set WORKFLOW in the Environment Variables field
+# of the New Build dialog) or via the Buildkite API, e.g.:
 #   curl -X POST ".../pipelines/elasticsearch-agentic-workflow/builds" \
 #     -H "Authorization: Bearer $BUILDKITE_API_TOKEN" \
 #     -d '{"branch":"main","env":{
 #            "WORKFLOW":"test-analysis",
 #            "ISSUE_URL":"https://github.com/elastic/elasticsearch/issues/150989"}}'
 
-# Surface trigger vars at pipeline level so env() in step `if` conditions can
-# see them on API-triggered builds.
+# Expose trigger vars at pipeline level so they are visible to step `if`
+# conditions and are shown in the Buildkite UI for API-triggered builds.
+# WORKFLOW must be set explicitly when triggering — this pipeline does not
+# run on branch pushes and has no input step (Buildkite skips input steps
+# for webhook-triggered builds, making them unreliable for this use case).
 env:
+  WORKFLOW:  "${WORKFLOW:-}"
   ISSUE_URL: "${ISSUE_URL:-}"
   PR_URL:    "${PR_URL:-}"
 
 steps:
-  # ── Optional input (skipped when WORKFLOW + a URL are already set) ───────────
-  - input: ":pencil: Pi — configure workflow"
-    key: pi-input
-    if: build.env("WORKFLOW") == null || build.env("WORKFLOW") == ""
-    fields:
-      - select: "Workflow"
-        key:     WORKFLOW
-        default: "test-analysis"
-        options:
-          - { label: "Test failure analysis", value: "test-analysis"         }
-          - { label: "Fix a pull request",    value: "pull-request-fix"       }
-          - { label: "Create a pull request", value: "pull-request-creation"  }
-      - text: "Issue URL"
-        key:  ISSUE_URL
-        hint: "https://github.com/elastic/elasticsearch/issues/N (test-analysis / pull-request-creation)"
-        required: false
-      - text: "Pull request URL"
-        key:  PR_URL
-        hint: "https://github.com/elastic/elasticsearch/pull/N (pull-request-fix)"
-        required: false
-
   # ── Run pi-agent ─────────────────────────────────────────────────────────────
   - label: ":robot_face: Pi — :workflow:"
     key: pi-run
-    depends_on: pi-input
     timeout_in_minutes: 60
     env:
       USE_PI_AGENT: "true"
@@ -69,14 +51,6 @@ steps:
     command: |
       set -euo pipefail
 
-      # Resolve inputs: metadata wins (UI input step), env var is the fallback (API trigger).
-      # Note: buildkite-agent meta-data get writes its value to stderr, not stdout,
-      # so we must NOT redirect stderr to /dev/null when capturing in a subshell.
-      # --default "" avoids "key not found" error text contaminating the variable.
-      WORKFLOW="${WORKFLOW:-$(buildkite-agent meta-data get WORKFLOW --default "" 2>&1)}"
-      ISSUE_URL="${ISSUE_URL:-$(buildkite-agent meta-data get ISSUE_URL --default "" 2>&1)}"
-      PR_URL="${PR_URL:-$(buildkite-agent meta-data get PR_URL --default "" 2>&1)}"
-
       case "${WORKFLOW}" in
         test-analysis)
           [[ -n "${ISSUE_URL:-}" ]] || { echo "ISSUE_URL is required for test-analysis" >&2; exit 1; }
@@ -91,8 +65,11 @@ steps:
           pi-agent create --issue-url "${ISSUE_URL}"
           ;;
         *)
-          echo "Unknown or unset WORKFLOW: '${WORKFLOW:-}'" >&2
-          echo "Expected one of: test-analysis, pull-request-fix, pull-request-creation" >&2
+          echo "WORKFLOW is not set or not recognised: '${WORKFLOW:-}'" >&2
+          echo "Trigger this pipeline with WORKFLOW set to one of:" >&2
+          echo "  test-analysis | pull-request-fix | pull-request-creation" >&2
+          echo "From the Buildkite UI: set WORKFLOW in the 'Environment Variables' field of the New Build dialog." >&2
+          echo "From the API: include WORKFLOW in the env block of the build request." >&2
           exit 1
           ;;
       esac

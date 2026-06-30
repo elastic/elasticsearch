@@ -16,7 +16,6 @@ import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -27,20 +26,38 @@ import static org.hamcrest.Matchers.is;
 
 public class AnthropicToolUtilsTests extends ESTestCase {
 
+    private static final String TOOL_NAME = "get_price";
+    private static final String TOOL_DESCRIPTION = "Get the price";
+    private static final Map<String, Object> INPUT_SCHEMA = Map.of("type", "object");
+
     public void testWriteToolChoice_translatesObjectToToolType() throws IOException {
-        var toolChoice = new ToolChoiceObject("function", new ToolChoiceObject.FunctionField("get_price"));
-        assertToolChoiceJson(toolChoice, """
-            {"tool_choice":{"type":"tool","name":"get_price"}}""");
+        var toolChoice = new ToolChoiceObject("function", new ToolChoiceObject.FunctionField(TOOL_NAME));
+        assertToolChoiceJson(toolChoice, Strings.format("""
+            {
+                "tool_choice": {
+                    "type": "tool",
+                    "name": "%s"
+                }
+            }
+            """, TOOL_NAME));
     }
 
     public void testWriteToolChoice_translatesStringValues() throws IOException {
-        assertToolChoiceJson(new ToolChoiceString("auto"), """
-            {"tool_choice":{"type":"auto"}}""");
-        assertToolChoiceJson(new ToolChoiceString("none"), """
-            {"tool_choice":{"type":"none"}}""");
+        assertStringToolChoiceTranslation("auto", "auto");
+        assertStringToolChoiceTranslation("none", "none");
         // OpenAI's "required" maps to Anthropic's "any".
-        assertToolChoiceJson(new ToolChoiceString("required"), """
-            {"tool_choice":{"type":"any"}}""");
+        assertStringToolChoiceTranslation("required", "any");
+    }
+
+    public void testWriteToolChoice_objectWithoutFunctionOmitsName() throws IOException {
+        // Defensive branch: a tool_choice object with no function still produces a valid Anthropic {"type":"tool"}.
+        assertToolChoiceJson(new ToolChoiceObject("function", null), """
+            {
+                "tool_choice": {
+                    "type": "tool"
+                }
+            }
+            """);
     }
 
     public void testWriteToolChoice_nullWritesNothing() throws IOException {
@@ -54,9 +71,56 @@ public class AnthropicToolUtilsTests extends ESTestCase {
     }
 
     public void testWriteTools_mapsFunctionToAnthropicShape() throws IOException {
-        var tool = new Tool("function", new Tool.FunctionField("Get the price", "get_price", Map.of("type", "object"), null));
-        assertToolsJson(List.of(tool), """
-            {"tools":[{"name":"get_price","description":"Get the price","input_schema":{"type":"object"}}]}""");
+        var tool = new Tool("function", new Tool.FunctionField(TOOL_DESCRIPTION, TOOL_NAME, INPUT_SCHEMA, null));
+        assertToolsJson(List.of(tool), Strings.format("""
+            {
+                "tools": [
+                    {
+                        "name": "%s",
+                        "description": "%s",
+                        "input_schema": {
+                            "type": "object"
+                        }
+                    }
+                ]
+            }
+            """, TOOL_NAME, TOOL_DESCRIPTION));
+    }
+
+    public void testWriteTools_omitsInputSchemaWhenNoParameters() throws IOException {
+        var tool = new Tool("function", new Tool.FunctionField(TOOL_DESCRIPTION, TOOL_NAME, null, null));
+        assertToolsJson(List.of(tool), Strings.format("""
+            {
+                "tools": [
+                    {
+                        "name": "%s",
+                        "description": "%s"
+                    }
+                ]
+            }
+            """, TOOL_NAME, TOOL_DESCRIPTION));
+    }
+
+    public void testWriteTools_serializesMultipleTools() throws IOException {
+        var first = new Tool("function", new Tool.FunctionField("First", "first", INPUT_SCHEMA, null));
+        var second = new Tool("function", new Tool.FunctionField("Second", "second", null, null));
+        assertToolsJson(List.of(first, second), """
+            {
+                "tools": [
+                    {
+                        "name": "first",
+                        "description": "First",
+                        "input_schema": {
+                            "type": "object"
+                        }
+                    },
+                    {
+                        "name": "second",
+                        "description": "Second"
+                    }
+                ]
+            }
+            """);
     }
 
     public void testWriteTools_nullOrEmptyWritesNothing() throws IOException {
@@ -65,7 +129,7 @@ public class AnthropicToolUtilsTests extends ESTestCase {
     }
 
     public void testWriteTools_strictFieldThrows() {
-        var tool = new Tool("function", new Tool.FunctionField("Get the price", "get_price", Map.of("type", "object"), randomBoolean()));
+        var tool = new Tool("function", new Tool.FunctionField(TOOL_DESCRIPTION, TOOL_NAME, INPUT_SCHEMA, randomBoolean()));
         var exception = expectThrows(ElasticsearchStatusException.class, () -> renderTools(List.of(tool)));
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
         assertThat(
@@ -74,12 +138,22 @@ public class AnthropicToolUtilsTests extends ESTestCase {
         );
     }
 
+    private static void assertStringToolChoiceTranslation(String openAiValue, String anthropicType) throws IOException {
+        assertToolChoiceJson(new ToolChoiceString(openAiValue), Strings.format("""
+            {
+                "tool_choice": {
+                    "type": "%s"
+                }
+            }
+            """, anthropicType));
+    }
+
     private static void assertToolChoiceJson(ToolChoice toolChoice, String expectedJson) throws IOException {
-        assertEquals(XContentHelper.stripWhitespace(expectedJson), renderToolChoice(toolChoice));
+        assertThat(renderToolChoice(toolChoice), is(XContentHelper.stripWhitespace(expectedJson)));
     }
 
     private static String renderToolChoice(ToolChoice toolChoice) throws IOException {
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+        try (var builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             AnthropicToolUtils.writeToolChoice(builder, toolChoice);
             builder.endObject();
@@ -88,11 +162,11 @@ public class AnthropicToolUtilsTests extends ESTestCase {
     }
 
     private static void assertToolsJson(List<Tool> tools, String expectedJson) throws IOException {
-        assertEquals(XContentHelper.stripWhitespace(expectedJson), renderTools(tools));
+        assertThat(renderTools(tools), is(XContentHelper.stripWhitespace(expectedJson)));
     }
 
     private static String renderTools(List<Tool> tools) throws IOException {
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+        try (var builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             AnthropicToolUtils.writeTools(builder, tools);
             builder.endObject();

@@ -47,6 +47,7 @@ import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.commonProfi
 import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.fixTypesOnProfile;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -90,6 +91,7 @@ public class PushQueriesIT extends ESRestTestCase {
 
     public void testEquality() throws IOException {
         String value = "v".repeat(between(0, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.isEmpty() ? 1 : value.length()));
         String esqlQuery = """
             FROM test
             | WHERE test == "%value"
@@ -105,11 +107,12 @@ public class PushQueriesIT extends ESRestTestCase {
             case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+        testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
 
     public void testEqualityTooBigToPush() throws IOException {
         String value = "a".repeat(between(257, 1000));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
         String esqlQuery = """
             FROM test
             | WHERE test == "%value"
@@ -125,7 +128,10 @@ public class PushQueriesIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, type != Type.KEYWORD);
+        // KEYWORD stores values > 256 chars as null (ignore_above), so the equality query finds no doc.
+        // All other types find the indexed big value.
+        Matcher<?> resultMatcher = type == Type.KEYWORD ? equalTo(List.of()) : hasItem(List.of(value));
+        testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, resultMatcher);
     }
 
     /**
@@ -133,6 +139,7 @@ public class PushQueriesIT extends ESRestTestCase {
      */
     public void testEqualityOrTooBig() throws IOException {
         String value = "v".repeat(between(0, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.isEmpty() ? 1 : value.length()));
         String tooBig = "a".repeat(between(257, 1000));
         String esqlQuery = """
             FROM test
@@ -143,17 +150,18 @@ public class PushQueriesIT extends ESRestTestCase {
             case KEYWORD -> List.of("test:(%tooBig %value)".replace("%tooBig", tooBig), "test:(%value %tooBig)".replace("%tooBig", tooBig));
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
             // WILDCARD has no ignore_above, so large values are still pushed
-            case WILDCARD -> List.of(": [%tooBig %value]".replace("%tooBig", tooBig), ": [%value %tooBig]".replace("%tooBig", tooBig));
+            case WILDCARD -> List.of(": [%tooBig, %value]".replace("%tooBig", tooBig), ": [%value, %tooBig]".replace("%tooBig", tooBig));
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, luceneQuery, dataNodeSignature, true);
+        testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
     }
 
     public void testEqualityOrOther() throws IOException {
         String value = "v".repeat(between(0, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.isEmpty() ? 1 : value.length()));
         String esqlQuery = """
             FROM test
             | WHERE test == "%value" OR foo == 2
@@ -173,11 +181,12 @@ public class PushQueriesIT extends ESRestTestCase {
             case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, luceneQuery, dataNodeSignature, true);
+        testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
     }
 
     public void testEqualityAndOther() throws IOException {
         String value = "v".repeat(between(0, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.isEmpty() ? 1 : value.length()));
         String esqlQuery = """
             FROM test
             | WHERE test == "%value" AND foo == 1
@@ -194,20 +203,27 @@ public class PushQueriesIT extends ESRestTestCase {
                 /*
                  * FieldExistsQuery is because there are extra documents hiding in the index
                  * that don't have the `foo` field. "*:*" is because sometimes we end up on
-                 * a shard where all `foo = 1`.
+                 * a shard where all `foo = 1`. single_value_match appears when multiple docs
+                 * with the same foo value are in the index.
                  */
-                List.of("#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]", "foo:[1 TO 1]", "FieldExistsQuery [field=_primary_term]");
+                List.of(
+                    "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
+                    "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]",
+                    "foo:[1 TO 1]",
+                    "FieldExistsQuery [field=_primary_term]"
+                );
             case WILDCARD -> List.of(": [%value]", ": [%value] foo:[2 TO 2]");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, luceneQueryOptions, dataNodeSignature, true);
+        testPushQuery(value, differentValue, esqlQuery, luceneQueryOptions, dataNodeSignature, hasItem(List.of(value)));
     }
 
     public void testInequality() throws IOException {
         String value = "v".repeat(between(0, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.isEmpty() ? 1 : value.length()));
         String esqlQuery = """
             FROM test
             | WHERE test != "%different_value"
@@ -223,32 +239,44 @@ public class PushQueriesIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+        // value satisfies test != differentValue; differentValue does not satisfy it
+        testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
 
     public void testInequalityTooBigToPush() throws IOException {
         String value = "a".repeat(between(257, 1000));
+        // differentValue must be short (<=256) so KEYWORD's ignore_above doesn't drop it
+        String differentValue = randomAlphaOfLengthBetween(1, 256);
         String esqlQuery = """
             FROM test
             | WHERE test != "%value"
             """;
-        String luceneQuery = switch (type) {
-            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
-            case KEYWORD -> "-test:%value #single_value_match(test)";
-            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+        /*
+         * With two docs, KEYWORD may produce either single_value_match(test) or *:* depending on
+         * whether the shard statistics consider the field single-valued (doc1 has test=null due
+         * to ignore_above; doc2 has test=differentValue).
+         */
+        List<String> luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> List.of("*:*");
+            case KEYWORD -> List.of("-test:%value #single_value_match(test)", "-test:%value #*:*");
+            case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
             // WILDCARD has no ignore_above, so large values are still pushed
-            case WILDCARD -> "-: [%value] #*:*";
+            case WILDCARD -> List.of("-: [%value] #*:*");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
             case CONSTANT_KEYWORD -> ComputeSignature.FIND_NONE;
             case KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, false);
+        // The big value itself is excluded by the inequality; differentValue (shorter, != value) satisfies test != value.
+        // CONSTANT_KEYWORD uses FIND_NONE — optimizer eliminates the operator, returning nothing.
+        Matcher<?> resultMatcher = type == Type.CONSTANT_KEYWORD ? equalTo(List.of()) : hasItem(List.of(differentValue));
+        testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, resultMatcher);
     }
 
     public void testCaseInsensitiveEquality() throws IOException {
         String value = "a".repeat(between(0, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.isEmpty() ? 1 : value.length()));
         String esqlQuery = """
             FROM test
             | WHERE TO_LOWER(test) == "%value"
@@ -265,11 +293,12 @@ public class PushQueriesIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+        testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
 
     public void testCaseInsensitiveLike() throws IOException {
         String value = "v".repeat(between(1, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
         String esqlQuery = """
             FROM test
             | WHERE TO_LOWER(test) like "%value*"
@@ -284,47 +313,85 @@ public class PushQueriesIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+        testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
 
     public void testNotCaseInsensitiveLike() throws IOException {
         String value = "v".repeat(between(1, 256));
+        // Must be lowercase so TO_LOWER(test) like "differentValue*" is not statically folded to false
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()).toLowerCase(Locale.ROOT));
         String esqlQuery = """
             FROM test
             | WHERE NOT (TO_LOWER(test) like "%different_value*")
             """;
-        // NOT(CI-LIKE) is not pushed; SEMANTIC_TEXT uses its own match-all sentinel
+        /*
+         * With lowercase differentValue in the index the query rewrites differently per type:
+         * KEYWORD and WILDCARD expose the real NOT query. TEXT types still produce *:* because
+         * the CI LIKE on text uses a different pushdown path. CONSTANT_KEYWORD has only one
+         * document, so its query also remains *:*.
+         */
         String luceneQuery = switch (type) {
-            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD, KEYWORD, WILDCARD -> "*:*";
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
+            case KEYWORD -> "-CaseInsensitiveWildcardQuery{:%different_value*} #*:*";
+            case WILDCARD -> "-:PatternAutomatonProvider[matchPattern=%different_value*, caseInsensitive=true] #*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
         };
+        /*
+         * KEYWORD and WILDCARD push NOT CI LIKE fully to Lucene (FILTER_IN_QUERY). Text-based
+         * types and SEMANTIC use FILTER_IN_COMPUTE because the CI LIKE is evaluated via a
+         * compute-layer recheck. CONSTANT_KEYWORD has only one document and stays *:*
+         * (FILTER_IN_QUERY).
+         */
         ComputeSignature dataNodeSignature = switch (type) {
-            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD, KEYWORD, WILDCARD, SEMANTIC_TEXT_WITH_KEYWORD ->
-                ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+        // value satisfies NOT(like differentValue*); differentValue is excluded for KEYWORD/WILDCARD.
+        // For text-based types, both docs may be returned; hasItem checks that value is present.
+        testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
 
     public void testOrNotCaseInsensitiveLike() throws IOException {
         String value = "v".repeat(between(1, 256));
+        // Must be lowercase so TO_LOWER(test) like "differentValue*" is not statically folded to false
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()).toLowerCase(Locale.ROOT));
         String esqlQuery = """
             FROM test
             | WHERE test == "cat" OR NOT (TO_LOWER(test) like "%different_value*")
             """;
-        // OR NOT(CI-LIKE) is not pushed; SEMANTIC_TEXT uses its own match-all sentinel
+        /*
+         * KEYWORD and WILDCARD expose the real NOT query once differentValue is in the index.
+         * TEXT types still produce *:* because the CI LIKE on text uses a different pushdown path.
+         * CONSTANT_KEYWORD has only one document, so its query remains *:*.
+         */
+        /*
+         * With lowercase differentValue and two docs, the NOT CI LIKE survives Lucene rewrite.
+         * The OR with test=="cat" stays in the query for KEYWORD (test:cat) and WILDCARD
+         * (: [cat]) because TermQuery and BinaryDvConfirmedTermsQuery do not rewrite to
+         * MatchNoDocsQuery. TEXT types push with *:* (no inverted index for CI LIKE).
+         * ESQL adds a compute-layer recheck for all types except WILDCARD and CONSTANT_KEYWORD.
+         */
         List<String> luceneQuery = switch (type) {
-            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD, KEYWORD, WILDCARD -> List.of("*:*");
+            case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> List.of("*:*");
+            case CONSTANT_KEYWORD -> List.of("*:*");
+            case KEYWORD -> List.of(
+                "test:cat (-CaseInsensitiveWildcardQuery{:%different_value*} #*:*)",
+                "(-CaseInsensitiveWildcardQuery{:%different_value*} #*:*) test:cat"
+            );
+            case WILDCARD -> List.of(": [cat] (-:PatternAutomatonProvider[matchPattern=%different_value*, caseInsensitive=true] #*:*)");
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD, KEYWORD, WILDCARD, SEMANTIC_TEXT_WITH_KEYWORD ->
-                ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, luceneQuery, dataNodeSignature, true);
+        // value satisfies the combined OR NOT condition.
+        testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
     }
 
     public void testCaseInsensitiveLikeList() throws IOException {
         String value = "v".repeat(between(1, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
         String esqlQuery = """
             FROM test
             | WHERE TO_LOWER(test) like ("%value*", "abc*")
@@ -339,11 +406,12 @@ public class PushQueriesIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+        testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
 
     public void testLike() throws IOException {
         String value = "v".repeat(between(1, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
         String esqlQuery = """
             FROM test
             | WHERE test like "%value*"
@@ -358,11 +426,12 @@ public class PushQueriesIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+        testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
 
     public void testLikeList() throws IOException {
         String value = "v".repeat(between(1, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
         String esqlQuery = """
             FROM test
             | WHERE test like ("%value*", "abc*")
@@ -377,11 +446,12 @@ public class PushQueriesIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+        testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
 
     public void testRLike() throws IOException {
         String value = "v".repeat(between(1, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
         String esqlQuery = """
             FROM test
             | WHERE test rlike "%value.*"
@@ -396,11 +466,12 @@ public class PushQueriesIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+        testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
 
     public void testRLikeList() throws IOException {
         String value = "v".repeat(between(1, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
         String esqlQuery = """
             FROM test
             | WHERE test rlike ("%value.*", "abc.*")
@@ -415,7 +486,7 @@ public class PushQueriesIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+        testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
 
     enum ComputeSignature {
@@ -444,13 +515,13 @@ public class PushQueriesIT extends ESRestTestCase {
 
     private void testPushQuery(
         String value,
+        String differentValue,
         String esqlQuery,
         List<String> luceneQueryOptions,
         ComputeSignature dataNodeSignature,
-        boolean found
+        Matcher<?> resultMatcher
     ) throws IOException {
-        indexValue(value);
-        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.isEmpty() ? 1 : value.length()));
+        indexValue(value, differentValue);
 
         String replacedQuery = esqlQuery.replaceAll("%value", value).replaceAll("%different_value", differentValue);
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(replacedQuery + "\n| KEEP test");
@@ -477,7 +548,7 @@ public class PushQueriesIT extends ESRestTestCase {
                     .entry("minimumTransportVersion", instanceOf(Integer.class))
             ),
             matchesList().item(matchesMap().entry("name", "test").entry("type", anyOf(equalTo("text"), equalTo("keyword")))),
-            equalTo(found ? List.of(List.of(value)) : List.of())
+            resultMatcher
         );
         Matcher<String> luceneQueryMatcher = anyOf(
             () -> Iterators.map(luceneQueryOptions.iterator(), (String s) -> queryMatcher(s, value, differentValue))
@@ -524,7 +595,7 @@ public class PushQueriesIT extends ESRestTestCase {
         return startsWith(queryString.substring(0, LuceneOperator.Status.QUERY_STRING_TRUNCATION));
     }
 
-    private void indexValue(String value) throws IOException {
+    private void indexValue(String value, String differentValue) throws IOException {
         try {
             // Delete the index if it has already been created.
             client().performRequest(new Request("DELETE", "test"));
@@ -560,10 +631,18 @@ public class PushQueriesIT extends ESRestTestCase {
 
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "");
-        bulk.setJsonEntity(String.format(Locale.ROOT, """
+        String bulkBody = String.format(Locale.ROOT, """
             {"create":{"_index":"test"}}
             {"test":"%s","foo":1}
-            """, value));
+            """, value);
+        // constant_keyword only accepts the single constant value; do not index differentValue for it.
+        if (type != Type.CONSTANT_KEYWORD) {
+            bulkBody += String.format(Locale.ROOT, """
+                {"create":{"_index":"test"}}
+                {"test":"%s","foo":1}
+                """, differentValue);
+        }
+        bulk.setJsonEntity(bulkBody);
         Response bulkResponse = client().performRequest(bulk);
         assertThat(entityToMap(bulkResponse.getEntity(), XContentType.JSON), matchesMap().entry("errors", false).extraOk());
     }

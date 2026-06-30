@@ -881,14 +881,7 @@ public class VerifierTests extends ESTestCase {
             );
         analyzer().addIndex("decades", "mapping-decades.json")
             .stripErrorPrefix(true)
-            .error(
-                "FROM decades | LIMIT 1 BY date_range",
-                equalTo(
-                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled()
-                        ? "1:27: cannot group by on [date_range] type for grouping [date_range]"
-                        : "1:27: Cannot use field [date_range] with unsupported type [date_range]"
-                )
-            );
+            .error("FROM decades | LIMIT 1 BY date_range", equalTo("1:27: cannot group by on [date_range] type for grouping [date_range]"));
         tsdb().error(
             "FROM test | LIMIT 1 BY network.bytes_in",
             equalTo("1:24: cannot group by on [counter_long] type for grouping [network.bytes_in]")
@@ -912,11 +905,7 @@ public class VerifierTests extends ESTestCase {
             .stripErrorPrefix(true)
             .error(
                 "FROM decades | STATS count(*) BY date_range",
-                equalTo(
-                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled()
-                        ? "1:34: cannot group by on [date_range] type for grouping [date_range]"
-                        : "1:34: Cannot use field [date_range] with unsupported type [date_range]"
-                )
+                equalTo("1:34: cannot group by on [date_range] type for grouping [date_range]")
             );
         analyzer().addIndex("test", "mapping-all-types.json")
             .stripErrorPrefix(true)
@@ -1623,7 +1612,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testDateRangeSorting() {
-        assumeTrue("Requires DATE_RANGE_FIELD_TYPE_V6 capability", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
         analyzer().addIndex("decades", "mapping-decades.json")
             .stripErrorPrefix(true)
             .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));
@@ -1688,7 +1676,7 @@ public class VerifierTests extends ESTestCase {
             "FROM test | STATS count(network.bytes_out)",
             equalTo(
                 "1:19: argument of [count(network.bytes_out)] must be"
-                    + " [any type except counter types, histogram, or date_range],"
+                    + " [any type except counter types or histogram],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );

@@ -105,6 +105,11 @@ public sealed interface LongRangeBlock extends Block permits LongRangeArrayBlock
         Block.Builder appendLongRange(LongRangeBlockBuilder.LongRange range);
 
         /**
+         * Append the given range to this builder.
+         */
+        Block.Builder appendLongRange(long from, long to);
+
+        /**
          * Copy the value(s) at the given position of {@code block} into this builder.
          */
         LongRangeBlock.Builder copyFrom(LongRangeBlock block, int position);

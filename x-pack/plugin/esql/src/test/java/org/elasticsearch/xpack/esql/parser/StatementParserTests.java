@@ -2765,15 +2765,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("ROW (1+2)::doesnotexist", "line 1:12: Unknown data type named [doesnotexist]");
     }
 
-    public void testInlineConvertToSnapshotOnlyType() {
-        assumeFalse("date_range is exposed on snapshot builds", Build.current().isSnapshot());
-        expectError(
-            "ROW str = \"2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z\" | EVAL range = str::date_range",
-            "Unknown data type named [date_range]"
-        );
-        expectError("ROW range = \"x\"::date_range", "Unknown data type named [date_range]");
-    }
-
     public void testLookup() {
         String query = "ROW a = 1 | LOOKUP_🐔 t ON j";
         if (Build.current().isSnapshot() == false) {
@@ -4596,10 +4587,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         try (XContentBuilder report = JsonXContent.contentBuilder().humanReadable(true).prettyPrint().lfAtEnd()) {
             report.startObject();
             List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
-            if (EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled() == false) {
-                // Some types do not have a converter function if the capability is disabled
-                namesAndAliases.removeAll(List.of("date_range"));
-            }
             Collections.sort(namesAndAliases);
             for (String nameOrAlias : namesAndAliases) {
                 DataType expectedType = DataType.fromNameOrAlias(nameOrAlias);

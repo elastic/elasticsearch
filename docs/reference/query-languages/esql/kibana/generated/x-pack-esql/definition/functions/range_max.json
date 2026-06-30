@@ -3,10 +3,23 @@
   "type" : "scalar",
   "name" : "range_max",
   "description" : "Returns the maximum (end) value of a date_range. For a date_range [x, y), it returns y.",
-  "signatures" : [ ],
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "range",
+          "type" : "date_range",
+          "optional" : false,
+          "description" : "Date range expression. If `null`, the function returns `null`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
+    }
+  ],
   "examples" : [
     "FROM decades\n| WHERE decade == 1900\n| EVAL max_bound = RANGE_MAX(date_range)\n| KEEP date_range, max_bound"
   ],
   "preview" : true,
-  "snapshot_only" : true
+  "snapshot_only" : false
 }

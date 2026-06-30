@@ -89,7 +89,7 @@ import java.util.List;
  *
  * <pre>{@code
  *   public static final QuerySettingDef<ZoneId> TIME_ZONE = QuerySettingDef
- *       .string("time_zone", ZoneId::of)
+ *       .string("time_zone", s -> ZoneId.of(s).normalized())
  *       .withDefault(ZoneOffset.UTC)
  *       .withRequestBody()
  *       .withAliasAtRoot()

@@ -191,7 +191,13 @@ public class HttpClient implements Closeable {
     }
 
     public void stream(HttpRequest request, HttpContext context, ActionListener<StreamingHttpResult> listener) throws IOException {
-        var streamingProcessor = new StreamingHttpResultPublisher(threadPool, settings, listener, circuitBreaker);
+        var streamingProcessor = new StreamingHttpResultPublisher(
+            threadPool,
+            settings,
+            listener,
+            circuitBreaker,
+            request.inferenceEntityId()
+        );
 
         client.execute(request.requestProducer(), streamingProcessor, context, new FutureCallback<>() {
             @Override

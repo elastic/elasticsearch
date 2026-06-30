@@ -58,12 +58,17 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
         ThreadPool threadPool,
         HttpSettings settings,
         ActionListener<StreamingHttpResult> listener,
-        CircuitBreaker circuitBreaker
+        CircuitBreaker circuitBreaker,
+        String inferenceEntityId
     ) {
         this.listener = ActionListener.notifyOnce(Objects.requireNonNull(listener));
 
         this.publisher = new DataPublisher(threadPool);
-        this.backpressure = new ApacheClientBackpressure(Objects.requireNonNull(settings), Objects.requireNonNull(circuitBreaker));
+        this.backpressure = new ApacheClientBackpressure(
+            Objects.requireNonNull(settings),
+            Objects.requireNonNull(circuitBreaker),
+            Objects.requireNonNull(inferenceEntityId)
+        );
     }
 
     @Override
@@ -171,6 +176,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
             }
             if (pendingRequests.get() > 0 && pendingError != null) {
                 pendingRequests.decrementAndGet();
+                backpressure.releaseTrackedBytes();
                 downstream.onError(pendingError);
                 return;
             }
@@ -210,6 +216,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
                 @Override
                 public void cancel() {
                     if (subscriptionCanceled.compareAndSet(false, true)) {
+                        backpressure.releaseTrackedBytes();
                         taskRunner.cancel();
                     }
                 }
@@ -257,14 +264,16 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
         private final Object ioLock = new Object();
         private volatile IOControl savedIoControl;
         private final CircuitBreaker circuitBreaker;
+        private final String inferenceEntityId;
 
-        private ApacheClientBackpressure(HttpSettings settings, CircuitBreaker circuitBreaker) {
+        private ApacheClientBackpressure(HttpSettings settings, CircuitBreaker circuitBreaker, String inferenceEntityId) {
             this.settings = settings;
             this.circuitBreaker = circuitBreaker;
+            this.inferenceEntityId = inferenceEntityId;
         }
 
         private void addBytesAndMaybePause(long count, IOControl ioControl) {
-            // TODO: add bytes to circuit breaker
+            circuitBreaker.addEstimateBytesAndMaybeBreak(count, inferenceEntityId);
             if (bytesInQueue.addAndGet(count) >= settings.getMaxResponseSize().getBytes()) {
                 pauseProducer(ioControl);
             }
@@ -278,7 +287,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
         }
 
         private void subtractBytesAndMaybeUnpause(long count) {
-            // TODO: remove bytes from circuit breaker
+            circuitBreaker.addWithoutBreaking(-count);
             var currentBytesInQueue = bytesInQueue.updateAndGet(current -> Long.max(0, current - count));
             if (savedIoControl != null) {
                 var maxBytes = settings.getMaxResponseSize().getBytes() * 0.5;
@@ -294,6 +303,13 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
                     savedIoControl.requestInput();
                     savedIoControl = null;
                 }
+            }
+        }
+
+        private void releaseTrackedBytes() {
+            var remaining = bytesInQueue.getAndSet(0);
+            if (remaining > 0) {
+                circuitBreaker.addWithoutBreaking(-remaining);
             }
         }
     }

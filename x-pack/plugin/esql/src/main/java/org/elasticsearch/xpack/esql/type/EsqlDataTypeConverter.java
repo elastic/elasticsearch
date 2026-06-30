@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadi
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTDigest;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDuration;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
@@ -119,6 +120,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -155,6 +157,7 @@ public class EsqlDataTypeConverter {
         Map.entry(BOOLEAN, ToBoolean::new),
         Map.entry(CARTESIAN_POINT, ToCartesianPoint::new),
         Map.entry(CARTESIAN_SHAPE, ToCartesianShape::new),
+        Map.entry(DATE_PERIOD, ToDatePeriod::new),
         // ToDegrees, typeless
         Map.entry(DENSE_VECTOR, ToDenseVector::new),
         Map.entry(DOUBLE, ToDouble::new),
@@ -169,10 +172,10 @@ public class EsqlDataTypeConverter {
         Map.entry(LONG, ToLong::new),
         // ToRadians, typeless
         Map.entry(TDIGEST, ToTDigest::new),
+        Map.entry(TEXT, ToText::new),
+        Map.entry(TIME_DURATION, ToTimeDuration::new),
         Map.entry(UNSIGNED_LONG, ToUnsignedLong::new),
-        Map.entry(VERSION, ToVersion::new),
-        Map.entry(DATE_PERIOD, ToDatePeriod::new),
-        Map.entry(TIME_DURATION, ToTimeDuration::new)
+        Map.entry(VERSION, ToVersion::new)
     );
 
     /**

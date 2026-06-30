@@ -123,7 +123,7 @@ By default, for all unmapped fields doc values will be enabled. However unmapped
 
 Dynamic mapping behavior is controlled through configuration param `dynamic` that can be set to:
 - **true** (default): Enables the dynamic mapping behaviour as is described above.
-- **false**: Doesn't automatically map unmapped fields. Meaning that unmapped fields will not be stored at all. Data in unmapped fields will be lost.
+- **false**: Unmapped fields are not mapped or stored. Data in unmapped fields are lost.
 - **strict**: Doesn't automatically map unmapped fields and fails write requests with documents that contain unmapped fields.
 - **runtime**: This is not supported in columnar mode.
 

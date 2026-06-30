@@ -9,15 +9,21 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.column.ColumnReader;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.io.api.Converter;
 import org.apache.parquet.io.api.GroupConverter;
 import org.apache.parquet.io.api.PrimitiveConverter;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.time.Duration;
 
 /**
  * Shared Parquet decode helpers used by both the baseline {@code ParquetColumnIterator}
@@ -31,7 +37,14 @@ final class ParquetColumnDecoding {
 
     private static final char[] HEX = "0123456789abcdef".toCharArray();
 
-    // ---- Timestamp helpers ----
+    // ---- Temporal constants ----
+
+    static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
+    static final long NANOS_PER_MILLI = 1_000_000L;
+    /** Julian day number for Unix epoch (1970-01-01). */
+    static final int JULIAN_EPOCH_OFFSET = 2_440_588;
+
+    // ---- Temporal helpers ----
 
     static long convertTimestampToMillis(long raw, LogicalTypeAnnotation logicalType) {
         if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
@@ -42,6 +55,49 @@ final class ParquetColumnDecoding {
             };
         }
         return raw;
+    }
+
+    /** Converts a date32 value (days since epoch) to epoch milliseconds. */
+    static long dateDaysToMillis(long days) {
+        return days * MILLIS_PER_DAY;
+    }
+
+    /**
+     * Converts a Parquet INT96 value (12 bytes LE: 8 bytes nanos-of-day + 4 bytes Julian day)
+     * to epoch milliseconds. The bytes are read starting at {@code offset} for {@code length}
+     * bytes (must be 12).
+     */
+    static long int96ToEpochMillis(byte[] bytes, int offset, int length) {
+        if (length != 12) {
+            throw new IllegalArgumentException("INT96 requires exactly 12 bytes, got " + length);
+        }
+        ByteBuffer buf = ByteBuffer.wrap(bytes, offset, length).order(ByteOrder.LITTLE_ENDIAN);
+        long nanosOfDay = buf.getLong();
+        int julianDay = buf.getInt();
+        long epochDay = julianDay - JULIAN_EPOCH_OFFSET;
+        return epochDay * MILLIS_PER_DAY + nanosOfDay / NANOS_PER_MILLI;
+    }
+
+    /**
+     * Decodes a Parquet footer stat value to epoch-millis for temporal types.
+     * Returns a boxed {@code Long} for date32 / timestamp / INT96, or {@code null}
+     * when the type is not temporal (caller falls through to other normalization).
+     */
+    static Long decodeTemporalStat(Object value, PrimitiveType type) {
+        LogicalTypeAnnotation logical = type.getLogicalTypeAnnotation();
+        if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
+            return dateDaysToMillis(((Number) value).longValue());
+        }
+        if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
+            return convertTimestampToMillis(((Number) value).longValue(), logical);
+        }
+        if (type.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
+            if (value instanceof Binary bin) {
+                byte[] bytes = bin.getBytes();
+                return int96ToEpochMillis(bytes, 0, bytes.length);
+            }
+        }
+        return null;
     }
 
     // ---- UUID formatting ----

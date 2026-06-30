@@ -36,7 +36,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -90,9 +89,6 @@ import java.util.List;
 final class PageColumnReader implements Releasable {
 
     private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
-    private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
-    private static final long NANOS_PER_MILLI = 1_000_000L;
-    private static final int JULIAN_EPOCH_OFFSET = 2_440_588;
 
     private final PageReader pageReader;
     private final ColumnDescriptor descriptor;
@@ -1451,25 +1447,14 @@ final class PageColumnReader implements Releasable {
             int[] intValues = buffers.ints(count);
             readIntsDispatch(intValues, 0, count);
             for (int i = 0; i < count; i++) {
-                values[offset + i] = intValues[i] * MILLIS_PER_DAY;
+                values[offset + i] = ParquetColumnDecoding.dateDaysToMillis(intValues[i]);
             }
         } else {
             readLongsDispatch(values, offset, count);
             LogicalTypeAnnotation logicalType = info.logicalType();
-            if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
-                switch (ts.getUnit()) {
-                    case MILLIS -> {
-                    }
-                    case MICROS -> {
-                        for (int i = 0; i < count; i++) {
-                            values[offset + i] = values[offset + i] / 1_000;
-                        }
-                    }
-                    case NANOS -> {
-                        for (int i = 0; i < count; i++) {
-                            values[offset + i] = values[offset + i] / 1_000_000;
-                        }
-                    }
+            if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
+                for (int i = 0; i < count; i++) {
+                    values[offset + i] = ParquetColumnDecoding.convertTimestampToMillis(values[offset + i], logicalType);
                 }
             }
         }
@@ -1539,11 +1524,7 @@ final class PageColumnReader implements Releasable {
             plainDecoder.readFixedBinaries(binaries, 0, count, 12);
         }
         for (int i = 0; i < count; i++) {
-            ByteBuffer buf = ByteBuffer.wrap(binaries[i].bytes, binaries[i].offset, binaries[i].length).order(ByteOrder.LITTLE_ENDIAN);
-            long nanosOfDay = buf.getLong();
-            int julianDay = buf.getInt();
-            long epochDay = julianDay - JULIAN_EPOCH_OFFSET;
-            values[offset + i] = epochDay * MILLIS_PER_DAY + nanosOfDay / NANOS_PER_MILLI;
+            values[offset + i] = ParquetColumnDecoding.int96ToEpochMillis(binaries[i].bytes, binaries[i].offset, binaries[i].length);
         }
     }
 

@@ -3347,16 +3347,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             )
         );
         final List<RoleDescriptor> requestRoleDescriptors = List.of(
-            new RoleDescriptor(
-                "test-role",
-                null,
-                null,
-                null,
-                new ConfigurableClusterPrivilege[] { datasourcePrivileges },
-                null,
-                null,
-                null
-            )
+            new RoleDescriptor("test-role", null, null, null, new ConfigurableClusterPrivilege[] { datasourcePrivileges }, null, null, null)
         );
 
         final AbstractCreateApiKeyRequest createRequest = mock(AbstractCreateApiKeyRequest.class);

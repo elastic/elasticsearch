@@ -89,9 +89,9 @@ import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ROLE_TYPE;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.SECURITY_ROLE_DESCRIPTION;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.MANAGE_ROLES_PRIVILEGE;
-import static org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.DatasourcePrivileges.ESQL_DATASOURCE_PRIVILEGE;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.NONE;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
+import static org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.DatasourcePrivileges.ESQL_DATASOURCE_PRIVILEGE;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityMigrations.ROLE_METADATA_FLATTENED_MIGRATION_VERSION;
@@ -500,14 +500,14 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 + "] or higher to support the manage roles privilege"
                         );
                     } else if (Arrays.stream(role.getConditionalClusterPrivileges())
-                    .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.DatasourcePrivileges)
-                    && clusterService.state().getMinTransportVersion().supports(ESQL_DATASOURCE_PRIVILEGE) == false) {
-                        return new IllegalStateException(
-                            "all nodes must have version ["
-                                + ESQL_DATASOURCE_PRIVILEGE.toReleaseVersion()
-                                + "] or higher to support the datasource privilege"
-                        );
-                    }
+                        .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.DatasourcePrivileges)
+                        && clusterService.state().getMinTransportVersion().supports(ESQL_DATASOURCE_PRIVILEGE) == false) {
+                            return new IllegalStateException(
+                                "all nodes must have version ["
+                                    + ESQL_DATASOURCE_PRIVILEGE.toReleaseVersion()
+                                    + "] or higher to support the datasource privilege"
+                            );
+                        }
         try {
             DLSRoleQueryValidator.validateQueryField(role.getIndicesPrivileges(), xContentRegistry);
         } catch (ElasticsearchException | IllegalArgumentException e) {

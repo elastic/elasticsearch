@@ -13,8 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorScorer;
-import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
-import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -26,6 +24,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
@@ -86,7 +85,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
 
         try (Directory dir = new MMapDirectory(createTempDir("testSimpleImpl"), maxChunkSize)) {
             var scalarQuantizer = scalarQuantizer(similarityType.function());
-            var encoding = Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.PACKED_NIBBLE;
+            var encoding = QuantizedByteVectorValues.ScalarEncoding.PACKED_NIBBLE;
             for (int dims : List.of(30, 32, 34)) {
                 float[] query1 = new float[dims];
                 float[] query2 = new float[dims];
@@ -254,7 +253,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
 
         var scalarQuantizer = scalarQuantizer(similarityType.function());
-        var encoding = Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.PACKED_NIBBLE;
+        var encoding = QuantizedByteVectorValues.ScalarEncoding.PACKED_NIBBLE;
         final int dims = randomIntBetween(1, 2048) * 2;
         final int size = randomIntBetween(2, 100);
         final float[] centroid = new float[dims];

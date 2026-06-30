@@ -57,7 +57,8 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomFormatReader(),
-            randomCapturedSourceMetadata()
+            randomCapturedSourceMetadata(),
+            randomBoolean()
         );
     }
 
@@ -108,7 +109,8 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
         long bytesRead = instance.bytesRead();
         FormatReaderStatus formatReader = instance.formatReader();
         Map<String, List<Map<String, Object>>> capturedSourceMetadata = instance.capturedSourceMetadata();
-        switch (between(0, 10)) {
+        boolean partial = instance.partial();
+        switch (between(0, 11)) {
             case 0 -> pagesWaiting = randomValueOtherThan(pagesWaiting, ESTestCase::randomNonNegativeInt);
             case 1 -> pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);
             case 2 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
@@ -123,6 +125,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
                 capturedSourceMetadata,
                 AsyncExternalSourceOperatorStatusTests::randomCapturedSourceMetadata
             );
+            case 11 -> partial = partial == false;
             default -> throw new UnsupportedOperationException();
         }
         return new AsyncExternalSourceOperator.Status(
@@ -138,7 +141,8 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             bytesRead,
             0L,
             formatReader,
-            capturedSourceMetadata
+            capturedSourceMetadata,
+            partial
         );
     }
 
@@ -158,13 +162,14 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
                     8192L,
                     0L,
                     new NdJsonReaderStatus(7L, 0L, 0L),
-                    Map.of()
+                    Map.of(),
+                    false
                 )
             ),
             equalTo(
                 "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,"
                     + "\"process_nanos\":1000000,\"splits_processed\":2,\"splits_total\":4,\"current_split\":3,"
-                    + "\"bytes_read\":8192,\"read_nanos\":0,\"stripes_committed\":0,"
+                    + "\"bytes_read\":8192,\"read_nanos\":0,\"stripes_committed\":0,\"partial\":false,"
                     + "\"format_reader\":{\"format\":\"ndjson\",\"rows_emitted\":7,\"parse_errors\":0,\"read_nanos\":0}}"
             )
         );
@@ -195,7 +200,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
     }
 
     private static AsyncExternalSourceOperator.Status statusWithCaptured(Map<String, List<Map<String, Object>>> captured) {
-        return new AsyncExternalSourceOperator.Status(0, 0, 0, 0, null, 0L, 0, 0, 0, 0L, 0L, null, captured);
+        return new AsyncExternalSourceOperator.Status(0, 0, 0, 0, null, 0L, 0, 0, 0, 0L, 0L, null, captured, false);
     }
 
     private static Map<String, Object> stripeContribution(long ordinal) {
@@ -215,12 +220,27 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
     public void testToXContentWithFailure() {
         assertThat(
             Strings.toString(
-                new AsyncExternalSourceOperator.Status(5, 10, 111, 2048, new RuntimeException("boom"), 0L, 0, 0, 0, 0L, 0L, null, Map.of())
+                new AsyncExternalSourceOperator.Status(
+                    5,
+                    10,
+                    111,
+                    2048,
+                    new RuntimeException("boom"),
+                    0L,
+                    0,
+                    0,
+                    0,
+                    0L,
+                    0L,
+                    null,
+                    Map.of(),
+                    true
+                )
             ),
             equalTo(
                 "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,"
                     + "\"process_nanos\":0,\"splits_processed\":0,\"splits_total\":0,\"current_split\":0,"
-                    + "\"bytes_read\":0,\"read_nanos\":0,\"stripes_committed\":0,\"format_reader\":{},\"failure\":\"boom\"}"
+                    + "\"bytes_read\":0,\"read_nanos\":0,\"stripes_committed\":0,\"partial\":true,\"format_reader\":{},\"failure\":\"boom\"}"
             )
         );
     }
@@ -239,7 +259,8 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             8192L,
             0L,
             new NdJsonReaderStatus(7L, 0L, 0L),
-            Map.of()
+            Map.of(),
+            true
         );
         TransportVersion preProfile = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_external_source_profile"));
         AsyncExternalSourceOperator.Status copy = copyInstance(original, preProfile);
@@ -255,6 +276,33 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
         assertThat(copy.currentSplit(), equalTo(0));
         assertThat(copy.bytesRead(), equalTo(0L));
         assertThat(copy.formatReader(), nullValue());
+        // partial is gated by an even newer version, so it also defaults to false on the receiving end
+        assertThat(copy.partial(), equalTo(false));
+    }
+
+    public void testReadFromBwcVersionPriorToPartial() throws IOException {
+        AsyncExternalSourceOperator.Status original = new AsyncExternalSourceOperator.Status(
+            5,
+            10,
+            111,
+            2048,
+            null,
+            1_000_000L,
+            2,
+            4,
+            3,
+            8192L,
+            0L,
+            new NdJsonReaderStatus(7L, 0L, 0L),
+            Map.of(),
+            true
+        );
+        TransportVersion prePartial = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_external_partial_results"));
+        AsyncExternalSourceOperator.Status copy = copyInstance(original, prePartial);
+        // profile fields still round-trip at this version
+        assertThat(copy.bytesRead(), equalTo(8192L));
+        // partial was not yet on the wire, so it defaults to false
+        assertThat(copy.partial(), equalTo(false));
     }
 
     public void testTypedFormatReaderRoundTrip() throws IOException {
@@ -271,9 +319,11 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             9L,
             10L,
             new CsvReaderStatus("tsv", 42L, 3L, true, 123_456L),
-            Map.of()
+            Map.of(),
+            true
         );
         AsyncExternalSourceOperator.Status copy = copyInstance(original);
         assertThat(copy.formatReader(), equalTo(new CsvReaderStatus("tsv", 42L, 3L, true, 123_456L)));
+        assertThat(copy.partial(), equalTo(true));
     }
 }

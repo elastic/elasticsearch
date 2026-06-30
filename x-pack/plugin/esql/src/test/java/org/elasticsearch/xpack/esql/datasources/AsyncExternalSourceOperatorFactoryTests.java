@@ -2486,6 +2486,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 true,
                 null,
                 0L,
+                null,
                 null
             )
         );
@@ -2513,6 +2514,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 true,
                 null,
                 0L,
+                null,
                 null
             );
             assertNotNull(iterator);
@@ -2542,7 +2544,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         IOException thrown = expectThrows(
             IOException.class,
-            () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, true, null, 0L, null)
+            () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, true, null, 0L, null, null)
         );
         assertEquals("decompress failed", thrown.getMessage());
         assertTrue("raw stream must be aborted when decompression fails", tracking.aborted.get());
@@ -2569,6 +2571,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 true,
                 null,
                 0L,
+                null,
                 null
             );
             assertNotNull(iterator);

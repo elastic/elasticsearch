@@ -13,6 +13,21 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.4.3 [connectors-9.4.3-release-notes]
+
+### Fixes [connectors-9.4.3-fixes]
+* Fix Confluence connector failing against Confluence Data Center / Server with HTTP 500 from `/rest/api/space?expand=permissions,history`. [#4049](https://github.com/elastic/connectors/pull/4049), [#4041](https://github.com/elastic/connectors/pull/4041)
+* Fix sync jobs incorrectly reporting `indexed_document_count`, `indexed_document_volume`, and `deleted_document_count` as `0` despite successful ingestion. [#4055](https://github.com/elastic/connectors/pull/4055), [#4047](https://github.com/elastic/connectors/pull/4047)
+* Fix the Jira connector failing to sync issues on Jira Server and Data Center deployments older than v10. [#4060](https://github.com/elastic/connectors/pull/4060), [#4059](https://github.com/elastic/connectors/pull/4059)
+* Reduce Jira connector memory usage during full syncs and fix a case where a failed fetch could leave a sync waiting indefinitely. [#4077](https://github.com/elastic/connectors/pull/4077), [#4062](https://github.com/elastic/connectors/pull/4062)
+* Fix Outlook connector crashing on localized Exchange servers. [#4068](https://github.com/elastic/connectors/pull/4068), [#4065](https://github.com/elastic/connectors/pull/4065)
+* Fix Outlook connector failing on on-prem Exchange when AD users have no mail attribute. [#4080](https://github.com/elastic/connectors/pull/4080), [#4078](https://github.com/elastic/connectors/pull/4078)
+
+## 9.3.7 [connectors-9.3.7-release-notes]
+
+### Fixes [connectors-9.3.7-fixes]
+* Fix Outlook Server connector aborting sync when an Active Directory user has a valid SMTP address but no Exchange mailbox (`ErrorNonExistentMailbox`); the account is now skipped with a warning and the sync continues. Also fix a crash (`NO_CERTIFICATE_OR_CRL_FOUND`) when SSL is enabled but no certificate is provided; the connector now falls back to unverified connections and logs a clear warning. [#4091](https://github.com/elastic/connectors/pull/4091), [#4085](https://github.com/elastic/connectors/pull/4085)
+
 ## 9.3.6 [connectors-9.3.6-release-notes]
 
 ### Fixes [connectors-9.3.6-fixes]

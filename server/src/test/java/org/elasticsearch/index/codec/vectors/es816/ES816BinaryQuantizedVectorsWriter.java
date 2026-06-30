@@ -303,7 +303,7 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     }
 
     @Override
-    public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+    public void mergeOneFlatVectorField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
             final float[] centroid;
             final float[] mergedCentroid = new float[fieldInfo.getVectorDimension()];
@@ -407,26 +407,6 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             docsWithField.add(docV);
         }
         return docsWithField;
-    }
-
-    @Override
-    public CloseableRandomVectorScorerSupplier mergeOneFieldToIndex(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
-            final float[] centroid;
-            final float cDotC;
-            final float[] mergedCentroid = new float[fieldInfo.getVectorDimension()];
-            int vectorCount = mergeAndRecalculateCentroids(mergeState, fieldInfo, mergedCentroid);
-
-            // Don't need access to the random vectors, we can just use the merged
-            rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
-            centroid = mergedCentroid;
-            cDotC = vectorCount > 0 ? VectorUtil.dotProduct(centroid, centroid) : 0;
-            if (segmentWriteState.infoStream.isEnabled(BINARIZED_VECTOR_COMPONENT)) {
-                segmentWriteState.infoStream.message(BINARIZED_VECTOR_COMPONENT, "Vectors' count:" + vectorCount);
-            }
-            return mergeOneFieldToIndex(segmentWriteState, fieldInfo, mergeState, centroid, cDotC);
-        }
-        return rawVectorDelegate.mergeOneFieldToIndex(fieldInfo, mergeState);
     }
 
     private CloseableRandomVectorScorerSupplier mergeOneFieldToIndex(

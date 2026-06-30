@@ -970,7 +970,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * Demotes all active cache regions for the given shard to frequency 0.
      * Demoted entries are inserted at the front of the frequency-0 list so they are evicted before
      * other frequency-0 entries. {@code lastAccessedEpoch} is set to {@code -1} so demoted entries
-     * are not frequency-promoted before the next epoch.
+     * are promoted again if they are accessed due to shard relocating back after demotion.
      *
      * @return the number of regions demoted
      */
@@ -983,7 +983,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * The predicate is evaluated when the task runs; demotion is skipped when it returns {@code false}.
      */
     public void demoteAllAsync(ShardId shard, Predicate<ShardId> shouldDemote) {
-        // TODO do not submit task if shutting down
         asyncEvictionsRunner.enqueueTask(new ActionListener<>() {
             @Override
             public void onResponse(Releasable releasable) {

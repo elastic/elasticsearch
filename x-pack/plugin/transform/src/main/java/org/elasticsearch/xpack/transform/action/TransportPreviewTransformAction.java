@@ -156,6 +156,15 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         final TransformConfig config = request.getConfig();
         final Function function = FunctionFactory.create(config);
 
+        // Capture the caller's UIAM cloud credential on the inbound transport thread, before the
+        // privilege/validation chain swaps thread contexts. Reading it late (inside getPreview)
+        // returns null once the secondary-auth context is gone, leaving cross-project field_caps
+        // dispatched without a credential. Wrap the listener so the SecureString is closed exactly
+        // once on every terminal path reachable after capture — success, validation failure, and
+        // privilege failure. ActionListener.releaseAfter is null-safe when the caller is non-UIAM.
+        final CloudCredential callerCredential = cloudCredentialManager.currentCallerCredential();
+        final ActionListener<Response> releasingListener = ActionListener.releaseAfter(listener, callerCredential);
+
         // <4> Validate transform query
         ActionListener<Boolean> validateConfigListener = ActionListener.wrap(
             validateConfigResponse -> getPreview(
@@ -169,15 +178,16 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 config.getSyncConfig(),
                 config.getSettings(),
                 request.previewAsIndexRequest(),
-                listener
+                callerCredential,
+                releasingListener
             ),
-            listener::onFailure
+            releasingListener::onFailure
         );
 
         // <3> Validate transform function config
         ActionListener<Boolean> validateSourceDestListener = ActionListener.wrap(
             validateSourceDestResponse -> function.validateConfig(validateConfigListener),
-            listener::onFailure
+            releasingListener::onFailure
         );
 
         // <2> Validate source and destination indices
@@ -190,7 +200,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 SourceDestValidations.getValidationsForPreview(config.getAdditionalSourceDestValidations()),
                 validateSourceDestListener
             ),
-            listener::onFailure
+            releasingListener::onFailure
         );
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
@@ -226,41 +236,38 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         SyncConfig syncConfig,
         SettingsConfig settingsConfig,
         boolean previewAsIndexRequest,
+        CloudCredential callerCredential,
         ActionListener<Response> listener
     ) {
         var rawClient = new ParentTaskAssigningClient(client, parentTaskId);
-        // Extract the caller credential once so we can both wrap the parent client with it and release its
-        // SecureString when the preview completes. extractCloudManagedCredential returns a fresh instance
-        // distinct from anything stored in the thread context, so we own its lifecycle.
-        final CloudCredential callerCredential = cloudCredentialManager.currentCallerCredential();
+        // callerCredential was captured at doExecute entry on the inbound transport thread, before the
+        // privilege/validation chain swaps thread contexts. Its SecureString is released by the
+        // releasingListener that wraps the outer listener; no further releaseAfter needed here.
         var parentTaskClient = cloudCredentialManager.wrapWithUiamIfPresent(rawClient, callerCredential);
 
         final var mappings = new SetOnce<Map<String, String>>();
 
         final var filteredHeaders = getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterService.state());
 
-        ActionListener<List<Map<String, Object>>> responseDocsListener = ActionListener.releaseAfter(
-            listener.delegateFailureAndWrap((l, docs) -> {
-                var generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(
-                    destIndexSettings,
-                    mappings.get(),
-                    transformId,
-                    Clock.systemUTC()
+        ActionListener<List<Map<String, Object>>> responseDocsListener = listener.delegateFailureAndWrap((l, docs) -> {
+            var generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(
+                destIndexSettings,
+                mappings.get(),
+                transformId,
+                Clock.systemUTC()
+            );
+            TransformConfigLinter.getWarnings(function, source, syncConfig).forEach(HeaderWarning::addWarning);
+            if (previewAsIndexRequest) {
+                l.onResponse(new Response(docs, generatedDestIndexSettings));
+            } else {
+                l.onResponse(
+                    new Response(
+                        docs.stream().map(doc -> (Map<String, Object>) doc.get(TransformField.DOCUMENT_SOURCE_FIELD)).toList(),
+                        generatedDestIndexSettings
+                    )
                 );
-                TransformConfigLinter.getWarnings(function, source, syncConfig).forEach(HeaderWarning::addWarning);
-                if (previewAsIndexRequest) {
-                    l.onResponse(new Response(docs, generatedDestIndexSettings));
-                } else {
-                    l.onResponse(
-                        new Response(
-                            docs.stream().map(doc -> (Map<String, Object>) doc.get(TransformField.DOCUMENT_SOURCE_FIELD)).toList(),
-                            generatedDestIndexSettings
-                        )
-                    );
-                }
-            }),
-            callerCredential
-        );
+            }
+        });
 
         ActionListener<List<Map<String, Object>>> previewListener = responseDocsListener.delegateFailureAndWrap((l, docs) -> {
             if (pipeline == null) {

@@ -14,6 +14,7 @@ module org.elasticsearch.nativeaccess {
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
     requires transitive org.elasticsearch.foreign;
+    requires org.elasticsearch.foreign.adapter;
     requires java.management; // for access to heap size
 
     exports org.elasticsearch.nativeaccess

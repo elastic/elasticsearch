@@ -25,7 +25,7 @@ Together with index sorting, columnar mode brings Elasticsearch's storage footpr
 Two columnar index modes are available:
 
 `columnar`
-:   A general-purpose columnar store with no use-case-specific defaults. Use this mode for bare indices and data streams that does not fit the logging paradigm.
+:   A general-purpose columnar store with no use-case-specific defaults. Use this mode for bare indices and data streams that do not fit the logging paradigm.
 
 `logsdb_columnar`
 :   A columnar store with logging-oriented defaults. It inherits all behavior of the `columnar` mode and additionally:

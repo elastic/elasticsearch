@@ -298,7 +298,10 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        return new QueryString(source, query, null, queryBuilder, ((PlanStreamInput) in).configuration());
+        Expression options = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)
+            ? in.readOptionalNamedWriteable(Expression.class)
+            : null;
+        return new QueryString(source, query, options, queryBuilder, ((PlanStreamInput) in).configuration());
     }
 
     @Override
@@ -306,6 +309,9 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         source().writeTo(out);
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
+        if (out.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(options());
+        }
     }
 
     @Override
@@ -390,11 +396,12 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         var qstr = (QueryString) o;
         return Objects.equals(query(), qstr.query())
             && Objects.equals(queryBuilder(), qstr.queryBuilder())
-            && Objects.equals(configuration, qstr.configuration);
+            && Objects.equals(configuration, qstr.configuration)
+            && Objects.equals(options, qstr.options);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(query(), queryBuilder(), configuration);
+        return Objects.hash(query(), queryBuilder(), configuration, options);
     }
 }

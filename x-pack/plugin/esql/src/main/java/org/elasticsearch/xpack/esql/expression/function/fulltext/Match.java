@@ -8,16 +8,26 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
@@ -26,8 +36,14 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
+import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -58,6 +74,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -141,6 +158,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         entry(PREFIX_LENGTH_FIELD.getPreferredName(), INTEGER),
         entry(ZERO_TERMS_QUERY_FIELD.getPreferredName(), KEYWORD)
     );
+
     private static final String CONTENT_FIELD = "content_field";
 
     private final Configuration configuration;
@@ -312,7 +330,11 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         Configuration configuration = ((PlanStreamInput) in).configuration();
-        return new Match(source, field, query, null, queryBuilder, configuration);
+        Expression options = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)
+            ? in.readOptionalNamedWriteable(Expression.class)
+            : null;
+
+        return new Match(source, field, query, options, queryBuilder, configuration);
     }
 
     // This is not meant to be overriden by MatchOperator - MatchOperator should be serialized to Match
@@ -322,6 +344,9 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
+        if (out.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(options());
+        }
     }
 
     @Override
@@ -414,7 +439,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     @Override
     protected boolean isRuntimeSearch() {
-        return EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled()
+        return EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH_V1.isEnabled()
             && configuration.pragmas().runtimeLexicalSearch()
             && fieldAsFieldAttribute() == null;
     }
@@ -440,12 +465,16 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case BYTES_REF -> {
                 if (field.dataType() == TEXT) {
-                    yield new MatchTextEvaluator.Factory(
-                        source(),
-                        toEvaluator.apply(field()),
-                        queryAsObject().toString(),
-                        new StandardAnalyzer()
-                    );
+                    Analyzer analyzer = new StandardAnalyzer();
+                    org.apache.lucene.search.Query query = luceneQuery(analyzer);
+                    // instead of returning a MatchAll/MatchNone, we return a constant evaluator which is more efficient.
+                    if (query instanceof MatchNoDocsQuery) {
+                        yield ConstantEvaluators.CONSTANT_FALSE_FACTORY;
+                    } else if (query instanceof MatchAllDocsQuery) {
+                        yield ConstantEvaluators.CONSTANT_TRUE_FACTORY;
+                    } else {
+                        yield new MatchTextEvaluator.Factory(source(), toEvaluator.apply(field()), analyzer, query);
+                    }
                 }
 
                 assert queryObject instanceof BytesRef;
@@ -513,8 +542,12 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     }
 
     @Evaluator(extraName = "Text", warnExceptions = { IOException.class }, allNullsIsNull = false)
-    static boolean processText(@Position int position, BytesRefBlock fieldBlock, @Fixed String queryString, @Fixed Analyzer analyzer)
-        throws IOException {
+    static boolean processText(
+        @Position int position,
+        BytesRefBlock fieldBlock,
+        @Fixed Analyzer analyzer,
+        @Fixed org.apache.lucene.search.Query query
+    ) throws IOException {
         if (fieldBlock == null) {
             return false;
         }
@@ -529,11 +562,6 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             value = fieldBlock.getBytesRef(valueIndex, value);
             index.addField(CONTENT_FIELD, value.utf8ToString(), analyzer);
             IndexSearcher searcher = index.createSearcher();
-
-            org.apache.lucene.util.QueryBuilder queryBuilder = new org.apache.lucene.util.QueryBuilder(analyzer);
-            // TODO: Use the operator specified in the query options instead of `BooleanClause.Occur.SHOULD`.
-            org.apache.lucene.search.Query query = queryBuilder.createBooleanQuery(CONTENT_FIELD, queryString, BooleanClause.Occur.SHOULD);
-
             TopDocs topDocs = searcher.search(query, 1);
             if (topDocs.scoreDocs.length > 0) {
                 return true;
@@ -602,5 +630,77 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), configuration);
+    }
+
+    public org.apache.lucene.search.Query luceneQuery(Analyzer analyzer) {
+        org.apache.lucene.util.QueryBuilder queryBuilder = new org.apache.lucene.util.QueryBuilder(analyzer);
+        MatchQueryBuilder matchQueryBuilder = (MatchQueryBuilder) new MatchQuery(
+            source(),
+            CONTENT_FIELD,
+            queryAsObject().toString(),
+            matchQueryOptions()
+        ).toQueryBuilder();
+        Operator operator = matchQueryBuilder.operator();
+        org.apache.lucene.search.Query query;
+
+        String queryString = queryAsObject().toString();
+
+        if (matchQueryBuilder.fuzziness() == null) {
+            query = queryBuilder.createBooleanQuery(CONTENT_FIELD, queryString, operator.toBooleanClauseOccur());
+        } else {
+            // analyze query terms, for each term create a fuzzy query, for each fuzzy query add to a boolean query
+            query = null;
+            List<org.apache.lucene.search.Query> queryTermQueries = new ArrayList<>();
+
+            try (TokenStream stream = analyzer.tokenStream(CONTENT_FIELD, queryString)) {
+                stream.reset();
+                CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
+                while (stream.incrementToken()) {
+                    MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(
+                        matchQueryBuilder.fuzzyRewrite(),
+                        null,
+                        LoggingDeprecationHandler.INSTANCE
+                    );
+
+                    queryTermQueries.add(
+                        FuzzyQueries.create(
+                            new Term(CONTENT_FIELD, BytesRefs.toBytesRef(term.toString())),
+                            matchQueryBuilder.fuzziness().asDistance(term.toString()),
+                            matchQueryBuilder.prefixLength(),
+                            matchQueryBuilder.maxExpansions(),
+                            matchQueryBuilder.fuzzyTranspositions(),
+                            rewriteMethod,
+                            null,
+                            null
+                        )
+                    );
+                }
+                stream.end();
+            } catch (IOException exception) {
+                throw new RuntimeException("error analyzing query text", exception);
+            }
+            if (queryTermQueries.size() > 1) {
+                BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
+
+                queryTermQueries.forEach(
+                    fuzzyQuery -> { booleanQuery.add(new BooleanClause(fuzzyQuery, operator.toBooleanClauseOccur())); }
+                );
+                query = booleanQuery.build();
+            } else if (queryTermQueries.size() == 1) {
+                query = queryTermQueries.getFirst();
+            }
+        }
+
+        if (query == null) {
+            if (matchQueryBuilder.zeroTermsQuery().equals(ZeroTermsQueryOption.NONE)) {
+                return MatchNoDocsQuery.INSTANCE;
+            } else {
+                return MatchAllDocsQuery.INSTANCE;
+            }
+        }
+
+        query = Queries.maybeApplyMinimumShouldMatch(query, matchQueryBuilder.minimumShouldMatch());
+
+        return query;
     }
 }

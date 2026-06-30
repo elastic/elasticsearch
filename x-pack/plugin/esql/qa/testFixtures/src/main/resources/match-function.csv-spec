@@ -1138,7 +1138,7 @@ constant_keyword-foo:keyword | keyword:keyword
 matchOnRuntimeText
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1159,7 +1159,7 @@ book_no:keyword | title:text
 matchOnRuntimeTextAndIndexedField
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1180,7 +1180,7 @@ book_no:keyword | title:text
 matchOnTextWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1198,7 +1198,7 @@ This is a brown dog
 matchOnTextWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1216,7 +1216,7 @@ This dog is really brown
 matchOnTextWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1235,7 +1235,7 @@ content:text
 matchOnRuntimeKeyword
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1254,7 +1254,7 @@ emp_no:integer | full_name:keyword
 matchOnRuntimeKeywordWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1270,7 +1270,7 @@ foobar
 matchOnKeywordWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1288,7 +1288,7 @@ foobar
 matchOnKeywordWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1305,7 +1305,7 @@ content:keyword
 matchOnRuntimeBoolean
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1328,7 +1328,7 @@ emp_no:integer | first_name:keyword | x:boolean
 matchOnRuntimeBooleanWithBooleanQuery
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1351,7 +1351,7 @@ emp_no:integer | first_name:keyword | x:boolean
 matchOnRuntimeBooleanWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1370,7 +1370,7 @@ foobar          | true
 matchOnBooleanWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1389,7 +1389,7 @@ foobar          | true
 matchOnBooleanWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1408,7 +1408,7 @@ foobar          | [true, false]
 matchOnRuntimeDouble
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1428,7 +1428,7 @@ emp_no:integer | x:double
 matchOnRuntimeDoubleWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1446,7 +1446,7 @@ a:double
 matchOnDoubleWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1466,7 +1466,7 @@ a:double
 matchOnDoubleWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1486,7 +1486,7 @@ a:double
 matchOnRuntimeLong
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1505,7 +1505,7 @@ emp_no:integer | x:long
 matchOnRuntimeLongWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1523,7 +1523,7 @@ a:long
 matchOnLongWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1542,7 +1542,7 @@ a:long
 matchOnLongWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1561,7 +1561,7 @@ a:long
 matchOnRuntimeInteger
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1580,7 +1580,7 @@ emp_no:integer | x:integer
 matchOnRuntimeIntegerWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1598,7 +1598,7 @@ a:integer
 matchOnIntegerWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1617,7 +1617,7 @@ a:integer
 matchOnIntegerWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1636,7 +1636,7 @@ a:integer
 matchOnRuntimeIp
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1656,7 +1656,7 @@ epsilon      | [127.0.0.1, 127.0.0.2, 127.0.0.3] | null      | [127.0.0.1, 127.0
 matchOnRuntimeIpWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1672,7 +1672,7 @@ content:ip
 matchOnIpWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1690,7 +1690,7 @@ content:ip
 matchOnIpWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1707,7 +1707,7 @@ content:ip
 matchOnRuntimeVersion
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1726,7 +1726,7 @@ id:integer | version:version | x:version
 matchOnRuntimeVersionWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1742,7 +1742,7 @@ content:version
 matchOnVersionWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1760,7 +1760,7 @@ content:version
 matchOnVersionWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1777,7 +1777,7 @@ content:version
 matchOnRuntimeDatetime
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1795,7 +1795,7 @@ emp_no:integer | new_date:datetime        | birth_date:datetime
 matchOnRuntimeDatetimeWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1811,7 +1811,7 @@ content:datetime
 matchOnDatetimeWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1828,7 +1828,7 @@ content:datetime
 matchOnDatetimeWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1845,7 +1845,7 @@ content:datetime
 matchOnRuntimeDateNanos
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1863,7 +1863,7 @@ emp_no:integer | new_date:date_nanos      | birth_date:datetime
 matchOnRuntimeDateNanosWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1879,7 +1879,7 @@ content:date_nanos
 matchOnDateNanosWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1896,7 +1896,7 @@ content:date_nanos
 matchOnDateNanosWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1913,7 +1913,7 @@ content:date_nanos
 matchOnRuntimeUnsignedLong
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1932,7 +1932,7 @@ emp_no:integer | x:unsigned_long
 matchOnRuntimeUnsignedLongWithRow
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1950,7 +1950,7 @@ a:unsigned_long
 matchOnUnsignedLongWithRowAndNullValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1969,7 +1969,7 @@ a:unsigned_long
 matchOnUnsignedLongWithRowAndMultiValues
 
 required_capability: match_function
-required_capability: match_runtime_search
+required_capability: match_runtime_search_v1
 
 pragma: runtime_lexical_search=true
 
@@ -1983,4 +1983,256 @@ ROW a = [100, 200, 300, 400]::unsigned_long
 a:unsigned_long
 [100, 200]
 [200, 300]
+;
+
+matchOnRuntimeTextWithFuzziness
+
+required_capability: match_function
+required_capability: match_runtime_search_v1
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox", "the lazy dog"])
+| MV_EXPAND content
+| WHERE match(content, "bron", {"fuzziness": "1"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithOperatorAnd
+
+required_capability: match_function
+required_capability: match_runtime_search_v1
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox", "the lazy dog"])
+| MV_EXPAND content
+| WHERE match(content, "quick fox", {"operator": "AND"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithMinimumShouldMatch
+
+required_capability: match_function
+required_capability: match_runtime_search_v1
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox", "the lazy dog", "the quick lazy cat"])
+| MV_EXPAND content
+| WHERE match(content, "quick lazy fox", {"minimum_should_match": "2"})
+| SORT content
+;
+
+content:text
+the quick brown fox
+the quick lazy cat
+;
+
+matchOnRuntimeTextWithZeroTermsQueryNone
+
+required_capability: match_function
+required_capability: match_runtime_search_v1
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "", {"zero_terms_query": "none"})
+;
+
+content:text
+;
+
+matchOnRuntimeTextWithZeroTermsQueryAll
+
+required_capability: match_function
+required_capability: match_runtime_search_v1
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox", "the lazy dog"])
+| MV_EXPAND content
+| WHERE match(content, "", {"zero_terms_query": "all"})
+| SORT content
+;
+
+content:text
+the lazy dog
+the quick brown fox
+;
+
+matchOnRuntimeTextWithPrefixLength
+
+required_capability: match_function
+required_capability: match_runtime_search_v1
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "bron", {"fuzziness": "1", "prefix_length": "1"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithFuzzyTranspositionsEnabled
+
+required_capability: match_function
+required_capability: match_runtime_search_v1
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "brwon", {"fuzziness": "1", "fuzzy_transpositions": "true"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithFuzzyTranspositionsDisabled
+
+required_capability: match_function
+required_capability: match_runtime_search_v1
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "brwon", {"fuzziness": "1", "fuzzy_transpositions": "false"})
+;
+
+content:text
+;
+
+matchOnRuntimeTextWithMaxExpansions
+
+required_capability: match_function
+required_capability: match_runtime_search_v1
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "bron", {"fuzziness": "1", "max_expansions": "10"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithFuzzyRewrite
+
+required_capability: match_function
+required_capability: match_runtime_search_v1
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "bron", {"fuzziness": "1", "fuzzy_rewrite": "constant_score"})
+;
+
+content:text
+the quick brown fox
+;
+
+testRuntimeMatchWithIndexAndOptionsPrefixLength
+required_capability: match_function
+required_capability: match_runtime_search_v1
+
+pragma: runtime_lexical_search=true
+
+from books
+| where match(title, "Rigns", {"fuzziness": 1, "prefix_length": 1})
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+2714            | Return of the King Being the Third Part of The Lord of the Rings
+2675            | The Lord of the Rings - Boxed Set
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+testRuntimeMatchWithIndexAndOptionsFuzzyTranspositionsEnabled
+required_capability: match_function
+required_capability: match_runtime_search_v1
+
+pragma: runtime_lexical_search=true
+
+from books
+| eval new_title = to_text(concat("TITLE: ", title))
+| where match(new_title, "Rigns", {"fuzziness": 1, "fuzzy_transpositions": "true"})
+| keep book_no, new_title;
+ignoreOrder:true
+
+book_no:keyword | new_title:text
+2714            | TITLE: Return of the King Being the Third Part of The Lord of the Rings
+2675            | TITLE: The Lord of the Rings - Boxed Set
+4023            | TITLE: A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | TITLE: The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+testRuntimeMatchWithIndexAndFuzzyTranspositionsDisabled
+required_capability: match_function
+required_capability: match_runtime_search_v1
+
+pragma: runtime_lexical_search=true
+
+from books
+| eval new_title = to_text(concat("TITLE: ", title))
+| where match(new_title, "Rigns", {"fuzziness": 1, "fuzzy_transpositions": "false"})
+| keep book_no, new_title;
+ignoreOrder:true
+
+book_no:keyword | new_title:text
+;
+
+testRuntimeMatchWithIndexAndOptionsMaxExpansions
+required_capability: match_function
+required_capability: match_runtime_search_v1
+
+pragma: runtime_lexical_search=true
+
+from books
+| eval new_title = to_text(concat("TITLE: ", title))
+| where match(new_title, "Pings", {"fuzziness": 1, "max_expansions": 10})
+| keep book_no, new_title;
+ignoreOrder:true
+
+book_no:keyword | new_title:text
+2714            | TITLE: Return of the King Being the Third Part of The Lord of the Rings
+2675            | TITLE: The Lord of the Rings - Boxed Set
+4023            | TITLE: A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | TITLE: The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+testRuntimeMatchWithIndexAndOptionsFuzzyRewrite
+required_capability: match_function
+required_capability: match_runtime_search_v1
+
+pragma: runtime_lexical_search=true
+
+from books
+| eval new_title = to_text(concat("TITLE: ", title))
+| where match(new_title, "Pings", {"fuzziness": 1, "fuzzy_rewrite": "constant_score"})
+| keep book_no, new_title;
+ignoreOrder:true
+
+book_no:keyword | new_title:text
+2714            | TITLE: Return of the King Being the Third Part of The Lord of the Rings
+2675            | TITLE: The Lord of the Rings - Boxed Set
+4023            | TITLE: A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | TITLE: The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
 ;

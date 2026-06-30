@@ -331,7 +331,10 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         List<Expression> filterExpressions = in.readNamedWriteableCollectionAsList(Expression.class);
-        return new Knn(source, field, query, null, null, queryBuilder, filterExpressions);
+        Expression options = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)
+            ? in.readOptionalNamedWriteable(Expression.class)
+            : null;
+        return new Knn(source, field, query, options, null, queryBuilder, filterExpressions);
     }
 
     @Override
@@ -341,6 +344,10 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
         out.writeNamedWriteableCollection(filterExpressions());
+
+        if (out.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(options());
+        }
     }
 
     @Override

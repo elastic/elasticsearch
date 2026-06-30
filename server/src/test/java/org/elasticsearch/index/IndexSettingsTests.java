@@ -282,7 +282,6 @@ public class IndexSettingsTests extends ESTestCase {
                     Settings.builder()
                         .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
                         .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
-                        .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
                         .put(IndexSettings.SLICE_ENABLED.getKey(), true)
                         .build()
                 ),

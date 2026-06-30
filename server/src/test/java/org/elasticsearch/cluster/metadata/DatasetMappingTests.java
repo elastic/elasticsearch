@@ -10,11 +10,16 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class DatasetMappingTests extends AbstractWireSerializingTestCase<DatasetMapping> {
 
@@ -31,6 +36,35 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
     @Override
     protected DatasetMapping mutateInstance(DatasetMapping instance) {
         return randomValueOtherThan(instance, DatasetTests::randomMapping);
+    }
+
+    /**
+     * Guard against vocabulary drift from the index mapper's {@code dynamic} parameter. We deliberately do NOT reuse
+     * {@link ObjectMapper.Dynamic} (it carries STRICT/RUNTIME, which are meaningless for read-only external data —
+     * reusing it would let our type represent invalid states). Instead our {@link DatasetMapping.Dynamic} is the
+     * {TRUE, FALSE} subset, and this test pins that relationship: if ES adds, renames, or removes a dynamic value, it
+     * fails and forces us to re-decide whether to support it rather than silently diverging.
+     */
+    public void testDynamicStaysInSyncWithIndexMapperDynamic() {
+        Set<String> esValues = Arrays.stream(ObjectMapper.Dynamic.values()).map(Enum::name).collect(Collectors.toSet());
+        Set<String> ourValues = Arrays.stream(DatasetMapping.Dynamic.values()).map(Enum::name).collect(Collectors.toSet());
+
+        // Every value we support must exist in the index mapper under the same name.
+        assertTrue(
+            "DatasetMapping.Dynamic " + ourValues + " must be a subset of ObjectMapper.Dynamic " + esValues,
+            esValues.containsAll(ourValues)
+        );
+        // The index-mapper values we deliberately exclude are exactly STRICT and RUNTIME. If this set changes, the
+        // index mapper grew/renamed a dynamic value and we must consciously decide how external datasets treat it.
+        Set<String> excluded = new HashSet<>(esValues);
+        excluded.removeAll(ourValues);
+        assertEquals(Set.of("STRICT", "RUNTIME"), excluded);
+
+        // Parse vocabulary stays aligned: we accept our values case-insensitively and reject the excluded ones.
+        assertEquals(DatasetMapping.Dynamic.TRUE, DatasetMapping.Dynamic.fromString("true"));
+        assertEquals(DatasetMapping.Dynamic.FALSE, DatasetMapping.Dynamic.fromString("false"));
+        expectThrows(IllegalArgumentException.class, () -> DatasetMapping.Dynamic.fromString("strict"));
+        expectThrows(IllegalArgumentException.class, () -> DatasetMapping.Dynamic.fromString("runtime"));
     }
 
     public void testAssembleReturnsNullWhenAllAbsent() {

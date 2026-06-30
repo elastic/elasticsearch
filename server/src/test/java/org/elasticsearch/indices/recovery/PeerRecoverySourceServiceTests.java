@@ -961,52 +961,55 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
 
     // See: https://github.com/elastic/elasticsearch-team/issues/4353
     public void testStartRecoveriesUpToLimitHandlesSynchronousFailures() throws Exception {
+        final var task = newRecoveryTask();
+        final var runningShard = newStartedShard(true);
+        final var enqueuedShard = newStartedShard(true);
+        final int queuedRecoveryCount = 1000;
+        final var recoveriesCompleted = new CountDownLatch(queuedRecoveryCount + 1);
+
+        final var schedulingListeners = new CompositeRecoverySchedulingListener();
+        schedulingListeners.addListener(new RecoverySchedulingListener() {
+            @Override
+            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+                recoveriesCompleted.countDown();
+            }
+        });
+
         try (var threadPool = new TestThreadPool("testStartRecoveriesUpToLimitHandlesSynchronousFailures")) {
             final var transportService = mock(TransportService.class);
             when(transportService.getThreadPool()).thenReturn(threadPool);
 
-            final var schedulingListeners = new CompositeRecoverySchedulingListener();
-            final var service = newPeerRecoverySourceService(1, schedulingListeners, transportService);
-            final var task = newRecoveryTask();
+            try (
+                var service = newPeerRecoverySourceService(1, schedulingListeners, transportService);
+                var block = blockShardRecovery(runningShard)
+            ) {
+                service.start();
 
-            final int queuedRecoveryCount = 1000;
-            final var recoveriesCompleted = new CountDownLatch(queuedRecoveryCount + 1);
+                service.ongoingRecoveries.enqueueRecovery(newStartRecoveryRequest(runningShard), task, runningShard, ActionListener.noop());
+                assertEquals(1, service.ongoingRecoveries.activeRecoveryCount());
 
-            schedulingListeners.addListener(new RecoverySchedulingListener() {
-                @Override
-                public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
-                    recoveriesCompleted.countDown();
+                for (int i = 0; i < queuedRecoveryCount; i++) {
+                    service.ongoingRecoveries.enqueueRecovery(
+                        newStartRecoveryRequest(enqueuedShard),
+                        task,
+                        enqueuedShard,
+                        ActionListener.noop()
+                    );
                 }
-            });
 
-            service.start();
+                assertEquals(1, service.ongoingRecoveries.activeRecoveryCount());
+                assertEquals(queuedRecoveryCount, service.ongoingRecoveries.queuedRecoveryCount());
 
-            final var shard = newStartedShard(true);
+                // Close queued shard so recoveries fail synchronously in recoverToTarget
+                closeShards(enqueuedShard);
 
-            final var runningShard = newStartedShard(true);
-            final var handler = service.ongoingRecoveries.addOrEnqueueNewRecovery(
-                newStartRecoveryRequest(runningShard),
-                task,
-                runningShard,
-                ActionListener.noop()
-            );
+                // Trigger cascading failures
+                block.close();
 
-            for (int i = 0; i < queuedRecoveryCount; i++) {
-                service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(shard), task, shard, ActionListener.noop());
+                safeAwait(recoveriesCompleted);
+                assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
+                closeShards(runningShard);
             }
-
-            assertEquals(1, service.ongoingRecoveries.activeRecoveryCount());
-            assertEquals(queuedRecoveryCount, service.ongoingRecoveries.queuedRecoveryCount());
-
-            // Close queued shard so recoveries fail synchronously in recoverToTarget
-            closeShards(shard);
-
-            // Trigger cascading failures
-            service.ongoingRecoveries.onRecoveryComplete(runningShard, handler);
-
-            safeAwait(recoveriesCompleted);
-            assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
-            closeShards(runningShard);
         }
     }
 
@@ -1020,6 +1023,19 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         return newPeerRecoverySourceService(
             limit,
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+            MockUtils.setupTransportServiceWithThreadpoolExecutor()
+        );
+    }
+
+    private PeerRecoverySourceService newPeerRecoverySourceService(int limit, CompositeRecoverySchedulingListener schedulingListeners) {
+        final var settings = Settings.builder()
+            .put(NodeRoles.dataNode())
+            .put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), limit)
+            .build();
+        return newPeerRecoverySourceService(
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            schedulingListeners,
             MockUtils.setupTransportServiceWithThreadpoolExecutor()
         );
     }
@@ -1038,18 +1054,6 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             schedulingListeners,
             transportService
-        );
-    }
-
-    private PeerRecoverySourceService newPeerRecoverySourceService(int limit, CompositeRecoverySchedulingListener schedulingListeners) {
-        final var settings = Settings.builder()
-            .put(NodeRoles.dataNode())
-            .put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), limit)
-            .build();
-        return newPeerRecoverySourceService(
-            settings,
-            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            schedulingListeners
         );
     }
 

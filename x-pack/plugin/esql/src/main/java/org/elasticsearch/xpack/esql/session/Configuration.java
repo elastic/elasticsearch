@@ -227,7 +227,14 @@ public class Configuration implements Writeable {
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
-        ZoneId zi = in.readZoneId();
+        // Settings cross the wire generically in the resolvedSettings block (read near the end). A peer that
+        // predates that block instead sends time_zone and approximation in their original positional slots — the
+        // zone first, the approximation later — which we read here and fold back into a ResolvedSettings. These two
+        // legacy reads (and their writeTo counterparts) are the only setting-specific wire handling left; they are
+        // touched only when an older peer is on the other end, and go away entirely once the minimum transport
+        // version reaches esql_resolved_settings.
+        boolean readLegacySettings = in.getTransportVersion().supports(ESQL_RESOLVED_SETTINGS) == false;
+        ZoneId zi = readLegacySettings ? in.readZoneId() : null;
         this.now = Instant.ofEpochSecond(in.readVLong(), in.readVInt());
         this.username = in.readOptionalString();
         this.clusterName = in.readOptionalString();
@@ -252,7 +259,7 @@ public class Configuration implements Writeable {
             this.resultTruncationDefaultSizeTimeseries = this.resultTruncationDefaultSizeRegular;
         }
         ApproximationSettings legacyApproximation = null;
-        if (in.getTransportVersion().supports(QUERY_APPROXIMATION)) {
+        if (readLegacySettings && in.getTransportVersion().supports(QUERY_APPROXIMATION)) {
             legacyApproximation = in.readOptionalWriteable(ApproximationSettings::new);
         }
         if (in.getTransportVersion().supports(ESQL_VIEW_QUERIES)) {
@@ -265,12 +272,11 @@ public class Configuration implements Writeable {
         } else {
             this.explainOnly = false;
         }
-        if (in.getTransportVersion().supports(ESQL_RESOLVED_SETTINGS)) {
-            this.resolvedSettings = new ResolvedSettings(in);
-        } else {
-            // Synthesize a ResolvedSettings from the legacy typed fields seen on the wire above.
-            // project_routing is intentionally not synthesized here — data nodes never had it.
+        if (readLegacySettings) {
+            // project_routing is intentionally not synthesized here — data nodes never had it on the wire.
             this.resolvedSettings = synthesizeResolvedFromLegacy(zi, legacyApproximation);
+        } else {
+            this.resolvedSettings = new ResolvedSettings(in);
         }
         if (in.getTransportVersion().supports(ESQL_GROK_WATCHDOG)) {
             this.grokMatcherWatchdogMs = in.readVLong();
@@ -292,7 +298,14 @@ public class Configuration implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeZoneId(QuerySettings.TIME_ZONE.get(resolvedSettings));
+        // Peers that understand the generic resolvedSettings block (written near the end) receive settings only
+        // through it. Older peers instead expect time_zone and approximation in their original positional slots, so
+        // for them — and only them — we derive those two values from resolvedSettings and write the legacy slots.
+        // Exactly one of {legacy slots, resolvedSettings block} is written, so there is no redundant double-write.
+        boolean writeLegacySettings = out.getTransportVersion().supports(ESQL_RESOLVED_SETTINGS) == false;
+        if (writeLegacySettings) {
+            out.writeZoneId(QuerySettings.TIME_ZONE.get(resolvedSettings));
+        }
         out.writeVLong(now.getEpochSecond());
         out.writeVInt(now.getNano());
         out.writeOptionalString(username);    // TODO this one is always null
@@ -312,7 +325,7 @@ public class Configuration implements Writeable {
             out.writeVInt(resultTruncationMaxSizeTimeseries);
             out.writeVInt(resultTruncationDefaultSizeTimeseries);
         }
-        if (out.getTransportVersion().supports(QUERY_APPROXIMATION)) {
+        if (writeLegacySettings && out.getTransportVersion().supports(QUERY_APPROXIMATION)) {
             out.writeOptionalWriteable(QuerySettings.APPROXIMATION.get(resolvedSettings));
         }
         if (out.getTransportVersion().supports(ESQL_VIEW_QUERIES)) {
@@ -321,7 +334,7 @@ public class Configuration implements Writeable {
         if (out.getTransportVersion().supports(ESQL_EXPLAIN_ONLY)) {
             out.writeBoolean(explainOnly);
         }
-        if (out.getTransportVersion().supports(ESQL_RESOLVED_SETTINGS)) {
+        if (writeLegacySettings == false) {
             resolvedSettings.writeTo(out);
         }
         if (out.getTransportVersion().supports(ESQL_GROK_WATCHDOG)) {

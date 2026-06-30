@@ -33,6 +33,8 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ConfigurationSerializationTests extends AbstractWireSerializingTestCase<Configuration> {
 
@@ -108,17 +110,37 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
         assertThat(roundTripped.grokMatcherWatchdogMs(), equalTo(1000L));
     }
 
-    public void testOldNodeSynthesizesResolvedSettingsFromLegacyWire() throws IOException {
-        // A node that predates esql_resolved_settings reads time_zone + approximation from their legacy wire slots
-        // and synthesizes a ResolvedSettings from them. Verify both survive the round-trip with non-default values.
+    private static Configuration configWithTimeZoneAndApproximation() {
         ResolvedSettings settings = ResolvedSettings.EMPTY.withOverride(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"))
             .withOverride(QuerySettings.APPROXIMATION, new ApproximationSettings(10000, null));
-        Configuration original = new ConfigurationBuilder(randomConfiguration()).resolvedSettings(settings).build();
+        return new ConfigurationBuilder(randomConfiguration()).resolvedSettings(settings).build();
+    }
+
+    public void testCurrentNodesCarrySettingsInResolvedBlockOnly() throws IOException {
+        // Tier 1 — both peers understand esql_resolved_settings. Settings cross only in the generic resolvedSettings
+        // block; the legacy time_zone/approximation slots are not written. Both values must survive intact.
+        Configuration roundTripped = copyInstance(configWithTimeZoneAndApproximation(), TransportVersion.current());
+        assertThat(QuerySettings.TIME_ZONE.get(roundTripped.resolvedSettings()), equalTo(ZoneId.of("Europe/Paris")));
+        assertThat(QuerySettings.APPROXIMATION.get(roundTripped.resolvedSettings()).rows(), equalTo(10000));
+    }
+
+    public void testOldNodeSynthesizesResolvedSettingsFromLegacyWire() throws IOException {
+        // Tier 2 — peer predates esql_resolved_settings but has the approximation slot. time_zone + approximation
+        // travel in their legacy positional slots and are synthesized back into a ResolvedSettings on read.
         TransportVersion preResolvedSettings = TransportVersionUtils.getPreviousVersion(
             TransportVersion.fromName("esql_resolved_settings")
         );
-        Configuration roundTripped = copyInstance(original, preResolvedSettings);
+        Configuration roundTripped = copyInstance(configWithTimeZoneAndApproximation(), preResolvedSettings);
         assertThat(QuerySettings.TIME_ZONE.get(roundTripped.resolvedSettings()), equalTo(ZoneId.of("Europe/Paris")));
         assertThat(QuerySettings.APPROXIMATION.get(roundTripped.resolvedSettings()).rows(), equalTo(10000));
+    }
+
+    public void testVeryOldNodeWithoutApproximationSlot() throws IOException {
+        // Tier 3 — peer predates even the approximation slot (esql_query_approximation). time_zone still travels in
+        // its legacy field-1 slot, but approximation has nowhere to go on the wire and is dropped (back to default).
+        TransportVersion preApproximation = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_query_approximation"));
+        Configuration roundTripped = copyInstance(configWithTimeZoneAndApproximation(), preApproximation);
+        assertThat(QuerySettings.TIME_ZONE.get(roundTripped.resolvedSettings()), equalTo(ZoneId.of("Europe/Paris")));
+        assertThat(QuerySettings.APPROXIMATION.get(roundTripped.resolvedSettings()), is(nullValue()));
     }
 }

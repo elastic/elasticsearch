@@ -260,6 +260,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * as the header and replicated content, in which case there is no need to replicate content for that file.
      */
     private final int estimatedMaxHeaderSizeInBytes;
+    private volatile boolean isNodeShuttingDown;
 
     public StatelessCommitService(
         Settings settings,
@@ -1074,6 +1075,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     public boolean isShardDeletingIndex(ShardId shardId) {
         return getSafe(shardsCommitsStates, shardId).isDeletingIndex();
+    }
+
+    public boolean isNodeShuttingDown() {
+        return isNodeShuttingDown;
     }
 
     public void unregister(ShardId shardId) {
@@ -3362,6 +3367,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         try {
+            if (event.state().metadata().nodeShutdowns().contains(event.state().nodes().getLocalNodeId())) {
+                isNodeShuttingDown = true;
+            }
             if (event.nodesDelta().removed()) {
                 var removedNodeIds = event.nodesDelta().removedNodes().stream().map(node -> node.getId()).collect(Collectors.toSet());
                 for (var shardCommitState : shardsCommitsStates.values()) {

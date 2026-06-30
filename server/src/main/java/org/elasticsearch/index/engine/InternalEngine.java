@@ -1358,9 +1358,15 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(List<Index> operations, EirfBatch batch) throws IOException {
-        assert operations.size() == batch.docCount()
-            : "operations [" + operations.size() + "] must map 1:1 to batch rows [" + batch.docCount() + "]";
+    public List<IndexResult> indexBatch(List<Index> operations, @Nullable EirfBatch batch) throws IOException {
+
+        if (batch == null) {
+            assert operations.getFirst().origin().isFromTranslog();
+        } else {
+            assert operations.size() == batch.docCount()
+                : "operations [" + operations.size() + "] must map 1:1 to batch rows [" + batch.docCount() + "]";
+        }
+
         try (var ignored = acquireEnsureOpenRef()) {
             // If the first operation is recovery they are all recovery
             boolean isRecovery = operations.getFirst().origin().isRecovery();
@@ -1442,6 +1448,7 @@ public class InternalEngine extends Engine {
         throws IOException {
         final boolean fromTranslog = operations.getFirst().origin().isFromTranslog();
         assert assertNoMixedRecoveryOperations(operations);
+        assert (fromTranslog && batch == null) || (fromTranslog == false && batch != null);
         final Index[] subBatchOps = new Index[subBatchSize];
         final IndexingStrategy[] plans = new IndexingStrategy[subBatchSize];
 

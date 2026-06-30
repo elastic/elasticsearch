@@ -95,10 +95,13 @@ final class TranslogSnapshot extends BaseTranslogReader {
                     skippedOperations++;
                 }
             }
-
+            if (batchOps.isEmpty()) {
+                continue;
+            }
             // If some records were trimmed, send a trimmed batch, else send the whole batch
-            return batch.ops().size() == batchOps.size()  ? batch : new Translog.IndexBatch(batch.batchData(), batch.primaryTerm(), batchOps);
-
+            return batch.ops().size() == batchOps.size()
+                ? batch
+                : new Translog.IndexBatch(batch.batchData(), batch.primaryTerm(), batchOps);
         }
 
         reuse = null; // release buffer, it may be large and is no longer needed

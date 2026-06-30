@@ -57,24 +57,12 @@ import java.util.stream.Collectors;
  *   <li>{@code doc_values: false} on non-text types – stripped so both sides fall back to
  *       their mode default ({@code true}); numeric/geo fields then take the doc-values-skippers
  *       path in columnar mode and remain searchable and aggregatable, matching the baseline.</li>
- *   <li>{@code text} without explicit {@code doc_values} –
- *       {@code TextFieldMapper.defaultDocValuesParameters()} returns {@code enabled=true} when
- *       {@code isStrictColumnar()}, making text fields aggregatable on the contender but not on
- *       the baseline. Normalised to {@code doc_values:true} on both sides (the columnar default).</li>
- *   <li>{@code match_only_text} – always normalised to {@code doc_values:false, index:true} on
- *       both sides. {@code SourceConfirmedTextQuery} (used for phrase and span queries) requires
- *       candidates from the inverted index; without {@code index:true} the query returns no results
- *       in logsdb_columnar where {@code isIndexDisabledByDefault()=true}. Setting
- *       {@code doc_values:false} avoids a secondary issue: when {@code doc_values:true} (the
- *       strict-columnar default) combined with {@code multiValue:true} activates
- *       {@code usesBinaryDocValues()=true}, {@code SourceConfirmedTextQuery}'s position-confirming
- *       reader ({@code binaryDocValuesFieldFetcher}) decodes the companion {@code .counts} field
- *       via {@code MultiValuedSortedBinaryDocValues}, which expects the SeparateCount encoding but
- *       receives the {@code ArrayOrderInlineNull} encoding (lengths are stored as {@code realLen+1}
- *       rather than {@code realLen}), producing off-by-one reads and incorrect position
- *       confirmation. {@code doc_values:false} disables the binary-DV path entirely; with
- *       {@code index:true} queries route through the inverted index and position confirmation reads
- *       from stored fields / synthetic source instead.</li>
+ *   <li>{@code text} and {@code match_only_text} without explicit {@code doc_values} –
+ *       {@code TextFieldMapper} and {@code MatchOnlyTextFieldMapper} both return {@code enabled=true}
+ *       from {@code defaultDocValuesParameters()} when {@code isStrictColumnar()}, making these
+ *       fields aggregatable on the contender but not on the baseline. Normalised to
+ *       {@code doc_values:true} on both sides (the columnar default) when the mapping carries no
+ *       explicit value.</li>
  * </ul>
  *
  * <p>Fully-dynamic mapping (where no fields are in the static mapping) is disabled. With
@@ -245,30 +233,18 @@ public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallen
                 result.put(key, value);
             }
         }
-        // Type-specific post-loop normalizations
+        // TextFieldMapper and MatchOnlyTextFieldMapper both call defaultDocValuesParameters() which
+        // returns enabled=true when isStrictColumnar(), so text-family fields are aggregatable=true
+        // by default in logsdb_columnar but aggregatable=false in logsdb. Inject doc_values:true on
+        // both sides (the columnar default) when the mapping carries no explicit value.
         var fieldType = result.get("type");
-        // text: TextFieldMapper.defaultDocValuesParameters() returns enabled=true when
-        // isStrictColumnar(), so text fields are aggregatable=true by default on the contender but
-        // aggregatable=false on the logsdb baseline. Inject doc_values:true on both sides.
-        //
-        // match_only_text: force doc_values:false + index:true on both sides. SourceConfirmedTextQuery
-        // (phrase/span) requires the inverted index for candidate finding; without index:true the
-        // query returns nothing in logsdb_columnar (isIndexDisabledByDefault()=true). doc_values:false
-        // avoids an additional bug where binaryDocValuesFieldFetcher expects SeparateCount encoding
-        // but receives ArrayOrderInlineNull, causing incorrect position confirmation for multi-value
-        // fields. With doc_values:false the binary-DV path is bypassed and position confirmation
-        // reads from stored fields / synthetic source via the inverted index path.
-        if ("text".equals(fieldType)) {
+        boolean isTextFamily = "text".equals(fieldType) || "match_only_text".equals(fieldType);
+        if (isTextFamily) {
             if (result.containsKey("doc_values") == false) {
                 result.put("doc_values", true);
             }
-        } else if ("match_only_text".equals(fieldType)) {
-            result.put("doc_values", false);
-            if (result.containsKey("index") == false) {
-                result.put("index", true);
-            }
         } else if (Boolean.FALSE.equals(result.get("doc_values")) || "false".equals(result.get("doc_values"))) {
-            // For other non-text types, strip doc_values:false. In columnar mode numeric/geo/etc.
+            // For non-text types, strip doc_values:false. In columnar mode numeric/geo/etc.
             // fields take the doc_values-skippers path, so they remain searchable and aggregatable
             // like the baseline. Stripping lets both sides fall back to mode default (true).
             result.remove("doc_values");

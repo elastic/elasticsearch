@@ -3045,3 +3045,28 @@ FROM partial_mapping_view
 message:keyword        | upper:keyword              | len:integer
 Connected to 10.1.0.3! | DISCONNECTED FROM 10.1.0.3 | 26
 ;
+
+// unmapped_fields="load": an unmapped field surfaced (materialized from _source) by the branches of a
+// subquery-in-FROM union can then be filtered by a WHERE ... IN (view subquery) above the union.
+// NOTE: referencing an unmapped/load field directly as the IN's LHS key (e.g. FROM view | WHERE
+// unmapped_message IN (...)) is NOT yet supported - the IN lowers to a semi-join and load resolution
+// does not materialize the field on the join's left input ("Unknown column [..] in left side of join").
+// That is a follow-up to #142033 (see PR #151750 review); covered here only via the surfaced-column form.
+loadViewInSubqueryAfterSubqueryInFrom
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: where_in_subquery_with_view
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.3!" | KEEP message, unmapped_message)
+| WHERE unmapped_message IN (FROM partial_mapping_view | WHERE message == "42" | KEEP unmapped_message)
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword | unmapped_message:keyword
+42              | 43
+;

@@ -441,6 +441,97 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             );
     }
 
+    // Known gap (PR #151750 review follow-up to #142033): WHERE x IN (subquery) lowers to a semi-join, and load
+    // resolution does not materialize a field used as the IN's left (LHS) key, so it stays unresolved
+    // ("Unknown column [..] in left side of join") across every IN-subquery shape below.
+    public void testLoadModeRejectsUnmappedFieldAsInSubqueryLeftKey() {
+        expectInSubqueryLeftKeyRejected("unmapped_message", """
+            FROM partial_mapping_sample_data
+            | WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
+            | KEEP message, unmapped_message
+            """);
+    }
+
+    public void testLoadModeRejectsNonexistentFieldAsInSubqueryLeftKey() {
+        expectInSubqueryLeftKeyRejected("nonexistent_field", """
+            FROM partial_mapping_sample_data
+            | WHERE nonexistent_field IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP nonexistent_field)
+            | KEEP message, nonexistent_field
+            """);
+    }
+
+    public void testLoadModeRejectsUnmappedFieldAsNestedInSubqueryLeftKey() {
+        expectInSubqueryLeftKeyRejected("unmapped_message", """
+            FROM partial_mapping_sample_data
+            | WHERE unmapped_message IN
+                (FROM partial_mapping_sample_data
+                 | WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
+                 | KEEP unmapped_message)
+            | KEEP message, unmapped_message
+            """);
+    }
+
+    public void testLoadModeRejectsUnmappedInSubqueryLeftKeyInsideSubqueryInFrom() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        expectInSubqueryLeftKeyRejected("unmapped_message", """
+            FROM (FROM partial_mapping_sample_data
+                  | WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
+                  | KEEP message, unmapped_message),
+                 (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.3!" | KEEP message, unmapped_message)
+            """);
+    }
+
+    public void testLoadModeRejectsUnmappedInSubqueryLeftKeyWithSubqueryInFromOnRhs() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        expectInSubqueryLeftKeyRejected("unmapped_message", """
+            FROM partial_mapping_sample_data
+            | WHERE unmapped_message IN
+                (FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message),
+                      (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.3!" | KEEP unmapped_message)
+                 | KEEP unmapped_message)
+            | KEEP message, unmapped_message
+            """);
+    }
+
+    public void testLoadModeRejectsUnmappedInSubqueryLeftKeyAfterFork() {
+        expectInSubqueryLeftKeyRejected("unmapped_message", """
+            FROM partial_mapping_sample_data
+            | FORK (WHERE message == "42")
+                   (WHERE message == "Connected to 10.1.0.3!")
+            | WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" OR message == "Connected to 10.1.0.3!" | KEEP unmapped_message)
+            | KEEP message, unmapped_message
+            """);
+    }
+
+    public void testLoadModeRejectsUnmappedInSubqueryLeftKeyInsideFork() {
+        expectInSubqueryLeftKeyRejected("unmapped_message", """
+            FROM partial_mapping_sample_data
+            | FORK (WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message) | KEEP message, unmapped_message)
+                   (WHERE message == "Connected to 10.1.0.3!" | KEEP message, unmapped_message)
+            | KEEP message, unmapped_message
+            """);
+    }
+
+    public void testLoadModeRejectsUnmappedInSubqueryLeftKeyWithForkOnRhs() {
+        expectInSubqueryLeftKeyRejected("unmapped_message", """
+            FROM partial_mapping_sample_data
+            | WHERE unmapped_message IN
+                (FROM partial_mapping_sample_data
+                 | FORK (WHERE message == "42")
+                        (WHERE message == "Connected to 10.1.0.3!")
+                 | KEEP unmapped_message)
+            | KEEP message, unmapped_message
+            """);
+    }
+
+    private void expectInSubqueryLeftKeyRejected(String column, String query) {
+        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        partialMappingTest().statementError(
+            setUnmappedLoad(query),
+            containsString("Unknown column [" + column + "] in left side of join")
+        );
+    }
+
     // Regression: multi-key LOOKUP JOIN where one key resolves and another doesn't in iteration 1.
     // Iteration 2 entered resolveUsingColumns with [resolved, unresolved] and crashed on the cast.
     public void testMultiKeyLookupJoinWithMixedResolution_doesNotPanic() {

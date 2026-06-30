@@ -17,7 +17,6 @@ import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.cluster.util.Version;
 import org.junit.After;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -53,13 +52,6 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
             .feature(FeatureFlag.TIME_SERIES_MODE)
             .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG);
 
-        // Avoid triggering bogus assertion when serialized parsed mappings don't match with original mappings, because _source key is
-        // inconsistent. As usual, we operate under the premise that "versionless" clusters (serverless) are on the latest code and
-        // do not need this.
-        if (Version.tryParse(getOldClusterVersion()).map(v -> v.before(Version.fromString("8.18.0"))).orElse(false)) {
-            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
-            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
-        }
         return cluster.build();
     }
 

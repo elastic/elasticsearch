@@ -40,7 +40,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
@@ -106,7 +105,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     private static ElasticsearchCluster cluster = buildCluster();
 
     private static ElasticsearchCluster buildCluster() {
-        Version oldVersion = Version.fromString(OLD_CLUSTER_VERSION);
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
@@ -117,11 +115,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             .setting("indices.memory.shard_inactive_time", "60m")
             .apply(() -> clusterConfig)
             .feature(FeatureFlag.TIME_SERIES_MODE);
-
-        if (oldVersion.before(Version.fromString("8.18.0")) || isOldClusterDetachedVersion()) {
-            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
-            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
-        }
         return cluster.build();
     }
 

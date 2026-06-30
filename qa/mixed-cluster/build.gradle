@@ -110,10 +110,6 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       // Enable test features on all ES nodes so that cluster_features-based skip conditions
       // in YAML tests correctly reflect features declared in getTestFeatures().
       systemProperty 'tests.testfeatures.enabled', 'true'
-      if (bwcVersion.before(Version.fromString("8.18.0"))) {
-        jvmArgs '-da:org.elasticsearch.index.mapper.DocumentMapper'
-        jvmArgs '-da:org.elasticsearch.index.mapper.MapperService'
-      }
     }
 
     tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {

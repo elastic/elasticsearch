@@ -135,7 +135,9 @@ public class ElasticInferenceServiceAuthorizationModel {
             return new EndpointMetadata(
                 getHeuristics(authorizedEndpoint),
                 getInternalFields(authorizedEndpoint),
-                Optional.ofNullable(authorizedEndpoint.display()).orElse(EndpointMetadata.Display.EMPTY_INSTANCE)
+                Optional.ofNullable(authorizedEndpoint.display()).orElse(EndpointMetadata.Display.EMPTY_INSTANCE),
+                authorizedEndpoint.regions(),
+                authorizedEndpoint.deniedByRegionPolicy()
             );
         } catch (IllegalArgumentException e) {
             logger.atWarn()

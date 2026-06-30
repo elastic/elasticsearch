@@ -119,7 +119,6 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         }
 
         Literal offset = Literal.NULL;
-        boolean negativeOffset = false;
         Literal at = Literal.NULL;
 
         AtContext atCtx = ctx.at();
@@ -154,9 +153,13 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         OffsetContext offsetContext = ctx.offset();
         if (offsetContext != null) {
             offset = visitDuration(offsetContext.duration());
-            negativeOffset = offsetContext.MINUS() != null;
+            // PromQL durations are unsigned magnitudes; the optional leading `-` (look ahead) is a separate token.
+            // Fold the sign into a single signed duration literal, mirroring how the `@` modifier is handled above.
+            if (offsetContext.MINUS() != null && offset.value() instanceof Duration d) {
+                offset = Literal.timeDuration(source(offsetContext), d.negated());
+            }
         }
-        return new Evaluation(offset, negativeOffset, at);
+        return new Evaluation(offset, at);
     }
 
     @Override

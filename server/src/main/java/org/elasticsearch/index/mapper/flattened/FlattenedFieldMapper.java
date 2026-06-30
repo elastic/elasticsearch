@@ -684,7 +684,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         public Query termQuery(Object value, SearchExecutionContext context) {
             if (indexType.hasOnlyDocValues()) {
                 if (usesBinaryDocValues) {
-                    return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
+                    // Keyed flattened fields always use the SeparateCount binary doc-values format, never ArrayOrderInlineNull.
+                    return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), false);
                 } else {
                     return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
                 }

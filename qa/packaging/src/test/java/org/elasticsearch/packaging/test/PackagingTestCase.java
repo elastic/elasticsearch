@@ -669,6 +669,12 @@ public abstract class PackagingTestCase extends Assert {
         if (es.distribution.isDocker() == false) {
             assertThat(settings.get("http.host"), equalTo("0.0.0.0"));
         }
+
+        if (es.distribution.isArchive()) {
+            String keystoreEntries = es.executables().keystoreTool.run("list").stdout();
+            assertThat(keystoreEntries, Matchers.containsString("cluster.state.encryption.password.autoconfigured"));
+            assertThat(keystoreEntries, Matchers.containsString("cluster.state.encryption.active_password_id"));
+        }
     }
 
     /**

@@ -13,6 +13,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
@@ -240,6 +241,14 @@ class RetryableStorageObject implements StorageObject {
     @Override
     public StorageObjectMetrics metrics() {
         return delegate.metrics().add(retryCounters.snapshot());
+    }
+
+    @Override
+    public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {
+        // Requests/bytes are counted on the delegate; retries on this decorator's own counter. Attach
+        // the sink to both so each event is published once (mirrors how metrics() merges the two).
+        delegate.attachMetrics(metrics, scheme);
+        retryCounters.attach(metrics, scheme);
     }
 
     /**

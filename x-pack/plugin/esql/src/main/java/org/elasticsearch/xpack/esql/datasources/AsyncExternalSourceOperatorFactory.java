@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
@@ -116,6 +117,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final FormatReader formatReader;
     private final StoragePath path;
     private final List<Attribute> attributes;
+    // Node telemetry sink, attached to each storage object as it is opened (see attachStorageMetrics).
+    private final ExternalSourceMetrics externalSourceMetrics;
     // Data-attribute view of {@link #attributes} (virtual columns and Hive-style partition columns
     // stripped). Built once at construction; used to shape pages handed to SchemaAdaptingIterator
     // and to scope filter adaptation in mapFilters. Partition columns are excluded so this width
@@ -286,7 +289,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable FilterPushdownSupport pushdownSupport,
         @Nullable Closeable onClose,
         int parallelism,
-        boolean deferredExtraction
+        boolean deferredExtraction,
+        ExternalSourceMetrics externalSourceMetrics
     ) {
         if (storageProvider == null) {
             throw new IllegalArgumentException("storageProvider cannot be null");
@@ -382,6 +386,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.onClose = onClose;
         this.parallelism = Math.max(1, parallelism);
         this.deferredExtraction = deferredExtraction;
+        this.externalSourceMetrics = externalSourceMetrics == null ? ExternalSourceMetrics.NOOP : externalSourceMetrics;
         if (deferredExtraction && onClose != null) {
             // Hold one ref on behalf of the factory; released when operatorRefCount hits zero.
             // Each registry creation (one per driver) takes an additional ref. See deferredCloseRefCount.
@@ -464,6 +469,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private Closeable onClose;
         private int parallelism = 1;
         private boolean deferredExtraction = false;
+        private ExternalSourceMetrics externalSourceMetrics = ExternalSourceMetrics.NOOP;
 
         private Builder(
             StorageProvider storageProvider,
@@ -615,6 +621,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        /** Node telemetry sink for object-store read metrics; defaults to {@link ExternalSourceMetrics#NOOP}. */
+        public Builder externalSourceMetrics(ExternalSourceMetrics externalSourceMetrics) {
+            this.externalSourceMetrics = externalSourceMetrics == null ? ExternalSourceMetrics.NOOP : externalSourceMetrics;
+            return this;
+        }
+
         public AsyncExternalSourceOperatorFactory build() {
             return new AsyncExternalSourceOperatorFactory(
                 storageProvider,
@@ -641,7 +653,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 pushdownSupport,
                 onClose,
                 parallelism,
-                deferredExtraction
+                deferredExtraction,
+                externalSourceMetrics
             );
         }
     }
@@ -1648,6 +1661,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 state.lastFileContext = rangeCtx.fileContext();
                 state.currentObject = fullObj;
                 state.currentObjectBytesSnapshot = readBytesOrZero(fullObj);
+                attachStorageMetrics(fullObj);
             } else {
                 StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
                 boolean recordAlignedMacro = FileSplitProvider.isRecordAlignedMacroSplit(fileSplit);
@@ -1726,6 +1740,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
                 state.currentObject = obj;
                 state.currentObjectBytesSnapshot = readBytesOrZero(obj);
+                attachStorageMetrics(obj);
                 pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
             }
             // Resolve the file's read schema and the reader's projected column order so the
@@ -1904,12 +1919,27 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext, files.path(fileIndex));
             state.currentObject = obj;
             state.currentObjectBytesSnapshot = readBytesOrZero(obj);
+            attachStorageMetrics(obj);
             return true;
         } catch (Exception e) {
             closeQuietly(pages);
             if (e instanceof IOException io) throw io;
             if (e instanceof RuntimeException re) throw re;
             throw new IOException(e);
+        }
+    }
+
+    /**
+     * Publishes the just-opened object's read/retry events to the node {@link ExternalSourceMetrics}. The
+     * sink stays attached to the object's counters for the rest of its life. Best-effort: an
+     * instrumentation failure must never break the producer loop. The storage scheme, normalised to one
+     * canonical token (s3/gcs/azure/http/file), is the only, low-cardinality, dimension.
+     */
+    private void attachStorageMetrics(StorageObject obj) {
+        try {
+            obj.attachMetrics(externalSourceMetrics, ExternalSourceMetrics.canonicalScheme(obj.path().scheme()));
+        } catch (Exception e) {
+            logger.trace(() -> "telemetry: attachMetrics failed for " + obj, e);
         }
     }
 

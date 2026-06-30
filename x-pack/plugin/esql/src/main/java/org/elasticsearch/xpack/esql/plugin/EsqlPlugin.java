@@ -379,7 +379,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             workloadIdentityEnabled::get,
             services.threadPool(),
             services.environment(),
-            services.resourceWatcherService()
+            services.resourceWatcherService(),
+            services.telemetryProvider().getMeterRegistry()
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();

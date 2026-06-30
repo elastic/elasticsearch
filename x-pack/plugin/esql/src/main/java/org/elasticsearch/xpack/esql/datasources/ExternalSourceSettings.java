@@ -12,30 +12,31 @@ import org.elasticsearch.common.settings.Setting;
 import java.util.List;
 
 /**
- * Cluster settings for controlling ESQL external source behavior.
- * All settings are dynamic (can be changed without restart) and node-scoped.
+ * Cluster settings for controlling ESQL external source behavior; all node-scoped. The connection bound
+ * ({@link #MAX_CONNECTIONS}) and the throttle retry budget are read at node startup — the former sizes the SDK
+ * connection pools and the blocking-read thread pool when they are built, the latter is read when the
+ * storage-provider registry initializes — so a change to either takes effect after a node restart.
  * <p>
- * Covers two areas: cloud API rate limiting (concurrency cap, retry duration budget)
- * and glob/listing safety limits (max discovered files, max brace expansion) to
- * prevent degenerate queries from overwhelming storage backends.
+ * Covers three areas: the per-backend external-read concurrency bound ({@link #MAX_CONNECTIONS}); reactive
+ * throttle handling for object stores (the retry duration budget — throttling is handled by backoff, not a
+ * concurrency cap); and glob/listing safety limits (max discovered files, max brace expansion) to prevent
+ * degenerate queries from overwhelming storage backends.
  */
 public final class ExternalSourceSettings {
 
     private ExternalSourceSettings() {}
 
     /**
-     * Maximum number of concurrent cloud API requests per storage scheme per node.
-     * Set to 0 to disable concurrency limiting entirely.
-     * Default: 50. Cloud APIs typically handle 50 concurrent requests per IP easily;
-     * increase for high-throughput clusters, decrease if experiencing throttling.
+     * Maximum concurrent in-flight external-storage reads per backend, per node. Sizes the S3/Azure SDK connection
+     * pools and the {@code esql_external_blocking_io} thread pool. Static (NodeScope): thread pools and SDK pools
+     * are fixed at startup.
      */
-    public static final Setting<Integer> MAX_CONCURRENT_REQUESTS = Setting.intSetting(
-        "esql.external.max_concurrent_requests",
-        50,
-        0,
-        500,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+    public static final Setting<Integer> MAX_CONNECTIONS = Setting.intSetting(
+        "esql.external.max_connections",
+        512,
+        1,
+        4096,
+        Setting.Property.NodeScope
     );
 
     /**
@@ -50,8 +51,7 @@ public final class ExternalSourceSettings {
         30,
         0,
         300,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.NodeScope
     );
 
     /**
@@ -102,12 +102,6 @@ public final class ExternalSourceSettings {
     );
 
     public static List<Setting<?>> settings() {
-        return List.of(
-            MAX_CONCURRENT_REQUESTS,
-            THROTTLE_MAX_RETRY_DURATION,
-            MAX_DISCOVERED_FILES,
-            MAX_GLOB_EXPANSION,
-            WORKLOAD_IDENTITY_ENABLED
-        );
+        return List.of(MAX_CONNECTIONS, THROTTLE_MAX_RETRY_DURATION, MAX_DISCOVERED_FILES, MAX_GLOB_EXPANSION, WORKLOAD_IDENTITY_ENABLED);
     }
 }

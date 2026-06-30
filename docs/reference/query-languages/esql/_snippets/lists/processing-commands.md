@@ -12,7 +12,7 @@
 * [`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md) {applies_to}`stack: preview 9.0` {applies_to}`stack: ga 9.1`
 * [`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md) {applies_to}`stack: ga 9.4` {applies_to}`serverless: preview`
 * [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) {applies_to}`stack: preview 9.2` {applies_to}`stack: ga 9.3`
-% * [`IP_LOCATION`](/reference/query-languages/esql/commands/ip-location.md) {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+* [`IP_LOCATION`](/reference/query-languages/esql/commands/ip-location.md) {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
 * [`MMR`](/reference/query-languages/esql/commands/mmr.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 * [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md) {applies_to}`stack: preview 9.0-9.3` {applies_to}`stack: ga 9.4`
 * [`REGISTERED_DOMAIN`](/reference/query-languages/esql/commands/registered-domain.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`

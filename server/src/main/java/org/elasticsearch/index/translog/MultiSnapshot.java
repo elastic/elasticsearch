@@ -150,7 +150,7 @@ final class MultiSnapshot implements Translog.Snapshot {
             return wasOn;
         }
 
-        /** Returns true if this seqNo was already marked, without marking it. */
+        /** Returns true if this seqNo was already marked. */
         boolean contains(long value) {
             assert value >= 0;
             final long key = value / BIT_SET_SIZE;

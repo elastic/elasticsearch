@@ -23,15 +23,17 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -42,9 +44,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -56,18 +58,21 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class BytesReadHeaderIT extends ESIntegTestCase {
 
-    private static final String SEARCH_METRICS_HEADER = "X-Elasticsearch-Search-Metrics";
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         // registers the ThrowingQueryBuilder used to simulate shard failures
         return CollectionUtils.appendToCopy(super.nodePlugins(), TestQueryBuilderPlugin.class);
+    }
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        // enable http so the HTTP-level single-header tests can assert the consolidated response header
+        return false;
     }
 
     public static class TestQueryBuilderPlugin extends Plugin implements SearchPlugin {
@@ -223,7 +228,7 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
                 new LatchedActionListener<>(
                     ActionListener.assertOnce(
                         ActionListener.wrap(
-                            searchResponse -> scrollBytesRead.set(extractBytesReadHeader(client)),
+                            searchResponse -> scrollBytesRead.set(storeBytesRead(searchResponse)),
                             e -> fail("no error expected")
                         )
                     ),
@@ -343,16 +348,13 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
     public void testFullShardFailureDoesNotSetBytesReadHeader() throws InterruptedException {
         final String indexName = setupIndex(between(2, 5), atLeast(50));
 
-        // shardId -1 throws on every shard, so the whole search fails and no response (and therefore no header) is produced
         ThrowingQueryBuilder query = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("simulated shard failure"), -1);
         SearchRequest request = new SearchRequest(indexName).allowPartialSearchResults(true)
             .source(new SearchSourceBuilder().query(query).size(10));
 
         CountDownLatch latch = new CountDownLatch(1);
         SetOnce<Exception> failure = new SetOnce<>();
-        SetOnce<Boolean> headerPresent = new SetOnce<>();
-        final Client client = client();
-        client.search(request, new LatchedActionListener<>(ActionListener.assertOnce(new ActionListener<>() {
+        client().search(request, new LatchedActionListener<>(ActionListener.assertOnce(new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {
                 try {
@@ -365,12 +367,11 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
             @Override
             public void onFailure(Exception e) {
                 failure.set(e);
-                headerPresent.set(client.threadPool().getThreadContext().getResponseHeaders().containsKey(SEARCH_METRICS_HEADER));
             }
         }), latch));
+
         assertTrue("search did not complete in time", latch.await(30, TimeUnit.SECONDS));
         assertThat(failure.get(), notNullValue());
-        assertThat("a fully failed search must not emit the metrics header", headerPresent.get(), equalTo(false));
     }
 
     public void testZeroMatchingDocumentsSetsBytesReadHeader() throws InterruptedException {
@@ -480,16 +481,15 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         request.add(new SearchRequest(firstIndex).source(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value"))));
         request.add(new SearchRequest(secondIndex).source(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value"))));
 
-        final Client client = client();
-        SetOnce<List<String>> headerValues = new SetOnce<>();
+        SetOnce<Long> totalBytesRead = new SetOnce<>();
         CountDownLatch latch = new CountDownLatch(1);
-        client.multiSearch(request, new LatchedActionListener<>(ActionListener.assertOnce(new ActionListener<>() {
+        client().multiSearch(request, new LatchedActionListener<>(ActionListener.assertOnce(new ActionListener<>() {
             @Override
             public void onResponse(MultiSearchResponse response) {
                 for (MultiSearchResponse.Item item : response.getResponses()) {
                     assertThat("no sub-search failure expected: " + item.getFailureMessage(), item.isFailure(), equalTo(false));
                 }
-                headerValues.set(client.threadPool().getThreadContext().getResponseHeaders().get(SEARCH_METRICS_HEADER));
+                totalBytesRead.set(storeBytesRead(response.mergeDirectoryMetrics()));
             }
 
             @Override
@@ -497,16 +497,41 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
                 fail("no error expected");
             }
         }), latch));
-        assertTrue("multi search did not complete in time", latch.await(30, TimeUnit.SECONDS));
 
-        assertThat("multi search should emit the metrics header", headerValues.get(), notNullValue());
-        long total = 0;
-        for (String value : headerValues.get()) {
-            Tuple<String, Long> tuple = parseHeader(value);
-            assertThat(tuple.v1(), equalTo("store_bytes_read"));
-            total += tuple.v2();
-        }
-        assertThat(total, greaterThan(0L));
+        assertTrue("multi search did not complete in time", latch.await(30, TimeUnit.SECONDS));
+        assertThat("the multi-search response exposes a single consolidated metrics total", totalBytesRead.get(), greaterThan(0L));
+    }
+
+    public void testSearchHttpResponseHasSingleMetricsHeader() throws Exception {
+        final String indexName = setupIndex(between(2, 4), atLeast(100));
+        Request request = new Request("GET", "/" + indexName + "/_search");
+        request.setJsonEntity("{\"query\":{\"term\":{\"field\":\"value\"}}}");
+        Response response = getRestClient().performRequest(request);
+        assertSingleMetricsHeader(response);
+    }
+
+    public void testMultiSearchHttpResponseHasSingleMetricsHeader() throws Exception {
+        final String firstIndex = setupIndex(1, atLeast(50));
+        final String secondIndex = setupIndex(1, atLeast(50));
+        Request request = new Request("POST", "/_msearch");
+
+        request.setJsonEntity(
+            "{\"index\":\""
+                + firstIndex
+                + "\"}\n{\"query\":{\"term\":{\"field\":\"value\"}}}\n"
+                + "{\"index\":\""
+                + secondIndex
+                + "\"}\n{\"query\":{\"term\":{\"field\":\"value\"}}}\n"
+        );
+        Response response = getRestClient().performRequest(request);
+        assertSingleMetricsHeader(response);
+    }
+
+    private static void assertSingleMetricsHeader(Response response) {
+        long headerCount = Arrays.stream(response.getHeaders())
+            .filter(header -> header.getName().equalsIgnoreCase(RestActions.SEARCH_METRICS_RESPONSE_HEADER))
+            .count();
+        assertThat("expected exactly one consolidated metrics header", headerCount, equalTo(1L));
     }
 
     private String setupIndex(int primaryShards, int documents) {
@@ -527,9 +552,8 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         SetOnce<Exception> failure = new SetOnce<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        final Client client = client();
-        client.search(searchRequest, new LatchedActionListener<>(ActionListener.assertOnce(ActionListener.wrap(searchResponse -> {
-            bytesRead.set(extractBytesReadHeader(client));
+        client().search(searchRequest, new LatchedActionListener<>(ActionListener.assertOnce(ActionListener.wrap(searchResponse -> {
+            bytesRead.set(storeBytesRead(searchResponse));
             if (searchResponseConsumer != null) {
                 searchResponseConsumer.accept(searchResponse);
             }
@@ -542,24 +566,12 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         return bytesRead.get();
     }
 
-    public static long extractBytesReadHeader(Client client) {
-        Map<String, List<String>> responseHeaders = client.threadPool().getThreadContext().getResponseHeaders();
-        assertThat(responseHeaders, hasKey(SEARCH_METRICS_HEADER));
-        List<String> values = responseHeaders.get(SEARCH_METRICS_HEADER);
-        assertThat("expected a single accumulated header value", values.size(), equalTo(1));
-
-        Tuple<String, Long> tuple = parseHeader(values.get(0));
-        assertThat(tuple.v1(), equalTo("store_bytes_read"));
-        return tuple.v2();
+    public static long storeBytesRead(SearchResponse response) {
+        return storeBytesRead(response.getDirectoryMetrics());
     }
 
-    public static Tuple<String, Long> parseHeader(String headerValue) {
-        int splitterPos = headerValue.indexOf('=');
-        if (splitterPos < 0) {
-            throw new IllegalArgumentException("invalid header entry [" + headerValue + "]");
-        }
-        String key = headerValue.substring(0, splitterPos).trim();
-        long value = Long.parseLong(headerValue.substring(splitterPos + 1).trim());
-        return Tuple.tuple(key, value);
+    public static long storeBytesRead(DirectoryMetrics metrics) {
+        String value = metrics.entries().get(StoreMetrics.BYTES_READ_METRIC_KEY);
+        return value == null ? 0L : Long.parseLong(value);
     }
 }

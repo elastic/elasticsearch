@@ -855,7 +855,15 @@ public class IpFieldMapper extends FieldMapper {
                 assert fieldType().indexType.hasDocValuesSkipper() == false : "skippers are not supported for binary doc values";
                 if (fieldType().usesArrayOrderBinaryDocValues()) {
                     // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls.
-                    MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(doc, fieldType().name(), address.binaryValue());
+                    if (context.isPartOfArray() == false) {
+                        MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordSingleValue(
+                            doc,
+                            fieldType().name(),
+                            address.binaryValue()
+                        );
+                    } else {
+                        MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(doc, fieldType().name(), address.binaryValue());
+                    }
                 } else {
                     dvFactory.addBinaryField(
                         doc,

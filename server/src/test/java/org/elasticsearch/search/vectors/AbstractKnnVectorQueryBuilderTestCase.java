@@ -232,7 +232,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         }
         BooleanQuery booleanQuery = builder.build();
         Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
-        Query approxFilterQuery = filterQuery != null ? new CachingEnableFilterQuery(filterQuery) : null;
+        Query approxFilterQuery = filterQuery;
         Integer numCands = queryBuilder.numCands();
         if (queryBuilder.rescoreVectorBuilder() != null && isQuantizedElementType()) {
             float oversample = queryBuilder.rescoreVectorBuilder().oversample();

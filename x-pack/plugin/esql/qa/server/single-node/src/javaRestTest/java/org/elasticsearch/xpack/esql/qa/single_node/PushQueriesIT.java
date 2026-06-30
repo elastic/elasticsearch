@@ -327,7 +327,7 @@ public class PushQueriesIT extends ESRestTestCase {
         /*
          * With lowercase differentValue in the index the query rewrites differently per type:
          * KEYWORD and WILDCARD expose the real NOT query. TEXT types still produce *:* because
-         * the CI LIKE on text uses a different pushdown path. CONSTANT_KEYWORD has only one
+         * the case-insensitive LIKE on text uses a different pushdown path. CONSTANT_KEYWORD has only one
          * document, so its query also remains *:*.
          */
         String luceneQuery = switch (type) {
@@ -337,8 +337,8 @@ public class PushQueriesIT extends ESRestTestCase {
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
         };
         /*
-         * KEYWORD and WILDCARD push NOT CI LIKE fully to Lucene (FILTER_IN_QUERY). Text-based
-         * types and SEMANTIC use FILTER_IN_COMPUTE because the CI LIKE is evaluated via a
+         * KEYWORD and WILDCARD push NOT case-insensitive LIKE fully to Lucene (FILTER_IN_QUERY). Text-based
+         * types and SEMANTIC use FILTER_IN_COMPUTE because the case-insensitive LIKE is evaluated via a
          * compute-layer recheck. CONSTANT_KEYWORD has only one document and stays *:*
          * (FILTER_IN_QUERY).
          */
@@ -360,15 +360,12 @@ public class PushQueriesIT extends ESRestTestCase {
             | WHERE test == "cat" OR NOT (TO_LOWER(test) like "%different_value*")
             """;
         /*
-         * KEYWORD and WILDCARD expose the real NOT query once differentValue is in the index.
-         * TEXT types still produce *:* because the CI LIKE on text uses a different pushdown path.
-         * CONSTANT_KEYWORD has only one document, so its query remains *:*.
-         */
-        /*
-         * With lowercase differentValue and two docs, the NOT CI LIKE survives Lucene rewrite.
-         * The OR with test=="cat" stays in the query for KEYWORD (test:cat) and WILDCARD
-         * (: [cat]) because TermQuery and BinaryDvConfirmedTermsQuery do not rewrite to
-         * MatchNoDocsQuery. TEXT types push with *:* (no inverted index for CI LIKE).
+         * With lowercase differentValue and two docs, the NOT case-insensitive LIKE survives
+         * Lucene rewrite. KEYWORD and WILDCARD expose the real NOT query; the OR with
+         * test=="cat" stays in the query for KEYWORD (test:cat) and WILDCARD (: [cat])
+         * because TermQuery and BinaryDvConfirmedTermsQuery do not rewrite to MatchNoDocsQuery.
+         * TEXT types push with *:* (no inverted index for case-insensitive LIKE).
+         * CONSTANT_KEYWORD has only one document, so its query also remains *:*.
          * ESQL adds a compute-layer recheck for all types except WILDCARD and CONSTANT_KEYWORD.
          */
         List<String> luceneQuery = switch (type) {
@@ -390,6 +387,7 @@ public class PushQueriesIT extends ESRestTestCase {
     }
 
     public void testCaseInsensitiveLikeList() throws IOException {
+        assumeFalse("WILDCARD field type does not support automaton queries", type == Type.WILDCARD);
         String value = "v".repeat(between(1, 256));
         String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
         String esqlQuery = """
@@ -400,11 +398,12 @@ public class PushQueriesIT extends ESRestTestCase {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case KEYWORD -> "test:LIKE(\"%value*\", \"abc*\"), caseInsensitive=true";
-            case WILDCARD -> ":LIKE(\"%value*\", \"abc*\"), caseInsensitive=true";
+            case WILDCARD -> throw new AssertionError("unreachable");
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case WILDCARD -> throw new AssertionError("unreachable");
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -430,6 +429,7 @@ public class PushQueriesIT extends ESRestTestCase {
     }
 
     public void testLikeList() throws IOException {
+        assumeFalse("WILDCARD field type does not support automaton queries", type == Type.WILDCARD);
         String value = "v".repeat(between(1, 256));
         String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
         String esqlQuery = """
@@ -440,11 +440,12 @@ public class PushQueriesIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case KEYWORD -> "test:LIKE(\"%value*\", \"abc*\"), caseInsensitive=false";
-            case WILDCARD -> ":LIKE(\"%value*\", \"abc*\"), caseInsensitive=false";
+            case WILDCARD -> throw new AssertionError("unreachable");
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case WILDCARD -> throw new AssertionError("unreachable");
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -470,6 +471,7 @@ public class PushQueriesIT extends ESRestTestCase {
     }
 
     public void testRLikeList() throws IOException {
+        assumeFalse("WILDCARD field type does not support automaton queries", type == Type.WILDCARD);
         String value = "v".repeat(between(1, 256));
         String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
         String esqlQuery = """
@@ -480,11 +482,12 @@ public class PushQueriesIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case KEYWORD -> "test:RLIKE(\"%value.*\", \"abc.*\"), caseInsensitive=false";
-            case WILDCARD -> ":RLIKE(\"%value.*\", \"abc.*\"), caseInsensitive=false";
+            case WILDCARD -> throw new AssertionError("unreachable");
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+            case WILDCARD -> throw new AssertionError("unreachable");
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -496,8 +499,8 @@ public class PushQueriesIT extends ESRestTestCase {
             FROM test
             | WHERE TO_LOWER(test) rlike "%value.*"
             """;
-        // CI RLIKE uses RegexpQuery with ASCII_CASE_INSENSITIVE flag (matchFlags=256 for WILDCARD).
-        // KEYWORD uses the same /pattern/ toString format as non-CI RLIKE (flag not shown).
+        // Case-insensitive RLIKE uses RegexpQuery with ASCII_CASE_INSENSITIVE flag (matchFlags=256 for WILDCARD).
+        // KEYWORD uses the same /pattern/ toString format as non-case-insensitive RLIKE (flag not shown).
         String luceneQuery = switch (type) {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";

@@ -31,7 +31,6 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
@@ -110,28 +109,6 @@ abstract class BinaryDvConfirmedQuery extends Query {
      */
     public static Query fromFuzzyQuery(Query approximation, String field, String searchTerm, FuzzyQuery fuzzyQuery) {
         return new BinaryDvConfirmedAutomatonQuery(approximation, field, new FuzzyQueryAutomatonProvider(searchTerm, fuzzyQuery));
-    }
-
-    /**
-     * Builds query that runs a pre-built {@link Automaton} across all binary doc values
-     * (but only for docs that also match a provided approximation query, which is key to
-     * getting good performance).
-     *
-     * <p>
-     *     The automaton must be UTF-32 (codepoint-level), as produced by
-     *     {@link WildcardQuery#toAutomaton} or {@link RegExp#toAutomaton}. The
-     *     {@link BinaryDvConfirmedAutomatonQuery} will compile it to a {@link ByteRunAutomaton}
-     *     via the single-arg constructor, which performs the implicit UTF-32 to UTF-8 conversion.
-     * </p>
-     *
-     * @param approximation pre-filter query; use {@link Queries#ALL_DOCS_INSTANCE}
-     *                      when no cheaper approximation is available
-     * @param field         the field name
-     * @param automaton     the pre-built automaton to match against doc values
-     * @param description   human-readable description for {@link Query#toString}
-     */
-    public static Query fromAutomaton(Query approximation, String field, Automaton automaton, String description) {
-        return new BinaryDvConfirmedAutomatonQuery(approximation, field, new PrebuiltAutomatonProvider(automaton, description));
     }
 
     /**
@@ -393,18 +370,4 @@ abstract class BinaryDvConfirmedQuery extends Query {
         }
     }
 
-    /**
-     * An {@link AutomatonProvider} that wraps a pre-built {@link Automaton} with a human-readable description.
-     */
-    private record PrebuiltAutomatonProvider(Automaton automaton, String description) implements AutomatonProvider {
-        @Override
-        public Automaton getAutomaton(String field) {
-            return automaton;
-        }
-
-        @Override
-        public String toString() {
-            return description;
-        }
-    }
 }

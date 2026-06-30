@@ -190,7 +190,7 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
         );
         var storeRequest = new StoreInferenceEndpointsAction.Request(newEndpoints, TimeValue.THIRTY_SECONDS);
 
-        client.execute(StoreInferenceEndpointsAction.INSTANCE, storeRequest, listener.delegateFailureAndWrap((d, responses) -> {
+        ActionListener<StoreInferenceEndpointsAction.Response> logResultsListener = ActionListener.wrap(responses -> {
             for (var response : responses.getResults()) {
                 if (response.failed()) {
                     logger.atWarn()
@@ -201,7 +201,12 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
                         .log("Successfully stored EIS preconfigured inference endpoint with inference ID [{}]", response.inferenceId());
                 }
             }
-            d.onResponse(ActionResponse.Empty.INSTANCE);
-        }));
+        }, e -> logger.atWarn().withThrowable(e).log("Failed to store new EIS preconfigured inference endpoints [{}]", newEndpoints));
+
+        client.execute(
+            StoreInferenceEndpointsAction.INSTANCE,
+            storeRequest,
+            ActionListener.runAfter(logResultsListener, () -> listener.onResponse(ActionResponse.Empty.INSTANCE))
+        );
     }
 }

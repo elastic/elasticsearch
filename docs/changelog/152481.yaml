@@ -6,7 +6,7 @@ highlight:
     analytical and search columnar store.
 
     Fields are stored **once, as doc values only** — no inverted index or BKD
-    tree is maintained by default, which eliminates redundant index structures
+    tree is created by default, which eliminates redundant index structures
     and significantly reduces the storage footprint. Doc values skippers
     (compact skip lists with min/max metadata) are enabled by default for number based fields,
     allowing large blocks of documents to be skipped without scanning individual values.

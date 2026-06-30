@@ -23,6 +23,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+
 /**
  * Helper that rewrites every {@code keyword} field declaration in a csv-spec mapping JSON to
  * {@code flattened}, and wraps document source values for those fields so that they remain valid
@@ -130,14 +134,14 @@ public final class KeywordToFlattenedTransformer {
             if (keywordPaths.isEmpty()) {
                 return EMPTY;
             }
-            if (ESTestCase.randomBoolean() == false) {
+            if (randomBoolean() == false) {
                 // tails → no junk
                 return EMPTY;
             }
             List<String> sorted = new ArrayList<>(keywordPaths);
             Collections.sort(sorted);                     // deterministic ordering before shuffle
             Collections.shuffle(sorted, ESTestCase.random());
-            int count = 1 + ESTestCase.randomIntBetween(0, sorted.size() - 1); // 1..size inclusive
+            int count = 1 + randomIntBetween(0, sorted.size() - 1); // 1..size inclusive
             return new FlattenedJunkConfig(Set.copyOf(sorted.subList(0, count)));
         }
     }
@@ -328,7 +332,7 @@ public final class KeywordToFlattenedTransformer {
      * with the canonical {@link #WRAPPER_SUBKEY} (which is {@code "v"}).
      */
     private static void generateJunkEntries(ObjectNode node) {
-        int count = ESTestCase.randomIntBetween(1, 5);
+        int count = randomIntBetween(1, 5);
         for (int i = 0; i < count; i++) {
             writeJunkEntry(node, "_j" + i);
         }
@@ -339,22 +343,22 @@ public final class KeywordToFlattenedTransformer {
      * The six value categories are: string, integer, boolean, null, nested object, array of strings.
      */
     private static void writeJunkEntry(ObjectNode node, String key) {
-        int kind = ESTestCase.randomIntBetween(0, 5);
+        int kind = randomIntBetween(0, 5);
         switch (kind) {
-            case 0 -> node.put(key, ESTestCase.randomAlphaOfLengthBetween(4, 8));   // string
-            case 1 -> node.put(key, ESTestCase.randomIntBetween(0, 999));            // integer
-            case 2 -> node.put(key, ESTestCase.randomBoolean());                     // boolean
+            case 0 -> node.put(key, randomAlphaOfLengthBetween(4, 8));   // string
+            case 1 -> node.put(key, randomIntBetween(0, 999));            // integer
+            case 2 -> node.put(key, randomBoolean());                     // boolean
             case 3 -> node.putNull(key);                                             // null
             case 4 -> {                                                               // nested object
                 ObjectNode obj = MAPPER.createObjectNode();
-                obj.put("k", ESTestCase.randomAlphaOfLengthBetween(2, 5));
+                obj.put("k", randomAlphaOfLengthBetween(2, 5));
                 node.set(key, obj);
             }
             case 5 -> {                                                               // array of strings
                 ArrayNode arr = MAPPER.createArrayNode();
-                int n = ESTestCase.randomIntBetween(1, 3);
+                int n = randomIntBetween(1, 3);
                 for (int i = 0; i < n; i++) {
-                    arr.add(ESTestCase.randomAlphaOfLengthBetween(2, 6));
+                    arr.add(randomAlphaOfLengthBetween(2, 6));
                 }
                 node.set(key, arr);
             }

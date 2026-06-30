@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.script.IpFieldScript;
@@ -611,7 +612,7 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testHighCardinalityAllowedForIndexSortField() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "field")
@@ -625,7 +626,6 @@ public class IpFieldMapperTests extends MapperTestCase {
         }));
         assertNotNull(ms.fieldType("field"));
     }
-
 
     public void testColumnarArrayOrderRoundTrip() throws IOException {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());

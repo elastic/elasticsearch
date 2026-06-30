@@ -20,6 +20,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -316,7 +318,7 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testHighCardinalityAllowedForIndexSortField() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "field")
@@ -329,7 +331,6 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         }));
         assertNotNull(ms.fieldType("field"));
     }
-
 
     @Override
     protected String generateRandomInputValue(MappedFieldType ft) {

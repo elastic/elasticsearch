@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.hasSize;
  * which Java cannot set on its own JVM at runtime — so the cluster must be a separate process.
  * Mirrors the pattern in {@code DefaultCredentialsRepositoryGcsClientYamlTestSuiteIT}.
  *
- * <p>Validator-level coverage of the {@code esql.datasource.workload_identity.enabled} gate
+ * <p>Validator-level coverage of the {@code esql.datasource.managed_identity.enabled} gate
  * lives in {@code GcsDataSourceValidatorTests}; this IT focuses on the credential-resolution
  * happy path that unit tests cannot reach.
  */
@@ -85,7 +85,7 @@ public class GcsWorkloadIdentityAuthIT extends ESRestTestCase {
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         // Open the workload identity gate so the validator accepts auth=workload_identity.
-        .setting("esql.datasource.workload_identity.enabled", "true")
+        .setting("esql.datasource.managed_identity.enabled", "true")
         // Redirect the GCE metadata server to our fixture so ComputeEngineCredentials.refresh()
         // resolves a bearer token against FakeOAuth2HttpHandler instead of metadata.google.internal.
         .environment("GCE_METADATA_HOST", () -> fixture.getAddress().replace("http://", ""))
@@ -161,7 +161,7 @@ public class GcsWorkloadIdentityAuthIT extends ESRestTestCase {
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(
                 org.apache.http.util.EntityUtils.toString(ex.getResponse().getEntity()),
-                containsString("esql.datasource.workload_identity.enabled")
+                containsString("esql.datasource.managed_identity.enabled")
             );
         } finally {
             // Restore for the rest of the suite. @Before's cleanup runs against fresh state.
@@ -179,7 +179,7 @@ public class GcsWorkloadIdentityAuthIT extends ESRestTestCase {
             b.startObject()
                 .field("type", "gcs")
                 .startObject("settings")
-                .field("auth", "workload_identity")
+                .field("auth", "managed_identity")
                 .field("endpoint", endpoint)
                 .field("project_id", "test-project")
                 .endObject()
@@ -234,7 +234,7 @@ public class GcsWorkloadIdentityAuthIT extends ESRestTestCase {
     private static void setWorkloadIdentityCredentialsEnabled(boolean enabled) throws IOException {
         Request req = new Request("PUT", "/_cluster/settings");
         try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().startObject("persistent").field("esql.datasource.workload_identity.enabled", enabled).endObject().endObject();
+            b.startObject().startObject("persistent").field("esql.datasource.managed_identity.enabled", enabled).endObject().endObject();
             req.setJsonEntity(Strings.toString(b));
         }
         Response r = client().performRequest(req);

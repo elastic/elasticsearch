@@ -26,12 +26,12 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  *   <li>Short-lived OAuth2 access token</li>
  *   <li>Workload identity federation via {@code jwt_audience}, {@code sts_audience}, and
  *       {@code service_account_impersonation_url}</li>
- *   <li>{@code auth=none} for anonymous access to public buckets</li>
- *   <li>{@code auth=workload_identity} to use the node's own GCE/GKE metadata-server credentials,
- *       gated by the {@code esql.datasource.workload_identity.enabled} cluster setting</li>
+ *   <li>{@code auth=anonymous} for anonymous access to public buckets</li>
+ *   <li>{@code auth=managed_identity} to use the node's own GCE/GKE metadata-server credentials,
+ *       gated by the {@code esql.datasource.managed_identity.enabled} cluster setting</li>
  * </ul>
- * Apart from {@code auth=workload_identity}, a data source must carry its own credentials, since the node may run
- * in a different cloud than the bucket it targets. {@code auth=workload_identity} is the deliberate exception: it
+ * Apart from {@code auth=managed_identity}, a data source must carry its own credentials, since the node may run
+ * in a different cloud than the bucket it targets. {@code auth=managed_identity} is the deliberate exception: it
  * is intended for single-cloud, single-tenant deployments where the node's metadata-server credentials are the
  * intended identity, which is why it is disabled by default.
  */
@@ -182,6 +182,7 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
         return get(SERVICE_ACCOUNT_IMPERSONATION_URL.name());
     }
 
+    @Override
     public boolean hasCredentials() {
         return Strings.hasText(serviceAccountCredentials()) || Strings.hasText(accessToken());
     }

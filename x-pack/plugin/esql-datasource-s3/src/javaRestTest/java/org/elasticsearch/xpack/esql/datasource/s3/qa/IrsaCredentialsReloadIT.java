@@ -94,7 +94,7 @@ public class IrsaCredentialsReloadIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting("esql.datasource.workload_identity.enabled", "true")
+        .setting("esql.datasource.managed_identity.enabled", "true")
         // Start with a token that does NOT match what the STS fixture expects, so the initial query
         // fails; the test then rewrites this file to the valid value at runtime.
         .configFile(WEB_IDENTITY_TOKEN_FILE_LOCATION, Resource.fromString("not ready yet"))
@@ -168,7 +168,7 @@ public class IrsaCredentialsReloadIT extends ESRestTestCase {
             b.startObject()
                 .field("type", "s3")
                 .startObject("settings")
-                .field("auth", "workload_identity")
+                .field("auth", "managed_identity")
                 .field("region", regionSupplier.get())
                 .field("endpoint", endpoint)
                 .endObject()

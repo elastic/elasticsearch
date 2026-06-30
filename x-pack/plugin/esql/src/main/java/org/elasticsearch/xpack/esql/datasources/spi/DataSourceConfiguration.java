@@ -66,10 +66,20 @@ public abstract class DataSourceConfiguration {
                 parsed.put(entry.getKey(), value);
             }
         }
+        normalize(parsed);
         this.values = Map.copyOf(parsed);
         validate(errors);
         errors.throwIfValidationErrorsExist();
     }
+
+    /**
+     * Subclass hook to canonicalize parsed values before they are frozen — e.g. mapping a deprecated
+     * enum alias to its current value so the stored configuration (and every later read) holds the
+     * canonical form. Runs after unknown-field rejection and case-insensitive lowering, before
+     * {@link #validate}. The default is a no-op. Like {@link #validate}, this is a virtual call during
+     * construction, so overrides must touch only the supplied map and static data, never instance fields.
+     */
+    protected void normalize(Map<String, Object> parsed) {}
 
     /** Cross-field validation. Accumulate errors into the provided exception. */
     protected abstract void validate(ValidationException errors);

@@ -151,32 +151,32 @@ public class AzureConfigurationTests extends ESTestCase {
     }
 
     public void testAuthNone() {
-        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://endpoint", "none");
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://endpoint", "anonymous");
         assertNotNull(config);
         assertTrue(config.isAnonymous());
         assertFalse(config.hasCredentials());
     }
 
     public void testAuthNoneCaseInsensitive() {
-        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://endpoint", "NONE");
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://endpoint", "ANONYMOUS");
         assertTrue(config.isAnonymous());
-        assertEquals("none", config.auth());
+        assertEquals("anonymous", config.auth());
     }
 
     public void testAuthNoneConflictsWithConnectionString() {
-        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields("connstr", null, null, null, null, "none"));
+        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields("connstr", null, null, null, null, "anonymous"));
     }
 
     public void testAuthNoneConflictsWithAccountKey() {
-        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields(null, "acc", "key", null, null, "none"));
+        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields(null, "acc", "key", null, null, "anonymous"));
     }
 
     public void testAuthNoneConflictsWithSasToken() {
-        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields(null, null, null, "sas", null, "none"));
+        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields(null, null, null, "sas", null, "anonymous"));
     }
 
     public void testAuthNoneAllowsEndpoint() {
-        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://ep", "none");
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://ep", "anonymous");
         assertTrue(config.isAnonymous());
         assertEquals("https://ep", config.endpoint());
     }
@@ -226,11 +226,11 @@ public class AzureConfigurationTests extends ESTestCase {
 
     public void testFromQueryConfigStillEnforcesAuthConflict() {
         Map<String, Object> raw = new HashMap<>();
-        raw.put("auth", "none");
+        raw.put("auth", "anonymous");
         raw.put("connection_string", "connstr");
         raw.put("header_row", false);
         ValidationException e = expectThrows(ValidationException.class, () -> AzureConfiguration.fromQueryConfig(raw));
-        assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));
+        assertThat(e.getMessage(), containsString("auth=anonymous cannot be combined with explicit credentials"));
     }
 
     public void testFromQueryConfigWithOnlyUnknownKeysReturnsNull() {
@@ -281,9 +281,49 @@ public class AzureConfigurationTests extends ESTestCase {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> AzureConfiguration.fromMap(
-                Map.of("auth", "none", "tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "aud")
+                Map.of("auth", "anonymous", "tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "aud")
             )
         );
-        assertThat(e.getMessage(), containsString("auth=none cannot be combined with keyless authentication settings"));
+        assertThat(e.getMessage(), containsString("auth=anonymous cannot be combined with keyless authentication settings"));
+    }
+
+    public void testAuthFederatedIdentityExplicit() {
+        AzureConfiguration config = AzureConfiguration.fromMap(
+            Map.of("auth", "federated_identity", "tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "aud")
+        );
+        assertTrue(config.isFederatedIdentity());
+        assertTrue(config.hasKeylessAuth());
+        assertEquals("federated_identity", config.auth());
+    }
+
+    public void testAuthStaticCredentialsRejectsIncompleteCredentials() {
+        // A key with no account is an incomplete Azure static credential — explicit static_credentials rejects it.
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> AzureConfiguration.fromMap(Map.of("auth", "static_credentials", "key", "k"))
+        );
+        assertThat(e.getMessage(), containsString("auth=static_credentials requires complete explicit credentials"));
+    }
+
+    public void testAuthStaticCredentialsAcceptsAccountAndKey() {
+        AzureConfiguration config = AzureConfiguration.fromMap(Map.of("auth", "static_credentials", "account", "acc", "key", "k"));
+        assertTrue(config.isStaticCredentials());
+        assertTrue(config.hasCredentials());
+    }
+
+    // --- Backwards compatibility: deprecated value names are canonicalized on parse and warn ---
+
+    public void testDeprecatedAuthNoneCanonicalizedToAnonymous() {
+        AzureConfiguration config = AzureConfiguration.fromMap(Map.of("auth", "none"));
+        assertEquals("anonymous", config.auth());
+        assertTrue(config.isAnonymous());
+        assertWarnings("auth value [none] is deprecated; the canonical value is [anonymous]");
+    }
+
+    public void testDeprecatedAuthWorkloadIdentityCanonicalizedToManagedIdentity() {
+        AzureConfiguration config = AzureConfiguration.fromMap(Map.of("auth", "workload_identity"));
+        assertEquals("managed_identity", config.auth());
+        assertTrue(config.isManagedIdentity());
+        assertWarnings("auth value [workload_identity] is deprecated; the canonical value is [managed_identity]");
     }
 }

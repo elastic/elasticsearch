@@ -89,14 +89,14 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
     public void testValidateDatasourceAnonymousConflictConnectionString() {
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDatasource(Map.of("auth", "none", "connection_string", "DefaultEndpointsProtocol=https"))
+            () -> validator.validateDatasource(Map.of("auth", "anonymous", "connection_string", "DefaultEndpointsProtocol=https"))
         );
     }
 
     public void testValidateDatasourceAnonymousConflictSasToken() {
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDatasource(Map.of("auth", "none", "sas_token", "?sv=2020-01-01"))
+            () -> validator.validateDatasource(Map.of("auth", "anonymous", "sas_token", "?sv=2020-01-01"))
         );
     }
 
@@ -104,25 +104,25 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
         // default validator has workload identity disabled
         var e = expectThrows(
             org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDatasource(Map.of("auth", "workload_identity"))
+            () -> validator.validateDatasource(Map.of("auth", "managed_identity"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.workload_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.datasource.managed_identity.enabled"));
     }
 
     public void testValidateDatasourceAcceptsWorkloadIdentityWhenEnabled() {
         var workloadIdentityValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
-            .withWorkloadIdentityEnabled(() -> true);
-        var result = workloadIdentityValidator.validateDatasource(Map.of("auth", "workload_identity", "account", "myaccount"));
-        assertEquals("workload_identity", result.get("auth").nonSecretValue());
+            .withManagedIdentityEnabled(() -> true);
+        var result = workloadIdentityValidator.validateDatasource(Map.of("auth", "managed_identity", "account", "myaccount"));
+        assertEquals("managed_identity", result.get("auth").nonSecretValue());
         assertFalse(result.get("auth").secret());
     }
 
     public void testValidateDatasourceWorkloadIdentityConflictWithCredentials() {
         var workloadIdentityValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
-            .withWorkloadIdentityEnabled(() -> true);
+            .withManagedIdentityEnabled(() -> true);
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
-            () -> workloadIdentityValidator.validateDatasource(Map.of("auth", "workload_identity", "account", "myaccount", "key", "mykey"))
+            () -> workloadIdentityValidator.validateDatasource(Map.of("auth", "managed_identity", "account", "myaccount", "key", "mykey"))
         );
     }
 

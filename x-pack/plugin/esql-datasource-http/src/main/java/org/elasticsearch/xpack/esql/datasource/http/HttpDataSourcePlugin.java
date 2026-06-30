@@ -77,7 +77,7 @@ public class HttpDataSourcePlugin extends Plugin implements DataSourcePlugin {
      * each only when its feature flag is enabled. Both reuse {@link FileDataSourceValidator}: it enforces
      * the dataset resource scheme and (once {@code EsqlPlugin} attaches the format-config-key resolver)
      * validates dataset-level format options, while {@link NoAuthDataSourceConfiguration} accepts only an
-     * explicit {@code auth=none} and rejects any other datasource-level setting since these sources carry
+     * explicit {@code auth=anonymous} and rejects any other datasource-level setting since these sources carry
      * no credentials or tunables.
      *
      * <p>The {@code http} type covers both {@code http://} and {@code https://}; the {@code local} type

@@ -48,7 +48,7 @@ public class S3CredentialsProviderTests extends ESTestCase {
     }
 
     public void testAnonymous() {
-        S3Configuration config = S3Configuration.fromFields(null, null, "http://endpoint", "us-east-1", "none");
+        S3Configuration config = S3Configuration.fromFields(null, null, "http://endpoint", "us-east-1", "anonymous");
         assertThat(S3StorageProvider.forTesting(null, null).credentialsProvider(config), instanceOf(AnonymousCredentialsProvider.class));
     }
 

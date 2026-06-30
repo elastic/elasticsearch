@@ -192,16 +192,16 @@ public class GcsStorageProviderTests extends ESTestCase {
     }
 
     /**
-     * auth=workload_identity returns {@link ComputeEngineCredentials} from the production seam.
+     * auth=managed_identity returns {@link ComputeEngineCredentials} from the production seam.
      */
     public void testWorkloadIdentityCredentialsReturnsComputeEngine() throws Exception {
-        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "workload_identity"));
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "managed_identity"));
         Credentials creds = new GcsStorageProvider(mockStorage).credentials(config);
         assertThat(creds, instanceOf(ComputeEngineCredentials.class));
     }
 
     /**
-     * auth=workload_identity routes through {@link GcsStorageProvider#buildWorkloadIdentityCredentials()}, the seam tests
+     * auth=managed_identity routes through {@link GcsStorageProvider#buildWorkloadIdentityCredentials()}, the seam tests
      * use to inject a credential backed by a mock HTTP transport instead of the GCE metadata server.
      */
     public void testWorkloadIdentityCredentialsRoutesThroughBuildWorkloadIdentityCredentials() throws Exception {
@@ -212,7 +212,7 @@ public class GcsStorageProviderTests extends ESTestCase {
                 return injected;
             }
         };
-        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "workload_identity"));
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "managed_identity"));
         assertSame(injected, provider.credentials(config));
     }
 }

@@ -110,7 +110,7 @@ public class AzureAksWorkloadIdentityAuthIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting("esql.datasource.workload_identity.enabled", "true")
+        .setting("esql.datasource.managed_identity.enabled", "true")
         // Operator-managed symlink that the Azure SDK is pointed at via tokenFilePath().
         .configFile("esql-datasource-azure/azure-federated-token", Resource.fromString(fixture.getFederatedToken()))
         // Redirect the SDK's authority host to the fixture's OAuth token endpoint so federated
@@ -170,7 +170,7 @@ public class AzureAksWorkloadIdentityAuthIT extends ESRestTestCase {
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(
                 org.apache.http.util.EntityUtils.toString(ex.getResponse().getEntity()),
-                containsString("esql.datasource.workload_identity.enabled")
+                containsString("esql.datasource.managed_identity.enabled")
             );
         } finally {
             setWorkloadIdentityCredentialsEnabled(true);
@@ -256,7 +256,7 @@ public class AzureAksWorkloadIdentityAuthIT extends ESRestTestCase {
             b.startObject()
                 .field("type", "azure")
                 .startObject("settings")
-                .field("auth", "workload_identity")
+                .field("auth", "managed_identity")
                 .field("endpoint", endpoint)
                 .endObject()
                 .endObject();
@@ -290,7 +290,7 @@ public class AzureAksWorkloadIdentityAuthIT extends ESRestTestCase {
     private static void setWorkloadIdentityCredentialsEnabled(boolean enabled) throws IOException {
         Request req = new Request("PUT", "/_cluster/settings");
         try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().startObject("persistent").field("esql.datasource.workload_identity.enabled", enabled).endObject().endObject();
+            b.startObject().startObject("persistent").field("esql.datasource.managed_identity.enabled", enabled).endObject().endObject();
             req.setJsonEntity(Strings.toString(b));
         }
         Response r = client().performRequest(req);

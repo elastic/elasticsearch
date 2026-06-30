@@ -128,7 +128,7 @@ public class S3StorageProvider implements StorageProvider {
     ) {
         this.config = config;
         // Set first so that workloadIdentityProviders() (called via credentialsProvider() ->
-        // buildWorkloadIdentityCredentialsProvider() on the auth=workload_identity path) can read it.
+        // buildWorkloadIdentityCredentialsProvider() on the auth=managed_identity path) can read it.
         this.webIdentityTokenCredentialsProvider = webIdentityTokenCredentialsProvider;
         final IdentityProvider<? extends AwsCredentialsIdentity> credentials;
         StsAsyncClient sts = null;
@@ -144,7 +144,7 @@ public class S3StorageProvider implements StorageProvider {
                 sts = buildStsAsyncClient(config);
                 credentials = buildWorkloadIdentityCredentialsProvider(config, issuerClient, sts);
             } else {
-                // auth=none / auth=workload_identity (IMDS / IRSA / Pod Identity / EC2) / static creds all flow
+                // auth=anonymous / auth=managed_identity (IMDS / IRSA / Pod Identity / EC2) / static creds all flow
                 // through credentialsProvider(); its return type AwsCredentialsProvider is a subtype of
                 // IdentityProvider<AwsCredentialsIdentity>.
                 credentials = credentialsProvider(config);
@@ -290,8 +290,8 @@ public class S3StorageProvider implements StorageProvider {
     /**
      * Builds the AWS credentials provider for the given configuration:
      * <ul>
-     *   <li>{@code auth=none} — anonymous (unsigned) requests</li>
-     *   <li>{@code auth=workload_identity} — chain in order: EKS IRSA via the entitled
+     *   <li>{@code auth=anonymous} — anonymous (unsigned) requests</li>
+     *   <li>{@code auth=managed_identity} — chain in order: EKS IRSA via the entitled
      *       web-identity token symlink (when the node provides
      *       {@link CustomWebIdentityTokenCredentialsProvider}), then ECS task role / EKS Pod
      *       Identity via {@link ContainerCredentialsProvider} (with the auth-token file path
@@ -307,7 +307,7 @@ public class S3StorageProvider implements StorageProvider {
         if (config != null && config.isAnonymous()) {
             return AnonymousCredentialsProvider.create();
         }
-        if (config != null && config.isWorkloadIdentity()) {
+        if (config != null && config.isManagedIdentity()) {
             return buildWorkloadIdentityCredentialsProvider();
         }
         if (config != null && config.hasCredentials()) {
@@ -325,15 +325,15 @@ public class S3StorageProvider implements StorageProvider {
         throw new IllegalArgumentException(
             "S3 data source requires credentials: provide WITH {\"access_key\": \"...\", \"secret_key\": \"...\"}, "
                 + "optionally WITH {\"session_token\": \"...\"} for STS temporary credentials, "
-                + "WITH {\"auth\": \"none\"} for public buckets, "
-                + "WITH {\"auth\": \"workload_identity\"} to use the node's instance role "
-                + "(requires the esql.datasource.workload_identity.enabled cluster setting), "
+                + "WITH {\"auth\": \"anonymous\"} for public buckets, "
+                + "WITH {\"auth\": \"managed_identity\"} to use the node's instance role "
+                + "(requires the esql.datasource.managed_identity.enabled cluster setting), "
                 + "or configure keyless authentication settings (role_arn, jwt_audience)"
         );
     }
 
     /**
-     * Builds the credentials provider for {@code auth=workload_identity}. Default chain order:
+     * Builds the credentials provider for {@code auth=managed_identity}. Default chain order:
      * <ol>
      *   <li>EKS IRSA via {@link CustomWebIdentityTokenCredentialsProvider}, if the node-level
      *       singleton exists and {@link CustomWebIdentityTokenCredentialsProvider#isActive()}.
@@ -527,8 +527,8 @@ public class S3StorageProvider implements StorageProvider {
             || (config.isAnonymous() == false
                 && config.hasCredentials() == false
                 && config.hasKeylessAuth() == false
-                && config.isWorkloadIdentity() == false)) {
-            return ". If accessing a public bucket, use WITH {\"auth\": \"none\"}. "
+                && config.isManagedIdentity() == false)) {
+            return ". If accessing a public bucket, use WITH {\"auth\": \"anonymous\"}. "
                 + "Otherwise, provide credentials via WITH {\"access_key\": \"...\", \"secret_key\": \"...\"} "
                 + "or configure keyless authentication settings (role_arn, jwt_audience)";
         }

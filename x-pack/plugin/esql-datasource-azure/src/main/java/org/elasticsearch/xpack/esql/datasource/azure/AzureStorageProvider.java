@@ -82,8 +82,8 @@ import java.util.function.Function;
  * The async dependencies ({@code azure-core-http-netty}, Reactor Netty, Netty) are already
  * bundled in this plugin's classloader. Versions are aligned with {@code repository-azure}.
  * <p>
- * Authentication: connection string, account+key, SAS token, {@code auth=none} for public
- * containers, {@code auth=workload_identity} (AKS Workload Identity via the entitled
+ * Authentication: connection string, account+key, SAS token, {@code auth=anonymous} for public
+ * containers, {@code auth=managed_identity} (AKS Workload Identity via the entitled
  * federated-token symlink under {@code ${ES_PATH_CONF}} when configured, falling back to
  * {@code ManagedIdentityCredential} via Azure IMDS), or workload identity federation
  * ({@code tenant_id} + {@code client_id} + {@code jwt_audience}) which mints a JWT via the
@@ -303,7 +303,7 @@ public final class AzureStorageProvider implements StorageProvider {
             } else {
                 throw new IllegalStateException("Azure credentials require connection_string, (account + key), or (account + sas_token)");
             }
-        } else if (config != null && config.isWorkloadIdentity()) {
+        } else if (config != null && config.isManagedIdentity()) {
             // Workload-identity selection (NOT a chain: only one of these makes sense at a time).
             //
             // 1. If the AKS Workload Identity env triple is present, use WorkloadIdentityCredential
@@ -335,7 +335,7 @@ public final class AzureStorageProvider implements StorageProvider {
             }
             if (endpoint == null) {
                 throw new IllegalStateException(
-                    "auth=workload_identity requires an account from the path (wasbs://account.blob.core.windows.net/...) "
+                    "auth=managed_identity requires an account from the path (wasbs://account.blob.core.windows.net/...) "
                         + "or WITH {\"endpoint\": \"...\"}"
                 );
             }
@@ -360,8 +360,8 @@ public final class AzureStorageProvider implements StorageProvider {
             throw new IllegalArgumentException(
                 "Azure data source requires credentials: provide WITH {\"connection_string\": \"...\"}, "
                     + "WITH {\"account\": \"...\", \"key\": \"...\"}, WITH {\"account\": \"...\", \"sas_token\": \"...\"}, "
-                    + "WITH {\"auth\": \"none\"} for public containers, "
-                    + "WITH {\"auth\": \"workload_identity\"} to use the node's managed identity (requires cluster setting), "
+                    + "WITH {\"auth\": \"anonymous\"} for public containers, "
+                    + "WITH {\"auth\": \"managed_identity\"} to use the node's managed identity (requires cluster setting), "
                     + "or configure keyless authentication settings (tenant_id, client_id, jwt_audience)"
             );
         }
@@ -515,8 +515,8 @@ public final class AzureStorageProvider implements StorageProvider {
             || (config.isAnonymous() == false
                 && config.hasCredentials() == false
                 && config.hasKeylessAuth() == false
-                && config.isWorkloadIdentity() == false)) {
-            return ". If accessing a public container, use WITH {\"auth\": \"none\"}. "
+                && config.isManagedIdentity() == false)) {
+            return ". If accessing a public container, use WITH {\"auth\": \"anonymous\"}. "
                 + "Otherwise, provide credentials via WITH {\"account\": \"...\", \"key\": \"...\"}, configure keyless "
                 + "authentication settings, or set Azure environment variables";
         }

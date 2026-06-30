@@ -49,13 +49,13 @@ import java.util.NoSuchElementException;
  *   <li>Explicit service account JSON credentials</li>
  *   <li>Workload identity federation via {@code jwt_audience}, {@code sts_audience}, and
  *       {@code service_account_impersonation_url}</li>
- *   <li>{@code auth=none} for anonymous access to public buckets</li>
+ *   <li>{@code auth=anonymous} for anonymous access to public buckets</li>
  * </ul>
- * {@code auth=workload_identity} uses the GCE/GKE metadata server ({@link ComputeEngineCredentials}).
+ * {@code auth=managed_identity} uses the GCE/GKE metadata server ({@link ComputeEngineCredentials}).
  * File-based ADC sources ({@code GOOGLE_APPLICATION_CREDENTIALS}, the well-known gcloud credential
  * file) are excluded because file reads are blocked by entitlements. GKE Workload Identity
- * Federation is handled separately via {@code auth=keyless}. Requires the
- * {@code esql.datasource.workload_identity.enabled} cluster setting.
+ * Federation is handled separately via {@code auth=federated_identity}. Requires the
+ * {@code esql.datasource.managed_identity.enabled} cluster setting.
  * <p>
  * {@link GcsStorageObject} provides optimized I/O via GCS {@link com.google.cloud.ReadChannel}:
  * <ul>
@@ -158,7 +158,7 @@ public class GcsStorageProvider implements StorageProvider {
      *   <li>keyless workload-identity federation — {@link IdentityPoolCredentials}</li>
      * </ul>
      * When more than one is supplied, service account credentials take precedence, then access_token, then
-     * keyless federation. When {@code auth=workload_identity} is set,
+     * keyless federation. When {@code auth=managed_identity} is set,
      * the GCE/GKE metadata server is used via ComputeEngineCredentials.
      */
     Credentials credentials(GcsConfiguration config) throws IOException {
@@ -178,26 +178,26 @@ public class GcsStorageProvider implements StorageProvider {
         if (config != null && config.hasKeylessAuth()) {
             return buildIdentityPoolCredentials(config);
         }
-        if (config != null && config.isWorkloadIdentity()) {
+        if (config != null && config.isManagedIdentity()) {
             return buildWorkloadIdentityCredentials();
         }
         throw new IllegalArgumentException(
             "GCS data source requires credentials: provide WITH {\"credentials\": \"...\"}, "
                 + "WITH {\"access_token\": \"...\"} for short-lived OAuth credentials, "
-                + "configure keyless authentication settings, WITH {\"auth\": \"none\"} for public buckets, "
-                + "or WITH {\"auth\": \"workload_identity\"} to use Application Default Credentials (requires cluster setting)"
+                + "configure keyless authentication settings, WITH {\"auth\": \"anonymous\"} for public buckets, "
+                + "or WITH {\"auth\": \"managed_identity\"} to use Application Default Credentials (requires cluster setting)"
         );
     }
 
     /**
-     * Builds the credential used when {@code auth=workload_identity} is configured. Default returns
+     * Builds the credential used when {@code auth=managed_identity} is configured. Default returns
      * {@link ComputeEngineCredentials#create()}, which contacts the GCE/GKE metadata server.
      * <p>
      * {@code GoogleCredentials.getApplicationDefault()} is deliberately not used: it reads
      * {@code GOOGLE_APPLICATION_CREDENTIALS} and the well-known gcloud credential file, both
      * blocked by the entitlement system. {@code ComputeEngineCredentials} contacts only the
      * metadata server over the network (covered by the {@code outbound_network} entitlement).
-     * GKE Workload Identity Federation is handled separately via {@code auth=keyless}.
+     * GKE Workload Identity Federation is handled separately via {@code auth=federated_identity}.
      * <p>
      * Tests may override this method (anonymous subclass) to inject a credential built with a
      * mock {@link com.google.api.client.http.HttpTransport} — the same pattern used by
@@ -299,8 +299,12 @@ public class GcsStorageProvider implements StorageProvider {
     }
 
     private String credentialHint() {
-        if (config == null || (config.isAnonymous() == false && config.hasCredentials() == false && config.hasKeylessAuth() == false)) {
-            return ". If accessing a public bucket, use WITH {\"auth\": \"none\"}. "
+        if (config == null
+            || (config.isAnonymous() == false
+                && config.hasCredentials() == false
+                && config.hasKeylessAuth() == false
+                && config.isManagedIdentity() == false)) {
+            return ". If accessing a public bucket, use WITH {\"auth\": \"anonymous\"}. "
                 + "Otherwise, provide credentials via WITH {\"credentials\": \"...\"}, configure keyless authentication settings, "
                 + "or set GOOGLE_APPLICATION_CREDENTIALS";
         }

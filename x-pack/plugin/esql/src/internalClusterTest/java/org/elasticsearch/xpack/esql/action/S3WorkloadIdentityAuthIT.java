@@ -63,7 +63,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * End-to-end regression guard for {@code auth=workload_identity} on S3 external data sources,
+ * End-to-end regression guard for {@code auth=managed_identity} on S3 external data sources,
  * using the registered-dataset path ({@code FROM <dataset>}).
  *
  * <p>Proof comes in two layers:
@@ -74,7 +74,7 @@ import static org.hamcrest.Matchers.notNullValue;
  *       rejects all others with HTTP 403, so a successful query <em>requires</em>
  *       {@code InstanceProfileCredentialsProvider} to have used the mock IMDS.</li>
  *   <li><b>Row return</b>: the query must return rows, proving the full path from
- *       {@code auth=workload_identity} data-source registration → cluster-setting gate → S3 client
+ *       {@code auth=managed_identity} data-source registration → cluster-setting gate → S3 client
  *       construction → IMDS credential resolution → actual data read.</li>
  * </ol>
  *
@@ -220,7 +220,7 @@ public class S3WorkloadIdentityAuthIT extends AbstractEsqlIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED.getKey(), true)
+            .put(ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.getKey(), true)
             .build();
     }
 
@@ -258,7 +258,7 @@ public class S3WorkloadIdentityAuthIT extends AbstractEsqlIntegTestCase {
     // --------------------------------------------------------------------------------------------
 
     /**
-     * Core regression guard: registers an S3 data source with {@code auth=workload_identity}, registers
+     * Core regression guard: registers an S3 data source with {@code auth=managed_identity}, registers
      * a dataset pointing at the fixture, queries via {@code FROM <dataset>}, and asserts:
      * (a) rows are returned, and (b) the S3 Authorization header contains the workload identity access key
      * — proving the credential came from the workload identity chain (system properties) rather than
@@ -270,7 +270,7 @@ public class S3WorkloadIdentityAuthIT extends AbstractEsqlIntegTestCase {
 
         try (EsqlQueryResponse response = run(syncEsqlQueryRequest("FROM " + DATASET_NAME + " | STATS count = COUNT(*)"))) {
             List<List<Object>> rows = getValuesList(response);
-            assertThat("auth=workload_identity FROM query must return rows from fixture", rows, hasSize(greaterThanOrEqualTo(1)));
+            assertThat("auth=managed_identity FROM query must return rows from fixture", rows, hasSize(greaterThanOrEqualTo(1)));
         }
 
         String authHeader = lastAuthorizationHeader.get();
@@ -302,7 +302,7 @@ public class S3WorkloadIdentityAuthIT extends AbstractEsqlIntegTestCase {
                     DATASOURCE_NAME,
                     "s3",
                     null,
-                    new HashMap<>(Map.of("auth", "workload_identity", "region", "us-east-1", "endpoint", "http://127.0.0.1:" + s3Port))
+                    new HashMap<>(Map.of("auth", "managed_identity", "region", "us-east-1", "endpoint", "http://127.0.0.1:" + s3Port))
                 )
             )
         );
@@ -324,7 +324,7 @@ public class S3WorkloadIdentityAuthIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Verifies that {@code auth=workload_identity} is rejected at data-source registration time when
+     * Verifies that {@code auth=managed_identity} is rejected at data-source registration time when
      * the cluster setting is disabled.
      */
     public void testWorkloadIdentityAuthRejectedWhenSettingDisabledAtValidation() {
@@ -332,9 +332,9 @@ public class S3WorkloadIdentityAuthIT extends AbstractEsqlIntegTestCase {
         var validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, java.util.Set.of("s3", "s3a", "s3n"));
         var e = expectThrows(
             org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDatasource(Map.of("auth", "workload_identity", "region", "us-east-1"))
+            () -> validator.validateDatasource(Map.of("auth", "managed_identity", "region", "us-east-1"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.workload_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.datasource.managed_identity.enabled"));
     }
 
     /**
@@ -388,7 +388,7 @@ public class S3WorkloadIdentityAuthIT extends AbstractEsqlIntegTestCase {
                     DATASOURCE_NAME,
                     "s3",
                     null,
-                    new HashMap<>(Map.of("auth", "workload_identity", "region", "us-east-1", "endpoint", "http://localhost:" + s3Port))
+                    new HashMap<>(Map.of("auth", "managed_identity", "region", "us-east-1", "endpoint", "http://localhost:" + s3Port))
                 )
             )
         );

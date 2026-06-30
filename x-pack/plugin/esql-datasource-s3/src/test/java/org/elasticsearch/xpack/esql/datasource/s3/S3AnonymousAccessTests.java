@@ -30,7 +30,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for S3 anonymous access (auth=none), HEAD fallback, and listing error handling.
+ * Tests for S3 anonymous access (auth=anonymous), HEAD fallback, and listing error handling.
  */
 public class S3AnonymousAccessTests extends ESTestCase {
 
@@ -147,7 +147,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
      * Verify S3Configuration correctly identifies anonymous mode.
      */
     public void testConfigurationAnonymousMode() {
-        S3Configuration anonymous = S3Configuration.fromFields(null, null, "http://endpoint", "us-east-1", "none");
+        S3Configuration anonymous = S3Configuration.fromFields(null, null, "http://endpoint", "us-east-1", "anonymous");
         assertTrue(anonymous.isAnonymous());
         assertFalse(anonymous.hasCredentials());
 
@@ -161,21 +161,24 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * Verify that auth=none is mutually exclusive with credentials.
+     * Verify that auth=anonymous is mutually exclusive with credentials.
      */
     public void testConfigurationAnonymousModeConflictsWithCredentials() {
-        expectThrows(org.elasticsearch.common.ValidationException.class, () -> S3Configuration.fromFields("ak", "sk", null, null, "none"));
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> S3Configuration.fromFields("ak", "sk", null, null, "anonymous")
+        );
     }
 
     /**
-     * auth=workload_identity delegates to {@code buildWorkloadIdentityCredentialsProvider()}, which
+     * auth=managed_identity delegates to {@code buildWorkloadIdentityCredentialsProvider()}, which
      * by default returns an {@code AwsCredentialsProviderChain}. Tests may subclass and override
      * that method to inject a static provider — the same seam used by GcsStorageProvider.
      */
     public void testWorkloadIdentityCredentialsProviderType() {
-        S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "workload_identity");
+        S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "managed_identity");
         assertNotNull(config);
-        assertTrue(config.isWorkloadIdentity());
+        assertTrue(config.isManagedIdentity());
         var provider = S3StorageProvider.forTesting(null, null).credentialsProvider(config);
         assertThat(provider, instanceOf(software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain.class));
     }
@@ -185,7 +188,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
      * a test credential — the unit-test seam for wrong-credential counter-proofs.
      */
     public void testWorkloadIdentityCredentialOverrideSeam() {
-        S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "workload_identity");
+        S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "managed_identity");
         var injected = software.amazon.awssdk.auth.credentials.StaticCredentialsProvider.create(
             software.amazon.awssdk.auth.credentials.AwsBasicCredentials.create("test-key", "test-secret")
         );
@@ -199,12 +202,12 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * auth=workload_identity is mutually exclusive with explicit credentials.
+     * auth=managed_identity is mutually exclusive with explicit credentials.
      */
     public void testWorkloadIdentityModeConflictsWithCredentials() {
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
-            () -> S3Configuration.fromFields("ak", "sk", null, null, "workload_identity")
+            () -> S3Configuration.fromFields("ak", "sk", null, null, "managed_identity")
         );
     }
 }

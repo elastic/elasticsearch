@@ -71,7 +71,7 @@ import static org.hamcrest.Matchers.hasSize;
  * <em>before</em> the SDK initializes, which only works on a separate cluster JVM. Mirrors the
  * fixture-and-system-property pattern in {@code AzureRepositoryAnalysisRestIT}.
  *
- * <p>Validator-level coverage of the {@code esql.datasource.workload_identity.enabled} gate lives
+ * <p>Validator-level coverage of the {@code esql.datasource.managed_identity.enabled} gate lives
  * in {@code AzureDataSourceValidatorTests}; this IT focuses on the credential-resolution happy path
  * that unit tests cannot reach.
  */
@@ -111,7 +111,7 @@ public class AzureWorkloadIdentityAuthIT extends ESRestTestCase {
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         // Open the workload identity gate so the validator accepts auth=workload_identity.
-        .setting("esql.datasource.workload_identity.enabled", "true")
+        .setting("esql.datasource.managed_identity.enabled", "true")
         // Redirect the Azure IMDS endpoint to our fixture so ManagedIdentityCredential resolves a
         // bearer token against the metadata server instead of the default 169.254.169.254 (which
         // entitlements would block in the cluster JVM anyway).
@@ -192,7 +192,7 @@ public class AzureWorkloadIdentityAuthIT extends ESRestTestCase {
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(
                 org.apache.http.util.EntityUtils.toString(ex.getResponse().getEntity()),
-                containsString("esql.datasource.workload_identity.enabled")
+                containsString("esql.datasource.managed_identity.enabled")
             );
         } finally {
             // Restore for the rest of the suite. @Before's cleanup runs against fresh state.
@@ -270,7 +270,7 @@ public class AzureWorkloadIdentityAuthIT extends ESRestTestCase {
             b.startObject()
                 .field("type", "azure")
                 .startObject("settings")
-                .field("auth", "workload_identity")
+                .field("auth", "managed_identity")
                 .field("endpoint", endpoint)
                 .endObject()
                 .endObject();
@@ -324,7 +324,7 @@ public class AzureWorkloadIdentityAuthIT extends ESRestTestCase {
     private static void setWorkloadIdentityCredentialsEnabled(boolean enabled) throws IOException {
         Request req = new Request("PUT", "/_cluster/settings");
         try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().startObject("persistent").field("esql.datasource.workload_identity.enabled", enabled).endObject().endObject();
+            b.startObject().startObject("persistent").field("esql.datasource.managed_identity.enabled", enabled).endObject().endObject();
             req.setJsonEntity(Strings.toString(b));
         }
         Response r = client().performRequest(req);

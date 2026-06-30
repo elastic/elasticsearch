@@ -181,29 +181,29 @@ public class GcsConfigurationTests extends ESTestCase {
     }
 
     public void testAuthNone() {
-        GcsConfiguration config = GcsConfiguration.fromFields(null, null, "http://endpoint", null, "none");
+        GcsConfiguration config = GcsConfiguration.fromFields(null, null, "http://endpoint", null, "anonymous");
         assertNotNull(config);
         assertTrue(config.isAnonymous());
         assertFalse(config.hasCredentials());
     }
 
     public void testAuthNoneCaseInsensitive() {
-        GcsConfiguration config = GcsConfiguration.fromFields(null, null, "http://endpoint", null, "NONE");
+        GcsConfiguration config = GcsConfiguration.fromFields(null, null, "http://endpoint", null, "ANONYMOUS");
         assertTrue(config.isAnonymous());
-        assertEquals("none", config.auth());
+        assertEquals("anonymous", config.auth());
     }
 
     public void testAuthNoneConflictsWithCredentials() {
         expectThrows(
             ValidationException.class,
-            () -> GcsConfiguration.fromFields("{\"type\":\"service_account\"}", null, null, null, "none")
+            () -> GcsConfiguration.fromFields("{\"type\":\"service_account\"}", null, null, null, "anonymous")
         );
     }
 
     public void testAuthNoneConflictsWithKeylessAuth() {
         expectThrows(
             ValidationException.class,
-            () -> GcsConfiguration.fromFields(null, null, "http://endpoint", null, "none", "jwt-audience", null, null)
+            () -> GcsConfiguration.fromFields(null, null, "http://endpoint", null, "anonymous", "jwt-audience", null, null)
         );
     }
 
@@ -247,7 +247,7 @@ public class GcsConfigurationTests extends ESTestCase {
     }
 
     public void testAuthNoneAllowsProjectIdAndEndpoint() {
-        GcsConfiguration config = GcsConfiguration.fromFields(null, "my-project", "http://ep", null, "none");
+        GcsConfiguration config = GcsConfiguration.fromFields(null, "my-project", "http://ep", null, "anonymous");
         assertTrue(config.isAnonymous());
         assertEquals("my-project", config.projectId());
     }
@@ -283,11 +283,11 @@ public class GcsConfigurationTests extends ESTestCase {
 
     public void testFromQueryConfigStillEnforcesAuthConflict() {
         Map<String, Object> raw = new HashMap<>();
-        raw.put("auth", "none");
+        raw.put("auth", "anonymous");
         raw.put("credentials", "{\"type\":\"service_account\"}");
         raw.put("header_row", false);
         ValidationException e = expectThrows(ValidationException.class, () -> GcsConfiguration.fromQueryConfig(raw));
-        assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));
+        assertThat(e.getMessage(), containsString("auth=anonymous cannot be combined with explicit credentials"));
     }
 
     public void testFromQueryConfigWithOnlyUnknownKeysReturnsNull() {
@@ -323,9 +323,9 @@ public class GcsConfigurationTests extends ESTestCase {
     public void testAccessTokenConflictsWithAuthNone() {
         ValidationException e = expectThrows(
             ValidationException.class,
-            () -> GcsConfiguration.fromMap(Map.of("access_token", "ya29.token", "auth", "none"))
+            () -> GcsConfiguration.fromMap(Map.of("access_token", "ya29.token", "auth", "anonymous"))
         );
-        assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));
+        assertThat(e.getMessage(), containsString("auth=anonymous cannot be combined with explicit credentials"));
     }
 
     public void testFromQueryConfigWithAccessToken() {
@@ -352,5 +352,45 @@ public class GcsConfigurationTests extends ESTestCase {
         GcsConfiguration config1 = GcsConfiguration.fromMap(Map.of("access_token", "ya29.token1"));
         GcsConfiguration config2 = GcsConfiguration.fromMap(Map.of("access_token", "ya29.token2"));
         assertNotEquals(config1, config2);
+    }
+
+    public void testAuthFederatedIdentityExplicit() {
+        GcsConfiguration config = GcsConfiguration.fromMap(
+            Map.of("auth", "federated_identity", "jwt_audience", "aud", "sts_audience", "sts")
+        );
+        assertTrue(config.isFederatedIdentity());
+        assertTrue(config.hasKeylessAuth());
+        assertEquals("federated_identity", config.auth());
+    }
+
+    public void testAuthStaticCredentialsExplicit() {
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "static_credentials", "credentials", "{\"type\":\"x\"}"));
+        assertTrue(config.isStaticCredentials());
+        assertTrue(config.hasCredentials());
+        assertEquals("static_credentials", config.auth());
+    }
+
+    public void testAuthStaticCredentialsRequiresCredentials() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> GcsConfiguration.fromMap(Map.of("auth", "static_credentials", "project_id", "p"))
+        );
+        assertThat(e.getMessage(), containsString("auth=static_credentials requires complete explicit credentials"));
+    }
+
+    // --- Backwards compatibility: deprecated value names are canonicalized on parse and warn ---
+
+    public void testDeprecatedAuthNoneCanonicalizedToAnonymous() {
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "none"));
+        assertEquals("anonymous", config.auth());
+        assertTrue(config.isAnonymous());
+        assertWarnings("auth value [none] is deprecated; the canonical value is [anonymous]");
+    }
+
+    public void testDeprecatedAuthWorkloadIdentityCanonicalizedToManagedIdentity() {
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "workload_identity"));
+        assertEquals("managed_identity", config.auth());
+        assertTrue(config.isManagedIdentity());
+        assertWarnings("auth value [workload_identity] is deprecated; the canonical value is [managed_identity]");
     }
 }

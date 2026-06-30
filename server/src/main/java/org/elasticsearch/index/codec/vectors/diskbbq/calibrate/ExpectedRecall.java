@@ -157,7 +157,8 @@ public final class ExpectedRecall {
      * @return the value of the normal distribution PDF at the given point
      */
     static double normalPdf(double x, double mean, double stddev) {
-        return Math.exp(-0.5 * Math.pow((x - mean) / stddev, 2)) / (stddev * SQRT_2_PI);
+        double z = (x - mean) / stddev;
+        return Math.exp(-0.5 * z * z) / (stddev * SQRT_2_PI);
     }
 
     /**

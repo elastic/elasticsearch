@@ -28,10 +28,12 @@ command to create computed columns instead.
 [`PROMQL`](/reference/query-languages/esql/commands/promql.md) queries have their own specific semantics for unmapped fields.
 
 Special notes about the `LOAD` option:
-- `FORK`, `LOOKUP JOIN`, subqueries, views, and full-text search functions are not yet supported anywhere in the query.
+- `FORK`, `LOOKUP JOIN`, subqueries, and views are not yet supported anywhere in the query.
 - Referencing subfields of `flattened` parents is not supported.
-- Referencing partially unmapped non-keyword fields must be inside a cast or a conversion function (e.g. `::TYPE` or `TO_TYPE`),
-unless referenced in a `KEEP` or `DROP`.
+- Partially unmapped non-`keyword` fields can be used in expressions. If it is mapped to a single type and there's an available
+  conversion from `keyword` to that type, the implicit conversion will be applied. If there's no available conversion, and an
+  explicit one has not been provided by the user, values remain typed where mapped and are `null` for rows from indices where the
+  field is unmapped.
 
 
 **Type**: `keyword`

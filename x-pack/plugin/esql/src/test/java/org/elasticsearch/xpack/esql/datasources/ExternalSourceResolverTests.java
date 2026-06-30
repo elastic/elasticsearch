@@ -1571,11 +1571,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * Unknown config keys must be rejected before resolveMetadata is invoked, which proves the resolver-level guard also covers the
-     * operatorFactory path (operatorFactory runs at execution time and never calls validateConfig
-     * itself; the resolver must have rejected bad configs during planning before any factory
-     * consumer is reached). Confirmed by asserting zero schema reads on validation failure: if
-     * validation fired only inside resolveMetadata, the format reader would be reached first.
+     * Unknown config keys are rejected before resolveMetadata is invoked on the cache-miss path.
+     * Confirmed by asserting zero schema reads on validation failure: if validation fired only
+     * inside resolveMetadata, the format reader would be reached first.
      */
     public void testResolverRejectsUnknownConfigKeyBeforeAnyFactoryRead() throws Exception {
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));

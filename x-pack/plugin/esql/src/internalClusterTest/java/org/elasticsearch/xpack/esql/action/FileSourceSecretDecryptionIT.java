@@ -183,7 +183,7 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
         // Allow the system temp dir so file:// reads created by createTempDir() in each test are permitted.
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), System.getProperty("java.io.tmpdir"))
+            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
             .build();
     }
 

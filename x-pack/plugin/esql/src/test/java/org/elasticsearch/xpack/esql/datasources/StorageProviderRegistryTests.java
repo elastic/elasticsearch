@@ -155,7 +155,7 @@ public class StorageProviderRegistryTests extends ESTestCase {
 
     public void testProviderRejectsFileWhenDisabled() {
         StorageProviderRegistry registry = registryWithFileAccess(
-            LocalFileAccess.create(Settings.EMPTY, false)  // empty allowlist → disabled
+            LocalFileAccess.create(Settings.EMPTY)  // empty allowlist → disabled
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -167,7 +167,7 @@ public class StorageProviderRegistryTests extends ESTestCase {
     public void testProviderAllowsFileWhenUnderRoot() throws IOException {
         Path allowed = createTempDir();
         Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
-        StorageProviderRegistry registry = registryWithFileAccess(LocalFileAccess.create(settings, false));
+        StorageProviderRegistry registry = registryWithFileAccess(LocalFileAccess.create(settings));
 
         Path file = allowed.resolve("data.parquet");
         Files.createFile(file);
@@ -180,7 +180,7 @@ public class StorageProviderRegistryTests extends ESTestCase {
         Path allowed = createTempDir();
         Path outside = createTempDir();
         Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
-        StorageProviderRegistry registry = registryWithFileAccess(LocalFileAccess.create(settings, false));
+        StorageProviderRegistry registry = registryWithFileAccess(LocalFileAccess.create(settings));
 
         Path file = outside.resolve("secret.csv");
         Files.createFile(file);
@@ -195,7 +195,7 @@ public class StorageProviderRegistryTests extends ESTestCase {
         Path allowed = createTempDir();
         Path sibling = createTempDir();
         Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
-        StorageProviderRegistry registry = registryWithFileAccess(LocalFileAccess.create(settings, false));
+        StorageProviderRegistry registry = registryWithFileAccess(LocalFileAccess.create(settings));
 
         String traversal = allowed.toAbsolutePath() + "/../" + sibling.getFileName() + "/secret.csv";
         IllegalArgumentException e = expectThrows(
@@ -208,7 +208,7 @@ public class StorageProviderRegistryTests extends ESTestCase {
     // --- createProviderTrackingConsumedKeys — scheme-level disabled reject ---
 
     public void testCreateProviderRejectsFileWhenDisabled() {
-        StorageProviderRegistry registry = registryWithFileAccess(LocalFileAccess.create(Settings.EMPTY, false));
+        StorageProviderRegistry registry = registryWithFileAccess(LocalFileAccess.create(Settings.EMPTY));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> registry.createProviderTrackingConsumedKeys("file", Settings.EMPTY, java.util.Map.of())
@@ -219,34 +219,17 @@ public class StorageProviderRegistryTests extends ESTestCase {
     public void testCreateProviderAllowsFileWhenEnabled() throws IOException {
         Path allowed = createTempDir();
         Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
-        StorageProviderRegistry registry = registryWithFileAccess(LocalFileAccess.create(settings, false));
+        StorageProviderRegistry registry = registryWithFileAccess(LocalFileAccess.create(settings));
 
         // Empty config — should proceed to the default provider without throwing
         Configured<StorageProvider> result = registry.createProviderTrackingConsumedKeys("file", Settings.EMPTY, java.util.Map.of());
         assertNotNull(result);
     }
 
-    // --- Stateless gate ---
-
-    public void testProviderRejectsFileOnStatelessNodeEvenWithAllowlist() throws IOException {
-        Path allowed = createTempDir();
-        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
-        // isStateless = true forces the gate disabled
-        StorageProviderRegistry registry = registryWithFileAccess(LocalFileAccess.create(settings, true));
-
-        Path file = allowed.resolve("data.csv");
-        Files.createFile(file);
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> registry.provider(StoragePath.of("file://" + file.toAbsolutePath()))
-        );
-        assertThat(e.getMessage(), containsString("esql.datasource.local_allowed_paths"));
-    }
-
     // --- Non-file schemes pass through the gate without rejection ---
 
     public void testProviderDoesNotRejectNonFileScheme() {
-        LocalFileAccess disabledAccess = LocalFileAccess.create(Settings.EMPTY, false);
+        LocalFileAccess disabledAccess = LocalFileAccess.create(Settings.EMPTY);
         // Should not throw for non-file schemes
         disabledAccess.check(StoragePath.of("s3://bucket/key.parquet"));
     }

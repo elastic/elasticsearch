@@ -349,8 +349,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             );
 
         // Local-disk gate: parsed once at startup (NodeScope setting — no update consumer needed).
-        // The gate is always disabled on stateless nodes regardless of the allowlist.
-        LocalFileAccess localFileAccess = LocalFileAccess.create(settings, isStateless);
+        LocalFileAccess localFileAccess = LocalFileAccess.create(settings);
 
         // Create DataSourceModule with all discovered plugins.
         // This executor backs SPI coordination, decompression, and async-I/O plugin callbacks (e.g. the HTTP

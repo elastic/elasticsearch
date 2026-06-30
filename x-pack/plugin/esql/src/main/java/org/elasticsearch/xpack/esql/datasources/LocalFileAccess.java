@@ -23,21 +23,18 @@ import java.util.List;
  * it normalizes to a location under one of the configured roots; {@code ..}-escape traversals and paths outside
  * every root are rejected.
  *
- * <p>Local-disk reads are always disabled on stateless nodes regardless of the setting value.
- *
- * <p>Use {@link #create(Settings, boolean)} at node startup. The special singleton {@link #UNRESTRICTED} bypasses
- * all checks and is intended solely for test-only constructors that do not apply the production stateless gate.
+ * <p>Use {@link #create(Settings)} at node startup. The special singleton {@link #UNRESTRICTED} bypasses all
+ * checks and is intended solely for test-only constructors.
  */
 public class LocalFileAccess {
 
     /**
-     * Error shown when a {@code file://} read is attempted but local-disk access is disabled (empty allowlist or
-     * stateless node). Shared between the coordinator-side check ({@link FileSourceFactory}) and the data-node-side
-     * check ({@link StorageProviderRegistry}) so both paths report the same message.
+     * Error shown when a {@code file://} read is attempted but local-disk access is disabled (empty allowlist).
+     * Shared between the coordinator-side check ({@link FileSourceFactory}) and the data-node-side check
+     * ({@link StorageProviderRegistry}) so both paths report the same message.
      */
     public static final String LOCAL_DISK_DISABLED_MESSAGE = "local filesystem access via file:// is disabled; "
-        + "set the [esql.datasource.local_allowed_paths] node setting to one or more allowed root paths to enable it "
-        + "(this setting has no effect on stateless nodes where file:// is always disabled)";
+        + "set the [esql.datasource.local_allowed_paths] node setting to one or more allowed root paths to enable it";
 
     /**
      * Error shown when a {@code file://} path does not fall under any allowed root (including {@code ..}-escape
@@ -48,7 +45,7 @@ public class LocalFileAccess {
 
     /**
      * Allow-all sentinel for test-only constructors in {@link StorageProviderRegistry}, {@link FileSourceFactory},
-     * and {@link DataSourceModule}. Does not apply the stateless gate or path confinement. Never use in production.
+     * and {@link DataSourceModule}. Does not apply path confinement. Never use in production.
      */
     public static final LocalFileAccess UNRESTRICTED = new LocalFileAccess(true, new Path[0]) {
         @Override
@@ -68,15 +65,12 @@ public class LocalFileAccess {
 
     /**
      * Builds a {@code LocalFileAccess} from the node's startup settings.
-     *
-     * @param settings    the node settings (reads {@link ExternalSourceSettings#LOCAL_ALLOWED_PATHS})
-     * @param isStateless {@code true} when this is a stateless node (from {@code DiscoveryNode.isStateless(settings)});
-     *                    forces the gate disabled regardless of the allowlist
+     * An empty {@link ExternalSourceSettings#LOCAL_ALLOWED_PATHS} list (the default) disables local-disk reads.
      */
     @SuppressForbidden(reason = "LocalFileAccess converts configured path strings to normalized absolute Path roots")
-    public static LocalFileAccess create(Settings settings, boolean isStateless) {
+    public static LocalFileAccess create(Settings settings) {
         List<String> rawPaths = ExternalSourceSettings.LOCAL_ALLOWED_PATHS.get(settings);
-        if (isStateless || rawPaths.isEmpty()) {
+        if (rawPaths.isEmpty()) {
             return new LocalFileAccess(false, new Path[0]);
         }
         Path[] roots = new Path[rawPaths.size()];
@@ -86,7 +80,7 @@ public class LocalFileAccess {
         return new LocalFileAccess(true, roots);
     }
 
-    /** Returns {@code true} when local-disk reads are permitted (non-empty allowlist on a non-stateless node). */
+    /** Returns {@code true} when local-disk reads are permitted (non-empty allowlist). */
     public boolean enabled() {
         return enabled;
     }
@@ -96,7 +90,7 @@ public class LocalFileAccess {
      *
      * <p>No-op for non-{@code file} schemes. For {@code file://}:
      * <ul>
-     *   <li>If disabled (empty allowlist or stateless): throws {@link IllegalArgumentException} with
+     *   <li>If disabled (empty allowlist): throws {@link IllegalArgumentException} with
      *       {@link #LOCAL_DISK_DISABLED_MESSAGE}.</li>
      *   <li>If enabled: resolves the path against the allowed roots via
      *       {@link PathUtils#get(Path[], String)} (lexical normalize + {@code startsWith} — same as

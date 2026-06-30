@@ -22,27 +22,27 @@ public class LocalFileAccessTests extends ESTestCase {
     // --- Default (disabled) ---
 
     public void testDefaultDisabledRejectsFileUri() {
-        LocalFileAccess access = LocalFileAccess.create(Settings.EMPTY, false);
+        LocalFileAccess access = LocalFileAccess.create(Settings.EMPTY);
         assertFalse("empty allowlist must be disabled", access.enabled());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> access.check(StoragePath.of("file:///etc/passwd")));
         assertThat(e.getMessage(), containsString("esql.datasource.local_allowed_paths"));
     }
 
     public void testDefaultDisabledRejectsFileUriStringOverload() {
-        LocalFileAccess access = LocalFileAccess.create(Settings.EMPTY, false);
+        LocalFileAccess access = LocalFileAccess.create(Settings.EMPTY);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> access.check("file:///etc/passwd"));
         assertThat(e.getMessage(), containsString("esql.datasource.local_allowed_paths"));
     }
 
     public void testDefaultDisabledAllowsNonFileUri() {
-        LocalFileAccess access = LocalFileAccess.create(Settings.EMPTY, false);
+        LocalFileAccess access = LocalFileAccess.create(Settings.EMPTY);
         // Non-file schemes must pass through without any error
         access.check(StoragePath.of("s3://my-bucket/data.parquet"));
         access.check("https://example.com/data.csv");
     }
 
     public void testNullLocationIsNoop() {
-        LocalFileAccess access = LocalFileAccess.create(Settings.EMPTY, false);
+        LocalFileAccess access = LocalFileAccess.create(Settings.EMPTY);
         // null must not throw
         access.check((String) null);
     }
@@ -52,7 +52,7 @@ public class LocalFileAccessTests extends ESTestCase {
     public void testPathUnderAllowedRootSucceeds() throws IOException {
         Path tmpDir = createTempDir();
         Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", tmpDir.toString()).build();
-        LocalFileAccess access = LocalFileAccess.create(settings, false);
+        LocalFileAccess access = LocalFileAccess.create(settings);
         assertTrue(access.enabled());
 
         Path target = tmpDir.resolve("data.csv");
@@ -66,7 +66,7 @@ public class LocalFileAccessTests extends ESTestCase {
         Path outside = createTempDir();
 
         Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
-        LocalFileAccess access = LocalFileAccess.create(settings, false);
+        LocalFileAccess access = LocalFileAccess.create(settings);
 
         Path outsideFile = outside.resolve("secret.csv");
         Files.createFile(outsideFile);
@@ -83,7 +83,7 @@ public class LocalFileAccessTests extends ESTestCase {
         Path sibling = createTempDir();
 
         Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
-        LocalFileAccess access = LocalFileAccess.create(settings, false);
+        LocalFileAccess access = LocalFileAccess.create(settings);
 
         // Construct a path that uses .. to escape to the sibling directory
         String siblingFile = sibling.resolve("secret.csv").toAbsolutePath().toString();
@@ -101,7 +101,7 @@ public class LocalFileAccessTests extends ESTestCase {
         Path root2 = createTempDir();
 
         Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", root1.toString(), root2.toString()).build();
-        LocalFileAccess access = LocalFileAccess.create(settings, false);
+        LocalFileAccess access = LocalFileAccess.create(settings);
 
         Path file1 = root1.resolve("a.csv");
         Files.createFile(file1);
@@ -114,29 +114,12 @@ public class LocalFileAccessTests extends ESTestCase {
         Path root2 = createTempDir();
 
         Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", root1.toString(), root2.toString()).build();
-        LocalFileAccess access = LocalFileAccess.create(settings, false);
+        LocalFileAccess access = LocalFileAccess.create(settings);
 
         Path file2 = root2.resolve("b.csv");
         Files.createFile(file2);
         // Should not throw — under root2
         access.check(StoragePath.of("file://" + file2.toAbsolutePath()));
-    }
-
-    // --- Stateless gate ---
-
-    public void testStatelessNodeDisablesAccessEvenWithAllowlist() throws IOException {
-        Path tmpDir = createTempDir();
-        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", tmpDir.toString()).build();
-        LocalFileAccess access = LocalFileAccess.create(settings, /* isStateless = */ true);
-        assertFalse("stateless node must have file:// disabled even when allowlist is non-empty", access.enabled());
-
-        Path file = tmpDir.resolve("data.csv");
-        Files.createFile(file);
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> access.check(StoragePath.of("file://" + file.toAbsolutePath()))
-        );
-        assertThat(e.getMessage(), containsString("esql.datasource.local_allowed_paths"));
     }
 
     // --- UNRESTRICTED sentinel ---

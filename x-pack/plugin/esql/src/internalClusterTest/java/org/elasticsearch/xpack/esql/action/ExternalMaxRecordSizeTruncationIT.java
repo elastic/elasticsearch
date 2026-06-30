@@ -20,6 +20,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
@@ -97,6 +98,14 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractEsqlIntegTestCase
         return plugins;
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
+            .build();
+    }
+
     /**
      * Pins the fixture's defining property so the test cannot silently change meaning if a constant or
      * the reader's segment floor is later retuned: a single record strictly larger than
@@ -111,6 +120,7 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractEsqlIntegTestCase
             (long) GIANT_RECORD_BYTES,
             greaterThan(2 * MAX_RECORD_SIZE_BYTES)
         );
+        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
     }
 
     /**

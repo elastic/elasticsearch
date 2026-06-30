@@ -107,9 +107,6 @@ public final class ExternalSourceSettings {
      * entirely. When non-empty, a {@code file://} path is allowed only if it normalizes to a location under one of the
      * listed roots; {@code ..}-escapes and anything outside every root are rejected.
      * <p>
-     * This setting is never effective in stateless mode: regardless of its value, {@code file://} reads are always
-     * rejected on stateless nodes.
-     * <p>
      * This is a node-scope setting; a node restart is required for changes to take effect.
      */
     public static final Setting<List<String>> LOCAL_ALLOWED_PATHS = Setting.stringListSetting(

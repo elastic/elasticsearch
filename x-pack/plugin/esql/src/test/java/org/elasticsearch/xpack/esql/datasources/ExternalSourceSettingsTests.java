@@ -125,21 +125,9 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertEquals("/mnt/shared", paths.get(1));
     }
 
-    public void testLocalAllowedPathsDisabledOnStatelessNodeAtStartup() {
-        // Mirrors testWorkloadIdentityDisabledOnStatelessNodeAtStartup — build a LocalFileAccess and assert enabled() == false.
-        Settings settings = Settings.builder()
-            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
-            .putList("esql.datasource.local_allowed_paths", "/data/allowed")
-            .build();
-        boolean isStateless = DiscoveryNode.isStateless(settings);
-        LocalFileAccess access = LocalFileAccess.create(settings, isStateless);
-        assertFalse("local disk access must be disabled on stateless nodes even when the allowlist is non-empty", access.enabled());
-    }
-
-    public void testLocalAllowedPathsEnabledOnNonStatelessNode() {
+    public void testLocalAllowedPathsEnabledWhenSet() {
         Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", "/data/allowed").build();
-        boolean isStateless = DiscoveryNode.isStateless(settings);
-        LocalFileAccess access = LocalFileAccess.create(settings, isStateless);
-        assertTrue("local disk access must be enabled when allowlist is set and node is not stateless", access.enabled());
+        LocalFileAccess access = LocalFileAccess.create(settings);
+        assertTrue("local disk access must be enabled when allowlist is set", access.enabled());
     }
 }

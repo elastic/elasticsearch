@@ -10,6 +10,8 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
 import org.elasticsearch.plugins.Plugin;
@@ -18,8 +20,10 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.NodeRoles.onlyRoles;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
@@ -32,10 +36,15 @@ import static org.hamcrest.Matchers.not;
  * {@code databases} reported by {@code _ingest/geoip/stats} stay empty under eager download until something started
  * ingesting, which in turn caused the first ingested document to be tagged {@code _<type>_database_unavailable_<db>}.
  *
- * This runs in its own {@link ESIntegTestCase.Scope#TEST}-scoped cluster so toggling the (dynamic) eager setting cannot leak into other
+ * <p>The cluster is built with an explicit mixed-role topology — one master+data+ingest node and one data-only
+ * node — so both halves of the {@code isIngestNode()} guard are pinned deterministically: eager download must
+ * retrieve the databases on the ingest node and must <em>not</em> retrieve them on the (non-ingest) data-only node.
+ * A data-only node is the meaningful negative here: it is the node that would retrieve databases under an ESQL
+ * consumer, so it staying empty shows eager retrieval is specifically ingest-scoped. It runs in its own
+ * {@link ESIntegTestCase.Scope#TEST}-scoped cluster so toggling the (dynamic) eager setting cannot leak into other
  * suites.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, maxNumDataNodes = 1)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class EagerDownloadRetrievalIT extends AbstractGeoIpIT {
 
     @Override
@@ -55,6 +64,13 @@ public class EagerDownloadRetrievalIT extends AbstractGeoIpIT {
     public void testEagerDownloadRetrievesDatabasesWithoutPipeline() throws Exception {
         assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         ProjectId projectId = ProjectId.DEFAULT;
+
+        // Explicit mixed-role topology: the first node is master-eligible so the cluster can form, and is ingest-capable
+        // so it should retrieve under eager download; the second is data-only so it should not.
+        internalCluster().startNode(
+            onlyRoles(Settings.EMPTY, Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE))
+        );
+        internalCluster().startNode(onlyRoles(Settings.EMPTY, Set.of(DiscoveryNodeRole.DATA_ROLE)));
 
         // No consumer is ever registered (no requestDownloads, no pipeline). Enabling eager download dynamically must
         // make the downloader fetch into the index AND make ingest-capable nodes retrieve and load the databases
@@ -79,18 +95,23 @@ public class EagerDownloadRetrievalIT extends AbstractGeoIpIT {
 
             GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
             assertThat(response.getNodes(), not(empty()));
-            boolean sawIngestNode = false;
             for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+                DiscoveryNode node = nodeResponse.getNode();
                 // getDatabases() reports locally-retrieved (downloaded) databases, distinct from config databases.
-                if (nodeResponse.getNode().isIngestNode()) {
-                    sawIngestNode = true;
-                    assertThat(nodeResponse.getDatabases(), hasItems("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb"));
+                if (node.isIngestNode()) {
+                    assertThat(
+                        "ingest node [" + node.getName() + "] should retrieve databases under eager download",
+                        nodeResponse.getDatabases(),
+                        hasItems("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb")
+                    );
                 } else {
-                    // Eager download only warms ingest-capable nodes; e.g. a coordinating-only node retrieves nothing.
-                    assertThat(nodeResponse.getDatabases(), empty());
+                    assertThat(
+                        "non-ingest node [" + node.getName() + "] should not retrieve databases under eager download",
+                        nodeResponse.getDatabases(),
+                        empty()
+                    );
                 }
             }
-            assertTrue("expected at least one ingest node in the cluster", sawIngestNode);
             // Generous relative to the observed sub-second download+retrieve against the fixture, but bounded so a real
             // regression (databases never retrieved locally) fails fast instead of hanging.
         }, 30, TimeUnit.SECONDS);

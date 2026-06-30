@@ -29,6 +29,7 @@ public class IndexFeatures implements FeatureSpecification {
     public static final NodeFeature TIME_SERIES_SYNTHETIC_ID_DEFAULT = new NodeFeature("index.time_series_synthetic_id_default");
 
     public static final NodeFeature TIME_SERIES_NO_SEQNO = new NodeFeature("index.time_series_no_seqno");
+    public static final NodeFeature SLICE_INDEXING = new NodeFeature("index.slice_indexing");
 
     public static final NodeFeature TIME_SERIES_ES95_CODEC = new NodeFeature("index.time_series_es95_codec");
 
@@ -50,8 +51,6 @@ public class IndexFeatures implements FeatureSpecification {
         "constant_field_type.normalized_wildcard_query_support"
     );
 
-    public static final NodeFeature INDEX_SLICE_INDEXING = new NodeFeature("index.slice_indexing");
-
     @Override
     public Set<NodeFeature> getTestFeatures() {
         Set<NodeFeature> features = new HashSet<>(
@@ -71,7 +70,7 @@ public class IndexFeatures implements FeatureSpecification {
             )
         );
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
-            features.add(INDEX_SLICE_INDEXING);
+            features.add(SLICE_INDEXING);
         }
         return Set.copyOf(features);
     }

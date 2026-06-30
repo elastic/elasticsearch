@@ -12,6 +12,8 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexFeatures;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.rest.RestRequest;
@@ -44,7 +46,8 @@ public class RestReindexActionTests extends RestActionTestCase {
     @Before
     public void setUpAction() {
         action = new RestReindexAction(
-            nf -> nf.equals(ReindexPlugin.RELOCATE_ON_SHUTDOWN_NODE_FEATURE) && relocateOnShutdownFeatureEnabled,
+            nf -> (nf.equals(ReindexPlugin.RELOCATE_ON_SHUTDOWN_NODE_FEATURE) && relocateOnShutdownFeatureEnabled)
+                || (nf.equals(IndexFeatures.SLICE_INDEXING) && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()),
             CrossProjectModeDecider.NOOP
         );
         controller().registerHandler(action);
@@ -67,6 +70,39 @@ public class RestReindexActionTests extends RestActionTestCase {
         FakeRestRequest requestBuilder = buildSimpleRequest().withParams(singletonMap("scroll", "10m")).build();
         ReindexRequest request = action.buildRequest(requestBuilder);
         assertEquals("10m", request.getScrollTime().toString());
+    }
+
+    public void testDestSliceParsedWhenFeatureFlagEnabled() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = action.buildRequest(buildRequestWithBody("""
+            {
+              "source": {
+                "index": "source"
+              },
+              "dest": {
+                "index": "dest",
+                "_slice": "s1"
+              }
+            }
+            """));
+        assertEquals("s1", request.getDestination().routing());
+        assertTrue(request.getDestination().isRoutingFromSlice());
+    }
+
+    public void testDestSliceRejectedWhenFeatureFlagDisabled() throws IOException {
+        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.buildRequest(buildRequestWithBody("""
+            {
+              "source": {
+                "index": "source"
+              },
+              "dest": {
+                "index": "dest",
+                "_slice": "s1"
+              }
+            }
+            """)));
+        assertEquals("request does not support [" + SliceIndexing.PARAM_NAME + "]", e.getMessage());
     }
 
     public void testFilterSource() throws IOException {
@@ -254,5 +290,9 @@ public class RestReindexActionTests extends RestActionTestCase {
             request.withContent(BytesReference.bytes(body), body.contentType());
         }
         return request;
+    }
+
+    private FakeRestRequest buildRequestWithBody(String body) {
+        return new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(body), XContentType.JSON).build();
     }
 }

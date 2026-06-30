@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -30,6 +31,8 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.indices.ExecutorNames;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -84,6 +87,7 @@ import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsActi
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.inference.action.TransportDeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteRegionPolicyAction;
@@ -106,6 +110,7 @@ import org.elasticsearch.xpack.inference.action.TransportStoreEndpointsAction;
 import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
+import org.elasticsearch.xpack.inference.audit.InferenceAuditService;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.oauth2.ClearOAuth2TokenCacheAction;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
@@ -202,6 +207,8 @@ import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSche
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
 import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -272,6 +279,10 @@ public class InferencePlugin extends Plugin
     public static final String INFERENCE_RESPONSE_THREAD_POOL_NAME = "inference_response";
 
     private static final String INFERENCE_INDEX_DESCRIPTION = "Contains inference service and model configuration";
+
+    private static final String INFERENCE_AUDIT_TEMPLATE_RESOURCE = "inference-audit.json";
+    private static final String INFERENCE_AUDIT_VERSION_VARIABLE = "inference.version";
+    private static final int INFERENCE_AUDIT_MAPPINGS_VERSION = 1;
 
     public static final FeatureFlag INFERENCE_REGION_POLICY_FEATURE_FLAG = new FeatureFlag("inference_region_policy");
 
@@ -509,6 +520,10 @@ public class InferencePlugin extends Plugin
 
         components.add(new PluginComponentBinding<>(ElasticInferenceServiceSettings.class, inferenceServiceSettings));
 
+        if (INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
+            components.add(new InferenceAuditService(services.client()));
+        }
+
         return components;
     }
 
@@ -716,6 +731,39 @@ public class InferencePlugin extends Plugin
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return List.of(createInferenceIndexDescriptor(), createInferenceSecretsIndexDescriptor(), createCCMIndexDescriptor());
+    }
+
+    @Override
+    public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
+        if (INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
+            return List.of(createInferenceAuditDataStreamDescriptor());
+        }
+        return List.of();
+    }
+
+    private static SystemDataStreamDescriptor createInferenceAuditDataStreamDescriptor() {
+        try {
+            ComposableIndexTemplate composableIndexTemplate = TemplateUtils.loadTemplate(
+                "/" + INFERENCE_AUDIT_TEMPLATE_RESOURCE,
+                Build.current().version(),
+                INFERENCE_AUDIT_VERSION_VARIABLE,
+                Map.of("inference.audit.managed.index.version", Integer.toString(INFERENCE_AUDIT_MAPPINGS_VERSION)),
+                false,
+                ComposableIndexTemplate::parse
+            );
+            return new SystemDataStreamDescriptor(
+                InferenceAuditService.DATA_STREAM_NAME,
+                "Audit trail for inference configuration changes",
+                SystemDataStreamDescriptor.Type.EXTERNAL,
+                composableIndexTemplate,
+                Map.of(),
+                List.of(ClientHelper.INFERENCE_ORIGIN),
+                ClientHelper.INFERENCE_ORIGIN,
+                ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private SystemIndexDescriptor createInferenceIndexDescriptor() {

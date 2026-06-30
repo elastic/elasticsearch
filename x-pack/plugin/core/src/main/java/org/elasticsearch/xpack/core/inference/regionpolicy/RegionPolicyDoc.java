@@ -88,12 +88,12 @@ public record RegionPolicyDoc(
         out.writeOptionalString(updatedBy);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(InferenceIndexDocTypeField.DOC_TYPE_FIELD, InferenceIndexDocTypeField.REGION_POLICY_TYPE);
-        }
+    /**
+     * Writes the inner fields of this document (region_policy, created_at, created_by, updated_at, updated_by)
+     * without the surrounding startObject/endObject. Use this when embedding these fields inside a larger JSON
+     * object (e.g. an audit entry) alongside additional top-level fields.
+     */
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(REGION_POLICY_FIELD.getPreferredName(), regionPolicy);
         builder.field(CREATED_AT_FIELD.getPreferredName(), createdAt);
         if (createdBy != null) {
@@ -105,6 +105,16 @@ public record RegionPolicyDoc(
         if (updatedBy != null) {
             builder.field(UPDATED_BY_FIELD.getPreferredName(), updatedBy);
         }
+        return builder;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+            builder.field(InferenceIndexDocTypeField.DOC_TYPE_FIELD, InferenceIndexDocTypeField.REGION_POLICY_TYPE);
+        }
+        innerToXContent(builder, params);
         builder.endObject();
         return builder;
     }

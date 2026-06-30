@@ -28,6 +28,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.inference.ToXContentParams;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.Task;
@@ -40,10 +42,12 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.inference.action.PutRegionPolicyAction;
 import org.elasticsearch.xpack.core.inference.action.RegionPolicyResponse;
+import org.elasticsearch.xpack.core.inference.audit.InferenceAuditEventDoc;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicyDoc;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.inference.InferenceIndex;
+import org.elasticsearch.xpack.inference.audit.InferenceAuditService;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -52,10 +56,13 @@ import java.util.Optional;
 
 public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRegionPolicyAction.Request, RegionPolicyResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportPutRegionPolicyAction.class);
+
     private final OriginSettingClient client;
     private final Optional<SecurityContext> securityContext;
     private final ClusterService clusterService;
     private final FeatureService featureService;
+    private final InferenceAuditService auditService;
 
     @Inject
     public TransportPutRegionPolicyAction(
@@ -65,7 +72,8 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
         ActionFilters actionFilters,
         Client client,
         ClusterService clusterService,
-        FeatureService featureService
+        FeatureService featureService,
+        InferenceAuditService auditService
     ) {
         super(
             PutRegionPolicyAction.NAME,
@@ -80,6 +88,7 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
             : Optional.empty();
         this.clusterService = clusterService;
         this.featureService = featureService;
+        this.auditService = auditService;
     }
 
     @Override
@@ -144,6 +153,24 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
             @Override
             public void onResponse(DocWriteResponse docWriteResponse) {
                 listener.onResponse(new RegionPolicyResponse(doc));
+                String username = doc.updatedBy() != null ? doc.updatedBy() : doc.createdBy();
+                InferenceAuditEventDoc.Action auditAction = existingRegionPolicyDoc == null
+                    ? InferenceAuditEventDoc.Action.CREATE
+                    : InferenceAuditEventDoc.Action.UPDATE;
+                try {
+                    auditService.auditEvent(
+                        InferenceAuditEventDoc.withToXContentResource(
+                            Instant.now(),
+                            auditAction,
+                            InferenceAuditEventDoc.ResourceType.REGION_POLICY,
+                            RegionPolicyDoc.DOCUMENT_ID,
+                            username,
+                            doc
+                        )
+                    );
+                } catch (IOException e) {
+                    logger.warn("Failed to serialize region policy resource for audit event", e);
+                }
             }
 
             @Override

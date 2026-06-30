@@ -1,0 +1,154 @@
+---
+setup:
+  - requires:
+      test_runner_features: "headers"
+      reason: "Tests use x-elastic-product-origin header to access the inference audit data stream"
+
+  # Pre-create the .audit-inference data stream so that audit writes land on an
+  # existing primary shard.  Without this, the write that auto-creates the data
+  # stream races with the test's cluster.health check: cluster.health may return
+  # as soon as the shard turns green, but the document write is still being
+  # routed to the (just-started) primary, so a subsequent refresh does not
+  # include it.  Pre-creating the data stream eliminates that race.
+  - do:
+      headers:
+        X-elastic-product-origin: inference
+      indices.create_data_stream:
+        name: .audit-inference
+
+  - do:
+      cluster.health:
+        index: .audit-inference
+        wait_for_status: yellow
+        timeout: 30s
+---
+teardown:
+  - requires:
+      test_runner_features: "headers"
+      reason: "Teardown uses x-elastic-product-origin header to delete the inference audit data stream"
+  - do:
+      catch: missing
+      inference.delete_region_policy: {}
+  - do:
+      headers:
+        X-elastic-product-origin: inference
+      indices.delete_data_stream:
+        name: .audit-inference
+        ignore: 404
+
+---
+"Put region policy writes audit entry":
+  - do:
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_regions:
+              - csp: aws
+                region: us-east-1
+            fallback_region:
+              csp: aws
+              region: us-east-1
+
+  - do:
+      headers:
+        X-elastic-product-origin: inference
+      indices.refresh:
+        index: .audit-inference
+
+  - do:
+      headers:
+        X-elastic-product-origin: inference
+      search:
+        index: .audit-inference
+        body:
+          query:
+            term:
+              action: create
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.action: create }
+  - match: { hits.hits.0._source.resource_type: region_policy }
+  - match: { hits.hits.0._source.resource_id: region_policy_elastic }
+  - match: { hits.hits.0._source.resource.region_policy.allowed_regions.0.csp: aws }
+  - match: { hits.hits.0._source.resource.region_policy.allowed_regions.0.region: us-east-1 }
+  - match: { hits.hits.0._source.resource.region_policy.fallback_region.csp: aws }
+  - match: { hits.hits.0._source.resource.region_policy.fallback_region.region: us-east-1 }
+  - is_true: hits.hits.0._source.resource.created_at
+  - is_true: hits.hits.0._source.@timestamp
+
+---
+"Delete region policy writes audit event":
+  - do:
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_geos:
+              - us
+
+  - do:
+      inference.delete_region_policy: {}
+
+  - do:
+      headers:
+        X-elastic-product-origin: inference
+      indices.refresh:
+        index: .audit-inference
+
+  - do:
+      headers:
+        X-elastic-product-origin: inference
+      search:
+        index: .audit-inference
+        body:
+          query:
+            term:
+              action: delete
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.action: delete }
+  - match: { hits.hits.0._source.resource_type: region_policy }
+  - match: { hits.hits.0._source.resource_id: region_policy_elastic }
+  - is_false: hits.hits.0._source.resource
+  - is_true: hits.hits.0._source.@timestamp
+
+---
+"Put region policy given existing policy writes second audit with update action":
+  - do:
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_geos:
+              - us
+
+  - do:
+      inference.put_region_policy:
+        body:
+          region_policy:
+            allowed_regions:
+              - csp: gcp
+                region: us-central1
+
+  - do:
+      headers:
+        X-elastic-product-origin: inference
+      indices.refresh:
+        index: .audit-inference
+
+  - do:
+      headers:
+        X-elastic-product-origin: inference
+      search:
+        index: .audit-inference
+        body:
+          query:
+            term:
+              resource_type: region_policy
+          sort:
+            - "@timestamp": asc
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.action: create }
+  - match: { hits.hits.1._source.action: update }
+  - is_true: hits.hits.0._source.resource.region_policy.allowed_geos
+  - is_true: hits.hits.1._source.resource.region_policy.allowed_regions
+  - is_true: hits.hits.1._source.resource.updated_at

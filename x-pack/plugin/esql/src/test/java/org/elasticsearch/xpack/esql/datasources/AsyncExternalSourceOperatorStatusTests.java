@@ -240,7 +240,8 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             equalTo(
                 "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,"
                     + "\"process_nanos\":0,\"splits_processed\":0,\"splits_total\":0,\"current_split\":0,"
-                    + "\"bytes_read\":0,\"read_nanos\":0,\"stripes_committed\":0,\"partial\":true,\"format_reader\":{},\"failure\":\"boom\"}"
+                    + "\"bytes_read\":0,\"read_nanos\":0,\"stripes_committed\":0,\"partial\":true,"
+                    + "\"format_reader\":{},\"failure\":\"boom\"}"
             )
         );
     }

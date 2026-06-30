@@ -40,10 +40,12 @@ import java.util.Map;
  *   public static final QuerySettingDef<String> MY_SETTING = QuerySettingDef
  *       .string("my_setting")
  *       .withDefault("foo")
- *       .withRequestBody();      // accept under settings.{my_setting}
+ *       .withRequestBody()       // accept under settings.{my_setting}
+ *       .build();
  * }</pre>
  *
- * Read anywhere via {@code MY_SETTING.get(envelope)}.
+ * Then add the constant to {@link #ALL} to register it. Read anywhere via
+ * {@code MY_SETTING.get(resolvedSettings)}.
  */
 public final class QuerySettings {
 

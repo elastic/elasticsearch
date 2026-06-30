@@ -382,7 +382,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     /**
      * Body-supplied value with registry-default fallback. Pre-resolution; for the merged value use the
-     * envelope from {@link QuerySettings#resolve}.
+     * {@code ResolvedSettings} from {@link QuerySettings#resolve}.
      */
     @SuppressWarnings("unchecked")
     public <T> T get(QuerySettingDef<T> def) {
@@ -405,7 +405,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      * 400: we won't silently pick a winner. Supplying the <em>same</em> value in both is allowed, so a client
      * mid-migration can carry the field at both surfaces. The check runs after the whole body is parsed, so it
      * is independent of JSON field order. In-query {@code SET} still overrides a body value — that precedence is
-     * intentional and unaffected here, because {@code SET} is reconciled later, off this envelope.
+     * intentional and unaffected here, because {@code SET} is reconciled later, off the request settings.
      */
     void applyCanonicalRequestSettings() {
         for (Map.Entry<QuerySettingDef<?>, Object> e : canonicalRequestSettings.entrySet()) {

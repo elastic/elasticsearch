@@ -109,6 +109,7 @@ import java.util.Locale;
  *       .withAliasAtRoot()
  *       .withReconciler((prev, cur) ->
  *           new ApproximationSettings.Builder(false).merge(prev).merge(cur).build())
+ *       .streamFormat((out, value) -> value.writeTo(out), ApproximationSettings::new) // object/builder must set this
  *       .build();
  * }</pre>
  *

@@ -53,10 +53,11 @@ public record EsqlStatement(LogicalPlan plan, List<QuerySetting> settings) {
     }
 
     /**
-     * Returns the expression corresponding to a setting value.
-     * If the setting name appears multiple times, this will return last occurrence.
+     * Returns the raw SET expression for a setting name, or {@code null} if not set.
+     * If the setting name appears multiple times, this returns the last occurrence.
      * <p>
-     *     For testing purposes; use {@link #setting(QuerySettingDef)} instead.
+     *     This is the low-level accessor used by {@link QuerySettings#resolve} to fold SET values; for a typed,
+     *     defaulted read prefer {@link #setting(QuerySettingDef)}.
      * </p>
      *
      * @param name the setting name

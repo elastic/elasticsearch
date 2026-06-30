@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
@@ -959,11 +960,13 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
         var forceMergeThread = new Thread(() -> {
             try {
                 indexShard.forceMerge(new ForceMergeRequest().maxNumSegments(1));
-            } catch (UnavailableShardsException | AlreadyClosedException e) {
+            } catch (UnavailableShardsException | AlreadyClosedException | MergePolicy.MergeAbortedException e) {
                 // Force merge checks if the engine is still open at the end, and sometimes it might
                 // throw an AlreadyClosedException even after the commit is already processed by ShardCommitState
             } catch (IOException e) {
-                fail(e);
+                if (e.getCause() instanceof MergePolicy.MergeAbortedException == false) {
+                    fail(e);
+                }
             }
         }, "force-merge-thread");
         forceMergeThread.start();

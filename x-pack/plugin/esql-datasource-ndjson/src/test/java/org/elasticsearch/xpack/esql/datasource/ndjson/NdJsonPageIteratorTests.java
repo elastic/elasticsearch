@@ -2467,10 +2467,14 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     /**
-     * Regression for https://github.com/elastic/esql-planning/issues/894: on the byte-array fast path the
-     * cap is now enforced by {@link NdJsonRecordCappingInputStream} during the single {@code readAllBytes}
-     * pull instead of by a separate pre-scan. Under {@link ErrorPolicy#STRICT} an oversized record must
-     * still surface a {@code max_record_size [N]} error rather than parse silently.
+     * Regression for https://github.com/elastic/esql-planning/issues/894 and the issue 965 follow-up: on
+     * the byte-array fast path the cap is now enforced per-record inside {@link NdJsonPageDecoder} (on the
+     * pass Jackson already makes — no separate buffer sweep), instead of by a pre-read cap stream. Under
+     * {@link ErrorPolicy#STRICT} an oversized record must still surface a {@code max_record_size [N]} error
+     * rather than parse silently. Because enforcement moved to decode time, the failure now surfaces through
+     * the iterator's standard error path (a client-class {@code RuntimeException}) rather than as a raw
+     * {@link IOException} thrown from {@code readAllBytes()} during construction; the user-facing
+     * {@code max_record_size [N]} wording is preserved on the root cause.
      */
     public void testByteArrayFastPathStrictModeEnforcesMaxRecordBytes() {
         int maxRecordBytes = 16;
@@ -2486,7 +2490,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             .maxRecordBytes(maxRecordBytes)
             .build();
 
-        IOException ex = expectThrows(IOException.class, () -> {
+        Exception ex = expectThrows(Exception.class, () -> {
             try (var iterator = reader.read(object, context)) {
                 while (iterator.hasNext()) {
                     iterator.next().releaseBlocks();
@@ -2502,9 +2506,9 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
     /**
      * Companion lenient-mode contract: oversized records on the byte-array fast path must be dropped (not
-     * surfaced) so the user-visible {@code max_record_size} contract from PR #150240 is preserved. The pre-read
-     * filter pass (replacing the legacy {@code enforceMaxRecordBytes}) walks the buffered segment once and
-     * skips lines whose terminator-inclusive byte count exceeds the cap, leaving the surrounding rows intact.
+     * surfaced) so the user-visible {@code max_record_size} contract from PR #150240 is preserved. Since the
+     * issue 965 change, the drop happens per-record inside {@link NdJsonPageDecoder} (no buffer compaction),
+     * so the surrounding rows keep both their values and their file offsets.
      */
     public void testByteArrayFastPathLenientModeDropsOversizedRecord() throws IOException {
         int maxRecordBytes = 16;
@@ -2527,5 +2531,165 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             }
         }
         assertThat("lenient must drop the oversized record and keep the surrounding rows", total, Matchers.equalTo(2L));
+    }
+
+    /**
+     * Issue 965 feedback (offset corruption): the pre-#965 lenient byte-array filter physically removed
+     * oversized records and compacted the buffer, so {@code _rowPosition} / {@code _file.record_ref} for every
+     * retained row after a skip was shifted by the dropped bytes. The decoder-level drop does not compact, so
+     * the row after a skipped oversized record must keep its true file-global anchor. Projects
+     * {@code _rowPosition} over {good, oversized, good} and asserts the trailing row's anchor is the original
+     * byte position, not a compacted one.
+     */
+    public void testByteArrayFastPathLenientPreservesRowPositionAfterOversizedRecord() throws IOException {
+        int maxRecordBytes = 16;
+        // r1 "{\"id\":1}\n" = 9 bytes (anchor 1). r2 (oversized) starts at byte 9 and spans 39 bytes.
+        // r3 "{\"id\":333}\n" starts at byte 48, so its file-global anchor is 49 (start + 1). With the old
+        // compaction the anchor would have collapsed to 10 (as if r2 never existed).
+        String r2 = "{\"id\":2,\"text\":\"" + "x".repeat(20) + "\"}";
+        String data = "{\"id\":1}\n" + r2 + "\n" + "{\"id\":333}\n";
+        byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
+        assertEquals("fixture assumption: r3 starts at byte 48", 48, ("{\"id\":1}\n" + r2 + "\n").length());
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///cap-offsets.ndjson", bytes);
+        ErrorPolicy lenient = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, false);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("id", org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor.ROW_POSITION_COLUMN))
+                    .batchSize(100)
+                    .errorPolicy(lenient)
+                    .maxRecordBytes(maxRecordBytes)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals("oversized record dropped, surrounding rows kept", 2, page.getPositionCount());
+            IntBlock id = page.getBlock(0);
+            LongBlock rowPos = page.getBlock(1);
+            assertEquals(1, id.getInt(0));
+            assertEquals(333, id.getInt(1));
+            assertEquals("first row keeps its anchor", 1L, rowPos.getLong(0));
+            assertEquals("row after the skipped record keeps its true file anchor (not compacted)", 49L, rowPos.getLong(1));
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * Issue 965 feedback (streaming cap gap): the fallback/streaming branch used to wrap only a
+     * {@code CountingInputStream}, so oversized records parsed with no cap when the object streamed (length
+     * unknown, &gt;16 MiB, or a single-threaded read). Strict policy must now surface a
+     * {@code max_record_size [N]} error on that path too. Forces the streaming branch with an object whose
+     * {@code length()} throws (as decompressing wrappers do).
+     */
+    public void testStreamingFallbackStrictModeEnforcesMaxRecordBytes() {
+        int maxRecordBytes = 16;
+        String data = "{\"id\":1}\n" + "{\"id\":2,\"text\":\"" + "x".repeat(maxRecordBytes) + "\"}\n";
+        byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = streamOnlyObject("file:///stream-cap.ndjson", bytes);
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(100)
+            .errorPolicy(ErrorPolicy.STRICT)
+            .maxRecordBytes(maxRecordBytes)
+            .build();
+
+        Exception ex = expectThrows(Exception.class, () -> {
+            try (var iterator = reader.read(object, context)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        Throwable rootCause = ex;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+            rootCause = rootCause.getCause();
+        }
+        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+    }
+
+    /**
+     * Issue 965 feedback (streaming cap gap, lenient): on the streaming/fallback path a lenient oversized
+     * record has no cheap resumption point, so the read truncates at it (matching the segmentator) rather than
+     * dropping-and-continuing as the buffered byte-array path does. Rows before the oversized record are
+     * emitted; rows after it are not; a partial-results warning is surfaced.
+     */
+    public void testStreamingFallbackLenientModeTruncatesAtOversizedRecord() throws IOException {
+        int maxRecordBytes = 16;
+        String data = "{\"id\":1}\n" + "{\"id\":2,\"text\":\"" + "x".repeat(maxRecordBytes) + "\"}\n" + "{\"id\":3}\n";
+        byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = streamOnlyObject("file:///stream-cap-lenient.ndjson", bytes);
+        ErrorPolicy lenient = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, false);
+        FormatReadContext context = FormatReadContext.builder().batchSize(100).errorPolicy(lenient).maxRecordBytes(maxRecordBytes).build();
+
+        long total = 0;
+        try (var iterator = reader.read(object, context)) {
+            while (iterator.hasNext()) {
+                var page = iterator.next();
+                total += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertThat("truncate stops at the oversized record: only the leading row is emitted", total, Matchers.equalTo(1L));
+
+        List<String> warnings = drainWarnings();
+        assertThat("a partial-results warning must be surfaced", warnings, Matchers.not(Matchers.empty()));
+        // r1 "{\"id\":1}\n" = 9 bytes; the oversized r2's brace is at byte 9, so the truncation anchor (offset
+        // just past the brace) is 10. Pin it so the warning carries the true file position, not a stale one.
+        long expectedTruncationByte = "{\"id\":1}\n".length() + 1;
+        assertTrue(
+            "a warning must mention the truncation at the oversized record's byte offset, got: " + warnings,
+            warnings.stream()
+                .anyMatch(
+                    w -> w.contains("truncated")
+                        && w.contains("max_record_size [" + maxRecordBytes + "]")
+                        && w.contains("byte [" + expectedTruncationByte + "]")
+                )
+        );
+    }
+
+    /** A {@link StorageObject} that streams its bytes but reports no length, forcing the streaming read path. */
+    private static StorageObject streamOnlyObject(String path, byte[] data) {
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(data);
+            }
+
+            @Override
+            public InputStream newStream(long position, long len) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                // Decompressing/stream-only sources cannot report a length, which is exactly what pushes the
+                // reader onto the streaming branch (canUseByteArrayFastPath returns false).
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Instant lastModified() {
+                // Stream-only sources still expose an mtime (the reader pins it for the cache key); only
+                // length() is unavailable.
+                return Instant.ofEpochMilli(1_000L);
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of(path);
+            }
+        };
     }
 }

@@ -60,6 +60,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -362,6 +363,57 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
             }
         } finally {
             Files.deleteIfExists(parquetFile);
+        }
+    }
+
+    /**
+     * End-to-end correctness for the deferred-footer-read optimization across a real multi-file glob.
+     * Writes three Parquet files into one directory and exercises every {@code schema_resolution} path:
+     * <ul>
+     *   <li>{@code FIRST_FILE_WINS + LIMIT} — the <em>defer</em> path: no global stats are required, so
+     *       at planning time only the anchor file's footer is read, yet the query must still return a
+     *       correct page of rows.</li>
+     *   <li>{@code FIRST_FILE_WINS + COUNT(*)} (ungrouped) — the <em>eager</em> path: the planner still
+     *       aggregates every file's row count, so the result must span all files.</li>
+     *   <li>{@code UNION_BY_NAME} / {@code STRICT + COUNT(*)} — the reconciliation paths, which always
+     *       read every file's metadata; the count must stay correct (regression guard).</li>
+     * </ul>
+     * The per-file footer-read <em>count</em> reduction itself is asserted at the resolver layer in
+     * {@code ExternalSourceResolverTests} (the layer that issues the reads); there is no query-level
+     * metric exposing planning-time footer reads, so this IT proves correctness rather than GET counts.
+     */
+    public void testMultiFileFirstFileWinsDeferAndEagerProduceCorrectResults() throws Exception {
+        Path dir = createTempDir();
+        int files = 3;
+        int rowsPerFile = 100;
+        for (int i = 0; i < files; i++) {
+            writeParquetFileTo(dir.resolve("part_" + i + ".parquet"), rowsPerFile, 50);
+        }
+        String glob = StoragePath.fileUri(dir) + "/*.parquet";
+        long totalRows = (long) files * rowsPerFile;
+
+        // FFW + LIMIT: defer path. Only the anchor footer is needed at planning time, but the page must be correct.
+        try (var response = run(syncEsqlQueryRequest(externalQuery(glob, "first_file_wins", "| LIMIT 10")), TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(10));
+        }
+
+        // FFW + ungrouped COUNT(*): eager path — the global row count must span every file.
+        assertSingleLong(externalQuery(glob, "first_file_wins", "| STATS c = COUNT(*)"), totalRows);
+
+        // UNION_BY_NAME / STRICT still read every file for schema reconciliation; the count stays correct.
+        assertSingleLong(externalQuery(glob, "union_by_name", "| STATS c = COUNT(*)"), totalRows);
+        assertSingleLong(externalQuery(glob, "strict", "| STATS c = COUNT(*)"), totalRows);
+    }
+
+    private static String externalQuery(String glob, String schemaResolution, String tail) {
+        return "EXTERNAL \"" + glob + "\" WITH {\"schema_resolution\": \"" + schemaResolution + "\"} " + tail;
+    }
+
+    private void assertSingleLong(String query, long expected) {
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            var rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat((Long) rows.get(0).get(0), equalTo(expected));
         }
     }
 

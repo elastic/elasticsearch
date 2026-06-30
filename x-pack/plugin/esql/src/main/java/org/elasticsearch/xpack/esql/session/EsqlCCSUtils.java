@@ -13,6 +13,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
+import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -168,13 +170,17 @@ public class EsqlCCSUtils {
         }
     }
 
-    static String createQualifiedLookupIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo, String localPattern) {
-        if (executionInfo.getClusters().isEmpty()) {
-            return localPattern;
-        }
-        return executionInfo.getRunningClusterAliases()
+    static String createQualifiedLookupIndexExpressionFromAvailableClusters(Set<String> lookupIndexScope, String localPattern) {
+        return lookupIndexScope.stream()
             .map(clusterAlias -> RemoteClusterAware.buildRemoteIndexName(clusterAlias, localPattern))
             .collect(joining(","));
+    }
+
+    static Set<String> onlyRunning(EsqlExecutionInfo executionInfo, Set<String> clusterAliases) {
+        if (executionInfo.getClusters().isEmpty()) {
+            return Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);// Happens when joining to ROW
+        }
+        return executionInfo.getRunningClusterAliases().filter(clusterAliases::contains).collect(toSet());
     }
 
     static void updateExecutionInfoWithUnavailableClusters(
@@ -198,22 +204,34 @@ public class EsqlCCSUtils {
     }
 
     /**
-     * Check per-cluster failures for view detection errors thrown by remote clusters. Views are never supported in CCS,
-     * so any such error must fail the entire query regardless of whether other clusters succeeded.
-     * Collects all view errors across all clusters and merges them into a single exception.
+     * Check per-cluster failures for remote non-remotable-abstraction errors — views and datasets — thrown by remote
+     * clusters during field resolution. Neither is supported across clusters (views never; datasets not yet, in TP), so
+     * any such error must fail the entire query regardless of whether other clusters succeeded.
+     * <p>
+     * Both kinds are collected in a single pass and reported together via one {@link RemoteResourceNotSupportedException},
+     * so a query that matches a remote view on one cluster and a remote dataset on another surfaces both at once rather
+     * than whichever kind happened to be checked first.
      */
-    static void checkForViewErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
-        RemoteViewNotSupportedException merged = null;
+    static void checkForRemoteResourceErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
+        List<String> views = new ArrayList<>();
+        List<String> datasets = new ArrayList<>();
         for (var entry : failures.entrySet()) {
             for (FieldCapabilitiesFailure failure : entry.getValue()) {
                 Throwable cause = ExceptionsHelper.unwrapCause(failure.getException());
-                if (cause instanceof RemoteViewNotSupportedException viewEx) {
-                    merged = merged == null ? viewEx : RemoteViewNotSupportedException.merge(merged, viewEx);
+                // A remote that hosts both kinds already combined them into RemoteResourceNotSupportedException; a remote
+                // with a single kind reports the per-kind exception. Collect from whichever shape arrived.
+                if (cause instanceof RemoteResourceNotSupportedException resourceEx) {
+                    views.addAll(resourceEx.views());
+                    datasets.addAll(resourceEx.datasets());
+                } else if (cause instanceof RemoteViewNotSupportedException viewEx) {
+                    views.addAll(viewEx.views());
+                } else if (cause instanceof RemoteDatasetNotSupportedException datasetEx) {
+                    datasets.addAll(datasetEx.datasets());
                 }
             }
         }
-        if (merged != null) {
-            throw merged;
+        if (views.isEmpty() == false || datasets.isEmpty() == false) {
+            throw new RemoteResourceNotSupportedException(views, datasets);
         }
     }
 

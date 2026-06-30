@@ -11,11 +11,112 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DocValuesParameterTests extends MapperServiceTestCase {
+
+    // -----------------------------------------------------------------------
+    // Columnar invariant: every field's _source must be reconstructable from doc-value columns, since columnar rebuilds
+    // _source purely from them and keeps no generic source fallback. A field whose synthetic source is FALLBACK (no doc
+    // values, like doc_values:false, or a type whose doc-value encoding can't rebuild its own source) is rejected on a
+    // root field; multi-fields (never in _source) are exempt.
+    // -----------------------------------------------------------------------
+
+    public void testColumnarEnabledFalseObjectIsLossy() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            b.startObject("meta");
+            b.field("type", "object");
+            b.field("enabled", false);
+            b.endObject();
+        })).documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("meta");
+            b.field("a", "x");
+            b.field("b", 1);
+            b.endObject();
+        }));
+        // The disabled subtree is dropped (lossy) in columnar: it is neither stored as _ignored_source nor given any
+        // doc values, so columnar never needs the generic source fallback for it.
+        for (org.apache.lucene.index.IndexableField f : doc.rootDoc().getFields()) {
+            assertNotEquals("disabled object stored as _ignored_source: " + f.name(), IgnoredSourceFieldMapper.NAME, f.name());
+            assertFalse("field materialized from disabled subtree: " + f.name(), f.name().startsWith("meta"));
+        }
+    }
+
+    public void testColumnarRejectsDocValuesFalseOnRootField() {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(settings, fieldMapping(b -> b.field("type", "keyword").field("doc_values", false)))
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "field [field] cannot reconstruct _source from doc values; "
+                    + "every field must be reconstructable from doc values in index using [columnar]"
+            )
+        );
+    }
+
+    public void testColumnarAllowsDocValuesFalseOnMultiField() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        // A search-only multi-field may opt out of doc values: it never appears in _source, so it needs no columnar
+        // representation (the user accepts they can't aggregate on it).
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("field");
+            {
+                b.field("type", "keyword");
+                b.startObject("fields");
+                b.startObject("raw").field("type", "keyword").field("doc_values", false).endObject();
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        assertTrue(mapperService.fieldType("field").hasDocValues());
+        assertFalse(mapperService.fieldType("field.raw").hasDocValues());
+    }
+
+    public void testColumnarAllowsSparseVectorByDefault() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        // sparse_vector reconstructs _source from a stored field; store defaults to true, so it is reconstructable and
+        // allowed in columnar.
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "sparse_vector")));
+        assertTrue("store should default to true for sparse_vector", mapperService.fieldType("field").isStored());
+    }
+
+    public void testColumnarRejectsSparseVectorWithoutStore() {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        // With store:false sparse_vector has no native synthetic source, so its _source cannot be reconstructed and it
+        // is rejected.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(settings, fieldMapping(b -> b.field("type", "sparse_vector").field("store", false)))
+        );
+        assertThat(e.getMessage(), containsString("field [field] cannot reconstruct _source from doc values"));
+    }
+
+    public void testColumnarAllowsDocValuesEmptyMap() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        // The map form of doc_values (even empty) means "doc values enabled", so doc_values:{} resolves to enabled and
+        // the field is accepted in columnar rather than treated as disabled.
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.startObject("doc_values").endObject();
+        }));
+        assertTrue(mapperService.fieldType("field").hasDocValues());
+    }
 
     // -----------------------------------------------------------------------
     // Null-fallback: omitting one sub-parameter falls back to the field-type default

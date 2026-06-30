@@ -47,7 +47,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFro
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesRangeQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
@@ -459,20 +459,30 @@ public class IpFieldMapper extends FieldMapper {
             }
             if (hasPoints) {
                 if (hasDocValues()) {
-                    return convertToIndexOrDocValuesQuery(query, usesBinaryDocValues, context);
+                    return convertToIndexOrDocValuesQuery(query, usesBinaryDocValues, useArrayOrderBinaryDocValues, context);
                 }
                 return query;
             } else {
-                return convertToDocValuesQuery(query, usesBinaryDocValues, context);
+                return convertToDocValuesQuery(query, usesBinaryDocValues, useArrayOrderBinaryDocValues, context);
             }
         }
 
-        static Query convertToIndexOrDocValuesQuery(Query query, boolean usesBinaryDocValues, SearchExecutionContext context) {
+        static Query convertToIndexOrDocValuesQuery(
+            Query query,
+            boolean usesBinaryDocValues,
+            boolean arrayOrderInlineNull,
+            SearchExecutionContext context
+        ) {
             assert query instanceof PointRangeQuery;
-            return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query, usesBinaryDocValues, context));
+            return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query, usesBinaryDocValues, arrayOrderInlineNull, context));
         }
 
-        static Query convertToDocValuesQuery(Query query, boolean usesBinaryDocValues, SearchExecutionContext context) {
+        static Query convertToDocValuesQuery(
+            Query query,
+            boolean usesBinaryDocValues,
+            boolean arrayOrderInlineNull,
+            SearchExecutionContext context
+        ) {
             assert query instanceof PointRangeQuery;
             PointRangeQuery pointRangeQuery = (PointRangeQuery) query;
 
@@ -481,7 +491,7 @@ public class IpFieldMapper extends FieldMapper {
             final BytesRef upper = new BytesRef(pointRangeQuery.getUpperPoint());
 
             if (usesBinaryDocValues) {
-                return new SlowCustomBinaryDocValuesRangeQuery(field, lower, upper);
+                return new ScanningBinaryDocValuesRangeQuery(field, lower, upper, arrayOrderInlineNull);
             } else {
                 return SortedSetDocValuesField.newSlowRangeQuery(field, lower, upper, true, true);
             }
@@ -528,12 +538,15 @@ public class IpFieldMapper extends FieldMapper {
                 Query query = InetAddressPoint.newRangeQuery(name(), lower, upper);
                 if (hasPoints) {
                     if (hasDocValues()) {
-                        return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query, usesBinaryDocValues, context));
+                        return new IndexOrDocValuesQuery(
+                            query,
+                            convertToDocValuesQuery(query, usesBinaryDocValues, useArrayOrderBinaryDocValues, context)
+                        );
                     } else {
                         return query;
                     }
                 } else {
-                    return convertToDocValuesQuery(query, usesBinaryDocValues, context);
+                    return convertToDocValuesQuery(query, usesBinaryDocValues, useArrayOrderBinaryDocValues, context);
                 }
             });
         }
@@ -855,7 +868,15 @@ public class IpFieldMapper extends FieldMapper {
                 assert fieldType().indexType.hasDocValuesSkipper() == false : "skippers are not supported for binary doc values";
                 if (fieldType().usesArrayOrderBinaryDocValues()) {
                     // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls.
-                    MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(doc, fieldType().name(), address.binaryValue());
+                    if (context.isPartOfArray() == false) {
+                        MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordSingleValue(
+                            doc,
+                            fieldType().name(),
+                            address.binaryValue()
+                        );
+                    } else {
+                        MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(doc, fieldType().name(), address.binaryValue());
+                    }
                 } else {
                     dvFactory.addBinaryField(
                         doc,

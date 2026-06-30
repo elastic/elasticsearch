@@ -58,7 +58,8 @@ public class ReservedProjectStateUpdateTask extends ReservedStateUpdateTask<Rese
     }
 
     @Override
-    protected ClusterState execute(ClusterState currentState) {
+    // public visibility for testing
+    public ClusterState execute(ClusterState currentState) {
         if (currentState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // If cluster state has become blocked, this task was submitted while the node was master but is now not master.
             // The new master will re-read file settings, so whatever update was to be written here will be handled
@@ -81,13 +82,11 @@ public class ReservedProjectStateUpdateTask extends ReservedStateUpdateTask<Rese
             ProjectStateRegistry.TYPE,
             ProjectStateRegistry.EMPTY
         );
-        ProjectMetadata updatedProjectMetadata = updatedClusterState.getMetadata().getProject(projectId);
-        return ClusterState.builder(currentState)
+        return ClusterState.builder(updatedClusterState)
             .putCustom(
                 ProjectStateRegistry.TYPE,
                 ProjectStateRegistry.builder(updatedProjectStateRegistry).putReservedStateMetadata(projectId, result.v2()).build()
             )
-            .putProjectMetadata(updatedProjectMetadata)
             .build();
     }
 }

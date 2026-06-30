@@ -9,11 +9,14 @@
 
 package org.elasticsearch.foreign.processor;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.lang.invoke.MethodHandle;
 
 /**
  * Tests that {@link ImplClassWriter} generates correct {@code $Impl} class files.
  */
+@SuppressForbidden(reason = "tests verify private fields of processor-generated classes; getDeclaredField is the only way to access them")
 public class ImplClassWriterTests extends ProcessorTestCase {
 
     /**
@@ -138,7 +141,52 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         assertEquals("getErrorName$mh must be a MethodHandle", java.lang.invoke.MethodHandle.class, mhField.getType());
 
         // The generated method must have return type String
-        java.lang.reflect.Method method = implClass.getDeclaredMethod("getErrorName", long.class);
+        java.lang.reflect.Method method = implClass.getMethod("getErrorName", long.class);
         assertEquals("getErrorName must return String", String.class, method.getReturnType());
+    }
+
+    /**
+     * Verifies that a {@code String} parameter is accepted and generates a class whose method
+     * takes a {@code String} on the Java side. The generated method body must open a confined
+     * {@code Arena}, allocate the String into native memory via
+     * {@code MemorySegmentUtil.allocateString}, pass the resulting {@code MemorySegment} to
+     * {@code invokeExact}, and close the arena in both normal and exceptional paths.
+     *
+     * <p>We verify structurally: the generated class must have a {@code sandbox_init$mh} field
+     * and the method must accept a {@code String} parameter (not {@code MemorySegment}).
+     */
+    public void testStringParamGeneratesClass() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            @LibrarySpecification
+            public interface SandboxLib {
+                @Function("sandbox_init")
+                int sandboxInit(String profile, long flags, MemorySegment errorbuf);
+            }
+            """;
+
+        CompilationResult result = compile("test.SandboxLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClassNoInit("test.SandboxLib$Impl");
+        assertNotNull("Generated SandboxLib$Impl class not found", implClass);
+
+        // The $mh field must exist
+        java.lang.reflect.Field mhField = implClass.getDeclaredField("sandboxInit$mh");
+        assertEquals("sandboxInit$mh must be a MethodHandle", java.lang.invoke.MethodHandle.class, mhField.getType());
+
+        // The generated method must accept String, long, MemorySegment (not MemorySegment, long, MemorySegment)
+        java.lang.reflect.Method method = implClass.getMethod(
+            "sandboxInit",
+            String.class,
+            long.class,
+            java.lang.foreign.MemorySegment.class
+        );
+        assertEquals("sandboxInit must return int", int.class, method.getReturnType());
+        assertEquals("first param must be String", String.class, method.getParameterTypes()[0]);
     }
 }

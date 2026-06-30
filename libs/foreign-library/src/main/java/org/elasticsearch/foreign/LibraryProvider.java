@@ -25,7 +25,9 @@ public interface LibraryProvider<T> {
     Class<T> libraryClass();
 
     /**
-     * Constructs and returns a new instance of the library implementation.
+     * Constructs and returns a new instance of the library implementation, or {@code null} if the
+     * library is not available on the current platform (i.e. the current platform is listed in
+     * {@link LibrarySpecification#unavailableOn()}).
      */
     T load();
 
@@ -45,7 +47,8 @@ public interface LibraryProvider<T> {
     }
 
     /**
-     * Returns a new instance of the given library class, or {@code null} if no provider is registered.
+     * Returns a new instance of the given library class, or {@code null} if no provider is registered
+     * or if the library is unavailable on the current platform (see {@link LibrarySpecification#unavailableOn()}).
      * The cast is safe by construction: the map invariant guarantees the provider keyed by {@code cls}
      * declared {@code T} as its {@code libraryClass()}.
      */

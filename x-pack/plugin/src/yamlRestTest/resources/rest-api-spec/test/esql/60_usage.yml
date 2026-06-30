@@ -63,10 +63,11 @@ setup:
             - uri_parts_command
             - registered_domain_command
             - user_agent_command
+            - ip_location_command
             - fn_json_extract
             - esql_limit_by
             - dedup_command
-            - highlight_v0
+            - highlight_v1
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }
@@ -106,6 +107,7 @@ setup:
   - set: { esql.features.uri_parts: uri_parts_counter }
   - set: { esql.features.registered_domain: registered_domain_counter }
   - set: { esql.features.user_agent: user_agent_counter }
+  - set: { esql.features.ip_location: ip_location_counter }
   - set: { esql.features.mmr: mmr_counter }
   - set: { esql.features.dedup: dedup_counter }
   - set: { esql.features.highlight: highlight_counter }
@@ -143,6 +145,7 @@ setup:
   - match: { esql.features.uri_parts: $uri_parts_counter }
   - match: { esql.features.registered_domain: $registered_domain_counter }
   - match: { esql.features.user_agent: $user_agent_counter }
+  - match: { esql.features.ip_location: $ip_location_counter }
   - gt: { esql.features.limit: $limit_counter }
   - match: { esql.features.limit_by: $limit_by_counter }
   - gt: { esql.features.sort: $sort_counter }
@@ -201,6 +204,7 @@ setup:
   - match: { esql.features.uri_parts: $uri_parts_counter }
   - match: { esql.features.registered_domain: $registered_domain_counter }
   - match: { esql.features.user_agent: $user_agent_counter }
+  - match: { esql.features.ip_location: $ip_location_counter }
   - match: { esql.features.limit: $limit_counter }
   - match: { esql.features.limit_by: $limit_by_counter }
   - match: { esql.features.sort: $sort_counter }
@@ -308,6 +312,7 @@ setup:
   - set: { esql.features.uri_parts: uri_parts_counter }
   - set: { esql.features.registered_domain: registered_domain_counter }
   - set: { esql.features.user_agent: user_agent_counter }
+  - set: { esql.features.ip_location: ip_location_counter }
   - set: { esql.features.mmr: mmr_counter }
   - set: { esql.features.dedup: dedup_counter }
   - set: { esql.features.highlight: highlight_counter }
@@ -344,6 +349,7 @@ setup:
   - match: { esql.features.uri_parts: $uri_parts_counter }
   - match: { esql.features.registered_domain: $registered_domain_counter }
   - match: { esql.features.user_agent: $user_agent_counter }
+  - match: { esql.features.ip_location: $ip_location_counter }
   - gt: { esql.features.limit: $limit_counter }
   - match: { esql.features.limit_by: $limit_by_counter }
   - gt: { esql.features.sort: $sort_counter }
@@ -401,6 +407,7 @@ setup:
   - match: { esql.features.grok: $grok_counter }
   - match: { esql.features.uri_parts: $uri_parts_counter }
   - match: { esql.features.registered_domain: $registered_domain_counter }
+  - match: { esql.features.ip_location: $ip_location_counter }
   - match: { esql.features.limit: $limit_counter }
   - match: { esql.features.limit_by: $limit_by_counter }
   - match: { esql.features.sort: $sort_counter }

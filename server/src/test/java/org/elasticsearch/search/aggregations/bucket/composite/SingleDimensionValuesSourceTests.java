@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -93,69 +94,49 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
     }
 
-    public void testGlobalOrdinalsSorted() {
+    public void testOrdinalsProduceSortedDocs() {
+        // Keyword (a StringFieldType), ascending, match_all, no missing bucket: the segment-ordinal source drives
+        // collection through a TermsSortedDocsProducer (terms-dictionary walk with early termination), which keeps deep
+        // composite pagination off a full per-page document scan. It needs no global ordinals; the walk runs straight off
+        // the inverted index.
+        final IndexReader reader = mockIndexReader(1, 1);
         final MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType("keyword");
-        GlobalOrdinalValuesSource source = new GlobalOrdinalValuesSource(
-            BigArrays.NON_RECYCLING_INSTANCE,
-            keyword,
-            0L,
-            context -> null,
-            DocValueFormat.RAW,
-            false,
-            MissingOrder.DEFAULT,
-            1,
-            1
-        );
-        assertNull(source.createSortedDocsProducerOrNull(mockIndexReader(100, 49), null));
-        IndexReader reader = mockIndexReader(1, 1);
-        assertNotNull(source.createSortedDocsProducerOrNull(reader, Queries.ALL_DOCS_INSTANCE));
-        assertNotNull(source.createSortedDocsProducerOrNull(reader, null));
-        assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
-        assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
+        try (SegmentOrdinalValuesSource source = newOrdinalSource(keyword, false, 1)) {
+            assertThat(source.createSortedDocsProducerOrNull(reader, Queries.ALL_DOCS_INSTANCE), instanceOf(TermsSortedDocsProducer.class));
+            assertThat(source.createSortedDocsProducerOrNull(reader, null), instanceOf(TermsSortedDocsProducer.class));
+            // A query other than match_all cannot be answered by the terms walk.
+            assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto"))));
+            // More than half the segment deleted: skip the inverted-index walk.
+            assertNull(source.createSortedDocsProducerOrNull(mockIndexReader(100, 49), null));
+        }
+        // Descending order cannot reuse the ascending terms walk.
+        try (SegmentOrdinalValuesSource sourceRev = newOrdinalSource(keyword, false, -1)) {
+            assertNull(sourceRev.createSortedDocsProducerOrNull(reader, Queries.ALL_DOCS_INSTANCE));
+        }
+        // A missing bucket with no after key disables the optimization.
+        try (SegmentOrdinalValuesSource sourceMissing = newOrdinalSource(keyword, true, 1)) {
+            assertNull(sourceMissing.createSortedDocsProducerOrNull(reader, Queries.ALL_DOCS_INSTANCE));
+        }
+        // IP is not a StringFieldType, so the terms-walk producer never applies (matching the previous global-ordinals
+        // source); IP composites order on per-segment ordinals through the regular collection path.
+        try (SegmentOrdinalValuesSource ipSource = newOrdinalSource(new IpFieldMapper.IpFieldType("ip"), false, 1)) {
+            assertNull(ipSource.createSortedDocsProducerOrNull(reader, Queries.ALL_DOCS_INSTANCE));
+            assertNull(ipSource.createSortedDocsProducerOrNull(reader, null));
+        }
+    }
 
-        source = new GlobalOrdinalValuesSource(
+    private static SegmentOrdinalValuesSource newOrdinalSource(MappedFieldType fieldType, boolean missingBucket, int reverseMul) {
+        return new SegmentOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
-            keyword,
-            0L,
+            bytes -> {},
+            fieldType,
             context -> null,
             DocValueFormat.RAW,
-            true,
+            missingBucket,
             MissingOrder.DEFAULT,
             1,
-            1
+            reverseMul
         );
-        assertNull(source.createSortedDocsProducerOrNull(reader, Queries.ALL_DOCS_INSTANCE));
-        assertNull(source.createSortedDocsProducerOrNull(reader, null));
-        assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
-
-        source = new GlobalOrdinalValuesSource(
-            BigArrays.NON_RECYCLING_INSTANCE,
-            keyword,
-            0L,
-            context -> null,
-            DocValueFormat.RAW,
-            false,
-            MissingOrder.DEFAULT,
-            1,
-            -1
-        );
-        assertNull(source.createSortedDocsProducerOrNull(reader, null));
-        assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
-
-        final MappedFieldType ip = new IpFieldMapper.IpFieldType("ip");
-        source = new GlobalOrdinalValuesSource(
-            BigArrays.NON_RECYCLING_INSTANCE,
-            ip,
-            0L,
-            context -> null,
-            DocValueFormat.RAW,
-            false,
-            MissingOrder.DEFAULT,
-            1,
-            1
-        );
-        assertNull(source.createSortedDocsProducerOrNull(reader, null));
-        assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
     }
 
     public void testNumericSorted() {

@@ -34,13 +34,7 @@ public class SemanticOriginalValueEncoderTests extends ESTestCase {
     public void testDataUriRoundTrip() throws IOException {
         // The base64 payload is decoded on the way in and regenerated on the way out, so the data URI must come back identical for
         // every non-text data type. The type is stored, so it is preserved independently of the media type. Empty payload is an edge.
-        DataType dataType = randomFrom(DataType.IMAGE, DataType.AUDIO, DataType.VIDEO, DataType.PDF);
-        String mediaType = randomFrom("image/png", "audio/mpeg", "video/mp4", "application/pdf");
-        byte[] payload = randomBoolean() ? new byte[0] : randomByteArrayOfLength(randomIntBetween(1, 256));
-        InferenceString value = new InferenceString(
-            dataType,
-            "data:" + mediaType + ";base64," + Base64.getEncoder().encodeToString(payload)
-        );
+        InferenceString value = randomDataUriInferenceString();
 
         XContentBuilder expected = JsonXContent.contentBuilder().startObject().field("f");
         value.toXContent(expected, ToXContent.EMPTY_PARAMS);
@@ -54,32 +48,38 @@ public class SemanticOriginalValueEncoderTests extends ESTestCase {
         String text = randomAlphaOfLengthBetween(0, 50);
         assertThat(SemanticOriginalValueEncoder.decode(SemanticOriginalValueEncoder.encode(text)), equalTo(text));
 
-        // ...and a {type, format, value} map for a data URI, matching the reconstructed _source object.
-        DataType dataType = randomFrom(DataType.IMAGE, DataType.AUDIO, DataType.VIDEO, DataType.PDF);
-        String mediaType = randomFrom("image/png", "audio/mpeg", "video/mp4", "application/pdf");
-        byte[] payload = randomByteArrayOfLength(randomIntBetween(1, 64));
-        String dataUri = "data:" + mediaType + ";base64," + Base64.getEncoder().encodeToString(payload);
-
-        Object decoded = SemanticOriginalValueEncoder.decode(SemanticOriginalValueEncoder.encode(new InferenceString(dataType, dataUri)));
+        // ...and a {type, format, value} map for a data URI (empty payload included), matching the reconstructed _source object.
+        InferenceString value = randomDataUriInferenceString();
+        Object decoded = SemanticOriginalValueEncoder.decode(SemanticOriginalValueEncoder.encode(value));
         assertThat(
             decoded,
             equalTo(
                 Map.of(
                     InferenceString.TYPE_FIELD,
-                    dataType.toString(),
+                    value.dataType().toString(),
                     InferenceString.FORMAT_FIELD,
-                    dataType.getDefaultFormat().toString(),
+                    value.dataType().getDefaultFormat().toString(),
                     InferenceString.VALUE_FIELD,
-                    dataUri
+                    value.value()
                 )
             )
         );
     }
 
-    public void testEncodeInferenceStringText() {
-        // A text value supplied as an InferenceString encodes the same as the raw string.
-        String text = randomAlphaOfLengthBetween(1, 20);
-        assertThat(SemanticOriginalValueEncoder.encode(InferenceString.ofText(text)), equalTo(SemanticOriginalValueEncoder.encode(text)));
+    public void testEncodeTextInferenceStringIsRejected() {
+        // A text value must be supplied as a plain string; a text InferenceString is rejected here, mirroring
+        // ShardBulkInferenceActionFilter, which does not allow InferenceStrings to represent text values.
+        InferenceString text = InferenceString.ofText(randomAlphaOfLengthBetween(1, 20));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SemanticOriginalValueEncoder.encode(text));
+        assertThat(e.getMessage(), containsString("Text values must be supplied as a string"));
+    }
+
+    /** A random non-text data URI {@link InferenceString}, with an empty payload as one possibility. */
+    private static InferenceString randomDataUriInferenceString() {
+        DataType dataType = randomFrom(DataType.IMAGE, DataType.AUDIO, DataType.VIDEO, DataType.PDF);
+        String mediaType = randomFrom("image/png", "audio/mpeg", "video/mp4", "application/pdf");
+        byte[] payload = randomBoolean() ? new byte[0] : randomByteArrayOfLength(randomIntBetween(1, 256));
+        return new InferenceString(dataType, "data:" + mediaType + ";base64," + Base64.getEncoder().encodeToString(payload));
     }
 
     public void testInvalidBase64IsRejected() {

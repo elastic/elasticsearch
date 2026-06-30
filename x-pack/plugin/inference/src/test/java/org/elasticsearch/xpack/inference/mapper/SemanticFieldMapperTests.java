@@ -30,6 +30,7 @@ import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -43,7 +44,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -79,7 +79,7 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
                 mapper,
                 b -> b.startObject("my_field").field("type", "image").field("format", "base64").field("value", dataUri).endObject()
             ),
-            equalTo(Strings.toString(imageSource("my_field", dataUri)))
+            equalTo("{\"my_field\":" + imageObject(dataUri) + "}")
         );
 
         // A mixed text/image array preserves document order and types.
@@ -136,11 +136,13 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
             .put("index.mapping.source.mode", "synthetic")
             .build();
         MapperService mapperService = createMapperService(version, settings, mapping(this::semanticFieldMapping));
-        String dataUri = dataUri(new byte[] { 1, 2, 3, 4, 5 });
+        // A random mix of text, boolean, numeric and multimodal (InferenceString) values, to cover all decoded forms.
+        List<Object> inputs = randomList(1, 5, () -> SemanticTextFieldTests.randomSemanticInput(true));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.startArray("my_field");
-            b.value("hello");
-            b.startObject().field("type", "image").field("format", "base64").field("value", dataUri).endObject();
+            for (Object input : inputs) {
+                writeSemanticInput(b, input);
+            }
             b.endArray();
         }));
 
@@ -149,12 +151,84 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
         assertThat(fetcher, instanceOf(OriginalValuesDocValuesFetcher.class));
         assertThat(fetcher.storedFieldsSpec(), equalTo(StoredFieldsSpec.NO_REQUIREMENTS));
 
+        List<Object> expected = new ArrayList<>(inputs.size());
+        for (Object input : inputs) {
+            expected.add(expectedFetchedValue(input));
+        }
+
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
             fetcher.setNextReader(reader.leaves().get(0));
             // An empty Source proves the values come from doc values, in document order.
             List<Object> values = fetcher.fetchValues(Source.empty(XContentType.JSON), 0, new ArrayList<>());
-            assertThat(values, contains("hello", Map.of("type", "image", "format", "base64", "value", dataUri)));
+            assertThat(values, equalTo(expected));
         });
+    }
+
+    private static void writeSemanticInput(XContentBuilder b, Object input) throws IOException {
+        if (input instanceof InferenceString inferenceString) {
+            inferenceString.toXContent(b, ToXContent.EMPTY_PARAMS);
+        } else {
+            b.value(input);
+        }
+    }
+
+    /** The form the doc-values value fetcher returns: a {type, format, value} map for a data URI, otherwise the value's text form. */
+    private Object expectedFetchedValue(Object input) throws IOException {
+        if (input instanceof InferenceString inferenceString) {
+            // The encoder stores the decoded bytes and regenerates canonical (padded) base64 on read, so a non-canonical input
+            // payload comes back normalized. Mirror that by decoding and re-encoding the payload here.
+            String dataUri = inferenceString.value();
+            int dataStart = dataUri.indexOf(',') + 1;
+            String canonicalDataUri = dataUri.substring(0, dataStart) + Base64.getEncoder()
+                .encodeToString(Base64.getDecoder().decode(dataUri.substring(dataStart)));
+            return Map.of(
+                InferenceString.TYPE_FIELD,
+                inferenceString.dataType().toString(),
+                InferenceString.FORMAT_FIELD,
+                inferenceString.dataType().getDefaultFormat().toString(),
+                InferenceString.VALUE_FIELD,
+                canonicalDataUri
+            );
+        }
+        // Booleans and numbers are stored as their text form; reproduce parser.text() exactly via the same builder/parser round-trip.
+        XContentBuilder b = JsonXContent.contentBuilder().startObject().field("f");
+        b.value(input);
+        b.endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(b))) {
+            parser.nextToken();
+            parser.nextToken();
+            parser.nextToken();
+            return parser.text();
+        }
+    }
+
+    /**
+     * A {@code semantic} value may be a boolean or a number; like the inference filter (SemanticTextUtils#nodeStringValues), the field
+     * coerces it to its string form, so the doc-values {@code _source} round-trip returns the value as a string.
+     */
+    public void testBooleanAndNumericValuesRoundTripAsStrings() throws IOException {
+        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
+
+        IndexVersion version = IndexVersion.current();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version)
+            .put("index.mapping.source.mode", "synthetic")
+            .build();
+        MapperService mapperService = createMapperService(version, settings, mapping(this::semanticFieldMapping));
+        DocumentMapper mapper = mapperService.documentMapper();
+
+        assertThat(syntheticSource(mapper, b -> b.field("my_field", true)), equalTo("{\"my_field\":\"true\"}"));
+        assertThat(syntheticSource(mapper, b -> b.field("my_field", 42)), equalTo("{\"my_field\":\"42\"}"));
+        assertThat(syntheticSource(mapper, b -> b.field("my_field", 1.5)), equalTo("{\"my_field\":\"1.5\"}"));
+
+        // A mixed array of a string, boolean and number preserves document order, with each non-string value coerced to a string.
+        assertThat(syntheticSource(mapper, b -> {
+            b.startArray("my_field");
+            b.value("text");
+            b.value(false);
+            b.value(7);
+            b.endArray();
+        }), equalTo("{\"my_field\":[\"text\",\"false\",\"7\"]}"));
     }
 
     /**
@@ -197,12 +271,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
 
     private static String dataUri(byte[] payload) {
         return "data:image/png;base64," + Base64.getEncoder().encodeToString(payload);
-    }
-
-    private static XContentBuilder imageSource(String field, String dataUri) throws IOException {
-        XContentBuilder b = JsonXContent.contentBuilder().startObject().field(field);
-        new InferenceString(DataType.IMAGE, dataUri).toXContent(b, ToXContent.EMPTY_PARAMS);
-        return b.endObject();
     }
 
     private static String imageObject(String dataUri) throws IOException {

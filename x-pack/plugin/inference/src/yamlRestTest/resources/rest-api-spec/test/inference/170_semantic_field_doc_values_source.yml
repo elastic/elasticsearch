@@ -1,6 +1,6 @@
 setup:
   - requires:
-      cluster_features: [ "semantic_field.semantic_field_mapper", "semantic_text.original_values_in_doc_values" ]
+      cluster_features: [ "semantic_field.semantic_field_mapper" ]
       reason: a semantic field stores its original input value in doc values so _source can be rebuilt from doc values
 
   - do:

@@ -750,13 +750,21 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                     new BinaryDocValuesSyntheticFieldLoaderLayer(fieldName, indexCreatedVersion) {
                         @Override
                         protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
-                            SemanticOriginalValueEncoder.decodeAndWrite(value, b);
+                            writeOriginalValue(b, value);
                         }
                     }
                 )
             );
         }
         return super.syntheticSourceSupport();
+    }
+
+    /**
+     * Writes a single stored original value back to {@code _source} when it is rebuilt from doc values. The base {@code semantic} field
+     * decodes the encoder's binary form (text or a data URI object); {@code semantic_text} overrides this to write its raw UTF-8 input.
+     */
+    protected void writeOriginalValue(XContentBuilder b, BytesRef value) throws IOException {
+        SemanticOriginalValueEncoder.decodeAndWrite(value, b);
     }
 
     protected SemanticTextField.ParserContext getParserContext(DocumentParserContext context) {

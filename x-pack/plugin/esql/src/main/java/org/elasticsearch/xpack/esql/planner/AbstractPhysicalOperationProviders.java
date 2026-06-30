@@ -211,6 +211,9 @@ public abstract class AbstractPhysicalOperationProviders {
                         pragmas.partialAggregationEmitKeysThreshold(context.plannerSettings().partialEmitKeysThreshold()),
                         pragmas.partialAggregationEmitUniquenessThreshold(context.plannerSettings().partialEmitUniquenessThreshold())
                     )
+                    .partialEmitBreakerHeadroomRatio(
+                        pragmas.partialAggregationEmitBreakerHeadroomRatio(context.plannerSettings().partialEmitBreakerHeadroomRatio())
+                    )
                     .maxPageSize(maxPageSize)
                     .aggregationBatchSize(aggregationBatchSize)
                     .analysisRegistry(analysisRegistry)

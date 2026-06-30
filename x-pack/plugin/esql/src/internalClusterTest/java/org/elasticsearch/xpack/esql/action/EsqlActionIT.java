@@ -2011,6 +2011,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             .put(QueryPragmas.PAGE_SIZE.getKey(), 1)
             .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), 5)
             .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(), 0.1)
+            // Disable breaker-driven emission
+            .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_BREAKER_HEADROOM_RATIO.getKey(), 0.0)
             .build();
 
         EsqlQueryRequest request = new EsqlQueryRequest();

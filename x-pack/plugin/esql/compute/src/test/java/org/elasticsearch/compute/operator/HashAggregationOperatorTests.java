@@ -37,6 +37,7 @@ import java.util.stream.LongStream;
 
 import static java.util.stream.IntStream.range;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
@@ -340,6 +341,106 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                 equalTo(List.of(1L, 18L, 8L)),
                 equalTo(List.of(1L, 16L, 8L))
             );
+        }
+    }
+
+    /**
+     * Verifies that with abundant circuit-breaker headroom (near-zero usage), the operator suppresses
+     * all periodic partial emits regardless of key count, emitting only once on {@code finish()}.
+     */
+    public void testAdaptivePartialEmitAbundantHeadroom() {
+        int keysThreshold = 1_000;
+        int keysPerPage = 5_000;
+        int numPages = 5;
+        AggregatorMode mode = AggregatorMode.INITIAL;
+
+        BlockFactory blockFactory = blockFactory(); // 1 GB limit, near-zero used
+        var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        try (
+            var op = new HashAggregationOperator.Builder().groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
+                .mode(mode)
+                .aggregators(
+                    List.of(new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(mode, List.of(1)))
+                )
+                .partialEmit(keysThreshold, 0.1)
+                .partialEmitBreakerHeadroomRatio(0.7)
+                .maxPageSize(randomPageSize())
+                .build()
+                .get(driverContext)
+        ) {
+            for (int p = 0; p < numPages; p++) {
+                long baseKey = (long) p * keysPerPage;
+                long[] keys = LongStream.range(baseKey, baseKey + keysPerPage).toArray();
+                Page page = new Page(
+                    blockFactory.newLongArrayVector(keys, keysPerPage).asBlock(),
+                    blockFactory.newLongArrayVector(new long[keysPerPage], keysPerPage).asBlock()
+                );
+                op.addInput(page);
+            }
+            op.finish();
+            Page out;
+            while ((out = op.getOutput()) != null) {
+                out.releaseBlocks();
+            }
+            // With ample headroom the breaker gate suppresses all periodic emits; only finish() fires.
+            assertThat(((HashAggregationOperator.Status) op.status()).emitCount(), equalTo(1L));
+        }
+    }
+
+    /**
+     * Verifies that with a near-full circuit breaker the operator still emits partial results
+     * periodically, preserving memory safety when pressure is real.
+     */
+    public void testAdaptivePartialEmitTightBreaker() {
+        int keysThreshold = 1_000;
+        int keysPerPage = 5_000;
+        int numPages = 5;
+        AggregatorMode mode = AggregatorMode.INITIAL;
+
+        BlockFactory blockFactory = blockFactory(); // 1 GB limit
+        long preFillBytes = (long) (0.75 * blockFactory.breaker().getLimit());
+        // Simulate 75% breaker usage to open the headroom gate.
+        blockFactory.breaker().addWithoutBreaking(preFillBytes);
+        try {
+            var driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+            try (
+                var op = new HashAggregationOperator.Builder().groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
+                    .mode(mode)
+                    .aggregators(
+                        List.of(
+                            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(mode, List.of(1))
+                        )
+                    )
+                    .partialEmit(keysThreshold, 0.1)
+                    .partialEmitBreakerHeadroomRatio(0.7)
+                    .maxPageSize(randomPageSize())
+                    .build()
+                    .get(driverContext)
+            ) {
+                for (int p = 0; p < numPages; p++) {
+                    long baseKey = (long) p * keysPerPage;
+                    long[] keys = LongStream.range(baseKey, baseKey + keysPerPage).toArray();
+                    Page page = new Page(
+                        blockFactory.newLongArrayVector(keys, keysPerPage).asBlock(),
+                        blockFactory.newLongArrayVector(new long[keysPerPage], keysPerPage).asBlock()
+                    );
+                    op.addInput(page);
+                    // drain any partial output so the next addInput finds needsInput() == true
+                    Page out;
+                    while ((out = op.getOutput()) != null) {
+                        out.releaseBlocks();
+                    }
+                }
+                op.finish();
+                Page out;
+                while ((out = op.getOutput()) != null) {
+                    out.releaseBlocks();
+                }
+                // With high breaker pressure the periodic-emit gate opens; multiple emits must fire.
+                assertThat(((HashAggregationOperator.Status) op.status()).emitCount(), greaterThan(1L));
+            }
+        } finally {
+            blockFactory.breaker().addWithoutBreaking(-preFillBytes);
         }
     }
 

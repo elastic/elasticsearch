@@ -120,7 +120,16 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         Rounding.Prepared outputTimeBucket,
         DriverContext driverContext
     ) {
-        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, Integer.MAX_VALUE, driverContext);
+        super(
+            aggregatorMode,
+            aggregators,
+            blockHash,
+            Integer.MAX_VALUE,
+            1.0,
+            DEFAULT_PARTIAL_EMIT_BREAKER_HEADROOM_RATIO,
+            Integer.MAX_VALUE,
+            driverContext
+        );
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
         this.outputTimeBucket = outputTimeBucket;

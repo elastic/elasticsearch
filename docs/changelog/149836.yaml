@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149836
+summary: Adaptive partial-emit threshold for hash aggregation
+type: enhancement

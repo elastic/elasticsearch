@@ -130,7 +130,7 @@ Dynamic mapping behavior is controlled through configuration param `dynamic` tha
 ## Auto flattening [auto-flattening]
 
 Mappings are always flattened. When defining mappings, any object field mapper is removed and leaf field mappings are created for each field path.
-The same applied with dynamic mapping updates during indexing.
+The same applies to dynamic mapping updates during indexing.
 
 If `object` field mapping are flattened, the `enabled` and `dynamic` settings are preserved.
 For `passthrough` field mappings, the `priority` setting is preserved.

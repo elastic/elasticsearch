@@ -389,9 +389,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.DatafeedCcsIT
   method: testDatafeedWithCcsRemoteUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/150541
-- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
-  method: testStress
-  issue: https://github.com/elastic/elasticsearch/issues/147850
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
   method: testTypeConflictMappedTimesTwoAndUnmapped
   issue: https://github.com/elastic/elasticsearch/issues/150567
@@ -764,3 +761,9 @@ tests:
 - class: org.elasticsearch.upgrades.RecoveryIT
   method: testRelocationWithConcurrentIndexing {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/152486
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testRelocationWithConcurrentIndexing {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/152494
+- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
+  method: testSeqNoPartiallyRetainedByCcrLease
+  issue: https://github.com/elastic/elasticsearch/issues/152498

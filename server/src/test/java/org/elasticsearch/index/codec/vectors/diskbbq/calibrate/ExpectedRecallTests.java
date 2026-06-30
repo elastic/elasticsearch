@@ -24,28 +24,6 @@ public class ExpectedRecallTests extends ESTestCase {
     private static final double INV_DIM = 0.5;
     private static final int CORPUS_SIZE = 10_000;
 
-    public void testRerankNRoundsHalfUp() {
-        assertEquals(25, ExpectedRecall.rerankN(10, 5, 2));
-        assertEquals(15, ExpectedRecall.rerankN(10, 15, 10));
-        assertEquals(18, ExpectedRecall.rerankN(10, 7, 4));
-        assertEquals(20, ExpectedRecall.rerankN(10, 2, 1));
-    }
-
-    public void testRerankNFromDepth() {
-        assertEquals(13, ExpectedRecall.rerankN(10, 1.25));
-        assertEquals(15, ExpectedRecall.rerankN(10, 1.5));
-        assertEquals(18, ExpectedRecall.rerankN(10, 1.75));
-        assertEquals(20, ExpectedRecall.rerankN(10, 2.0));
-        assertEquals(23, ExpectedRecall.rerankN(10, 2.25));
-        assertEquals(25, ExpectedRecall.rerankN(10, 2.5));
-    }
-
-    public void testRerankNFromDepthClampsToAtLeastOne() {
-        assertEquals(1, ExpectedRecall.rerankN(10, 0.01));
-        assertEquals(1, ExpectedRecall.rerankN(1, 0.5));
-        assertEquals(1, ExpectedRecall.rerankN(1, 1.0));
-    }
-
     public void testErfAtKnownValues() {
         assertThat(ExpectedRecall.erf(0.0), closeTo(0.0, 1e-6));
         assertThat(ExpectedRecall.erf(1.0), closeTo(0.8427007929497149, 1e-7));

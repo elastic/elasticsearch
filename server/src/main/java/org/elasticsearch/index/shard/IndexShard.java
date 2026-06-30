@@ -84,6 +84,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.analysis.TokenCountingAnalyzer;
+import org.elasticsearch.index.analysis.TokenCountingMetrics;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.bulk.stats.ShardBulkStats;
@@ -3932,10 +3934,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public static Analyzer buildIndexAnalyzer(MapperService mapperService) {
+        return buildIndexAnalyzer(mapperService, TokenCountingMetrics.NOOP);
+    }
+
+    /**
+     * Builds the index analyzer, wrapping it with a {@link TokenCountingAnalyzer}
+     * that records the number of tokens produced per field value to the metrics histogram.
+     *
+     * @param mapperService          the mapper service to use for field analyzer resolution
+     * @param tokenCountingMetrics   metrics instance for recording token counts per field value
+     * @return the analyzer to use for indexing, or null if no mapper service is available
+     */
+    static Analyzer buildIndexAnalyzer(MapperService mapperService, TokenCountingMetrics tokenCountingMetrics) {
         if (mapperService == null) {
             return null;
         }
-        return new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
+        Analyzer baseAnalyzer = new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
             @Override
             protected Analyzer getWrappedAnalyzer(String fieldName) {
                 return mapperService.indexAnalyzer(
@@ -3944,6 +3958,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 );
             }
         };
+        return new TokenCountingAnalyzer(baseAnalyzer, tokenCountingMetrics);
     }
 
     private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) {
@@ -3964,7 +3979,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .warmer(warmer)
             .store(store)
             .mergePolicy(indexSettings.getMergePolicy(isTimeBasedIndex))
-            .analyzer(buildIndexAnalyzer(mapperService))
+            .analyzer(
+                buildIndexAnalyzer(
+                    mapperService,
+                    mapperService != null ? mapperService.getMapperMetrics().tokenCountingMetrics() : TokenCountingMetrics.NOOP
+                )
+            )
             .similarity(similarityService.similarity(mapperService == null ? null : mapperService::fieldType))
             .codecProvider(codecService)
             .eventListener(shardEventListener)

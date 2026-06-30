@@ -22,7 +22,8 @@ import org.elasticsearch.common.settings.Settings;
  * <ol>
  *   <li>The SDK defaults from {@link Resource#getDefault()}
  *   <li>Fixed Elasticsearch identity attributes set below: {@code service.name},
- *       {@code service.version}, {@code service.language.name}, plus {@code service.agent.*}.</li>
+ *       {@code service.version}, {@code service.language.name},
+ *       {@code service.runtime.name}/{@code service.runtime.version}, plus {@code service.agent.*}.</li>
  *   <li>{@code service.instance.id} from the {@code node.name} setting when configured.</li>
  *   <li>Operator-injected attributes pulled from the
  *       {@link OtelSdkSettings#TELEMETRY_RESOURCE_ATTRIBUTES} affix setting
@@ -52,7 +53,12 @@ final class OtelSdkResource {
                                                                // telemetry.resource.service.name
             .put("service.type", "elasticsearch")
             .put("service.version", Build.current().version())
-            .put("service.language.name", "java")
+            // Mirror the APM Java agent's identity ("Java", not the OTel-default "java") so curated
+            // stack-monitoring dashboards that filter on service.runtime.name keep matching after the
+            // agent -> OTel SDK switch.
+            .put("service.language.name", "Java")
+            .put("service.runtime.name", "Java")
+            .put("service.runtime.version", Runtime.version().toString())
             .put("service.agent.name", "elasticsearch-otel-sdk")
             .put("service.agent.version", Build.current().version())
             .put("telemetry.distro.name", "elasticsearch-otel-sdk")

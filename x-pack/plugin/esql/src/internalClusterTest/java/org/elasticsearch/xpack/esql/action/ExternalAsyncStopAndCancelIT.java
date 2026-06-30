@@ -58,7 +58,6 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -443,32 +442,51 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * STOP must catch the source mid-stream, flip {@code is_partial=true}, return at least the leading prefix, and
-     * truncate strictly below the total fixture row count. Gated on {@link #trickleBytesServed} (not just first read)
-     * to exercise "STOP while EXTERNAL is actively producing", not "STOP no-ops on a completed query".
+     * STOP exercise on the distributed (exchange-backed) EXTERNAL path: the {@code external_distribution=round_robin}
+     * pragma forces the planner to push the scan onto a data node, which makes {@code ComputeService} register an
+     * {@code ExchangeSourceHandler} under the async task's session id. STOP can then close that exchange via
+     * {@code finishSessionEarly} and cut the live dataflow: the coordinator stops fetching, the closed remote sink
+     * propagates back to the data node, the data driver tears down, and the producer thread observes
+     * {@code noMoreInputs} on its next read.
+     *
+     * <p>The latch is <em>not</em> released inside the body — STOP itself must unblock the pipeline. If STOP fails to
+     * cut the source the test times out, which is the right failure mode (a passing test must not be the latch
+     * masquerading as STOP). The assertions pin:
+     * <ul>
+     *   <li>{@code is_partial=true} — STOP truly closed an exchange, not just landed on a running task.</li>
+     *   <li>Row count strictly below the full fixture — STOP cut the stream short of natural EOF.</li>
+     *   <li>{@code trickleBytesServed > 0} — STOP arrived during active trickle, not before the source had work.</li>
+     * </ul>
      */
     public void testAsyncStopReturnsBufferedRowsAndMarksPartial() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
 
         String uri = SCHEME + "://" + StoragePath.fileUri(slowFile).substring("file://".length());
-        // LIMIT well above LEADING_ROWS so the natural query end never wins the race with STOP; only the latch (or the
-        // padding running out) can terminate the source read otherwise. parsing_parallelism=1 pins the deterministic
-        // single-thread CSV path so the buffered prefix lands as predictable pages; page_size=5 keeps the pages small
-        // so several pages can be emitted from LEADING_ROWS.
+        // LIMIT well above LEADING_ROWS so natural completion never wins the race with STOP. parsing_parallelism=1
+        // pins the deterministic single-thread CSV path; page_size=5 keeps pages small so several pages emit from the
+        // leading prefix and STOP's cut is observably below the total fixture row count.
         String query = "EXTERNAL \"" + uri + "\" | LIMIT 1000000";
 
         final String asyncId = startAsyncQueryWithPragmas(
             client(),
             query,
             null,
-            Map.of(QueryPragmas.PARSING_PARALLELISM.getKey(), 1, QueryPragmas.PAGE_SIZE.getKey(), 5)
+            Map.of(
+                QueryPragmas.PARSING_PARALLELISM.getKey(),
+                1,
+                QueryPragmas.PAGE_SIZE.getKey(),
+                5,
+                // Force the data-node-distributed path so an exchange source handler is registered under the async
+                // task's session id and STOP has something to close (see TransportEsqlAsyncStopAction javadoc).
+                "external_distribution",
+                "round_robin"
+            )
         );
         try {
             assertTrue("storage fixture must receive the EXTERNAL read request", requestArrived.await(30, TimeUnit.SECONDS));
-            // Strong gate: wait until the producer has visibly crossed into the trickle (i.e. it consumed the entire
-            // fast-served leading prefix and is now reading byte-by-byte). Without this, STOP can land before the
-            // producer is past the prefix and the test degenerates into "did markPartial fire" instead of "did STOP
-            // observably truncate active production".
+            // Strong gate: wait until the producer has visibly crossed into the trickle (consumed the entire fast
+            // leading prefix and is now reading byte-by-byte). Without this, STOP could fire before the producer is
+            // past the prefix and the test would not exercise "STOP while EXTERNAL is actively producing".
             assertBusy(
                 () -> assertThat("producer must be in the trickle phase before STOP fires", trickleBytesServed.get(), greaterThan(0)),
                 30,
@@ -476,23 +494,13 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
             );
 
             AsyncStopRequest stopRequest = new AsyncStopRequest(asyncId);
-            ActionFuture<EsqlQueryResponse> stopFuture = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
-
-            // STOP's listener waits on asyncTask completion, which requires the producer thread to return from its
-            // read loop. Released here so the producer can EOF; STOP has already cut the exchange source, so pages
-            // emitted after this point cannot reach the response (they fall on the dropped side of the
-            // AsyncExternalSourceBuffer/exchange boundary). The "STOP caught the source mid-stream" property is
-            // asserted below via the row-count upper bound + trickleBytesServed, not via deferred release.
-            releaseHandler.countDown();
-
-            try (EsqlQueryResponse response = stopFuture.actionGet(60, TimeUnit.SECONDS)) {
+            try (EsqlQueryResponse response = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest).actionGet(60, TimeUnit.SECONDS)) {
                 assertThat(response.isRunning(), is(false));
                 assertThat("STOP must return the schema even when the source was cut short", response.columns().size(), equalTo(2));
                 assertThat(
-                    "STOP on a running pure-EXTERNAL query must flip is_partial — TransportEsqlAsyncStopAction "
-                        + "marks the response partial when either finishSessionEarly closed an active exchange or "
-                        + "the async task was still running when STOP arrived (coordinator-only EXTERNAL plans "
-                        + "register no exchange under the task's session id, so the second signal carries them)",
+                    "STOP must flip is_partial — TransportEsqlAsyncStopAction marks the response partial when "
+                        + "finishSessionEarly actually closed an active exchange (only signal that proves STOP cut "
+                        + "live dataflow)",
                     response.isPartial(),
                     is(true)
                 );
@@ -506,14 +514,8 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
                     rows++;
                 }
                 assertThat(
-                    "STOP must surface the rows already accepted by the response pipeline — at minimum the entire "
-                        + "fast-served leading prefix should be present",
-                    rows,
-                    greaterThanOrEqualTo(LEADING_ROWS)
-                );
-                assertThat(
-                    "STOP must truncate strictly below the total fixture row count, otherwise the source was not "
-                        + "actually cut short and STOP degenerated into 'wait for natural completion'",
+                    "STOP must truncate strictly below the total fixture row count — otherwise the source was not "
+                        + "cut short and STOP degenerated into 'wait for natural completion'",
                     rows,
                     lessThan(LEADING_ROWS + TRICKLE_ROWS)
                 );
@@ -522,6 +524,64 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
                         + "captured mid-stream, not at natural EOF",
                     trickleBytesServed.get(),
                     greaterThan(0)
+                );
+            }
+        } finally {
+            releaseHandler.countDown();
+            deleteAsyncId(client(), asyncId);
+        }
+    }
+
+    /**
+     * Coordinator-only STOP honesty check: when the plan does not distribute (one split, default adaptive strategy →
+     * coordinator-only branch in {@code ComputeService}), no exchange source handler is registered under the async
+     * task's session id and STOP cannot truncate live dataflow. STOP becomes a wait-for-completion no-op:
+     * {@code is_partial} reflects whatever natural completion produced (here, a complete response with
+     * {@code is_partial=false}). Pinning this prevents a future "STOP secretly marks coordinator-only EXTERNAL
+     * partial by accident" regression from re-introducing the dishonest signal.
+     */
+    public void testAsyncStopOnCoordinatorOnlyExternalIsNoOp() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        String uri = SCHEME + "://" + StoragePath.fileUri(slowFile).substring("file://".length());
+        String query = "EXTERNAL \"" + uri + "\" | LIMIT 1000000";
+
+        final String asyncId = startAsyncQueryWithPragmas(
+            client(),
+            query,
+            null,
+            Map.of(
+                QueryPragmas.PARSING_PARALLELISM.getKey(),
+                1,
+                QueryPragmas.PAGE_SIZE.getKey(),
+                5,
+                "external_distribution",
+                "coordinator_only"
+            )
+        );
+        try {
+            assertTrue("storage fixture must receive the EXTERNAL read request", requestArrived.await(30, TimeUnit.SECONDS));
+            assertBusy(
+                () -> assertThat("producer must be in the trickle phase before STOP fires", trickleBytesServed.get(), greaterThan(0)),
+                30,
+                TimeUnit.SECONDS
+            );
+
+            AsyncStopRequest stopRequest = new AsyncStopRequest(asyncId);
+            ActionFuture<EsqlQueryResponse> stopFuture = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
+
+            // Coordinator-only path: STOP cannot interrupt the source, so we must release the fixture for the query to
+            // wind down. STOP's listener blocks on asyncTask completion, which here means producer EOF.
+            releaseHandler.countDown();
+
+            try (EsqlQueryResponse response = stopFuture.actionGet(60, TimeUnit.SECONDS)) {
+                assertThat(response.isRunning(), is(false));
+                assertThat(
+                    "STOP on a coordinator-only EXTERNAL query must NOT flip is_partial — finishSessionEarly finds "
+                        + "no registered exchange under the task's session id, so STOP is a wait-for-completion "
+                        + "no-op and is_partial reflects the natural completion outcome",
+                    response.isPartial(),
+                    is(false)
                 );
             }
         } finally {

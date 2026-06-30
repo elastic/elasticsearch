@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.IndexingShardCacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -65,6 +66,7 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
+import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -99,6 +101,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -480,6 +483,103 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 readReferencedCommitsListener
             );
             safeGet(readReferencedCommitsListener);
+        }
+    }
+
+    public void testPrefetchRegionZeroOfReferencedBccBlobsBeforeHeaderReads() throws Exception {
+        final long primaryTerm = randomLongBetween(10, 42);
+        long regionSizeInBytes = ByteSizeValue.ofKb(256).getBytes();
+        try (
+            var fakeNode = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                new RecordingMeterRegistry()
+            ) {
+                @Override
+                protected Settings nodeSettings() {
+                    Settings settings = super.nodeSettings();
+                    return Settings.builder()
+                        .put(settings)
+                        .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(4))
+                        .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                        .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                        .put(
+                            SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP.getKey(),
+                            ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE)
+                        )
+                        .build();
+                }
+            }
+        ) {
+            int bccCount = randomIntBetween(2, 3);
+            Map<String, BlobLocation> uploadedBlobLocations = new HashMap<>();
+            BatchedCompoundCommit latestBcc = null;
+            for (int i = 0; i < bccCount; i++) {
+                var indexCommits = fakeNode.generateIndexCommits(
+                    randomIntBetween(1, 2), // Generate at most 6 commits so they don't get merged
+                    false, // no force-merge: old segments stay in earlier VBCC blobs so the last commit spans multiple blobs
+                    randomBoolean(),
+                    generation -> {}
+                );
+                try (
+                    var vbcc = new VirtualBatchedCompoundCommit(
+                        fakeNode.shardId,
+                        "fake-node-id",
+                        primaryTerm,
+                        indexCommits.getFirst().getGeneration(),
+                        uploadedBlobLocations::get,
+                        ESTestCase::randomNonNegativeLong,
+                        fakeNode.sharedCacheService.getRegionSize(),
+                        randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+                    )
+                ) {
+                    for (StatelessCommitRef ref : indexCommits) {
+                        assertTrue(vbcc.appendCommit(ref, randomBoolean(), null));
+                    }
+                    vbcc.freeze();
+                    var indexBlobContainer = fakeNode.getShardContainer();
+                    try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
+                        indexBlobContainer.writeBlobAtomic(
+                            OperationPurpose.INDICES,
+                            vbcc.getBlobName(),
+                            vbccInputStream,
+                            vbcc.getTotalSizeInBytes(),
+                            true
+                        );
+                    }
+                    uploadedBlobLocations.putAll(vbcc.lastCompoundCommit().commitFiles());
+                    latestBcc = vbcc.getFrozenBatchedCompoundCommit();
+                }
+            }
+            assertThat(latestBcc, is(notNullValue()));
+
+            var lastCommit = latestBcc.lastCompoundCommit();
+            var lastCommitBlobFiles = lastCommit.getBlobFiles();
+            assertThat(lastCommitBlobFiles.toString(), lastCommitBlobFiles.size(), greaterThan(1));
+            var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(fakeNode.indexingDirectory);
+            var indexShard = mockIndexShard(fakeNode);
+
+            PlainActionFuture<Void> warmFuture = new PlainActionFuture<>();
+            fakeNode.warmingService.warmCacheForBCCHeadersRead(indexShard, directory, lastCommitBlobFiles, warmFuture);
+            safeGet(warmFuture);
+
+            PlainActionFuture<Void> readReferencedCommitsListener = new PlainActionFuture<>();
+            ObjectStoreService.readReferencedCompoundCommitsUsingCache(
+                lastCommit.commitFiles(),
+                latestBcc,
+                directory,
+                IOContext.DEFAULT,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                referencedCC -> {},
+                readReferencedCommitsListener
+            );
+            safeGet(readReferencedCommitsListener);
+
+            // Ensure that all the referenced Commit headers can be read without cache misses
+            assertThat(fakeNode.sharedCacheService.getStats().missCount(), equalTo(0L));
         }
     }
 

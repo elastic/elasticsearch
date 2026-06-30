@@ -392,6 +392,48 @@
         },
         {
           "name" : "trueValue",
+          "type" : "flattened",
+          "optional" : false,
+          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "flattened"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
+          "type" : "flattened",
+          "optional" : false,
+          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+        },
+        {
+          "name" : "elseValue",
+          "type" : "flattened",
+          "optional" : true,
+          "description" : "The value that’s returned when no condition evaluates to `true`."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "flattened"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
           "type" : "geo_point",
           "optional" : false,
           "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."

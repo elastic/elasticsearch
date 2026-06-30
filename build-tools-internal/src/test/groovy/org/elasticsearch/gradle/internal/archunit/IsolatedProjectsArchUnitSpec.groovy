@@ -85,9 +85,7 @@ class IsolatedProjectsArchUnitSpec extends AbstractArchUnitSpec {
 
     private static final Set<String> KNOWN_ALL_SUB_PROJECTS_CALLBACK = [] as Set
 
-    private static final Set<String> KNOWN_EVALUATION_DEPENDS_ON = [
-        "org.elasticsearch.gradle.internal.ElasticsearchJavadocPlugin",
-    ] as Set
+    private static final Set<String> KNOWN_EVALUATION_DEPENDS_ON = [] as Set
 
     private static final Set<String> KNOWN_GET_PARENT = [
         "org.elasticsearch.gradle.internal.InternalDistributionArchiveCheckPlugin",

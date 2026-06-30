@@ -277,7 +277,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             );
         }
         if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR) {
-            assumeTrue("Columnar index modes require a snapshot build", Build.current().isSnapshot());
+            // Gate on the cluster capability rather than the test runner build: columnar index modes are only available when the
+            // feature flag is enabled on the nodes (e.g. they are disabled in upgrade clusters), in which case these tests skip.
+            assumeTrue(
+                "Cluster does not have columnar index modes enabled",
+                clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false)
+            );
             assumeTrue(
                 "Cluster has nodes that do not support columnar index modes",
                 minVersion().supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)

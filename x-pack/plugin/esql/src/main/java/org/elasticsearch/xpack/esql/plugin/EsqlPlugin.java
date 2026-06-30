@@ -59,6 +59,7 @@ import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -171,6 +172,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     private static final Logger logger = LogManager.getLogger(EsqlPlugin.class);
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
+
+    /**
+     * Shared bounded thread pool for blocking external-storage reads (GCS today; any future offloading blocking
+     * backend). Sized by {@code esql.external.max_connections}. The truly-async backends (S3, Azure) bound their
+     * read concurrency through their SDK connection pools instead and do not use this pool.
+     */
+    public static final String EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME = "esql_external_blocking_io";
 
     public static final Setting<Integer> ESQL_WORKER_THREAD_POOL_SIZE = Setting.intSetting(
         "esql.worker.thread_pool_size",
@@ -339,8 +347,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 v -> workloadIdentityEnabled.set(isStateless == false && v)
             );
 
-        // Create DataSourceModule with all discovered plugins
-        // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)
+        // Create DataSourceModule with all discovered plugins.
+        // This executor backs SPI coordination, decompression, and async-I/O plugin callbacks (e.g. the HTTP
+        // client) — NOT the file-read path. Blocking external reads are routed onto the dedicated
+        // esql_external_blocking_io pool via OperatorFactoryRegistry#fileReadExecutor (wired in TransportEsqlQueryAction).
         dataSourceModule = new DataSourceModule(
             allDataSourcePlugins,
             dataSourceCapabilities,
@@ -677,6 +687,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 queueSize,
                 ESQL_WORKER_THREAD_POOL_NAME,
                 EsExecutors.TaskTrackingConfig.DEFAULT
+            ),
+            // Shared bounded pool for blocking external reads (GCS today; any future offloading blocking backend),
+            // sized by esql.external.max_connections. Scales from 0 so idle nodes pay nothing.
+            new ScalingExecutorBuilder(
+                EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME,
+                0,
+                ExternalSourceSettings.MAX_CONNECTIONS.get(settings),
+                TimeValue.timeValueSeconds(30),
+                false
             )
         );
     }

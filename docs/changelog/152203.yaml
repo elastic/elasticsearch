@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152203
+summary: Enforce NDJSON `max_record_size` in the decode loop
+type: enhancement

@@ -61,7 +61,6 @@ class IsolatedProjectsArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.docker.DockerSupportPlugin",
         "org.elasticsearch.gradle.internal.esql.EsqlFunctionPlugin",
         "org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin",
-        "org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.SplitPackagesAuditPrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditPrecommitPlugin",
         "org.elasticsearch.gradle.internal.snyk.SnykDependencyMonitoringGradlePlugin",
@@ -86,9 +85,7 @@ class IsolatedProjectsArchUnitSpec extends AbstractArchUnitSpec {
 
     private static final Set<String> KNOWN_ALL_SUB_PROJECTS_CALLBACK = [] as Set
 
-    private static final Set<String> KNOWN_EVALUATION_DEPENDS_ON = [
-        "org.elasticsearch.gradle.internal.ElasticsearchJavadocPlugin",
-    ] as Set
+    private static final Set<String> KNOWN_EVALUATION_DEPENDS_ON = [] as Set
 
     private static final Set<String> KNOWN_GET_PARENT = [
         "org.elasticsearch.gradle.internal.InternalDistributionArchiveCheckPlugin",

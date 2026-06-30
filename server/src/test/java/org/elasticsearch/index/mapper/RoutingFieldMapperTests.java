@@ -220,7 +220,7 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
         Settings settings = Settings.builder()
             .put(getIndexSettings())
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
-            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
+
             .build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {
             b.startObject("n");
@@ -250,7 +250,7 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
         Settings settings = Settings.builder()
             .put(getIndexSettings())
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
-            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
+
             .build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {
             b.startObject("n");

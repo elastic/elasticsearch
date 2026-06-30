@@ -250,7 +250,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(extractedTimeSeries.fieldName().string(), equalTo(SourceFieldMapper.NAME));
         FunctionEsField extractedField = as(extractedTimeSeries.field(), FunctionEsField.class);
         var functionConfig = as(extractedField.functionConfig(), BlockLoaderFunctionConfig.TimeSeriesMetadata.class);
-        assertThat(functionConfig.withoutFields(), hasItem("pod"));
+        assertThat(functionConfig.skipFieldNames(), hasItem("pod"));
     }
 
     public void testNestedWithoutOverByProducesConcreteOutput() {

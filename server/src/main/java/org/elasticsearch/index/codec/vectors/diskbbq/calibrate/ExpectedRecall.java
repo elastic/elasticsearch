@@ -91,13 +91,6 @@ public final class ExpectedRecall {
     }
 
     /**
-     * Rerank count from fraction: (k * num + den/2) / den.
-     */
-    public static int rerankN(int k, int num, int den) {
-        return (k * num + den / 2) / den;
-    }
-
-    /**
      * Expected recall for a single result rank {@code k} within a rerank window of size {@code n}.
      * <p>
      * Let {@code m_k} be the manifold-predicted distance at rank {@code k} and {@code errorStd}

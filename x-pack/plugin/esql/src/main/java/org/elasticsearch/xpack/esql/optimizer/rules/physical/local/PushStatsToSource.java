@@ -123,7 +123,10 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
         List<NamedExpression> resolved = new ArrayList<>(aggregates.size());
         for (NamedExpression agg : aggregates) {
             if (agg instanceof Alias alias) {
-                Expression child = alias.child().transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
+                Expression child = alias.child().transformDown(ReferenceAttribute.class, r -> {
+                    Expression candidate = aliasReplacedBy.resolve(r, r);
+                    return candidate instanceof Attribute ? candidate : r;
+                });
                 resolved.add(new Alias(alias.source(), alias.name(), child, alias.id()));
             } else {
                 resolved.add(agg);

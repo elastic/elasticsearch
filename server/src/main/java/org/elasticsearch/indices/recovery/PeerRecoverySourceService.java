@@ -37,7 +37,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayDeque;
@@ -111,7 +110,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         // node. Upon receiving START_RECOVERY, the source node will initiate the peer recovery.
         transportService.registerRequestHandler(
             Actions.START_RECOVERY,
-            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC),
+            transportService.getThreadPool().generic(),
             StartRecoveryRequest::new,
             (request, channel, task) -> recover(request, task, new ChannelActionListener<>(channel))
         );
@@ -121,7 +120,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         // action will fail and the target node will send a new START_RECOVERY request.
         transportService.registerRequestHandler(
             Actions.REESTABLISH_RECOVERY,
-            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC),
+            transportService.getThreadPool().generic(),
             ReestablishRecoveryRequest::new,
             (request, channel, task) -> reestablish(request, new ChannelActionListener<>(channel))
         );
@@ -414,9 +413,13 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     nextRecovery.request().shardId().id(),
                     nextRecovery.request().targetNode()
                 );
-                nextHandler.recoverToTarget(
-                    ActionListener.runAfter(nextRecovery.listener(), () -> onRecoveryComplete(nextRecovery.shard(), nextHandler))
+                final ActionListener<RecoveryResponse> wrappedListener = ActionListener.runAfter(
+                    nextRecovery.listener(),
+                    () -> onRecoveryComplete(nextRecovery.shard(), nextHandler)
                 );
+                // The generic executor has an unbounded queue and the threadpool shuts down after this service is stopped
+                // (and drains the queue), so the `execute` call cannot throw `EsRejectedExecutionException` here.
+                transportService.getThreadPool().generic().execute(() -> nextHandler.recoverToTarget(wrappedListener));
             }
         }
 

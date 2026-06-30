@@ -153,12 +153,19 @@ final class PageColumnReader implements Releasable {
             case BOOLEAN -> readBooleanBatch(maxRows, blockFactory);
             case INTEGER -> readIntBatch(maxRows, blockFactory);
             case LONG, UNSIGNED_LONG -> {
+                if (info.logicalType() instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+                    if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
+                        // TIME_MILLIS: physical INT32, widen to long (raw ms value, no unit conversion)
+                        yield readInt32AsLongBatch(maxRows, blockFactory, true);
+                    }
+                    yield readLongBatch(maxRows, blockFactory, ParquetColumnDecoding.timeNanoMultiplier(time));
+                }
                 if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
                     var logicalType = (LogicalTypeAnnotation.IntLogicalTypeAnnotation) info.logicalType();
                     // A plain INT32 with no logical-type annotation is historically "signed"
                     yield readInt32AsLongBatch(maxRows, blockFactory, logicalType == null || logicalType.isSigned());
                 }
-                yield readLongBatch(maxRows, blockFactory);
+                yield readLongBatch(maxRows, blockFactory, 1L);
             }
             case DOUBLE -> readDoubleBatch(maxRows, blockFactory);
             case KEYWORD, TEXT -> readBytesBatch(maxRows, blockFactory);
@@ -743,10 +750,15 @@ final class PageColumnReader implements Releasable {
 
     // --- Long ---
 
-    private Block readLongBatch(int maxRows, BlockFactory blockFactory) {
+    private Block readLongBatch(int maxRows, BlockFactory blockFactory, long multiplier) {
         long[] values = UninitializedArrays.newLongArray(maxRows);
         if (maxDefLevel == 0) {
             int produced = readNonNullLongs(values, 0, maxRows);
+            if (multiplier != 1) {
+                for (int i = 0; i < produced; i++) {
+                    values[i] *= multiplier;
+                }
+            }
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
             if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
@@ -762,6 +774,11 @@ final class PageColumnReader implements Releasable {
             advancePosition(fromPage);
             produced += fromPage;
             remaining -= fromPage;
+        }
+        if (multiplier != 1) {
+            for (int i = 0; i < produced; i++) {
+                values[i] *= multiplier;
+            }
         }
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);

@@ -23,6 +23,8 @@ import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfRowToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -147,9 +149,10 @@ public class IndexSource implements Writeable, Releasable {
         eirfBatch = null;
     }
 
-    public Map<String, Object> sourceAsMap() {
+    public Map<String, Object> sourceAsMap(boolean includeSourceOnError) {
         assert isClosed == false;
-        return XContentHelper.convertToMap(source, false, contentType).v2();
+        var parserConfiguration = XContentParserConfiguration.EMPTY.withIncludeSourceOnError(includeSourceOnError);
+        return XContentHelper.parseToType(XContentParser::map, source, contentType, parserConfiguration).v2();
     }
 
     /**

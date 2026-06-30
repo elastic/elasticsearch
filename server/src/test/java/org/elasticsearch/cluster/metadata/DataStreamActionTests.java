@@ -40,10 +40,15 @@ public class DataStreamActionTests extends ESTestCase {
 
     public static DataStreamAction createTestInstance() {
         DataStreamAction action = new DataStreamAction(
-            randomBoolean() ? DataStreamAction.Type.ADD_BACKING_INDEX : DataStreamAction.Type.REMOVE_BACKING_INDEX
+            randomFrom(
+                DataStreamAction.Type.ADD_BACKING_INDEX,
+                DataStreamAction.Type.REMOVE_BACKING_INDEX,
+                DataStreamAction.Type.DELETE_BACKING_INDEX
+            )
         );
         action.setDataStream(randomAlphaOfLength(8));
         action.setIndex(randomAlphaOfLength(8));
+        action.setFailureStore(randomBoolean());
         return action;
     }
 

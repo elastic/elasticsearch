@@ -62,6 +62,53 @@ public class S3ConfigurationTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unsupported auth value"));
     }
 
+    public void testAuthWorkloadIdentity() {
+        S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "workload_identity");
+        assertNotNull(config);
+        assertTrue(config.isWorkloadIdentity());
+        assertFalse(config.isAnonymous());
+        assertFalse(config.hasCredentials());
+    }
+
+    public void testAuthWorkloadIdentityCaseInsensitive() {
+        S3Configuration config = S3Configuration.fromFields(null, null, null, null, "WORKLOAD_IDENTITY");
+        assertNotNull(config);
+        assertTrue(config.isWorkloadIdentity());
+        assertEquals("workload_identity", config.auth());
+    }
+
+    public void testAuthWorkloadIdentityAllowsRegionAndEndpoint() {
+        S3Configuration config = S3Configuration.fromFields(null, null, "http://localhost:9000", "eu-west-1", "workload_identity");
+        assertNotNull(config);
+        assertTrue(config.isWorkloadIdentity());
+        assertEquals("http://localhost:9000", config.endpoint());
+        assertEquals("eu-west-1", config.region());
+    }
+
+    public void testAuthWorkloadIdentityConflictsWithAccessKey() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> S3Configuration.fromFields("ak", null, null, null, "workload_identity")
+        );
+        assertThat(e.getMessage(), containsString("auth=workload_identity cannot be combined with explicit credentials"));
+    }
+
+    public void testAuthWorkloadIdentityConflictsWithSecretKey() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> S3Configuration.fromFields(null, "sk", null, null, "workload_identity")
+        );
+        assertThat(e.getMessage(), containsString("auth=workload_identity cannot be combined with explicit credentials"));
+    }
+
+    public void testAuthWorkloadIdentityConflictsWithSessionToken() {
+        var raw = new java.util.HashMap<String, Object>();
+        raw.put("auth", "workload_identity");
+        raw.put("session_token", "tok");
+        ValidationException e = expectThrows(ValidationException.class, () -> S3Configuration.fromMap(raw));
+        assertThat(e.getMessage(), containsString("auth=workload_identity cannot be combined with explicit credentials"));
+    }
+
     public void testAuthNoneConflictsWithAccessKey() {
         ValidationException e = expectThrows(ValidationException.class, () -> S3Configuration.fromFields("ak", null, null, null, "none"));
         assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));

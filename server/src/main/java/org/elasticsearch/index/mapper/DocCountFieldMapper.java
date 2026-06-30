@@ -8,12 +8,18 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -106,7 +112,13 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
                 "Field [" + fieldType().name() + "] must be a positive integer. Value [" + value + "] is not allowed."
             );
         }
-        context.doc().addWithKey(NAME, field(value));
+        IndexableField docCountField;
+        if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.DOC_COUNT_FIELD_USES_NUMERIC_DOC_VALUES)) {
+            docCountField = new NumericDocValuesField(NAME, value);
+        } else {
+            docCountField = new CustomTermFreqField(NAME, NAME, value);
+        }
+        context.doc().addWithKey(NAME, docCountField);
     }
 
     @Override
@@ -120,10 +132,10 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
     }
 
     /**
-     * The field made by this mapper to track the doc count.
+     * Creates a doc count field using numeric doc values (new format).
      */
     public static IndexableField field(int count) {
-        return new CustomTermFreqField(NAME, NAME, count);
+        return new NumericDocValuesField(NAME, count);
     }
 
     @Override
@@ -132,18 +144,43 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
     }
 
     /**
-     * The lookup for loading values.
+     * Looks up the postings for the doc count term (legacy format, pre-{@link IndexVersions#DOC_COUNT_FIELD_USES_NUMERIC_DOC_VALUES}).
      */
     public static PostingsEnum leafLookup(LeafReader reader) throws IOException {
         return reader.postings(TERM);
     }
 
+    /**
+     * Looks up the numeric doc values for the doc count field (new format, on or after
+     * {@link IndexVersions#DOC_COUNT_FIELD_USES_NUMERIC_DOC_VALUES}). Returns {@code null} if no numeric doc values are present.
+     */
+    public static NumericDocValues numericDocValuesLookup(LeafReader reader) throws IOException {
+        FieldInfo fi = reader.getFieldInfos().fieldInfo(NAME);
+        if (fi != null && fi.getDocValuesType() != DocValuesType.NONE) {
+            return DocValues.getNumeric(reader, NAME);
+        }
+        return null;
+    }
+
     private static class SyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
+        private NumericDocValues docValues;
         private PostingsEnum postings;
         private boolean hasValue;
+        private long currentValue;
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+            docValues = numericDocValuesLookup(leafReader);
+            if (docValues != null) {
+                postings = null;
+                return docId -> {
+                    hasValue = docValues.advanceExact(docId);
+                    if (hasValue) {
+                        currentValue = docValues.longValue();
+                    }
+                    return hasValue;
+                };
+            }
             postings = leafLookup(leafReader);
             if (postings == null) {
                 hasValue = false;
@@ -170,7 +207,11 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
             if (hasValue == false) {
                 return;
             }
-            b.field(NAME, postings.freq());
+            if (docValues != null) {
+                b.field(NAME, currentValue);
+            } else {
+                b.field(NAME, postings.freq());
+            }
         }
 
         @Override

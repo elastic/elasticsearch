@@ -52,6 +52,11 @@ $$$data-streams-lifecycle-signalling-error-retry-interval$$$
 `data_streams.lifecycle.signalling.error_retry_interval`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) The number of retries the data stream lifecycle has to perform for an index in an error step to signal that the index is not progressing (for example, it's stuck in an error step). The current signalling mechanism is a log statement at the `error` level. However, the signalling mechanism can be extended in the future. Defaults to 10 retries.
 
+$$$data-streams-lifecycle-downsampling-max-indices-in-progress$$$
+
+`data_streams.lifecycle.downsampling.max_indices_in_progress` {applies_to}`serverless: ga` {applies_to}`stack: ga 9.5`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) The maximum number of indices per data stream that can be submitted for downsampling by data stream lifecycle. Defaults to `10`.
+
 ## Frozen tier transition settings [_frozen_tier_transition_settings]
 ```{applies_to}
 stack: ga 9.5
@@ -61,7 +66,7 @@ The following settings control the behavior of the frozen tier transition, which
 
 $$$dlm-frozen-transition-poll-interval$$$
 
-`dlm.frozen_transition.poll_interval`
+`dlm.frozen.transition.poll_interval`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often the master node checks for data stream backing indices that are ready to be converted to the frozen tier. Must be at least `1m`. Defaults to `5m`.
 
 $$$dlm-frozen-transition-max-concurrency$$$
@@ -76,7 +81,7 @@ $$$dlm-frozen-transition-max-queue-size$$$
 
 $$$dlm-frozen-cleanup-poll-interval$$$
 
-`dlm.frozen_cleanup.poll_interval`
+`dlm.frozen.cleanup.poll_interval`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often the master node scans for and deletes orphaned artifacts (clone indices and snapshots) left behind by interrupted frozen conversions. Must be at least `1h`. Defaults to `1d`.
 
 ## Index level settings [_index_level_settings]

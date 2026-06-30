@@ -18,7 +18,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSim
 public class GoogleAiStudioEmbeddingsServiceSettings extends FilteredXContentObject
     implements
         ServiceSettings,
-        GoogleAiStudioRateLimitServiceSettings {
+        GoogleAiStudioServiceSettings {
 
     public static final String NAME = "google_ai_studio_embeddings_service_settings";
 

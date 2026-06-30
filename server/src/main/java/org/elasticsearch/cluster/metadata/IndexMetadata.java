@@ -1492,6 +1492,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     // LifecycleSettings.LIFECYCLE_NAME_SETTING for the 'real' version
     public static final String LIFECYCLE_NAME = "index.lifecycle.name";
 
+    // Defined here (rather than in x-pack LifecycleSettings) so that modules without an x-pack dependency
+    // (e.g. data-streams) can read this setting.
+    public static final String LIFECYCLE_SKIP = "index.lifecycle.skip";
+    public static final Setting<Boolean> LIFECYCLE_SKIP_SETTING = Setting.boolSetting(
+        LIFECYCLE_SKIP,
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     Map<String, DiffableStringMap> getCustomData() {
         return this.customData;
     }

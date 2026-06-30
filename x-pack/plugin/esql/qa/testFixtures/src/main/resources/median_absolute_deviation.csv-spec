@@ -27,7 +27,7 @@ int_constant:double | int_var:double | long_constant:double | long_var:double | 
 2                   | 2              | 2                    | 2               | 2                      | 2
 ;
 
-docsStatsMADNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+docsStatsMADNestedExpression
 // tag::docsStatsMADNestedExpression[]
 FROM employees
 | STATS m_a_d_max_salary_change = MEDIAN_ABSOLUTE_DEVIATION(MV_MAX(salary_change))

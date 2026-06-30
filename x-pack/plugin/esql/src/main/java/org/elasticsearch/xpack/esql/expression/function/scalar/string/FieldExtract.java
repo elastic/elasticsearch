@@ -16,6 +16,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.flattened.ExtractFlattenedSubfieldConfig;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -393,12 +394,31 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
      * {@code KeyedFlattenedFieldType} which handles the key-prefix encoding in
      * {@code indexedValueForSearch}. The caller is responsible for wrapping the produced query
      * in a {@code SingleValueQuery} to preserve ES|QL's single-value comparison semantics.
+     * <p>
+     *     Explicitly mapped sub-fields are <strong>not</strong> pushed: for them the synthetic name
+     *     resolves to the real typed field (e.g. an {@code ip} or {@code long}), so a pushed query
+     *     would apply that field's typed comparison semantics while the per-row evaluator compares the
+     *     extracted value as a {@code keyword}. Keeping mapped sub-fields on the evaluator path makes
+     *     {@code field_extract}'s result independent of whether the optimizer pushed the call. That
+     *     rejection is delegated to the flattened field type's
+     *     {@link org.elasticsearch.index.mapper.MappedFieldType#supportsBlockLoaderConfig}, the same hook that
+     *     gates block-loader fusion, so both pushdown paths agree on which keys are pushable. The
+     *     mapped/unmapped decision needs the data-node mapping, so the stats-less {@code can_match} predicates
+     *     report no loader config as supported and push nothing.
+     * </p>
      */
     public Optional<String> tryAsKeyedSubfieldName(LucenePushdownPredicates pushdownPredicates) {
         if (EsqlCapabilities.Cap.FIELD_EXTRACT_FLATTENED_PUSHDOWN.isEnabled() == false) {
             return Optional.empty();
         }
         return foldedKeyForFlattenedRoot().filter(k -> pushdownPredicates.isIndexedAndHasDocValues(k.root()))
+            .filter(
+                k -> pushdownPredicates.supportsLoaderConfig(
+                    k.root(),
+                    new ExtractFlattenedSubfieldConfig(k.key()),
+                    MappedFieldType.FieldExtractPreference.NONE
+                )
+            )
             .map(k -> k.root().name() + "." + k.key());
     }
 

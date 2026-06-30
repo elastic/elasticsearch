@@ -116,7 +116,11 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
                 // replace them with reference and move the expression into a follow-up eval
                 else if (replaceNestedExpressions) {
                     changed.set(true);
-                    Expression aggExpression = child.transformUp(AggregateFunction.class, af -> {
+                    // Use transformDown so the outermost aggregate is extracted as a whole. This matters for aggregates that wrap
+                    // another aggregate (e.g. SPARKLINE(COUNT(*), ...)): descending into the inner aggregate would lift it out
+                    // separately and leave the outer aggregate malformed. Extracting the outer aggregate as a single leaf reference
+                    // stops the recursion before it reaches the inner aggregate, leaving it intact for later rules to handle.
+                    Expression aggExpression = child.transformDown(AggregateFunction.class, af -> {
                         // canonical representation, with resolved aliases
                         AggregateFunction canonical = getCannonical(af, aliases);
                         Alias alias = rootAggs.get(canonical);

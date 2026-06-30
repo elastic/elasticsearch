@@ -11,27 +11,43 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Arithmetics;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
 import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic.ArithmeticOp;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison.ComparisonOp;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator.BinaryOp;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
@@ -74,6 +90,99 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
     PromqlLogicalPlanBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
         super(start, end, startLine, startColumn, params);
+    }
+
+    /**
+     * Returns the PromQL result type for planning code that has not yet resolved function calls.
+     */
+    public static PromqlDataType returnType(LogicalPlan plan) {
+        if (plan instanceof UnresolvedPromqlFunction unresolved) {
+            PromqlFunctionDefinition def = PromqlFunctionRegistry.INSTANCE.functionMetadata(unresolved.functionName());
+            if (def == null) {
+                throw new IllegalArgumentException("unknown PromQL function [" + unresolved.functionName() + "]");
+            }
+            return def.functionType().outputType();
+        }
+        if (plan instanceof VectorBinaryOperator binary) {
+            PromqlDataType leftType = returnType(binary.left());
+            PromqlDataType rightType = returnType(binary.right());
+            return binaryResultType(leftType, rightType);
+        }
+        if (plan instanceof PromqlPlan p) {
+            return p.returnType();
+        }
+        throw new IllegalArgumentException("expected PromqlPlan, got [" + plan.getClass().getSimpleName() + "]");
+    }
+
+    private static PromqlDataType binaryResultType(PromqlDataType left, PromqlDataType right) {
+        return left == PromqlDataType.SCALAR && right == PromqlDataType.SCALAR ? PromqlDataType.SCALAR : PromqlDataType.INSTANT_VECTOR;
+    }
+
+    /**
+     * Resolves the range-query bucket size from an explicit {@code step} or an auto bucket count.
+     */
+    public static Duration foldStep(Expression timestamp, Literal start, Literal end, Literal step, Literal buckets) {
+        if (step.value() instanceof Duration duration) {
+            return duration;
+        }
+        Bucket autoBucket = new Bucket(buckets.source(), timestamp, buckets, start, end, ConfigurationAware.CONFIGURATION_MARKER);
+        long rangeStart = ((Number) start.value()).longValue();
+        long rangeEnd = ((Number) end.value()).longValue();
+        var rounding = autoBucket.getDateRounding(FoldContext.small(), rangeStart, rangeEnd);
+        long roundedStart = rounding.round(rangeStart);
+        long nextRoundedValue = rounding.nextRoundingValue(roundedStart);
+        return Duration.ofMillis(Math.max(1L, nextRoundedValue - roundedStart));
+    }
+
+    public static LogicalPlan tryFoldRelation(PromqlCommand command, LogicalPlan plan) {
+        if (!(plan instanceof EsRelation esRelation) || esRelation.concreteQualifiedIndices().isEmpty() == false) {
+            return null;
+        }
+        if (command.start().value() == null) {
+            return new LocalRelation(
+                command.source(),
+                List.of(command.valueAttribute(), command.stepAttribute()),
+                EmptyLocalSupplier.EMPTY
+            );
+        }
+        return buildLocalRelation(command);
+    }
+
+    public static LogicalPlan buildLocalRelation(PromqlCommand command) {
+        Source source = command.source();
+
+        long start = ((Number) command.start().value()).longValue();
+        long end = start;
+        long step = 1;
+        long first = start;
+
+        if (command.isInstantQuery() == false) {
+            var tsField = new ReferenceAttribute(source, null, MetadataAttribute.TIMESTAMP_FIELD, DataType.DATETIME);
+
+            step = foldStep(tsField, command.start(), command.end(), command.step(), command.buckets()).toMillis();
+
+            if (step <= 0) {
+                throw new IllegalArgumentException("step must be positive");
+            }
+
+            end = ((Number) command.end().value()).longValue();
+            first = start;
+        }
+
+        int capacity = (int) Math.min(Integer.MAX_VALUE, (end - first) / step + 1);
+        var steps = new ArrayList<Long>(capacity);
+        for (long ts = first; ts <= end; ts += step) {
+            steps.add(ts);
+
+            if (Long.MAX_VALUE - ts < step) {
+                break;
+            }
+        }
+
+        var stepAlias = new Alias(source, command.stepColumnName(), new Literal(source, steps, DataType.DATETIME), command.stepId());
+        var expanded = new ReferenceAttribute(source, command.stepColumnName(), DataType.DATETIME);
+
+        return new MvExpand(source, new Row(source, List.of(stepAlias)), stepAlias, expanded);
     }
 
     protected LogicalPlan plan(ParseTree ctx) {

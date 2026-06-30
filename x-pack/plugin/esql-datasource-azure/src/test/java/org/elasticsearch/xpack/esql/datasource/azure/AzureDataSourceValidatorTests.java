@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
     private final DataSourceValidator validator = new FileDataSourceValidator(
@@ -98,6 +100,32 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
         );
     }
 
+    public void testValidateDatasourceRejectsWorkloadIdentityWhenDisabled() {
+        // default validator has workload identity disabled
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(Map.of("auth", "workload_identity"))
+        );
+        assertThat(e.getMessage(), containsString("esql.datasource.workload_identity.enabled"));
+    }
+
+    public void testValidateDatasourceAcceptsWorkloadIdentityWhenEnabled() {
+        var workloadIdentityValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
+            .withWorkloadIdentityEnabled(() -> true);
+        var result = workloadIdentityValidator.validateDatasource(Map.of("auth", "workload_identity", "account", "myaccount"));
+        assertEquals("workload_identity", result.get("auth").nonSecretValue());
+        assertFalse(result.get("auth").secret());
+    }
+
+    public void testValidateDatasourceWorkloadIdentityConflictWithCredentials() {
+        var workloadIdentityValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
+            .withWorkloadIdentityEnabled(() -> true);
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> workloadIdentityValidator.validateDatasource(Map.of("auth", "workload_identity", "account", "myaccount", "key", "mykey"))
+        );
+    }
+
     public void testValidateDatasourceWithSasToken() {
         assertTrue(validator.validateDatasource(Map.of("sas_token", "?sv=2020")).get("sas_token").secret());
     }
@@ -137,6 +165,45 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("schema_sample_size", 0))
+        );
+    }
+
+    public void testValidateDatasetSchemaResolution() {
+        assertEquals(
+            "union_by_name",
+            validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("schema_resolution", "union_by_name"))
+                .get("schema_resolution")
+        );
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("schema_resolution", "banana"))
+        );
+    }
+
+    public void testValidateDatasetErrorBudget() {
+        assertEquals(
+            "100",
+            validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("max_errors", "100")).get("max_errors")
+        );
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "wasbs://c@a.blob.core.windows.net/p",
+                Map.of("error_mode", "fail_fast", "max_errors", "10")
+            )
+        );
+    }
+
+    public void testValidateDatasetTargetSplitSize() {
+        assertEquals(
+            "64mb",
+            validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("target_split_size", "64mb"))
+                .get("target_split_size")
+        );
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("target_split_size", "abc"))
         );
     }
 

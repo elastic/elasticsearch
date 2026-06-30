@@ -150,13 +150,7 @@ public class BytesReadRankFeatureIT extends ESIntegTestCase {
             );
         } finally {
             if (queryResult != null) {
-                if (queryResult.hasReferences()) {
-                    queryResult.decRef();
-                }
                 searchService.freeReaderContext(queryResult.getContextId());
-            }
-            if (rankResult != null && rankResult.hasReferences()) {
-                rankResult.decRef();
             }
         }
     }

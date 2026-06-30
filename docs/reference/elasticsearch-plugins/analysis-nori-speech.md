@@ -24,6 +24,34 @@ and defaults to:
 ]
 ```
 
+::::{warning}
+The default `stoptags` include `XPN` (prefix). For Korean terms where a meaning-carrying prefix is emitted as `XPN`, the default `nori` analyzer removes the prefix. For example, `비급여` is analyzed as `급여`:
+
+```console
+GET _analyze
+{
+  "analyzer": "nori",
+  "text": "비급여"
+}
+```
+
+Which responds with:
+
+```console-result
+{
+  "tokens" : [ {
+    "token" : "급여",
+    "start_offset" : 1,
+    "end_offset" : 3,
+    "type" : "word",
+    "position" : 1
+  } ]
+}
+```
+
+To preserve the full term, add entries such as `비급여` with `user_dictionary_rules` so they are emitted as a single noun token. To preserve prefix tokens globally, define a custom `stoptags` list that omits `XPN`; this preserves prefixes such as `비` but can add prefix noise.
+::::
+
 For example:
 
 ```console

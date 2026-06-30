@@ -29,6 +29,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,20 +60,16 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
 
     private final List<IndexShard> trackedShards = new ArrayList<>();
 
-    @Override
-    public void tearDown() throws Exception {
-        try {
-            for (IndexShard shard : trackedShards) {
-                try {
-                    closeShardNoCheck(shard);
-                } catch (Exception e) {
-                    // Shard may already have been closed by the test body — swallow so we still clean up the rest.
-                }
+    @After
+    public void closeTrackedShards() throws Exception {
+        for (IndexShard shard : trackedShards) {
+            try {
+                closeShardNoCheck(shard);
+            } catch (Exception e) {
+                // Shard may already have been closed by the test body — swallow so we still clean up the rest.
             }
-        } finally {
-            trackedShards.clear();
-            super.tearDown();
         }
+        trackedShards.clear();
     }
 
     private IndexShard newMappedPrimaryShard() throws IOException {

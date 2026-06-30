@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValue
 import org.junit.Before;
 
 import java.util.EnumSet;
+import java.util.Map;
 
 /**
  * Captures the analyzed and logically-optimized plans for IN/NOT IN subquery scenarios.
@@ -25,6 +26,10 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     @Before
     public void checkInSubquerySupport() {
         assumeTrue("Requires IN_SUBQUERY support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+    }
+
+    private static void requireInSubqueryViewSupport() {
+        assumeTrue("Requires IN subquery with view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
     }
 
     public void testDisjunctiveInSubqueryAtTopLevel() {
@@ -195,5 +200,73 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
             | SORT cluster
             """, STAGES, TransportVersion.current());
+    }
+
+    // -- IN / NOT IN subqueries referencing views --
+
+    public void testInSubqueryReferencingView() {
+        requireInSubqueryViewSupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM emps_view)
+            | KEEP emp_no, first_name
+            """, STAGES, Map.of("emps_view", "FROM employees | KEEP emp_no"));
+    }
+
+    public void testNotInSubqueryReferencingView() {
+        requireInSubqueryViewSupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM emps_view)
+            | KEEP emp_no
+            """, STAGES, Map.of("emps_view", "FROM employees | WHERE salary > 50000 | KEEP emp_no"));
+    }
+
+    public void testInSubqueryReferencingViewWithInSubqueryInDefinition() {
+        requireInSubqueryViewSupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM filtered_emps)
+            | KEEP emp_no
+            """, STAGES, Map.of("filtered_emps", "FROM employees | WHERE emp_no IN (FROM employees | KEEP emp_no) | KEEP emp_no"));
+    }
+
+    public void testInSubqueryReferencingViewWithSortLimit() {
+        requireInSubqueryViewSupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM sorted_emps)
+            | KEEP emp_no
+            """, STAGES, Map.of("sorted_emps", "FROM employees | SORT emp_no | LIMIT 5 | KEEP emp_no"));
+    }
+
+    public void testDisjunctiveInSubqueryReferencingView() {
+        requireInSubqueryViewSupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM emps_view) OR salary > 50000
+            | KEEP emp_no
+            """, STAGES, Map.of("emps_view", "FROM employees | KEEP emp_no"));
+    }
+
+    public void testMainFromAndNotInSubqueryEachReferenceMultipleViewSubqueries() {
+        requireInSubqueryViewSupport();
+        runGoldenTest(
+            """
+                FROM (FROM main_view_a | KEEP emp_no), (FROM main_view_b | KEEP emp_no)
+                | WHERE emp_no NOT IN (FROM (FROM in_view_a | KEEP emp_no), (FROM in_view_b | KEEP emp_no) | KEEP emp_no)
+                """,
+            STAGES,
+            Map.of(
+                "main_view_a",
+                "FROM employees | KEEP emp_no",
+                "main_view_b",
+                "FROM employees | WHERE salary > 50000 | KEEP emp_no",
+                "in_view_a",
+                "FROM employees | KEEP emp_no",
+                "in_view_b",
+                "FROM employees | WHERE salary > 60000 | KEEP emp_no"
+            )
+        );
     }
 }

@@ -66,12 +66,7 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
             for (var inferenceField : mappingLookup.inferenceFields().keySet()) {
                 MappedFieldType ft = mappingLookup.getFieldType(inferenceField);
                 if (ft instanceof SemanticFieldMapper.SemanticFieldType semanticFieldType) {
-                    var valueFetcher = new SemanticFieldValueFetcher(
-                        semanticFieldType,
-                        bitSetCache,
-                        searcher,
-                        SemanticFieldValueFetcher.Mode.FULL_FIELD
-                    );
+                    var valueFetcher = new FullFieldSemanticFieldValueFetcher(semanticFieldType, bitSetCache, searcher);
                     fieldFetchers.put(inferenceField, valueFetcher);
                 } else {
                     throw new IllegalArgumentException("Field [" + ft.name() + "] is not an inference field");

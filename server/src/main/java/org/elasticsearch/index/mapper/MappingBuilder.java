@@ -26,15 +26,26 @@ public class MappingBuilder {
     private final Map<String, MetadataFieldMapper.Builder> metadataBuilders;
     @Nullable
     private Map<String, Object> meta;
+    private final boolean isStrictColumnar;
 
     public MappingBuilder(
         RootObjectMapper.Builder rootBuilder,
         Map<String, MetadataFieldMapper.Builder> metadataBuilders,
         @Nullable Map<String, Object> meta
     ) {
+        this(rootBuilder, metadataBuilders, meta, false);
+    }
+
+    public MappingBuilder(
+        RootObjectMapper.Builder rootBuilder,
+        Map<String, MetadataFieldMapper.Builder> metadataBuilders,
+        @Nullable Map<String, Object> meta,
+        boolean isStrictColumnar
+    ) {
         this.rootBuilder = rootBuilder;
         this.metadataBuilders = metadataBuilders;
         this.meta = meta;
+        this.isStrictColumnar = isStrictColumnar;
     }
 
     /**
@@ -42,7 +53,7 @@ public class MappingBuilder {
      * mappers in the root. Useful for applying field budget constraints without decomposing a built mapping.
      */
     MappingBuilder withoutMappers() {
-        return new MappingBuilder(rootBuilder.newEmptyBuilder(), new LinkedHashMap<>(metadataBuilders), meta);
+        return new MappingBuilder(rootBuilder.newEmptyBuilder(), new LinkedHashMap<>(metadataBuilders), meta, isStrictColumnar);
     }
 
     public RootObjectMapper.Builder rootBuilder() {
@@ -61,7 +72,7 @@ public class MappingBuilder {
      * @param newFieldsBudget how many new fields may be added during the merge
      */
     public void merge(MappingBuilder incoming, MergeReason reason, long newFieldsBudget) {
-        MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, reason, newFieldsBudget);
+        MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, reason, newFieldsBudget, isStrictColumnar);
 
         // Merge root object builders
         MapperMergeContext objectMergeContext = mergeContext.createChildContext(null, rootBuilder.dynamic);
@@ -102,7 +113,7 @@ public class MappingBuilder {
      * @return the built {@link Mapping}
      */
     public Mapping build(MergeReason reason) {
-        MapperBuilderContext rootContext = MapperBuilderContext.root(isSourceSynthetic(), isDataStream(), reason);
+        MapperBuilderContext rootContext = MapperBuilderContext.root(isSourceSynthetic(), isDataStream(), reason, isStrictColumnar);
         RootObjectMapper root = rootBuilder.build(rootContext);
         MetadataFieldMapper[] metadataMappers = metadataBuilders.values()
             .stream()

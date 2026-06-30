@@ -1,0 +1,6 @@
+pr: 151156
+summary: Fix `auto_date_histogram` `RoundingInfo` equals/hashCode to include all serialized fields
+area: Aggregations
+type: bug
+issues:
+ - 151155

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.util.List;
 import java.util.Map;
@@ -101,7 +103,7 @@ public class PushFiltersToSourceTests extends ESTestCase {
 
         List<Expression> result = PushFiltersToSource.combineFieldExtractRangePairs(
             List.of(lower, upper),
-            LucenePushdownPredicates.DEFAULT,
+            UNMAPPED_KEY_PREDICATES,
             AttributeMap.emptyAttributeMap()
         );
 
@@ -129,7 +131,7 @@ public class PushFiltersToSourceTests extends ESTestCase {
 
         List<Expression> result = PushFiltersToSource.combineFieldExtractRangePairs(
             List.of(lower, upper),
-            LucenePushdownPredicates.DEFAULT,
+            UNMAPPED_KEY_PREDICATES,
             AttributeMap.emptyAttributeMap()
         );
 
@@ -155,7 +157,7 @@ public class PushFiltersToSourceTests extends ESTestCase {
         List<Expression> conjuncts = List.of(lower);
         List<Expression> result = PushFiltersToSource.combineFieldExtractRangePairs(
             conjuncts,
-            LucenePushdownPredicates.DEFAULT,
+            UNMAPPED_KEY_PREDICATES,
             AttributeMap.emptyAttributeMap()
         );
 
@@ -186,7 +188,7 @@ public class PushFiltersToSourceTests extends ESTestCase {
         List<Expression> conjuncts = List.of(lower, upper);
         List<Expression> result = PushFiltersToSource.combineFieldExtractRangePairs(
             conjuncts,
-            LucenePushdownPredicates.DEFAULT,
+            UNMAPPED_KEY_PREDICATES,
             AttributeMap.emptyAttributeMap()
         );
 
@@ -219,7 +221,7 @@ public class PushFiltersToSourceTests extends ESTestCase {
 
         List<Expression> result = PushFiltersToSource.combineFieldExtractRangePairs(
             List.of(lower, upper),
-            LucenePushdownPredicates.DEFAULT,
+            UNMAPPED_KEY_PREDICATES,
             aliasReplacedBy
         );
 
@@ -250,7 +252,7 @@ public class PushFiltersToSourceTests extends ESTestCase {
         List<Expression> conjuncts = List.of(lower, upper);
         List<Expression> result = PushFiltersToSource.combineFieldExtractRangePairs(
             conjuncts,
-            LucenePushdownPredicates.DEFAULT,
+            UNMAPPED_KEY_PREDICATES,
             AttributeMap.emptyAttributeMap()
         );
 
@@ -273,6 +275,19 @@ public class PushFiltersToSourceTests extends ESTestCase {
     }
 
     private static final Source SRC = Source.EMPTY;
+
+    /**
+     * A stats-backed predicate whose {@code SearchStats} reports the {@code field_extract} loader config as
+     * supported (i.e. the sub-key is an unmapped keyed sub-field, so it stays pushable) while relying on the
+     * attribute's aggregatable flag for indexed/doc-values. The stats-less
+     * {@link LucenePushdownPredicates#DEFAULT} now conservatively reports no loader config as supported
+     * (can_match has no mapping access), so these recognition tests use this predicate to exercise the
+     * pushable (unmapped) path that local physical planning sees with real {@code SearchStats}.
+     */
+    private static final LucenePushdownPredicates UNMAPPED_KEY_PREDICATES = LucenePushdownPredicates.from(
+        new EsqlTestUtils.TestSearchStats(),
+        new EsqlFlags(true)
+    );
 
     private static FieldAttribute fieldAttr(String name) {
         return new FieldAttribute(SRC, name, new EsField(name, DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE));

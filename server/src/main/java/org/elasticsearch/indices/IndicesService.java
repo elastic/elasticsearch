@@ -145,7 +145,9 @@ import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.FieldPredicate;
@@ -191,6 +193,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -293,6 +296,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final MergeMetrics mergeMetrics;
     private final PluggableDirectoryMetricsHolder<StoreMetrics> storeMetricHolder;
     private final Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
+    private final ThrottlingRecoveryService throttlingRecoveryService;
 
     @Override
     protected void doStart() {
@@ -418,6 +422,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.searchStatsSettings = new SearchStatsSettings(clusterService.getClusterSettings());
         this.storeMetricHolder = builder.storeMetricsHolder;
         this.directoryMetricHolderMap = builder.directoryMetricHolderMap;
+        this.throttlingRecoveryService = builder.throttlingRecoveryService;
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -640,6 +645,16 @@ public class IndicesService extends AbstractLifecycleComponent
         assert indexService.indexUUID().equals(index.getUUID())
             : "uuid mismatch local: " + indexService.indexUUID() + " incoming: " + index.getUUID();
         return indexService;
+    }
+
+    /**
+     * Returns a predicate that is {@code true} for shards open on this node.
+     */
+    public Predicate<ShardId> hasShardPredicate() {
+        return shardId -> {
+            final IndexService indexService = indexService(shardId.getIndex());
+            return indexService != null && indexService.hasShard(shardId.id());
+        };
     }
 
     /**
@@ -974,7 +989,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final ProjectId projectId,
         final ShardRouting shardRouting,
         final PeerRecoveryTargetService recoveryTargetService,
-        final PeerRecoveryTargetService.RecoveryListener recoveryListener,
+        final RecoveryListener recoveryListener,
         final RepositoriesService repositoriesService,
         final Consumer<IndexShard.ShardFailure> onShardFailure,
         final GlobalCheckpointSyncer globalCheckpointSyncer,
@@ -990,28 +1005,33 @@ public class IndicesService extends AbstractLifecycleComponent
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
-        projectResolver.executeOnProject(
-            projectId,
-            () -> indexShard.startRecovery(
-                recoveryState,
-                recoveryTargetService,
-                postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, recoveryListener),
-                repositoriesService,
-                (mapping, listener) -> {
-                    assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                        : "mapping update consumer only required by local shards recovery";
-                    AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
-                        // concrete index - no name clash, it uses uuid
-                        .setConcreteIndex(shardRouting.index())
-                        .source(mapping.source().string(), XContentType.JSON);
-                    client.execute(
-                        TransportAutoPutMappingAction.TYPE,
-                        putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
-                        new RefCountAwareThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
-                    );
-                },
-                this,
-                clusterStateVersion
+        throttlingRecoveryService.enqueue(
+            recoveryListener,
+            recoveryState,
+            indexShard.recoveryStats(),
+            listener -> projectResolver.executeOnProject(
+                projectId,
+                () -> indexShard.startRecovery(
+                    recoveryState,
+                    recoveryTargetService,
+                    postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, listener),
+                    repositoriesService,
+                    (mapping, l) -> {
+                        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                            : "mapping update consumer only required by local shards recovery";
+                        AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
+                            // concrete index - no name clash, it uses uuid
+                            .setConcreteIndex(shardRouting.index())
+                            .source(mapping.source().string(), XContentType.JSON);
+                        client.execute(
+                            TransportAutoPutMappingAction.TYPE,
+                            putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
+                            new RefCountAwareThreadedActionListener<>(threadPool.generic(), l.map(ignored -> null))
+                        );
+                    },
+                    this,
+                    clusterStateVersion
+                )
             )
         );
     }

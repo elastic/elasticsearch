@@ -17,6 +17,14 @@ public class StageSpecTests extends ESTestCase {
         assertNotNull(new StageSpec.DeltaStage().stageId());
         assertNotNull(new StageSpec.OffsetStage().stageId());
         assertNotNull(new StageSpec.GcdStage().stageId());
+        assertNotNull(new StageSpec.AlpDoubleStage().stageId());
         assertNotNull(new StageSpec.BitPackPayload().stageId());
+    }
+
+    public void testSplitDeltaStageKMaxBounds() {
+        assertEquals(1, new StageSpec.SplitDeltaStage(1).kMax());
+        assertEquals(StageSpec.SplitDeltaStage.MAX_K_MAX, new StageSpec.SplitDeltaStage(StageSpec.SplitDeltaStage.MAX_K_MAX).kMax());
+        expectThrows(IllegalArgumentException.class, () -> new StageSpec.SplitDeltaStage(0));
+        expectThrows(IllegalArgumentException.class, () -> new StageSpec.SplitDeltaStage(StageSpec.SplitDeltaStage.MAX_K_MAX + 1));
     }
 }

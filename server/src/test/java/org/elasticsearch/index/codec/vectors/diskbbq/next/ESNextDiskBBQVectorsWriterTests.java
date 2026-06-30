@@ -15,7 +15,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -78,13 +77,12 @@ public class ESNextDiskBBQVectorsWriterTests extends ESTestCase {
             try (IndexReader reader = DirectoryReader.open(writer)) {
                 assertEquals("expected a single segment", 1, reader.leaves().size());
                 LeafReader leafReader = reader.leaves().get(0).reader();
-                FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo("vector");
                 KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader();
                 if (vectorReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
                     vectorReader = fieldsReader.getFieldReader("vector");
                 }
                 assertTrue(vectorReader instanceof ESNextDiskBBQVectorsReader);
-                return ((ESNextDiskBBQVectorsReader) vectorReader).readCentroidData(fieldInfo);
+                return ((ESNextDiskBBQVectorsReader) vectorReader).readCentroidData("vector");
             }
         }
     }

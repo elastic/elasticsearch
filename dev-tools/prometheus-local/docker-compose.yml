@@ -103,6 +103,122 @@ services:
       - traefik.http.routers.grafana.entrypoints=web
       - traefik.http.services.grafana.loadbalancer.server.port=3000
 
+  promql_downsample_data_init:
+    image: alpine:latest
+    container_name: promql-downsample-data-init
+    restart: "no"
+    command:
+      - /bin/sh
+      - -c
+      - |
+          apk add --no-cache bash coreutils curl --quiet
+          bash <<'BASH'
+          set -euo pipefail
+
+          readonly es_url="http://host.docker.internal:9200"
+          readonly auth="elastic:password"
+          readonly raw="promql-downsample-raw"
+          readonly start="2024-05-10T00:00:00Z"
+          readonly end="2024-05-10T18:00:00Z"
+          readonly samples=100
+          readonly step=600
+          readonly specs=(
+            "30m promql-downsample-30m"
+            "1h promql-downsample-1h"
+            "2h promql-downsample-2h"
+          )
+
+          es() {
+            local path="$$1"
+            shift
+            curl -fsS -u "$${auth}" -H "Content-Type: application/json" "$$@" "$${es_url}$${path}"
+          }
+
+          rx() {
+            local n="$$1"
+            if (( n < 35 )); then
+              echo $$((18000 + n * 1400))
+            elif (( n < 70 )); then
+              echo $$((67000 + (n - 35) * 3300))
+            elif (( n < 84 )); then
+              echo $$((182500 + (n - 70) * 7200))
+            else
+              echo $$((283300 - (n - 84) * 5200))
+            fi
+          }
+
+          ready=
+          for _ in {1..30}; do
+            if es / >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [[ -z "$${ready}" ]]; then
+            echo "Elasticsearch did not become available at $${es_url}" >&2
+            exit 1
+          fi
+
+          targets="$${raw}"
+          for spec in "$${specs[@]}"; do
+            read -r _ target <<< "$${spec}"
+            targets+=",$${target}"
+          done
+
+          echo "Resetting [$${targets}]"
+          es "/$${targets}?ignore_unavailable=true" -X DELETE >/dev/null
+
+          es "/$${raw}" -X PUT --data-binary @- <<JSON >/dev/null
+          {
+            "settings": {
+              "number_of_shards": 1,
+              "index": {
+                "mode": "time_series",
+                "routing_path": ["cluster", "pod"],
+                "time_series": {
+                  "start_time": "$${start}",
+                  "end_time": "$${end}"
+                }
+              }
+            },
+            "mappings": {
+              "properties": {
+                "@timestamp": { "type": "date" },
+                "cluster": { "type": "keyword", "time_series_dimension": true },
+                "pod": { "type": "keyword", "time_series_dimension": true },
+                "rx": { "type": "double", "time_series_metric": "gauge" }
+              }
+            }
+          }
+          JSON
+
+          bulk="$$(mktemp)"
+          trap 'rm -f "$${bulk}"' EXIT
+          base="$$(date -u -d "$${start}" "+%s")"
+          for (( i = 0; i < samples; i++ )); do
+            t="$$(date -u -d "@$$((base + i * step))" "+%Y-%m-%dT%H:%M:%SZ")"
+            printf '{"index":{"_index":"%s"}}\n' "$${raw}"
+            printf '{"@timestamp":"%s","cluster":"prod","pod":"one","rx":%s}\n' "$${t}" "$$(rx "$${i}")"
+          done > "$${bulk}"
+
+          es "/_bulk?refresh=true" --data-binary "@$${bulk}" >/dev/null
+          es "/$${raw}/_settings" -X PUT -d '{"index.blocks.write":true}' >/dev/null
+
+          for spec in "$${specs[@]}"; do
+            read -r interval target <<< "$${spec}"
+            echo "Creating [$${target}] with fixed_interval [$${interval}]"
+            es "/$${raw}/_downsample/$${target}" -X POST --data-binary @- <<JSON >/dev/null
+          {
+            "fixed_interval": "$${interval}",
+            "sampling_method": "aggregate"
+          }
+          JSON
+          done
+
+          echo "PromQL downsampled setup completed."
+          BASH
+
   grafana_dashboard_init:
     image: alpine:latest
     container_name: grafana-dashboard-init
@@ -140,7 +256,7 @@ services:
             -X POST http://grafana:3000/api/dashboards/import \
             -H "Content-Type: application/json" \
             -d "{\"dashboard\": $$(cat /tmp/dashboard.json), \"overwrite\": false, \"folderId\": 0}"
-          echo "Dashboard imported."
+          echo "Prometheus 2.0 overview dashboard setup completed."
 
 volumes:
   prometheus_data:

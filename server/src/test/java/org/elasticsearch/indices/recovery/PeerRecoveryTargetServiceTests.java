@@ -355,7 +355,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         shard.prepareForIndexRecovery();
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, 0L, null, null, new PeerRecoveryTargetService.RecoveryListener() {
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, 0L, null, null, new RecoveryListener() {
             @Override
             public void onRecoveryDone(
                 RecoveryState state,
@@ -368,6 +368,11 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                 future.onFailure(e);
+            }
+
+            @Override
+            public void onRecoveryAborted() {
+                future.onResponse(null);
             }
         });
         recoveryTarget.markAsDone();
@@ -712,7 +717,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         recoveryStateIndex.addFileDetail(storeFileMetadata.name(), storeFileMetadata.length(), false);
         recoveryStateIndex.setFileDetailsComplete();
 
-        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, 0L, snapshotFilesProvider, () -> {}, null);
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, 0L, snapshotFilesProvider, () -> {}, RecoveryListener.NOOP);
 
         String repository = "repo";
         IndexId indexId = new IndexId("index", "uuid");

@@ -411,6 +411,7 @@ sample_data_ts_long | 42
 ;
 
 fieldIsPartiallyUnmappedMultiIndex
+skip_flattened_rewrite: insist_on_flattened_unsupported
 required_capability: index_metadata_field
 required_capability: unmapped_fields
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -437,6 +438,7 @@ sample_data            | Connected to 10.1.0.1
 ;
 
 fieldIsPartiallyUnmappedAndRenamedMultiIndex
+skip_flattened_rewrite: insist_on_flattened_unsupported
 required_capability: unmapped_fields
 FROM sample_data, no_mapping_sample_data
 | INSIST_🐔 message
@@ -463,6 +465,7 @@ Connected to 10.1.0.1
 ;
 
 fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex
+skip_flattened_rewrite: insist_on_flattened_unsupported
 required_capability: index_metadata_field
 required_capability: source_field_mapping
 required_capability: unmapped_fields
@@ -490,6 +493,7 @@ partial_mapping_sample_data           | 2024-10-23T13:55:01.543Z | Connected to 
 ;
 
 partialMappingStats
+skip_flattened_rewrite: partial_mapping_field_extract_conflict
 required_capability: index_metadata_field
 required_capability: source_field_mapping
 required_capability: unmapped_fields
@@ -509,6 +513,7 @@ max(@timestamp):date     | count(*):long | message:keyword
 ;
 
 partialMappingCoalesce
+skip_flattened_rewrite: partial_mapping_field_extract_conflict
 required_capability: index_metadata_field
 required_capability: source_field_mapping
 required_capability: unmapped_fields
@@ -538,6 +543,7 @@ FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data MET
 ;
 
 partialMappingUnionTypes
+skip_flattened_rewrite: partial_mapping_field_extract_conflict
 required_capability: index_metadata_field
 required_capability: source_field_mapping
 required_capability: unmapped_fields
@@ -566,6 +572,7 @@ FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data MET
 ;
 
 partialMappingStatsAfterCast
+skip_flattened_rewrite: partial_mapping_field_extract_conflict
 required_capability: index_metadata_field
 required_capability: source_field_mapping
 required_capability: unmapped_fields

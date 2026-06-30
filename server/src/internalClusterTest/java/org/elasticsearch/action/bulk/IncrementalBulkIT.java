@@ -9,9 +9,11 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -25,11 +27,17 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.ingest.IngestClientIT;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskCancellationService;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -47,16 +55,20 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class IncrementalBulkIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(IngestClientIT.ExtendedIngestTestPlugin.class);
+        return List.of(IngestClientIT.ExtendedIngestTestPlugin.class, MockTransportService.TestPlugin.class);
     }
 
     @Override
@@ -530,6 +542,185 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             BulkItemResponse item = bulkResponse.getItems()[i];
             assertTrue(item.isFailed());
             assertThat(item.getFailure().getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
+        }
+    }
+
+    public void testCancellableIncrementBulkServiceHandler() throws Exception {
+        ExecutorService executorService = Executors.newFixedThreadPool(1);
+
+        // Artificially low watermarks to force incrementalOperation.maybeSplit() always split batches.
+        final String nodeName = internalCluster().startNode(
+            Settings.builder()
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "1b")
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1b")
+                .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "1b")
+                .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "1b")
+                .build()
+        );
+
+        String index = "test";
+        createIndex(
+            index,
+            Settings.builder()
+                .put("index.routing.allocation.require._name", nodeName)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()
+        );
+
+        try (Releasable ignored = executorService::shutdown) {
+            // Test Case 1: Cancel before the very first client.bulk()
+            // This triggers a global failure.
+            IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, nodeName);
+            IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, nodeName);
+            TaskManager taskManager = internalCluster().getInstance(TransportService.class, nodeName).getTaskManager();
+
+            AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+
+            IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
+            handler.cancel("before-first-addItems()", () -> {});
+
+            int numberOfChunks = randomIntBetween(5, 10);
+
+            for (int i = 0; i < numberOfChunks; i++) {
+                refCounted.incRef();
+                IndexingPressureStats before = indexingPressure.stats();
+                assertThat(before.getCurrentCoordinatingOps(), is(0L));
+                assertThat(before.getCurrentCoordinatingBytes(), is(0L));
+
+                handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> {});
+
+                IndexingPressureStats after = indexingPressure.stats();
+                assertThat(after.getCurrentCoordinatingOps(), is(0L));
+                assertThat(after.getCurrentCoordinatingBytes(), is(0L));
+            }
+
+            refCounted.incRef();
+            handler.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
+            IndexingPressureStats finalStats = indexingPressure.stats();
+            assertThat(finalStats.getCurrentCoordinatingOps(), is(0L));
+            assertThat(finalStats.getCurrentCoordinatingBytes(), is(0L));
+
+            expectThrows(TaskCancelledException.class, containsString("task cancelled [before-first-addItems()]"), future::actionGet);
+            // lastItems() should unregister BulkSessionTask.
+            assertThat(taskManager.getCancellableTasks().isEmpty(), is(true));
+
+            handler.close();
+
+            // Test case 2: Cancel immediately after the first client bulk has successfully completed.
+            // Subsequent handler.addItems() should short circuit.
+            ensureGreen(index);
+
+            TransportService primaryService = internalCluster().getInstance(TransportService.class, nodeName);
+            final MockTransportService primaryTransportService = (MockTransportService) primaryService;
+            PlainActionFuture<BulkResponse> future2 = new PlainActionFuture<>();
+
+            final CountDownLatch readyForCancellation = new CountDownLatch(1);
+            final AtomicBoolean childTaskBanned = new AtomicBoolean(false);
+
+            IncrementalBulkService.Handler handler2 = incrementalBulkService.newBulkRequest();
+
+            IndexRequest notCancelled = indexRequest(index).id("not-cancelled");
+            IndexRequest cancelledFirstRequest = indexRequest(index).id("cancelled-first");
+            IndexRequest cancelledLastItem = indexRequest(index).id("cancelled-last");
+
+            refCounted.incRef();
+            handler2.addItems(List.of(notCancelled), refCounted::decRef, () -> {
+                // Verify child task banned.
+                primaryTransportService.addRequestHandlingBehavior(
+                    TaskCancellationService.BAN_PARENT_ACTION_NAME,
+                    (transportRequestHandler, request, channel, task) -> {
+                        childTaskBanned.set(true);
+                        transportRequestHandler.messageReceived(request, channel, task);
+                    }
+                );
+
+                // set up task cancellation propagation verification.
+                primaryTransportService.addRequestHandlingBehavior(
+                    TransportShardBulkAction.ACTION_NAME + "[p]",
+                    (transportRequestHandler, request, channel, task) -> {
+                        assertThat(task, instanceOf(ReplicationTask.class));
+                        readyForCancellation.countDown();
+                        assertBusy(
+                            () -> assertThat(taskManager.getCancellableTask(task.getParentTaskId().getId()).isCancelled(), is(true))
+                        );
+                        assertBusy(() -> assertThat(((ReplicationTask) task).isCancelled(), is(true)));
+                        transportRequestHandler.messageReceived(request, channel, task);
+                    }
+                );
+
+                refCounted.incRef();
+                handler2.addItems(List.of(cancelledFirstRequest), refCounted::decRef, () -> {
+                    refCounted.incRef();
+                    handler2.lastItems(List.of(cancelledLastItem), refCounted::decRef, future2);
+                });
+
+                try {
+                    readyForCancellation.await();
+                } catch (Exception e) {
+                    fail(e, "did not reach shard");
+                }
+
+                handler2.cancel("after first additem() before second TransportShardBulkAction submit to write thread pool", () -> {});
+            });
+
+            BulkResponse bulkResponse = future2.actionGet();
+            assertThat(childTaskBanned.get(), is(true));
+            assertThat(bulkResponse.getItems().length, is(3));
+            assertThat(bulkResponse.getItems()[0].getFailure(), nullValue());
+            assertThat(bulkResponse.getItems()[0].isFailed(), is(false));
+            Throwable rootCause = ExceptionsHelper.unwrap(bulkResponse.getItems()[1].getFailure().getCause(), TaskCancelledException.class);
+            assertThat(rootCause, notNullValue());
+            assertThat(
+                rootCause.getMessage(),
+                is("task cancelled [after first additem() before second TransportShardBulkAction submit to write thread pool]")
+            );
+
+            rootCause = ExceptionsHelper.unwrap(bulkResponse.getItems()[2].getFailure().getCause(), TaskCancelledException.class);
+            assertThat(rootCause, notNullValue());
+            assertThat(
+                rootCause.getMessage(),
+                is("task cancelled [after first additem() before second TransportShardBulkAction submit to write thread pool]")
+            );
+
+            primaryTransportService.clearAllRules();
+            handler2.close();
+
+            // Test 3 In event of severed HTTP connection, REST handler may premature terminate handler.
+            childTaskBanned.set(false);
+            IndexRequest beforeTerminationRequest = indexRequest(index).id("before-termination");
+            IndexRequest duringTerminationRequest = indexRequest(index).id("during-termination");
+            IncrementalBulkService.Handler handler3 = incrementalBulkService.newBulkRequest();
+
+            refCounted.incRef();
+            handler3.addItems(List.of(beforeTerminationRequest), refCounted::decRef, () -> {
+                primaryTransportService.addRequestHandlingBehavior(
+                    TaskCancellationService.BAN_PARENT_ACTION_NAME,
+                    (transportRequestHandler, request, channel, task) -> {
+                        childTaskBanned.set(true);
+                        transportRequestHandler.messageReceived(request, channel, task);
+                    }
+                );
+
+                primaryTransportService.addRequestHandlingBehavior(
+                    TransportShardBulkAction.ACTION_NAME + "[p]",
+                    (transportRequestHandler, request, channel, task) -> {
+                        assertBusy(
+                            () -> assertThat(taskManager.getCancellableTask(task.getParentTaskId().getId()).isCancelled(), is(true))
+                        );
+                        transportRequestHandler.messageReceived(request, channel, task);
+                    }
+                );
+
+                refCounted.incRef();
+                handler3.addItems(List.of(duringTerminationRequest), refCounted::decRef, () -> {});
+
+                // Close handler prematurely.
+                handler3.close();
+            });
+            assertBusy(() -> assertThat(childTaskBanned.get(), is(true)));
+            assertBusy(() -> assertThat(taskManager.getCancellableTasks().isEmpty(), is(true)));
+            primaryTransportService.clearAllRules();
         }
     }
 

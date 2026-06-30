@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+ - 148975
+pr: 149512
+summary: Fix GPU SQ format name to match CPU equivalent
+type: bug

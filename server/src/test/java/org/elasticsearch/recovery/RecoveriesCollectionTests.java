@@ -13,32 +13,16 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveriesCollection;
-import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
-    static final PeerRecoveryTargetService.RecoveryListener listener = new PeerRecoveryTargetService.RecoveryListener() {
-        @Override
-        public void onRecoveryDone(
-            RecoveryState state,
-            ShardLongFieldRange timestampMillisFieldRange,
-            ShardLongFieldRange eventIngestedMillisFieldRange
-        ) {
-
-        }
-
-        @Override
-        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-
-        }
-    };
+    static final RecoveryListener listener = RecoveryListener.NOOP;
 
     public void testRecoveryCancellation() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
 import com.google.auth.Credentials;
+import com.google.auth.oauth2.ComputeEngineCredentials;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.storage.Storage;
 
@@ -159,14 +160,15 @@ public class GcsStorageProviderTests extends ESTestCase {
 
     public void testCredentialsFromAccessToken() throws Exception {
         GcsConfiguration config = GcsConfiguration.fromMap(Map.of("access_token", "ya29.token"));
-        Credentials creds = GcsStorageProvider.credentials(config);
+        Credentials creds = new GcsStorageProvider(mockStorage).credentials(config);
         assertThat(creds, instanceOf(GoogleCredentials.class));
         assertEquals("ya29.token", ((GoogleCredentials) creds).getAccessToken().getTokenValue());
     }
 
     public void testCredentialsRequiresCredentials() {
         GcsConfiguration config = GcsConfiguration.fromMap(Map.of("project_id", "my-project"));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GcsStorageProvider.credentials(config));
+        GcsStorageProvider provider = new GcsStorageProvider(mockStorage);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> provider.credentials(config));
         assertTrue(e.getMessage().contains("GCS data source requires credentials"));
     }
 
@@ -174,7 +176,8 @@ public class GcsStorageProviderTests extends ESTestCase {
         // An empty access token is treated as absent rather than building OAuth credentials with an empty token.
         GcsConfiguration config = GcsConfiguration.fromMap(Map.of("access_token", "", "project_id", "my-project"));
         assertFalse(config.hasCredentials());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GcsStorageProvider.credentials(config));
+        GcsStorageProvider provider = new GcsStorageProvider(mockStorage);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> provider.credentials(config));
         assertTrue(e.getMessage().contains("GCS data source requires credentials"));
     }
 
@@ -183,7 +186,33 @@ public class GcsStorageProviderTests extends ESTestCase {
         // access_token path) rather than handed to ServiceAccountCredentials.fromStream as garbage JSON.
         GcsConfiguration config = GcsConfiguration.fromMap(Map.of("credentials", "   ", "project_id", "my-project"));
         assertFalse(config.hasCredentials());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GcsStorageProvider.credentials(config));
+        GcsStorageProvider provider = new GcsStorageProvider(mockStorage);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> provider.credentials(config));
         assertTrue(e.getMessage().contains("GCS data source requires credentials"));
+    }
+
+    /**
+     * auth=workload_identity returns {@link ComputeEngineCredentials} from the production seam.
+     */
+    public void testWorkloadIdentityCredentialsReturnsComputeEngine() throws Exception {
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "workload_identity"));
+        Credentials creds = new GcsStorageProvider(mockStorage).credentials(config);
+        assertThat(creds, instanceOf(ComputeEngineCredentials.class));
+    }
+
+    /**
+     * auth=workload_identity routes through {@link GcsStorageProvider#buildWorkloadIdentityCredentials()}, the seam tests
+     * use to inject a credential backed by a mock HTTP transport instead of the GCE metadata server.
+     */
+    public void testWorkloadIdentityCredentialsRoutesThroughBuildWorkloadIdentityCredentials() throws Exception {
+        GoogleCredentials injected = GoogleCredentials.create(new com.google.auth.oauth2.AccessToken("seam-token", null));
+        GcsStorageProvider provider = new GcsStorageProvider(mockStorage) {
+            @Override
+            protected Credentials buildWorkloadIdentityCredentials() {
+                return injected;
+            }
+        };
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "workload_identity"));
+        assertSame(injected, provider.credentials(config));
     }
 }

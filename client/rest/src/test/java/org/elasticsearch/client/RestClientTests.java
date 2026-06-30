@@ -21,13 +21,23 @@ package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
 import org.apache.http.client.AuthCache;
+import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
+import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.client.RestClient.NodeTuple;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
+import java.net.ConnectException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,7 +46,9 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -51,6 +63,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -431,5 +444,118 @@ public class RestClientTests extends RestClientTestCase {
                 expectedOffset += nodeTuple.nodes.size();
             }
         }
+    }
+
+    /**
+     * Regression test for <a href="https://github.com/elastic/elasticsearch/issues/141558">#141558</a>.
+     * <p>
+     * Exercises a tricky-to-reproduce bug in which two threads end up completing each other's callback
+     * (as can happen within Apache HC's {@code AbstractNIOConnPool#fireCallbacks}), triggering a retry
+     * that would deadlock because each thread held its own {@code RequestCancellable} monitor while needing
+     * the other thread's.
+     * <p>
+     * Since {@code runIfNotCancelled} is no longer synchronized, this scenario no longer deadlocks.
+     */
+    public void testCallbackCrossCompletionDoesNotDeadlock() throws Exception {
+        try (
+            RestClient restClient = new RestClient(
+                callbackCrossCompletingHttpAsyncClient(),
+                new Header[0],
+                Arrays.asList(new Node(new HttpHost("127.0.0.1", 1)), new Node(new HttpHost("127.0.0.1", 2))),
+                null,
+                new RestClient.FailureListener(),
+                NodeSelector.ANY,
+                false,
+                false,
+                false
+            )
+        ) {
+            final CountDownLatch completed = new CountDownLatch(2);
+            for (int i = 0; i < 2; i++) {
+                final Thread thread = new Thread(() -> {
+                    try {
+                        restClient.performRequestAsync(new Request("GET", "/"), new ResponseListener() {
+                            @Override
+                            public void onSuccess(Response response) {
+                                throw new AssertionError("request should not succeed");
+                            }
+
+                            @Override
+                            public void onFailure(Exception exception) {
+                                completed.countDown();
+                            }
+                        });
+                    } catch (Exception e) {
+                        throw new AssertionError("request should not fail in performRequestAsync", e);
+                    }
+                }, "async-retry-deadlock-" + i);
+                thread.setDaemon(true);
+                thread.start();
+            }
+
+            final ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
+            final long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (System.nanoTime() < deadlineNanos) {
+                if (completed.await(50, TimeUnit.MILLISECONDS)) {
+                    return;
+                }
+                if (threadMXBean.findDeadlockedThreads() != null) {
+                    fail("detected deadlock");
+                }
+            }
+            fail("requests did not complete before deadline");
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static CloseableHttpAsyncClient callbackCrossCompletingHttpAsyncClient() {
+        // In principle this could be reproduced with a real HTTP client, but the window for triggering the deadlock is so very short that
+        // we never got it to fail in practice. Instead, fake out the behavior of the HTTP client to trigger the cross-completion on every
+        // run.
+        final CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
+        when(
+            httpClient.<HttpResponse>execute(
+                any(HttpAsyncRequestProducer.class),
+                any(HttpAsyncResponseConsumer.class),
+                any(HttpClientContext.class),
+                any(FutureCallback.class)
+            )
+        ).thenAnswer(new Answer<Future<HttpResponse>>() {
+            private final CountDownLatch initialExecutesRegistered = new CountDownLatch(2);
+            private final Map<Thread, FutureCallback<HttpResponse>> firstCallbacksByThread = new ConcurrentHashMap<>();
+
+            @Override
+            public Future<HttpResponse> answer(InvocationOnMock invocation) throws Throwable {
+                getCallbackToFail(invocation.getArgument(3)).failed(new ConnectException("simulated connection lease failure"));
+                return null;
+            }
+
+            private FutureCallback<HttpResponse> getCallbackToFail(FutureCallback<HttpResponse> currentCallback)
+                throws InterruptedException {
+                if (firstCallbacksByThread.putIfAbsent(Thread.currentThread(), currentCallback) == null) {
+                    // First invocation of execute() on this thread: capture its callback, wait for the other thread's callback to be
+                    // captured similarly, then complete the other thread's callback here as could happen (rarely) within
+                    // AbstractNIOConnPool#fireCallbacks().
+                    initialExecutesRegistered.countDown();
+                    if (initialExecutesRegistered.await(10, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("timed out waiting for initial execute() on both threads");
+                    }
+                    return getOtherThreadCallback();
+                } else {
+                    // Retry: just fail the current callback directly.
+                    return currentCallback;
+                }
+            }
+
+            private FutureCallback<HttpResponse> getOtherThreadCallback() {
+                for (Map.Entry<Thread, FutureCallback<HttpResponse>> entry : firstCallbacksByThread.entrySet()) {
+                    if (entry.getKey() != Thread.currentThread()) {
+                        return entry.getValue();
+                    }
+                }
+                throw new AssertionError("no other callback registered");
+            }
+        });
+        return httpClient;
     }
 }

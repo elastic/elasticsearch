@@ -1,7 +1,8 @@
-# TODO: guarded by IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG — add a cluster_features
-# requirement and remove the excludeTestsMatching entry in build.gradle when the flag is lifted.
-
 "Downsample delta temporality counter":
+
+  - requires:
+      cluster_features: ["mapper.tsdb.metric_temporality_support"]
+      reason: "metric temporality support added in 9.5"
 
   - do:
       indices.create:
@@ -89,6 +90,10 @@
 ---
 "Downsample mixed temporality counters":
 
+  - requires:
+      cluster_features: ["mapper.tsdb.metric_temporality_support"]
+      reason: "metric temporality support added in 9.5"
+
   - do:
       indices.create:
         index: test-mixed-temporality
@@ -169,3 +174,398 @@
   - match: { hits.hits.1._source.temporality: delta }
   - match: { hits.hits.1._source.counter: 16 }
   - match: { hits.hits.1._source._doc_count: 3 }
+
+---
+"Downsample delta temporality exponential histogram":
+
+  - requires:
+      cluster_features: ["mapper.tsdb.metric_temporality_support"]
+      reason: "metric temporality support added in 9.5"
+
+  - do:
+      indices.create:
+        index: test-delta-histogram
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [metricset, temporality]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+                temporality_field: temporality
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              temporality:
+                type: keyword
+                time_series_dimension: true
+              latency:
+                type: exponential_histogram
+                time_series_metric: histogram
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-delta-histogram
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:00:00.000Z", "metricset": "pod", "temporality": "delta", "latency": {"scale":0,"sum":3.0,"min":1.0,"max":3.0,"positive":{"indices":[0,1],"counts":[1,1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:05:00.000Z", "metricset": "pod", "temporality": "delta", "latency": {"scale":0,"sum":5.0,"min":5.0,"max":5.0,"positive":{"indices":[2],"counts":[1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:10:00.000Z", "metricset": "pod", "temporality": "delta", "latency": {"scale":0,"sum":2.0,"min":2.0,"max":2.0,"positive":{"indices":[0],"counts":[1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:00:00.000Z", "metricset": "pod", "temporality": "delta", "latency": {"scale":0,"sum":7.0,"min":7.0,"max":7.0,"positive":{"indices":[2],"counts":[1]}}}'
+
+  - do:
+      indices.put_settings:
+        index: test-delta-histogram
+        body:
+          index.blocks.write: true
+
+  - do:
+      indices.downsample:
+        index: test-delta-histogram
+        target_index: test-delta-histogram-downsample
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      search:
+        index: test-delta-histogram-downsample
+        body:
+          sort: [ "_tsid", "@timestamp" ]
+
+  # Delta histograms are merged within each bucket
+  - length: { hits.hits: 2 }
+
+  - match: { hits.hits.0._source._doc_count: 3 }
+  - match: { hits.hits.0._source.@timestamp: "2021-04-28T18:00:00.000Z" }
+  - match: { hits.hits.0._source.temporality: delta }
+  # Merged: sum = 3+5+2 = 10, min = 1.0, max = 5.0, 3 values total
+  - match: { hits.hits.0._source.latency.sum: 10.0 }
+  - match: { hits.hits.0._source.latency.min: 1.0 }
+  - match: { hits.hits.0._source.latency.max: 5.0 }
+
+  - match: { hits.hits.1._source._doc_count: 1 }
+  - match: { hits.hits.1._source.@timestamp: "2021-04-28T19:00:00.000Z" }
+  - match: { hits.hits.1._source.temporality: delta }
+  - match: { hits.hits.1._source.latency.sum: 7.0 }
+
+---
+"Downsample cumulative temporality exponential histogram":
+
+  - requires:
+      cluster_features: ["mapper.tsdb.metric_temporality_support"]
+      reason: "metric temporality support added in 9.5"
+
+  - do:
+      indices.create:
+        index: test-cumulative-histogram
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [metricset, temporality]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+                temporality_field: temporality
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              temporality:
+                type: keyword
+                time_series_dimension: true
+              latency:
+                type: exponential_histogram
+                time_series_metric: histogram
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-cumulative-histogram
+        body:
+          # Monotonically growing cumulative histogram
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:00:00.000Z", "metricset": "pod", "temporality": "cumulative", "latency": {"scale":0,"sum":1.0,"min":1.0,"max":1.0,"positive":{"indices":[0],"counts":[1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:05:00.000Z", "metricset": "pod", "temporality": "cumulative", "latency": {"scale":0,"sum":4.0,"min":1.0,"max":3.0,"positive":{"indices":[0,1],"counts":[1,1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:10:00.000Z", "metricset": "pod", "temporality": "cumulative", "latency": {"scale":0,"sum":9.0,"min":1.0,"max":5.0,"positive":{"indices":[0,1,2],"counts":[1,1,1]}}}'
+          # Reset: value count drops back to 1
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:15:00.000Z", "metricset": "pod", "temporality": "cumulative", "latency": {"scale":0,"sum":7.0,"min":7.0,"max":7.0,"positive":{"indices":[2],"counts":[1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:20:00.000Z", "metricset": "pod", "temporality": "cumulative", "latency": {"scale":0,"sum":17.0,"min":7.0,"max":10.0,"positive":{"indices":[2,3],"counts":[1,1]}}}'
+
+  - do:
+      indices.put_settings:
+        index: test-cumulative-histogram
+        body:
+          index.blocks.write: true
+
+  - do:
+      indices.downsample:
+        index: test-cumulative-histogram
+        target_index: test-cumulative-histogram-downsample
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      search:
+        index: test-cumulative-histogram-downsample
+        body:
+          sort: [ "_tsid", "@timestamp" ]
+
+  # 1 downsampled doc + 2 reset boundary docs
+  - length: { hits.hits: 3 }
+
+  # Downsampled: oldest value (vc=1)
+  - match: { hits.hits.0._source.@timestamp: "2021-04-28T18:00:00.000Z" }
+  - match: { hits.hits.0._source.temporality: cumulative }
+  - match: { hits.hits.0._source.latency.sum: 1.0 }
+  - match: { hits.hits.0._source.latency.min: 1.0 }
+  - match: { hits.hits.0._source.latency.max: 1.0 }
+  - match: { hits.hits.0._source._doc_count: 3 }
+
+  # Reset boundary: pre-reset cumulative value (vc=3)
+  - match: { hits.hits.1._source.@timestamp: "2021-04-28T18:10:00.000Z" }
+  - match: { hits.hits.1._source.latency.sum: 9.0 }
+
+  # Reset boundary: post-reset value (vc=1)
+  - match: { hits.hits.2._source.@timestamp: "2021-04-28T18:15:00.000Z" }
+  - match: { hits.hits.2._source.latency.sum: 7.0 }
+
+---
+"Downsample cumulative temporality exponential histogram across buckets":
+
+  - requires:
+      cluster_features: ["mapper.tsdb.metric_temporality_support"]
+      reason: "metric temporality support added in 9.5"
+
+  - do:
+      indices.create:
+        index: test-cumulative-histogram-buckets
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [metricset, temporality]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+                temporality_field: temporality
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              temporality:
+                type: keyword
+                time_series_dimension: true
+              latency:
+                type: exponential_histogram
+                time_series_metric: histogram
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-cumulative-histogram-buckets
+        body:
+          # Bucket 1 (18:00-19:00): growing cumulative histogram, then reset
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:00:00.000Z", "metricset": "pod", "temporality": "cumulative", "latency": {"scale":0,"sum":1.0,"min":1.0,"max":1.0,"positive":{"indices":[0],"counts":[1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:10:00.000Z", "metricset": "pod", "temporality": "cumulative", "latency": {"scale":0,"sum":4.0,"min":1.0,"max":3.0,"positive":{"indices":[0,1],"counts":[1,1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:20:00.000Z", "metricset": "pod", "temporality": "cumulative", "latency": {"scale":0,"sum":9.0,"min":1.0,"max":5.0,"positive":{"indices":[0,1,2],"counts":[1,1,1]}}}'
+          # Reset within bucket 1: value count drops
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:30:00.000Z", "metricset": "pod", "temporality": "cumulative", "latency": {"scale":0,"sum":7.0,"min":7.0,"max":7.0,"positive":{"indices":[2],"counts":[1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:40:00.000Z", "metricset": "pod", "temporality": "cumulative", "latency": {"scale":0,"sum":17.0,"min":7.0,"max":10.0,"positive":{"indices":[2,3],"counts":[1,1]}}}'
+          # Bucket 2 (19:00-20:00): continues growing
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:00:00.000Z", "metricset": "pod", "temporality": "cumulative", "latency": {"scale":0,"sum":30.0,"min":7.0,"max":13.0,"positive":{"indices":[2,3],"counts":[1,2]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:10:00.000Z", "metricset": "pod", "temporality": "cumulative", "latency": {"scale":0,"sum":50.0,"min":7.0,"max":20.0,"positive":{"indices":[2,3,4],"counts":[1,2,1]}}}'
+
+  - do:
+      indices.put_settings:
+        index: test-cumulative-histogram-buckets
+        body:
+          index.blocks.write: true
+
+  - do:
+      indices.downsample:
+        index: test-cumulative-histogram-buckets
+        target_index: test-cumulative-histogram-buckets-downsample
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      search:
+        index: test-cumulative-histogram-buckets-downsample
+        body:
+          sort: [ "@timestamp" ]
+
+  # 2 downsampled docs + 1 reset boundary doc
+  - length: { hits.hits: 3 }
+
+  # Bucket 1 downsampled: oldest value (vc=1)
+  - match: { hits.hits.0._source.@timestamp: "2021-04-28T18:00:00.000Z" }
+  - match: { hits.hits.0._source.latency.sum: 1.0 }
+  - match: { hits.hits.0._source.latency.min: 1.0 }
+  - match: { hits.hits.0._source.latency.max: 1.0 }
+  - match: { hits.hits.0._source._doc_count: 4 }
+
+  # Reset boundary: pre-reset cumulative value (vc=3)
+  - match: { hits.hits.1._source.@timestamp: "2021-04-28T18:20:00.000Z" }
+  - match: { hits.hits.1._source.latency.sum: 9.0 }
+
+  # Bucket 2 downsampled: oldest value (vc=3, sum=30)
+  - match: { hits.hits.2._source.@timestamp: "2021-04-28T19:00:00.000Z" }
+  - match: { hits.hits.2._source.latency.sum: 30.0 }
+  - match: { hits.hits.2._source.latency.min: 7.0 }
+  - match: { hits.hits.2._source.latency.max: 13.0 }
+  - match: { hits.hits.2._source._doc_count: 2 }
+
+---
+"Downsample mixed temporality exponential histograms":
+
+  - requires:
+      cluster_features: ["mapper.tsdb.metric_temporality_support"]
+      reason: "metric temporality support added in 9.5"
+
+  - do:
+      indices.create:
+        index: test-mixed-histogram
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [metricset, temporality]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+                temporality_field: temporality
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              temporality:
+                type: keyword
+                time_series_dimension: true
+              latency:
+                type: exponential_histogram
+                time_series_metric: histogram
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-mixed-histogram
+        body:
+          # Cumulative TSID: growing histogram with a reset
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:00:00.000Z", "metricset": "pod", "temporality": "cumulative", "latency": {"scale":0,"sum":1.0,"min":1.0,"max":1.0,"positive":{"indices":[0],"counts":[1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:10:00.000Z", "metricset": "pod", "temporality": "cumulative", "latency": {"scale":0,"sum":4.0,"min":1.0,"max":3.0,"positive":{"indices":[0,1],"counts":[1,1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:20:00.000Z", "metricset": "pod", "temporality": "cumulative", "latency": {"scale":0,"sum":9.0,"min":1.0,"max":5.0,"positive":{"indices":[0,1,2],"counts":[1,1,1]}}}'
+          # Reset: value count drops back to 1
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:30:00.000Z", "metricset": "pod", "temporality": "cumulative", "latency": {"scale":0,"sum":7.0,"min":7.0,"max":7.0,"positive":{"indices":[2],"counts":[1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:40:00.000Z", "metricset": "pod", "temporality": "cumulative", "latency": {"scale":0,"sum":17.0,"min":7.0,"max":10.0,"positive":{"indices":[2,3],"counts":[1,1]}}}'
+          # Delta TSID: per-interval histograms
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:00:00.000Z", "metricset": "pod", "temporality": "delta", "latency": {"scale":0,"sum":3.0,"min":1.0,"max":3.0,"positive":{"indices":[0,1],"counts":[1,1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:10:00.000Z", "metricset": "pod", "temporality": "delta", "latency": {"scale":0,"sum":5.0,"min":5.0,"max":5.0,"positive":{"indices":[2],"counts":[1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:20:00.000Z", "metricset": "pod", "temporality": "delta", "latency": {"scale":0,"sum":2.0,"min":2.0,"max":2.0,"positive":{"indices":[0],"counts":[1]}}}'
+
+  - do:
+      indices.put_settings:
+        index: test-mixed-histogram
+        body:
+          index.blocks.write: true
+
+  - do:
+      indices.downsample:
+        index: test-mixed-histogram
+        target_index: test-mixed-histogram-downsample
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  # Query the cumulative TSID: single bucket, oldest value preserved
+  - do:
+      search:
+        index: test-mixed-histogram-downsample
+        body:
+          query: { term: { temporality: cumulative } }
+          sort: [ "@timestamp" ]
+
+  # 1 downsampled doc + 2 reset boundary docs
+  - length: { hits.hits: 3 }
+
+  # Downsampled: oldest value (vc=1)
+  - match: { hits.hits.0._source.temporality: cumulative }
+  - match: { hits.hits.0._source.latency.sum: 1.0 }
+  - match: { hits.hits.0._source.latency.min: 1.0 }
+  - match: { hits.hits.0._source.latency.max: 1.0 }
+  - match: { hits.hits.0._source._doc_count: 3 }
+
+  # Reset boundary: pre-reset cumulative value (vc=3)
+  - match: { hits.hits.1._source.@timestamp: "2021-04-28T18:20:00.000Z" }
+  - match: { hits.hits.1._source.latency.sum: 9.0 }
+
+  # Reset boundary: post-reset value (vc=1)
+  - match: { hits.hits.2._source.@timestamp: "2021-04-28T18:30:00.000Z" }
+  - match: { hits.hits.2._source.latency.sum: 7.0 }
+
+  # Query the delta TSID: all histograms merged into one doc
+  - do:
+      search:
+        index: test-mixed-histogram-downsample
+        body:
+          query: { term: { temporality: delta } }
+          sort: [ "@timestamp" ]
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.temporality: delta }
+  - match: { hits.hits.0._source.latency.sum: 10.0 }
+  - match: { hits.hits.0._source.latency.min: 1.0 }
+  - match: { hits.hits.0._source.latency.max: 5.0 }
+  - match: { hits.hits.0._source._doc_count: 3 }

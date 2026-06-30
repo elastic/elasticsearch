@@ -81,6 +81,5 @@
   "examples" : [
     "metric % 10"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

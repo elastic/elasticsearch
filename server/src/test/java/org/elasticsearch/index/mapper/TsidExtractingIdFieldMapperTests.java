@@ -871,6 +871,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         ).breaker(newLimitedBreaker(ByteSizeValue.ofMb(1)));
     }
 
+    protected String notConfigurableErrorMessage() {
+        return "Failed to parse mapping: " + fieldName() + " is not configurable if index mode is time_series";
+    }
+
     public void testExpectedIdWithRoutingPath() throws IOException {
         assumeFalse("BlockLoaderTestRunner does not support synthetic ID", useSyntheticId);
         MapperService mapperService = mapperService(
@@ -1200,6 +1204,11 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
             assertThat(TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid), equalTo(timestamp));
             assertThat(TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(uid), equalTo(routingHash));
         }
+    }
+
+    @Override
+    protected Settings getIndexSettings() {
+        return indexSettings(IndexVersion.current(), true, false);
     }
 
     private void verifyIdFromBlockLoader(String expectedId) throws IOException {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.persistence;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -27,10 +28,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -76,7 +79,7 @@ public final class TransformInternalIndex {
      * of changes above. Increment this constant by one at the same time as adding a new
      * entry to the table of changes above.
      */
-    public static final int TRANSFORM_INDEX_MAPPINGS_VERSION = 2;
+    public static final int TRANSFORM_INDEX_MAPPINGS_VERSION = 3;
     /**
      * No longer used for determining the age of mappings, but system index descriptor
      * code requires <em>something</em> be set. We use a value that can be parsed by
@@ -368,7 +371,13 @@ public final class TransformInternalIndex {
     }
 
     private static XContentBuilder addTransformCloudCredentialMappings(XContentBuilder builder) throws IOException {
-        return builder.startObject("persisted_credential")
+        return builder.startObject(TransformConfigManager.CLOUD_CREDENTIAL_TRANSFORM_ID_FIELD)
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(TransformConfigManager.CLOUD_CREDENTIAL_TOKEN_ID_FIELD)
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject("persisted_credential")
             .startObject(PROPERTIES)
             .startObject("version")
             .field(TYPE, LONG)
@@ -414,7 +423,18 @@ public final class TransformInternalIndex {
         )
             // cluster health does not wait for active shards per default
             .waitForActiveShards(ActiveShardCount.ONE);
-        ActionListener<ClusterHealthResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);
+        ActionListener<ClusterHealthResponse> innerListener = listener.delegateFailureAndWrap((l, r) -> {
+            if (r.isTimedOut()) {
+                l.onFailure(
+                    new ElasticsearchStatusException(
+                        TransformMessages.TRANSFORM_WAIT_FOR_INDEX_SHARDS_ACTIVE_TIMEOUT,
+                        RestStatus.SERVICE_UNAVAILABLE
+                    )
+                );
+            } else {
+                l.onResponse(null);
+            }
+        });
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             TRANSFORM_ORIGIN,

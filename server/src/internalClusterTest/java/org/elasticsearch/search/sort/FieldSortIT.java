@@ -27,6 +27,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
@@ -1603,6 +1604,42 @@ public class FieldSortIT extends ESIntegTestCase {
             // unset cluster setting
             updateClusterSettings(Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
         }
+    }
+
+    public void testSortColumnarId() {
+        assumeTrue("feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        if (randomBoolean()) {
+            prepareCreate("test", Settings.builder().put("index.mapping.use_columnar_id_mode_by_default", true)).get();
+        } else {
+            prepareCreate("test").setMapping("""
+                {
+                    "_id": { "mode": "columnar" }
+                }
+                """).get();
+        }
+        ensureGreen();
+        final int numDocs = randomIntBetween(10, 20);
+        IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; ++i) {
+            indexReqs[i] = prepareIndex("test").setId(Integer.toString(i)).setSource();
+        }
+        indexRandom(true, indexReqs);
+
+        SortOrder order = randomFrom(SortOrder.values());
+        assertNoFailuresAndResponse(
+            prepareSearch().setQuery(matchAllQuery()).setSize(randomIntBetween(1, numDocs + 5)).addSort("_id", order),
+            response -> {
+                SearchHit[] hits = response.getHits().getHits();
+                BytesRef previous = order == SortOrder.ASC ? new BytesRef() : UnicodeUtil.BIG_TERM;
+                for (int i = 0; i < hits.length; ++i) {
+                    String idString = hits[i].getId();
+                    final BytesRef id = new BytesRef(idString);
+                    assertEquals(idString, hits[i].getSortValues()[0]);
+                    assertThat(previous, order == SortOrder.ASC ? lessThan(id) : greaterThan(id));
+                    previous = id;
+                }
+            }
+        );
     }
 
     /**

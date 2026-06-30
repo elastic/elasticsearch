@@ -17,7 +17,8 @@ import java.io.IOException;
 
 /**
  * Typed {@link FormatReaderStatus} for the delimited-text reader. One implementation serves both
- * {@code csv} and {@code tsv}; {@link #format} carries which dialect produced the snapshot.
+ * {@code csv} and {@code tsv}; {@link #format} carries which one produced the snapshot — the
+ * format (csv/tsv), not the quoting {@code mode}.
  */
 public record CsvReaderStatus(String format, long rowsEmitted, long parseErrors, boolean headerDetected, long readNanos)
     implements

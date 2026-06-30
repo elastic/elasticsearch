@@ -152,6 +152,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
@@ -227,6 +228,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final String checkIndexOnStartup;
     private final CodecService codecService;
     private final Engine.Warmer warmer;
+    private final MutableOperationGate mutableOperationGate;
     private final SimilarityService similarityService;
     private final TranslogConfig translogConfig;
     private final IndexEventListener indexEventListener;
@@ -353,6 +355,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         final LongSupplier relativeTimeInNanosSupplier,
         final Engine.IndexCommitListener indexCommitListener,
+        final MutableOperationGate mutableOperationGate,
         final MapperMetrics mapperMetrics,
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
@@ -369,6 +372,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             threadPoolMergeExecutorService == null ? null : threadPool
         );
         this.warmer = warmer;
+        this.mutableOperationGate = mutableOperationGate;
         this.similarityService = similarityService;
         Objects.requireNonNull(store, "Store must be provided to the index shard");
         this.engineFactory = Objects.requireNonNull(engineFactory);
@@ -3702,7 +3706,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void startRecovery(
         RecoveryState recoveryState,
         PeerRecoveryTargetService recoveryTargetService,
-        PeerRecoveryTargetService.RecoveryListener recoveryListener,
+        RecoveryListener recoveryListener,
         RepositoriesService repositoriesService,
         BiConsumer<MappingMetadata, ActionListener<Void>> mappingUpdateConsumer,
         IndicesService indicesService,
@@ -3813,13 +3817,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private void executeRecovery(
         String reason,
         RecoveryState recoveryState,
-        PeerRecoveryTargetService.RecoveryListener recoveryListener,
+        RecoveryListener recoveryListener,
         CheckedConsumer<ActionListener<Boolean>, Exception> action
     ) {
         markAsRecovering(reason, recoveryState); // mark the shard as recovering on the cluster state thread
-        threadPool.generic().execute(ActionRunnable.wrap(ActionListener.wrap(r -> {
-            if (r) {
+        threadPool.generic().execute(ActionRunnable.wrap(ActionListener.wrap(recoveryDone -> {
+            if (recoveryDone) {
                 recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange());
+            } else {
+                recoveryListener.onRecoveryAborted();
             }
         }, e -> recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), true)), action));
     }
@@ -5004,13 +5010,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Ensures that the shard is ready to perform mutable operations.
      * This method is particularly useful when the shard initializes its internal
      * {@link org.elasticsearch.index.engine.Engine} lazily, as it may take some time before becoming mutable.
+     * <p>
+     * If the shard is already mutable, the listener is notified on the calling thread. Otherwise, it will be
+     * notified using the provided executor once the shard becomes mutable.
      *
-     * The provided listener will be notified once the shard is ready for mutating operations.
-     *
-     * @param listener the listener to be notified when the shard is mutable
+     * @param listener        the listener to be notified when the shard is mutable
+     * @param permitAcquired  whether the operation has already acquired an operation permit on the shard
+     * @param executorOnDelay executor used to notify the listener if the shard is not yet mutable
      */
-    public void ensureMutable(ActionListener<Void> listener, boolean permitAcquired) {
-        indexEventListener.beforeIndexShardMutableOperation(this, permitAcquired, listener);
+    public void ensureMutable(ActionListener<Void> listener, boolean permitAcquired, Executor executorOnDelay) {
+        if (mutableOperationGate == null) {
+            listener.onResponse(null);
+        } else {
+            mutableOperationGate.beforeMutableOperation(this, permitAcquired, executorOnDelay, listener);
+        }
     }
 
     // package-private for tests

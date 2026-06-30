@@ -1,0 +1,5 @@
+area: Aggregations
+issues: []
+pr: 151979
+summary: Fix non-monotonic T-Digest centroids caused by floating-point errors
+type: bug

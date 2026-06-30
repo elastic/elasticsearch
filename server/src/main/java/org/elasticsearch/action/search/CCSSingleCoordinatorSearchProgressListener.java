@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Use this progress listener for cross-cluster searches where a single
@@ -33,6 +34,8 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
 
     private SearchResponse.Clusters clusters;
     private TransportSearchAction.SearchTimeProvider timeProvider;
+    private boolean fetchPhaseExpected;
+    private final Map<Integer, String> clusterAliasByShardIndex = new ConcurrentHashMap<>();
 
     /**
      * Executed when shards are ready to be queried (after can-match)
@@ -54,6 +57,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
 
         this.clusters = clusters;
         this.timeProvider = timeProvider;
+        this.fetchPhaseExpected = fetchPhase;
 
         // Partition by clusterAlias and get counts
         // the 'shards' list does not include the shards in the 'skipped' list, so combine counts from both to get total
@@ -63,6 +67,13 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
             String clusterAlias = entry.getKey();
 
+            // Skip aliases that are not present in the clusters map.
+            // This can occur if stale skipped-shard accounting is received for a cluster that
+            // does not participate in this search response.
+            if (clusters.getCluster(clusterAlias) == null) {
+                assert false : "cluster alias [" + clusterAlias + "] not present in clusters map";
+                continue;
+            }
             clusters.swapCluster(clusterAlias, (k, v) -> {
                 assert Objects.equals(v.getTotalShards(), v.getSkippedShards())
                     : "total shards should not be set on a Cluster before onListShards, except skipped";
@@ -105,17 +116,14 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
      */
     @Override
     public void onQueryResult(int shardIndex, QuerySearchResult queryResult) {
+        SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
+        rememberClusterAliasForShardIndex(shardIndex, shardTarget);
         // we only need to update Cluster state here if the search has timed out, since:
         // 1) this is the only callback that gets search timedOut info and
         // 2) the onFinalReduce will get all these shards again so the final accounting can be done there
         // for queries that did not time out
         if (queryResult.searchTimedOut() && clusters.hasClusterObjects()) {
-            SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
-            String clusterAlias = shardTarget.getClusterAlias();
-            if (clusterAlias == null) {
-                clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-            }
-
+            String clusterAlias = clusterAliasOrLocal(shardTarget);
             clusters.swapCluster(clusterAlias, (k, v) -> {
                 if (v.isTimedOut()) {
                     return v; // cluster has already been marked as timed out on some other shard
@@ -140,11 +148,8 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         if (clusters.hasClusterObjects() == false) {
             return;
         }
-        String clusterAlias = shardTarget.getClusterAlias();
-        if (clusterAlias == null) {
-            clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-        }
-
+        rememberClusterAliasForShardIndex(shardIndex, shardTarget);
+        String clusterAlias = clusterAliasOrLocal(shardTarget);
         clusters.swapCluster(clusterAlias, (k, v) -> {
             TimeValue took;
             SearchResponse.Cluster.Status status;
@@ -291,7 +296,9 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
      * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
      */
     @Override
-    public void onFetchResult(int shardIndex) {}
+    public void onFetchResult(int shardIndex) {
+        maybeRefreshTookAfterFetch(shardIndex);
+    }
 
     /**
      * Executed when a shard reports a fetch failure.
@@ -301,7 +308,42 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
      * @param exc The cause of the failure.
      */
     @Override
-    public void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
+    public void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+        maybeRefreshTookAfterFetch(clusterAliasOrLocal(shardTarget));
+    }
+
+    private void maybeRefreshTookAfterFetch(int shardIndex) {
+        String clusterAlias = clusterAliasByShardIndex.get(shardIndex);
+        maybeRefreshTookAfterFetch(clusterAlias);
+    }
+
+    private void maybeRefreshTookAfterFetch(String clusterAlias) {
+        if (fetchPhaseExpected == false || clusters.hasClusterObjects() == false) {
+            return;
+        }
+        if (clusterAlias == null) {
+            return;
+        }
+        TimeValue took = new TimeValue(timeProvider.buildTookInMillis());
+        clusters.swapCluster(clusterAlias, (k, v) -> {
+            if (v == null) {
+                return null;
+            }
+            if (v.getStatus() == SearchResponse.Cluster.Status.SUCCESSFUL || v.getStatus() == SearchResponse.Cluster.Status.PARTIAL) {
+                return new SearchResponse.Cluster.Builder(v).setTook(took).build();
+            }
+            return v;
+        });
+    }
+
+    private void rememberClusterAliasForShardIndex(int shardIndex, SearchShardTarget shardTarget) {
+        clusterAliasByShardIndex.put(shardIndex, clusterAliasOrLocal(shardTarget));
+    }
+
+    private static String clusterAliasOrLocal(SearchShardTarget shardTarget) {
+        assert shardTarget != null : "shardTarget must not be null";
+        return Objects.requireNonNullElse(shardTarget.getClusterAlias(), RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+    }
 
     private Map<String, Integer> partitionCountsByClusterAlias(List<SearchShard> shards) {
         final Map<String, Integer> res = new HashMap<>();

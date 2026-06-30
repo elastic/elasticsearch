@@ -45,10 +45,13 @@ public abstract class AbstractAsyncBulkByPaginatedSearchActionTestCase<
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         threadPool.shutdown();
+    }
+
+    @Override
+    public final void tearDown() throws Exception {
+        super.tearDown();
     }
 
     protected abstract Request request();

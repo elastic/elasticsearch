@@ -143,6 +143,34 @@ public class LuceneSourceOperatorAutoStrategyTests extends ESTestCase {
             new Object[] { new WildcardQuery(new Term("color", "blu*")), LuceneSliceQueue.PartitioningStrategy.SEGMENT },
             new Object[] {
                 new TermInSetQuery("color", List.of(new BytesRef("red"), new BytesRef("blue"))),
+                LuceneSliceQueue.PartitioningStrategy.SEGMENT },
+            /*
+             * Nested boolean: a costly point-range buried under TWO levels of BooleanQuery
+             * (the older non-visitor logic only descended one level and would have missed this).
+             */
+            new Object[] {
+                new BooleanQuery.Builder().add(
+                    new BooleanQuery.Builder().add(new TermQuery(new Term("color", "red")), BooleanClause.Occur.MUST)
+                        .add(
+                            new IndexOrDocValuesQuery(
+                                LongPoint.newRangeQuery("@timestamp", 1735689600121L, 2735689600122L),
+                                SortedNumericDocValuesField.newSlowRangeQuery("@timestamp", 1735689600121L, 2735689600122L)
+                            ),
+                            BooleanClause.Occur.MUST
+                        )
+                        .build(),
+                    BooleanClause.Occur.MUST
+                ).add(new TermQuery(new Term("color", "blue")), BooleanClause.Occur.SHOULD).build(),
+                LuceneSliceQueue.PartitioningStrategy.SEGMENT },
+            /*
+             * Costly clause hidden behind MUST_NOT. The old recursion treated MUST_NOT branches as
+             * children of the boolean and may have skipped them; the visitor traverses them too.
+             */
+            new Object[] {
+                new BooleanQuery.Builder() // formatter
+                    .add(new TermQuery(new Term("color", "red")), BooleanClause.Occur.MUST)
+                    .add(new WildcardQuery(new Term("color", "yel*")), BooleanClause.Occur.MUST_NOT)
+                    .build(),
                 LuceneSliceQueue.PartitioningStrategy.SEGMENT }
         );
     }

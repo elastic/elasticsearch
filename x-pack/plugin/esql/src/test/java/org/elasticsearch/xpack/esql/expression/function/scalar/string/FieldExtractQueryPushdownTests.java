@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -33,7 +34,9 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -56,16 +59,37 @@ import static org.hamcrest.Matchers.equalTo;
  *     {@code ==}, {@code !=}, and the range comparators), {@code In.asQuery} (for {@code IN}),
  *     and {@code Range.asQuery} (for the closed range form).
  * </p>
+ * <p>
+ *     Only <em>unmapped</em> keyed sub-keys are pushed. A key declared under the flattened root's
+ *     {@code properties} resolves to a real typed field, so pushing it would diverge from the keyword
+ *     evaluator; {@code tryAsKeyedSubfieldName} returns empty for it. The mapped/unmapped decision needs
+ *     the data-node mapping, so these tests pass a stats-backed predicate ({@code UNMAPPED_KEY_PREDICATES}
+ *     or {@link #mappedKeyPredicates()}); the stats-less {@link LucenePushdownPredicates#DEFAULT} used by
+ *     can_match conservatively pushes nothing.
+ * </p>
  */
 public class FieldExtractQueryPushdownTests extends ESTestCase {
 
     private static final String FLATTENED_ROOT_NAME = "resource.attributes";
 
+    /**
+     * A stats-backed predicate whose {@code SearchStats} reports the {@code field_extract} loader config as
+     * supported (i.e. the sub-key is an unmapped keyed sub-field, so it stays pushable), relying on the
+     * attribute's own aggregatable flag for indexed/doc-values. The stats-less
+     * {@link LucenePushdownPredicates#DEFAULT} now conservatively reports no loader config as supported
+     * (can_match has no mapping access), so these recognition tests use this predicate to exercise the
+     * pushable (unmapped) path that local physical planning sees with real {@code SearchStats}.
+     */
+    private static final LucenePushdownPredicates UNMAPPED_KEY_PREDICATES = LucenePushdownPredicates.from(
+        new EsqlTestUtils.TestSearchStats(),
+        new EsqlFlags(true)
+    );
+
     public void testTryAsKeyedSubfieldNameReturnsRootDotKeyForFlattenedField() {
         assumeQueryPushdownEnabled();
         FieldExtract fn = new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.name"));
 
-        assertThat(fn.tryAsKeyedSubfieldName(LucenePushdownPredicates.DEFAULT), equalTo(Optional.of("resource.attributes.host.name")));
+        assertThat(fn.tryAsKeyedSubfieldName(UNMAPPED_KEY_PREDICATES), equalTo(Optional.of("resource.attributes.host.name")));
     }
 
     public void testTryAsKeyedSubfieldNameReturnsEmptyForNonFlattenedField() {
@@ -79,7 +103,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
 
         assertThat(
             "query pushdown must require FLATTENED type on the field argument",
-            fn.tryAsKeyedSubfieldName(LucenePushdownPredicates.DEFAULT),
+            fn.tryAsKeyedSubfieldName(UNMAPPED_KEY_PREDICATES),
             equalTo(Optional.empty())
         );
     }
@@ -91,7 +115,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
 
         assertThat(
             "query pushdown must require a real FieldAttribute, not a ReferenceAttribute or other expression",
-            fn.tryAsKeyedSubfieldName(LucenePushdownPredicates.DEFAULT),
+            fn.tryAsKeyedSubfieldName(UNMAPPED_KEY_PREDICATES),
             equalTo(Optional.empty())
         );
     }
@@ -103,7 +127,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
 
         assertThat(
             "query pushdown must require a foldable (constant) path. The keyed sub-field name can't be built per row",
-            fn.tryAsKeyedSubfieldName(LucenePushdownPredicates.DEFAULT),
+            fn.tryAsKeyedSubfieldName(UNMAPPED_KEY_PREDICATES),
             equalTo(Optional.empty())
         );
     }
@@ -119,7 +143,10 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
         );
         FieldExtract fn = new FieldExtract(Source.EMPTY, rootWithoutDocValues, Literal.keyword(Source.EMPTY, "host.name"));
 
-        assertThat(fn.tryAsKeyedSubfieldName(LucenePushdownPredicates.DEFAULT), equalTo(Optional.empty()));
+        // EMPTY stats report no doc values, so the decline comes from isIndexedAndHasDocValues (the
+        // attribute is also non-aggregatable) rather than the mapped/unmapped loader-config check.
+        LucenePushdownPredicates noDocValuesPredicates = LucenePushdownPredicates.from(SearchStats.EMPTY, new EsqlFlags(true));
+        assertThat(fn.tryAsKeyedSubfieldName(noDocValuesPredicates), equalTo(Optional.empty()));
     }
 
     public void testTryAsKeyedSubfieldNameReturnsEmptyWhenCapabilityDisabled() {
@@ -133,7 +160,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
 
         assertThat(
             "with fn_field_extract disabled the predicate must stay in the FilterExec",
-            fn.tryAsKeyedSubfieldName(LucenePushdownPredicates.DEFAULT),
+            fn.tryAsKeyedSubfieldName(UNMAPPED_KEY_PREDICATES),
             equalTo(Optional.empty())
         );
     }
@@ -147,9 +174,51 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
         FieldExtract fn = new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, dottedKey));
 
         assertThat(
-            fn.tryAsKeyedSubfieldName(LucenePushdownPredicates.DEFAULT),
+            fn.tryAsKeyedSubfieldName(UNMAPPED_KEY_PREDICATES),
             equalTo(Optional.of("resource.attributes.service.attributes.host.name"))
         );
+    }
+
+    /**
+     * A key declared under the flattened root's {@code properties} resolves on the data node to a real
+     * typed field, not the keyed sub-field. Query pushdown must step aside for it so {@code field_extract}
+     * falls back to the per-row keyword evaluator: the keyed channel never stores mapped sub-fields, and a
+     * typed-field query would apply different comparison semantics. This is what keeps the result the same
+     * whether or not the optimizer pushed the call.
+     */
+    public void testTryAsKeyedSubfieldNameReturnsEmptyForMappedSubfield() {
+        assumeQueryPushdownEnabled();
+        FieldExtract fn = new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.ip"));
+
+        assertThat(fn.tryAsKeyedSubfieldName(mappedKeyPredicates()), equalTo(Optional.empty()));
+    }
+
+    /**
+     * Without {@code SearchStats} (the can_match phase uses {@link LucenePushdownPredicates#DEFAULT}) we
+     * can't tell a mapped sub-field from an unmapped keyed one, so query pushdown conservatively fires for
+     * nothing. The stats-backed path used during local physical planning still pushes unmapped keys.
+     */
+    public void testTryAsKeyedSubfieldNameReturnsEmptyWithoutStats() {
+        assumeQueryPushdownEnabled();
+        FieldExtract fn = new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.name"));
+
+        assertThat(fn.tryAsKeyedSubfieldName(LucenePushdownPredicates.DEFAULT), equalTo(Optional.empty()));
+    }
+
+    /**
+     * The comparison operators must not translate a mapped sub-field {@code field_extract} to a Lucene
+     * query: {@code EsqlBinaryComparison.translatable} reports {@code NO} so the predicate stays in the
+     * {@code FilterExec} and runs on the keyword evaluator output.
+     */
+    public void testEqualsTranslatableNoForMappedSubfield() {
+        assumeQueryPushdownEnabled();
+        Equals eq = new Equals(
+            Source.EMPTY,
+            new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.ip")),
+            Literal.keyword(Source.EMPTY, "10.0.0.1")
+        );
+
+        assertThat(eq.translatable(mappedKeyPredicates()), equalTo(TranslationAware.Translatable.NO));
     }
 
     public void testEqualsTranslatableYesForFieldExtractOnFlattened() {
@@ -160,7 +229,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-a")
         );
 
-        assertThat(eq.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
+        assertThat(eq.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.YES));
     }
 
     public void testNotEqualsTranslatableYesForFieldExtractOnFlattened() {
@@ -171,7 +240,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-a")
         );
 
-        assertThat(neq.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
+        assertThat(neq.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.YES));
     }
 
     /**
@@ -188,7 +257,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-a")
         );
 
-        assertThat(gt.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
+        assertThat(gt.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.YES));
     }
 
     public void testGreaterThanOrEqualTranslatableYesForFieldExtractOnFlattened() {
@@ -199,7 +268,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-a")
         );
 
-        assertThat(gte.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
+        assertThat(gte.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.YES));
     }
 
     public void testLessThanTranslatableYesForFieldExtractOnFlattened() {
@@ -210,7 +279,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-a")
         );
 
-        assertThat(lt.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
+        assertThat(lt.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.YES));
     }
 
     public void testLessThanOrEqualTranslatableYesForFieldExtractOnFlattened() {
@@ -221,7 +290,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-a")
         );
 
-        assertThat(lte.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
+        assertThat(lte.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.YES));
     }
 
     /**
@@ -238,7 +307,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             nonFoldableBound
         );
 
-        assertThat(gt.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
+        assertThat(gt.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.NO));
     }
 
     /**
@@ -255,6 +324,8 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
         );
         GreaterThan gt = new GreaterThan(Source.EMPTY, keyword, Literal.keyword(Source.EMPTY, "node-a"));
 
+        // Use the conservative can_match predicate: a plain FieldAttribute must stay pushable even there,
+        // confirming the new mapped-sub-field gate only affects the field_extract branch.
         assertThat(gt.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
     }
 
@@ -275,7 +346,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             null
         );
 
-        assertThat(range.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
+        assertThat(range.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.YES));
     }
 
     /**
@@ -298,7 +369,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             null
         );
 
-        assertThat(range.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
+        assertThat(range.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.NO));
     }
 
     /**
@@ -308,7 +379,9 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
     public void testRangeTranslatableYesPreservedForFieldAttributeLhs() {
         // Indexed keyword FieldAttribute: this is the pre-existing pushable LHS.
         // LucenePushdownPredicates.DEFAULT.isPushableAttribute will accept it because
-        // isAggregatable=true and the keyword data type has an exact match.
+        // isAggregatable=true and the keyword data type has an exact match. Using the conservative
+        // can_match predicate also confirms the new mapped-sub-field gate only affects the field_extract
+        // branch, not a plain FieldAttribute.
         FieldAttribute keyword = new FieldAttribute(
             Source.EMPTY,
             "host.name",
@@ -345,7 +418,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             null
         );
 
-        Query query = range.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+        Query query = range.asQuery(UNMAPPED_KEY_PREDICATES, TranslatorHandler.TRANSLATOR_HANDLER);
 
         // SingleValueQuery wrapping is mandatory for the same reason it is on Equals/NotEquals/In: a
         // multi-valued sub-key would otherwise let any of its values satisfy the range,
@@ -380,7 +453,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
                     null
                 );
 
-                Query query = range.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+                Query query = range.asQuery(UNMAPPED_KEY_PREDICATES, TranslatorHandler.TRANSLATOR_HANDLER);
 
                 assertThat(
                     "for (includeLower=" + includeLower + ", includeUpper=" + includeUpper + ")",
@@ -414,7 +487,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-a")
         );
 
-        Query query = gt.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+        Query query = gt.asQuery(UNMAPPED_KEY_PREDICATES, TranslatorHandler.TRANSLATOR_HANDLER);
 
         assertThat(
             query,
@@ -438,7 +511,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-a")
         );
 
-        Query query = gte.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+        Query query = gte.asQuery(UNMAPPED_KEY_PREDICATES, TranslatorHandler.TRANSLATOR_HANDLER);
 
         assertThat(
             query,
@@ -463,7 +536,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-z")
         );
 
-        Query query = lt.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+        Query query = lt.asQuery(UNMAPPED_KEY_PREDICATES, TranslatorHandler.TRANSLATOR_HANDLER);
 
         assertThat(
             query,
@@ -487,7 +560,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-z")
         );
 
-        Query query = lte.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+        Query query = lte.asQuery(UNMAPPED_KEY_PREDICATES, TranslatorHandler.TRANSLATOR_HANDLER);
 
         assertThat(
             query,
@@ -528,7 +601,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             List.of(Literal.keyword(Source.EMPTY, "node-a"), Literal.keyword(Source.EMPTY, "node-b"))
         );
 
-        assertThat(in.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
+        assertThat(in.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.YES));
     }
 
     public void testEqualsAsQueryProducesSingleValueWrappedTermQueryAgainstKeyedSubfield() {
@@ -540,7 +613,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-a")
         );
 
-        Query query = eq.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+        Query query = eq.asQuery(UNMAPPED_KEY_PREDICATES, TranslatorHandler.TRANSLATOR_HANDLER);
 
         // SVQ wrapping is mandatory: a multi-valued sub-key would otherwise let any of its values
         // satisfy the term match, which contradicts ES|QL's "multi-value compares to null" rule.
@@ -556,7 +629,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-a")
         );
 
-        Query query = neq.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+        Query query = neq.asQuery(UNMAPPED_KEY_PREDICATES, TranslatorHandler.TRANSLATOR_HANDLER);
 
         assertThat(
             query,
@@ -573,7 +646,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             List.of(Literal.keyword(Source.EMPTY, "node-a"), Literal.keyword(Source.EMPTY, "node-b"))
         );
 
-        Query query = in.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+        Query query = in.asQuery(UNMAPPED_KEY_PREDICATES, TranslatorHandler.TRANSLATOR_HANDLER);
 
         // LinkedHashSet preserves insertion order, matching translateFieldExtractIn's accumulation
         // order over list().
@@ -595,7 +668,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
         // The defensive throw catches the case where it slips through to the data-node translator.
         EsqlIllegalArgumentException ex = expectThrows(
             EsqlIllegalArgumentException.class,
-            () -> in.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER)
+            () -> in.asQuery(UNMAPPED_KEY_PREDICATES, TranslatorHandler.TRANSLATOR_HANDLER)
         );
         assertThat(ex.getMessage(), equalTo("field_extract IN with all-null list cannot be translated to a query"));
     }
@@ -606,6 +679,17 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             name,
             new EsField(name, DataType.FLATTENED, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
         );
+    }
+
+    /**
+     * A predicate whose {@code SearchStats} reports the {@code field_extract} loader config as unsupported,
+     * mirroring what local physical planning sees for a key declared under the flattened root's
+     * {@code properties} (the flattened field type rejects the config for mapped sub-fields).
+     * {@code isIndexedAndHasDocValues} is still satisfied through the attribute's aggregatable flag, so the
+     * only reason pushdown declines is the mapped-sub-field rejection in {@code supportsBlockLoaderConfig}.
+     */
+    private static LucenePushdownPredicates mappedKeyPredicates() {
+        return LucenePushdownPredicates.from(new EsqlTestUtils.TestSearchStats(false), new EsqlFlags(true));
     }
 
     private static void assumeQueryPushdownEnabled() {

@@ -1199,7 +1199,7 @@ public class InternalEngine extends Engine {
     protected long generateSeqNoForOperationOnPrimary(final Operation operation) {
         assert operation.origin() == Operation.Origin.PRIMARY;
         assert operation.seqNo() == UNASSIGNED_SEQ_NO : "ops should not have an assigned seq no. but was: " + operation.seqNo();
-        return doGenerateSeqNoForOperation(operation);
+        return doGenerateSeqNo();
     }
 
     protected void advanceMaxSeqNoOfUpdatesOnPrimary(long seqNo) {
@@ -1211,13 +1211,23 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Generate the sequence number for the specified operation.
+     * Generate a sequence number.
      *
-     * @param operation the operation
      * @return the sequence number
      */
-    long doGenerateSeqNoForOperation(final Operation operation) {
+    long doGenerateSeqNo() {
         return localCheckpointTracker.generateSeqNo();
+    }
+
+    /**
+     * Atomically reserve {@code count} contiguous sequence numbers and return the first.
+     * The caller owns {@code [result, result + count - 1]}.
+     *
+     * @param count the number of sequence numbers to reserve; must be positive
+     * @return the first (lowest) sequence number in the reserved range
+     */
+    protected long doGenerateSeqNos(int count) {
+        return localCheckpointTracker.generateSeqNos(count);
     }
 
     @Override
@@ -1288,7 +1298,7 @@ public class InternalEngine extends Engine {
                             advanceMaxSeqNoOfUpdatesOnPrimary(index.seqNo());
                         }
                     } else {
-                        markSeqNoAsSeen(index.seqNo());
+                        advanceMaxSeqNo(index.seqNo());
                     }
 
                     assert index.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + index.origin();
@@ -1473,12 +1483,16 @@ public class InternalEngine extends Engine {
         }
         lastWriteNanos = maxStartNanos;
 
+        int opsWithPreflightErrors = 0;
         if (origin == Operation.Origin.PRIMARY) {
             // Primary: resolve all version IDs in a single Lucene reader acquisition, then plan.
             final IndexingStrategy[] batchPlans = planPrimarySubBatch(subBatchOps, subBatchSize);
             for (int i = 0; i < subBatchSize; i++) {
                 plans[i] = batchPlans[i];
                 reservedDocs += plans[i].reservedDocs;
+                if (plans[i].earlyResultOnPreflightError.isPresent()) {
+                    opsWithPreflightErrors++;
+                }
             }
         } else {
             for (int i = 0; i < subBatchSize; i++) {
@@ -1488,24 +1502,33 @@ public class InternalEngine extends Engine {
         }
 
         try {
-            // Create Indexing Operation
+            // Create Indexing Operation — reserve all sequence numbers for primary ops atomically up
+            // front (before any Lucene writes). Skipped when every op is a preflight error.
+            long firstPrimarySeqNo = -1;
+            long seqNoToBeMarkedSeen = SequenceNumbers.NO_OPS_PERFORMED;
+            final int seqNoCount = subBatchSize - opsWithPreflightErrors;
+            if (origin == Operation.Origin.PRIMARY && seqNoCount > 0) {
+                firstPrimarySeqNo = doGenerateSeqNos(seqNoCount);
+            }
+            int batchSeqNoIdx = 0;
             for (int i = 0; i < subBatchSize; i++) {
                 Index index = subBatchOps[i];
                 IndexingStrategy plan = plans[i];
 
                 if (plan.earlyResultOnPreflightError.isPresent()) {
-                    assert index.origin() == Operation.Origin.PRIMARY : index.origin();
+                    assert origin == Operation.Origin.PRIMARY : origin;
                     IndexResult indexResult = plan.earlyResultOnPreflightError.get();
                     allResults[subBatchIdx + i] = indexResult;
                     assert indexResult.getResultType() == Result.Type.FAILURE : indexResult.getResultType();
                     continue;
                 }
 
-                if (index.origin() == Operation.Origin.PRIMARY) {
+                if (origin == Operation.Origin.PRIMARY) {
+                    final long seqNo = firstPrimarySeqNo + batchSeqNoIdx++;
                     index = new Index(
                         index.uid(),
                         index.parsedDoc(),
-                        generateSeqNoForOperationOnPrimary(index),
+                        seqNo,
                         index.primaryTerm(),
                         index.version(),
                         index.versionType(),
@@ -1521,14 +1544,16 @@ public class InternalEngine extends Engine {
                     final boolean toAppend = plan.indexIntoLucene && plan.useLuceneUpdateDocument == false;
 
                     if (toAppend == false) {
-                        advanceMaxSeqNoOfUpdatesOnPrimary(index.seqNo());
+                        advanceMaxSeqNoOfUpdatesOnPrimary(seqNo);
                     }
                 } else {
-                    // TODO: Can probably move to just the max for this batch
-                    markSeqNoAsSeen(index.seqNo());
+                    seqNoToBeMarkedSeen = Math.max(seqNoToBeMarkedSeen, index.seqNo());
                 }
 
                 assert index.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + index.origin();
+            }
+            if (seqNoToBeMarkedSeen != SequenceNumbers.NO_OPS_PERFORMED) {
+                advanceMaxSeqNo(seqNoToBeMarkedSeen);
             }
 
             // Lucene
@@ -2133,7 +2158,7 @@ public class InternalEngine extends Engine {
 
                     advanceMaxSeqNoOfDeletesOnPrimary(delete.seqNo());
                 } else {
-                    markSeqNoAsSeen(delete.seqNo());
+                    advanceMaxSeqNo(delete.seqNo());
                 }
 
                 assert delete.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + delete.origin();
@@ -2326,6 +2351,7 @@ public class InternalEngine extends Engine {
                 engineConfig.getIndexSettings().seqNoIndexOptions(),
                 engineConfig.getIndexSettings().useDocValuesSkipper(),
                 useTsdbSyntheticId,
+                engineConfig.getMapperService().isUseColumnarId(),
                 delete.id(),
                 delete.uid()
             );
@@ -2522,7 +2548,7 @@ public class InternalEngine extends Engine {
         if (preFlightError.isPresent()) {
             return new NoOpResult(UNASSIGNED_PRIMARY_TERM, UNASSIGNED_SEQ_NO, preFlightError.get());
         }
-        markSeqNoAsSeen(noOp.seqNo());
+        advanceMaxSeqNo(noOp.seqNo());
         if (hasBeenProcessedBefore(noOp) == false) {
             try {
                 final ParsedDocument tombstone = ParsedDocument.noopTombstone(
@@ -3713,9 +3739,9 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Marks the given seq_no as seen and advances the max_seq_no of this engine to at least that value.
+     * Advances the max_seq_no of this engine to at least the given value.
      */
-    protected final void markSeqNoAsSeen(long seqNo) {
+    protected final void advanceMaxSeqNo(long seqNo) {
         localCheckpointTracker.advanceMaxSeqNo(seqNo);
     }
 

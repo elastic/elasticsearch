@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.is;
 
 public class LlamaChatCompletionModelTests extends ESTestCase {
@@ -27,7 +28,7 @@ public class LlamaChatCompletionModelTests extends ESTestCase {
             "id",
             TaskType.COMPLETION,
             "llama",
-            new LlamaChatCompletionServiceSettings(modelId, url, null),
+            new LlamaChatCompletionServiceSettings(modelId, createUri(url), null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
@@ -37,7 +38,7 @@ public class LlamaChatCompletionModelTests extends ESTestCase {
             "id",
             TaskType.CHAT_COMPLETION,
             "llama",
-            new LlamaChatCompletionServiceSettings(modelId, url, null),
+            new LlamaChatCompletionServiceSettings(modelId, createUri(url), null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
@@ -47,7 +48,7 @@ public class LlamaChatCompletionModelTests extends ESTestCase {
             "id",
             TaskType.CHAT_COMPLETION,
             "llama",
-            new LlamaChatCompletionServiceSettings(modelId, url, null),
+            new LlamaChatCompletionServiceSettings(modelId, createUri(url), null),
             EmptySecretSettings.INSTANCE
         );
     }

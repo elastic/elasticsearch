@@ -111,6 +111,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     private final SearchService searchService;
     private final PITRelocationService pitRelocationService;
     private final ObjectStoreService objectStoreService;
+    private final PitRelocationMetrics pitRelocationMetrics;
 
     private static final Logger logger = LogManager.getLogger(TransportStatelessUnpromotableRelocationAction.class);
 
@@ -124,7 +125,8 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         ProjectResolver projectResolver,
         SearchService searchService,
         PITRelocationService pitRelocationService,
-        StatelessComponents statelessComponents
+        StatelessComponents statelessComponents,
+        PitRelocationMetrics pitRelocationMetrics
     ) {
         super(TYPE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -134,6 +136,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         this.pitRelocationService = pitRelocationService;
         this.peerRecoveryTargetService = peerRecoveryTargetService;
         this.objectStoreService = statelessComponents.getObjectStoreService();
+        this.pitRelocationMetrics = pitRelocationMetrics;
         var threadPool = transportService.getThreadPool();
         this.recoveryExecutor = threadPool.generic();
         this.threadContext = threadPool.getThreadContext();
@@ -233,6 +236,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             listener.onResponse(null);
             return;
         }
+        pitRelocationMetrics.recordTargetResponseReceived();
         if (response.getOpenPITContextInfos().isEmpty()) {
             logger.debug("handling empty PITHandoffResponse for shard {}", indexShard.shardId());
             listener.onResponse(null);
@@ -247,6 +251,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         }
         try (var refs = new RefCountingListener(listener)) {
             for (OpenPITContextInfo pitContextInfo : response.getOpenPITContextInfos()) {
+                pitRelocationMetrics.recordTargetContextHandled();
                 openPitAsync(indexShard, pitContextInfo, refs.acquire());
             }
         }
@@ -289,6 +294,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                                 );
                                 assert newReaderContext != null;
                                 logger.debug("adding relocated ReaderContext with id: [{}]", newReaderContext.id());
+                                pitRelocationMetrics.recordTargetReaderContextCreated();
                             };
                             assert (shardState.equals(IndexShardState.STARTED) == false
                                 && shardState.equals(IndexShardState.POST_RECOVERY) == false)
@@ -346,6 +352,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
 
     private void doHandleStartHandoff(StartHandoffRequest request, ActionListener<RelocationHandoffResponse> listener) {
         logger.debug("handling start handoff request for shard [{}]", request.getShardId());
+        pitRelocationMetrics.recordSourceHandoff();
         try {
             ShardId shardId = request.getShardId();
             final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
@@ -383,7 +390,10 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
 
         try (var listeners = new RefCountingListener(listener.map(r -> new PITHandoffResponse(pitContextInfos)))) {
             for (PitReaderContext context : activeContexts) {
-                fetchOpenPitContextInfo(shardId, context, listeners.acquire(r -> r.ifPresent(pitContextInfos::add)));
+                fetchOpenPitContextInfo(shardId, context, listeners.acquire(r -> r.ifPresent(info -> {
+                    pitContextInfos.add(info);
+                    pitRelocationMetrics.recordSourceContextCreated();
+                })));
             }
         }
     }

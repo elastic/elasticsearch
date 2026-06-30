@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.esql.datasource.azure;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 
 import java.util.Map;
 import java.util.Set;
@@ -26,8 +29,13 @@ import java.util.concurrent.ExecutorService;
  * <pre>
  *   EXTERNAL "wasbs://account.blob.core.windows.net/container/path/data.parquet"
  *   EXTERNAL "wasbs://account.blob.core.windows.net/container/path/data.parquet"
- *     WITH (account="myaccount", key="...", endpoint="https://myaccount.blob.core.windows.net")
+ *     WITH {"account": "myaccount", "key": "...", "endpoint": "https://myaccount.blob.core.windows.net"}
  * </pre>
+ * <p>
+ * The node-level {@link Environment} needed to resolve the AKS Workload Identity token symlink
+ * ({@code ${ES_PATH_CONF}/esql-datasource-azure/azure-federated-token}) arrives through the
+ * {@link StorageProviderServices} threaded into {@link #storageProviders(StorageProviderServices)}.
+ * Without it the workload-identity chain is {@code ManagedIdentity}-only.
  */
 public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
@@ -37,11 +45,16 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
-    public Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
+    public Map<String, StorageProviderFactory> storageProviders(StorageProviderServices services) {
+        Environment environment = services.environment();
+        ExecutorService executor = services.executor();
+        // Size the connection pool from the single node setting. services.settings() is the node Settings threaded
+        // through the SPI — the construction path that reaches the client-build site.
+        int maxConnections = ExternalSourceSettings.MAX_CONNECTIONS.get(services.settings());
         StorageProviderFactory azureFactory = StorageProviderFactory.of(
-            () -> new AzureStorageProvider(null, executor),
+            () -> new AzureStorageProvider(null, environment, executor, maxConnections),
             AzureConfiguration::fromQueryConfig,
-            config -> new AzureStorageProvider(config, executor)
+            cfg -> new AzureStorageProvider(cfg, environment, executor, maxConnections)
         );
         return Map.of("wasbs", azureFactory, "wasb", azureFactory);
     }

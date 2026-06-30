@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -19,6 +20,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
@@ -48,8 +50,10 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceClusterStateDelay;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryRole;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.injection.guice.Inject;
@@ -89,6 +93,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
     private static final Logger logger = LogManager.getLogger(TransportStatelessPrimaryRelocationAction.class);
 
+    private static final TransportVersion STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS = TransportVersion.fromName(
+        "stateless_primary_handoff_latest_blobs"
+    );
+
     public static final String START_RELOCATION_ACTION_NAME = TYPE.name() + "/start";
     public static final String PREWARM_RELOCATION_ACTION_NAME = TYPE.name() + "/prewarm";
     public static final String PRIMARY_CONTEXT_HANDOFF_ACTION_NAME = TYPE.name() + "/primary_context_handoff";
@@ -113,6 +121,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
+    private final CompositeRecoverySchedulingListener recoverySchedulingListeners;
     private final PeerRecoveryTargetService peerRecoveryTargetService;
     private final StatelessCommitService statelessCommitService;
     private final Executor recoveryExecutor;
@@ -129,6 +138,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         ClusterService clusterService,
         ActionFilters actionFilters,
         IndicesService indicesService,
+        CompositeRecoverySchedulingListener recoverySchedulingListeners,
         PeerRecoveryTargetService peerRecoveryTargetService,
         StatelessCommitService statelessCommitService,
         IndexShardCacheWarmer indexShardCacheWarmer,
@@ -140,6 +150,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+        this.recoverySchedulingListeners = recoverySchedulingListeners;
         this.peerRecoveryTargetService = peerRecoveryTargetService;
         this.statelessCommitService = statelessCommitService;
         this.indexShardCacheWarmer = indexShardCacheWarmer;
@@ -339,7 +350,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             return;
         }
 
-        indexShard.recoveryStats().incCurrentAsSource();
+        indexShard.recoveryStats().sourceRecoveryStarted();
+        recoverySchedulingListeners.onRecoveryStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
 
         // Flushing before blocking operations because we expect this to reduce the amount of work done by the flush that happens while
         // operations are blocked. NB the flush has force=false so may do nothing.
@@ -359,7 +371,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();
         preFlushStep.addListener(listener.delegateResponse((l, e) -> {
-            indexShard.recoveryStats().decCurrentAsSource();
+            indexShard.recoveryStats().sourceRecoveryCompleted();
+            recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
             l.onFailure(e);
         }).delegateFailureAndWrap((listener0, preFlushResult) -> {
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
@@ -510,7 +523,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
                         try {
                             handoffCompleteListener.onResponse(null);
-                            indexShard.recoveryStats().decCurrentAsSource();
+                            indexShard.recoveryStats().sourceRecoveryCompleted();
+                            recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
                         } finally {
                             handoffResultListener.onResponse(null);
                         }
@@ -537,6 +551,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                     assert latestBcc != null : "no uploaded BCC for shard " + shardId;
                     final long blobLength = latestBcc.calculateBccBlobLength();
                     final BlobFile latestBccBlob = latestBcc.toBlobFile();
+                    final var lastCommitBlobs = latestBcc.lastCompoundCommit().getBlobFiles();
+                    final var lastCommitIsHollow = latestBcc.lastCompoundCommit().hollow();
                     // This happens after markRelocating() has triggered the listener. The latest uploaded BCC will be the last. No new
                     // BCCs will be uploaded after that. However, there could still be VBCCs after the last BCC that we need to ignore.
                     // Thus, we pass the generation of the last BCC.
@@ -561,7 +577,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                             statelessCommitService.getSearchNodesPerCommit(indexShard.shardId()),
                             new BlobFileWithLength(latestBccBlob, blobLength),
                             otherBlobFiles,
-                            hasRecentIdLookup
+                            hasRecentIdLookup,
+                            lastCommitBlobs,
+                            lastCommitIsHollow
                         ),
                         task,
                         TransportRequestOptions.EMPTY,
@@ -716,6 +734,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         private final BlobFileWithLength latestBccBlob;
         private final Set<BlobFile> otherBlobFiles;
         private final boolean hasRecentIdLookup;
+        @Nullable
+        private final Set<BlobFile> lastCommitBlobs;
+        private final boolean lastCommitIsHollow;
 
         PrimaryContextHandoffRequest(
             long recoveryId,
@@ -725,7 +746,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             Map<PrimaryTermAndGeneration, Set<String>> searchNodesPerCommit,
             BlobFileWithLength latestBccBlob,
             Set<BlobFile> otherBlobFiles,
-            boolean hasRecentIdLookup
+            boolean hasRecentIdLookup,
+            Set<BlobFile> lastCommitBlobs,
+            boolean lastCommitIsHollow
         ) {
             this.recoveryId = recoveryId;
             this.shardId = shardId;
@@ -735,6 +758,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             this.latestBccBlob = latestBccBlob;
             this.otherBlobFiles = otherBlobFiles;
             this.hasRecentIdLookup = hasRecentIdLookup;
+            this.lastCommitBlobs = lastCommitBlobs;
+            this.lastCommitIsHollow = lastCommitIsHollow;
         }
 
         PrimaryContextHandoffRequest(StreamInput in) throws IOException {
@@ -747,6 +772,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             latestBccBlob = in.readOptionalWriteable(BlobFileWithLength::new);
             otherBlobFiles = in.readCollectionAsSet(BlobFile::new);
             hasRecentIdLookup = in.readBoolean();
+            lastCommitBlobs = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS)
+                ? in.readCollectionAsImmutableSet(BlobFile::new)
+                : Set.of();
+            lastCommitIsHollow = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS) && in.readBoolean();
         }
 
         @Override
@@ -764,6 +793,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             out.writeOptionalWriteable(latestBccBlob);
             out.writeCollection(otherBlobFiles);
             out.writeBoolean(hasRecentIdLookup);
+            if (out.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS)) {
+                out.writeCollection(lastCommitBlobs);
+                out.writeBoolean(lastCommitIsHollow);
+            }
         }
 
         public long recoveryId() {
@@ -807,7 +840,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                     otherBlobFiles
                 );
             }
-            return new RecoveryInfoFromSource(sourceBlobsInfo, hasRecentIdLookup);
+            return new RecoveryInfoFromSource(sourceBlobsInfo, lastCommitBlobs, lastCommitIsHollow, hasRecentIdLookup);
         }
     }
 

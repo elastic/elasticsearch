@@ -154,9 +154,27 @@ The connector service has the following known issues:
 
     [elastic/connectors#3710](https://github.com/elastic/connectors/pull/3710) migrated the Jira issues endpoint to the cursor-based `rest/api/3/search/jql` endpoint. That endpoint is not available on Jira Server/Data Center pre-v10, so syncs against those instances fail when fetching issues.
 
-    **Affected versions**: 8.18.8+, 8.19.5+, 9.0.8+, 9.1.5+, 9.2.0+, 9.3.0–9.3.5, and 9.4.0–9.4.2. Jira Cloud is not affected.
+    **Affected versions**: 8.18.8+, 8.19.5-8.19.16, 9.0.8+, 9.1.5+, 9.2.0+, 9.3.0–9.3.5, and 9.4.0–9.4.2. Jira Cloud is not affected.
 
-    **Fix**: [elastic/connectors#4059](https://github.com/elastic/connectors/pull/4059), shipped in 9.3.6, 9.4.3, and 9.5.0.
+    **Fix**: [elastic/connectors#4059](https://github.com/elastic/connectors/pull/4059), shipped in 8.19.17, 9.3.6, 9.4.3, and 9.5.0.
+
+
+* **Outlook connector fails to sync on non-English Exchange servers**
+
+    The connector resolved default folders by English display names (`Contacts`, `Archive`). On localized on-prem Exchange servers these names differ, raising `ErrorFolderNotFound` and aborting the sync.
+
+    **Affected versions**: 8.11.0–8.19.16, 9.0.0–9.3.5, and 9.4.0–9.4.2. Non-English on-prem Exchange servers only.
+
+    **Fix**: [elastic/connectors#4065](https://github.com/elastic/connectors/pull/4065), shipped in 8.19.17, 9.3.6, 9.4.3, and 9.5.0. Folders are now resolved by locale-agnostic distinguished folder IDs; the Archive leaf folder still has no distinguished ID in Exchange and is skipped on localized servers when absent.
+
+
+* **Outlook connector fails when Active Directory users lack a mail attribute**
+
+    On on-prem Exchange, the connector passed the raw LDAP `mail` attribute into `exchangelib.Account`. When the attribute is missing, `ldap3` returns `[]`, causing `ValueError: primary_smtp_address [] is not an email address` and aborting the sync.
+
+    **Affected versions**: 8.11.0–8.19.16, 9.0.0–9.3.5, and 9.4.0–9.4.2. On-prem Exchange with Active Directory only.
+
+    **Fix**: [elastic/connectors#4078](https://github.com/elastic/connectors/pull/4078), shipped in 8.19.17, 9.3.6, 9.4.3, and 9.5.0.
 
 
 ## Individual connector known issues [es-connectors-known-issues-specific]

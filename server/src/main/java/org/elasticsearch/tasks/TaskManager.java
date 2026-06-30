@@ -655,6 +655,10 @@ public class TaskManager implements ClusterStateApplier {
         lastDiscoveryNodes = event.state().getNodes();
     }
 
+    public String getNodeId() {
+        return nodeId;
+    }
+
     private static class CancellableTaskHolder {
         private final CancellableTask task;
         private boolean finished = false;

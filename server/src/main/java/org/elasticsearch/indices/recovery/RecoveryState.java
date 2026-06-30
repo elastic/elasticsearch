@@ -285,6 +285,19 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     @Override
+    public String toString() {
+        return Strings.format(
+            "RecoveryState{shardId=%s, recoverySource=%s, stage=%s, primary=%s, sourceNode=%s, targetNode=%s}",
+            shardId,
+            recoverySource.getType(),
+            stage,
+            primary,
+            sourceNode != null ? sourceNode.getId() : "null",
+            targetNode.getId()
+        );
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
         builder.field(Fields.ID, shardId.id());

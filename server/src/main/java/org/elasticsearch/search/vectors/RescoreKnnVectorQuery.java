@@ -75,8 +75,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
      */
     public static RescoreKnnVectorQuery fromInnerQuery(String fieldName, float[] floatTarget, int k, int rescoreK, Query innerQuery) {
         if ((innerQuery instanceof KnnFloatVectorQuery fQuery && fQuery.getK() == rescoreK)
-            || (innerQuery instanceof KnnByteVectorQuery bQuery && bQuery.getK() == rescoreK)
-            || (innerQuery instanceof AbstractIVFKnnVectorQuery ivfQuery && ivfQuery.k == rescoreK)) {
+            || (innerQuery instanceof KnnByteVectorQuery bQuery && bQuery.getK() == rescoreK)) {
             // Queries that return only the top `k` results and do not require reduction before re-scoring.
             return new InlineRescoreQuery(fieldName, floatTarget, k, innerQuery);
         }

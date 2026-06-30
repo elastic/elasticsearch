@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzer
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
@@ -137,6 +139,9 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
                 AcrossSeriesAggregate.Grouping.NONE,
                 List.of()
             );
+            case HISTOGRAM -> metadata == PromqlHistogramQuantile.PROMQL_DEFINITION
+                ? new HistogramQuantile(unresolved.source(), child, metadata, extraParams)
+                : new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams);
             case WITHIN_SERIES_AGGREGATION -> new WithinSeriesAggregate(unresolved.source(), child, metadata, extraParams);
             case VALUE_TRANSFORMATION -> new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams);
             case VECTOR_CONVERSION -> new VectorConversionFunction(unresolved.source(), child, metadata, extraParams);

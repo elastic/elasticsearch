@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.stateless.cache.reader;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.CachePopulationSource;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +35,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
@@ -265,6 +269,81 @@ public class CacheFileReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@code SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME} must carry {@link CachePopulationSource#BlobStore}
+     * for SEARCH-thread reads, {@link CachePopulationSource#Peer} for VBCC-thread reads, and no measurement
+     * for non-{@code EsThread} callers.
+     */
+    public void testReadRecordsSearchOriginMetricWithCorrectAttributes() throws Exception {
+        assumeTrue(
+            "pre-population via tryPrefetch requires OBJECT_STORE_PREFETCH_FEATURE_FLAG",
+            CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled()
+        );
+        Settings settings = nodeSettings();
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+
+        try (
+            NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService service = newCacheService(env, settings, threadPool)
+        ) {
+            String fileName = "read-attribute-test";
+            byte[] blob = randomByteArrayOfLength(BLOB_LENGTH);
+            FileCacheKey cacheKey = new FileCacheKey(new ShardId(new Index("idx", "uid"), 0), 1L, fileName);
+            CacheBlobReader blobReader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), new AtomicInteger());
+            CacheFileReader cacheFileReader = new CacheFileReader(
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                blobReader,
+                createBlobFileRanges(1L, 0L, 0, blob.length),
+                metrics,
+                System::currentTimeMillis
+            );
+
+            // Pre-populate the cache so read() calls go through the fast path
+            // and do not block on SHARD_READ_THREAD_POOL
+            assertFalse("first prefetch should schedule an async download", cacheFileReader.tryPrefetch(0L, blob.length));
+            assertBusy(() -> assertTrue("cache should be fully populated", cacheFileReader.tryPrefetch(0L, blob.length)));
+            meterRegistry.getRecorder().resetCalls();
+
+            // SEARCH thread → BlobStore attribute
+            PlainActionFuture<Void> searchFuture = new PlainActionFuture<>();
+            threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
+                try {
+                    cacheFileReader.read(this, ByteBuffer.allocate(blob.length), 0, blob.length, blob.length, "test-search");
+                    searchFuture.onResponse(null);
+                } catch (Exception e) {
+                    searchFuture.onFailure(e);
+                }
+            });
+            safeGet(searchFuture);
+            assertSearchOriginMeasurementAttribute(meterRegistry, CachePopulationSource.BlobStore.name());
+            meterRegistry.getRecorder().resetCalls();
+
+            // VBCC (peer/index-tier) thread → Peer attribute
+            PlainActionFuture<Void> vbccFuture = new PlainActionFuture<>();
+            threadPool.executor(StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL).execute(() -> {
+                try {
+                    cacheFileReader.read(this, ByteBuffer.allocate(blob.length), 0, blob.length, blob.length, "test-vbcc");
+                    vbccFuture.onResponse(null);
+                } catch (Exception e) {
+                    vbccFuture.onFailure(e);
+                }
+            });
+            safeGet(vbccFuture);
+            assertSearchOriginMeasurementAttribute(meterRegistry, CachePopulationSource.Peer.name());
+            meterRegistry.getRecorder().resetCalls();
+
+            // Non-EsThread (plain JUnit thread) → no metric recorded
+            cacheFileReader.read(this, ByteBuffer.allocate(blob.length), 0, blob.length, blob.length, "test-plain");
+            assertThat(
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_HISTOGRAM, BlobCacheMetrics.SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME)
+                    .size(),
+                equalTo(0)
+            );
+        }
+    }
+
     private static CacheBlobReader countingObjectStoreReader(String fileName, byte[] blob, long cacheRangeSize, AtomicInteger counter) {
         return new ObjectStoreCacheBlobReader(
             TestUtils.singleBlobContainer(fileName, blob),
@@ -292,6 +371,15 @@ public class CacheFileReaderTests extends ESTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
             .build();
+    }
+
+    private static void assertSearchOriginMeasurementAttribute(RecordingMeterRegistry meterRegistry, String expectedSource) {
+        List<Measurement> measurements = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_HISTOGRAM, BlobCacheMetrics.SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME);
+        assertThat("expected at least one search-origin measurement", measurements.size(), greaterThan(0));
+        for (Measurement measurement : measurements) {
+            assertThat(measurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY), equalTo(expectedSource));
+        }
     }
 
     private static void assertPrefetchMetric(RecordingMeterRegistry meterRegistry, BlobCacheMetrics.PrefetchResult result, long expected) {

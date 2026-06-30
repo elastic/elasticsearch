@@ -254,7 +254,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     public void testFilterMatchingNoRows() throws IOException {
         // Stats-pruned: id > ROW_COUNT * 2 — every row group's max < threshold, so
         // RowGroupFilter drops all groups. Reader returns zero pages.
-        runDifferential(gt(ID, (long) (ROW_COUNT * 2L), DataType.LONG));
+        runDifferential(gt(ID, ROW_COUNT * 2L, DataType.LONG));
     }
 
     public void testFilterMatchingAllRows() throws IOException {

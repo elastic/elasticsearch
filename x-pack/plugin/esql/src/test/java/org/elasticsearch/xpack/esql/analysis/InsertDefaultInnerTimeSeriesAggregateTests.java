@@ -62,6 +62,14 @@ public class InsertDefaultInnerTimeSeriesAggregateTests extends AbstractLogicalP
         assertStatsEqual("Avg(to_double(to_int(network.eth0.tx)))", "Avg(last_over_time(to_double(to_int(network.eth0.tx))))");
     }
 
+    public void testFirstWithTimestampSort() {
+        assertStatsEqual("FIRST(network.bytes_in, @timestamp)", "FIRST(first_over_time(network.bytes_in), min_over_time(@timestamp))");
+    }
+
+    public void testLastWithTimestampSort() {
+        assertStatsEqual("LAST(network.bytes_in, @timestamp)", "LAST(last_over_time(network.bytes_in), max_over_time(@timestamp))");
+    }
+
     private void assertStatsEqual(String stats1, String stats2) {
         var baseQuery = """
             TS k8s

@@ -62,6 +62,35 @@ public class DateRangeDocValuesLoaderTests extends ESTestCase {
     }
 
     /**
+     * Verifies that a range with to=Long.MAX_VALUE (the maximum storable value) does not overflow
+     * when converted from inclusive to exclusive. The result must be Long.MAX_VALUE (used as a
+     * sentinel for "unbounded above"), not Long.MIN_VALUE from integer overflow.
+     */
+    public void testMaxValueToDoesNotOverflow() throws IOException {
+        var maxRange = BinaryRangeUtil.encodeLongRanges(
+            Set.of(new RangeFieldMapper.Range(RangeType.DATE, 1000L, Long.MAX_VALUE, true, true))
+        );
+
+        try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
+            iw.addDocument(List.of(new BinaryDocValuesField(FIELD_NAME, maxRange)));
+            iw.forceMerge(1);
+
+            try (DirectoryReader dr = iw.getReader()) {
+                LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
+                var loader = new DateRangeDocValuesLoader(FIELD_NAME);
+                try (var reader = loader.columnAtATimeReader(ctx).apply(newLimitedBreaker(ByteSizeValue.ofMb(1)))) {
+                    var block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
+
+                    assertThat(block.size(), equalTo(1));
+                    // to=Long.MAX_VALUE (inclusive) stays Long.MAX_VALUE in the exclusive representation,
+                    // acting as an "unbounded above" sentinel — it must NOT overflow to Long.MIN_VALUE.
+                    assertThat(block.get(0), equalTo(List.of(1000L, Long.MAX_VALUE)));
+                }
+            }
+        }
+    }
+
+    /**
      * Verifies that a document whose binary doc value encodes zero ranges produces a null entry in the
      * loaded block rather than silently skipping the position, which would cause the block to have
      * fewer positions than expected and trigger a sanity-check failure in ValuesSourceReaderOperator.

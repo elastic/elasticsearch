@@ -136,7 +136,8 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
             limit,
             false,
             shardContext -> ScoreMode.COMPLETE_NO_SCORES,
-            directoryBytesRead
+            directoryBytesRead,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE
         );
         this.contexts = contexts;
         this.fieldName = fieldName;

@@ -26,6 +26,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -46,9 +47,8 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
      * @param numCands the number of nearest neighbors to gather per shard
      * @param filter the filter to apply to the results
      * @param visitRatio the ratio of vectors to score for the IVF search strategy
-     * @param overSampleFactor the oversample multiplier applied to the original k
      * @param sliceField the field used for slicing the index
-     * @param sliceIds the slices to be search
+     * @param sliceIds the slices to be searched. If the array is empty, all slices are searched
      */
     public IVFKnnFloatSlicedVectorQuery(
         String field,
@@ -57,15 +57,13 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         int numCands,
         Query filter,
         float visitRatio,
-        boolean doPrecondition,
-        float overSampleFactor,
+        IvfQueryConfigResolver queryConfigResolver,
         String sliceField,
         BytesRef... sliceIds
     ) {
-        super(field, query, k, numCands, filter, visitRatio, doPrecondition, overSampleFactor);
+        super(field, query, k, numCands, filter, visitRatio, queryConfigResolver);
         this.sliceField = Objects.requireNonNull(sliceField);
         this.sliceIds = Objects.requireNonNull(sliceIds);
-        assert sliceIds.length > 0;
     }
 
     @Override
@@ -85,12 +83,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             throw new IllegalArgumentException("sliceField must be the first field of the index sort and of type STRING");
         }
 
-        final IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(
-            visitRatio,
-            numCands,
-            originalK,
-            knnCollectorManager.longAccumulator
-        );
+        final IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, k, knnCollectorManager.longAccumulator);
         final AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(Integer.MAX_VALUE, strategy, ctx);
         if (knnCollector == null) {
             return NO_RESULTS;
@@ -103,9 +96,14 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         }
         // Get ordinals sorted so we can share the iterator of the filter if it exists. Note that it means tht in case
         // of filters, we cannot process slices in parallel as the iterator needs to be consume in order.
-        final int[] ords = sliceToSortedOrds(sortedDocValues, sliceIds);
-        if (ords.length == 0) {
-            return NO_RESULTS;
+        final int[] ords;
+        if (sliceIds.length > 0) {
+            ords = sliceToSortedOrds(sortedDocValues, sliceIds);
+            if (ords.length == 0) {
+                return NO_RESULTS;
+            }
+        } else {
+            ords = null;
         }
         final DocValuesSkipper skipper = ctx.reader().getDocValuesSkipper(sliceField);
         if (skipper == null) {
@@ -140,19 +138,36 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             docIdIteratorSupplier = null;
             costSupplier = null;
         }
-        for (int i = 0; i < ords.length; i++) {
-            assert i == 0 || ords[i - 1] < ords[i];
-            approximateSearchForOneSlice(
-                sortedDocValues,
-                skipper,
-                ords[i],
-                knnCollector,
-                docIdIteratorSupplier,
-                costSupplier,
-                liveDocs,
-                maxDoc,
-                ctx
-            );
+        if (ords != null) {
+            for (int i = 0; i < ords.length; i++) {
+                assert i == 0 || ords[i - 1] < ords[i];
+                approximateSearchForOneSlice(
+                    sortedDocValues,
+                    skipper,
+                    ords[i],
+                    knnCollector,
+                    docIdIteratorSupplier,
+                    costSupplier,
+                    liveDocs,
+                    maxDoc,
+                    ctx
+                );
+            }
+        } else {
+            int numOrds = sortedDocValues.getValueCount();
+            for (int i = 0; i < numOrds; i++) {
+                approximateSearchForOneSlice(
+                    sortedDocValues,
+                    skipper,
+                    i,
+                    knnCollector,
+                    docIdIteratorSupplier,
+                    costSupplier,
+                    liveDocs,
+                    maxDoc,
+                    ctx
+                );
+            }
         }
         TopDocs results = knnCollector instanceof BulkKnnCollector bulkKnnCollector
             ? bulkKnnCollector.unsortedTopK()
@@ -216,7 +231,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             minDocID = 0;
         } else {
             skipper.advance(ord, Long.MAX_VALUE);
-            minDocID = skipper.minValue() == ord ? skipper.minDocID(0) : nextDoc(skipper.minDocID(0), sortedDocValues, ord);
+            minDocID = skipper.minValue(0) == ord ? skipper.minDocID(0) : nextDoc(skipper.minDocID(0), sortedDocValues, ord);
         }
         int maxDocID;
         if (skipper.maxValue() == ord) {
@@ -224,7 +239,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         } else {
             int nextOrd = ord + 1;
             skipper.advance(nextOrd, Long.MAX_VALUE);
-            maxDocID = skipper.minValue() == nextOrd ? skipper.minDocID(0) : nextDoc(skipper.minDocID(0), sortedDocValues, nextOrd);
+            maxDocID = skipper.minValue(0) == nextOrd ? skipper.minDocID(0) : nextDoc(skipper.minDocID(0), sortedDocValues, nextOrd);
         }
         return new ESAcceptDocs.SliceAcceptDocs(minDocID, maxDocID);
     }

@@ -185,20 +185,21 @@ public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseQuantized
             Locale.ROOT,
             expected,
             "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)",
-            "ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=ES93GenericFlatVectorScorer(delegate={}()))"
+            "ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=ES93GenericFlatVectorScorer(delegate={}))"
         );
         expected = format(
             Locale.ROOT,
             expected,
             "ES93BFloat16FlatVectorsFormat(name=ES93BFloat16FlatVectorsFormat,"
-                + " flatVectorScorer=ES93GenericFlatVectorScorer(delegate={}()))"
+                + " flatVectorScorer=ES93GenericFlatVectorScorer(delegate={}))"
         );
 
-        var defaultScorer = expected.replaceAll("\\{}", "DefaultFlatVectorScorer");
-        var memSegScorer = expected.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer");
+        String defaultScorer = expected.replaceAll("\\{}", "ESDefaultFlatVectorScorer(delegate=DefaultFlatVectorScorer())");
+        String memSegScorer = expected.replaceAll("\\{}", "ESDefaultFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())");
+        String nativeScorer = expected.replaceAll("\\{}", "PanamaFlatVectorScorer()");
 
         KnnVectorsFormat format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, false);
-        assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer)));
+        assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer, nativeScorer)));
     }
 
     @Override

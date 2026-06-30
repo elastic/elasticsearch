@@ -13,7 +13,6 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -356,7 +355,9 @@ public class ExplainLifecycleIT extends IlmESRestTestCase {
 
         final String indexBase = "my-logs";
         final String indexName = indexBase + "-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        final String longMissingAliasName = randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH);
+        final String longMissingAliasName = randomAlphanumericOfLength(
+            10 + IndexLifecycleTransition.MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH
+        );
 
         final Request templateRequest = new Request("PUT", "_index_template/template_" + policyName);
         final String templateBody = Strings.format("""
@@ -379,8 +380,8 @@ public class ExplainLifecycleIT extends IlmESRestTestCase {
         assertOK(client().performRequest(indexRequest));
 
         final String expectedReason = Strings.format(
-            "index.lifecycle.rollover_alias [%s... (~122 chars truncated)",
-            longMissingAliasName.substring(0, longMissingAliasName.length() - 107)
+            "index.lifecycle.rollover_alias [%s... (~83 chars truncated)",
+            longMissingAliasName.substring(0, longMissingAliasName.length() - 67)
         );
         final Map<String, Object> expectedStepInfo = Map.of("type", "illegal_argument_exception", "reason", expectedReason);
         assertBusy(() -> {

@@ -62,13 +62,6 @@ public final class DeclaredSchemaValidator {
         if (mappings != null) {
             for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
                 validateType(e.getKey(), e.getValue().type());
-                // TEMPORARY (column-rename read path pending): a `source` rename is modelled and resolved correctly in
-                // the schema shape, but the CSV/NDJSON read path aligns output columns by name, so a renamed column
-                // would return nulls. Reject it at PUT rather than ship a silent wrong answer; remove once logical<-
-                // physical rename is wired through the readers.
-                if (e.getValue().source() != null) {
-                    throw new IllegalArgumentException("column rename via [source] (column [" + e.getKey() + "]) is not yet supported");
-                }
             }
             boolean strict = mappings.dynamic() == DatasetMapping.Dynamic.FALSE;
             validateRole("timestamp_field", mapping.timestampField(), mappings, strict, true);

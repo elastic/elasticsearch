@@ -49,8 +49,9 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         assertEquals(DataType.LONG, o.output().get(0).dataType()); // declared long beats inferred integer
         assertEquals(DataType.KEYWORD, o.output().get(1).dataType());
         assertEquals(DataType.KEYWORD, o.output().get(2).dataType());
-        // per-file schema the reader matches: physical names kept, declared columns retyped
-        assertEquals(List.of("emp_no", "first_name", "dept"), o.fileSchema().stream().map(Attribute::name).toList());
+        // per-file schema is now LOGICAL too: the operator stays in logical names and the physical column is resolved
+        // at the reader (rename map for by-name readers, positional for text). Declared columns retyped; dept untouched.
+        assertEquals(List.of("id", "name", "dept"), o.fileSchema().stream().map(Attribute::name).toList());
         assertEquals(DataType.LONG, o.fileSchema().get(0).dataType());
     }
 

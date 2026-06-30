@@ -93,9 +93,10 @@ public final class DeclaredSchemaResolver {
 
     /**
      * Result of a non-strict overlay: the user-facing {@code output} (declared columns renamed to their logical
-     * name and retyped, undeclared columns untouched) and the per-file {@code fileSchema} the reader matches
-     * against the file (physical names kept, declared columns retyped). The two lists are paired position-for-position
-     * so an identity column mapping relabels them downstream.
+     * name and retyped, undeclared columns untouched) and the per-file {@code fileSchema} the reader resolves against
+     * the file. Both carry <b>logical</b> names — the operator's projection/column-mapping code stays in logical names
+     * and never sees the physical names; a {@code source} rename is applied only at the by-name reader via the rename
+     * map ({@link #renameMap}), while text readers read positionally. The two lists pair position-for-position.
      */
     public record Overlaid(List<Attribute> output, List<Attribute> fileSchema) {}
 
@@ -136,8 +137,11 @@ public final class DeclaredSchemaResolver {
             DataType declaredType = declaredTypeByPhysical.get(a.name());
             if (declaredType != null) {
                 matched.add(a.name());
-                output.add(new ReferenceAttribute(Source.EMPTY, null, logicalByPhysical.get(a.name()), declaredType));
-                fileSchema.add(new ReferenceAttribute(Source.EMPTY, null, a.name(), declaredType));
+                // Both output and file schema carry the LOGICAL name (retyped). The reader resolves the physical
+                // column via the rename map (by-name readers) or by position (text), so the operator never sees physical.
+                ReferenceAttribute logical = new ReferenceAttribute(Source.EMPTY, null, logicalByPhysical.get(a.name()), declaredType);
+                output.add(logical);
+                fileSchema.add(logical);
             } else {
                 output.add(a);
                 fileSchema.add(a);

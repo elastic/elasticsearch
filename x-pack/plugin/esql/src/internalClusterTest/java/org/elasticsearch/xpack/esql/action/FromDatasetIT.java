@@ -294,6 +294,122 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testStrictDeclaredSchemaRenamesColumnsViaSource() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        // Strict declaration that RENAMES via `source`: physical emp_no/first_name are exposed as id/name. CSV is read
+        // positionally, so the declared order must match the file order; the logical names id/name are what the query sees.
+        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", "emp_no"));
+        properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), null, null);
+
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_rename_strict",
+                    "local_ds",
+                    csvFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_rename_strict | SORT id | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("id"));     // physical emp_no exposed as id
+            assertThat(columns.get(1).name(), equalTo("name"));   // physical first_name exposed as name
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1L));          // emp_no's value under the id name, retyped LONG
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            assertThat(rows.get(2).get(0), equalTo(3L));
+            assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    public void testNonStrictDeclaredSchemaRenamesViaSource() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        // Non-strict declaration that renames emp_no -> id (and retypes to LONG); first_name is left to inference.
+        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", "emp_no"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties), null, null);
+
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_rename_nonstrict",
+                    "local_ds",
+                    csvFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_rename_nonstrict | SORT id | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("id"));          // renamed from emp_no
+            assertThat(columns.get(1).name(), equalTo("first_name"));  // inferred, passed through
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1L));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+        }
+    }
+
+    public void testRenameWithKeepSubsetProjectsRenamedColumn() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        // KEEP a subset down to just the renamed column: stresses the projection path under a rename (the column the
+        // reader must read is the physical emp_no, exposed as id).
+        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", "emp_no"));
+        properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), null, null);
+
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_rename_keep",
+                    "local_ds",
+                    csvFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_rename_keep | KEEP id | SORT id | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(1));
+            assertThat(columns.get(0).name(), equalTo("id"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1L));
+            assertThat(rows.get(2).get(0), equalTo(3L));
+        }
+    }
+
     public void testStrictDeclaredSchemaOverMultiFileGlob() throws Exception {
         Path root = createTempDir();
         Files.writeString(root.resolve("part1.csv"), "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n");

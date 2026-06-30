@@ -88,7 +88,14 @@ public class ExternalSourceResolver {
      */
     public static final String DATASOURCE_CONFIG_KEY = "_datasource";
 
-    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_SCHEMA_RESOLUTION, DATASOURCE_CONFIG_KEY);
+    /**
+     * Config key carrying a declared mapping's logical&rarr;physical column renames ({@code Map<String,String>}) to the
+     * by-name readers (NDJSON/Parquet/ORC), which resolve a column's physical name (file field) from its logical name.
+     * Text readers read positionally and ignore it. Injected by {@code resolve} only when the mapping renames a column.
+     */
+    public static final String CONFIG_DECLARED_RENAMES = "_declared_renames";
+
+    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_SCHEMA_RESOLUTION, DATASOURCE_CONFIG_KEY, CONFIG_DECLARED_RENAMES);
 
     private static final int MAX_PARALLEL_METADATA_READS = 16;
 
@@ -262,6 +269,13 @@ public class ExternalSourceResolver {
                     List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(path) : null;
                     boolean hivePartitioning = isHivePartitioningEnabled(config);
                     DatasetMapping declaredMapping = declaredMappings != null ? declaredMappings.get(path) : null;
+                    // Carry any logical->physical column renames to the by-name readers via config. The schema stays
+                    // logical everywhere else; only the reader needs the physical (file) name to locate a renamed column.
+                    Map<String, String> renames = DeclaredSchemaResolver.renameMap(declaredMapping);
+                    if (renames.isEmpty() == false) {
+                        config = new HashMap<>(config);
+                        config.put(CONFIG_DECLARED_RENAMES, renames);
+                    }
 
                     try {
                         ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(
@@ -405,8 +419,9 @@ public class ExternalSourceResolver {
         DatasetMapping declaredMapping
     ) throws Exception {
         StorageObject object = provider.newObject(storagePath);
+        // Declared mapping is the whole schema, in LOGICAL names; a `source` rename is applied at the reader, so the
+        // operator (and file schema) work purely in logical names.
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
-        List<Attribute> physicalSchema = DeclaredSchemaResolver.physicalAttributes(declaredMapping);
         // sourceType drives operator-factory dispatch (OperatorFactoryRegistry keys on it), so it must equal the
         // reader's formatName() the inferred path would have produced — derive it without reading the file: an explicit
         // `format` setting wins, otherwise the `reader` override / file extension via FormatNameResolver.
@@ -420,7 +435,7 @@ public class ExternalSourceResolver {
             List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
             path
         );
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, physicalSchema);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, logicalSchema);
         return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
     }
 
@@ -466,8 +481,9 @@ public class ExternalSourceResolver {
             throw new IllegalArgumentException("Glob pattern matched no files: " + path);
         }
 
+        // Declared mapping is the whole schema, in LOGICAL names; a `source` rename is applied at the reader, so the
+        // operator (and file schema) work purely in logical names.
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
-        List<Attribute> physicalSchema = DeclaredSchemaResolver.physicalAttributes(declaredMapping);
         Object formatOverride = config.get(FileSourceFactory.CONFIG_FORMAT);
         String sourceType = formatOverride != null ? String.valueOf(formatOverride) : FormatNameResolver.resolve(config, path);
         ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(
@@ -478,7 +494,7 @@ public class ExternalSourceResolver {
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = new HashMap<>();
         for (int i = 0; i < listing.fileCount(); i++) {
-            schemaMap.putAll(singleEntrySchemaMap(listing.path(i), physicalSchema));
+            schemaMap.putAll(singleEntrySchemaMap(listing.path(i), logicalSchema));
         }
         return new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap);
     }

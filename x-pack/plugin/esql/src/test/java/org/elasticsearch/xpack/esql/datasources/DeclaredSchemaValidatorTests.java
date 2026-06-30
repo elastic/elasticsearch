@@ -35,15 +35,12 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
         DeclaredSchemaValidator.validate(null); // no throw
     }
 
-    public void testSourceRenameRejectedUntilReadPathLands() {
-        // TEMPORARY: `source` rename is rejected at PUT until the read-path rename is wired (no silent nulls).
+    public void testSourceRenameAcceptedAtPut() {
+        // `source` rename is shape-valid at PUT — the read path honors it (logical file schema + a rename map for the
+        // by-name readers). Only the type vocabulary is checked here.
         Map<String, DatasetFieldMapping> withRename = new LinkedHashMap<>();
         withRename.put("id", new DatasetFieldMapping("long", "emp_no"));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, withRename), null, null))
-        );
-        assertTrue(e.getMessage(), e.getMessage().contains("source"));
+        DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, withRename), null, null)); // no throw
     }
 
     /**

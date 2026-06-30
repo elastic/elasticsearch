@@ -413,6 +413,7 @@ toc:
           - file: esql/esql-time-spans.md
           - file: esql/esql-metadata-fields.md
           - file: esql/esql-multivalued-fields.md
+          - file: esql/esql-unmapped-fields.md
       - file: esql/esql-examples.md
         children:
           - file: esql/esql-search-tutorial.md

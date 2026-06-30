@@ -346,6 +346,9 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskFailsWhenDataNodeIsShuttingDownAndTaskDoesNotFinishInTime
   issue: https://github.com/elastic/elasticsearch/issues/150295
+- class: org.elasticsearch.index.reindex.ReindexRequestTests
+  method: testDestSliceRejectedWhenFeatureFlagDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/152507
 - class: org.elasticsearch.gradle.internal.transport.GenerateInitialTransportVersionFuncTest
   method: cannot create upper bound file for patch
   issue: https://github.com/elastic/elasticsearch/issues/150296
@@ -683,9 +686,6 @@ tests:
 - class: org.elasticsearch.reindex.management.CancelTasksRelocationIT
   method: testCancelAllReindexTasksByActionWithMixedRelocationState
   issue: https://github.com/elastic/elasticsearch/issues/152291
-- class: org.elasticsearch.xpack.encryption.spi.test.EncryptedDataHandlerProviderSpiIT
-  method: testProviderIsDiscoveredAndHandlerIsInvoked
-  issue: https://github.com/elastic/elasticsearch/issues/152303
 - class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
   method: testThreadSafety
   issue: https://github.com/elastic/elasticsearch/issues/152305
@@ -767,3 +767,18 @@ tests:
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPartiallyRetainedByCcrLease
   issue: https://github.com/elastic/elasticsearch/issues/152498
+- class: org.elasticsearch.xpack.diskbbq.DiskBBQClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/47_knn_search_bbq_disk_slice/KNN search with a different _slice returns that slice's nearest neighbor}
+  issue: https://github.com/elastic/elasticsearch/issues/152520
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SumSerializationTests
+  method: testSerializeSumWithOverflowingLongSupplier
+  issue: https://github.com/elastic/elasticsearch/issues/152506
+- class: org.elasticsearch.xpack.stateless.StatelessIT
+  method: testBackgroundMergeCommitAfterRelocationHasStartedDoesNotSendANewCommitNotification
+  issue: https://github.com/elastic/elasticsearch/issues/152516
+- class: org.elasticsearch.transport.RemoteClusterClientTests
+  method: testConnectAndExecuteRequest
+  issue: https://github.com/elastic/elasticsearch/issues/152518
+- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
+  method: testRelocatingIndexShardFetchesFirstRegionOnly
+  issue: https://github.com/elastic/elasticsearch/issues/152526

@@ -73,6 +73,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("user2", "x-pack-test-password", "user2", false)
         .user("user3", "x-pack-test-password", "user3", false)
         .user("user_dataset_authorize_only", "x-pack-test-password", "user_dataset_authorize_only", false)
+        .user("ds_repro_broad_reader", "x-pack-test-password", "ds_repro_broad_reader", false)
         .user("user4", "x-pack-test-password", "user4", false)
         .user("user5", "x-pack-test-password", "user5", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
@@ -581,6 +582,17 @@ public class EsqlSecurityIT extends ESRestTestCase {
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
         assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+    }
+
+    public void testGetViewByMissingNameReturnsCleanNotFoundUnderSecurity() throws IOException {
+        // Security-on counterpart to ViewRestTests: GET a view by a name that does not resolve to a view must return a
+        // clean view-shaped not-found, never leak the raw index_not_found_exception. The translation lives in the
+        // transport, after authorization, so it holds the same with security enabled.
+        ResponseException ex = expectThrows(ResponseException.class, () -> getView("test-admin", "no-such-view-under-security"));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        String body = EntityUtils.toString(ex.getResponse().getEntity());
+        assertThat(body, containsString("view [no-such-view-under-security] not found"));
+        assertThat(body, not(containsString("index_not_found_exception")));
     }
 
     public void testViewWildcardFiltersUnauthorized() throws Exception {
@@ -2418,6 +2430,78 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertOK(client().performRequest(delete));
     }
 
+    /**
+     * End-to-end regression for #152216 under security: the authorization layer expands a dataset DELETE
+     * wildcard across the whole (security-narrowed) index namespace, so the match set can include real
+     * indices. The transport must type-filter to datasets — deleting only the dataset, never the index,
+     * and not 404ing on an index name. Reproduces the reported {@code .siem-signals-default} scenario,
+     * which the no-security {@code DataSourceCrudIT} cannot exercise.
+     */
+    public void testDeleteDatasetWildcardResolvesOnlyDatasetsUnderSecurity() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String suffix = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        final String datasetName = "wildcard_it_d_" + suffix;
+        final String indexName = "wildcard_it_x_" + suffix;
+        try {
+            // A dataset and a same-prefix index that the wildcard also matches.
+            Request put = new Request("PUT", "/_query/dataset/" + datasetName);
+            XContentBuilder body = JsonXContent.contentBuilder();
+            body.startObject();
+            body.field("data_source", SECURITY_IT_SHARED_DATASOURCE);
+            body.field("resource", "s3://bucket/wildcard/*.parquet");
+            body.endObject();
+            put.setJsonEntity(Strings.toString(body));
+            setUser(put, "test-admin");
+            assertOK(client().performRequest(put));
+
+            Request createIndex = new Request("PUT", "/" + indexName);
+            setUser(createIndex, "test-admin");
+            assertOK(client().performRequest(createIndex));
+
+            // Relax the destructive guard so the wildcard resolves; the guard-rejection path is covered in DataSourceCrudIT.
+            setDestructiveRequiresName("false");
+
+            // DELETE the wildcard: resolves to datasets only — never the index, no index-named 404.
+            Request delete = new Request("DELETE", "/_query/dataset/wildcard_it_*");
+            setUser(delete, "test-admin");
+            assertOK(client().performRequest(delete));
+
+            // The dataset is gone...
+            Request getDataset = new Request("GET", "/_query/dataset/" + datasetName);
+            setUser(getDataset, "test-admin");
+            ResponseException notFound = expectThrows(ResponseException.class, () -> client().performRequest(getDataset));
+            assertThat(notFound.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_NOT_FOUND));
+
+            // ...and the index is untouched.
+            Request getIndex = new Request("GET", "/" + indexName);
+            setUser(getIndex, "test-admin");
+            assertOK(client().performRequest(getIndex));
+        } finally {
+            setDestructiveRequiresName(null);
+            deleteIndexQuietly(indexName);
+        }
+    }
+
+    private void setDestructiveRequiresName(String value) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity(
+            "{\"persistent\":{\"action.destructive_requires_name\":" + (value == null ? "null" : "\"" + value + "\"") + "}}"
+        );
+        setUser(request, "test-admin");
+        assertOK(client().performRequest(request));
+    }
+
+    private void deleteIndexQuietly(String indexName) {
+        try {
+            Request request = new Request("DELETE", "/" + indexName);
+            setUser(request, "test-admin");
+            client().performRequest(request);
+        } catch (Exception ignored) {
+            // best-effort cleanup
+        }
+    }
+
     public void testGetDatasetForbiddenWithoutReadDatasetMetadata() throws IOException {
         assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
         ensureSecurityItDatasourcesForTests();
@@ -2464,6 +2548,48 @@ public class EsqlSecurityIT extends ESRestTestCase {
         Request delete = new Request("DELETE", "/_query/dataset/" + datasetName);
         setUser(delete, "test-admin");
         assertOK(client().performRequest(delete));
+    }
+
+    /**
+     * Repro for the GET _query/dataset 404 reported 2026-06-30. A non-superuser whose role can both list datasets and
+     * read an unrelated (Entity-Store-style, hidden) data stream lists datasets with "*". The security layer expands
+     * the wildcard against the user's authorized namespace — which includes the data stream — and the dataset
+     * resolution then reads it back with data streams excluded, 404-ing on entities-updates-default. A superuser does
+     * not hit this because it is authorized for "*" wholesale and never enumerates.
+     */
+    public void testListDatasetsAsNonSuperuserWithCoresidentHiddenDataStream() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+
+        // Hidden, template-managed data stream, mirroring the Entity Store's entities-updates-default.
+        Request tmpl = new Request("PUT", "/_index_template/entities-updates-tmpl");
+        tmpl.setJsonEntity("{\"index_patterns\":[\"entities-updates-*\"],\"data_stream\":{\"hidden\":true}}");
+        setUser(tmpl, "test-admin");
+        assertOK(client().performRequest(tmpl));
+        Request createDs = new Request("PUT", "/_data_stream/entities-updates-default");
+        setUser(createDs, "test-admin");
+        assertOK(client().performRequest(createDs));
+
+        final String dataset = createSecurityItDatasetAsAdmin("security_it_ds_repro_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+
+        try {
+            // GET /_query/dataset (list all == "*") as the non-superuser.
+            Request list = new Request("GET", "/_query/dataset");
+            setUser(list, "ds_repro_broad_reader");
+            Response resp = client().performRequest(list);
+            assertOK(resp);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> hits = (List<Map<String, Object>>) entityAsMap(resp).get("datasets");
+            assertThat(hits.stream().anyMatch(h -> dataset.equals(h.get("name"))), equalTo(true));
+        } finally {
+            deleteDatasetAsAdmin(dataset);
+            Request delDs = new Request("DELETE", "/_data_stream/entities-updates-default");
+            setUser(delDs, "test-admin");
+            client().performRequest(delDs);
+            Request delTmpl = new Request("DELETE", "/_index_template/entities-updates-tmpl");
+            setUser(delTmpl, "test-admin");
+            client().performRequest(delTmpl);
+        }
     }
 
     /**

@@ -20,6 +20,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.aggregation.Temporality;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -29,6 +33,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.junit.Before;
@@ -65,8 +70,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     record WindowOption(String label, int seconds) {}
 
-    /** A timestamp-value pair used for boundary interpolation calculations. */
-    record TimestampedValue(Instant timestamp, double value) {}
+    /** A timestamp-value pair used for per-timeseries data grouping and boundary calculations. */
+    record TimestampedValue<T>(Instant timestamp, T value) {}
 
     private static final List<WindowOption> WINDOW_OPTIONS = List.of(
         new WindowOption("10 seconds", 10),
@@ -178,10 +183,15 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      *
      * @param pointsInGroup raw document maps belonging to one time-window/dimension group
      * @param metricName the metric to extract values for
+     * @param valueParser converts the raw metric value from the document map to the desired type
      * @return map keyed by timeseries identifier (comma-separated {@code "attr:value"} pairs from document
      *         attributes) to the list of timestamped metric values for that timeseries
      */
-    static Map<String, List<TimestampedValue>> groupByTimeseries(List<Map<String, Object>> pointsInGroup, String metricName) {
+    static <T> Map<String, List<TimestampedValue<T>>> groupByTimeseries(
+        List<Map<String, Object>> pointsInGroup,
+        String metricName,
+        Function<Object, T> valueParser
+    ) {
         return pointsInGroup.stream()
             .filter(doc -> doc.containsKey("metrics") && ((Map<String, Object>) doc.get("metrics")).containsKey(metricName))
             .collect(Collectors.groupingBy(doc -> {
@@ -191,27 +201,20 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     .collect(Collectors.joining(","));
             }, Collectors.mapping(doc -> {
                 var docTs = Instant.parse((String) doc.get("@timestamp"));
-                @SuppressWarnings("unchecked")
-                var metricValue = ((Map<String, Object>) doc.get("metrics")).get(metricName);
-                var docValue = switch (metricValue) {
-                    case Integer i -> i.doubleValue();
-                    case Long l -> l.doubleValue();
-                    case Float f -> f.doubleValue();
-                    case Double d -> d;
-                    default -> throw new IllegalStateException(
-                        "Unexpected value type: " + metricValue + " of class " + metricValue.getClass()
-                    );
-                };
-                return new TimestampedValue(docTs, docValue);
+                Object metricValue = ((Map<String, Object>) doc.get("metrics")).get(metricName);
+                return new TimestampedValue<>(docTs, valueParser.apply(metricValue));
             }, Collectors.toList())));
     }
 
-    private static Temporality getCounterTemporality(String timeseriesId) {
+    private static Temporality getSeriesTemporality(String timeseriesId, Temporality defaultTemporality) {
         String deltaLiteral = Temporality.DELTA.bytesRef().utf8ToString();
+        String cumulativeLiteral = Temporality.CUMULATIVE.bytesRef().utf8ToString();
         if (timeseriesId.contains(TSDataGenerationHelper.TEMPORALITY_ATTRIBUTE_NAME + ":" + deltaLiteral)) {
             return Temporality.DELTA;
+        } else if (timeseriesId.contains(TSDataGenerationHelper.TEMPORALITY_ATTRIBUTE_NAME + ":" + cumulativeLiteral)) {
+            return Temporality.CUMULATIVE;
         }
-        return Temporality.CUMULATIVE;
+        return defaultTemporality;
     }
 
     /**
@@ -222,7 +225,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      * @param crossAgg aggregation to apply across timeseries results
      * @param timeseriesAgg aggregation to apply within each timeseries
      */
-    static Object aggregatePerTimeseries(Map<String, List<TimestampedValue>> timeseries, Agg crossAgg, Agg timeseriesAgg) {
+    static Object aggregatePerTimeseries(Map<String, List<TimestampedValue<Double>>> timeseries, Agg crossAgg, Agg timeseriesAgg) {
         var res = timeseries.values().stream().map(timeseriesList -> {
             List<Double> values = timeseriesList.stream().map(tv -> tv.value()).collect(Collectors.toList());
             return aggregateValuesInWindow(values, timeseriesAgg);
@@ -310,6 +313,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             DataStreamsPlugin.class,
             LocalStateCompositeXPackPlugin.class,
             AggregateMetricMapperPlugin.class,
+            AnalyticsPlugin.class,
             EsqlPluginWithEnterpriseOrTrialLicense.class,
             TestEncryptionServicePlugin.class
         );
@@ -358,7 +362,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     record RateStats(Long count, RateRange max, RateRange avg, RateRange min, RateRange sum) {}
 
     @Nullable
-    private static TimestampedValue findLastPoint(List<Map<String, List<TimestampedValue>>> allWindows, int idx, String tsId) {
+    private static <T> TimestampedValue<T> findLastPoint(List<Map<String, List<TimestampedValue<T>>>> allWindows, int idx, String tsId) {
         if (idx < 0 || idx >= allWindows.size()) return null;
         var pts = allWindows.get(idx).get(tsId);
         if (pts == null) return null;
@@ -366,7 +370,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     }
 
     @Nullable
-    private static TimestampedValue findFirstPoint(List<Map<String, List<TimestampedValue>>> allWindows, int idx, String tsId) {
+    private static <T> TimestampedValue<T> findFirstPoint(List<Map<String, List<TimestampedValue<T>>>> allWindows, int idx, String tsId) {
         if (idx < 0 || idx >= allWindows.size()) return null;
         var pts = allWindows.get(idx).get(tsId);
         if (pts == null) return null;
@@ -378,9 +382,9 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      * {@code RateDoubleGroupingAggregatorFunction#computeRate}.
      */
     static Double computeReferenceRateOrIncrease(
-        @Nullable TimestampedValue lastInPrevWindow,
-        List<TimestampedValue> currentWindow,
-        @Nullable TimestampedValue firstInNextWindow,
+        @Nullable TimestampedValue<Double> lastInPrevWindow,
+        List<TimestampedValue<Double>> currentWindow,
+        @Nullable TimestampedValue<Double> firstInNextWindow,
         Temporality temporality,
         int secondsInWindow,
         boolean isRate
@@ -389,8 +393,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         if (currentWindow.isEmpty()) {
             return null;
         }
-        TimestampedValue firstInWindow = currentWindow.getFirst();
-        TimestampedValue lastInWindow = currentWindow.getLast();
+        TimestampedValue<Double> firstInWindow = currentWindow.getFirst();
+        TimestampedValue<Double> lastInWindow = currentWindow.getLast();
 
         long startTs = firstInWindow.timestamp().toEpochMilli();
         long endTs = lastInWindow.timestamp().toEpochMilli();
@@ -419,7 +423,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             if (lastInPrevWindow != null && isRate) {
                 // special case: The only value falls exactly on the start border
                 // our rate implementation in this case returns the rate between the point in this window and the point in the last window
-                List<TimestampedValue> values = List.of(lastInPrevWindow, firstInWindow);
+                List<TimestampedValue<Double>> values = List.of(lastInPrevWindow, firstInWindow);
                 double rangeSeconds = (firstInWindow.timestamp().toEpochMilli() - lastInPrevWindow.timestamp().toEpochMilli()) / 1000.0;
                 return computeCounterIncreaseBetween(values, temporality) / rangeSeconds;
             }
@@ -428,7 +432,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         return isRate ? totalIncrease / ((endTs - startTs) / 1000.0) : totalIncrease;
     }
 
-    private static double computeCounterIncreaseBetween(List<TimestampedValue> currentWindow, Temporality temporality) {
+    private static double computeCounterIncreaseBetween(List<TimestampedValue<Double>> currentWindow, Temporality temporality) {
         double increaseInWindow = 0.0;
 
         if (temporality == Temporality.DELTA) {
@@ -455,8 +459,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     }
 
     static double getInterpolatedIncreaseBetween(
-        TimestampedValue left,
-        TimestampedValue right,
+        TimestampedValue<Double> left,
+        TimestampedValue<Double> right,
         long targetTimestamp,
         Temporality temporality,
         boolean isLowerBound
@@ -490,7 +494,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     }
 
     private static double getExtrapolatedIncreaseAtBorder(
-        List<TimestampedValue> values,
+        List<TimestampedValue<Double>> values,
         Temporality temporality,
         long secondsInWindow,
         boolean isLowerBoundary
@@ -535,7 +539,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      * Computes a reference irate matching {@code IrateAggregator#evaluateFinal}.
      * Uses only the last two samples; no adjacent-window data.
      */
-    static Double computeReferenceIrate(List<TimestampedValue> currentWindow, Temporality temporality) {
+    static Double computeReferenceIrate(List<TimestampedValue<Double>> currentWindow, Temporality temporality) {
         if (currentWindow == null || currentWindow.size() < 2) {
             return null;
         }
@@ -559,7 +563,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      *
      * @return a {@code [lower, upper]} range, or {@code null} if fewer than 2 points
      */
-    static double[] computeReferenceDelta(List<TimestampedValue> currentWindow, int secondsInWindow) {
+    static double[] computeReferenceDelta(List<TimestampedValue<Double>> currentWindow, int secondsInWindow) {
         if (currentWindow == null || currentWindow.size() < 2) {
             return null;
         }
@@ -585,7 +589,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      * Computes a reference idelta matching {@code IdeltaAggregator#evaluateFinal}.
      * Uses only the last two samples; no adjacent-window data, no temporality handling.
      */
-    static Double computeReferenceIdelta(List<TimestampedValue> currentWindow) {
+    static Double computeReferenceIdelta(List<TimestampedValue<Double>> currentWindow) {
         if (currentWindow == null || currentWindow.size() < 2) {
             return null;
         }
@@ -596,22 +600,22 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      * Calculates a delta-based aggregation (rate, irate, increase, delta, idelta) for a single time window.
      */
     static RateStats calculateDeltaAggregation(
-        List<Map<String, List<TimestampedValue>>> allWindows,
+        List<Map<String, List<TimestampedValue<Double>>>> allWindows,
         int offset,
         Integer secondsInWindow,
         DeltaAgg deltaAgg
     ) {
         List<RateRange> allRates = allWindows.get(offset).entrySet().stream().map(entry -> {
             String timeseriesId = entry.getKey();
-            List<TimestampedValue> points = new ArrayList<>(entry.getValue());
+            List<TimestampedValue<Double>> points = new ArrayList<>(entry.getValue());
             points.sort(Comparator.comparing(TimestampedValue::timestamp));
-            Temporality temporality = getCounterTemporality(timeseriesId);
+            Temporality temporality = getSeriesTemporality(timeseriesId, Temporality.CUMULATIVE);
 
             long millisInWindow = secondsInWindow * 1000L;
             long currentBucketStartMs = points.getFirst().timestamp().toEpochMilli() / millisInWindow * millisInWindow;
 
-            TimestampedValue lastInPrev = findLastPoint(allWindows, offset - 1, timeseriesId);
-            TimestampedValue firstInNext = findFirstPoint(allWindows, offset + 1, timeseriesId);
+            TimestampedValue<Double> lastInPrev = findLastPoint(allWindows, offset - 1, timeseriesId);
+            TimestampedValue<Double> firstInNext = findFirstPoint(allWindows, offset + 1, timeseriesId);
 
             // The allWindows list only contains entries for non-empty buckets, so offset-1 / offset+1
             // may point to a non-adjacent time bucket when there are gaps in the data. ES only
@@ -774,7 +778,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             List<List<Object>> rows = consumeRows(resp);
             List<String> failedWindows = new ArrayList<>();
             var groups = groupedRows(documents, dimensions, window.seconds());
-            Map<String, List<Map<String, List<TimestampedValue>>>> windowsPerTimeseries = new HashMap<>();
+            Map<String, List<Map<String, List<TimestampedValue<Double>>>>> windowsPerTimeseries = new HashMap<>();
             Map<String, List<List<Object>>> rowsPerTimeseries = new HashMap<>();
             for (List<Object> row : rows) {
                 var rowKey = getRowKey(row, dimensions, getTimestampIndex(query));
@@ -783,7 +787,11 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     continue;
                 }
                 var windowDataPoints = groups.get(rowKey);
-                var docsPerTimeseries = groupByTimeseries(windowDataPoints, metricName);
+                var docsPerTimeseries = groupByTimeseries(
+                    windowDataPoints,
+                    metricName,
+                    metricValue -> ((Number) metricValue).doubleValue()
+                );
                 windowsPerTimeseries.computeIfAbsent(timeseriesId, k -> new ArrayList<>()).add(docsPerTimeseries);
                 rowsPerTimeseries.computeIfAbsent(timeseriesId, k -> new ArrayList<>()).add(row);
             }
@@ -831,7 +839,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      */
     public void testRateGroupByNothing() {
         var groups = groupedRows(documents, List.of(), 60);
-        List<Map<String, List<TimestampedValue>>> docsPerWindowPerTimeseries = new ArrayList<>();
+        List<Map<String, List<TimestampedValue<Double>>>> docsPerWindowPerTimeseries = new ArrayList<>();
         try (var resp = run(String.format(Locale.ROOT, """
             TS %s
             | STATS count(rate(metrics.counterl_hdd.bytes.read)),
@@ -846,7 +854,11 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             for (List<Object> row : rows) {
                 var windowStart = windowStart(row.get(4), SECONDS_IN_WINDOW);
                 var windowDataPoints = groups.get(List.of(Long.toString(windowStart)));
-                var docsPerTimeseries = groupByTimeseries(windowDataPoints, "counterl_hdd.bytes.read");
+                var docsPerTimeseries = groupByTimeseries(
+                    windowDataPoints,
+                    "counterl_hdd.bytes.read",
+                    metricValue -> ((Number) metricValue).doubleValue()
+                );
                 docsPerWindowPerTimeseries.add(docsPerTimeseries);
             }
             for (int i = 0; i < rows.size(); i++) {
@@ -894,7 +906,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             List<List<Object>> rows = consumeRows(resp);
             for (List<Object> row : rows) {
                 var rowKey = getRowKey(row, dimensions, getTimestampIndex(query));
-                var tsGroups = groupByTimeseries(groups.get(rowKey), metricName);
+                var tsGroups = groupByTimeseries(groups.get(rowKey), metricName, metricValue -> ((Number) metricValue).doubleValue());
                 Object expectedVal = aggregatePerTimeseries(tsGroups, selectedAggs.get(0), selectedAggs.get(1));
                 Double actualVal = switch (row.get(0)) {
                     case Long l -> l.doubleValue();
@@ -960,7 +972,11 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             List<List<Object>> rows = consumeRows(resp);
             for (List<Object> row : rows) {
                 var rowKey = getRowKey(row, dimensions, getTimestampIndex(query));
-                var tsGroups = groupByTimeseries(groups.get(rowKey), "gaugel_hdd.bytes.used");
+                var tsGroups = groupByTimeseries(
+                    groups.get(rowKey),
+                    "gaugel_hdd.bytes.used",
+                    metricValue -> ((Number) metricValue).doubleValue()
+                );
                 Function<Object, Double> toDouble = cell -> switch (cell) {
                     case Long l -> l.doubleValue();
                     case Double d -> d;
@@ -1001,7 +1017,11 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             var groups = groupedRows(documents, List.of(), 60);
             for (List<Object> row : rows) {
                 var windowStart = windowStart(row.get(6), 60);
-                var tsGroups = groupByTimeseries(groups.get(List.of(Long.toString(windowStart))), "gaugel_hdd.bytes.used");
+                var tsGroups = groupByTimeseries(
+                    groups.get(List.of(Long.toString(windowStart))),
+                    "gaugel_hdd.bytes.used",
+                    metricValue -> ((Number) metricValue).doubleValue()
+                );
                 Function<Object, Double> toDouble = cell -> switch (cell) {
                     case Long l -> l.doubleValue();
                     case Double d -> d;
@@ -1016,6 +1036,180 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 assertThat((Double) row.get(4), row.get(4) == null ? equalTo(null) : closeTo(avg, avg * 0.01));
                 // assertThat(row.get(6), equalTo(aggregatePerTimeseries(tsGroups, Agg.COUNT, Agg.COUNT).longValue()));
             }
+        }
+    }
+
+    /** Expected cross-timeseries aggregation results for histogram metrics. */
+    record ExpectedHistogramStats(long count, double sum, double avg) {}
+
+    /**
+     * Computes the histogram increase for a single timeseries within one time window.
+     * <p>
+     * For delta temporality: merges all histograms in the window.
+     * For cumulative temporality: detects resets based on value count, computes {@code (last + resets) - first}.
+     * Includes the previous window's last data point when available.
+     */
+    @Nullable
+    static ExponentialHistogram mergeHistogramsOverTime(
+        List<TimestampedValue<ExponentialHistogram>> points,
+        @Nullable TimestampedValue<ExponentialHistogram> prevWindowLast,
+        Temporality temporality
+    ) {
+        if (points.isEmpty()) return null;
+
+        if (temporality == Temporality.DELTA) {
+            var merger = ExponentialHistogramMerger.create(ExponentialHistogramCircuitBreaker.noop());
+            for (TimestampedValue<ExponentialHistogram> p : points) {
+                merger.add(p.value());
+            }
+            return merger.get();
+        }
+
+        List<TimestampedValue<ExponentialHistogram>> allValues = new ArrayList<>();
+        if (prevWindowLast != null) {
+            allValues.add(prevWindowLast);
+        }
+        allValues.addAll(points);
+
+        if (allValues.size() < 2) {
+            return null;
+        }
+
+        List<ExponentialHistogram> valuesBeforeResets = new ArrayList<>();
+
+        for (int i = 1; i < allValues.size(); i++) {
+            ExponentialHistogram prev = allValues.get(i - 1).value();
+            ExponentialHistogram curr = allValues.get(i).value();
+            if (prev.valueCount() > curr.valueCount()) {
+                valuesBeforeResets.add(prev);
+            }
+        }
+
+        ExponentialHistogram first = allValues.getFirst().value();
+        ExponentialHistogram last = allValues.getLast().value();
+
+        var lastWithResets = ExponentialHistogramMerger.create(ExponentialHistogramCircuitBreaker.noop());
+        lastWithResets.add(last);
+        valuesBeforeResets.forEach(lastWithResets::add);
+
+        var diffMerger = ExponentialHistogramMerger.create(ExponentialHistogramCircuitBreaker.noop());
+        diffMerger.setToDifference(lastWithResets.get(), first);
+        return diffMerger.get();
+    }
+
+    /**
+     * Computes expected histogram aggregation stats for a single time window.
+     * Follows the same pattern as {@link #calculateDeltaAggregation}: iterates per-timeseries,
+     * looks behind into adjacent windows, computes the histogram increase, then aggregates
+     * across timeseries.
+     */
+    static ExpectedHistogramStats calculateHistogramStatsOverTime(
+        List<Map<String, List<TimestampedValue<ExponentialHistogram>>>> allWindows,
+        int offset,
+        int secondsInWindow
+    ) {
+        Map<String, List<TimestampedValue<ExponentialHistogram>>> currentWindow = allWindows.get(offset);
+        long millisInWindow = secondsInWindow * 1000L;
+
+        var crossTsMerger = ExponentialHistogramMerger.create(ExponentialHistogramCircuitBreaker.noop());
+        for (Map.Entry<String, List<TimestampedValue<ExponentialHistogram>>> entry : currentWindow.entrySet()) {
+            String timeseriesId = entry.getKey();
+            List<TimestampedValue<ExponentialHistogram>> points = new ArrayList<>(entry.getValue());
+            points.sort(Comparator.comparing(TimestampedValue::timestamp));
+
+            Temporality temporality = getSeriesTemporality(timeseriesId, Temporality.DELTA);
+
+            long currentBucketStartMs = points.getFirst().timestamp().toEpochMilli() / millisInWindow * millisInWindow;
+
+            TimestampedValue<ExponentialHistogram> lastInPrev = findLastPoint(allWindows, offset - 1, timeseriesId);
+            if (lastInPrev != null) {
+                long prevBucket = lastInPrev.timestamp().toEpochMilli() / millisInWindow * millisInWindow;
+                if (prevBucket != currentBucketStartMs - millisInWindow) {
+                    lastInPrev = null;
+                }
+            }
+
+            ExponentialHistogram increase = mergeHistogramsOverTime(points, lastInPrev, temporality);
+            if (increase != null && increase.isEmpty() == false) {
+                crossTsMerger.add(increase);
+            }
+        }
+
+        ExponentialHistogram merged = crossTsMerger.get();
+        if (merged.isEmpty()) {
+            return new ExpectedHistogramStats(0, 0.0, Double.NaN);
+        }
+        long count = merged.valueCount();
+        double sum = merged.sum();
+        return new ExpectedHistogramStats(count, sum, sum / count);
+    }
+
+    /**
+     * Validates COUNT, SUM, AVG, MEDIAN, MIN, and MAX on exponential histogram metrics in a TS query.
+     * <p>
+     * Uses the same pattern as {@link #testRateGroupBySubset}: groups documents via {@link #groupedRows},
+     * extracts per-timeseries histogram data, computes the expected histogram increase accounting for
+     * temporality and previous-window lookback, then compares the cross-timeseries aggregation results.
+     */
+    public void testHistogramGroupBySubset() {
+        var window = ESTestCase.randomFrom(WINDOW_OPTIONS);
+        var dimensions = randomBoolean() ? List.<String>of() : ESTestCase.randomSubsetOf(dataGenerationHelper.attributesForMetrics);
+        var dimensionsStr = dimensions.isEmpty()
+            ? ""
+            : ", " + dimensions.stream().map(d -> "attributes.`" + d + "`").collect(Collectors.joining(", "));
+        var metricName = "histoexp_responseTime";
+        var metricRef = "metrics." + metricName;
+        var query = String.format(Locale.ROOT, """
+            TS %s
+            | STATS
+                cnt = COUNT(%s),
+                sum_val = SUM(%s),
+                avg_val = AVG(%s)
+                BY tbucket=bucket(@timestamp, %s) %s
+            | SORT tbucket
+            """, DATASTREAM_NAME, metricRef, metricRef, metricRef, window.label(), dimensionsStr);
+        try (EsqlQueryResponse resp = run(query)) {
+            List<List<Object>> rows = consumeRows(resp);
+            List<String> failedWindows = new ArrayList<>();
+            var groups = groupedRows(documents, dimensions, window.seconds());
+
+            Map<String, List<Map<String, List<TimestampedValue<ExponentialHistogram>>>>> windowsPerGroup = new HashMap<>();
+            Map<String, List<List<Object>>> rowsPerGroup = new HashMap<>();
+
+            for (List<Object> row : rows) {
+                var rowKey = getRowKey(row, dimensions, getTimestampIndex(query));
+                String groupId = getTimeseriesId(rowKey);
+                var windowDataPoints = groups.get(rowKey);
+                var docsPerTimeseries = groupByTimeseries(
+                    windowDataPoints,
+                    metricName,
+                    metricValue -> ExponentialHistogramXContent.parseForTesting((Map<String, Object>) metricValue)
+                );
+                windowsPerGroup.computeIfAbsent(groupId, k -> new ArrayList<>()).add(docsPerTimeseries);
+                rowsPerGroup.computeIfAbsent(groupId, k -> new ArrayList<>()).add(row);
+            }
+
+            for (var key : windowsPerGroup.keySet()) {
+                var rowList = rowsPerGroup.get(key);
+                var allWindows = windowsPerGroup.get(key);
+                for (int i = 0; i < rowList.size(); i++) {
+                    var row = rowList.get(i);
+                    var expected = calculateHistogramStatsOverTime(allWindows, i, window.seconds());
+                    try {
+                        Long actualCount = (Long) row.get(0);
+                        assertThat("COUNT mismatch", actualCount, equalTo(expected.count()));
+                        if (expected.count() > 0) {
+                            Double actualSum = (Double) row.get(1);
+                            assertThat("SUM mismatch", actualSum, closeTo(expected.sum(), Math.abs(expected.sum()) * 0.01 + 1e-9));
+                            Double actualAvg = (Double) row.get(2);
+                            assertThat("AVG mismatch", actualAvg, closeTo(expected.avg(), Math.abs(expected.avg()) * 0.01 + 1e-9));
+                        }
+                    } catch (AssertionError e) {
+                        failedWindows.add("Row: " + row + " | Expected: " + expected + " | " + e.getMessage());
+                    }
+                }
+            }
+            assertNoFailedWindows(failedWindows, rows, "HISTOGRAM(COUNT/SUM/AVG/MEDIAN/MIN/MAX)");
         }
     }
 }

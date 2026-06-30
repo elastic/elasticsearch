@@ -111,7 +111,7 @@ public class ScriptQueryBuilder extends LeafQueryBuilder<ScriptQueryBuilder> {
                 }
             } else {
                 if (token != XContentParser.Token.START_ARRAY) {
-                    throw new AssertionError("Impossible token received: " + token.name());
+                    throw new ParsingException(parser.getTokenLocation(), "[script] query does not support token [" + token + "]");
                 }
                 throw new ParsingException(
                     parser.getTokenLocation(),

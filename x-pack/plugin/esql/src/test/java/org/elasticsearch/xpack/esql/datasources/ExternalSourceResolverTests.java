@@ -83,6 +83,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     // _file.* columns are no longer auto-attached to the resolved schema (they are request-driven),
     // so the resolved-schema width assertions below count data columns + partition columns only.
 
+    private static final EncryptionService ENCRYPTION_SERVICE = mock(EncryptionService.class);
+
     private BlockFactory blockFactory;
 
     @Override
@@ -786,7 +788,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(mock(EncryptionService.class)),
+            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
             () -> false
         );
 
@@ -2127,7 +2129,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(mock(EncryptionService.class)),
+            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
             () -> false
         );
 
@@ -2209,7 +2211,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(mock(EncryptionService.class)),
+            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
             () -> false
         );
 
@@ -2317,7 +2319,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(mock(EncryptionService.class)),
+            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
             () -> false
         );
 
@@ -2444,7 +2446,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(mock(EncryptionService.class)),
+            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
             () -> false
         );
 
@@ -2488,7 +2490,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(mock(EncryptionService.class)),
+            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
             () -> false
         );
 

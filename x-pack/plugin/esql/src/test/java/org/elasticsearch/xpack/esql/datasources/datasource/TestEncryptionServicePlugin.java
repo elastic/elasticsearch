@@ -38,6 +38,7 @@ public class TestEncryptionServicePlugin extends Plugin {
                 return encryptedData.payload();
             }
         };
+        EncryptionService.Holder.set(svc);
         return List.of(new PluginComponentBinding<>(EncryptionService.class, svc));
     }
 }

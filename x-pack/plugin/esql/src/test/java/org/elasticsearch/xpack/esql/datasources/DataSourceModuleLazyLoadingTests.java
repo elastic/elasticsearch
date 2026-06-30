@@ -50,6 +50,7 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
     private static final AtomicBoolean SPY_STORAGE_FACTORY_CALLED = new AtomicBoolean(false);
     private static final AtomicBoolean SPY_FORMAT_FACTORY_CALLED = new AtomicBoolean(false);
     private static final AtomicBoolean OTHER_FORMAT_FACTORY_CALLED = new AtomicBoolean(false);
+    private static final EncryptionService ENCRYPTION_SERVICE = mock(EncryptionService.class);
 
     @Override
     public void setUp() throws Exception {
@@ -70,7 +71,7 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(mock(EncryptionService.class)),
+            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
             () -> false
         );
 
@@ -89,7 +90,7 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(mock(EncryptionService.class)),
+            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
             () -> false
         );
 
@@ -109,7 +110,7 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(mock(EncryptionService.class)),
+            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
             () -> false
         );
 
@@ -129,7 +130,7 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(mock(EncryptionService.class)),
+            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
             () -> false
         );
 
@@ -150,7 +151,7 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(mock(EncryptionService.class)),
+            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
             () -> false
         );
 
@@ -176,7 +177,7 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(mock(EncryptionService.class)),
+            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
             () -> false
         );
 
@@ -197,7 +198,7 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(mock(EncryptionService.class)),
+            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
             () -> false
         );
 
@@ -262,7 +263,7 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(mock(EncryptionService.class)),
+            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
             () -> false
         );
 

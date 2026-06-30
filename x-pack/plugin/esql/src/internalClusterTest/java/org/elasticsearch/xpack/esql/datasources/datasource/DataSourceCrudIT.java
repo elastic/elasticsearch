@@ -145,7 +145,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         // Proves: PUT encrypts → cluster state holds an EncryptedData carrier → projection forwards it by
         // reference → consumer decrypts back to the canary. Forwarding the carrier as-is is exactly what
         // DatasetRewriter.mergeSettings produces for an encrypted secret.
-        DataSourceCredentials credentials = new DataSourceCredentials(new EncryptionService() {
+        DataSourceCredentials credentials = new DataSourceCredentials(() -> new EncryptionService() {
             @Override
             public EncryptedData encrypt(byte[] bytes) {
                 return new EncryptedData(TestEncryptionServicePlugin.TEST_KEY_ID, bytes);

@@ -69,6 +69,8 @@ import static org.mockito.Mockito.mock;
  */
 public class DataSourceModuleTests extends ESTestCase {
 
+    private static final EncryptionService ENCRYPTION_SERVICE = mock(EncryptionService.class);
+
     private BlockFactory blockFactory;
 
     @Override
@@ -138,7 +140,7 @@ public class DataSourceModuleTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(mock(EncryptionService.class)),
+            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
             () -> false
         );
         assertFalse("plugin must not be closed before module close", plugin.closed.get());
@@ -446,7 +448,7 @@ public class DataSourceModuleTests extends ESTestCase {
             settings,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(mock(EncryptionService.class)),
+            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
             () -> false
         );
     }

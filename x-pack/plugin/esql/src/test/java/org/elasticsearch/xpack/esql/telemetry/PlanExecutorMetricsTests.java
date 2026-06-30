@@ -99,6 +99,8 @@ import static org.mockito.Mockito.when;
 
 public class PlanExecutorMetricsTests extends ESTestCase {
 
+    private static final EncryptionService ENCRYPTION_SERVICE = mock(EncryptionService.class);
+
     private static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = createTransportActionServices();
 
     private static TransportActionServices createTransportActionServices() {
@@ -215,7 +217,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(mock(EncryptionService.class)),
+                new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
                 () -> false
             )
         ) {
@@ -326,7 +328,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(mock(EncryptionService.class)),
+                new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
                 () -> false
             )
         ) {
@@ -430,7 +432,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(mock(EncryptionService.class)),
+                new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
                 () -> false
             )
         ) {
@@ -508,7 +510,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(mock(EncryptionService.class)),
+                new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
                 () -> false
             )
         ) {
@@ -572,7 +574,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(mock(EncryptionService.class)),
+                new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
                 () -> false
             )
         ) {

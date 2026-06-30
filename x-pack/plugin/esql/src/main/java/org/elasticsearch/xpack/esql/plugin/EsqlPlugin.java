@@ -346,8 +346,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Build capabilities from plugin declarations (cheap -- no I/O, no heavy deps)
         DataSourceCapabilities dataSourceCapabilities = DataSourceCapabilities.build(allDataSourcePlugins);
 
-        EncryptionService encryptionService = EncryptionService.Holder.get();
-        DataSourceCredentials dataSourceCredentials = new DataSourceCredentials(encryptionService);
+        DataSourceCredentials dataSourceCredentials = new DataSourceCredentials(EncryptionService.Holder::get);
 
         boolean isStateless = DiscoveryNode.isStateless(settings);
         AtomicBoolean workloadIdentityEnabled = new AtomicBoolean(
@@ -497,7 +496,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.crossProjectModeDecider()
             ),
             new ViewService(services.clusterService(), parser),
-            new DataSourceService(services.clusterService(), crudValidators, encryptionService),
+            new DataSourceService(services.clusterService(), crudValidators, EncryptionService.Holder::get),
             new DatasetService(services.clusterService(), crudValidators)
         );
     }

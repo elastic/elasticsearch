@@ -78,7 +78,7 @@ PUT my-logs-index
 ### Index sorting [index-sorting]
 
 An important configuration step when setting up columnar index mode is determining the index sort fields.
-Good index sorting fields allow Elasticsearch to store data more efficiently and allow queries to be executed more efficiently.
+Good index sorting fields allow storing data more efficiently and improving query response times.
 Good index sorting fields are dependent on the use case and the data.
 
 The `logsdb_columnar` index mode, just like `logsdb` index mode, uses by default the `host.name` field in acendeing order and `@timestamp` field in descending order as the index sort fields.

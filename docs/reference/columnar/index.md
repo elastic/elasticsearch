@@ -130,7 +130,7 @@ Dynamic mapping behavior is controlled through configuration param `dynamic` tha
 ### Dynamic false [dynamic-false]
 
 If dynamic false has been configured, then only fields that are explicitly mapped in the mappings are stored.
-Fields that are not explicitly mapped in the mappings are not stored and therefor are lost.
+Fields that are not explicitly mapped in the mappings are not stored and therefore lost.
 
 ## Auto flattening [auto-flattening]
 

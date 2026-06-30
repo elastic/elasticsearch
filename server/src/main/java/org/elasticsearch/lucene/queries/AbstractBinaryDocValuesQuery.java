@@ -24,6 +24,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueArrayOrderInlineNullBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 
 import java.io.IOException;
@@ -36,10 +37,14 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
 
     final String fieldName;
     final Predicate<BytesRef> matcher;
+    // Whether the field stores its multi-valued binary doc values in the ArrayOrderInlineNull format rather than the SeparateCount format.
+    // The two encodings are not interchangeable, so the decoder must be chosen up front.
+    final boolean arrayOrderInlineNull;
 
-    AbstractBinaryDocValuesQuery(String fieldName, Predicate<BytesRef> matcher) {
+    AbstractBinaryDocValuesQuery(String fieldName, Predicate<BytesRef> matcher, boolean arrayOrderInlineNull) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.matcher = Objects.requireNonNull(matcher);
+        this.arrayOrderInlineNull = arrayOrderInlineNull;
     }
 
     @Override
@@ -69,6 +74,12 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
             return null;
         }
         final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
+        if (arrayOrderInlineNull) {
+            // ArrayOrderInlineNull always writes the .counts field (even for an all-null or empty array, which writes no blob), so when
+            // this flag is set the counts column drives iteration and count==1 is handled inside the inline-null reader as the raw case.
+            assert counts != null : "ArrayOrderInlineNull field [" + fieldName + "] must have a " + COUNT_FIELD_SUFFIX + " companion";
+            return arrayOrderInlineNullIterator(values, counts, matcher, matchCost);
+        }
         if (counts != null) {
             return multiValuedIterator(values, counts, matcher, matchCost);
         } else {
@@ -97,6 +108,36 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
             @Override
             public boolean matches() throws IOException {
                 values.advance(counts.docID());
+                return reader.match(values.binaryValue(), counts.longValue(), predicate);
+            }
+
+            @Override
+            public float matchCost() {
+                return cost;
+            }
+        });
+    }
+
+    /**
+     * Iterator for the {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull}
+     * format. Drives the two-phase approximation on the always-present {@code counts} column, then advances the binary blob with
+     * {@link BinaryDocValues#advanceExact} for the candidate doc: a document with no blob is an all-null or empty array (the counts field
+     * is present but no binary value was written) and can never match a term-family predicate, so it is rejected without decoding.
+     */
+    static DocIdSetIterator arrayOrderInlineNullIterator(
+        BinaryDocValues values,
+        NumericDocValues counts,
+        Predicate<BytesRef> predicate,
+        float cost
+    ) {
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(counts) {
+            final MultiValueArrayOrderInlineNullBinaryDocValuesReader reader = new MultiValueArrayOrderInlineNullBinaryDocValuesReader();
+
+            @Override
+            public boolean matches() throws IOException {
+                if (values.advanceExact(counts.docID()) == false) {
+                    return false; // all-null array or empty array: no non-null value to match
+                }
                 return reader.match(values.binaryValue(), counts.longValue(), predicate);
             }
 

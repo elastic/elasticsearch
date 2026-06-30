@@ -61,30 +61,44 @@ public final class ExternalSourceAggregatePushdown {
 
     /**
      * Returns a cached MIN/MAX extremum if it can be served as {@code type} without loss, else {@code null}
-     * (safe-miss). A harvest may legitimately hand a wider Java type than the column's ESQL type — a
-     * {@code Long} for an {@code INTEGER} column narrows exactly and {@code buildBlock} handles it. But a
-     * floating value that is NOT an exact integer in range for an integral column would overflow when
-     * {@code buildBlock} coerces it via {@code longValue()}/{@code intValue()} (e.g. a {@code Double} past
-     * {@code Long.MAX} reaching a {@code LONG}-resolved column whose stripes were harvested under a divergent
-     * inferred type). Rather than serve overflow garbage, safe-miss so a full scan answers.
+     * (safe-miss). A harvest may legitimately hand a wider Java type than the column's ESQL type — an
+     * IN-RANGE {@code Long} for an {@code INTEGER} column narrows exactly and {@code buildBlock} handles it.
+     * But any value that is NOT an exact integer in range for an integral column — a fractional or
+     * out-of-range {@code Double}, OR a {@code Long} beyond the target's range for an {@code INTEGER} column —
+     * would be truncated/overflowed when {@code buildBlock} coerces it via {@code longValue()}/{@code intValue()}
+     * (the divergent-inferred-type case where stripes were harvested under a wider type). Rather than serve
+     * overflow garbage, safe-miss so a full scan answers. The integral set mirrors {@code buildBlock}'s
+     * {@code intValue()}/{@code longValue()} coercion targets (its consumer), not the cache's harvest-time
+     * coercion — each layer guards against its own type reference.
      */
     static Object servableExtremum(Object value, DataType type) {
         if (value == null) {
             return null;
         }
-        boolean integral = switch (type) {
-            case INTEGER, LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG, COUNTER_LONG -> true;
-            default -> false;
+        return switch (type) {
+            case INTEGER -> exactIntegerInRange(value, Integer.MIN_VALUE, Integer.MAX_VALUE) ? value : null;
+            case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG, COUNTER_LONG -> exactIntegerInRange(value, Long.MIN_VALUE, Long.MAX_VALUE)
+                ? value
+                : null;
+            default -> value; // DOUBLE / KEYWORD / BOOLEAN / IP etc. — buildBlock coerces without integral truncation
         };
-        if (integral && (value instanceof Double || value instanceof Float)) {
+    }
+
+    /** True iff {@code value} is an exact integer in {@code [min, max]}; false for fractional, out-of-range, or non-numeric. */
+    private static boolean exactIntegerInRange(Object value, long min, long max) {
+        if (value instanceof Double || value instanceof Float) {
             double d = ((Number) value).doubleValue();
+            if (Double.isFinite(d) == false) {
+                return false;
+            }
             long asLong = (long) d;
-            boolean exact = Double.isFinite(d)
-                && (double) asLong == d
-                && (type != DataType.INTEGER || (asLong >= Integer.MIN_VALUE && asLong <= Integer.MAX_VALUE));
-            return exact ? value : null;
+            return (double) asLong == d && asLong >= min && asLong <= max;
         }
-        return value;
+        if (value instanceof Number n) {
+            long l = n.longValue(); // Long / Integer / Short / Byte round-trip exactly through longValue()
+            return l >= min && l <= max;
+        }
+        return false;
     }
 
     /**

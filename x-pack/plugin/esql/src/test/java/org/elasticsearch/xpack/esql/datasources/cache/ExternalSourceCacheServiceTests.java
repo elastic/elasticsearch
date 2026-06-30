@@ -889,6 +889,36 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testStripeFoldKeepsColumnAcrossEmptyStripeGap() throws Exception {
+        // The empty-stripe exemption (the other half of the false-fold change): a uniform column observed in
+        // every NON-EMPTY stripe must survive even when a record-empty (0-row) edge stripe in the byte-range
+        // cover carries no column stats. Without the exemption the column would be wrongly dropped (loss of
+        // short-circuit). This is the surviving-column regression guard.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/events.ndjson";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of("format", "ndjson"));
+            seedSchemaCacheTyped(service, key, path, "fp", "v", DataType.LONG);
+
+            // stripe 0: 60 rows with col v; stripe 1: EMPTY (0 rows, no col); stripe 2 (EOF): 40 rows with col v.
+            Map<String, Object> s0 = stripeFragment(mtime, "fp", 60L, 100L, 0, 0, 100, true, true, false);
+            s0.put(SourceStatisticsSerializer.columnValueCountKey("v"), 60L);
+            s0.put(SourceStatisticsSerializer.columnNullCountKey("v"), 0L);
+            Map<String, Object> s1empty = stripeFragment(mtime, "fp", 0L, 100L, 1, 100, 100, true, true, false);
+            Map<String, Object> s2 = stripeFragment(mtime, "fp", 40L, 100L, 2, 100, 180, true, true, true);
+            s2.put(SourceStatisticsSerializer.columnValueCountKey("v"), 40L);
+            s2.put(SourceStatisticsSerializer.columnNullCountKey("v"), 0L);
+
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(s0, s1empty, s2)));
+
+            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(100L, ((Number) enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+            Object vc = enriched.safeMetadata().get(SourceStatisticsSerializer.columnValueCountKey("v"));
+            assertNotNull("column v must survive the empty-stripe gap (not dropped)", vc);
+            assertEquals("COUNT(v) folds across the non-empty stripes (60 + 40)", 100L, ((Number) vc).longValue());
+        }
+    }
+
     public void testReconcileAccumulatesStripesAcrossQueries() throws Exception {
         // Stripe knowledge composes across queries: query A commits stripe 0 (no EOF observed), query B
         // commits stripe 1 + EOF; the whole-file fold fires only once the union is complete.

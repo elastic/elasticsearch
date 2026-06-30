@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -71,35 +70,32 @@ public class InternalChangePointAggregation extends InternalAggregation {
     }
 
     /**
-     * Returns the single bucket an older node expects when the multi-bucket result is collapsed to one: the most
-     * significant (smallest p-value). Falls back to {@code null} when there is none, because the legacy wire format
-     * has no "absent bucket" encoding.
+     * The bucket of the single most significant event in the time series and {@code null} when there aren't any.
      */
     private ChangePointBucket representativeBucket() {
-        // The buckets array is in one-to-one correspondence with the changeTypes array, so we can find the most
-        // significant bucket by looking for the smallest p-value in the changeTypes array and returning the bucket
-        // at the same index.
-        int minIndex = -1;
-        double minPValue = 2.0; // Any number greater than 1.0 is sufficient.
-        for (int i = 0; i < changeTypes.size(); i++) {
-            ChangeType changeType = changeTypes.get(i);
-            if (changeType.isChange() && changeType.pValue() < minPValue) {
-                minPValue = changeType.pValue();
-                minIndex = i;
-            }
-        }
-        return minIndex >= 0 ? buckets.get(minIndex) : null;
+        int index = representativeIndex();
+        return index >= 0 ? buckets.get(index) : null;
     }
 
     /**
-     * The single change type an older node expects when the multi-bucket result is collapsed to one: the most
-     * significant (smallest p-value). Falls back to {@link ChangeType.Indeterminable} when there is none, because
-     * the legacy wire format has no "absent change type" encoding.
+     * The most significant change or {@link ChangeType.Indeterminable} when there isn't any.
      */
     private ChangeType representativeChangeType() {
-        return changeTypes.stream()
-            .min(Comparator.comparingDouble(ChangeType::pValue))
-            .orElseGet(() -> new ChangeType.Indeterminable("no change type available"));
+        int index = representativeIndex();
+        return index >= 0 ? changeTypes.get(index) : new ChangeType.Indeterminable("no change type available");
+    }
+
+    private int representativeIndex() {
+        int minPValueIndex = -1;
+        double minPValue = 2.0; // Any number greater than 1.0 is sufficient.
+        for (int i = 0; i < changeTypes.size(); i++) {
+            ChangeType changeType = changeTypes.get(i);
+            if (changeType.pValue() < minPValue) {
+                minPValue = changeType.pValue();
+                minPValueIndex = i;
+            }
+        }
+        return minPValueIndex;
     }
 
     public List<ChangePointBucket> getBuckets() {

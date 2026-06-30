@@ -50,12 +50,16 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         List<ChangeType> events = eventDetector.detect(bucketValues);
         List<ChangePointBucket> changePointBuckets = new ArrayList<>();
         for (ChangeType c : events) {
+            // It's important we preserve a one-to-one correspondence between the events and the
+            // buckets, so we add null for any non-change events.
             if (c.isChange()) {
                 changePointBuckets.add(
                     extractBucket(bucketsPaths()[0], aggregations, c.changePoint()).map(
                         b -> new ChangePointBucket(b.getKey(), b.getDocCount(), b.getAggregations())
                     ).orElse(null)
                 );
+            } else {
+                changePointBuckets.add(null);
             }
         }
 

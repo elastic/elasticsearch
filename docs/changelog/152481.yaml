@@ -2,9 +2,10 @@ area: Mapping
 highlight:
   body: |-
     Two new index modes, `columnar` and `logsdb_columnar`, are now available as
-    a Tech Preview. With columnar mode enabled, Elasticsearch becomes a full
-    analytical and search columnar store, offering a significantly smaller storage footprint
-    and the building blocks for faster analytical queries in future releases.
+    a Tech Preview. With columnar mode enabled, Elasticsearch becomes a fully
+    columnar store for search and analytics, offering a significantly smaller
+    storage footprint and the building blocks for faster analytical queries in
+    future releases.
 
     Fields are stored **once, as doc values only** — no inverted index or BKD
     tree is created by default, which eliminates redundant index structures

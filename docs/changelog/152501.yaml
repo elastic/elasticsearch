@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 152501
+summary: "[Datasources] Add TV Guard for new global datasource privileges"
+type: enhancement

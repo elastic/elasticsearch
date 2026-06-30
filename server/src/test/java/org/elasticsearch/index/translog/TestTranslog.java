@@ -14,7 +14,23 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.DiskIoBufferPool;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.eirf.EirfBatch;
+import org.elasticsearch.eirf.EirfEncoder;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.engine.TranslogOperationAsserter;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -33,6 +49,7 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.elasticsearch.index.translog.Translog.CHECKPOINT_FILE_NAME;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
@@ -236,5 +253,69 @@ public class TestTranslog {
 
             }
         };
+    }
+
+    public static Translog.IndexBatch indexBatch(
+        List<BytesReference> sources,
+        XContentType xContentType,
+        long firstSeqNo,
+        long primaryTerm,
+        String idPrefix
+    ) throws IOException {
+        final BytesReference batchData;
+        try (EirfBatch eirf = EirfEncoder.encode(sources, xContentType)) {
+            batchData = new BytesArray(eirf.data().toBytesRef(), true);
+        }
+        final List<Translog.IndexBatch.Op> ops = new ArrayList<>(sources.size());
+        for (int i = 0; i < sources.size(); i++) {
+            ops.add(
+                new Translog.IndexBatch.IndexOp(
+                    1L,
+                    firstSeqNo + i,
+                    100L + i,
+                    i /* rowIndex */,
+                    xContentType,
+                    Uid.encodeId(idPrefix + i),
+                    i % 2 == 0 ? null : "route-" + i
+                )
+            );
+        }
+        return new Translog.IndexBatch(batchData, primaryTerm, ops);
+    }
+
+    public static Translog newTranslogFromBatch(Path translogDir, ShardId shardId, long primaryTerm, Translog.IndexBatch batch)
+        throws IOException {
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings);
+        final TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            translogDir,
+            indexSettings,
+            NON_RECYCLING_INSTANCE,
+            ByteSizeValue.ofBytes(8 * 1024),
+            DiskIoBufferPool.INSTANCE,
+            (d, s, l) -> {},
+            true
+        );
+        final String translogUUID = Translog.createEmptyTranslog(translogDir, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm);
+        final Translog translog = new Translog(
+            translogConfig,
+            translogUUID,
+            new TranslogDeletionPolicy(),
+            () -> SequenceNumbers.NO_OPS_PERFORMED,
+            () -> primaryTerm,
+            seqNo -> {},
+            TranslogOperationAsserter.DEFAULT
+        );
+        boolean success = false;
+        try {
+            translog.add(batch);
+            success = true;
+            return translog;
+        } finally {
+            if (success == false) {
+                IOUtils.close(translog);
+            }
+        }
     }
 }

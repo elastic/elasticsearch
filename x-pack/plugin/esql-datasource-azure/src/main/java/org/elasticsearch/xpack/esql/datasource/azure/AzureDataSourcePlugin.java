@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
@@ -71,10 +72,13 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
         }
         Environment environment = services.environment();
         ExecutorService executor = services.executor();
+        // Size the connection pool from the single node setting. services.settings() is the node Settings threaded
+        // through the SPI — the construction path that reaches the client-build site.
+        int maxConnections = ExternalSourceSettings.MAX_CONNECTIONS.get(services.settings());
         StorageProviderFactory azureFactory = StorageProviderFactory.of(
-            () -> new AzureStorageProvider(null, environment, executor),
+            () -> new AzureStorageProvider(null, environment, executor, maxConnections),
             AzureConfiguration::fromQueryConfig,
-            cfg -> new AzureStorageProvider(cfg, environment, executor)
+            cfg -> new AzureStorageProvider(cfg, environment, executor, maxConnections)
         );
         return Map.of("wasbs", azureFactory, "wasb", azureFactory);
     }

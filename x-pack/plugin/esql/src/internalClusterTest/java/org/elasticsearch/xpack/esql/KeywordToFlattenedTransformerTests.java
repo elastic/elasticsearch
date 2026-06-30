@@ -28,8 +28,6 @@ public class KeywordToFlattenedTransformerTests extends ESTestCase {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    // ── selectJunkFields ────────────────────────────────────────────────────
-
     /**
      * Empty input set → always returns the empty config, regardless of the random coin.
      */
@@ -57,8 +55,6 @@ public class KeywordToFlattenedTransformerTests extends ESTestCase {
         int count = cfg.junkFields().size();
         assertTrue("count must be between 0 and input size inclusive", count >= 0 && count <= input.size());
     }
-
-    // ── wrapKeywordValuesAsFlattened (junk overload) ─────────────────────
 
     /**
      * Fields in the junk config must have the {@code "v"} key plus at least one extra key.
@@ -143,7 +139,5 @@ public class KeywordToFlattenedTransformerTests extends ESTestCase {
         String result = KeywordToFlattenedTransformer.wrapKeywordValuesAsFlattened(documentJson, paths, junk);
         assertEquals("non-object document must be returned unchanged", documentJson, result);
     }
-
-    // ── helpers ─────────────────────────────────────────────────────────────
 
 }

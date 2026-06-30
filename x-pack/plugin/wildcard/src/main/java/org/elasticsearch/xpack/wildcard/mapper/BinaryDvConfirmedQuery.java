@@ -369,5 +369,4 @@ abstract class BinaryDvConfirmedQuery extends Query {
             return fuzzyQuery.getAutomata().automaton;
         }
     }
-
 }

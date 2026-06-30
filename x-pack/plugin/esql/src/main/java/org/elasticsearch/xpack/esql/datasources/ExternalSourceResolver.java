@@ -271,6 +271,12 @@ public class ExternalSourceResolver {
                             hivePartitioning,
                             declaredMapping
                         );
+                        // Strict is built directly from the declaration inside resolveSource; non-strict infers first
+                        // and then overlays the declaration onto the resolved result (works the same for single- and
+                        // multi-file).
+                        if (declaredMapping != null && isStrict(declaredMapping) == false) {
+                            resolvedSource = applyNonStrictOverlay(resolvedSource, declaredMapping);
+                        }
                         resolved.put(path, resolvedSource);
                         LOGGER.debug("Successfully resolved external source: {}", path);
                     } catch (TaskCancelledException e) {
@@ -368,53 +374,6 @@ public class ExternalSourceResolver {
         // shim that injects them into the relation's metadataFields). See ResolveExternalRelations.
         List<Attribute> fileSchema = extMetadata.schema();
 
-        // Non-strict declared mapping: overlay the declaration onto the inferred schema. Declared columns are renamed
-        // to their logical name and retyped in the user-facing output; the per-file schema the reader matches keeps
-        // physical names (retyped); undeclared inferred columns pass through. Applied outside the schema cache so the
-        // cache keeps caching the pure inference and a change to the declaration takes effect immediately. The inferred
-        // stats/sourceMetadata are preserved by delegating everything but the schema to the inferred metadata.
-        if (declaredMapping != null && isStrict(declaredMapping) == false) {
-            final ExternalSourceMetadata inferred = extMetadata;
-            DeclaredSchemaResolver.Overlaid overlaid = DeclaredSchemaResolver.overlayNonStrict(inferred.schema(), declaredMapping);
-            extMetadata = new ExternalSourceMetadata() {
-                @Override
-                public List<Attribute> schema() {
-                    return overlaid.output();
-                }
-
-                @Override
-                public String sourceType() {
-                    return inferred.sourceType();
-                }
-
-                @Override
-                public String location() {
-                    return inferred.location();
-                }
-
-                @Override
-                public Optional<SourceStatistics> statistics() {
-                    return inferred.statistics();
-                }
-
-                @Override
-                public Optional<List<String>> partitionColumns() {
-                    return inferred.partitionColumns();
-                }
-
-                @Override
-                public Map<String, Object> sourceMetadata() {
-                    return inferred.sourceMetadata();
-                }
-
-                @Override
-                public Map<String, Object> config() {
-                    return inferred.config();
-                }
-            };
-            fileSchema = overlaid.fileSchema();
-        }
-
         FileList singletonList = GlobExpander.fileListOf(
             List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
             path
@@ -476,6 +435,118 @@ public class ExternalSourceResolver {
         return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(schema), identityMapping, null));
     }
 
+    /**
+     * Strict multi-file resolution: the declared mapping is the entire schema for every file, so only the glob is
+     * listed — no per-file metadata reads. Each file resolves to the declared schema (identity mapping).
+     */
+    private ExternalSourceResolution.ResolvedSource resolveStrictMultiFile(
+        String path,
+        StoragePath storagePath,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        boolean hivePartitioning,
+        Map<String, Object> config,
+        DatasetMapping declaredMapping
+    ) throws Exception {
+        FileList listing;
+        if (path.indexOf(',') >= 0) {
+            int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
+            int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
+            listing = GlobExpander.expandCommaSeparated(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
+        } else if (isCacheable(provider)) {
+            ListingCacheKey listingKey = ListingCacheKey.build(storagePath.scheme(), storagePath.host(), storagePath.path(), config);
+            listing = cacheService.getOrComputeListing(
+                listingKey,
+                k -> expandAndCompact(path, provider, hints, hivePartitioning, storagePath)
+            );
+        } else {
+            listing = expandAndCompact(path, provider, hints, hivePartitioning, storagePath);
+        }
+        if (listing.fileCount() == 0) {
+            throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+        }
+
+        List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
+        List<Attribute> physicalSchema = DeclaredSchemaResolver.physicalAttributes(declaredMapping);
+        Object formatOverride = config.get(FileSourceFactory.CONFIG_FORMAT);
+        String sourceType = formatOverride != null ? String.valueOf(formatOverride) : FormatNameResolver.resolve(config, path);
+        ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(
+            new SimpleSourceMetadata(logicalSchema, sourceType, path),
+            config
+        );
+        extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
+
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = new HashMap<>();
+        for (int i = 0; i < listing.fileCount(); i++) {
+            schemaMap.putAll(singleEntrySchemaMap(listing.path(i), physicalSchema));
+        }
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap);
+    }
+
+    /**
+     * Apply a non-strict declared mapping onto an already-resolved (inferred) source: retype/rename the declared
+     * columns in the user-facing schema (strict — every declared column must appear in the unified schema) and in
+     * each per-file schema (lenient — a column may be absent from one file under union-by-name), preserving the
+     * inferred stats/sourceMetadata and the per-file column mappings.
+     */
+    private ExternalSourceResolution.ResolvedSource applyNonStrictOverlay(
+        ExternalSourceResolution.ResolvedSource resolved,
+        DatasetMapping declaredMapping
+    ) {
+        final ExternalSourceMetadata inferred = resolved.metadata();
+        DeclaredSchemaResolver.Overlaid unified = DeclaredSchemaResolver.overlayNonStrict(inferred.schema(), declaredMapping, false);
+        ExternalSourceMetadata overlaidMetadata = new ExternalSourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return unified.output();
+            }
+
+            @Override
+            public String sourceType() {
+                return inferred.sourceType();
+            }
+
+            @Override
+            public String location() {
+                return inferred.location();
+            }
+
+            @Override
+            public Optional<SourceStatistics> statistics() {
+                return inferred.statistics();
+            }
+
+            @Override
+            public Optional<List<String>> partitionColumns() {
+                return inferred.partitionColumns();
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return inferred.sourceMetadata();
+            }
+
+            @Override
+            public Map<String, Object> config() {
+                return inferred.config();
+            }
+        };
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> overlaidSchemaMap = new HashMap<>();
+        for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : resolved.schemaMap().entrySet()) {
+            SchemaReconciliation.FileSchemaInfo info = e.getValue();
+            DeclaredSchemaResolver.Overlaid perFile = DeclaredSchemaResolver.overlayNonStrict(
+                info.fileSchema().attributes(),
+                declaredMapping,
+                true
+            );
+            overlaidSchemaMap.put(
+                e.getKey(),
+                new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(perFile.fileSchema()), info.mapping(), info.statistics())
+            );
+        }
+        return new ExternalSourceResolution.ResolvedSource(overlaidMetadata, resolved.fileList(), overlaidSchemaMap);
+    }
+
     private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(
         String path,
         Map<String, Object> config,
@@ -485,6 +556,10 @@ public class ExternalSourceResolver {
     ) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);
+
+        if (isStrict(declaredMapping)) {
+            return resolveStrictMultiFile(path, storagePath, provider, hints, hivePartitioning, config, declaredMapping);
+        }
 
         FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
         boolean cacheable = isCacheable(provider);

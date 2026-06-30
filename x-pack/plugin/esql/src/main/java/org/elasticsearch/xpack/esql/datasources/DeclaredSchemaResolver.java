@@ -106,6 +106,16 @@ public final class DeclaredSchemaResolver {
      * inferred schema is an error (it references a column the source does not have).
      */
     public static Overlaid overlayNonStrict(List<Attribute> inferred, DatasetMapping mapping) {
+        return overlayNonStrict(inferred, mapping, false);
+    }
+
+    /**
+     * As {@link #overlayNonStrict(List, DatasetMapping)} but {@code lenient} controls the unmatched-declared-column
+     * policy: strict ({@code false}) errors when a declared column is absent from {@code inferred} (used against the
+     * unified schema, where every declared column must appear); lenient ({@code true}) skips it (used per-file, where
+     * a column may legitimately be absent from one file under union-by-name).
+     */
+    public static Overlaid overlayNonStrict(List<Attribute> inferred, DatasetMapping mapping, boolean lenient) {
         DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
         if (mappings == null || mappings.properties().isEmpty()) {
             return new Overlaid(inferred, inferred);
@@ -133,7 +143,7 @@ public final class DeclaredSchemaResolver {
                 fileSchema.add(a);
             }
         }
-        if (matched.size() < declaredTypeByPhysical.size()) {
+        if (lenient == false && matched.size() < declaredTypeByPhysical.size()) {
             List<String> missing = declaredTypeByPhysical.keySet().stream().filter(p -> matched.contains(p) == false).toList();
             throw new IllegalArgumentException("declared columns not found in the source: " + missing);
         }

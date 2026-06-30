@@ -143,7 +143,9 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         "employees_mixed",
         "stats_ds",
         "employees_strict",
-        "employees_nonstrict"
+        "employees_nonstrict",
+        "employees_strict_multi",
+        "employees_nonstrict_multi"
     );
 
     /**
@@ -289,6 +291,81 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
             assertThat(rows.get(2).get(0), equalTo(3L));
             assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    public void testStrictDeclaredSchemaOverMultiFileGlob() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("part1.csv"), "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n");
+        Files.writeString(root.resolve("part2.csv"), "emp_no:integer,first_name:keyword\n3,Carol\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", null));
+        properties.put("name", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), null, null);
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_strict_multi",
+                    "local_ds",
+                    root.toUri() + "*.csv",
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_strict_multi | SORT id | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("id"));
+            assertThat(columns.get(1).name(), equalTo("name"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3)); // 2 rows from part1 + 1 from part2, no per-file schema reads
+            assertThat(rows.get(0).get(0), equalTo(1L));
+            assertThat(rows.get(2).get(0), equalTo(3L));
+        }
+    }
+
+    public void testNonStrictDeclaredSchemaOverMultiFileGlob() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("part1.csv"), "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n");
+        Files.writeString(root.resolve("part2.csv"), "emp_no:integer,first_name:keyword\n3,Carol\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("emp_no", new DatasetFieldMapping("long", null)); // retype only; first_name inferred
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties), null, null);
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_nonstrict_multi",
+                    "local_ds",
+                    root.toUri() + "*.csv",
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_nonstrict_multi | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("emp_no"));
+            assertThat(columns.get(1).name(), equalTo("first_name"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1L)); // declared LONG override across files
+            assertThat(rows.get(2).get(0), equalTo(3L));
         }
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -401,7 +402,17 @@ public class ExternalSourceCacheService implements Closeable {
             SchemaCacheEntry existing = match.getValue();
             Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());
             for (Map.Entry<Long, Map<String, Object>> stripe : delta.stripes().entrySet()) {
-                enriched.put(ExternalStats.STRIPE_ENTRY_PREFIX + stripe.getKey(), stripe.getValue());
+                // Push the resolved column type down to each stripe's min/max before it is stored, so the
+                // 0..K fold (foldCommittedStripes -> mergeStatistics) never folds a Long extremum against a
+                // Double one for the same column. dropUnrepresentable=false: an unrepresentable value is left
+                // for that fold's POISON to safe-miss the whole column (a per-stripe drop would fold a subset).
+                Map<String, Object> stripeStats = coerceColumnStatsToResolvedTypes(
+                    stripe.getValue(),
+                    existing.columnNames(),
+                    existing.columnTypes(),
+                    false
+                );
+                enriched.put(ExternalStats.STRIPE_ENTRY_PREFIX + stripe.getKey(), stripeStats);
             }
             if (delta.lastStripeOrdinal() >= 0) {
                 enriched.put(ExternalStats.STRIPE_LAST_INDEX_KEY, delta.lastStripeOrdinal());
@@ -425,6 +436,118 @@ public class ExternalSourceCacheService implements Closeable {
                 )
             );
         }
+    }
+
+    /**
+     * Normalizes a contribution's per-column {@code min}/{@code max} to the cache entry's RESOLVED column
+     * type before it is merged in. This pushes the aggregate's type down to the stats layer: a column's
+     * resolved {@link DataType} (the entry's {@code columnTypes}) is exactly the type the query's MIN/MAX
+     * aggregate reads the column as ({@code af.dataType()}), so once every contribution's min/max is in that
+     * type, the merge only ever folds same-typed values and the served value is bit-identical to a full scan.
+     *
+     * <p>Why this is needed: a sample-inferred reader (NDJSON typing a UInt64 column LONG on a read whose
+     * sample saw only {@code <= Long.MAX}, DOUBLE on a read that hit a bigger value) can contribute a
+     * {@code Long} extremum from one stripe and a {@code Double} from another for the SAME column. Folding a
+     * {@code Long} with a {@code Double} hits {@code SplitStats}'s "intentionally incompatible above 2^53"
+     * branch → POISON → the column's min/max is dropped → safe-miss → full scan. Coercing every contribution
+     * to the resolved type up front removes the collision at its source.
+     *
+     * <p>Coercion is loss-free for an extremum: widening an integral min/max to {@code double} is exact
+     * because IEEE round-to-nearest is monotonic, so {@code (double) max(longs) == max((double) longs)}.
+     * When a value cannot be represented in the resolved type (the genuinely inconsistent case — e.g. a
+     * {@code Double > Long.MAX} for a column the entry resolved to LONG), it is NOT coerced: in the stripe
+     * path ({@code dropUnrepresentable=false}) it is left for the existing POISON fold to safe-miss the whole
+     * column; in the whole-file path ({@code dropUnrepresentable=true}, no POISON fold) its min/max is dropped
+     * so the serve safe-misses rather than coercing a wrong value (e.g. {@code ((Number) d).longValue()}
+     * overflow garbage). Returns the input unchanged when no column needed coercion.
+     */
+    static Map<String, Object> coerceColumnStatsToResolvedTypes(
+        Map<String, Object> statsMap,
+        String[] columnNames,
+        DataType[] columnTypes,
+        boolean dropUnrepresentable
+    ) {
+        if (statsMap == null || statsMap.isEmpty() || columnNames == null || columnTypes == null) {
+            return statsMap;
+        }
+        Map<String, Object> out = null; // copied lazily, only if some column actually needs a change
+        int n = Math.min(columnNames.length, columnTypes.length);
+        for (int i = 0; i < n; i++) {
+            DataType type = columnTypes[i];
+            if (isNumericStatType(type) == false) {
+                continue; // BYTESREF / BOOLEAN min/max carry no Long-vs-Double ambiguity
+            }
+            for (String key : List.of(
+                SourceStatisticsSerializer.columnMinKey(columnNames[i]),
+                SourceStatisticsSerializer.columnMaxKey(columnNames[i])
+            )) {
+                Object value = statsMap.get(key);
+                if (value instanceof Number == false) {
+                    continue;
+                }
+                Object coerced = coerceNumberToType((Number) value, type); // null => not representable in `type`
+                if (coerced != null) {
+                    if (coerced.equals(value)) {
+                        continue; // already the resolved type — no change
+                    }
+                    if (out == null) {
+                        out = new HashMap<>(statsMap);
+                    }
+                    out.put(key, coerced);
+                } else if (dropUnrepresentable) {
+                    if (out == null) {
+                        out = new HashMap<>(statsMap);
+                    }
+                    out.remove(key);
+                }
+                // else: not representable on the stripe path — leave it for the POISON fold to safe-miss.
+            }
+        }
+        return out != null ? out : statsMap;
+    }
+
+    /** True for the types whose min/max is a numeric value that can flap Long/Double across sampled reads. */
+    private static boolean isNumericStatType(DataType type) {
+        return switch (type) {
+            case INTEGER, LONG, DOUBLE, DATETIME, DATE_NANOS, UNSIGNED_LONG -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Coerces a min/max {@link Number} to the Java representation of the column's resolved {@link DataType},
+     * or {@code null} when the value cannot be represented exactly in that type. DOUBLE accepts any number
+     * (widening is exact for an extremum); LONG-family and INTEGER accept only values that round-trip exactly.
+     */
+    private static Object coerceNumberToType(Number value, DataType type) {
+        return switch (type) {
+            case DOUBLE -> value.doubleValue();
+            case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG -> toExactLong(value);
+            case INTEGER -> {
+                Long l = toExactLong(value);
+                yield (l != null && l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE) ? Integer.valueOf(l.intValue()) : null;
+            }
+            default -> value;
+        };
+    }
+
+    /** The exact {@code long} value of {@code value}, or {@code null} if it has a fractional part or is out of long range. */
+    private static Long toExactLong(Number value) {
+        if (value instanceof Long l) {
+            return l;
+        }
+        if (value instanceof Integer || value instanceof Short || value instanceof Byte) {
+            return value.longValue();
+        }
+        if (value instanceof Double || value instanceof Float) {
+            double d = value.doubleValue();
+            if (Double.isFinite(d) == false) {
+                return null;
+            }
+            long asLong = (long) d;
+            return (double) asLong == d ? asLong : null; // exact iff the round-trip is lossless
+        }
+        return null;
     }
 
     /**
@@ -572,7 +695,13 @@ public class ExternalSourceCacheService implements Closeable {
                     SchemaCacheKey key = match.getKey();
                     SchemaCacheEntry existing = match.getValue();
                     Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());
-                    enriched.putAll(mergedStats);
+                    // Push the resolved column type down before enriching. This whole-file path is
+                    // last-writer-wins (no POISON fold), so an unrepresentable value (e.g. a Double past
+                    // Long.MAX for a LONG-resolved column) is DROPPED rather than stored — otherwise the
+                    // serve would coerce it to the resolved type and produce a wrong value.
+                    enriched.putAll(
+                        coerceColumnStatsToResolvedTypes(mergedStats, existing.columnNames(), existing.columnTypes(), true)
+                    );
                     schemaCache.put(
                         key,
                         new SchemaCacheEntry(

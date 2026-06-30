@@ -718,6 +718,110 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testStripeMinMaxCoercedToResolvedTypeAcrossSampledTypeFlap() throws Exception {
+        // The aggregate's resolved type, pushed down to the stats. A UInt64-style column the entry resolved
+        // to DOUBLE can be harvested as a Long on a stripe whose sampled values all fit a long, and as a
+        // Double on a stripe that saw a bigger value. Before the fix, folding the Long extremum against the
+        // Double one hit SplitStats's "Long+Double intentionally incompatible" branch -> POISON -> the
+        // column's min/max was dropped -> warm MIN/MAX re-scanned forever. The fix coerces each stripe's
+        // min/max to the resolved DOUBLE up front, so the fold sees only doubles and the whole-file min/max
+        // survives, bit-identical to what a full MIN/MAX(double) scan computes.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/events.ndjson";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of("format", "ndjson"));
+            seedSchemaCacheTyped(service, key, path, "fp", "uid", DataType.DOUBLE);
+
+            Map<String, Object> s0 = stripeFragment(mtime, "fp", 60L, 100L, 0, 0, 100, true, true, false);
+            s0.put(SourceStatisticsSerializer.columnMinKey("uid"), 10L); // stripe-0 harvested uid as LONG
+            s0.put(SourceStatisticsSerializer.columnMaxKey("uid"), 50L);
+            Map<String, Object> s1 = stripeFragment(mtime, "fp", 40L, 100L, 1, 100, 180, true, true, true);
+            s1.put(SourceStatisticsSerializer.columnMinKey("uid"), 20.0); // stripe-1 harvested uid as DOUBLE
+            s1.put(SourceStatisticsSerializer.columnMaxKey("uid"), 90.0);
+
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(s0, s1)));
+
+            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            Object min = enriched.safeMetadata().get(SourceStatisticsSerializer.columnMinKey("uid"));
+            Object max = enriched.safeMetadata().get(SourceStatisticsSerializer.columnMaxKey("uid"));
+            assertNotNull("whole-file uid MIN must survive the Long/Double stripe flap (no POISON)", min);
+            assertNotNull("whole-file uid MAX must survive the Long/Double stripe flap (no POISON)", max);
+            assertEquals("min folded as the resolved DOUBLE", 10.0, ((Number) min).doubleValue(), 0.0);
+            assertEquals("max folded as the resolved DOUBLE", 90.0, ((Number) max).doubleValue(), 0.0);
+            assertTrue("min is served as the resolved type (Double)", min instanceof Double);
+            assertTrue("max is served as the resolved type (Double)", max instanceof Double);
+        }
+    }
+
+    public void testWholeFileUnrepresentableStatDroppedForLongColumn() throws Exception {
+        // The serve-side wrong-answer guard. If a column the entry resolved to LONG receives a Double min/max
+        // that exceeds Long range (the genuinely inconsistent case), it must NOT be stored — otherwise the
+        // serve would coerce it via ((Number) value).longValue() and emit overflow garbage. The whole-file
+        // path has no POISON fold, so the unrepresentable value is dropped and the column safe-misses.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/events.ndjson";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of("format", "ndjson"));
+            seedSchemaCacheTyped(service, key, path, "fp", "uid", DataType.LONG);
+
+            Map<String, Object> wholeFile = wholeFileStats(mtime, "fp", 100L);
+            wholeFile.put(SourceStatisticsSerializer.columnMinKey("uid"), 1.0e19); // > Long.MAX, not long-representable
+            wholeFile.put(SourceStatisticsSerializer.columnMaxKey("uid"), 2.0e19);
+            service.reconcileSourceStats(Map.of(path, wholeFile));
+
+            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertFalse(
+                "an unrepresentable Double must not be stored as a LONG column's min (would serve overflow garbage)",
+                enriched.safeMetadata().containsKey(SourceStatisticsSerializer.columnMinKey("uid"))
+            );
+            assertFalse(
+                "an unrepresentable Double must not be stored as a LONG column's max",
+                enriched.safeMetadata().containsKey(SourceStatisticsSerializer.columnMaxKey("uid"))
+            );
+        }
+    }
+
+    public void testCoerceColumnStatsToResolvedTypesRules() {
+        String[] names = { "d", "l", "i", "kw" };
+        DataType[] types = { DataType.DOUBLE, DataType.LONG, DataType.INTEGER, DataType.KEYWORD };
+
+        // DOUBLE column: a Long extremum widens to Double (exact for an extremum — monotonic rounding).
+        Map<String, Object> in = new LinkedHashMap<>();
+        in.put(SourceStatisticsSerializer.columnMinKey("d"), 7L);
+        in.put(SourceStatisticsSerializer.columnMaxKey("d"), 7.0); // already Double -> unchanged
+        // LONG column: an Integer widens to Long; an exact-integral Double narrows to Long.
+        in.put(SourceStatisticsSerializer.columnMinKey("l"), Integer.valueOf(3));
+        in.put(SourceStatisticsSerializer.columnMaxKey("l"), 9.0);
+        // INTEGER column: an in-range Long narrows to Integer.
+        in.put(SourceStatisticsSerializer.columnMinKey("i"), 5L);
+        // KEYWORD column: BytesRef-style value is left untouched.
+        in.put(SourceStatisticsSerializer.columnMinKey("kw"), "alpha");
+
+        Map<String, Object> out = ExternalSourceCacheService.coerceColumnStatsToResolvedTypes(in, names, types, false);
+        assertEquals(Double.valueOf(7.0), out.get(SourceStatisticsSerializer.columnMinKey("d")));
+        assertEquals(Double.valueOf(7.0), out.get(SourceStatisticsSerializer.columnMaxKey("d")));
+        assertEquals(Long.valueOf(3L), out.get(SourceStatisticsSerializer.columnMinKey("l")));
+        assertEquals(Long.valueOf(9L), out.get(SourceStatisticsSerializer.columnMaxKey("l")));
+        assertEquals(Integer.valueOf(5), out.get(SourceStatisticsSerializer.columnMinKey("i")));
+        assertEquals("alpha", out.get(SourceStatisticsSerializer.columnMinKey("kw")));
+
+        // Unrepresentable: a Double past Long range for a LONG column. dropUnrepresentable=false leaves it
+        // (the stripe path relies on the POISON fold); =true drops it (the whole-file path, no POISON).
+        Map<String, Object> big = new LinkedHashMap<>();
+        big.put(SourceStatisticsSerializer.columnMaxKey("l"), 1.0e19);
+        assertEquals(
+            "left for POISON on the stripe path",
+            Double.valueOf(1.0e19),
+            ExternalSourceCacheService.coerceColumnStatsToResolvedTypes(big, names, types, false)
+                .get(SourceStatisticsSerializer.columnMaxKey("l"))
+        );
+        assertFalse(
+            "dropped on the whole-file path",
+            ExternalSourceCacheService.coerceColumnStatsToResolvedTypes(big, names, types, true)
+                .containsKey(SourceStatisticsSerializer.columnMaxKey("l"))
+        );
+    }
+
     public void testReconcileAccumulatesStripesAcrossQueries() throws Exception {
         // Stripe knowledge composes across queries: query A commits stripe 0 (no EOF observed), query B
         // commits stripe 1 + EOF; the whole-file fold fires only once the union is complete.
@@ -1112,6 +1216,24 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         service.getOrComputeSchema(
             key,
             k -> SchemaCacheEntry.from(schema, "csv", path, Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint), Map.of())
+        );
+    }
+
+    /** Seeds the schema cache with a single column of a chosen resolved {@link DataType}. */
+    private static void seedSchemaCacheTyped(
+        ExternalSourceCacheService service,
+        SchemaCacheKey key,
+        String path,
+        String fingerprint,
+        String columnName,
+        DataType columnType
+    ) throws Exception {
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, columnName, columnType, Nullability.TRUE, null, false)
+        );
+        service.getOrComputeSchema(
+            key,
+            k -> SchemaCacheEntry.from(schema, "ndjson", path, Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint), Map.of())
         );
     }
 

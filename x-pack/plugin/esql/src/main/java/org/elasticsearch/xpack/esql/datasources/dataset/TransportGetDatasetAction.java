@@ -57,6 +57,9 @@ public class TransportGetDatasetAction extends TransportLocalProjectMetadataActi
         ActionListener<GetDatasetAction.Response> listener
     ) {
         final DatasetMetadata metadata = DatasetMetadata.get(project.metadata());
+        // Resolve + type-filter against the local project's cluster state. We don't consume
+        // request.getResolvedIndexExpressions(): datasets have no cross-project resolution today, so
+        // re-resolving from indices() is equivalent — revisit (like view GET) when datasets become remotable.
         final List<String> resolved = indexNameExpressionResolver.datasets(project.metadata(), request.indicesOptions(), request);
         final List<Dataset> hits = new ArrayList<>();
         for (String name : resolved) {

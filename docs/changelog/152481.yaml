@@ -12,6 +12,7 @@ highlight:
     (compact skip lists with min/max metadata) are enabled by default for number based fields,
     allowing large blocks of documents to be skipped without scanning individual values.
     Doc value skippers will be enabled for all applicable fields at a later point.
+    Text fields remain to be indexed by default, but are no longer mapped by default.
 
     Mappings are always flat: object and passthrough fields are auto-flattened
     to leaf fields at mapping time. The original document source is not stored;
@@ -30,11 +31,12 @@ highlight:
     **Required-value enforcement** (`doc_values.nullability: false`): reject
     documents that omit a field or supply an explicit `null`.
 
-    `logsdb_columnar` adds logging-oriented defaults on top of the columnar
+    There are two columnar index modes:
+    * `logsdb_columnar` adds logging-oriented defaults on top of the columnar
     foundation: a default `@timestamp` mapping, and index sorting on `host.name`
-    and `@timestamp` when those fields are present. `columnar` provides the same
-    column-oriented storage without use-case-specific defaults, suitable for
-    general-purpose indices and data streams.
+    and `@timestamp` when those fields are present.
+    * `columnar` provides the same column-oriented storage without use-case-specific
+    defaults, suitable for general-purpose indices and data streams.
 
     Improved columnar storage: An optimized doc values format is used by default,
     further reducing storage footprint, especially when combined with index sorting.

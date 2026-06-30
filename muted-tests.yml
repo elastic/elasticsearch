@@ -779,3 +779,6 @@ tests:
 - class: org.elasticsearch.transport.RemoteClusterClientTests
   method: testConnectAndExecuteRequest
   issue: https://github.com/elastic/elasticsearch/issues/152518
+- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
+  method: testRelocatingIndexShardFetchesFirstRegionOnly
+  issue: https://github.com/elastic/elasticsearch/issues/152526

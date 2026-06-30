@@ -42,10 +42,6 @@ public class Clusters {
         return testCluster(CsvTestUtils.createCsvDataDirectory(), configProvider, false);
     }
 
-    public static ElasticsearchCluster testCluster(Path csvDataPath, LocalClusterConfigProvider configProvider) {
-        return testCluster(csvDataPath, configProvider, false);
-    }
-
     public static ElasticsearchCluster testCluster(Path csvDataPath, LocalClusterConfigProvider configProvider, boolean shared) {
         boolean securityEnabled = Booleans.parseBoolean(System.getProperty(SECURITY_ENABLED_PROPERTY, "false"));
         var builder = ElasticsearchCluster.local()

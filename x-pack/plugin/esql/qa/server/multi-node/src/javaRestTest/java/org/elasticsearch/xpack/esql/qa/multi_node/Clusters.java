@@ -21,10 +21,6 @@ public class Clusters {
         return testCluster(CsvTestUtils.createCsvDataDirectory(), configProvider, false);
     }
 
-    public static ElasticsearchCluster testCluster(Path csvDataPath, LocalClusterConfigProvider configProvider) {
-        return testCluster(csvDataPath, configProvider, false);
-    }
-
     public static ElasticsearchCluster testCluster(Path csvDataPath, LocalClusterConfigProvider configProvider, boolean shared) {
         LocalClusterSpecBuilder<ElasticsearchCluster> cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)

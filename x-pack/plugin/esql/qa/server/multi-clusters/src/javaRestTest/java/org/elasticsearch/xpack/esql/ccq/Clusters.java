@@ -23,10 +23,6 @@ public class Clusters {
     static final String REMOTE_CLUSTER_NAME = "remote_cluster";
     static final String LOCAL_CLUSTER_NAME = "local_cluster";
 
-    static ElasticsearchCluster remoteCluster(Path csvDataPath, Map<String, String> additionalSettings) {
-        return remoteCluster(csvDataPath, additionalSettings, false);
-    }
-
     static ElasticsearchCluster remoteCluster(Path csvDataPath, Map<String, String> additionalSettings, boolean shared) {
         Version version = distributionVersion("tests.version.remote_cluster");
         var cluster = ElasticsearchCluster.local()
@@ -55,7 +51,7 @@ public class Clusters {
     }
 
     static ElasticsearchCluster remoteCluster(Map<String, String> additionalSettings) {
-        return remoteCluster(CsvTestUtils.createCsvDataDirectory(), additionalSettings);
+        return remoteCluster(CsvTestUtils.createCsvDataDirectory(), additionalSettings, false);
     }
 
     public static ElasticsearchCluster remoteCluster() {
@@ -68,14 +64,6 @@ public class Clusters {
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster, Map<String, String> additionalSettings) {
         return localCluster(remoteCluster, true, additionalSettings);
-    }
-
-    public static ElasticsearchCluster localCluster(
-        Path csvDataPath,
-        ElasticsearchCluster remoteCluster,
-        Map<String, String> additionalSettings
-    ) {
-        return localCluster(csvDataPath, remoteCluster, true, additionalSettings, false);
     }
 
     public static ElasticsearchCluster localCluster(
@@ -97,15 +85,6 @@ public class Clusters {
         Map<String, String> additionalSettings
     ) {
         return localCluster(CsvTestUtils.createCsvDataDirectory(), remoteCluster, skipUnavailable, additionalSettings, false);
-    }
-
-    public static ElasticsearchCluster localCluster(
-        Path csvDataPath,
-        ElasticsearchCluster remoteCluster,
-        Boolean skipUnavailable,
-        Map<String, String> additionalSettings
-    ) {
-        return localCluster(csvDataPath, remoteCluster, skipUnavailable, additionalSettings, false);
     }
 
     public static ElasticsearchCluster localCluster(

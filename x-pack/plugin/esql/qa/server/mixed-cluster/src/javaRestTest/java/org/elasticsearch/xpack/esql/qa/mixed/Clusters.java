@@ -21,10 +21,6 @@ public class Clusters {
         return mixedVersionCluster(CsvTestUtils.createCsvDataDirectory(), false);
     }
 
-    public static ElasticsearchCluster mixedVersionCluster(Path csvDataPath) {
-        return mixedVersionCluster(csvDataPath, false);
-    }
-
     public static ElasticsearchCluster mixedVersionCluster(Path csvDataPath, boolean shared) {
         String oldVersionString = System.getProperty("tests.old_cluster_version");
         Version oldVersion = Version.fromString(oldVersionString);

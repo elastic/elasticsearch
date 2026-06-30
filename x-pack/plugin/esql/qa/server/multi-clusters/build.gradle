@@ -73,7 +73,7 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     maxParallelForks = 1
   }
 
-  def csvSpecTestsNewToOld = tasks.register("v${bwcVersion}#csvSpecTestsNewToOld", StandaloneRestIntegTestTask) {
+  def csvSpecTestsNewToOld = tasks.register("v${bwcVersion}#csvSpecTests#newToOld", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.version.remote_cluster", bwcVersion)
     systemProperty("tests.version.local_cluster", currentVersion)
@@ -83,7 +83,7 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     dependsOn generateEsqlSpecTests
   }
 
-  def csvSpecTestsOldToNew = tasks.register("v${bwcVersion}#csvSpecTestsOldToNew", StandaloneRestIntegTestTask) {
+  def csvSpecTestsOldToNew = tasks.register("v${bwcVersion}#csvSpecTests#oldToNew", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.version.local_cluster", bwcVersion)
     systemProperty("tests.version.remote_cluster", currentVersion)

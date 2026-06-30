@@ -2021,6 +2021,41 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         assertDataStreamHasDataAndFailureIndices("test1", dataIndexName, failureIndexName);
     }
 
+    public void testAddFailureStoreBackingIndexWithOnlyManageFailureStore() throws Exception {
+        setupDataStream();
+        Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        String dataIndexName = backingIndices.v1();
+        String failureIndexName = backingIndices.v2();
+
+        // detach the failure index as admin so it becomes a standalone concrete index
+        Request detachRequest = new Request("POST", "/_data_stream/_modify");
+        detachRequest.setJsonEntity(Strings.format("""
+            {
+              "actions": [
+                {
+                  "remove_backing_index": {
+                    "data_stream": "test1",
+                    "index": "%s",
+                    "failure_store": true
+                  }
+                }
+              ]
+            }
+            """, failureIndexName));
+        assertOK(adminClient().performRequest(detachRequest));
+        assertDataStreamHasNoFailureIndices("test1", dataIndexName);
+
+        String user = "only_manage_failure_store";
+        createUser(user, PASSWORD, user);
+        createOrUpdateRoleAndApiKey(user, user, """
+            {
+              "cluster": ["all"],
+              "indices": [{"names": ["test*"], "privileges": ["manage_failure_store"]}]
+            }""");
+
+        expectThrows(() -> addBackingIndex(user, "test1", failureIndexName), 403);
+    }
+
     public void testModifyDataStreamRejectsSelectorInDataStreamName() throws Exception {
         setupDataStream();
         Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
@@ -2068,14 +2103,18 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     }
 
     private Response addFailureStoreBackingIndex(String user, String dataStreamName, String failureIndexName) throws IOException {
-        return modifyFailureStoreBackingIndex(user, "add_backing_index", dataStreamName, failureIndexName);
+        return modifyBackingIndex(user, "add_backing_index", dataStreamName, failureIndexName, true);
     }
 
     private Response removeFailureStoreBackingIndex(String user, String dataStreamName, String failureIndexName) throws IOException {
-        return modifyFailureStoreBackingIndex(user, "remove_backing_index", dataStreamName, failureIndexName);
+        return modifyBackingIndex(user, "remove_backing_index", dataStreamName, failureIndexName, true);
     }
 
-    private Response modifyFailureStoreBackingIndex(String user, String action, String dataStreamName, String failureIndexName)
+    private Response addBackingIndex(String user, String dataStreamName, String indexName) throws IOException {
+        return modifyBackingIndex(user, "add_backing_index", dataStreamName, indexName, false);
+    }
+
+    private Response modifyBackingIndex(String user, String action, String dataStreamName, String indexName, boolean failureStore)
         throws IOException {
         Request request = new Request("POST", "/_data_stream/_modify");
         request.setJsonEntity(Strings.format("""
@@ -2085,12 +2124,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                   "%s": {
                     "data_stream": "%s",
                     "index": "%s",
-                    "failure_store" : true
+                    "failure_store" : %s
                   }
                 }
               ]
             }
-            """, action, dataStreamName, failureIndexName));
+            """, action, dataStreamName, indexName, failureStore));
         return performRequest(user, request);
     }
 

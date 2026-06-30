@@ -14,8 +14,6 @@ import org.elasticsearch.ElasticsearchRoleRestrictionException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -45,7 +43,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -63,6 +60,7 @@ import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -110,7 +108,6 @@ import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -827,8 +824,9 @@ public class AuthorizationService {
         // selector so that privileges like manage_failure_store (which require the FAILURES selector predicate)
         // are evaluated correctly.
         final List<String> dataStreamNames = actions.stream().map(a -> {
-            assert IndexNameExpressionResolver.hasSelectorSuffix(a.getDataStream()) == false
-                : "data stream name should not contain selectors: " + a.getDataStream();
+            if (IndexNameExpressionResolver.hasSelectorSuffix(a.getDataStream())) {
+                throw new IllegalArgumentException("data stream name must not contain selectors: " + a.getDataStream());
+            }
             return IndexNameExpressionResolver.combineSelector(
                 a.getDataStream(),
                 a.isFailureStore() ? IndexComponentSelector.FAILURES : null
@@ -1361,7 +1359,7 @@ public class AuthorizationService {
      * Thin wrapper so that authorization denial messages reference data stream names
      * instead of the indices being added or removed returned by {@link ModifyDataStreamsAction.Request#indices()}.
      */
-    private static class DataStreamAuthorizationRequest extends ActionRequest implements IndicesRequest {
+    private static class DataStreamAuthorizationRequest extends AbstractTransportRequest implements IndicesRequest {
 
         private final ModifyDataStreamsAction.Request delegate;
         private final String[] dataStreamNames;
@@ -1369,11 +1367,6 @@ public class AuthorizationService {
         DataStreamAuthorizationRequest(ModifyDataStreamsAction.Request delegate, String[] dataStreamNames) {
             this.delegate = delegate;
             this.dataStreamNames = dataStreamNames;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            throw new UnsupportedOperationException("this request is used for in-process authorization only and must not be serialized");
         }
 
         @Override
@@ -1389,11 +1382,6 @@ public class AuthorizationService {
         @Override
         public boolean includeDataStreams() {
             return true;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return delegate.validate();
         }
     }
 

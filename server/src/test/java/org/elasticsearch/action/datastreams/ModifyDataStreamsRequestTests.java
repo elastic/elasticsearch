@@ -51,6 +51,7 @@ public class ModifyDataStreamsRequestTests extends AbstractWireSerializingTestCa
         ActionRequestValidationException e = request.validate();
         assertNotNull(e);
         assertThat(e.getMessage(), containsString("selectors [::] are not supported in data stream modification actions"));
+        assertThat(e.getMessage(), containsString(dsName + selector));
     }
 
     public void testValidateAcceptsPlainDataStreamName() {

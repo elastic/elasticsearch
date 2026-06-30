@@ -102,7 +102,12 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
             // so selectors must be rejected here. Instead of selectors, the failure_store field is used instead.
             for (DataStreamAction action : actions) {
                 if (IndexNameExpressionResolver.hasSelectorSuffix(action.getDataStream())) {
-                    return addValidationError("selectors [::] are not supported in data stream modification actions", null);
+                    return addValidationError(
+                        "selectors [::] are not supported in data stream modification actions but found ["
+                            + action.getDataStream()
+                            + "]",
+                        null
+                    );
                 }
             }
             return null;

@@ -38,31 +38,31 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
     }
 
     public void testLogsEnabledWithoutEndpointIsInvalidSettings() {
-        Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.getKey(), true).build();
+        Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_LOGS_ENABLED.getKey(), true).build();
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,
-            Set.of(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED, OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT)
+            Set.of(OtelSdkSettings.TELEMETRY_LOGS_ENABLED, OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT)
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, true));
-        assertThat(e.getMessage(), containsString("telemetry.otel.logs.endpoint"));
+        assertThat(e.getMessage(), containsString("telemetry.logs.endpoint"));
     }
 
     public void testLogsEnabledWithEmptyEndpointIsInvalidSettings() {
         Settings settings = Settings.builder()
-            .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.getKey(), true)
-            .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT.getKey(), "")
+            .put(OtelSdkSettings.TELEMETRY_LOGS_ENABLED.getKey(), true)
+            .put(OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT.getKey(), "")
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,
-            Set.of(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED, OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT)
+            Set.of(OtelSdkSettings.TELEMETRY_LOGS_ENABLED, OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT)
         );
         expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, true));
     }
 
     public void testInstallTwiceIsIdempotent() {
         Settings settings = Settings.builder()
-            .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.getKey(), true)
-            .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT.getKey(), "http://127.0.0.1:9/v1/logs")
+            .put(OtelSdkSettings.TELEMETRY_LOGS_ENABLED.getKey(), true)
+            .put(OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT.getKey(), "http://127.0.0.1:9")
             .build();
         OtelSdkExportLogsSupplier supplier = new OtelSdkExportLogsSupplier(settings);
         try {
@@ -79,8 +79,8 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
 
     public void testDoubleCloseAfterInstallDoesNotThrow() {
         Settings settings = Settings.builder()
-            .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.getKey(), true)
-            .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT.getKey(), "http://127.0.0.1:9/v1/logs")
+            .put(OtelSdkSettings.TELEMETRY_LOGS_ENABLED.getKey(), true)
+            .put(OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT.getKey(), "http://127.0.0.1:9")
             .build();
         OtelSdkExportLogsSupplier supplier = new OtelSdkExportLogsSupplier(settings);
         supplier.install();

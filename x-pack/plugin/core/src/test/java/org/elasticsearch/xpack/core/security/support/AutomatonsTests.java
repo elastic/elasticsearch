@@ -210,6 +210,22 @@ public class AutomatonsTests extends ESTestCase {
         assertSameLanguageBothBuilders(List.of(overByteBound, "lit1", "lit2"));
     }
 
+    public void testLiteralPartitionMatchesGeneralBuilderForBmpAndSupplementaryCodePointLiterals() {
+        final String x = "\uD835\uDD4F"; // U+1D54F MATHEMATICAL DOUBLE-STRUCK CAPITAL X
+        final String y = "\uD835\uDD50"; // U+1D550 MATHEMATICAL DOUBLE-STRUCK CAPITAL Y
+        final String literal = "role:" + x + ":read";
+        final String otherLiteral = "role:" + y + ":read";
+        final String bmpLiteral = "role:bmp:read";
+
+        assertSameLanguageBothBuilders(List.of(literal, otherLiteral, bmpLiteral));
+        assertSameLanguageBothBuilders(List.of(literal, otherLiteral, "role:*:write"));
+
+        final Automaton automaton = patterns(literal, bmpLiteral);
+        assertMatch(automaton, literal);
+        assertMatch(automaton, bmpLiteral);
+        assertMismatch(automaton, otherLiteral);
+    }
+
     private static void assertSameLanguageBothBuilders(Collection<String> patterns) {
         final Automaton original = Automatons.buildPatternsAutomaton(patterns, false);
         final Automaton partitioned = Automatons.buildPatternsAutomaton(patterns, true);
@@ -223,7 +239,7 @@ public class AutomatonsTests extends ESTestCase {
 
     private String randomPattern() {
         final String body = randomAlphaOfLengthBetween(1, 8);
-        return switch (between(0, 7)) {
+        return switch (between(0, 9)) {
             case 0 -> body;                                      // literal
             case 1 -> body + "*";                                // trailing wildcard
             case 2 -> "*" + body;                                // leading wildcard
@@ -232,6 +248,8 @@ public class AutomatonsTests extends ESTestCase {
             case 5 -> "/" + body + ".*/";                        // lucene regex
             case 6 -> body + "\\*";                              // escaped trailing star (literal "*")
             case 7 -> "";                                        // empty string (excluded from the fast path)
+            case 8 -> body + "\uD835\uDD4F";                     // BMP + supplementary code point literal
+            case 9 -> body + "\uD835\uDD50" + "*";               // trailing wildcard after BMP + supplementary code point
             default -> throw new AssertionError("unreachable");
         };
     }

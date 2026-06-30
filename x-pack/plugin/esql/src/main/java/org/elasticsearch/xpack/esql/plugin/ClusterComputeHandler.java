@@ -157,7 +157,9 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
     private void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, ComputeResponse resp) {
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
             var builder = new EsqlExecutionInfo.Cluster.Builder(v);
-            if (executionInfo.isMainPlan()) {
+            // Update shard counts from the main plan, or from an IN-subquery subplan for remote-only clusters.
+            // For INLINE STATS subplans, skip shard count updates here — the main plan will set the definitive values.
+            if (executionInfo.isMainPlan() || executionInfo.isSubqueryJoinSubPlan()) {
                 builder.setTotalShards(resp.getTotalShards())
                     .setSuccessfulShards(resp.getSuccessfulShards())
                     .setSkippedShards(resp.getSkippedShards())

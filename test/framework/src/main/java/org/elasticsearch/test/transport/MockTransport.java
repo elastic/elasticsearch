@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -108,7 +109,7 @@ public class MockTransport extends StubbableTransport {
                     response.writeTo(output);
                 }
                 deliveredResponse = transportResponseHandler.read(
-                    new NamedWriteableAwareStreamInput(output.bytes().streamInput(), writeableRegistry())
+                    new NamedWriteableAwareStreamInput(ReleasableBytesReference.wrap(output.bytes()).streamInput(), writeableRegistry())
                 );
             } catch (IOException | UnsupportedOperationException e) {
                 throw new AssertionError("failed to serialize/deserialize response " + response, e);

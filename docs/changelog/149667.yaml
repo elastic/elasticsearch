@@ -1,6 +1,0 @@
-area: Search
-issues:
- - 86927
-pr: 149667
-summary: Add IT covering search during rolling restart
-type: bug

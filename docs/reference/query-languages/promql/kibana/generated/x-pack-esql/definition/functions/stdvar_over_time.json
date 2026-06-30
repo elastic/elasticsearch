@@ -2,7 +2,7 @@
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
   "type" : "within_series",
   "name" : "stdvar_over_time",
-  "description" : "Returns the population standard variance of the values in the specified time range.",
+  "description" : "Returns the population variance of the values in the specified time range.",
   "signatures" : [
     {
       "params" : [

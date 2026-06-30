@@ -37,7 +37,7 @@ abstract class AbstractEsqlClientYamlIT extends ESClientYamlSuiteTestCase {
         .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
         .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
         .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
-        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
+        .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
         .build();
 
     @Override

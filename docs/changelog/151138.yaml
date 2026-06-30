@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 151138
+summary: Make INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES setting dynamic
+type: enhancement

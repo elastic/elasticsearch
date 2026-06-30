@@ -146,6 +146,24 @@
       "params" : [
         {
           "name" : "first",
+          "type" : "flattened",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "flattened",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "flattened"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
           "type" : "geo_point",
           "optional" : false,
           "description" : "Expression to evaluate."

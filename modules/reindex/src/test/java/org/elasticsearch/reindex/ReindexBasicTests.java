@@ -453,6 +453,8 @@ public class ReindexBasicTests extends ReindexTestCase {
     public void testReindexFailsWhenSourceIndexIsClosed() {
         String sourceIndex = "source";
         String destIndex = "dest";
+        // disable rebalancing, so the close operation below doesn't happen during rebalancing, which will make it a NOP:
+        // failing the assertions for closeResponse, and the reindex request won't fail (we expect it to fail after a close)
         createIndex(sourceIndex, Settings.builder().put("index.routing.rebalance.enable", "none").build());
         ensureGreen(sourceIndex);
         indexRandom(true, prepareIndex(sourceIndex).setId("1").setSource("foo", "bar"));

@@ -20,7 +20,6 @@ import org.gradle.api.problems.Problem;
 import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
-import org.gradle.api.problems.Severity;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -80,8 +79,10 @@ public class PomValidationTask extends PrecommitTask {
             validateNonNull("scm", model.getScm(), () -> validateString("scm.url", model.getScm().getUrl()));
         }
         if (collectedProblems.isEmpty() == false) {
-            problemReporter.report(collectedProblems);
-            throw new GradleException("Check failed for task '" + getPath() + "', see console log for details");
+            throw problemReporter.throwing(
+                new GradleException("Check failed for task '" + getPath() + "', see console log for details"),
+                collectedProblems
+            );
         }
     }
 
@@ -92,7 +93,6 @@ public class PomValidationTask extends PrecommitTask {
                 ProblemId.create("invalid-" + element.replace(".", "-"), "Invalid POM element: " + element, ElasticsearchBuildProblems.POM_VALIDATION),
                 spec -> spec.contextualLabel(element + " " + message + " in " + pomPath)
                     .details("POM element '" + element + "' " + message)
-                    .severity(Severity.ERROR)
                     .fileLocation(pomPath)
                     .solution("Add a valid '" + element + "' element to the POM file")
             )

@@ -159,7 +159,7 @@ public enum MissingValues {
     }
 
     static SortedNumericDoubleValues replaceMissing(final SortedNumericDoubleValues values, final double missing) {
-        return new SortedNumericDoubleValues(null) {
+        return new SortedNumericDoubleValues(values.isSingleton(), null) {
 
             private int count;
 

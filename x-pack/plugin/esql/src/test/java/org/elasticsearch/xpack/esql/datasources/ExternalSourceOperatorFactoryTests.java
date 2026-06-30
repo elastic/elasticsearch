@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -69,6 +71,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
 
         FormatReader formatReader = Mockito.mock(FormatReader.class);
         Mockito.when(formatReader.formatName()).thenReturn("csv");
+        Mockito.when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         @SuppressWarnings("unchecked")
         CloseableIterator<org.elasticsearch.compute.data.Page> emptyIterator = Mockito.mock(CloseableIterator.class);
         Mockito.when(emptyIterator.hasNext()).thenReturn(false);
@@ -120,6 +123,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
     public void testFactoryValidation() {
         StorageProvider storageProvider = Mockito.mock(StorageProvider.class);
         FormatReader formatReader = Mockito.mock(FormatReader.class);
+        Mockito.when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         StoragePath path = StoragePath.of("file:///tmp/test.csv");
         List<Attribute> attributes = List.of(
             new FieldAttribute(
@@ -325,6 +329,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
     public void testDescribe() {
         StorageProvider storageProvider = Mockito.mock(StorageProvider.class);
         FormatReader formatReader = Mockito.mock(FormatReader.class);
+        Mockito.when(formatReader.rowPositionStrategy()).thenReturn(PassThroughRowPositionStrategy.INSTANCE);
         Mockito.when(formatReader.formatName()).thenReturn("csv");
         StoragePath path = StoragePath.of("file:///tmp/data.csv");
         List<Attribute> attributes = List.of(
@@ -415,6 +420,10 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     private static class SplitCapturingFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final List<StorageObject> capturedObjects;
         private final List<Boolean> capturedSkipFirstLine;

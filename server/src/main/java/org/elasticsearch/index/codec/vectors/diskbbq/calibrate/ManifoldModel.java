@@ -301,7 +301,13 @@ public final class ManifoldModel {
     /**
      * Expected distance/similarity value at rank k in a corpus of size N from the manifold model.
      */
-    public static double expectedRankDistance(VectorSimilarityFunction similarityFunction, double alpha, double invDim, int numDocs, int k) {
+    public static double expectedRankDistance(
+        VectorSimilarityFunction similarityFunction,
+        double alpha,
+        double invDim,
+        int numDocs,
+        int k
+    ) {
         double logK = Math.log(k);
         double logN = Math.log(numDocs);
         if (isDotLike(similarityFunction)) {

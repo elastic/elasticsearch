@@ -117,7 +117,7 @@ With the columnar modes, fields that are unmapped will continue to be mapped via
 * Whole numbers are mapped as a long field type.
 * Decimal numbers are mapped as a double type.
 * Strings are mapped as a keyword field type.
-* Objects/arrays are mapped as one or more leaf fields (depending on the number of unmapped field paths). Mappings are flattened in columnar mode and that means that unmapped object will be flattened too. Each field path in the unmapped object will be mapped as a separate leaf field. No object fields will not be mapped.
+* Objects/arrays are mapped as one or more leaf fields (depending on the number of unmapped field paths). Mappings are flattened in columnar mode and that applies to unmapped objects too. Each leaf field under the unmapped object will be mapped as a separate leaf field. No object fields are added to the mappings.
 
 By default, for all unmapped fields doc values will be enabled. However unmapped fields will not indexed by default. This follows the design of storing each field once as doc values.
 

@@ -85,7 +85,7 @@ The `logsdb_columnar` index mode, just like `logsdb` index mode, uses by default
 Hosts typically emit similar logs, so storing log entries from the same host sequentially on disk improves the efficiency of compression techniques such as run-length and delta encoding.
 The `@timestamp` field is also used as the index sort field, with recent log entries appearing first and thus improving query performance for queries over recent data.
 
-The `columnar` index mode doesn't enable index sorting by default. Let's say you collect logs from different agents, then sorting by agent id is a good choice:
+The `columnar` index mode doesn't enable index sorting by default. Let's say you collect logs from different agents, then sorting by agent id and timestamp may be a good choice:
 
 ```console
 PUT my-index

@@ -324,7 +324,7 @@ emp_no:integer | salary:integer | type:keyword | pvalue:double
 
 
 where after change point
-required_capability: change_point
+required_capability: change_point_multiple_events
 
 FROM employees
   | KEEP emp_no, salary

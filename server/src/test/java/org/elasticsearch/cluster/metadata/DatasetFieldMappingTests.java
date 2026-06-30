@@ -12,9 +12,13 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class DatasetFieldMappingTests extends AbstractXContentSerializingTestCase<DatasetFieldMapping> {
 
@@ -52,5 +56,33 @@ public class DatasetFieldMappingTests extends AbstractXContentSerializingTestCas
 
     public void testTypeRequired() {
         expectThrows(NullPointerException.class, () -> new DatasetFieldMapping(null, "src"));
+    }
+
+    /**
+     * A declared field deliberately supports only {@code type} (a core mapping concept) and {@code source} (our
+     * external rename extension). Every other core field-mapper parameter must be rejected at parse time. This guards
+     * against silently diverging from the core mapping: a parameter we don't model can't creep in or be quietly
+     * dropped — adding support for one has to be a deliberate change that breaks this test.
+     */
+    public void testRejectsCoreFieldParametersWeDoNotSupport() throws IOException {
+        for (String param : List.of(
+            "analyzer",
+            "index",
+            "doc_values",
+            "null_value",
+            "format",
+            "copy_to",
+            "fields",
+            "ignore_above",
+            "store",
+            "norms",
+            "meta"
+        )) {
+            String json = "{\"type\":\"keyword\",\"" + param + "\":\"x\"}";
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+                Exception e = expectThrows(Exception.class, () -> DatasetFieldMapping.fromXContent(parser));
+                assertThat("core field parameter [" + param + "] must be rejected", e.getMessage(), containsString(param));
+            }
+        }
     }
 }

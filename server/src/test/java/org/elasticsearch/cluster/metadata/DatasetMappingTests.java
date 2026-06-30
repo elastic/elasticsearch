@@ -12,14 +12,19 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class DatasetMappingTests extends AbstractWireSerializingTestCase<DatasetMapping> {
 
@@ -65,6 +70,22 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
         assertEquals(DatasetMapping.Dynamic.FALSE, DatasetMapping.Dynamic.fromString("false"));
         expectThrows(IllegalArgumentException.class, () -> DatasetMapping.Dynamic.fromString("strict"));
         expectThrows(IllegalArgumentException.class, () -> DatasetMapping.Dynamic.fromString("runtime"));
+    }
+
+    /**
+     * The {@code mappings} block deliberately supports only {@code dynamic} and {@code properties}. Every other
+     * core mapping-level key must be rejected, so we cannot silently diverge from (or accidentally absorb a divergent
+     * reading of) the core mapping vocabulary — supporting a new key has to be a deliberate, test-breaking change.
+     */
+    public void testRejectsCoreMappingsKeysWeDoNotSupport() throws IOException {
+        for (String key : List.of("runtime", "dynamic_templates", "_source", "_routing", "_meta", "_field_names", "subobjects", "_size")) {
+            String json = "{\"dynamic\":\"true\",\"" + key + "\":{}}";
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+                parser.nextToken(); // advance to START_OBJECT, where parseMappings expects to begin
+                Exception e = expectThrows(Exception.class, () -> DatasetMapping.parseMappings(parser));
+                assertThat("core mappings key [" + key + "] must be rejected", e.getMessage(), containsString(key));
+            }
+        }
     }
 
     public void testAssembleReturnsNullWhenAllAbsent() {

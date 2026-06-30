@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping.Dynamic;
 import org.elasticsearch.cluster.metadata.DatasetMapping.Mappings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -32,6 +33,17 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
 
     public void testNullSchemaIsValid() {
         DeclaredSchemaValidator.validate(null); // no throw
+    }
+
+    /**
+     * Pin the declarable-type vocabulary to the ES|QL type registry: every type we allow must round-trip through
+     * its canonical ES type name, so our supported types cannot drift from the core type names (a rename or removal
+     * of one we depend on breaks this test rather than silently diverging).
+     */
+    public void testDeclarableTypesStayInSyncWithTypeRegistry() {
+        for (DataType t : DeclaredSchemaValidator.DECLARABLE_TYPES) {
+            assertEquals("declarable type [" + t + "] must resolve by its canonical ES type name", t, DataType.fromNameOrAlias(t.esType()));
+        }
     }
 
     public void testAllDeclarableTypesPass() {

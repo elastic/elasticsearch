@@ -468,7 +468,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
                    (WHERE true)
             | KEEP _fork, id
             | SORT _fork
-            """);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     // UnionAll counterpart of testForkWidensSingleTypePartiallyUnmappedShortField: id (two-legged short PUNK) must surface as INTEGER
@@ -482,7 +482,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | KEEP id
             | SORT id NULLS LAST
             | LIMIT 5
-            """);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     // A genuine multi-type conflict (short/long/unmapped) is not a two-legged PUNK (types > 1), so it stays UNSUPPORTED through the

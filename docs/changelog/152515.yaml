@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 152515
+summary: Two-phase iterator for TSDB numeric range doc values
+type: enhancement

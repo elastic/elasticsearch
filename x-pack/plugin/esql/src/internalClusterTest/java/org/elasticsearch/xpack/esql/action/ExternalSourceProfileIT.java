@@ -152,6 +152,7 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
     public void requireFeatureFlag() {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         assumeTrue("requires external data sources feature flag", DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
     }
 
     @After

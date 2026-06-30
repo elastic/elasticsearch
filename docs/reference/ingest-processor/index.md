@@ -3,9 +3,6 @@ navigation_title: "Processor reference"
 ---
 # Ingest processor reference
 
-<<<<<<<< HEAD:docs/reference/ingest-processor/index.md
-# Ingest processor reference [processors]
-
 :::{note}
 This section provides detailed **reference information** for ingest processors.
 
@@ -219,6 +216,3 @@ Mark a plugin as mandatory by setting `plugin.mandatory` in `elasticsearch.yml`.
 ```yaml
 plugin.mandatory: my-ingest-plugin
 ```
-========
-This page has moved. Continue to the [Ingest processor reference](/reference/ingest-processor/index.md).
->>>>>>>> main:docs/reference/enrich-processor/index.md

@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
@@ -700,7 +699,10 @@ public class DataSourceCrudIT extends ESIntegTestCase {
             ExecutionException.class,
             () -> client().execute(GetDatasetAction.INSTANCE, getDatasetRequest(name)).get()
         );
-        assertThat(err.getCause(), instanceOf(IndexNotFoundException.class));
+        // GET resolves the name and translates a non-dataset/missing name to a clean dataset-shaped not-found,
+        // matching expectDataSourceMissing — never a raw IndexNotFoundException.
+        assertThat(err.getCause(), instanceOf(ResourceNotFoundException.class));
+        assertThat(err.getCause().getMessage(), containsString("dataset [" + name + "] not found"));
     }
 
     private static boolean isActionSuccess(ActionFuture<AcknowledgedResponse> fut) {

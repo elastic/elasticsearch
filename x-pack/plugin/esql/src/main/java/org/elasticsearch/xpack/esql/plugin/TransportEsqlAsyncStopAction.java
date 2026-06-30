@@ -113,6 +113,12 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
         final EsqlExecutionInfo esqlExecutionInfo = asyncTask.executionInfo();
         if (esqlExecutionInfo != null) {
             esqlExecutionInfo.markAsStopped();
+            // STOP semantically guarantees a partial response — the user is cutting the query short. For queries
+            // that touch ES indices the per-cluster path in ComputeService flips LOCAL_CLUSTER to PARTIAL via
+            // {@code execInfo.isStopped()} (see {@code localClusterWasInterrupted}) and that propagates to
+            // {@code isPartial}. Pure EXTERNAL queries carry no {@code clusterInfo} entry, so the cluster-driven
+            // bridge never fires; mark partial here so the {@code is_partial} flag is honest across query shapes.
+            esqlExecutionInfo.markPartial();
         }
         Runnable getResults = () -> getResultsAction.execute(task, getAsyncResultRequest, listener);
         exchangeService.finishSessionEarly(sessionId, ActionListener.running(() -> {

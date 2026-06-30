@@ -53,9 +53,6 @@ final class OtelSdkResource {
                                                                // telemetry.resource.service.name
             .put("service.type", "elasticsearch")
             .put("service.version", Build.current().version())
-            // Mirror the APM Java agent's identity ("Java", not the OTel-default "java") so curated
-            // stack-monitoring dashboards that filter on service.runtime.name keep matching after the
-            // agent -> OTel SDK switch.
             .put("service.language.name", "Java")
             .put("service.runtime.name", "Java")
             .put("service.runtime.version", Runtime.version().toString())

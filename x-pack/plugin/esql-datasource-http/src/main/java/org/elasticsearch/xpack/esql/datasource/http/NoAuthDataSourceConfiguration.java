@@ -35,7 +35,7 @@ public final class NoAuthDataSourceConfiguration extends DataSourceConfiguration
 
     private static final DataSourceConfigDefinition AUTH = DataSourceConfigDefinition.plaintext("auth").asCaseInsensitive();
     private static final String AUTH_ANONYMOUS = "anonymous";
-    private static final String AUTH_NONE_DEPRECATED = "none";
+    private static final String AUTH_DEPRECATED_NONE = "none";
     private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(AUTH);
 
     private NoAuthDataSourceConfiguration(Map<String, Object> raw) {
@@ -45,7 +45,7 @@ public final class NoAuthDataSourceConfiguration extends DataSourceConfiguration
     @Override
     protected void normalize(Map<String, Object> parsed) {
         // Canonicalize the deprecated alias and warn, keeping the wording identical to the file-based sources.
-        if (AUTH_NONE_DEPRECATED.equals(parsed.get(AUTH.name()))) {
+        if (AUTH_DEPRECATED_NONE.equals(parsed.get(AUTH.name()))) {
             deprecationLogger.warn(
                 DeprecationCategory.API,
                 "esql_datasource_auth_none",

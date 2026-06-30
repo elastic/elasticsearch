@@ -65,15 +65,20 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
     /** The node's ambient cloud identity (instance profile / IMDS / metadata server). */
     static final String AUTH_MANAGED_IDENTITY = "managed_identity";
 
+    /** Deprecated former name for {@link #AUTH_ANONYMOUS}. */
+    static final String AUTH_DEPRECATED_NONE = "none";
+    /** Deprecated former name for {@link #AUTH_MANAGED_IDENTITY}. */
+    static final String AUTH_DEPRECATED_WORKLOAD_IDENTITY = "workload_identity";
+
     /**
      * Deprecated {@code auth} value names, mapped to their canonical replacement. Still accepted for
      * backwards compatibility; {@link #normalize(Map)} rewrites them to the canonical value on parse and
      * emits a deprecation warning per use.
      */
     private static final Map<String, String> DEPRECATED_AUTH_ALIASES = Map.of(
-        "none",
+        AUTH_DEPRECATED_NONE,
         AUTH_ANONYMOUS,
-        "workload_identity",
+        AUTH_DEPRECATED_WORKLOAD_IDENTITY,
         AUTH_MANAGED_IDENTITY
     );
 

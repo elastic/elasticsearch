@@ -2270,6 +2270,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return result;
     }
 
+    private List<Engine.Result> applyTranslogBatch(Engine engine, Translog.IndexBatch batch, Engine.Operation.Origin origin)
+        throws IOException {
+        assert batch.primaryTerm() <= getOperationPrimaryTerm()
+            : "batch term [" + batch.primaryTerm() + "] > shard term [" + getOperationPrimaryTerm() + "]";
+        // Assert that this path is hit only through translog recovery.
+        assert origin == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY || origin == Engine.Operation.Origin.LOCAL_RESET;
+        ensureWriteAllowed(origin);
+
+    }
+
     /**
      * Replays translog operations from the provided translog {@code snapshot} to the current engine using the given {@code origin}.
      * The callback {@code onOperationRecovered} is notified after each translog operation is replayed successfully.
@@ -2277,24 +2287,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     int runTranslogRecovery(Engine engine, Translog.Snapshot snapshot, Engine.Operation.Origin origin, Runnable onOperationRecovered)
         throws IOException {
         int opsRecovered = 0;
-        Translog.Operation operation;
-        while ((operation = snapshot.next()) != null) {
+        Translog.Record record;
+        while ((record = snapshot.nextRecord()) != null) {
             try {
-                logger.trace("[translog] recover op {}", operation);
-                Engine.Result result = applyTranslogOperation(engine, operation, origin);
-                switch (result.getResultType()) {
-                    case FAILURE:
-                        throw result.getFailure();
-                    case MAPPING_UPDATE_REQUIRED:
-                        throw new IllegalArgumentException("unexpected mapping update: " + result.getRequiredMappingUpdate());
-                    case SUCCESS:
-                        break;
-                    default:
-                        throw new AssertionError("Unknown result type [" + result.getResultType() + "]");
-                }
+                if (record instanceof Translog.IndexBatch batch) {
+                    // TODO: Add a new applyTranslogBatch inside IndexShard.java
+                } else {
+                    final Translog.Operation operation = (Translog.Operation) record;
+                    logger.trace("[translog] recover op {}", operation);
+                    Engine.Result result = applyTranslogOperation(engine, operation, origin);
+                    switch (result.getResultType()) {
+                        case FAILURE:
+                            throw result.getFailure();
+                        case MAPPING_UPDATE_REQUIRED:
+                            throw new IllegalArgumentException("unexpected mapping update: " + result.getRequiredMappingUpdate());
+                        case SUCCESS:
+                            break;
+                        default:
+                            throw new AssertionError("Unknown result type [" + result.getResultType() + "]");
+                    }
 
-                opsRecovered++;
-                onOperationRecovered.run();
+                    opsRecovered++;
+                    onOperationRecovered.run();
+                }
             } catch (Exception e) {
                 // TODO: Don't enable this leniency unless users explicitly opt-in
                 if (origin == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY && ExceptionsHelper.status(e) == RestStatus.BAD_REQUEST) {

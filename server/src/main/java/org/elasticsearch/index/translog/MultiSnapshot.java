@@ -29,6 +29,7 @@ final class MultiSnapshot implements Translog.Snapshot {
     private final Closeable onClose;
     private int index;
     private final SeqNoSet seenSeqNo;
+    private final java.util.ArrayDeque<Translog.Operation> pendingOps = new java.util.ArrayDeque<>();
 
     /**
      * Creates a new point in time snapshot of the given snapshots. Those snapshots are always iterated in-order.
@@ -70,8 +71,62 @@ final class MultiSnapshot implements Translog.Snapshot {
     }
 
     @Override
+    public Translog.Record nextRecord() throws IOException {
+        // TODO: Read translog forward in 9.0+
+        Translog.Operation bufferedOp = pendingOps.pollFirst();
+        if (bufferedOp != null) {
+            return bufferedOp;
+        }
+        for (; index >= 0; index--) {
+            final TranslogSnapshot current = translogs[index];
+            Translog.Record record;
+            while ((record = current.nextRecord()) != null) {
+                if (record instanceof Translog.Operation op) {
+                    if (op.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO || seenSeqNo.getAndSet(op.seqNo()) == false) {
+                        return op;
+                    }
+                    overriddenOperations++;
+                    continue;
+                }
+                final Translog.IndexBatch batch = (Translog.IndexBatch) record;
+                // Check if the batch has seen sequence numbers or no-ops and explode. This simplifies
+                // the logic while trying to index batch.
+                if (seqNoSeenOrIsNoOp(batch)) {
+                    for (Translog.Operation exploded : batch.explode()) {
+                        if (exploded.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO || seenSeqNo.getAndSet(exploded.seqNo()) == false) {
+                            pendingOps.addLast(exploded);
+                        } else {
+                            overriddenOperations++;
+                        }
+                    }
+                    final Translog.Operation first = pendingOps.pollFirst();
+                    if (first != null) {
+                        return first;
+                    }
+                    // Everything in the batch has been seen. Continue reading the next record
+                    continue;
+                }
+                for (Translog.IndexBatch.Op meta : batch.ops()) {
+                    seenSeqNo.getAndSet(meta.seqNo());
+                }
+                return batch;
+            }
+        }
+        return null;
+    }
+
+    @Override
     public void close() throws IOException {
         onClose.close();
+    }
+
+    private boolean seqNoSeenOrIsNoOp(Translog.IndexBatch indexBatch) {
+        for (Translog.IndexBatch.Op op : indexBatch.ops()) {
+            if (seenSeqNo.contains(op.seqNo()) || op instanceof Translog.IndexBatch.NoOpOp) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static final class SeqNoSet {
@@ -93,6 +148,14 @@ final class MultiSnapshot implements Translog.Snapshot {
             final boolean wasOn = bitset.get(index);
             bitset.set(index);
             return wasOn;
+        }
+
+        /** Returns true if this seqNo was already marked, without marking it. */
+        boolean contains(long value) {
+            assert value >= 0;
+            final long key = value / BIT_SET_SIZE;
+            final CountedBitSet bitset = bitSets.get(key);
+            return bitset != null && bitset.get(Math.toIntExact(value % BIT_SET_SIZE));
         }
     }
 }

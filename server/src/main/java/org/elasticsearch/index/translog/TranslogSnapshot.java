@@ -15,6 +15,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 
@@ -60,6 +61,48 @@ final class TranslogSnapshot extends BaseTranslogReader {
     @Override
     Checkpoint getCheckpoint() {
         return checkpoint;
+    }
+
+    /**
+     * Used for translog recovery. Returns Operation for a single op and a BatchIndex for a batch read
+     * @throws IOException
+     */
+    public Translog.Record nextRecord() throws IOException {
+
+        while (readOperations < totalOperations) {
+            final int opSize = readSize(reusableBuffer, position);
+            reuse = checksummedStream(reusableBuffer, position, opSize, reuse);
+            final Translog.Record record = readRecord(reuse);
+            position += opSize;
+
+            if (record instanceof Translog.Operation op) {
+                readOperations++;
+                if (op.seqNo() <= checkpoint.trimmedAboveSeqNo || checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    return op;
+                }
+                skippedOperations++;
+                continue;
+            }
+
+            final Translog.IndexBatch batch = (Translog.IndexBatch) record;
+            readOperations += batch.docCount();
+
+            final List<Translog.IndexBatch.Op> batchOps = new ArrayList<>(batch.ops().size());
+            for (Translog.IndexBatch.Op batchOp : batch.ops()) {
+                if (batchOp.seqNo() <= checkpoint.trimmedAboveSeqNo || checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    batchOps.add(batchOp);
+                } else {
+                    skippedOperations++;
+                }
+            }
+
+            // If some records were trimmed, send a trimmed batch, else send the whole batch
+            return batch.ops().size() == batchOps.size()  ? batch : new Translog.IndexBatch(batch.batchData(), batch.primaryTerm(), batchOps);
+
+        }
+
+        reuse = null; // release buffer, it may be large and is no longer needed
+        return null;
     }
 
     public Translog.Operation next() throws IOException {

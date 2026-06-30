@@ -1132,6 +1132,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             public Operation next() {
                 return null;
             }
+
         };
 
         /**
@@ -1151,6 +1152,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * Returns the next operation in the snapshot or <code>null</code> if we reached the end.
          */
         Translog.Operation next() throws IOException;
+
+        /**
+         * Returns the next `Translog.Operation` or `Translog.BatchIndex` for translog recovery
+         * Defaults to {@link #next()}
+         */
+        default Translog.Record nextRecord() throws IOException {
+            return next();
+        }
     }
 
     /**

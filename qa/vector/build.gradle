@@ -36,6 +36,8 @@ repositories {
   }
 }
 
+def otelVersion = '1.62.0'
+
 dependencies {
   // dependencies consistent with 'com.google.cloud:google-cloud-storage-bom:2.50.0'
   implementation 'com.google.cloud:google-cloud-storage:2.50.0'
@@ -67,8 +69,9 @@ dependencies {
   runtimeOnly 'io.opencensus:opencensus-contrib-http-util:0.31.1'
   implementation 'com.google.apis:google-api-services-storage:v1-rev20250224-2.0.0'
   implementation 'org.checkerframework:checker-qual:3.49.0'
-  runtimeOnly 'io.opentelemetry:opentelemetry-api:1.47.0'
-  runtimeOnly 'io.opentelemetry:opentelemetry-context:1.47.0'
+  runtimeOnly "io.opentelemetry:opentelemetry-api:${otelVersion}"
+  runtimeOnly "io.opentelemetry:opentelemetry-context:${otelVersion}"
+  runtimeOnly "io.opentelemetry:opentelemetry-common:${otelVersion}"
   runtimeOnly 'com.google.api.grpc:proto-google-cloud-storage-v2:2.50.0'
   runtimeOnly 'io.grpc:grpc-api:1.70.0'
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -16,8 +17,16 @@ import java.net.ConnectException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
+
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 public class RetryPolicyTests extends ESTestCase {
 
@@ -340,5 +349,113 @@ public class RetryPolicyTests extends ESTestCase {
         RetryPolicy policy = RetryPolicy.DEFAULT.withThrottleConfig(20, 1000, 60_000);
         assertEquals(20, policy.throttleMaxRetries());
         assertEquals(RetryPolicy.DEFAULT_MAX_RETRIES, policy.maxRetries());
+    }
+
+    // --- Cancellation-aware backoff tests ---
+
+    public void testExecuteAbortsBackoffWhenCancelled() {
+        // A high throttle budget with long delays would otherwise keep this thread sleeping for a long time;
+        // under an active cancellation scope the first scheduled retry must abort instead of sleeping.
+        RetryPolicy policy = new RetryPolicy(0, 0, 0, 10, 30_000, 30_000, RetryPolicy.NO_BUDGET, null);
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        TaskCancelledException ex = expectThrows(
+            TaskCancelledException.class,
+            () -> StorageRetryCancellation.runWithCancellation(() -> true, () -> policy.execute(() -> {
+                calls.incrementAndGet();
+                throw new ExternalUnavailableException(true, "throttled");
+            }, "test", path))
+        );
+
+        assertNotNull(ex.getMessage());
+        // Only the initial attempt ran; cancellation aborted before the first backoff sleep.
+        assertEquals(1, calls.get());
+    }
+
+    public void testExecuteDoesNotAbortWhenNotCancelled() throws IOException {
+        // With the cancellation supplier reporting false, behavior is unchanged: retries proceed to success.
+        RetryPolicy policy = new RetryPolicy(3, 1, 10);
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        String result = StorageRetryCancellation.callWithCancellation(() -> false, () -> policy.execute(() -> {
+            if (calls.incrementAndGet() < 3) {
+                throw new SocketTimeoutException("timeout");
+            }
+            return "ok";
+        }, "test", path));
+
+        assertEquals("ok", result);
+        assertEquals(3, calls.get());
+    }
+
+    public void testExecuteAbortsSleepWhenCancelledDuringBackoff() {
+        // Long throttle delays so a non-cancellable sleep would block this thread for ~30s. The signal is
+        // NOT cancelled at the pre-sleep check nor at the sleep start, then flips true during the sleep.
+        RetryPolicy policy = new RetryPolicy(0, 0, 0, 10, 30_000, 30_000, RetryPolicy.NO_BUDGET, null);
+        AtomicInteger calls = new AtomicInteger();
+        AtomicInteger polls = new AtomicInteger();
+        // poll 1 = execute() pre-sleep check, poll 2 = sleep start, poll 3+ = in-sleep -> cancelled.
+        BooleanSupplier cancel = () -> polls.incrementAndGet() > 2;
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        long startNanos = System.nanoTime();
+        expectThrows(TaskCancelledException.class, () -> StorageRetryCancellation.callWithCancellation(cancel, () -> policy.execute(() -> {
+            calls.incrementAndGet();
+            throw new ExternalUnavailableException(true, "throttled");
+        }, "test", path)));
+        long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+
+        assertEquals("only the initial attempt ran", 1, calls.get());
+        assertThat("a cancel during the backoff must abort, not wait out the full delay", elapsedMs, lessThan(5_000L));
+    }
+
+    public void testExecuteAbortsSleepWhenCancelledFromAnotherThread() throws Exception {
+        RetryPolicy policy = new RetryPolicy(0, 0, 0, 10, 30_000, 30_000, RetryPolicy.NO_BUDGET, null);
+        StoragePath path = StoragePath.of("s3://bucket/key");
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        CountDownLatch sleeping = new CountDownLatch(1);
+        AtomicReference<Throwable> thrown = new AtomicReference<>();
+
+        Thread worker = new Thread(() -> {
+            try {
+                StorageRetryCancellation.runWithCancellation(cancelled::get, () -> policy.execute(() -> {
+                    // Signal that we have entered the operation (which fails and parks in backoff next).
+                    sleeping.countDown();
+                    throw new ExternalUnavailableException(true, "throttled");
+                }, "test", path));
+            } catch (Throwable t) {
+                thrown.set(t);
+            }
+        }, "retry-policy-cancellation-test");
+
+        long startNanos = System.nanoTime();
+        worker.start();
+        assertTrue("worker did not enter the operation", sleeping.await(5, TimeUnit.SECONDS));
+        cancelled.set(true);
+        worker.join(TimeUnit.SECONDS.toMillis(15));
+        long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+
+        assertFalse("worker should have aborted the backoff and finished", worker.isAlive());
+        assertThat(thrown.get(), instanceOf(TaskCancelledException.class));
+        assertThat("a cross-thread cancel must not wait out the full throttle delay", elapsedMs, lessThan(15_000L));
+    }
+
+    public void testExecuteIgnoresCancellationOutsideScope() throws IOException {
+        // No ambient scope is active, so a cancelled-looking environment cannot affect the retry loop.
+        RetryPolicy policy = new RetryPolicy(3, 1, 10);
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        String result = policy.execute(() -> {
+            if (calls.incrementAndGet() < 3) {
+                throw new SocketTimeoutException("timeout");
+            }
+            return "ok";
+        }, "test", path);
+
+        assertEquals("ok", result);
+        assertEquals(3, calls.get());
     }
 }

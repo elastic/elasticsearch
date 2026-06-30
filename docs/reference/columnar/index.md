@@ -1,7 +1,7 @@
 ---
 navigation_title: Columnar
 applies_to:
-  stack: preview
+  stack: preview 9.5
   serverless: preview
 ---
 

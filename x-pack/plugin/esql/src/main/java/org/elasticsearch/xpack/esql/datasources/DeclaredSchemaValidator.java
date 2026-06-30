@@ -31,7 +31,7 @@ import java.util.TreeSet;
  *       declared column — nothing is inferred to satisfy them.</li>
  * </ul>
  *
- * <p>What is deliberately <b>not</b> checked here (deferred to first-query schema resolution, because PUT does no
+ * <p>What is deliberately <b>not</b> checked here (deferred to first-query mapping resolution, because PUT does no
  * I/O and the files may not exist yet): that a role designation pointing at an <i>inferred</i> column exists; that
  * a declared {@code source}/type matches the physical file; per-format narrowing (e.g. {@code unsigned_long} is
  * Parquet-only) — the producing format is authoritative at read time.
@@ -54,18 +54,18 @@ public final class DeclaredSchemaValidator {
 
     private static final Set<DataType> DATE_TYPES = Set.of(DataType.DATETIME, DataType.DATE_NANOS);
 
-    public static void validate(DatasetMapping schema) {
-        if (schema == null) {
+    public static void validate(DatasetMapping mapping) {
+        if (mapping == null) {
             return;
         }
-        DatasetMapping.Mappings mappings = schema.mappings();
+        DatasetMapping.Mappings mappings = mapping.mappings();
         if (mappings != null) {
             for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
                 validateType(e.getKey(), e.getValue().type());
             }
             boolean strict = mappings.dynamic() == DatasetMapping.Dynamic.FALSE;
-            validateRole("timestamp_field", schema.timestampField(), mappings, strict, true);
-            validateRole("id_field", schema.idField(), mappings, strict, false);
+            validateRole("timestamp_field", mapping.timestampField(), mappings, strict, true);
+            validateRole("id_field", mapping.idField(), mappings, strict, false);
         }
     }
 

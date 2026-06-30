@@ -21,7 +21,7 @@ import java.util.Map;
 
 public class DeclaredSchemaResolverTests extends ESTestCase {
 
-    private static DatasetMapping schema(Map<String, DatasetFieldMapping> props) {
+    private static DatasetMapping mapping(Map<String, DatasetFieldMapping> props) {
         return new DatasetMapping(new Mappings(Dynamic.TRUE, props), null, null);
     }
 
@@ -31,7 +31,7 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         props.put("status", new DatasetFieldMapping("integer", null));
         props.put("name", new DatasetFieldMapping("string", null)); // alias -> KEYWORD
 
-        List<Attribute> attrs = DeclaredSchemaResolver.declaredAttributes(schema(props));
+        List<Attribute> attrs = DeclaredSchemaResolver.declaredAttributes(mapping(props));
 
         assertEquals(List.of("when", "status", "name"), attrs.stream().map(Attribute::name).toList());
         assertEquals(DataType.DATETIME, attrs.get(0).dataType());
@@ -43,7 +43,7 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         // The physical source name must never appear as an attribute name.
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
         props.put("customer_id", new DatasetFieldMapping("keyword", "custID"));
-        List<Attribute> attrs = DeclaredSchemaResolver.declaredAttributes(schema(props));
+        List<Attribute> attrs = DeclaredSchemaResolver.declaredAttributes(mapping(props));
         assertEquals(List.of("customer_id"), attrs.stream().map(Attribute::name).toList());
     }
 
@@ -52,8 +52,8 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         props.put("when", new DatasetFieldMapping("date", "ts"));        // renamed
         props.put("status", new DatasetFieldMapping("integer", null));   // not renamed
 
-        List<Attribute> logical = DeclaredSchemaResolver.declaredAttributes(schema(props));
-        List<Attribute> physical = DeclaredSchemaResolver.physicalAttributes(schema(props));
+        List<Attribute> logical = DeclaredSchemaResolver.declaredAttributes(mapping(props));
+        List<Attribute> physical = DeclaredSchemaResolver.physicalAttributes(mapping(props));
 
         // same arity, same types, paired position-for-position
         assertEquals(logical.size(), physical.size());
@@ -69,7 +69,7 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         props.put("status", new DatasetFieldMapping("integer", null));
         props.put("customer_id", new DatasetFieldMapping("keyword", "custID"));
 
-        Map<String, String> renames = DeclaredSchemaResolver.renameMap(schema(props));
+        Map<String, String> renames = DeclaredSchemaResolver.renameMap(mapping(props));
         assertEquals(Map.of("when", "ts", "customer_id", "custID"), renames);
     }
 
@@ -86,7 +86,7 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         props.put("c", new DatasetFieldMapping("not_a_type", null));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> DeclaredSchemaResolver.declaredAttributes(schema(props))
+            () -> DeclaredSchemaResolver.declaredAttributes(mapping(props))
         );
         assertTrue(e.getMessage(), e.getMessage().contains("not_a_type"));
     }

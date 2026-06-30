@@ -1476,7 +1476,7 @@ public class EsqlSession {
         }
 
         Map<String, Map<String, Object>> pathConfigs = extractExternalConfigs(plan);
-        Map<String, DatasetMapping> declaredSchemas = extractDeclaredSchemas(plan);
+        Map<String, DatasetMapping> declaredMappings = extractDeclaredMappings(plan);
 
         var filterHints = PartitionFilterHintExtractor.extract(plan);
 
@@ -1484,7 +1484,7 @@ public class EsqlSession {
             preAnalysis.icebergPaths(),
             pathConfigs,
             filterHints.isEmpty() ? null : filterHints,
-            declaredSchemas.isEmpty() ? null : declaredSchemas,
+            declaredMappings.isEmpty() ? null : declaredMappings,
             listener.map(result::withExternalSourceResolution)
         );
     }
@@ -1495,16 +1495,16 @@ public class EsqlSession {
      * schema are absent — the resolver infers them as before.
      */
     // package-private for testing
-    static Map<String, DatasetMapping> extractDeclaredSchemas(LogicalPlan plan) {
-        Map<String, DatasetMapping> declaredSchemas = new HashMap<>();
+    static Map<String, DatasetMapping> extractDeclaredMappings(LogicalPlan plan) {
+        Map<String, DatasetMapping> declaredMappings = new HashMap<>();
         plan.forEachUp(org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation.class, p -> {
-            if (p.schema() != null
+            if (p.mapping() != null
                 && p.tablePath() instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal
                 && literal.value() != null) {
-                declaredSchemas.put(org.elasticsearch.common.lucene.BytesRefs.toString(literal.value()), p.schema());
+                declaredMappings.put(org.elasticsearch.common.lucene.BytesRefs.toString(literal.value()), p.mapping());
             }
         });
-        return declaredSchemas;
+        return declaredMappings;
     }
 
     /**

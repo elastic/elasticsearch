@@ -212,11 +212,11 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 
         // Strict (dynamic:false) declaration over the CSV fixture whose physical header is emp_no:integer,first_name:keyword.
         // The declaration relabels the columns and pins emp_no's type to LONG (inference would have produced INTEGER),
-        // proving the declared schema is used and inference is skipped.
+        // proving the declared mapping is used and inference is skipped.
         java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", null));
         properties.put("name", new DatasetFieldMapping("keyword", null));
-        DatasetMapping schema = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), null, null);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), null, null);
 
         assertAcked(
             client().execute(
@@ -229,7 +229,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
                     csvFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    schema
+                    mapping
                 )
             )
         );

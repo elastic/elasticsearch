@@ -26,7 +26,7 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
- * A user-declared schema attached to a {@link Dataset}. Entirely optional — a dataset with no
+ * A user-declared mapping attached to a {@link Dataset}. Entirely optional — a dataset with no
  * {@code DatasetMapping} resolves its schema by inference, exactly as before.
  *
  * <p>Groups the three declaration surfaces of the dataset PUT body:

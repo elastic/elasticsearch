@@ -36,7 +36,7 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
             "s3://" + randomAlphaOfLength(6) + "/" + randomAlphaOfLength(4) + "/*.parquet",
             randomBoolean() ? null : randomAlphaOfLengthBetween(0, 20),
             randomSettings(),
-            randomSchemaOrNull()
+            randomMappingOrNull()
         );
     }
 
@@ -95,7 +95,7 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
                     instance.resource(),
                     instance.description(),
                     mutated,
-                    instance.schema()
+                    instance.mapping()
                 );
             }
             case 5 -> new Request(
@@ -106,7 +106,7 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
                 instance.resource(),
                 instance.description(),
                 instance.rawSettings(),
-                randomValueOtherThan(instance.schema(), PutDatasetActionRequestTests::randomSchemaOrNull)
+                randomValueOtherThan(instance.mapping(), PutDatasetActionRequestTests::randomMappingOrNull)
             );
             default -> throw new AssertionError("unreachable");
         };
@@ -177,7 +177,7 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
         return randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
     }
 
-    static DatasetMapping randomSchemaOrNull() {
+    static DatasetMapping randomMappingOrNull() {
         if (randomBoolean()) {
             return null;
         }

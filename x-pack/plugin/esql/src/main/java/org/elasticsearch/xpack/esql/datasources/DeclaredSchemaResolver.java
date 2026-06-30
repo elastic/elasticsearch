@@ -38,8 +38,8 @@ public final class DeclaredSchemaResolver {
      * The declared columns as ES|QL attributes, keyed by <b>logical</b> name and in declaration order. Returns an
      * empty list when there is no {@code mappings} block (role-only declarations contribute no columns).
      */
-    public static List<Attribute> declaredAttributes(DatasetMapping schema) {
-        DatasetMapping.Mappings mappings = schema == null ? null : schema.mappings();
+    public static List<Attribute> declaredAttributes(DatasetMapping mapping) {
+        DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
         if (mappings == null) {
             return List.of();
         }
@@ -52,13 +52,13 @@ public final class DeclaredSchemaResolver {
 
     /**
      * The declared columns as ES|QL attributes keyed by <b>physical</b> name (the {@code source} when a column
-     * renames, otherwise the logical name), same types and order as {@link #declaredAttributes}. This is the schema
+     * renames, otherwise the logical name), same types and order as {@link #declaredAttributes}. This is the mapping
      * the reader matches against the file (e.g. NDJSON field names); it pairs position-for-position with the logical
      * attributes, so an identity column mapping relabels physical&rarr;logical downstream by position. Empty when there
      * is no {@code mappings} block.
      */
-    public static List<Attribute> physicalAttributes(DatasetMapping schema) {
-        DatasetMapping.Mappings mappings = schema == null ? null : schema.mappings();
+    public static List<Attribute> physicalAttributes(DatasetMapping mapping) {
+        DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
         if (mappings == null) {
             return List.of();
         }
@@ -75,8 +75,8 @@ public final class DeclaredSchemaResolver {
      * The reader/{@code ColumnMapping} uses this to find a renamed column's physical column in the file; nothing above
      * the reader ever sees the physical name.
      */
-    public static Map<String, String> renameMap(DatasetMapping schema) {
-        DatasetMapping.Mappings mappings = schema == null ? null : schema.mappings();
+    public static Map<String, String> renameMap(DatasetMapping mapping) {
+        DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
         if (mappings == null) {
             return Map.of();
         }
@@ -92,7 +92,7 @@ public final class DeclaredSchemaResolver {
     private static DataType resolveType(String column, String type) {
         DataType resolved = DataType.fromNameOrAlias(type);
         // PUT-time DeclaredSchemaValidator already rejects undeclarable types; this is the defensive backstop
-        // for a schema that reached resolution another way (e.g. a hand-edited cluster state).
+        // for a mapping that reached resolution another way (e.g. a hand-edited cluster state).
         if (resolved == DataType.UNSUPPORTED) {
             throw new IllegalArgumentException("declared type [" + type + "] for column [" + column + "] is not a known type");
         }

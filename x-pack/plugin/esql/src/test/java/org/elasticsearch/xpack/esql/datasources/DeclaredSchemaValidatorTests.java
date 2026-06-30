@@ -18,7 +18,7 @@ import java.util.Map;
 
 public class DeclaredSchemaValidatorTests extends ESTestCase {
 
-    private static DatasetMapping schema(Dynamic dynamic, Map<String, DatasetFieldMapping> props, String timestamp, String id) {
+    private static DatasetMapping mapping(Dynamic dynamic, Map<String, DatasetFieldMapping> props, String timestamp, String id) {
         return new DatasetMapping(new Mappings(dynamic, props), timestamp, id);
     }
 
@@ -36,7 +36,7 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
 
     public void testAllDeclarableTypesPass() {
         DeclaredSchemaValidator.validate(
-            schema(
+            mapping(
                 Dynamic.TRUE,
                 props("a", "keyword", "b", "long", "c", "integer", "d", "double", "e", "boolean", "f", "date", "g", "unsigned_long"),
                 null,
@@ -47,14 +47,14 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
 
     public void testTypeAliasesPass() {
         // int/bool/string are accepted aliases (parsed like ::type casts)
-        DeclaredSchemaValidator.validate(schema(Dynamic.TRUE, props("a", "int", "b", "bool", "c", "string"), null, null));
+        DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("a", "int", "b", "bool", "c", "string"), null, null));
     }
 
     public void testUnsupportedTypeRejected() {
         for (String bad : new String[] { "ip", "geo_point", "date_nanos", "binary", "short", "float", "not_a_type" }) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> DeclaredSchemaValidator.validate(schema(Dynamic.TRUE, props("col", bad), null, null))
+                () -> DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("col", bad), null, null))
             );
             assertTrue(e.getMessage(), e.getMessage().contains("unsupported declared type [" + bad + "]"));
             assertTrue(e.getMessage(), e.getMessage().contains("col"));
@@ -64,19 +64,19 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
     public void testTimestampFieldMustBeDateWhenDeclared() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> DeclaredSchemaValidator.validate(schema(Dynamic.TRUE, props("when", "keyword"), "when", null))
+            () -> DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("when", "keyword"), "when", null))
         );
         assertTrue(e.getMessage(), e.getMessage().contains("must be a date type"));
     }
 
     public void testTimestampFieldDeclaredAsDatePasses() {
-        DeclaredSchemaValidator.validate(schema(Dynamic.TRUE, props("when", "date"), "when", null));
+        DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("when", "date"), "when", null));
     }
 
     public void testStrictRequiresRoleColumnDeclared() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> DeclaredSchemaValidator.validate(schema(Dynamic.FALSE, props("a", "keyword"), null, "missing_id"))
+            () -> DeclaredSchemaValidator.validate(mapping(Dynamic.FALSE, props("a", "keyword"), null, "missing_id"))
         );
         assertTrue(e.getMessage(), e.getMessage().contains("id_field"));
         assertTrue(e.getMessage(), e.getMessage().contains("not declared"));
@@ -84,7 +84,7 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
 
     public void testNonStrictDefersUndeclaredRoleColumn() {
         // id_field references a column not in properties — under non-strict it may come from inference, so PUT allows it.
-        DeclaredSchemaValidator.validate(schema(Dynamic.TRUE, props("a", "keyword"), null, "inferred_id"));
+        DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("a", "keyword"), null, "inferred_id"));
     }
 
     public void testRoleOnlyNoMappingsIsValid() {

@@ -100,7 +100,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         private final String description;
         private final Map<String, Object> rawSettings;
         @Nullable
-        private final DatasetMapping schema;
+        private final DatasetMapping mapping;
 
         public Request(
             TimeValue masterNodeTimeout,
@@ -122,7 +122,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             String resource,
             @Nullable String description,
             Map<String, Object> rawSettings,
-            @Nullable DatasetMapping schema
+            @Nullable DatasetMapping mapping
         ) {
             super(masterNodeTimeout, ackTimeout);
             this.name = name;
@@ -130,7 +130,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             this.resource = resource;
             this.description = description;
             this.rawSettings = rawSettings == null ? Map.of() : rawSettings;
-            this.schema = schema;
+            this.mapping = mapping;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -140,7 +140,9 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             this.resource = in.readString();
             this.description = in.readOptionalString();
             this.rawSettings = in.readGenericMap();
-            this.schema = in.getTransportVersion().supports(DATASET_DECLARED_SCHEMA) ? in.readOptionalWriteable(DatasetMapping::new) : null;
+            this.mapping = in.getTransportVersion().supports(DATASET_DECLARED_SCHEMA)
+                ? in.readOptionalWriteable(DatasetMapping::new)
+                : null;
         }
 
         @Override
@@ -152,7 +154,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             out.writeOptionalString(description);
             out.writeGenericMap(rawSettings);
             if (out.getTransportVersion().supports(DATASET_DECLARED_SCHEMA)) {
-                out.writeOptionalWriteable(schema);
+                out.writeOptionalWriteable(mapping);
             }
         }
 
@@ -215,10 +217,10 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             return rawSettings;
         }
 
-        /** The parsed declared schema (mapping + role designations), or {@code null} when none was supplied. */
+        /** The parsed declared mapping (mapping + role designations), or {@code null} when none was supplied. */
         @Nullable
-        public DatasetMapping schema() {
-            return schema;
+        public DatasetMapping mapping() {
+            return mapping;
         }
 
         @Override
@@ -231,12 +233,12 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
                 && Objects.equals(resource, request.resource)
                 && Objects.equals(description, request.description)
                 && Objects.equals(rawSettings, request.rawSettings)
-                && Objects.equals(schema, request.schema);
+                && Objects.equals(mapping, request.mapping);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name, dataSource, resource, description, rawSettings, schema);
+            return Objects.hash(name, dataSource, resource, description, rawSettings, mapping);
         }
 
         @Override

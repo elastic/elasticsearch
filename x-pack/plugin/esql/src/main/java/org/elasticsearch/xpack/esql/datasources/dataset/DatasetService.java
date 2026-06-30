@@ -119,15 +119,15 @@ public class DatasetService {
                 throw ex;
             }
         }
-        // Shape-only validation of the declared schema (no file I/O): declarable types + role-designation references.
-        DeclaredSchemaValidator.validate(request.schema());
+        // Shape-only validation of the declared mapping (no file I/O): declarable types + role-designation references.
+        DeclaredSchemaValidator.validate(request.mapping());
         return new Dataset(
             request.name(),
             new DataSourceReference(request.dataSource()),
             request.resource(),
             request.description(),
             validatedSettings,
-            request.schema()
+            request.mapping()
         );
     }
 

@@ -47,7 +47,7 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
     @Nullable
     private final String datasetName;
     @Nullable
-    private final DatasetMapping schema;
+    private final DatasetMapping mapping;
     private final String unresolvedMsg;
 
     /**
@@ -106,9 +106,9 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
     }
 
     /**
-     * Full constructor carrying the dataset's user-declared schema ({@link DatasetMapping}), if any. Only the
-     * {@code FROM <dataset>} path (via {@code DatasetRewriter}) supplies a non-null schema; the inline
-     * {@code EXTERNAL} path and tests pass {@code null} (inference only). The schema is consumed in pre-analysis
+     * Full constructor carrying the dataset's user-declared mapping ({@link DatasetMapping}), if any. Only the
+     * {@code FROM <dataset>} path (via {@code DatasetRewriter}) supplies a non-null mapping; the inline
+     * {@code EXTERNAL} path and tests pass {@code null} (inference only). The mapping is consumed in pre-analysis
      * by the external-source resolver to drive the strict-skip / non-strict-overlay decision.
      */
     public UnresolvedExternalRelation(
@@ -117,14 +117,14 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
         Map<String, Object> config,
         List<NamedExpression> metadataFields,
         @Nullable String datasetName,
-        @Nullable DatasetMapping schema
+        @Nullable DatasetMapping mapping
     ) {
         super(source);
         this.tablePath = tablePath;
         this.config = config;
         this.metadataFields = Objects.requireNonNull(metadataFields, "metadataFields");
         this.datasetName = datasetName;
-        this.schema = schema;
+        this.mapping = mapping;
         this.unresolvedMsg = "Unknown external table or Parquet file [" + extractTablePathValue(tablePath) + "]";
     }
 
@@ -151,7 +151,7 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
 
     @Override
     protected NodeInfo<UnresolvedExternalRelation> info() {
-        return NodeInfo.create(this, UnresolvedExternalRelation::new, tablePath, config, metadataFields, datasetName, schema);
+        return NodeInfo.create(this, UnresolvedExternalRelation::new, tablePath, config, metadataFields, datasetName, mapping);
     }
 
     public Expression tablePath() {
@@ -177,12 +177,12 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
     }
 
     /**
-     * The dataset's user-declared schema (mapping + role designations), or {@code null} when the dataset has none
+     * The dataset's user-declared mapping (mapping + role designations), or {@code null} when the dataset has none
      * (inference only) or for the inline {@code EXTERNAL} path. Consumed by the external-source resolver.
      */
     @Nullable
-    public DatasetMapping schema() {
-        return schema;
+    public DatasetMapping mapping() {
+        return mapping;
     }
 
     @Override
@@ -209,7 +209,7 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
     public int hashCode() {
         // No source(): equals() below ignores it, and the equals/hashCode contract requires equal
         // nodes to hash equal (same node parsed at two positions must collapse in plan-node sets).
-        return Objects.hash(tablePath, config, metadataFields, datasetName, schema, unresolvedMsg);
+        return Objects.hash(tablePath, config, metadataFields, datasetName, mapping, unresolvedMsg);
     }
 
     @Override
@@ -227,7 +227,7 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
             && Objects.equals(config, other.config)
             && Objects.equals(metadataFields, other.metadataFields)
             && Objects.equals(datasetName, other.datasetName)
-            && Objects.equals(schema, other.schema)
+            && Objects.equals(mapping, other.mapping)
             && Objects.equals(unresolvedMsg, other.unresolvedMsg);
     }
 

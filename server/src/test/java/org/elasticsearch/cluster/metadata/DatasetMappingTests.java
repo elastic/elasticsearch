@@ -25,12 +25,12 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
 
     @Override
     protected DatasetMapping createTestInstance() {
-        return DatasetTests.randomSchema();
+        return DatasetTests.randomMapping();
     }
 
     @Override
     protected DatasetMapping mutateInstance(DatasetMapping instance) {
-        return randomValueOtherThan(instance, DatasetTests::randomSchema);
+        return randomValueOtherThan(instance, DatasetTests::randomMapping);
     }
 
     public void testAssembleReturnsNullWhenAllAbsent() {
@@ -38,10 +38,10 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
     }
 
     public void testAssembleNonNullWithOnlyTimestamp() {
-        DatasetMapping schema = DatasetMapping.assemble(null, "@timestamp", null);
-        assertNotNull(schema);
-        assertNull(schema.mappings());
-        assertEquals("@timestamp", schema.timestampField());
+        DatasetMapping mapping = DatasetMapping.assemble(null, "@timestamp", null);
+        assertNotNull(mapping);
+        assertNull(mapping.mappings());
+        assertEquals("@timestamp", mapping.timestampField());
     }
 
     public void testDynamicRejectsUnknownValue() {
@@ -54,9 +54,9 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
         props.put("when", new DatasetFieldMapping("date", "ts"));
         props.put("amount", new DatasetFieldMapping("double", null));
         DatasetMapping.Mappings mappings = new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props);
-        DatasetMapping schema = new DatasetMapping(mappings, null, null);
-        DatasetMapping copy = copyInstance(schema);
-        assertEquals(schema, copy);
+        DatasetMapping mapping = new DatasetMapping(mappings, null, null);
+        DatasetMapping copy = copyInstance(mapping);
+        assertEquals(mapping, copy);
         assertEquals("ts", copy.mappings().properties().get("when").source());
         assertEquals(java.util.List.of("when", "amount"), java.util.List.copyOf(copy.mappings().properties().keySet()));
     }

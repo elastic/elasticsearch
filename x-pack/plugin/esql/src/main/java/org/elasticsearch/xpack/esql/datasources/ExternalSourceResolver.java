@@ -238,7 +238,7 @@ public class ExternalSourceResolver {
         List<String> paths,
         Map<String, Map<String, Object>> pathConfigs,
         @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
-        @Nullable Map<String, DatasetMapping> declaredSchemas,
+        @Nullable Map<String, DatasetMapping> declaredMappings,
         ActionListener<ExternalSourceResolution> listener
     ) {
         if (paths == null || paths.isEmpty()) {
@@ -259,7 +259,7 @@ public class ExternalSourceResolver {
                     Map<String, Object> config = pathConfigs.getOrDefault(path, Map.of());
                     List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(path) : null;
                     boolean hivePartitioning = isHivePartitioningEnabled(config);
-                    DatasetMapping declaredSchema = declaredSchemas != null ? declaredSchemas.get(path) : null;
+                    DatasetMapping declaredMapping = declaredMappings != null ? declaredMappings.get(path) : null;
 
                     try {
                         ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(
@@ -267,7 +267,7 @@ public class ExternalSourceResolver {
                             config,
                             hints,
                             hivePartitioning,
-                            declaredSchema
+                            declaredMapping
                         );
                         resolved.put(path, resolvedSource);
                         LOGGER.debug("Successfully resolved external source: {}", path);
@@ -313,7 +313,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         boolean hivePartitioning,
-        @Nullable DatasetMapping declaredSchema
+        @Nullable DatasetMapping declaredMapping
     ) throws Exception {
         LOGGER.debug("Resolving external source: path=[{}]", path);
 
@@ -322,7 +322,7 @@ public class ExternalSourceResolver {
         throwIfCancelled();
 
         if (GlobExpander.isMultiFile(path)) {
-            return resolveMultiFileSource(path, config, hints, hivePartitioning, declaredSchema);
+            return resolveMultiFileSource(path, config, hints, hivePartitioning, declaredMapping);
         }
 
         /*
@@ -333,8 +333,8 @@ public class ExternalSourceResolver {
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);
 
-        if (isStrict(declaredSchema)) {
-            return resolveStrictSingleFile(path, storagePath, provider, config, declaredSchema);
+        if (isStrict(declaredMapping)) {
+            return resolveStrictSingleFile(path, storagePath, provider, config, declaredMapping);
         }
 
         ExternalSourceMetadata extMetadata;
@@ -376,10 +376,10 @@ public class ExternalSourceResolver {
     }
 
     /** True when the dataset declared a strict mapping ({@code dynamic: false}) — the declaration is the whole schema. */
-    private static boolean isStrict(@Nullable DatasetMapping declaredSchema) {
-        return declaredSchema != null
-            && declaredSchema.mappings() != null
-            && declaredSchema.mappings().dynamic() == DatasetMapping.Dynamic.FALSE;
+    private static boolean isStrict(@Nullable DatasetMapping declaredMapping) {
+        return declaredMapping != null
+            && declaredMapping.mappings() != null
+            && declaredMapping.mappings().dynamic() == DatasetMapping.Dynamic.FALSE;
     }
 
     /**
@@ -394,11 +394,11 @@ public class ExternalSourceResolver {
         StoragePath storagePath,
         StorageProvider provider,
         Map<String, Object> config,
-        DatasetMapping declaredSchema
+        DatasetMapping declaredMapping
     ) throws Exception {
         StorageObject object = provider.newObject(storagePath);
-        List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredSchema);
-        List<Attribute> physicalSchema = DeclaredSchemaResolver.physicalAttributes(declaredSchema);
+        List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
+        List<Attribute> physicalSchema = DeclaredSchemaResolver.physicalAttributes(declaredMapping);
         // sourceType drives operator-factory dispatch (OperatorFactoryRegistry keys on it), so it must equal the
         // reader's formatName() the inferred path would have produced — derive it without reading the file: an explicit
         // `format` setting wins, otherwise the `reader` override / file extension via FormatNameResolver.
@@ -432,7 +432,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         boolean hivePartitioning,
-        @Nullable DatasetMapping declaredSchema
+        @Nullable DatasetMapping declaredMapping
     ) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);

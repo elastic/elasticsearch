@@ -119,8 +119,15 @@ public record SchemaCacheEntry(
         bytes += columnSynthetics.length;
         bytes += sourceType != null ? sourceType.length() * (long) Character.BYTES : 0;
         bytes += location != null ? location.length() * (long) Character.BYTES : 0;
-        // rough estimate: ~100B per metadata entry (key String + value Object)
-        bytes += safeMetadata.size() * 100L;
+        // rough estimate: ~100B per metadata entry (key String + value Object); nested map values
+        // (per-stripe stats under _stats.stripe.<k>) weigh their inner entries the same way so a
+        // many-striped file doesn't under-count against the cache budget
+        for (Object value : safeMetadata.values()) {
+            bytes += 100L;
+            if (value instanceof Map<?, ?> nested) {
+                bytes += nested.size() * 100L;
+            }
+        }
         bytes += connectorConfig.size() * 100L;
         return bytes;
     }

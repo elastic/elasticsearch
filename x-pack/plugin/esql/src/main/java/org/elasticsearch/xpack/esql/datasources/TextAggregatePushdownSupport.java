@@ -76,6 +76,17 @@ public class TextAggregatePushdownSupport implements AggregatePushdownSupport {
         return Pushability.YES;
     }
 
+    /**
+     * Text formats harvest per-column stats partially (none / count / projected / all scopes), so a
+     * column missing from a split's stats means "not harvested," not "all-null." Returning {@code false}
+     * makes the optimizer safe-miss {@code COUNT(<unharvested-col>)} rather than serving a wrong {@code 0}
+     * under the footer-format implicit-nulls contract.
+     */
+    @Override
+    public boolean appliesImplicitNullsForAbsentColumn() {
+        return false;
+    }
+
     private static boolean rejectMinMaxField(Expression field) {
         if (field instanceof Attribute attr) {
             return PushdownPredicates.isVirtualColumn(attr) || MIN_MAX_TYPES.contains(attr.dataType()) == false;

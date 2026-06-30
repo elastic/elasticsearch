@@ -1730,7 +1730,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             }
         };
 
-        Map<String, Object> merged = ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached));
+        Map<String, Object> merged = ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached), true);
         assertNotNull(merged);
         assertEquals(uncachedRowCount + cachedRowCount, ((Number) merged.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
 
@@ -1750,7 +1750,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 return "s3://bucket/missing.parquet";
             }
         };
-        assertNull(ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached, missing)));
+        assertNull(ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached, missing), true));
     }
 
     private static SourceStatistics statsOf(long rowCount) {
@@ -1827,7 +1827,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             }
         };
 
-        Map<String, Object> merged = ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached));
+        Map<String, Object> merged = ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached), true);
         assertNotNull(merged);
         assertEquals(uncachedRowCount + cachedRowCount, ((Number) merged.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
         assertEquals(

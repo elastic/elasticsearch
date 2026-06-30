@@ -111,6 +111,31 @@ public class NdJsonPageDecoder implements Closeable {
      * {@link #recoverFromParseException} restarts the parser at a later offset.
      */
     private int parserSliceStart;
+
+    /**
+     * Record-offset tracking for the orthogonal per-stripe stats path. Enabled by
+     * {@link #enableRecordOffsetTracking(long)}: {@link #decodePage()} then records every decoded record's
+     * own file-global start offset (the byte of its opening brace, scan-invariant) into
+     * {@link #lastPageRecordOffsets} so the iterator can attribute each row to its canonical stripe
+     * ({@code floor(offset / B)}) — exactly as the CSV reader uses its per-row {@code rowStartBytes}. The
+     * page is NOT capped at stripe lines: byte-range cover attribution by record offset needs no page
+     * alignment. {@code baseOffset} is this read's first byte in file/decompressed coordinates; the absolute
+     * offset of the START of the parser's current token (a record's opening brace) is {@code baseOffset +
+     * parserSliceStart + parser.getTokenLocation().getByteOffset()} — see {@link #tokenStartOffset()}, which
+     * uses the token-start location (not the current/end location) so attribution is scan-invariant. Disabled
+     * by default — a pure stats overlay, never affecting page contents.
+     */
+    private long statsBaseOffset = 0L;
+    private boolean recordOffsetTracking = false;
+    /**
+     * Per-record file-global start offsets of the page {@link #decodePage()} last returned, filled positionally
+     * with the page's rows when {@link #recordOffsetTracking} is on. Reused across pages; only the first
+     * {@link #lastPageRecordCount} entries are meaningful.
+     */
+    private long[] lastPageRecordOffsets = new long[0];
+    /** Number of meaningful entries in {@link #lastPageRecordOffsets} for the last page. */
+    private int lastPageRecordCount;
+
     private final BlockDecoder decoder;
     private final int batchSize;
     private final BlockFactory blockFactory;
@@ -179,6 +204,35 @@ public class NdJsonPageDecoder implements Closeable {
     /** Number of malformed records observed during decoding (lenient policies swallow these). */
     long errorCount() {
         return errorCount;
+    }
+
+    /**
+     * Enables per-record offset tracking so {@link #decodePage()} fills {@link #lastPageRecordOffsets} with
+     * each row's own file-global start byte. Does NOT cap pages at stripe lines — the iterator attributes
+     * rows to stripes by their recorded offsets via the byte-range cover model.
+     */
+    void enableRecordOffsetTracking(long baseOffset) {
+        this.statsBaseOffset = baseOffset;
+        this.recordOffsetTracking = true;
+    }
+
+    /**
+     * Absolute file offset of the START of the most recently read token — for a record's {@code START_OBJECT}
+     * this is the byte of its opening brace. A record's own start is independent of how the file is chunked,
+     * so {@code floor(thisOffset / B)} attributes the record to the same stripe under every scan.
+     */
+    private long tokenStartOffset() {
+        return statsBaseOffset + parserSliceStart + parser.getTokenLocation().getByteOffset();
+    }
+
+    /** Per-record file-global start offsets of the last decoded page; valid for the first {@link #lastPageRecordCount()} rows. */
+    long[] lastPageRecordOffsets() {
+        return lastPageRecordOffsets;
+    }
+
+    /** Number of meaningful entries in {@link #lastPageRecordOffsets()} (== the last page's row count when tracking is on). */
+    int lastPageRecordCount() {
+        return lastPageRecordCount;
     }
 
     /**
@@ -575,6 +629,14 @@ public class NdJsonPageDecoder implements Closeable {
         long startTotalRowCount = totalRowCount;
         long startErrorCount = errorCount;
         var blockBuilders = new Block.Builder[projectedAttributes.size()];
+        // Per-record offset tracking: each decoded record's own start offset is recorded into
+        // lastPageRecordOffsets so the iterator can attribute rows to canonical stripes by the byte-range
+        // cover model. Pages are NOT capped at stripe lines — a page may span stripes; the iterator splits
+        // its rows by their recorded offsets. Reset the per-page count before decoding.
+        lastPageRecordCount = 0;
+        if (recordOffsetTracking && lastPageRecordOffsets.length < batchSize) {
+            lastPageRecordOffsets = new long[batchSize];
+        }
         // Setting up builders may trip the circuit breaker. Make sure they're all always closed
         try {
             decoder.setupBuilders(blockBuilders);
@@ -602,8 +664,12 @@ public class NdJsonPageDecoder implements Closeable {
                 }
             } catch (JsonParseException e) {
                 totalRowCount++;
-                onNdjsonLineParseError(e, totalRowCount, "nextToken");
+                onNdjsonLineParseError(e, totalRowCount, "nextToken"); // FAIL_FAST: throws
             }
+            // Record-canonical stripe attribution: this record belongs to floor(itsOwnStart / B), captured
+            // from its START_OBJECT byte before decodeObject advances the parser. Pages are not capped at
+            // stripe lines; the iterator splits the page's rows by their offsets (byte-range cover model).
+            long stripeRecordStart = recordOffsetTracking ? tokenStartOffset() : 0L;
 
             totalRowCount++;
             this.blockTracker.clear();
@@ -641,12 +707,18 @@ public class NdJsonPageDecoder implements Closeable {
                 blockTracker.set(rowPositionSlot);
             }
 
+            if (recordOffsetTracking) {
+                lastPageRecordOffsets[lineCount] = stripeRecordStart;
+            }
             lineCount++;
             for (int i = 0; i < blockBuilders.length; i++) {
                 if (blockTracker.get(i) == false) {
                     blockBuilders[i].appendNull();
                 }
             }
+        }
+        if (recordOffsetTracking) {
+            lastPageRecordCount = lineCount;
         }
         return buildPageFromBuildersOrNull(blockBuilders, lineCount);
     }
@@ -674,6 +746,9 @@ public class NdJsonPageDecoder implements Closeable {
                 recoverFromParseException(parser);
                 continue;
             }
+            // Record-canonical stripe attribution (see decodePageFailFast): the record's own START_OBJECT byte,
+            // captured before decodeObject / recovery advance the parser. Recorded only for committed rows.
+            long stripeRecordStart = recordOffsetTracking ? tokenStartOffset() : 0L;
 
             totalRowCount++;
             this.blockTracker.clear();
@@ -742,7 +817,13 @@ public class NdJsonPageDecoder implements Closeable {
                 Releasables.close(rowScratch);
             }
 
+            if (recordOffsetTracking) {
+                lastPageRecordOffsets[lineCount] = stripeRecordStart;
+            }
             lineCount++;
+        }
+        if (recordOffsetTracking) {
+            lastPageRecordCount = lineCount;
         }
         return buildPageFromBuildersOrNull(blockBuilders, lineCount);
     }

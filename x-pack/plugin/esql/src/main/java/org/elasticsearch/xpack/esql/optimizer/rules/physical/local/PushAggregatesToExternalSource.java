@@ -129,7 +129,8 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         }
         List<Object> values = new ArrayList<>(aggregateExec.aggregates().size());
         List<DataType> dataTypes = new ArrayList<>(aggregateExec.aggregates().size());
-        if (resolveAggregateValues(aggregateExec.aggregates(), stats, values, dataTypes) == false) {
+        boolean implicitNullsForAbsentColumn = formatReader.aggregatePushdownSupport().appliesImplicitNullsForAbsentColumn();
+        if (resolveAggregateValues(aggregateExec.aggregates(), stats, values, dataTypes, implicitNullsForAbsentColumn) == false) {
             return aggregateExec;
         }
 
@@ -153,7 +154,8 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         List<? extends NamedExpression> aggregates,
         org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
         List<Object> values,
-        List<DataType> dataTypes
+        List<DataType> dataTypes,
+        boolean implicitNullsForAbsentColumn
     ) {
         for (int i = 0; i < aggregates.size(); i++) {
             NamedExpression agg = aggregates.get(i);
@@ -161,7 +163,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 return false;
             }
             Expression child = ((Alias) agg).child();
-            Object value = resolveFromStats(child, stats);
+            Object value = resolveFromStats(child, stats, implicitNullsForAbsentColumn);
             if (value == null) {
                 return false;
             }
@@ -182,18 +184,37 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
      * from a scope, {@code columnNullCount == rowCount}, so {@code COUNT(col) == 0} for that
      * scope — exactly the right answer for UNION_BY_NAME mixes.
      * <p>
-     * The only short-circuit is the rare "column present but stats unknown" case, where
+     * The implicit-nulls contract is only sound when an absent column key genuinely means "all-null"
+     * — true for footer formats (Parquet/ORC), which emit a stat for every physically present column.
+     * Line-oriented text formats harvest per-column stats partially (count / projected scopes leave
+     * present columns un-summarised), so for them an absent key means "not harvested," and applying
+     * the contract would serve {@code rowCount - rowCount = 0} for a column that may be entirely
+     * non-null. When {@code implicitNullsForAbsentColumn} is {@code false} (the format declares it via
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport#appliesImplicitNullsForAbsentColumn()}),
+     * a column with no observed stats ({@code stats.hasColumn(name) == false}) safe-misses instead.
+     * <p>
+     * The other short-circuit is the rare "column present but stats unknown" case, where
      * {@code columnNullCount} returns {@code -1} and we bail out so the engine falls back to a
      * regular scan.
      * <p>
-     * For {@code MIN}/{@code MAX} we read {@code columnMin}/{@code columnMax} verbatim. Under the
-     * SPI's "implicit nulls" contract, {@link org.elasticsearch.xpack.esql.datasources.MergedSplitStats}
+     * For {@code MIN}/{@code MAX} we read {@code columnMin}/{@code columnMax}. Under the SPI's
+     * "implicit nulls" contract, {@link org.elasticsearch.xpack.esql.datasources.MergedSplitStats}
      * skips children whose null count equals their row count (absent column or all rows null) and
-     * only poisons on a genuine unknown ({@code columnNullCount &lt; 0}). Result of {@code null} therefore
-     * means either "no child contributed a candidate value" or "incompatible/unknown stats" — both are
-     * correct fall-back signals, the rule does not pushdown.
+     * only poisons on a genuine unknown ({@code columnNullCount &lt; 0}). That skip is correct for
+     * footer formats, where an absent column is genuinely all-null. For text formats under partial
+     * harvest it is not: a contributing split that did not harvest the column is invisible, and
+     * skipping it would serve a subset extremum. So, exactly as for {@code COUNT(col)}, when the
+     * format does not apply implicit nulls ({@code implicitNullsForAbsentColumn == false}) and the
+     * column was not observed by every contributing split ({@code stats.hasColumn(name) == false}),
+     * we safe-miss. Otherwise a {@code null} result means either "no child contributed a candidate
+     * value" or "incompatible/unknown stats" — both correct fall-back signals; the rule does not
+     * pushdown.
      */
-    private Object resolveFromStats(Expression aggFunction, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
+    private Object resolveFromStats(
+        Expression aggFunction,
+        org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
+        boolean implicitNullsForAbsentColumn
+    ) {
         if (aggFunction instanceof Count count) {
             if (count.hasFilter()) {
                 return null;
@@ -205,6 +226,18 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             // Virtual columns are not present in the split's column stats; refuse the pushdown
             // here even if a format-level gate happens to let one through (defense in depth).
             if (target instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
+                // For formats that do not apply implicit nulls to absent columns (text formats under
+                // partial harvest), an unobserved column means "not harvested," not "all-null":
+                // serving rowCount - rowCount = 0 would be wrong. Safe-miss so the engine re-scans.
+                if (ExternalSourceAggregatePushdown.columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
+                    return null;
+                }
+                // COUNT(col) counts non-null VALUES. Prefer the harvested value count (multivalue-correct);
+                // it is -1 for footer formats that don't harvest it, where rowCount - nullCount is exact.
+                long vc = stats.columnValueCount(ref.name());
+                if (vc >= 0) {
+                    return vc;
+                }
                 long nc = stats.columnNullCount(ref.name());
                 if (nc >= 0) {
                     return stats.rowCount() - nc;
@@ -216,7 +249,16 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 return null;
             }
             if (min.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
-                return stats.columnMin(ref.name());
+                // For formats that do not apply implicit nulls to absent columns (text formats under
+                // partial harvest), a column that some contributing split did not observe is "not
+                // harvested," not "absent/all-null." A merged extremum that silently skips the
+                // unharvested split would serve a subset MIN/MAX (e.g. one file's value range while a
+                // sibling file's range is invisible). Safe-miss so the engine re-scans. MergedSplitStats
+                // already requires every child to have observed the column for hasColumn to be true.
+                if (ExternalSourceAggregatePushdown.columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
+                    return null;
+                }
+                return ExternalSourceAggregatePushdown.servableExtremum(stats.columnMin(ref.name()), ref.dataType());
             }
             return null;
         } else if (aggFunction instanceof Max max) {
@@ -224,7 +266,10 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 return null;
             }
             if (max.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
-                return stats.columnMax(ref.name());
+                if (ExternalSourceAggregatePushdown.columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
+                    return null;
+                }
+                return ExternalSourceAggregatePushdown.servableExtremum(stats.columnMax(ref.name()), ref.dataType());
             }
             return null;
         }

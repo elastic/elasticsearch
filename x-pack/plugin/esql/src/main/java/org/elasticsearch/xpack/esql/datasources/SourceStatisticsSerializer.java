@@ -28,6 +28,8 @@ import java.util.Set;
  */
 public final class SourceStatisticsSerializer {
 
+    /** Common prefix of every flat statistics key (row count, size, per-column stats, partial flag). */
+    public static final String STATS_KEY_PREFIX = "_stats.";
     public static final String STATS_ROW_COUNT = "_stats.row_count";
     public static final String STATS_SIZE_BYTES = "_stats.size_bytes";
     /**
@@ -45,10 +47,12 @@ public final class SourceStatisticsSerializer {
     /** Number of files matched by the glob pattern; useful for observability and debugging. */
     public static final String STATS_FILE_COUNT = "_stats.file_count";
     public static final String STATS_COL_PREFIX = "_stats.columns.";
-    private static final String NULL_COUNT_SUFFIX = ".null_count";
-    private static final String MIN_SUFFIX = ".min";
-    private static final String MAX_SUFFIX = ".max";
-    private static final String SIZE_BYTES_SUFFIX = ".size_bytes";
+    // Package-private: the only off-class consumer is StatFolds, in this package.
+    static final String NULL_COUNT_SUFFIX = ".null_count";
+    static final String VALUE_COUNT_SUFFIX = ".value_count";
+    static final String MIN_SUFFIX = ".min";
+    static final String MAX_SUFFIX = ".max";
+    static final String SIZE_BYTES_SUFFIX = ".size_bytes";
 
     private SourceStatisticsSerializer() {}
 
@@ -68,6 +72,7 @@ public final class SourceStatisticsSerializer {
                 String prefix = STATS_COL_PREFIX + entry.getKey();
                 SourceStatistics.ColumnStatistics cs = entry.getValue();
                 cs.nullCount().ifPresent(nc -> result.put(prefix + NULL_COUNT_SUFFIX, nc));
+                cs.valueCount().ifPresent(vc -> result.put(prefix + VALUE_COUNT_SUFFIX, vc));
                 cs.minValue().ifPresent(mv -> result.put(prefix + MIN_SUFFIX, mv));
                 cs.maxValue().ifPresent(mv -> result.put(prefix + MAX_SUFFIX, mv));
                 cs.sizeInBytes().ifPresent(sb -> result.put(prefix + SIZE_BYTES_SUFFIX, sb));
@@ -134,6 +139,16 @@ public final class SourceStatisticsSerializer {
     }
 
     /**
+     * Extracts the value count (count of non-null values) for a specific column directly from the
+     * sourceMetadata map. Returns {@code null} if the metadata is null or the value count is
+     * absent/non-numeric.
+     */
+    @Nullable
+    public static Long extractColumnValueCount(Map<String, Object> sourceMetadata, String columnName) {
+        return sourceMetadata != null ? asBoxedLong(sourceMetadata.get(columnValueCountKey(columnName))) : null;
+    }
+
+    /**
      * Extracts the min value for a specific column directly from the sourceMetadata map.
      * Returns {@code null} if the metadata is null or the min is absent.
      */
@@ -156,6 +171,11 @@ public final class SourceStatisticsSerializer {
         return STATS_COL_PREFIX + columnName + NULL_COUNT_SUFFIX;
     }
 
+    /** Returns the flat key used for a column's value count (non-null values) statistic. */
+    public static String columnValueCountKey(String columnName) {
+        return STATS_COL_PREFIX + columnName + VALUE_COUNT_SUFFIX;
+    }
+
     /** Returns the flat key used for a column's min statistic. */
     public static String columnMinKey(String columnName) {
         return STATS_COL_PREFIX + columnName + MIN_SUFFIX;
@@ -169,6 +189,20 @@ public final class SourceStatisticsSerializer {
     /** Returns the flat key used for a column's size in bytes statistic. */
     public static String columnSizeBytesKey(String columnName) {
         return STATS_COL_PREFIX + columnName + SIZE_BYTES_SUFFIX;
+    }
+
+    /** The column name of a {@code min}/{@code max} extremum key, or {@code null} if {@code key} is not one. */
+    private static String extremumColumnName(String key) {
+        if (key.startsWith(STATS_COL_PREFIX) == false) {
+            return null;
+        }
+        if (key.endsWith(MIN_SUFFIX)) {
+            return key.substring(STATS_COL_PREFIX.length(), key.length() - MIN_SUFFIX.length());
+        }
+        if (key.endsWith(MAX_SUFFIX)) {
+            return key.substring(STATS_COL_PREFIX.length(), key.length() - MAX_SUFFIX.length());
+        }
+        return null;
     }
 
     /**
@@ -201,8 +235,21 @@ public final class SourceStatisticsSerializer {
      * Min/max/size_bytes accumulators are unchanged: they only sum across files where the
      * column is present, which is the correct semantics regardless of implicit nulls.
      */
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     public static Map<String, Object> mergeStatistics(List<Map<String, Object>> splitStats) {
+        // Footer formats (Parquet/ORC) always write complete per-file column stats, so an absent
+        // column folds into implicit nulls. This is the default for callers that only merge such stats.
+        return mergeStatistics(splitStats, true);
+    }
+
+    /**
+     * @param implicitNullsForAbsentColumn when {@code true} (footer formats), a column absent from a
+     *        per-file map is treated as physically absent and its rows fold into the merged null_count
+     *        (UNION_BY_NAME semantics). When {@code false} (text formats under partial harvest), a
+     *        column absent from any file's stats is "not harvested" -- it may be physically present --
+     *        so the merged column is dropped entirely, forcing downstream COUNT/MIN/MAX to safe-miss
+     *        (re-scan) rather than undercount or serve a subset extremum.
+     */
+    public static Map<String, Object> mergeStatistics(List<Map<String, Object>> splitStats, boolean implicitNullsForAbsentColumn) {
         if (splitStats == null || splitStats.isEmpty()) {
             return null;
         }
@@ -211,140 +258,141 @@ public final class SourceStatisticsSerializer {
             return single != null && single.get(STATS_ROW_COUNT) instanceof Number ? single : null;
         }
 
-        long totalRows = 0;
-        long totalSize = 0;
-        Map<String, long[]> nullCounts = new HashMap<>();
-        Map<String, Comparable[]> mins = new HashMap<>();
-        Map<String, Comparable[]> maxs = new HashMap<>();
-        Map<String, long[]> colSizeBytes = new HashMap<>();
-        Set<String> poisonedMins = new HashSet<>();
-        Set<String> poisonedMaxs = new HashSet<>();
-        // Columns that any file showed as physically present (any column-family key seen) but
-        // that lack a null_count value in that same file. We cannot fabricate a count for
-        // those rows, so we drop the merged null_count entry to signal "unknown" downstream.
+        // One accumulator over the foldable statistics, combined by each key's StatFold law (selected by
+        // StatFolds.foldFor) instead of four per-stat maps and inline merge lambdas. A key whose fold
+        // yields POISON (incompatible inputs, e.g. a cross-type extremum) is dropped and pinned, so a
+        // later compatible file cannot resurrect a subset value.
+        Map<String, Object> acc = new HashMap<>();
+        Set<String> poisoned = new HashSet<>();
+        // Columns physically present in a file but lacking a null_count there: their merged null_count
+        // is unreconstructable, so it is dropped to signal "unknown" downstream.
         Set<String> poisonedNullCounts = new HashSet<>();
-        // Tracks (per per-file map) the row count and the set of columns physically present in
-        // that file so we can fold absent-column rows into implicit nulls in a second pass.
+        // Per-file row count and the set of columns physically present, so absent-column rows can fold
+        // into implicit nulls (footer) or partial columns can be dropped (text) in a second pass.
         long[] perFileRowCounts = new long[splitStats.size()];
         List<Set<String>> perFileColumns = new ArrayList<>(splitStats.size());
         Set<String> allColumns = new LinkedHashSet<>();
 
         int fileIndex = 0;
         for (Map<String, Object> stats : splitStats) {
-            if (stats == null || stats.containsKey(STATS_ROW_COUNT) == false) {
+            Object rc = stats == null ? null : stats.get(STATS_ROW_COUNT);
+            if (rc instanceof Number == false) {
                 return null;
             }
-            Object rc = stats.get(STATS_ROW_COUNT);
-            long fileRowCount;
-            if (rc instanceof Number rcNum) {
-                fileRowCount = rcNum.longValue();
-                totalRows += fileRowCount;
-            } else {
-                return null;
-            }
-            Object sb = stats.get(STATS_SIZE_BYTES);
-            if (sb instanceof Number sbNum) totalSize += sbNum.longValue();
-
-            // Probe which columns this file physically contains. The column is "present" iff
-            // any _stats.columns.<col>.* key is in the map (matches SplitStats.of's logic).
+            // The column is "present" iff any _stats.columns.<col>.* key is in the map (matches
+            // SplitStats.of's logic); nullCountSeen tracks which present columns emitted a null_count.
             Set<String> columnsInThisFile = new HashSet<>();
-            // Track which present columns of this file emitted a null_count value, so we can
-            // detect the rare present-but-stats-less case after the column-family scan.
             Set<String> nullCountSeenInThisFile = new HashSet<>();
             for (Map.Entry<String, Object> entry : stats.entrySet()) {
                 String key = entry.getKey();
-                if (key.startsWith(STATS_COL_PREFIX) == false) continue;
-                String rest = key.substring(STATS_COL_PREFIX.length());
-                int dotIdx = rest.lastIndexOf('.');
-                if (dotIdx <= 0) continue;
-                String colName = rest.substring(0, dotIdx);
-                columnsInThisFile.add(colName);
-                if (key.endsWith(NULL_COUNT_SUFFIX) && entry.getValue() instanceof Number ncNum) {
-                    nullCountSeenInThisFile.add(colName);
-                    nullCounts.merge(key, new long[] { ncNum.longValue() }, (a, b) -> {
-                        a[0] += b[0];
-                        return a;
-                    });
-                } else if (key.endsWith(MIN_SUFFIX) && entry.getValue() instanceof Comparable c) {
-                    if (poisonedMins.contains(key) == false) {
-                        // Map.merge removes the entry when the remapping function returns null
-                        mins.merge(key, new Comparable[] { c }, (a, b) -> {
-                            Object merged = SplitStats.mergedMin(a[0], b[0]);
-                            if (merged == null) {
-                                return null;
-                            }
-                            a[0] = (Comparable) merged;
-                            return a;
-                        });
-                        if (mins.containsKey(key) == false) {
-                            poisonedMins.add(key);
+                StatFold fold = StatFolds.foldFor(key);
+                if (fold == null) {
+                    continue;
+                }
+                if (key.startsWith(STATS_COL_PREFIX)) {
+                    String rest = key.substring(STATS_COL_PREFIX.length());
+                    int dotIdx = rest.lastIndexOf('.');
+                    if (dotIdx > 0) {
+                        String colName = rest.substring(0, dotIdx);
+                        columnsInThisFile.add(colName);
+                        if (key.endsWith(NULL_COUNT_SUFFIX) && entry.getValue() instanceof Number) {
+                            nullCountSeenInThisFile.add(colName);
                         }
                     }
-                } else if (key.endsWith(MAX_SUFFIX) && entry.getValue() instanceof Comparable c) {
-                    if (poisonedMaxs.contains(key) == false) {
-                        maxs.merge(key, new Comparable[] { c }, (a, b) -> {
-                            Object merged = SplitStats.mergedMax(a[0], b[0]);
-                            if (merged == null) {
-                                return null;
-                            }
-                            a[0] = (Comparable) merged;
-                            return a;
-                        });
-                        if (maxs.containsKey(key) == false) {
-                            poisonedMaxs.add(key);
-                        }
-                    }
-                } else if (key.endsWith(SIZE_BYTES_SUFFIX) && entry.getValue() instanceof Number sbNum) {
-                    colSizeBytes.merge(key, new long[] { sbNum.longValue() }, (a, b) -> {
-                        a[0] += b[0];
-                        return a;
-                    });
+                }
+                if (poisoned.contains(key)) {
+                    continue;
+                }
+                Object existing = acc.get(key);
+                Object folded = existing == null ? fold.first(entry.getValue()) : fold.apply(existing, entry.getValue());
+                if (folded == StatFold.POISON) {
+                    poisoned.add(key);
+                    acc.remove(key);
+                } else {
+                    acc.put(key, folded);
                 }
             }
-            // Any column physically present in this file but lacking a null_count value
-            // poisons that column's merged null_count: we cannot reconstruct it later.
             for (String present : columnsInThisFile) {
                 if (nullCountSeenInThisFile.contains(present) == false) {
                     poisonedNullCounts.add(present);
                 }
             }
-            perFileRowCounts[fileIndex++] = fileRowCount;
+            perFileRowCounts[fileIndex++] = ((Number) rc).longValue();
             perFileColumns.add(columnsInThisFile);
             allColumns.addAll(columnsInThisFile);
         }
 
-        // Implicit-nulls pass: for every column ever seen, fold the row count of files that
-        // do not physically contain the column into that column's null_count accumulator.
-        // This only adds value when there are at least two files; the size==1 fast path above
-        // returns the single map verbatim and never reaches here.
-        for (String colName : allColumns) {
-            String key = columnNullCountKey(colName);
-            for (int i = 0; i < perFileColumns.size(); i++) {
-                if (perFileColumns.get(i).contains(colName) == false) {
-                    long fileRowCount = perFileRowCounts[i];
-                    nullCounts.merge(key, new long[] { fileRowCount }, (a, b) -> {
-                        a[0] += b[0];
-                        return a;
-                    });
+        if (implicitNullsForAbsentColumn) {
+            // Footer (UNION_BY_NAME) pass: fold the row count of files that do not physically contain a
+            // column into that column's null_count, so COUNT(col) = rowCount - mergedNullCount is correct.
+            for (String colName : allColumns) {
+                String key = columnNullCountKey(colName);
+                if (poisoned.contains(key)) {
+                    continue;
+                }
+                for (int i = 0; i < perFileColumns.size(); i++) {
+                    if (perFileColumns.get(i).contains(colName) == false) {
+                        Object cur = acc.get(key);
+                        long base = cur instanceof Number n ? n.longValue() : 0L;
+                        acc.put(key, base + perFileRowCounts[i]);
+                    }
+                }
+            }
+        } else {
+            // Text partial-harvest pass: a column absent from a NON-EMPTY contribution is "not harvested"
+            // (the contribution had rows but didn't observe it), not "all null". The merge cannot serve a
+            // correct COUNT/MIN/MAX for it, so drop it entirely -- downstream safe-misses (re-scans) rather
+            // than undercounting (COUNT) or serving a subset extremum (MIN/MAX). An EMPTY (0-row)
+            // contribution is exempt: it legitimately carries no column stats (e.g. a record-empty edge
+            // stripe in the byte-range cover), so a column's absence there is not "unharvested".
+            for (String colName : allColumns) {
+                boolean observedInEveryNonEmptyFile = true;
+                for (int i = 0; i < perFileColumns.size(); i++) {
+                    if (perFileRowCounts[i] == 0) {
+                        continue; // empty contribution: no rows, so it doesn't count against column presence
+                    }
+                    if (perFileColumns.get(i).contains(colName) == false) {
+                        observedInEveryNonEmptyFile = false;
+                        break;
+                    }
+                }
+                if (observedInEveryNonEmptyFile == false) {
+                    acc.remove(columnNullCountKey(colName));
+                    acc.remove(columnValueCountKey(colName));
+                    acc.remove(columnMinKey(colName));
+                    acc.remove(columnMaxKey(colName));
+                    acc.remove(columnSizeBytesKey(colName));
                 }
             }
         }
 
-        Map<String, Object> merged = new HashMap<>();
-        merged.put(STATS_ROW_COUNT, totalRows);
-        if (totalSize > 0) {
-            merged.put(STATS_SIZE_BYTES, totalSize);
+        for (String colName : poisonedNullCounts) {
+            acc.remove(columnNullCountKey(colName));
         }
-        nullCounts.forEach((k, v) -> {
-            String colName = k.substring(STATS_COL_PREFIX.length(), k.length() - NULL_COUNT_SUFFIX.length());
-            if (poisonedNullCounts.contains(colName) == false) {
-                merged.put(k, v[0]);
+        // A poisoned MIN/MAX is encoded above as a key removal, which the NEXT fold level cannot
+        // distinguish from "this contribution never observed the column" -- the column's surviving
+        // null_count/value_count still mark it observed, so a sibling contribution's finite extremum
+        // refills the dropped min/max key and is served instead of the safe-miss the poison intends
+        // (e.g. a NaN in one fragment of a stripe drops that stripe's min, then another stripe's finite
+        // min is served as the whole-file MIN). Taint the WHOLE column so it is genuinely absent here:
+        // the next level's drop pass (text) or hasColumn==false (serve) then safe-misses every aggregate
+        // over it, and COUNT(col) re-scans rather than under/over-counting.
+        for (String key : poisoned) {
+            String colName = extremumColumnName(key);
+            if (colName != null) {
+                acc.remove(columnNullCountKey(colName));
+                acc.remove(columnValueCountKey(colName));
+                acc.remove(columnMinKey(colName));
+                acc.remove(columnMaxKey(colName));
+                acc.remove(columnSizeBytesKey(colName));
             }
-        });
-        mins.forEach((k, v) -> merged.put(k, v[0]));
-        maxs.forEach((k, v) -> merged.put(k, v[0]));
-        colSizeBytes.forEach((k, v) -> merged.put(k, v[0]));
-        return merged;
+        }
+        // Match the prior contract: a zero total size is not emitted (no file reported size bytes).
+        Object size = acc.get(STATS_SIZE_BYTES);
+        if (size instanceof Number n && n.longValue() == 0) {
+            acc.remove(STATS_SIZE_BYTES);
+        }
+        return acc;
     }
 
     @Nullable
@@ -368,6 +416,11 @@ public final class SourceStatisticsSerializer {
         @Override
         public OptionalLong nullCount() {
             return toOptionalLong(extractColumnNullCount(map, colName));
+        }
+
+        @Override
+        public OptionalLong valueCount() {
+            return toOptionalLong(extractColumnValueCount(map, colName));
         }
 
         @Override

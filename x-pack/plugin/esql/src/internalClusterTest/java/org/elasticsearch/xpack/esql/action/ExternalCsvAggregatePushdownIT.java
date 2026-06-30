@@ -165,6 +165,44 @@ public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * Regression for the cross-query partial-harvest path. A cold {@code COUNT(*)} caches the file's row
+     * count but harvests no per-column stats (it projects zero columns). A later {@code COUNT(value)} on the
+     * same file is warm and finds {@code row_count} but no {@code value} column in the cache.
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToExternalSource} runs
+     * before {@code PushAggregatesToExternalSource} and is format-agnostic; without the text safe-miss it
+     * would serve {@code rowCount - columnNullCount(value) = rowCount - rowCount = 0}
+     * ({@code columnNullCount} returns {@code rowCount} for an absent column under the implicit-nulls contract,
+     * which line-oriented text formats do not honour). The fix makes it safe-miss and re-scan, so the warm
+     * {@code COUNT(value)} is the true count, not 0.
+     */
+    public void testCountColumnWarmAfterCountStarColdReScansNotZero() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        int totalRows = 40;
+        Path csvFile = writeCsvFile(totalRows);
+        try {
+            String fileUri = StoragePath.fileUri(csvFile);
+            // Cold COUNT(*): caches row_count only, no per-column stats harvested.
+            try (var response = run(syncEsqlQueryRequest("EXTERNAL \"" + fileUri + "\" | STATS c = COUNT(*)").profile(true))) {
+                assertCount(response, totalRows);
+            }
+            // Warm COUNT(value): value was never harvested, so the rule must safe-miss and re-scan rather than
+            // serve 0. The true count is totalRows (value is non-null for every row), and documentsFound shows
+            // the re-scan happened (it is not a zero-scan LocalSourceExec serve).
+            try (var response = run(syncEsqlQueryRequest("EXTERNAL \"" + fileUri + "\" | STATS c = COUNT(value)").profile(true))) {
+                assertCount(response, totalRows);
+                assertThat(
+                    "warm COUNT(value) of an un-harvested text column must re-scan, not serve 0",
+                    response.documentsFound(),
+                    equalTo((long) totalRows)
+                );
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
     public void testMinMaxKeywordColdThenWarmShortCircuits() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
 

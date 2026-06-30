@@ -1,0 +1,5 @@
+pr: 150920
+summary: Add canonical-stripe statistics for warm COUNT/MIN/MAX over external text formats
+area: ES|QL
+type: enhancement
+issues: []

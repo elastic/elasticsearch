@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
@@ -59,6 +60,22 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
 
     private static final ReferenceAttribute AGE = referenceAttribute("age", DataType.INTEGER);
     private static final ReferenceAttribute SCORE = referenceAttribute("score", DataType.DOUBLE);
+
+    public void testServableExtremumRejectsUnrepresentableButAllowsLosslessNarrowing() {
+        // Same-type and lossless cases are served.
+        assertEquals(5L, ExternalSourceAggregatePushdown.servableExtremum(5L, DataType.LONG));
+        assertEquals(5L, ExternalSourceAggregatePushdown.servableExtremum(5L, DataType.INTEGER)); // in-range long-for-int (ORC int32)
+        assertEquals(5.0, ExternalSourceAggregatePushdown.servableExtremum(5.0, DataType.DOUBLE));
+        assertEquals(5.0, ExternalSourceAggregatePushdown.servableExtremum(5.0, DataType.LONG)); // exact integral double, buildBlock -> 5
+        assertEquals("a", ExternalSourceAggregatePushdown.servableExtremum("a", DataType.KEYWORD));
+        assertEquals(Long.MAX_VALUE, ExternalSourceAggregatePushdown.servableExtremum(Long.MAX_VALUE, DataType.LONG)); // long boundary
+        // Unrepresentable in the resolved integral type -> safe-miss (null), never coerce-overflow.
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum(1.0e20, DataType.LONG)); // double beyond long range
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum(5.5, DataType.LONG)); // fractional
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum(3.0e10, DataType.INTEGER)); // double beyond int range
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum(5_000_000_000L, DataType.INTEGER)); // LONG beyond int range
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum(null, DataType.LONG));
+    }
 
     // --- SINGLE mode tests ---
 
@@ -286,6 +303,94 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         as(applyRule(agg), AggregateExec.class);
     }
 
+    /**
+     * Partial-stats safe-miss: a summary that harvested only one column ("age" has min/max) must still
+     * fall back to a scan for a MIN/MAX of an UN-harvested column ("score"), never serve null/wrong — while
+     * COUNT(*) over the same summary still serves from the row count. This is the cross-column interaction
+     * the harvest-scope work must preserve (e.g. PROJECTED-harvest of a different column, or COUNT-scope).
+     */
+    public void testMinOfUnharvestedColumnSafeMissesWhileCountStarServes() {
+        // age is harvested (present with min/max); score has NO stats entries at all.
+        Map<String, Object> metadata = statsMetadata(100L, "age", 0L);
+        metadata.put("_stats.columns.age.min", 18);
+        metadata.put("_stats.columns.age.max", 99);
+
+        // MIN(score): score was never harvested -> must NOT push down; falls back to a scan.
+        var minAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("m", new Min(Source.EMPTY, SCORE)));
+        as(applyRule(minAgg), AggregateExec.class);
+
+        // MAX(score): same.
+        var maxAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("m", new Max(Source.EMPTY, SCORE)));
+        as(applyRule(maxAgg), AggregateExec.class);
+
+        // COUNT(*): independent of column stats -> still serves from the row count.
+        var countStar = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), countStarAlias());
+        LocalSourceExec local = as(applyRule(countStar), LocalSourceExec.class);
+        assertEquals(100L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+
+        // MIN(age) over the SAME summary DOES serve (the harvested column), proving the safe-miss is
+        // column-specific, not a blanket refusal.
+        var minAge = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("m", new Min(Source.EMPTY, AGE)));
+        as(applyRule(minAge), LocalSourceExec.class);
+    }
+
+    /**
+     * COUNT(col) WRONG-DATA safe-miss for a text format under partial harvest. A CSV/NDJSON file can have
+     * a complete whole-file row count (count-scope or projected-scope of a different column) but NO
+     * per-column key for a column that is physically present yet was never harvested. The implicit-nulls
+     * contract ({@code columnNullCount == rowCount} for an absent key) is a FOOTER-format property; for a
+     * text format the absent key means "not harvested," so {@code COUNT(col)} must NOT serve
+     * {@code rowCount - rowCount = 0} — it must safe-miss and re-scan.
+     * <p>
+     * The companion {@link #testCountFieldWithoutColumnEntriesPushedAsImplicitNullCount} proves the FOOTER
+     * contract is preserved (the same shape over a footer-format source still serves 0).
+     */
+    public void testCountFieldOfUnharvestedColumnSafeMissesForTextFormat() {
+        // Complete whole-file stats: 1000 rows, but no _stats.columns.age.* (age present, not harvested).
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
+        var agg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), countFieldAlias(AGE));
+
+        // Text format: implicit nulls do not apply to an absent (unharvested) column -> safe-miss.
+        as(applyRuleText(agg), AggregateExec.class);
+
+        // A harvested column with a genuine null count over the same text source STILL serves: the safe-miss
+        // is column-specific, not a blanket refusal for text formats.
+        Map<String, Object> harvested = statsMetadata(1000L, "age", 50L);
+        var aggHarvested = aggregateExec(AggregatorMode.SINGLE, externalSource(harvested), countFieldAlias(AGE));
+        LocalSourceExec local = as(applyRuleText(aggHarvested), LocalSourceExec.class);
+        assertEquals(950L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+
+        // COUNT(*) over the unharvested-column source is independent of column stats -> still serves.
+        var countStar = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), countStarAlias());
+        LocalSourceExec countLocal = as(applyRuleText(countStar), LocalSourceExec.class);
+        assertEquals(1000L, as(countLocal.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+    }
+
+    /**
+     * The payoff of ALL scope: a cold scan that never projected "score" still committed its min/max under ALL,
+     * so a later warm {@code MIN(score)} / {@code MAX(score)} short-circuits to a LocalSourceExec instead of
+     * re-scanning. This is the optimizer-layer view of the ALL capability — the harvest scope decides what
+     * lands in this metadata map; here we assert that once a non-query-projected column's stats ARE present
+     * (which only ALL produces), the pushdown fires. The companion partial-stats safe-miss test
+     * ({@link #testMinOfUnharvestedColumnSafeMissesWhileCountStarServes}) proves the converse stays correct.
+     */
+    public void testMinMaxOfNonProjectedColumnServesWarmUnderAllScopeHarvest() {
+        // Metadata as ALL would commit it: row count + min/max for "score" even though the cold query that
+        // produced this summary need not have projected score (ALL harvests every file column).
+        Map<String, Object> metadata = statsMetadata(500L, "score", 0L);
+        metadata.put("_stats.columns.score.min", 1.0);
+        metadata.put("_stats.columns.score.max", 100.0);
+
+        var minAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("mn", new Min(Source.EMPTY, SCORE)));
+        LocalSourceExec minLocal = as(applyRule(minAgg), LocalSourceExec.class);
+        assertEquals(1.0, as(minLocal.supplier().get().getBlock(0), DoubleBlock.class).getDouble(0), 0.0);
+
+        var maxAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("mx", new Max(Source.EMPTY, SCORE)));
+        LocalSourceExec maxLocal = as(applyRule(maxAgg), LocalSourceExec.class);
+        assertEquals(100.0, as(maxLocal.supplier().get().getBlock(0), DoubleBlock.class).getDouble(0), 0.0);
+    }
+
     public void testMaxWithoutColumnStatsNotPushed() {
         var agg = aggregateExec(
             AggregatorMode.SINGLE,
@@ -488,6 +593,57 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         assertEquals(99, as(maxLocal.supplier().get().getBlock(0), IntBlock.class).getInt(0));
     }
 
+    /**
+     * Cross-file-merge WRONG-DATA safe-miss for MIN/MAX under a text format (Julian's repro). One file
+     * (a.csv) was warmed for the "value" column with stats [1000000, 1020000); a sibling (b.csv) was
+     * warmed count-only and never harvested "value", so its split stats carry no "value" entry. For a
+     * footer format an absent column is genuinely all-null and would be skipped, but for a text format
+     * b.csv's "value" is physically present yet unobserved — its true range [0, 20000) is invisible.
+     * Serving the merged extremum from a.csv alone would return MIN=1000000 (wrong; true MIN is 0). The
+     * rule must safe-miss instead, exactly as it does for COUNT(col) over an unharvested column.
+     * <p>
+     * The companion footer-format test ({@link #testPushdownAcrossSplitsWithMissingColumnInOneSplit})
+     * proves the implicit-nulls skip is preserved where it is sound.
+     */
+    public void testMultiSplitMinMaxOfUnharvestedColumnSafeMissesForTextFormat() {
+        ReferenceAttribute value = referenceAttribute("value", DataType.INTEGER);
+        List<Attribute> attrs = List.of(referenceAttribute("x", DataType.INTEGER), AGE, SCORE, value);
+
+        // a.csv: "value" harvested, range [1000000, 1020000).
+        Map<String, Object> withValue = new HashMap<>();
+        withValue.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        withValue.put(SourceStatisticsSerializer.columnNullCountKey("value"), 0L);
+        withValue.put(SourceStatisticsSerializer.columnMinKey("value"), 1000000);
+        withValue.put(SourceStatisticsSerializer.columnMaxKey("value"), 1019999);
+
+        // b.csv: count-only warm-up; "value" physically present but never harvested (no per-column key).
+        Map<String, Object> countOnly = new HashMap<>();
+        countOnly.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+
+        // Text format: an unobserved column in a contributing split means "not harvested," so the merged
+        // MIN/MAX is unknowable -> safe-miss (fall back to a scan), never serve the a.csv-only extremum.
+        ExternalSourceExec extMin = externalSourceWithSplitsAndAttrs(attrs, Map.of(), withValue, countOnly);
+        var minAgg = aggregateExec(AggregatorMode.SINGLE, extMin, alias("mn", new Min(Source.EMPTY, value)));
+        as(applyRuleText(minAgg), AggregateExec.class);
+
+        ExternalSourceExec extMax = externalSourceWithSplitsAndAttrs(attrs, Map.of(), withValue, countOnly);
+        var maxAgg = aggregateExec(AggregatorMode.SINGLE, extMax, alias("mx", new Max(Source.EMPTY, value)));
+        as(applyRuleText(maxAgg), AggregateExec.class);
+
+        // Sanity: when BOTH files harvested "value", the merge is sound and the warm MIN/MAX serves. This
+        // proves the safe-miss is triggered by the unharvested sibling, not a blanket refusal for text.
+        Map<String, Object> withValue2 = new HashMap<>();
+        withValue2.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        withValue2.put(SourceStatisticsSerializer.columnNullCountKey("value"), 0L);
+        withValue2.put(SourceStatisticsSerializer.columnMinKey("value"), 0);
+        withValue2.put(SourceStatisticsSerializer.columnMaxKey("value"), 19999);
+
+        ExternalSourceExec extBoth = externalSourceWithSplitsAndAttrs(attrs, Map.of(), withValue, withValue2);
+        var minBoth = aggregateExec(AggregatorMode.SINGLE, extBoth, alias("mn", new Min(Source.EMPTY, value)));
+        LocalSourceExec minLocal = as(applyRuleText(minBoth), LocalSourceExec.class);
+        assertEquals(0, as(minLocal.supplier().get().getBlock(0), IntBlock.class).getInt(0));
+    }
+
     public void testCountFieldNotPushedWhenMergedNullCountPoisoned() {
         // Defensive end-to-end check for the present-but-stats-less poison path:
         // mergeStatistics drops null_count for `bonus` when any present file lacks it, so the
@@ -684,6 +840,19 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         return registry;
     }
 
+    /**
+     * Registry whose "parquet"-named reader carries the real {@link TextAggregatePushdownSupport}, i.e. it
+     * declares {@code appliesImplicitNullsForAbsentColumn() == false}. Used to exercise the text-format
+     * partial-harvest safe-miss without standing up a CSV/NDJSON reader; the source-type name stays
+     * "parquet" only because {@link #externalSource} hard-codes it — the support is what the rule reads.
+     */
+    private static FormatReaderRegistry buildTextRegistry() {
+        FormatReaderRegistry registry = new FormatReaderRegistry(null);
+        AggregatePushdownSupport textSupport = new TextAggregatePushdownSupport();
+        registry.registerLazy("parquet", (settings, blockFactory) -> new StubFormatReader(textSupport), null, null);
+        return registry;
+    }
+
     private static LocalPhysicalOptimizerContext buildContext(FormatReaderRegistry registry) {
         return new LocalPhysicalOptimizerContext(null, null, null, null, null, new ExternalOptimizerContext(registry));
     }
@@ -694,6 +863,10 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
 
     private static PhysicalPlan applyRule(AggregateExec agg) {
         return new PushAggregatesToExternalSource().apply(agg, buildContext(buildParquetRegistry()));
+    }
+
+    private static PhysicalPlan applyRuleText(AggregateExec agg) {
+        return new PushAggregatesToExternalSource().apply(agg, buildContext(buildTextRegistry()));
     }
 
     /**

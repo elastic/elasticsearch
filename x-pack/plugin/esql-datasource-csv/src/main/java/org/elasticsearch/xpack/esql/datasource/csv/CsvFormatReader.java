@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.StreamReadConstraints;
+import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.dataformat.csv.CsvMapper;
 import com.fasterxml.jackson.dataformat.csv.CsvParser;
 import com.fasterxml.jackson.dataformat.csv.CsvSchema;
@@ -28,6 +29,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -48,6 +50,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsHarvester;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
@@ -64,6 +67,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -74,6 +78,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -1368,7 +1373,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             pinnedMtimeMillis,
             chunkMode,
             counters,
-            context.splitStartByte()
+            context.splitStartByte(),
+            chunkMode ? context.statsStripeSize() : -1L,
+            context.statsFileFinal(),
+            context.statsColumnScope()
         );
     }
 
@@ -1959,6 +1967,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private boolean naturallyExhausted = false;
         /** Lazily built once the schema and projection are known. {@code null} until the first batch resolves them. */
         private ColumnStatsAccumulator columnStats;
+        /**
+         * ALL-scope, non-stripe (whole-file) accumulator over the FULL file schema, fed from the raw parsed
+         * record (every file column, including unprojected). {@code null} unless scope is ALL on the
+         * whole-file path. Snapshotted at close alongside {@link #columnStats} — its superset wins per column.
+         */
+        private ColumnStatsAccumulator allFileColumnStats;
 
         /** Pinned at iterator open; closes the open-vs-close mtime-race window for the cache key. */
         private final long pinnedMtimeMillis;
@@ -1975,6 +1989,38 @@ public class CsvFormatReader implements SegmentableFormatReader {
          */
         private final long splitStartByte;
 
+        /** Canonical-stripe grid in bytes for per-stripe stats capture; {@code <= 0} disables it. */
+        private final long statsStripeSize;
+        /**
+         * How much per-stripe statistics this read harvests. {@link StripeColumnScope#NONE} harvests nothing;
+         * {@link StripeColumnScope#COUNT} the per-stripe row count only; {@link StripeColumnScope#PROJECTED}
+         * row count plus min/max/null for the projected columns; {@link StripeColumnScope#ALL} adds min/max/null
+         * for EVERY file column — harvested by {@link #harvestAllColumns} straight from the raw parsed record
+         * (the output page only carries the projected columns), so ALL's committed set is a strict superset of
+         * PROJECTED's. Row count is harvested in every mode except {@code NONE} — including a zero-projection
+         * {@code COUNT(*)} read.
+         */
+        private final StripeColumnScope statsColumnScope;
+        /** Whether this read reaches the file's true end — only then may its last stripe be terminal. */
+        private final boolean statsFileFinal;
+        /**
+         * Shared canonical-stripe harvester (byte-range cover model). Non-null only when stripe capture is
+         * active ({@code statsStripeSize > 0}); owns the per-stripe accumulators and the close-time emit loop.
+         */
+        private final StripeStatsHarvester stripeHarvester;
+        /** Set when per-stripe capture must safe-miss (row/page misalignment); suppresses emission. */
+        private boolean stripeCaptureDisabled = false;
+        /**
+         * Maps the Jackson bulk path's per-row char offset to a file-global byte offset without
+         * re-decoding. {@code null} on the per-record reader path (already byte-exact) and when stripe
+         * capture is off or the encoding is not UTF-8 (then stripe capture safe-misses).
+         */
+        private ByteOffsetTrackingReader bulkByteTracker;
+        /** The Jackson bulk mapping iterator, retained to read each row's start char offset. */
+        private MappingIterator<List<?>> bulkRows;
+        /** Last bulk-path char offset queried, to enforce the tracker's non-decreasing contract / detect anomalies. */
+        private long bulkLastCharOffset = 0L;
+
         CsvBatchIterator(
             BufferedReader reader,
             CsvLogicalRecordReader recordReader,
@@ -1989,7 +2035,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             long pinnedMtimeMillis,
             boolean chunkMode,
             CsvReaderCounters counters,
-            long splitStartByte
+            long splitStartByte,
+            long statsStripeSize,
+            boolean statsFileFinal,
+            StripeColumnScope statsColumnScope
         ) {
             this.reader = reader;
             this.recordReader = recordReader;
@@ -2012,6 +2061,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.chunkMode = chunkMode;
             this.counters = counters;
             this.splitStartByte = splitStartByte;
+            this.statsStripeSize = statsStripeSize;
+            this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
+            this.statsFileFinal = statsFileFinal;
+            this.stripeHarvester = statsStripeSize > 0 ? new StripeStatsHarvester(statsStripeSize, statsFileFinal) : null;
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
                 "CSV read from ["
@@ -2064,7 +2117,23 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         private void captureBlockStats(Page page) {
-            if (cacheableObject == null || columnCount == 0 || projectedAttrs == null) {
+            // NONE: harvest nothing. Otherwise we harvest at minimum the per-stripe row count — including for a
+            // zero-projection COUNT(*) read (columnCount == 0), the regression this scope gate fixes: the old
+            // `columnCount == 0` early-return killed all harvest, so a warm COUNT(*) re-scanned the whole file.
+            if (cacheableObject == null || projectedAttrs == null || statsColumnScope == StripeColumnScope.NONE) {
+                return;
+            }
+            // The projected-column harvest below feeds from the output page (the query's projected columns;
+            // zero blocks for COUNT(*)). ALL's UNPROJECTED file columns are harvested separately, straight
+            // from the raw parsed record, in {@link #harvestAllColumns} during conversion — there is no block
+            // here for a column the query never projected.
+            if (statsStripeSize > 0 && rowStartBytes != null && stripeCaptureDisabled == false) {
+                accumulateStripes(page);
+                return;
+            }
+            // Non-stripe whole-file path. COUNT scope harvests no per-column stats (the close hook still
+            // publishes rowsEmittedForCache); PROJECTED/ALL harvest the projected columns.
+            if (statsColumnScope.harvestsColumns() == false || columnCount == 0) {
                 return;
             }
             if (columnStats == null) {
@@ -2073,6 +2142,96 @@ public class CsvFormatReader implements SegmentableFormatReader {
             for (int i = 0; i < columnCount; i++) {
                 columnStats.acceptBlockAt(i, page.getBlock(i));
             }
+        }
+
+        /**
+         * Per-stripe accumulation: attribute each row in {@code page} to its canonical stripe by its own
+         * file-global byte start ({@link #rowStartBytes}), summing rows + per-column min/max/null per stripe.
+         * A page that stays within one stripe (the common case) is folded whole with no per-position
+         * filtering. If the page's positions don't line up with the captured offsets, capture safe-misses
+         * for the whole file rather than risk misattribution. Byte ranges / cover anchors are NOT tracked
+         * here — they are derived from the chunk's byte geometry in {@link #emitPerStripe}.
+         */
+        private void accumulateStripes(Page page) {
+            int n = page.getPositionCount();
+            if (rowStartBytes.length != n) {
+                stripeCaptureDisabled = true; // alignment lost — safe miss
+                return;
+            }
+            int i = 0;
+            while (i < n) {
+                long ordinal = Math.floorDiv(rowStartBytes[i], statsStripeSize);
+                int j = i + 1;
+                while (j < n && Math.floorDiv(rowStartBytes[j], statsStripeSize) == ordinal) {
+                    j++;
+                }
+                StripeStatsHarvester.StripeAccum acc = stripeHarvester.getOrCreate(ordinal);
+                // COUNT scope harvests rows only — never builds a column accumulator. PROJECTED/ALL build one
+                // for the projected columns when there are any (a zero-projection COUNT(*) read has none, so the
+                // accumulator stays null and only acc.rows advances). ALL's UNPROJECTED file columns are
+                // accumulated separately in harvestAllColumns (acc.allCols), fed from the raw record.
+                if (acc.cols == null && statsColumnScope.harvestsColumns() && projectedAttrs.length > 0) {
+                    acc.cols = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
+                }
+                if (acc.cols != null) {
+                    if (i == 0 && j == n) {
+                        for (int b = 0; b < columnCount; b++) {
+                            acc.cols.acceptBlockAt(b, page.getBlock(b));
+                        }
+                    } else {
+                        int[] positions = new int[j - i];
+                        for (int p = 0; p < positions.length; p++) {
+                            positions[p] = i + p;
+                        }
+                        for (int b = 0; b < columnCount; b++) {
+                            var filtered = page.getBlock(b).filter(false, positions);
+                            try {
+                                acc.cols.acceptBlockAt(b, filtered);
+                            } finally {
+                                filtered.close();
+                            }
+                        }
+                    }
+                }
+                acc.rows += (j - i);
+                i = j;
+            }
+        }
+
+        /**
+         * Emits one stripe-addressed fragment for every stripe this chunk's byte range
+         * {@code [splitStartByte, chunkAbsEnd)} overlaps — including stripes with no records (a stripe whose
+         * grid line falls inside a record of the lower stripe, so its first record lands in the next chunk;
+         * this chunk still owns that stripe's left edge and must anchor it). Cover anchors are pure
+         * byte-range-overlap predicates: anchored-at-start iff this chunk covers the stripe's left grid line
+         * ({@code splitStartByte <= ordinal*B}), complete-on-the-right iff it covers the right grid line
+         * ({@code chunkAbsEnd >= (ordinal+1)*B}) or this is the file-final chunk. Record attribution is by
+         * each record's own start, so per-stripe row counts are scan-invariant; the coordinator folds
+         * fragments per ordinal by interval-cover, and misaligned sibling tilings collapse to one answer.
+         */
+        private void emitPerStripe() {
+            // chunkAbsEnd is in the same (decompressed) coordinate as the per-record offsets: compression is
+            // a delegating layer (DecompressingStorageObject), so byteCounter counts decompressed bytes. The
+            // byte-range cover loop itself lives in the shared StripeStatsHarvester.
+            long chunkBytes = byteCounter != null ? byteCounter.getBytesRead() : -1L;
+            stripeHarvester.emit(sourceLocation, splitStartByte, chunkBytes, pinnedMtimeMillis, computeConfigFingerprint(), schema);
+        }
+
+        /**
+         * Bulk Jackson iterator that also tracks per-record byte offsets via {@link ByteOffsetTrackingReader},
+         * so canonical-stripe attribution works on the fast path without dropping onto the per-record reader.
+         */
+        @SuppressWarnings({ "rawtypes", "unchecked" })
+        private Iterator<List<?>> newTrackedJacksonBulkIterator() throws IOException {
+            // The header row and any schema-inference sample were already consumed from `reader` through
+            // recordReader, so the tracker's first character sits at splitStartByte + recordReader.bytesRead(),
+            // not at splitStartByte. Basing it at splitStartByte would skew every first-split row offset by the
+            // header's byte length — and asymmetrically, since non-first splits skip no header — so the same
+            // file read with different chunkings would attribute boundary records to different stripes and the
+            // sibling tilings would fold to disagreeing per-stripe counts (a silently wrong cached aggregate).
+            bulkByteTracker = new ByteOffsetTrackingReader(reader, splitStartByte + recordReader.bytesRead());
+            bulkRows = sharedCsvMapper.readerFor(List.class).with(newCsvSchema()).readValues(bulkByteTracker);
+            return (Iterator) bulkRows;
         }
 
         @Override
@@ -2084,42 +2243,72 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     prefetchedRowsBytes = 0;
                     prefetchedRows = null;
                 }
-                if (modeOrdinal != ErrorPolicy.Mode.FAIL_FAST.ordinal() && errorCount > 0) {
-                    logger.info(
-                        "CSV parsing completed with [{}] errors out of [{}] rows (policy: {})",
-                        errorCount,
-                        totalRowCount,
-                        errorPolicy.mode()
-                    );
-                }
-                // The captured row count is accurate as long as no rows were DROPPED. NULL_FIELD
-                // null-fills a malformed field but preserves the row, so rowsEmittedForCache still
-                // matches the file's true row count even though errorCount > 0 — that read is safe to
-                // cache. SKIP_ROW drops rows (rowsSkipped > 0), making the count policy-dependent:
-                // suppress the whole-file write, and poison parallel chunks so the coordinator
-                // discards the file rather than committing an under-counted sum. (FAIL_FAST aborts
-                // before EOF, so naturallyExhausted already gates it out.)
-                if (cacheableObject != null && naturallyExhausted && pinnedMtimeMillis >= 0 && schema != null) {
-                    if (rowsSkipped == 0) {
-                        Map<String, ExternalStats.ColumnStats> cols = columnStats == null ? Map.of() : columnStats.snapshot();
-                        OptionalLong bytesRead = byteCounter == null ? OptionalLong.empty() : OptionalLong.of(byteCounter.getBytesRead());
-                        String fingerprint = computeConfigFingerprint();
-                        ExternalStats.Stats statsRecord = new ExternalStats.Stats(rowsEmittedForCache, bytesRead, cols);
-                        // Whole-file publishes carry no partial marker; per-chunk publishes carry one, and
-                        // the ParallelParsingCoordinator publishes a finalize marker at clean whole-file
-                        // completion so the coordinator's reconciler only commits the merge then.
-                        publishToCaptureSink(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord, schema, sizeInBytesFromLength());
-                    } else if (chunkMode) {
-                        // rowsSkipped > 0 here: a parallel chunk dropped rows mid-scan, so its partial
-                        // would under-count. Poison the file — the reconciler discards every contribution.
-                        Map<String, Object> poison = new HashMap<>();
-                        poison.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
-                        poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
-                        ExternalStatsCapture.record(sourceLocation, poison);
+                // Close the reader/stream even if a stats publish throws — the publish is best-effort
+                // caching, the close is not.
+                try {
+                    if (modeOrdinal != ErrorPolicy.Mode.FAIL_FAST.ordinal() && errorCount > 0) {
+                        logger.info(
+                            "CSV parsing completed with [{}] errors out of [{}] rows (policy: {})",
+                            errorCount,
+                            totalRowCount,
+                            errorPolicy.mode()
+                        );
                     }
+                    // The captured row count is accurate as long as no rows were DROPPED. NULL_FIELD
+                    // null-fills a malformed field but preserves the row, so rowsEmittedForCache still
+                    // matches the file's true row count even though errorCount > 0 — that read is safe to
+                    // cache. SKIP_ROW drops rows (rowsSkipped > 0), making the count policy-dependent:
+                    // suppress the whole-file write, and poison parallel chunks so the coordinator
+                    // discards the file rather than committing an under-counted sum. (FAIL_FAST aborts
+                    // before EOF, so naturallyExhausted already gates it out.)
+                    // NONE scope suppresses all stats publishing (whole-file and per-stripe), so a warm aggregate
+                    // over this read always re-scans.
+                    if (cacheableObject != null
+                        && naturallyExhausted
+                        && pinnedMtimeMillis >= 0
+                        && schema != null
+                        && statsColumnScope != StripeColumnScope.NONE) {
+                        if (rowsSkipped == 0) {
+                            if (statsStripeSize > 0 && stripeCaptureDisabled == false && stripeHarvester.isEmpty() == false) {
+                                // Chunk-parallel read with per-stripe stats: emit one stripe-addressed fragment per
+                                // stripe this chunk touched; the coordinator interval-covers and folds them.
+                                emitPerStripe();
+                            } else {
+                                // PROJECTED/COUNT commit columnStats (projected / none). ALL additionally commits
+                                // allFileColumnStats (every file column) → strict superset of PROJECTED's set.
+                                Map<String, ExternalStats.ColumnStats> cols = StripeStatsHarvester.mergeColumnStats(
+                                    columnStats,
+                                    allFileColumnStats
+                                );
+                                OptionalLong bytesRead = byteCounter == null
+                                    ? OptionalLong.empty()
+                                    : OptionalLong.of(byteCounter.getBytesRead());
+                                String fingerprint = computeConfigFingerprint();
+                                ExternalStats.Stats statsRecord = new ExternalStats.Stats(rowsEmittedForCache, bytesRead, cols);
+                                // Whole-file publishes carry no partial marker; per-chunk publishes carry one, and
+                                // the ParallelParsingCoordinator publishes a finalize marker at clean whole-file
+                                // completion so the coordinator's reconciler only commits the merge then.
+                                publishToCaptureSink(
+                                    sourceLocation,
+                                    pinnedMtimeMillis,
+                                    fingerprint,
+                                    statsRecord,
+                                    schema,
+                                    sizeInBytesFromLength()
+                                );
+                            }
+                        } else if (chunkMode) {
+                            // rowsSkipped > 0 here: a parallel chunk dropped rows mid-scan, so its partial
+                            // would under-count. Poison the file — the reconciler discards every contribution.
+                            Map<String, Object> poison = new HashMap<>();
+                            poison.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
+                            poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
+                            ExternalStatsCapture.record(sourceLocation, poison);
+                        }
+                    }
+                } finally {
+                    IOUtils.close(reader, stream);
                 }
-                reader.close();
-                stream.close();
             }
         }
 
@@ -2200,13 +2389,49 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // (splitStartByte + bytesRead - lastRecordBytes) stays exact. The Jackson bulk path
                     // bypasses recordReader and would pin every data row at the header boundary. read()
                     // suppresses the byte-level cap wrap on this path to match (see useRecordReaderPath).
-                    csvIterator = rowPositionSlot >= 0 ? newCsvIterator(recordReader) : newJacksonBulkIterator(reader);
+                    if (rowPositionSlot >= 0) {
+                        csvIterator = newCsvIterator(recordReader);
+                    } else if (statsStripeSize > 0 && StandardCharsets.UTF_8.equals(options.encoding())) {
+                        // Stripe capture on the bulk path: wrap the reader so each row's char offset maps to a
+                        // file-global byte offset (record-canonical stripe attribution) without leaving the fast
+                        // Jackson path or re-decoding. Non-UTF-8 falls through and stripe capture safe-misses.
+                        csvIterator = newTrackedJacksonBulkIterator();
+                    } else {
+                        // Plain Jackson bulk path: neither a byte tracker (set only on the UTF-8 stripe path
+                        // above) nor the record-reader path (rowPositionSlot >= 0) is active, so recordReader is
+                        // never advanced. Any per-row offset would be derived from its frozen byte accounting and
+                        // collapse every row onto one stripe — a wrong warm count/min/max. If stripe capture would
+                        // otherwise be attempted here (e.g. ALL scope on a non-UTF-8 input), disable it so the read
+                        // safe-misses and a warm aggregate re-scans rather than serving fabricated per-stripe stats.
+                        if (statsStripeSize > 0) {
+                            stripeCaptureDisabled = true;
+                        }
+                        csvIterator = newJacksonBulkIterator(reader);
+                    }
                 }
             }
-            boolean useFusedBracketPath = csvIterator == null && bracketMultiValues && options.delimiter() == ',';
-            // When `_rowPosition` is not projected, every per-row offset capture is dead work — skip
-            // the parallel List<Long> + long[] allocations and the autoboxing for the inner loop.
-            final boolean trackOffsets = rowPositionSlot >= 0;
+            boolean bracketAware = csvIterator == null && bracketMultiValues && options.delimiter() == ',';
+            // ALL scope must observe every file column, including unprojected ones; the fused bracket
+            // conversion ({@link #splitAndConvertProjected}) walks a line once and materialises ONLY the
+            // projected fields, so it cannot feed the all-column accumulator. Route ALL through the
+            // full-split {@code readRowsBracketAware} path instead (one String[] of every field per row) —
+            // the opt-in cost of the broad mode. Narrower scopes keep the fused fast path.
+            boolean useFusedBracketPath = bracketAware && statsColumnScope != StripeColumnScope.ALL;
+            // Capture per-row offsets when _rowPosition is projected (record-reader path), when the bulk
+            // path is tracking byte offsets for stripe capture, or when ALL scope needs each row's stripe
+            // ordinal to attribute its all-column harvest; otherwise it is dead work.
+            // The ALL-scope disjunct is also gated on stripeCaptureDisabled == false: on the plain Jackson
+            // bulk path (no byte tracker, no record-reader) recordReader is never advanced, so the only
+            // offset we could compute (splitStartByte + recordReader.bytesRead() - lastRecordBytes) is
+            // frozen and would collapse every row onto one stripe. That path already sets
+            // stripeCaptureDisabled = true during schema setup; mirroring the flag here keeps the offset
+            // capture (and the downstream harvest) from doing fabricated work once capture is off.
+            final boolean trackOffsets = rowPositionSlot >= 0
+                || bulkByteTracker != null
+                || (statsColumnScope == StripeColumnScope.ALL
+                    && statsStripeSize > 0
+                    && cacheableObject != null
+                    && stripeCaptureDisabled == false);
             while (true) {
                 if (useFusedBracketPath && prefetchedRows == null && columnCount > 0) {
                     List<String> lines = new ArrayList<>();
@@ -2236,7 +2461,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         blockFactory.breaker().addWithoutBreaking(-prefetchedRowsBytes);
                         prefetchedRowsBytes = 0;
                     }
-                    if (useFusedBracketPath) {
+                    if (bracketAware) {
                         readRowsBracketAware(rows, rowStartBytesList, batchSize - rows.size());
                     } else {
                         while (rows.size() < batchSize) {
@@ -2244,13 +2469,29 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                 if (csvIterator.hasNext() == false) {
                                     break;
                                 }
+                                // Bulk path: read the row's start byte from the parser's char offset BEFORE
+                                // next() advances it. Record-reader path: capture AFTER next(), when bytesRead /
+                                // lastRecordBytes reflect the just-returned record (cumulative across any
+                                // blank/comment lines this next() consumed on the way to it).
+                                long rowStartByte = 0L;
+                                if (bulkByteTracker != null) {
+                                    // The parser's current-token char offset is the row's first char (its
+                                    // location reports char offsets for CSV; byte offsets are always -1). If it
+                                    // is unavailable (-1) or non-monotonic, we cannot map this record to a byte
+                                    // offset, so disable stripe capture for the file — a safe miss; the query
+                                    // still runs and a warm query simply re-scans rather than serving stale stats.
+                                    long charOff = bulkRows.getParser().currentTokenLocation().getCharOffset();
+                                    if (charOff < 0 || charOff < bulkLastCharOffset) {
+                                        stripeCaptureDisabled = true;
+                                    } else {
+                                        bulkLastCharOffset = charOff;
+                                        rowStartByte = bulkByteTracker.byteOffsetAtChar(charOff);
+                                    }
+                                }
                                 List<?> rowList = csvIterator.next();
-                                // Anchored to the just-returned record; recordReader.bytesRead is
-                                // cumulative across any skipped blank/comment lines this next()
-                                // call consumed on the way to the returned row.
-                                long rowStartByte = trackOffsets
-                                    ? splitStartByte + recordReader.bytesRead() - recordReader.lastRecordBytes()
-                                    : 0L;
+                                if (bulkByteTracker == null && trackOffsets) {
+                                    rowStartByte = splitStartByte + recordReader.bytesRead() - recordReader.lastRecordBytes();
+                                }
                                 String[] row = new String[rowList.size()];
                                 for (int i = 0; i < rowList.size(); i++) {
                                     Object val = rowList.get(i);
@@ -2491,7 +2732,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // regular path uses so structural errors are routed through the policy consistently.
             if (columnCount == 0) {
                 int acceptedRows = 0;
-                for (String[] row : rows) {
+                for (int rowIdx = 0; rowIdx < rows.size(); rowIdx++) {
+                    String[] row = rows.get(rowIdx);
                     totalRowCount++;
                     if (row.length > schemaSize) {
                         onRowError(
@@ -2502,6 +2744,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         );
                         continue;
                     }
+                    // ALL scope: COUNT(*) projects zero columns, so the page carries no blocks — harvest
+                    // every file column's min/max/null straight from the raw record here. rowIdx indexes
+                    // rowStartBytes (built parallel to rows) so the stripe attribution is exact.
+                    harvestAllColumns(row, rowIdx);
                     acceptedRows++;
                 }
                 return acceptedRows == 0 ? null : new Page(acceptedRows);
@@ -2550,6 +2796,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         for (int i = 0; i < columnCount; i++) {
                             builders[i].append().accept(rowBuffer[i]);
                         }
+                        // ALL scope: harvest every file column (incl. unprojected) from the raw record.
+                        harvestAllColumns(row, rowIdx);
                         acceptedRows++;
                     }
                 }
@@ -2596,6 +2844,54 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
             }
             return true;
+        }
+
+        /**
+         * ALL-scope side-pass: harvest min/max/null for EVERY file column from the raw parsed record,
+         * independently of projection. The output page (built by the projected paths) only carries the
+         * query's columns, so this reads the raw {@code String[]} — which always holds every field — and
+         * type-converts each field against the FULL file schema, feeding the per-column accumulator. On the
+         * stripe path the row is attributed to its own stripe (by {@link #rowStartBytes}); off the stripe
+         * path it folds into the single whole-file accumulator. A convert failure for an unprojected column
+         * contributes a null (never poisons the row or the projected error policy — {@link #lastFieldError}
+         * is saved and restored). No-op unless scope is ALL and stats capture is live.
+         */
+        private void harvestAllColumns(String[] row, int rowIdx) {
+            if (statsColumnScope != StripeColumnScope.ALL || cacheableObject == null || schema == null) {
+                return;
+            }
+            ColumnStatsAccumulator acc;
+            if (statsStripeSize > 0) {
+                if (rowStartBytes == null || stripeCaptureDisabled || rowIdx >= rowStartBytes.length) {
+                    return; // stripe attribution unavailable -> safe miss (a warm aggregate re-scans)
+                }
+                long ordinal = Math.floorDiv(rowStartBytes[rowIdx], statsStripeSize);
+                StripeStatsHarvester.StripeAccum stripe = stripeHarvester.getOrCreate(ordinal);
+                if (stripe.allCols == null) {
+                    stripe.allCols = ColumnStatsAccumulator.forSchema(schema);
+                }
+                acc = stripe.allCols;
+            } else {
+                if (allFileColumnStats == null) {
+                    allFileColumnStats = ColumnStatsAccumulator.forSchema(schema);
+                }
+                acc = allFileColumnStats;
+            }
+            if (acc.isEmpty()) {
+                return;
+            }
+            int n = schemaColumnCount;
+            String savedError = lastFieldError;
+            for (int si = 0; si < n; si++) {
+                String value = si < row.length ? row[si] : null;
+                Object converted = tryConvertValue(value, schema.get(si).dataType());
+                if (lastFieldError != null) {
+                    lastFieldError = null; // an unparseable file column contributes a null; never poisons the harvest
+                    converted = null;
+                }
+                acc.acceptValueAt(si, converted);
+            }
+            lastFieldError = savedError;
         }
 
         /**

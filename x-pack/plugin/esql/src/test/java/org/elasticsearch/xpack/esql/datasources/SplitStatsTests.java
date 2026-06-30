@@ -56,6 +56,85 @@ public class SplitStatsTests extends ESTestCase {
         assertEquals(12000, stats.sizeBytes(1));
     }
 
+    public void testValueCountServesCountColForMultivaluedColumn() throws IOException {
+        // A multivalued column: 100 rows, 10 null, but 270 non-null VALUES (the other 90 rows average 3 each).
+        SplitStats.Builder builder = new SplitStats.Builder();
+        builder.rowCount(100);
+        int tags = builder.addColumn("tags");
+        builder.nullCount(tags, 10);
+        builder.valueCount(tags, 270);
+        SplitStats stats = builder.build();
+
+        // COUNT(tags) must be the VALUE count (270), not rowCount - nullCount (90, the non-null ROW count).
+        assertEquals(270L, stats.columnValueCount("tags"));
+        assertEquals(270L, stats.valueCount(0));
+        assertEquals(90L, stats.rowCount() - stats.columnNullCount("tags"));
+
+        // wire round-trip preserves valueCount
+        BytesStreamOutput out = new BytesStreamOutput();
+        stats.writeTo(out);
+        SplitStats back = new SplitStats(out.bytes().streamInput());
+        assertEquals(270L, back.columnValueCount("tags"));
+
+        // flat-map carries it under the canonical key
+        assertEquals(270L, ((Number) stats.toMap().get(SourceStatisticsSerializer.columnValueCountKey("tags"))).longValue());
+    }
+
+    public void testColumnValueCountIsMinusOneWhenNotHarvested() {
+        // Footer formats (parquet) don't harvest a value count; columnValueCount returns -1 so COUNT(col)
+        // falls back to rowCount - nullCount. A column added without valueCount(...) must report -1.
+        SplitStats.Builder builder = new SplitStats.Builder();
+        builder.rowCount(10);
+        int age = builder.addColumn("age");
+        builder.nullCount(age, 2);
+        SplitStats stats = builder.build();
+        assertEquals(-1L, stats.columnValueCount("age"));
+        assertEquals(-1L, stats.columnValueCount("does_not_exist"));
+    }
+
+    public void testMergedMinMaxTreatNaNAsUnmergeable() {
+        // A NaN MERGED with a real value is unmergeable -> null (poison) -> the column safe-misses and a
+        // full scan returns the correct NaN. Comparable.compareTo would otherwise order NaN as the largest
+        // double and silently drop it from a MIN.
+        assertNull(SplitStats.mergedMin(Double.NaN, 5.0));
+        assertNull(SplitStats.mergedMin(5.0, Double.NaN));
+        assertNull(SplitStats.mergedMax(Double.NaN, 5.0));
+        assertNull(SplitStats.mergedMax(5.0, Double.NaN));
+        // Non-NaN doubles still merge normally.
+        assertEquals(1.0, SplitStats.mergedMin(1.0, 2.0));
+        assertEquals(2.0, SplitStats.mergedMax(1.0, 2.0));
+        // A lone NaN contribution (other side null) is the column's value and is served as NaN — the poison
+        // only fires when NaN actually meets another value in a fold.
+        assertEquals(Double.NaN, SplitStats.mergedMin(Double.NaN, null));
+        assertEquals(Double.NaN, SplitStats.mergedMax(null, Double.NaN));
+    }
+
+    public void testValueCountWireGatedByTransportVersion() throws IOException {
+        // valueCount is gated on a transport version. A peer at an older version (that still serializes
+        // SplitStats, e.g. ESQL_SPLIT_STATS_COMPACT) must not see the field; it defaults to -1 so COUNT(col)
+        // falls back to rowCount - nullCount. Verifies the BWC gate, not just the current-version round-trip.
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
+        int tags = b.addColumn("tags");
+        b.nullCount(tags, 10);
+        b.valueCount(tags, 270);
+        SplitStats stats = b.build();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(FileSplit.ESQL_SPLIT_STATS_COMPACT); // predates the valueCount gate
+        stats.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(FileSplit.ESQL_SPLIT_STATS_COMPACT);
+        SplitStats back = new SplitStats(in);
+        assertEquals("valueCount absent on the wire before its gate -> -1 (COUNT falls back)", -1L, back.columnValueCount("tags"));
+        // nullCount (an older field) still round-trips at the older version.
+        assertEquals(10L, back.columnNullCount("tags"));
+
+        // At the current version it DOES round-trip (sanity vs the gated case above).
+        BytesStreamOutput cur = new BytesStreamOutput();
+        stats.writeTo(cur);
+        assertEquals(270L, new SplitStats(cur.bytes().streamInput()).columnValueCount("tags"));
+    }
+
     public void testBulkAddColumn() {
         SplitStats.Builder builder = new SplitStats.Builder().rowCount(500).sizeInBytes(10000);
         int ord = builder.addColumn("score", 5L, 0.0, 100.0, 2000);

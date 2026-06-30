@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -198,6 +199,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final int parsingParallelism;
     private final int maxConcurrentOpenSegments;
     private final int maxRecordBytes;
+    /** Canonical-stripe grid for per-stripe stats accounting; {@code <= 0} disables. Accounting overlay only. */
+    private final long statsStripeSize;
+    /** How much per-stripe statistics a fresh scan harvests (row count only / + projected / + all / nothing). */
+    private final StripeColumnScope statsColumnScope;
     private final List<Expression> pushedExpressions;
     private final FilterPushdownSupport pushdownSupport;
     private final Closeable onClose;
@@ -282,6 +287,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int parsingParallelism,
         int maxConcurrentOpenSegments,
         int maxRecordBytes,
+        long statsStripeSize,
+        StripeColumnScope statsColumnScope,
         @Nullable List<Expression> pushedExpressions,
         @Nullable FilterPushdownSupport pushdownSupport,
         @Nullable Closeable onClose,
@@ -375,6 +382,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.sliceQueue = sliceQueue;
         this.errorPolicy = errorPolicy != null ? errorPolicy : formatReader.defaultErrorPolicy();
         this.parsingParallelism = Math.max(1, parsingParallelism);
+        this.statsStripeSize = statsStripeSize;
+        this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
         this.maxConcurrentOpenSegments = Math.max(1, maxConcurrentOpenSegments);
         this.maxRecordBytes = maxRecordBytes;
         this.pushedExpressions = pushedExpressions != null ? pushedExpressions : List.of();
@@ -459,6 +468,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // is the test/internal fallback, sourced from the single source of truth.
         private int maxConcurrentOpenSegments = SourceOperatorContext.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS;
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
+        private long statsStripeSize = -1L;
+        private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
         private List<Expression> pushedExpressions;
         private FilterPushdownSupport pushdownSupport;
         private Closeable onClose;
@@ -571,6 +582,27 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        /**
+         * Canonical-stripe grid for per-stripe stats accounting, in decompressed-stream bytes
+         * ({@code <= 0} disables — the default). See {@code ExternalSourceCacheSettings#STRIPE_SIZE}
+         * and {@code StreamingParallelParsingCoordinator}; stats-accounting overlay only, never a
+         * partitioning or scheduling input.
+         */
+        public Builder statsStripeSize(long statsStripeSize) {
+            this.statsStripeSize = statsStripeSize;
+            return this;
+        }
+
+        /**
+         * How much per-stripe statistics a fresh scan harvests (see
+         * {@code ExternalSourceCacheSettings#STRIPE_COLUMNS} and {@link StripeColumnScope}). {@code null}
+         * restores the {@link StripeColumnScope#PROJECTED} default. Orthogonal to {@link #statsStripeSize}.
+         */
+        public Builder statsColumnScope(@Nullable StripeColumnScope statsColumnScope) {
+            this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
+            return this;
+        }
+
         public Builder pushedExpressions(@Nullable List<Expression> pushedExpressions) {
             this.pushedExpressions = pushedExpressions;
             return this;
@@ -637,6 +669,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 parsingParallelism,
                 maxConcurrentOpenSegments,
                 maxRecordBytes,
+                statsStripeSize,
+                statsColumnScope,
                 pushedExpressions,
                 pushdownSupport,
                 onClose,
@@ -1688,6 +1722,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     withoutRowPosition.remove(compressedRowPosSlot);
                     perFileCols = withoutRowPosition;
                 }
+                // A record-aligned macro-split that owns the file's trailing bytes is file-final; a genuine
+                // whole-file read (offset 0, not record-aligned, last split) is also file-final. Either way the
+                // last split's trailing segment may close its last stripe to EOF.
+                boolean splitIsFileFinal = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY))
+                    || (recordAlignedMacro == false && firstSplit && fileSplit.offset() == 0);
                 pages = openWithParallelism(
                     fileReader,
                     obj,
@@ -1695,6 +1734,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     errorPolicy,
                     recordAlignedMacro,
                     firstSplit,
+                    splitIsFileFinal,
                     perFileReadSchema,
                     fileSplit.offset(),
                     state.buffer.capturedSourceMetadataSink(),
@@ -1713,6 +1753,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .readSchema(perFileReadSchema)
                         .splitStartByte(fileSplit.offset())
                         .maxRecordBytes(maxRecordBytes)
+                        // Per-stripe stats addressing for record-aligned macro-splits (a large file read at
+                        // parsing_parallelism<=1 is still cut into newline-aligned macro-splits, each a
+                        // recordAligned chunk). The readers gate stripe harvest on chunkMode == recordAligned,
+                        // so a genuine whole-file read (recordAligned=false) ignores statsStripeSize and keeps
+                        // the authoritative whole-file emit; a macro-split harvests per-stripe and the
+                        // coordinator's byte-range cover folds the chunks. statsBaseOffset is the split's
+                        // file-global offset; statsFileFinal marks the last split (the only one that may close
+                        // its trailing stripe to EOF).
+                        .stats(fileSplit.offset(), statsStripeSize, splitIsFileFinal)
+                        .statsColumnScope(statsColumnScope)
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
@@ -1878,6 +1928,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 errorPolicy,
                 false,
                 true,
+                // Whole-file read of one file in a multi-file list: the file is its own final split, so its
+                // trailing segment reaches EOF and may close the last stripe.
+                true,
                 perFileReadSchema,
                 0L,
                 state.buffer.capturedSourceMetadataSink(),
@@ -1892,6 +1945,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .errorPolicy(errorPolicy)
                     .readSchema(perFileReadSchema)
                     .maxRecordBytes(maxRecordBytes)
+                    .statsColumnScope(statsColumnScope)
                     .build();
                 pages = fileReader.read(obj, ctx);
             }
@@ -1944,6 +1998,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .rowLimit(rowLimit)
             .errorPolicy(errorPolicy)
             .maxRecordBytes(maxRecordBytes)
+            .statsColumnScope(statsColumnScope)
             .build();
         FormatReader reader = readerWithDynamicThreshold(formatReader);
         reader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
@@ -1980,6 +2035,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 errorPolicy,
                 false,
                 true,
+                // Single whole-file read: the file is its own final split, so its trailing segment reaches EOF.
+                true,
                 null,
                 0L,
                 buffer.capturedSourceMetadataSink(),
@@ -1992,6 +2049,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .rowLimit(rowLimit)
                     .errorPolicy(errorPolicy)
                     .maxRecordBytes(maxRecordBytes)
+                    .statsColumnScope(statsColumnScope)
                     .build();
                 pages = reader.read(storageObject, ctx);
             }
@@ -2224,6 +2282,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ErrorPolicy policy,
         boolean recordAlignedMacroSplit,
         boolean splitIncludesFileLeader,
+        boolean splitIsFileFinal,
         @Nullable List<Attribute> perFileReadSchema,
         long baseFileOffset,
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
@@ -2253,7 +2312,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     baseFileOffset,
                     maxConcurrentOpenSegments,
                     captureSink,
-                    maxRecordBytes
+                    maxRecordBytes,
+                    statsStripeSize,
+                    statsColumnScope,
+                    splitIsFileFinal
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {
@@ -2293,6 +2355,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         baseFileOffset,
                         maxRecordBytes,
                         captureSink,
+                        statsStripeSize,
+                        statsColumnScope,
                         partialResultsWarningSink
                     );
                 } catch (Exception e) {

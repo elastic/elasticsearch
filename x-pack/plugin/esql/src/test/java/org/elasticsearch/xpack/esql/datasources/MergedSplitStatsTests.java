@@ -111,6 +111,26 @@ public class MergedSplitStatsTests extends ESTestCase {
         assertEquals(90, merged.columnMax("bonus"));
     }
 
+    public void testColumnMinMaxUsesChildValueWhenNullCountUnknownButMinMaxPresent() {
+        // Regression for the multi-FILE warm MIN/MAX short-circuit: a per-file SplitStats can legitimately
+        // carry a known min/max for a column while its null_count is unknown (-1). This happens when the
+        // file's own multi-stripe fold poison-dropped the null_count (a stripe that presented the column
+        // without a null_count value) but retained the min/max — SourceStatisticsSerializer.mergeStatistics
+        // drops only the null_count entry, never the min/max. Such a child contributes a valid extremum
+        // candidate: the min stat is the minimum of the column's non-null values regardless of how many
+        // nulls there are. Poisoning the whole dataset min/max here is what made warm MIN/MAX full-scan a
+        // multi-file glob while COUNT(*) (which never reads null_count for COUNT(*)) short-circuited.
+        SplitStats a = splitStatsRowCountWithColumn(100, "EventDate", 0L, 10, 90, 400);
+        // B: column present with a real min/max but null_count unknown (-1).
+        SplitStats.Builder bb = new SplitStats.Builder().rowCount(50);
+        bb.addColumn("EventDate", -1L, 5, 95, 200);
+        SplitStats b = bb.build();
+        SplitStats c = splitStatsRowCountWithColumn(100, "EventDate", 0L, 20, 80, 400);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b, c));
+        assertEquals("min must merge B's known value (5) despite B's unknown null_count", 5, merged.columnMin("EventDate"));
+        assertEquals("max must merge B's known value (95) despite B's unknown null_count", 95, merged.columnMax("EventDate"));
+    }
+
     public void testColumnMinPoisonedByPresentButStatsLessChild() {
         // Child A: has bonus with full stats. Child B: column physically present (column added)
         // but null count is unknown (-1). Defensive: poison rather than fabricate.

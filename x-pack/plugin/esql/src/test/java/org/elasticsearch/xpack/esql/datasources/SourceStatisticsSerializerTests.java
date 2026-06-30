@@ -189,6 +189,62 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertNull("once poisoned, max must stay cleared", result.get(SourceStatisticsSerializer.columnMaxKey("val")));
     }
 
+    /**
+     * A poisoned MIN/MAX must taint the WHOLE column, not just drop the min/max keys, so a later fold
+     * level cannot resurrect a finite extremum from a sibling. POISON is encoded as key removal, which
+     * is indistinguishable from "column absent here" at the next fold; left as-is, the column stays
+     * "observed" via its surviving null_count/value_count (which the real harvest always emits), so a
+     * sibling stripe's finite min refills the key and is served instead of the intended safe-miss. This
+     * is the two-level fold (stripe fragments -&gt; per-stripe, then per-stripe -&gt; whole-file): a NaN in
+     * one fragment of a stripe must not let another stripe's finite value become the served file MIN.
+     */
+    public void testMergeStatisticsPoisonedExtremumTaintsWholeColumnAcrossFoldLevels() {
+        // Level 1 (text path, implicitNullsForAbsentColumn=false): two fragments of ONE stripe; the NaN
+        // fragment poisons the finite fragment's MIN/MAX. null_count/value_count are present, as the real
+        // harvest always emits them.
+        Map<String, Object> finiteFragment = new HashMap<>();
+        finiteFragment.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+        finiteFragment.put(SourceStatisticsSerializer.columnNullCountKey("v"), 0L);
+        finiteFragment.put(SourceStatisticsSerializer.columnValueCountKey("v"), 10L);
+        finiteFragment.put(SourceStatisticsSerializer.columnMinKey("v"), 5.0);
+        finiteFragment.put(SourceStatisticsSerializer.columnMaxKey("v"), 9.0);
+
+        Map<String, Object> nanFragment = new HashMap<>();
+        nanFragment.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+        nanFragment.put(SourceStatisticsSerializer.columnNullCountKey("v"), 0L);
+        nanFragment.put(SourceStatisticsSerializer.columnValueCountKey("v"), 10L);
+        nanFragment.put(SourceStatisticsSerializer.columnMinKey("v"), Double.NaN);
+        nanFragment.put(SourceStatisticsSerializer.columnMaxKey("v"), Double.NaN);
+
+        Map<String, Object> poisonedStripe = SourceStatisticsSerializer.mergeStatistics(List.of(finiteFragment, nanFragment), false);
+        assertNotNull(poisonedStripe);
+        assertEquals(20L, poisonedStripe.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertNull("poisoned min must be cleared", poisonedStripe.get(SourceStatisticsSerializer.columnMinKey("v")));
+        assertNull("poisoned max must be cleared", poisonedStripe.get(SourceStatisticsSerializer.columnMaxKey("v")));
+        // The whole column must be gone -- otherwise it reads as "observed" and resurrects at the next level.
+        assertNull("poisoned column null_count must be dropped", poisonedStripe.get(SourceStatisticsSerializer.columnNullCountKey("v")));
+        assertNull("poisoned column value_count must be dropped", poisonedStripe.get(SourceStatisticsSerializer.columnValueCountKey("v")));
+
+        // Level 2: fold the poisoned stripe with a finite sibling stripe; MIN/MAX must NOT resurrect.
+        Map<String, Object> finiteStripe = new HashMap<>();
+        finiteStripe.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+        finiteStripe.put(SourceStatisticsSerializer.columnNullCountKey("v"), 0L);
+        finiteStripe.put(SourceStatisticsSerializer.columnValueCountKey("v"), 10L);
+        finiteStripe.put(SourceStatisticsSerializer.columnMinKey("v"), 5.0);
+        finiteStripe.put(SourceStatisticsSerializer.columnMaxKey("v"), 9.0);
+
+        Map<String, Object> wholeFile = SourceStatisticsSerializer.mergeStatistics(List.of(poisonedStripe, finiteStripe), false);
+        assertNotNull(wholeFile);
+        assertNull(
+            "a finite sibling stripe must not resurrect a NaN-poisoned MIN",
+            wholeFile.get(SourceStatisticsSerializer.columnMinKey("v"))
+        );
+        assertNull(
+            "a finite sibling stripe must not resurrect a NaN-poisoned MAX",
+            wholeFile.get(SourceStatisticsSerializer.columnMaxKey("v"))
+        );
+    }
+
     public void testMergeStatisticsAddsImplicitNullsForAbsentColumns() {
         // File A: 100 rows, has bonus with 5 explicit nulls.
         Map<String, Object> a = new HashMap<>();
@@ -288,5 +344,78 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertEquals(300L, result.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
         assertEquals(13000L, result.get(SourceStatisticsSerializer.columnSizeBytesKey("age")));
         assertEquals(25000L, result.get(SourceStatisticsSerializer.columnSizeBytesKey("name")));
+    }
+
+    /**
+     * Reproduces the production double-merge of the warm multi-file path: each file's whole-file map is
+     * itself the result of {@code mergeStatistics} over that file's stripes, carrying the non-{@code _stats.columns.*}
+     * keying fields (mtime, fingerprint, per-stripe entry maps). The dataset-wide merge then folds the N
+     * per-file maps, and the optimizer reads the result through {@link SplitStats#of}. Asserts the column
+     * min/max survives both hops and the {@link SplitStats} round-trip across many files (the single-file
+     * fold ITs never exercise this).
+     */
+    public void testDoubleMergeManyFilesPreservesColumnMinMax() {
+        int fileCount = 25;
+        int stripesPerFile = 4;
+        long rowsPerStripe = 10_000L;
+        List<Map<String, Object>> perFileMaps = new ArrayList<>(fileCount);
+        long globalRow = 0;
+        for (int f = 0; f < fileCount; f++) {
+            List<Map<String, Object>> stripeMaps = new ArrayList<>(stripesPerFile);
+            for (int s = 0; s < stripesPerFile; s++) {
+                Map<String, Object> stripe = new HashMap<>();
+                stripe.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowsPerStripe);
+                stripe.put(SourceStatisticsSerializer.columnNullCountKey("EventDate"), 0L);
+                stripe.put(SourceStatisticsSerializer.columnMinKey("EventDate"), globalRow);
+                stripe.put(SourceStatisticsSerializer.columnMaxKey("EventDate"), globalRow + rowsPerStripe - 1);
+                globalRow += rowsPerStripe;
+                stripeMaps.add(stripe);
+            }
+            Map<String, Object> wholeFile = SourceStatisticsSerializer.mergeStatistics(stripeMaps);
+            assertNotNull(wholeFile);
+            // Re-attach the keying fields the real cache entry carries (these must NOT corrupt the merge).
+            wholeFile.put("_stats.file_mtime_millis", 1_700_000_000_000L + f);
+            wholeFile.put("_stats.config_fingerprint", "fp");
+            wholeFile.put("_stats.stripe.0", Map.of("inner", "ignored"));
+            perFileMaps.add(wholeFile);
+        }
+        long totalRows = globalRow;
+
+        Map<String, Object> dataset = SourceStatisticsSerializer.mergeStatistics(perFileMaps);
+        assertNotNull(dataset);
+        assertEquals(totalRows, ((Number) dataset.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        assertEquals(0L, dataset.get(SourceStatisticsSerializer.columnMinKey("EventDate")));
+        assertEquals(totalRows - 1, dataset.get(SourceStatisticsSerializer.columnMaxKey("EventDate")));
+
+        // The optimizer reads the merged dataset stats through SplitStats.of; min/max must survive that hop.
+        SplitStats stats = SplitStats.of(dataset);
+        assertNotNull(stats);
+        assertEquals(totalRows, stats.rowCount());
+        assertEquals(0L, stats.columnMin("EventDate"));
+        assertEquals(totalRows - 1, stats.columnMax("EventDate"));
+    }
+
+    public void testMergeStatisticsTextDropsColumnNotObservedInEveryFile() {
+        // Text partial-harvest (implicitNulls=false): file A harvested value's min/max, file B never
+        // observed value (e.g. a COUNT(*) scan). The dataset cannot serve a correct MIN(value), so
+        // value is dropped entirely -> the consumer safe-misses rather than serving A's subset min.
+        Map<String, Object> withValue = new HashMap<>();
+        withValue.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 20_000L);
+        withValue.put(SourceStatisticsSerializer.columnMinKey("value"), 1_000_000L);
+        withValue.put(SourceStatisticsSerializer.columnMaxKey("value"), 1_019_999L);
+
+        Map<String, Object> countOnly = new HashMap<>();
+        countOnly.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 20_000L);
+
+        Map<String, Object> text = SourceStatisticsSerializer.mergeStatistics(List.of(withValue, countOnly), false);
+        assertNotNull(text);
+        assertEquals("COUNT(*) stays warm", 40_000L, ((Number) text.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        assertFalse("value unobserved in some file -> dropped", text.containsKey(SourceStatisticsSerializer.columnMinKey("value")));
+        assertFalse(text.containsKey(SourceStatisticsSerializer.columnMaxKey("value")));
+
+        // Same inputs under footer semantics (implicitNulls=true) keep value's extremum: an absent
+        // column is all-null, which does not move the min/max.
+        Map<String, Object> footer = SourceStatisticsSerializer.mergeStatistics(List.of(withValue, countOnly), true);
+        assertEquals(1_000_000L, footer.get(SourceStatisticsSerializer.columnMinKey("value")));
     }
 }

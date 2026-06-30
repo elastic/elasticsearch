@@ -7,10 +7,13 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import com.carrotsearch.hppc.IntIntHashMap;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
@@ -226,23 +229,63 @@ public final class TimeSeriesBlockHash extends BlockHash {
     }
 
     private Block[] buildOrdinalKeys(IntVector selected) {
+        if (selected.getPositionCount() == finalHash.size()) {
+            return buildFullDictionaryOrdinalKeys(selected);
+        }
+        return buildPageLocalDictionaryOrdinalKeys(selected);
+    }
+
+    private Block[] buildFullDictionaryOrdinalKeys(IntVector selected) {
         final int positionCount = selected.getPositionCount();
         final Block[] blocks = new Block[2];
+        try (
+            var tsidOrds = blockFactory.newIntVectorFixedBuilder(positionCount);
+            var timestamps = blockFactory.newLongVectorFixedBuilder(positionCount)
+        ) {
+            for (int p = 0; p < positionCount; p++) {
+                final int groupId = selected.getInt(p);
+                tsidOrds.appendInt(p, (int) finalHash.getKey1(groupId));
+                timestamps.appendLong(p, finalHash.getKey2(groupId));
+            }
+            final BytesRefArray bytes = tsidHash.getBytesRefs();
+            var dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
+            bytes.incRef();
+            try {
+                blocks[0] = new OrdinalBytesRefVector(tsidOrds.build(), dict).asBlock();
+            } finally {
+                if (blocks[0] == null) {
+                    dict.close();
+                }
+            }
+            blocks[1] = timestamps.build().asBlock();
+        } finally {
+            if (blocks[1] == null) {
+                Releasables.close(blocks[0]);
+            }
+        }
+        return blocks;
+    }
+
+    private Block[] buildPageLocalDictionaryOrdinalKeys(IntVector selected) {
+        final int positionCount = selected.getPositionCount();
+        final Block[] blocks = new Block[2];
+        final IntIntHashMap globalToLocalOrd = new IntIntHashMap();
         try (
             var tsidOrds = blockFactory.newIntVectorFixedBuilder(positionCount);
             var timestamps = blockFactory.newLongVectorFixedBuilder(positionCount);
             var dictBuilder = blockFactory.newBytesRefVectorBuilder(positionCount)
         ) {
             final BytesRef tsidScratch = new BytesRef();
-            int localOrd = -1;
-            long prevGlobalOrd = -1;
             for (int p = 0; p < positionCount; p++) {
                 final int groupId = selected.getInt(p);
-                final long globalOrd = finalHash.getKey1(groupId);
-                if (localOrd < 0 || globalOrd != prevGlobalOrd) {
-                    localOrd++;
-                    dictBuilder.appendBytesRef(tsidHash.get((int) globalOrd, tsidScratch));
-                    prevGlobalOrd = globalOrd;
+                final int globalOrd = (int) finalHash.getKey1(groupId);
+                final int localOrd;
+                if (globalToLocalOrd.containsKey(globalOrd)) {
+                    localOrd = globalToLocalOrd.get(globalOrd);
+                } else {
+                    localOrd = globalToLocalOrd.size();
+                    globalToLocalOrd.put(globalOrd, localOrd);
+                    dictBuilder.appendBytesRef(tsidHash.get(globalOrd, tsidScratch));
                 }
                 tsidOrds.appendInt(p, localOrd);
                 timestamps.appendLong(p, finalHash.getKey2(groupId));

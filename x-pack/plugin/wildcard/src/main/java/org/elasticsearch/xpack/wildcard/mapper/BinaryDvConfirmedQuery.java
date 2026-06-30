@@ -33,6 +33,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortingArrayOrderBinaryDocValues;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,10 +48,12 @@ abstract class BinaryDvConfirmedQuery extends Query {
 
     protected final String field;
     protected final Query approxQuery;
+    protected final boolean arrayOrder;
 
-    private BinaryDvConfirmedQuery(Query approximation, String field) {
+    private BinaryDvConfirmedQuery(Query approximation, String field, boolean arrayOrder) {
         this.approxQuery = approximation;
         this.field = field;
+        this.arrayOrder = arrayOrder;
     }
 
     /**
@@ -66,10 +69,28 @@ abstract class BinaryDvConfirmedQuery extends Query {
         boolean includeLower,
         boolean includeUpper
     ) {
+        return fromRangeQuery(approximation, field, lower, upper, includeLower, includeUpper, false);
+    }
+
+    /**
+     * Same as {@link #fromRangeQuery(Query, String, BytesRef, BytesRef, boolean, boolean)}, but reads the field's binary doc values
+     * using the in-order {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull}
+     * format when {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
+     */
+    public static Query fromRangeQuery(
+        Query approximation,
+        String field,
+        BytesRef lower,
+        BytesRef upper,
+        boolean includeLower,
+        boolean includeUpper,
+        boolean arrayOrder
+    ) {
         return new BinaryDvConfirmedAutomatonQuery(
             approximation,
             field,
-            new RangeAutomatonProvider(lower, upper, includeLower, includeUpper)
+            new RangeAutomatonProvider(lower, upper, includeLower, includeUpper),
+            arrayOrder
         );
     }
 
@@ -79,7 +100,27 @@ abstract class BinaryDvConfirmedQuery extends Query {
      * to getting good performance).
      */
     public static Query fromWildcardQuery(Query approximation, String field, String matchPattern, boolean caseInsensitive) {
-        return new BinaryDvConfirmedAutomatonQuery(approximation, field, new PatternAutomatonProvider(matchPattern, caseInsensitive));
+        return fromWildcardQuery(approximation, field, matchPattern, caseInsensitive, false);
+    }
+
+    /**
+     * Same as {@link #fromWildcardQuery(Query, String, String, boolean)}, but reads the field's binary doc values using the in-order
+     * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format when
+     * {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
+     */
+    public static Query fromWildcardQuery(
+        Query approximation,
+        String field,
+        String matchPattern,
+        boolean caseInsensitive,
+        boolean arrayOrder
+    ) {
+        return new BinaryDvConfirmedAutomatonQuery(
+            approximation,
+            field,
+            new PatternAutomatonProvider(matchPattern, caseInsensitive),
+            arrayOrder
+        );
     }
 
     /**
@@ -95,10 +136,28 @@ abstract class BinaryDvConfirmedQuery extends Query {
         int matchFlags,
         int maxDeterminizedStates
     ) {
+        return fromRegexpQuery(approximation, field, value, syntaxFlags, matchFlags, maxDeterminizedStates, false);
+    }
+
+    /**
+     * Same as {@link #fromRegexpQuery(Query, String, String, int, int, int)}, but reads the field's binary doc values using the in-order
+     * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format when
+     * {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
+     */
+    public static Query fromRegexpQuery(
+        Query approximation,
+        String field,
+        String value,
+        int syntaxFlags,
+        int matchFlags,
+        int maxDeterminizedStates,
+        boolean arrayOrder
+    ) {
         return new BinaryDvConfirmedAutomatonQuery(
             approximation,
             field,
-            new RegexAutomatonProvider(value, syntaxFlags, matchFlags, maxDeterminizedStates)
+            new RegexAutomatonProvider(value, syntaxFlags, matchFlags, maxDeterminizedStates),
+            arrayOrder
         );
     }
 
@@ -108,7 +167,21 @@ abstract class BinaryDvConfirmedQuery extends Query {
      * to getting good performance).
      */
     public static Query fromFuzzyQuery(Query approximation, String field, String searchTerm, FuzzyQuery fuzzyQuery) {
-        return new BinaryDvConfirmedAutomatonQuery(approximation, field, new FuzzyQueryAutomatonProvider(searchTerm, fuzzyQuery));
+        return fromFuzzyQuery(approximation, field, searchTerm, fuzzyQuery, false);
+    }
+
+    /**
+     * Same as {@link #fromFuzzyQuery(Query, String, String, FuzzyQuery)}, but reads the field's binary doc values using the in-order
+     * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format when
+     * {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
+     */
+    public static Query fromFuzzyQuery(Query approximation, String field, String searchTerm, FuzzyQuery fuzzyQuery, boolean arrayOrder) {
+        return new BinaryDvConfirmedAutomatonQuery(
+            approximation,
+            field,
+            new FuzzyQueryAutomatonProvider(searchTerm, fuzzyQuery),
+            arrayOrder
+        );
     }
 
     /**
@@ -117,8 +190,17 @@ abstract class BinaryDvConfirmedQuery extends Query {
      * is key to getting good performance).
      */
     public static Query fromTerms(Query approximation, String field, BytesRef... terms) {
+        return fromTerms(approximation, field, false, terms);
+    }
+
+    /**
+     * Same as {@link #fromTerms(Query, String, BytesRef...)}, but reads the field's binary doc values using the in-order
+     * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format when
+     * {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
+     */
+    public static Query fromTerms(Query approximation, String field, boolean arrayOrder, BytesRef... terms) {
         Arrays.sort(terms, BytesRef::compareTo);
-        return new BinaryDvConfirmedTermsQuery(approximation, field, terms);
+        return new BinaryDvConfirmedTermsQuery(approximation, field, terms, arrayOrder);
     }
 
     protected abstract BinaryDVMatcher getBinaryDVMatcher();
@@ -150,7 +232,9 @@ abstract class BinaryDvConfirmedQuery extends Query {
                     // No matches to be had
                     return null;
                 }
-                final SortedBinaryDocValues values = MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), field);
+                final SortedBinaryDocValues values = arrayOrder
+                    ? SortingArrayOrderBinaryDocValues.from(context.reader(), field)
+                    : MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), field);
                 return new ScorerSupplier() {
                     @Override
                     public Scorer get(long leadCost) throws IOException {
@@ -223,8 +307,13 @@ abstract class BinaryDvConfirmedQuery extends Query {
 
         private final AutomatonProvider automatonProvider;
 
-        private BinaryDvConfirmedAutomatonQuery(Query approximation, String field, AutomatonProvider automatonProvider) {
-            super(approximation, field);
+        private BinaryDvConfirmedAutomatonQuery(
+            Query approximation,
+            String field,
+            AutomatonProvider automatonProvider,
+            boolean arrayOrder
+        ) {
+            super(approximation, field, arrayOrder);
             this.automatonProvider = automatonProvider;
         }
 
@@ -245,7 +334,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
 
         @Override
         protected Query rewrite(Query approxRewrite) {
-            return new BinaryDvConfirmedAutomatonQuery(approxRewrite, field, automatonProvider);
+            return new BinaryDvConfirmedAutomatonQuery(approxRewrite, field, automatonProvider, arrayOrder);
         }
 
         @Override
@@ -271,8 +360,8 @@ abstract class BinaryDvConfirmedQuery extends Query {
 
         private final BytesRef[] terms;
 
-        private BinaryDvConfirmedTermsQuery(Query approximation, String field, BytesRef[] terms) {
-            super(approximation, field);
+        private BinaryDvConfirmedTermsQuery(Query approximation, String field, BytesRef[] terms, boolean arrayOrder) {
+            super(approximation, field, arrayOrder);
             // terms must already be sorted
             this.terms = terms;
         }
@@ -301,7 +390,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
 
         @Override
         protected Query rewrite(Query approxRewrite) {
-            return new BinaryDvConfirmedTermsQuery(approxRewrite, field, terms);
+            return new BinaryDvConfirmedTermsQuery(approxRewrite, field, terms, arrayOrder);
         }
 
         @Override

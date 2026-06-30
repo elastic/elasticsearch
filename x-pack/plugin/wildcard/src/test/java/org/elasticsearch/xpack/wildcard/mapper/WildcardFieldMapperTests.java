@@ -1299,10 +1299,14 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                 }
             });
 
-            // TODO update wildcard to use UNSORTED in columnar mode: https://github.com/elastic/elasticsearch/issues/152414
-            // Currently wildcard always uses SORTED_UNIQUE ordering: values are always deduplicated and sorted.
-            List<String> outList = new ArrayList<>(new HashSet<>(docValuesValues));
-            Collections.sort(outList);
+            // Strictly columnar index modes preserve insertion order and duplicates; otherwise values are deduplicated and sorted.
+            List<String> outList;
+            if (isColumnar) {
+                outList = new ArrayList<>(docValuesValues);
+            } else {
+                outList = new ArrayList<>(new HashSet<>(docValuesValues));
+                Collections.sort(outList);
+            }
 
             // in columnar mode, ignored values are stored in sorted binary doc values
             boolean sortIgnored = isColumnar || sortIgnoredValues;

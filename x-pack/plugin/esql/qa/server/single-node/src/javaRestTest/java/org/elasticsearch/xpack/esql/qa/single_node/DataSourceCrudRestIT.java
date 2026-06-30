@@ -157,6 +157,36 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         deleteDataSource(parent);
     }
 
+    public void testListDatasetsWithCoresidentDataStream() throws IOException {
+        // Repro for the GET _query/dataset 404 reported 2026-06-30: listing datasets must not blow up just because the
+        // cluster also holds an unrelated data stream (Tyler's was the Entity Store's entities-updates-default). End to
+        // end through the real transport path (action filters + resolution), unlike the resolver unit test.
+        final String dataStream = "entities-updates-default";
+        Request tmpl = new Request("PUT", "/_index_template/entities-updates-tmpl");
+        tmpl.setJsonEntity("{\"index_patterns\":[\"entities-updates-*\"],\"data_stream\":{}}");
+        assertThat(client().performRequest(tmpl).getStatusLine().getStatusCode(), equalTo(200));
+        Request createDs = new Request("PUT", "/_data_stream/" + dataStream);
+        assertThat(client().performRequest(createDs).getStatusLine().getStatusCode(), equalTo(200));
+
+        final String parent = "coresident_parent";
+        final String dataset = "cloudtrail_logs";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1"));
+        putDataset(dataset, parent, "s3://bucket/cloudtrail/*.json.gz", Map.of());
+
+        // GET /_query/dataset (list all == "*") — this is the exact request from the bug report.
+        Response resp = client().performRequest(new Request("GET", "/_query/dataset"));
+        assertThat(resp.getStatusLine().getStatusCode(), equalTo(200));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> hits = (List<Map<String, Object>>) entityAsMap(resp).get("datasets");
+        assertThat(hits, hasSize(1));
+        assertThat(hits.get(0).get("name"), equalTo(dataset));
+
+        deleteDataset(dataset);
+        deleteDataSource(parent);
+        client().performRequest(new Request("DELETE", "/_data_stream/" + dataStream));
+        client().performRequest(new Request("DELETE", "/_index_template/entities-updates-tmpl"));
+    }
+
     public void testPutDatasetWithMissingParent() throws IOException {
         ResponseException ex = expectThrows(ResponseException.class, () -> putDataset("orphan", "no_such_parent", "s3://x/", Map.of()));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));

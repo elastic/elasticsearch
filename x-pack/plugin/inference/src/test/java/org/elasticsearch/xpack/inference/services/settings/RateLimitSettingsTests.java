@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -443,9 +444,11 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
             )
         );
 
+        assertThat(ex.getMessage(), containsString(Strings.format("failed to parse field [%s]", RateLimitSettings.FIELD_NAME)));
+
         assertThat(
-            ex.getMessage(),
-            is(Strings.format("unknown field [%s] for object [%s]", TEST_UNKNOWN_FIELD_NAME, RateLimitSettings.FIELD_NAME))
+            ex.getCause().getMessage(),
+            containsString(Strings.format("[%s] unknown field [%s]", RateLimitSettings.FIELD_NAME, TEST_UNKNOWN_FIELD_NAME))
         );
     }
 

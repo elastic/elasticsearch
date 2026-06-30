@@ -36,6 +36,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
@@ -92,6 +93,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.mapper.Mapper.IgnoreAbove.getIgnoreAboveDefaultValue;
@@ -967,6 +969,18 @@ public class WildcardFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             return wildcardQuery(escapeWildcardSyntax(value) + "*", method, caseInsensitive, context);
+        }
+
+        @Override
+        public Query automatonQuery(
+            Supplier<Automaton> automatonSupplier,
+            Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context,
+            String description
+        ) {
+            Automaton automaton = automatonSupplier.get();
+            return BinaryDvConfirmedQuery.fromAutomaton(Queries.ALL_DOCS_INSTANCE, name(), automaton, description);
         }
 
         @Override

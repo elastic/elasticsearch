@@ -94,7 +94,9 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -1417,5 +1419,38 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         // then
         assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
         assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    /**
+     * Verifies that {@link WildcardFieldMapper.WildcardFieldType#automatonQuery} returns a
+     * {@link BinaryDvConfirmedQuery} backed by the supplied automaton rather than throwing the
+     * default {@code QueryShardException}.
+     *
+     * <p>Covers:
+     * <ul>
+     *   <li>No exception is thrown for a multi-pattern automaton.</li>
+     *   <li>The returned query is a {@link BinaryDvConfirmedQuery}.</li>
+     *   <li>The {@code toString} of the query contains the description string.</li>
+     *   <li>A non-ASCII value (caf\u00e9) is used as a regression guard for UTF-32/UTF-8 correctness.</li>
+     * </ul>
+     */
+    public void testAutomatonQueryReturnsConfirmedQuery() {
+        // Build an automaton that matches "abc" or "caf\u00e9" (non-ASCII regression guard)
+        Automaton abc = new RegExp("abc").toAutomaton();
+        Automaton cafe = new RegExp("caf\u00e9").toAutomaton();
+        Automaton combined = Operations.determinize(Operations.union(abc, cafe), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        String description = "LIKE(\"abc\", \"caf\u00e9\"), caseInsensitive=false";
+
+        Query query = wildcardFieldType.fieldType()
+            .automatonQuery(
+                () -> combined,
+                () -> new org.apache.lucene.util.automaton.CharacterRunAutomaton(combined),
+                null,
+                MOCK_CONTEXT,
+                description
+            );
+
+        assertThat(query, instanceOf(BinaryDvConfirmedQuery.class));
+        assertThat(query.toString(""), containsString(description));
     }
 }

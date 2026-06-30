@@ -112,6 +112,27 @@ abstract class BinaryDvConfirmedQuery extends Query {
     }
 
     /**
+     * Returns a query that runs a pre-built {@link Automaton} across all binary doc values
+     * (but only for docs that also match a provided approximation query, which is key to
+     * getting good performance).
+     *
+     * <p>The automaton must be UTF-32 (codepoint-level), as produced by
+     * {@link org.apache.lucene.search.WildcardQuery#toAutomaton} or
+     * {@link org.apache.lucene.util.automaton.RegExp#toAutomaton}. The
+     * {@link BinaryDvConfirmedAutomatonQuery} will compile it to a {@link org.apache.lucene.util.automaton.ByteRunAutomaton}
+     * via the single-arg constructor, which performs the implicit UTF-32 to UTF-8 conversion.
+     *
+     * @param approximation pre-filter query; use {@link org.elasticsearch.common.lucene.search.Queries#ALL_DOCS_INSTANCE}
+     *                      when no cheaper approximation is available
+     * @param field         the field name
+     * @param automaton     the pre-built automaton to match against doc values
+     * @param description   human-readable description for {@link Query#toString}
+     */
+    public static Query fromAutomaton(Query approximation, String field, Automaton automaton, String description) {
+        return new BinaryDvConfirmedAutomatonQuery(approximation, field, new PrebuiltAutomatonProvider(automaton, description));
+    }
+
+    /**
      * Returns a query that checks for equality of at least one of the provided terms across
      * all binary doc values (but only for docs that also match a provided approximation query which
      * is key to getting good performance).
@@ -367,6 +388,21 @@ abstract class BinaryDvConfirmedQuery extends Query {
         @Override
         public Automaton getAutomaton(String field) {
             return fuzzyQuery.getAutomata().automaton;
+        }
+    }
+
+    /**
+     * An {@link AutomatonProvider} that wraps a pre-built {@link Automaton} with a human-readable description.
+     */
+    private record PrebuiltAutomatonProvider(Automaton automaton, String description) implements AutomatonProvider {
+        @Override
+        public Automaton getAutomaton(String field) {
+            return automaton;
+        }
+
+        @Override
+        public String toString() {
+            return description;
         }
     }
 }

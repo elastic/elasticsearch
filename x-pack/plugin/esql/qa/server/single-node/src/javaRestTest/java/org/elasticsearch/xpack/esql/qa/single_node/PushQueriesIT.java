@@ -329,18 +329,15 @@ public class PushQueriesIT extends ESRestTestCase {
             FROM test
             | WHERE TO_LOWER(test) like ("%value*", "abc*")
             """;
-        // WILDCARD field type does not support automatonQuery, so CI WildcardLikeList cannot be pushed
-        assumeFalse("WILDCARD field type does not support automaton queries", type == Type.WILDCARD);
         String luceneQuery = switch (type) {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case KEYWORD -> "test:LIKE(\"%value*\", \"abc*\"), caseInsensitive=true";
-            case WILDCARD -> throw new AssertionError("unreachable");
+            case WILDCARD -> ":LIKE(\"%value*\", \"abc*\"), caseInsensitive=true";
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
-            case WILDCARD -> throw new AssertionError("unreachable");
         };
         testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
     }
@@ -370,18 +367,15 @@ public class PushQueriesIT extends ESRestTestCase {
             FROM test
             | WHERE test like ("%value*", "abc*")
             """;
-        // WILDCARD field type does not support automatonQuery, so WildcardLikeList cannot be pushed
-        assumeFalse("WILDCARD field type does not support automaton queries", type == Type.WILDCARD);
         String luceneQuery = switch (type) {
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case KEYWORD -> "test:LIKE(\"%value*\", \"abc*\"), caseInsensitive=false";
-            case WILDCARD -> throw new AssertionError("unreachable");
+            case WILDCARD -> ":LIKE(\"%value*\", \"abc*\"), caseInsensitive=false";
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
-            case WILDCARD -> throw new AssertionError("unreachable");
         };
         testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
     }
@@ -411,18 +405,15 @@ public class PushQueriesIT extends ESRestTestCase {
             FROM test
             | WHERE test rlike ("%value.*", "abc.*")
             """;
-        // WILDCARD field type does not support automatonQuery, so RLikeList cannot be pushed
-        assumeFalse("WILDCARD field type does not support automaton queries", type == Type.WILDCARD);
         String luceneQuery = switch (type) {
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case KEYWORD -> "test:RLIKE(\"%value.*\", \"abc.*\"), caseInsensitive=false";
-            case WILDCARD -> throw new AssertionError("unreachable");
+            case WILDCARD -> ":RLIKE(\"%value.*\", \"abc.*\"), caseInsensitive=false";
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
-            case WILDCARD -> throw new AssertionError("unreachable");
         };
         testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
     }

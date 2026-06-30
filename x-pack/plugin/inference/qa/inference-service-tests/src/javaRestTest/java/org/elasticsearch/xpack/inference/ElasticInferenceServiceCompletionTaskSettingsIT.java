@@ -330,7 +330,7 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
      * Builds a PUT body with no {@code task_settings}, producing an endpoint with empty task settings.
      * The task type is supplied via the URL by the caller.
      */
-    private static String configWithoutReasoning() {
+    private static String configWithoutReasoning() throws IOException {
         return XContentHelper.stripWhitespace(Strings.format("""
             {
               "service": "%s",
@@ -342,7 +342,7 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
     /**
      * Builds an update body that sets {@code task_settings.reasoning} to the given effort value.
      */
-    private static String reasoningTaskSettingsUpdate(String effort) {
+    private static String reasoningTaskSettingsUpdate(String effort) throws IOException {
         return XContentHelper.stripWhitespace(Strings.format("""
             {
               "task_settings": { "reasoning": { "effort": "%s" } }
@@ -355,7 +355,7 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
      * The tri-state merge semantics in {@code updatedTaskSettings} treat an explicit {@code null}
      * as "clear the stored value", unlike an omitted field which keeps it.
      */
-    private static String clearReasoningTaskSettingsUpdate() {
+    private static String clearReasoningTaskSettingsUpdate() throws IOException {
         return XContentHelper.stripWhitespace("""
             {
               "task_settings": { "reasoning": null }

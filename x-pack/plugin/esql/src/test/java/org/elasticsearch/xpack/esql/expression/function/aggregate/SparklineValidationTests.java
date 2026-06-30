@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 
 import java.util.Locale;
 
@@ -35,6 +38,79 @@ public class SparklineValidationTests extends ESTestCase {
         );
         assertTrue(s.typeResolved().unresolved());
         assertThat(s.typeResolved().message(), equalTo("first argument of [] must be an aggregate function, found value [] type [double]"));
+    }
+
+    public void testFieldIsExpressionContainingAggregate() {
+        Sparkline s = sparkline(
+            new Add(Source.synthetic(""), validAggField(), new Literal(Source.synthetic(""), 1, DataType.INTEGER), EsqlTestUtils.TEST_CFG),
+            validKey(),
+            validBuckets(),
+            validFrom(),
+            validTo()
+        );
+        assertTrue(s.typeResolved().resolved());
+    }
+
+    public void testFieldIsExpressionOverMultipleAggregates() {
+        Sparkline s = sparkline(
+            new Add(
+                Source.synthetic(""),
+                validAggField(),
+                new Min(Source.synthetic(""), field("g", DataType.DOUBLE)),
+                EsqlTestUtils.TEST_CFG
+            ),
+            validKey(),
+            validBuckets(),
+            validFrom(),
+            validTo()
+        );
+        assertTrue(s.typeResolved().resolved());
+    }
+
+    public void testFieldIsAggregateTimesConstant() {
+        Sparkline s = sparkline(
+            new Mul(Source.synthetic(""), validAggField(), new Literal(Source.synthetic(""), 2, DataType.INTEGER)),
+            validKey(),
+            validBuckets(),
+            validFrom(),
+            validTo()
+        );
+        assertTrue(s.typeResolved().resolved());
+    }
+
+    public void testFieldExpressionWithoutAggregate() {
+        Sparkline s = sparkline(
+            new Add(
+                Source.synthetic(""),
+                field("f", DataType.DOUBLE),
+                new Literal(Source.synthetic(""), 1, DataType.INTEGER),
+                EsqlTestUtils.TEST_CFG
+            ),
+            validKey(),
+            validBuckets(),
+            validFrom(),
+            validTo()
+        );
+        assertTrue(s.typeResolved().unresolved());
+        assertThat(s.typeResolved().message(), equalTo("first argument of [] must be an aggregate function, found value [] type [double]"));
+    }
+
+    public void testFieldExpressionWithBareFieldOutsideAggregate() {
+        Sparkline s = sparkline(
+            new Add(Source.synthetic(""), validAggField(), field("g", DataType.DOUBLE), EsqlTestUtils.TEST_CFG),
+            validKey(),
+            validBuckets(),
+            validFrom(),
+            validTo()
+        );
+        assertTrue(s.typeResolved().unresolved());
+        assertThat(
+            s.typeResolved().message(),
+            equalTo(
+                "first argument of [] must aggregate to a single value; every field referenced in [] must be inside "
+                    + "an aggregate function (grouping keys included)"
+            )
+        );
     }
 
     public void testFieldWrongType() {

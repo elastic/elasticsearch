@@ -202,17 +202,25 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
 
         ParserUtils.Stats firstPhaseStats = ParserUtils.buildStats(source, firstPhaseGroupings, firstPhaseAggregates);
         Aggregate aggregate = new Aggregate(plan.source(), dateBucketEval, firstPhaseStats.groupings(), firstPhaseStats.aggregates());
-        // Since this rule has to occur after PropogateInlineEvals to work with INLINE STATS, we don't get surrogate substitution
-        // to handle inner aggregates that are SurrogateExpressions (e.g., AVG → Div(Sum, Count)). We apply the substitution here to ensure
-        // that any inner aggregates are properly replaced with their surrogates in the first phase plan.
-        LogicalPlan phase1Plan = new SubstituteSurrogateAggregations().apply(aggregate);
-        // For the same reason, ReplaceAggregateNestedExpressionWithEval has already run and will not run again. Apply it here so
-        // that non-trivial scalar expressions in the inner aggregate's field (e.g. SUM(SIN(salary))) are extracted into a preceding
-        // Eval, ensuring the physical planner assigns a correctly-typed channel to the aggregator.
-        // Use locally-unique synthetic names: the same surrogate may also appear standalone in this STATS (e.g. WEIGHTED_AVG used both
-        // directly and inside SPARKLINE), in which case its inner expression was already extracted into an identically-named synthetic
-        // Eval by the global pass. Reusing that name here would make one of the two extractions be dropped by output-attribute merging,
-        // leaving a dangling reference.
+        // The aggregate-handling rules from the main Substitutions batch (see LogicalPlanOptimizer#substitutions) ran before this rule
+        // (it lives after PropagateInlineEvals) and will not run again, yet the first-phase Aggregate we just built embeds the inner
+        // aggregation (Sparkline.field(), e.g. COUNT()+1) which those rules never saw. Re-apply just the inner-aggregation lowering subset
+        // of that batch so the inner aggregation is lowered like an ordinary STATS:
+        // 1. extract scalar expressions nested inside an aggregate (e.g. SUM(SIN(salary))) into a preceding Eval;
+        // 2. extract aggregates wrapped in a top-level expression (e.g. COUNT()+1, MIN(a)+MIN(b)) into naked aggs plus a following Eval;
+        // 3. expand surrogate aggregates (e.g. AVG -> Div(Sum, Count)). This must run after step 2 so that a surrogate hidden inside an
+        // expression (e.g. AVG(x)+1) is first exposed as a naked top-level agg and only then expanded;
+        // 4. re-extract any scalar expressions surfaced by surrogate expansion, using locally-unique synthetic names to avoid collisions
+        // when the same surrogate also appears standalone in this STATS (e.g. WEIGHTED_AVG used both directly and inside SPARKLINE).
+        // This is a subset, not a verbatim copy, of the main batch: RewriteSumOfExpressionPlusConstant (a SUM(x +/- c) optimization) and
+        // SubstituteFilteredExpression are intentionally left out -- the former is optional and the latter already ran in the main batch,
+        // so any SPARKLINE WHERE filter is already attached to the inner aggregate. The main batch also runs
+        // SubstituteSurrogateAggregations twice for a CCS/bwc reason that does not apply to this freshly built local Aggregate, so a
+        // single pass is enough here. Without steps 2-3 the physical planner cannot assign a correctly-typed channel to an aggregate that
+        // is part of an expression.
+        LogicalPlan phase1Plan = new ReplaceAggregateNestedExpressionWithEval().apply(aggregate);
+        phase1Plan = new ReplaceAggregateAggExpressionWithEval().apply(phase1Plan);
+        phase1Plan = new SubstituteSurrogateAggregations().apply(phase1Plan);
         phase1Plan = new ReplaceAggregateNestedExpressionWithEval(true).apply(phase1Plan);
         return new FirstPhaseAggregateData(phase1Plan, sparklineValueAliases, toPartialAliases, originalAggFuncs, dateBucketAttr);
     }

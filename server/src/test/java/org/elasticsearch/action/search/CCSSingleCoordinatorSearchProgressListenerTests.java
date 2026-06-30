@@ -22,7 +22,10 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase {
 
@@ -120,6 +123,214 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         assertThat(updatedA.getTotalShards(), equalTo(2));
         assertThat(updatedB.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
         assertThat(updatedB.getTotalShards(), equalTo(1));
+    }
+
+    public void testOnQueryResult_UpdatesClustersMetadata() {
+        var clusterAlias = "project-a";
+        var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
+        var clusters = new SearchResponse.Clusters(clusterMap, false);
+        var indexExpression = "my-index";
+        var indexUUID = "uuid-a";
+        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
+        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
+        var shards = List.of(shard0, shard1);
+
+        var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
+        var listener = new CCSSingleCoordinatorSearchProgressListener();
+        listener.onListShards(shards, Map.of(), clusters, true, timeProvider);
+
+        // Confirm the initial state
+        assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 2, 0, 0, false);
+
+        // Confirm we update the number of successful shards and the timed out flag after getting a result that timed out
+        QuerySearchResult timedOutQueryResult = queryResultForShard(clusterAlias, indexExpression, indexUUID, 0);
+        timedOutQueryResult.searchTimedOut(true);
+        listener.onQueryResult(0, timedOutQueryResult);
+
+        assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 2, 1, 0, true);
+
+        // Confirm we update the number of successful shards after getting the last result
+        listener.onQueryResult(0, queryResultForShard(clusterAlias, indexExpression, indexUUID, 1));
+
+        assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 2, 2, 0, true);
+    }
+
+    public void testOnQueryResult_UpdatesClustersMetadata_FinalShard_WithFailedShards() {
+        var clusterAlias = "project-a";
+        var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
+        var clusters = new SearchResponse.Clusters(clusterMap, false);
+        var indexExpression = "my-index";
+        var indexUUID = "uuid-a";
+        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
+        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
+        var shard2 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
+        var shards = List.of(shard0, shard1, shard2);
+
+        var tookMillis = TimeValue.timeValueMillis(1);
+        var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
+        var listener = new CCSSingleCoordinatorSearchProgressListener();
+        listener.onListShards(shards, Map.of(), clusters, true, timeProvider);
+
+        // Have one of the shards fail and confirm the state
+        listener.onQueryFailure(
+            0,
+            new SearchShardTarget(randomUUID(), shard0.shardId(), clusterAlias),
+            new IllegalArgumentException("test")
+        );
+
+        assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 3, 0, 1, false);
+
+        // Confirm we only update the number of successful shards after getting a result
+        listener.onQueryResult(1, queryResultForShard(clusterAlias, indexExpression, indexUUID, 1));
+
+        assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 3, 1, 1, false);
+
+        // Confirm we update the state and took value after getting the last result when there were failures
+        listener.onQueryResult(2, queryResultForShard(clusterAlias, indexExpression, indexUUID, 2));
+
+        assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.PARTIAL, 3, 2, 1, tookMillis, false);
+    }
+
+    public void testOnQueryFailure_UpdatesClusterMetadata_AllShardsFailed_SkipUnavailableTrue() {
+        testOnQueryFailure_UpdatesClusterMetadata_AllShardsFailed(true, SearchResponse.Cluster.Status.SKIPPED);
+    }
+
+    public void testOnQueryFailure_UpdatesClusterMetadata_AllShardsFailed_SkipUnavailableFalse() {
+        testOnQueryFailure_UpdatesClusterMetadata_AllShardsFailed(false, SearchResponse.Cluster.Status.FAILED);
+    }
+
+    private static void testOnQueryFailure_UpdatesClusterMetadata_AllShardsFailed(
+        boolean skipUnavailable,
+        SearchResponse.Cluster.Status expectedStatus
+    ) {
+        var clusterAlias = "project-a";
+        var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", skipUnavailable, null));
+        var clusters = new SearchResponse.Clusters(clusterMap, false);
+        var indexExpression = "my-index";
+        var indexUUID = "uuid-a";
+        var shard = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
+        var shards = List.of(shard);
+
+        var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
+        var listener = new CCSSingleCoordinatorSearchProgressListener();
+        listener.onListShards(shards, Map.of(), clusters, true, timeProvider);
+
+        // Confirm the initial state
+        assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 1, 0, 0, false);
+
+        var exception = new IllegalArgumentException("test");
+        var shardTarget = new SearchShardTarget(randomUUID(), shard.shardId(), clusterAlias);
+        listener.onQueryFailure(0, shardTarget, exception);
+
+        // Confirm the state
+        assertClusterMetadata(clusters.getCluster(clusterAlias), expectedStatus, 1, 0, 1, null, false);
+
+        var failure = clusters.getCluster(clusterAlias).getFailures().getLast();
+        assertThat(failure.shard(), is(shardTarget));
+        assertThat(failure.getCause(), is(exception));
+    }
+
+    public void testOnQueryFailure_UpdatesClusterMetadata_MultipleFailures() {
+        var clusterAlias = "project-a";
+        var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
+        var clusters = new SearchResponse.Clusters(clusterMap, false);
+        var indexExpression = "my-index";
+        var indexUUID = "uuid-a";
+        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
+        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
+        var shard2 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
+        var shards = List.of(shard0, shard1, shard2);
+
+        var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
+        var listener = new CCSSingleCoordinatorSearchProgressListener();
+        listener.onListShards(shards, Map.of(), clusters, true, timeProvider);
+
+        // Register a failure for the first shard and confirm the status
+        var exception0 = new IllegalArgumentException("test");
+        var shardTarget0 = new SearchShardTarget(randomUUID(), shard0.shardId(), clusterAlias);
+        listener.onQueryFailure(0, shardTarget0, exception0);
+
+        assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 3, 0, 1, false);
+
+        var failure = clusters.getCluster(clusterAlias).getFailures().getLast();
+        assertThat(failure.shard(), is(shardTarget0));
+        assertThat(failure.getCause(), is(exception0));
+
+        // Register a failure for the second shard and confirm the status
+        var exception1 = new NullPointerException("test NPE");
+        var shardTarget1 = new SearchShardTarget(randomUUID(), shard1.shardId(), clusterAlias);
+        listener.onQueryFailure(1, shardTarget1, exception1);
+
+        assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 3, 0, 2, false);
+
+        // Confirm the new failure is appended to the list of failures
+        failure = clusters.getCluster(clusterAlias).getFailures().getLast();
+        assertThat(failure.shard(), is(shardTarget1));
+        assertThat(failure.getCause(), is(exception1));
+    }
+
+    public void testOnQueryFailure_UpdatesClusterMetadata_OnlyFinalShardFailed() {
+        var clusterAlias = "project-a";
+        var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
+        var clusters = new SearchResponse.Clusters(clusterMap, false);
+        var indexExpression = "my-index";
+        var indexUUID = "uuid-a";
+        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
+        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
+        var shards = List.of(shard0, shard1);
+
+        var tookMillis = TimeValue.timeValueMillis(1);
+        var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
+        var listener = new CCSSingleCoordinatorSearchProgressListener();
+        listener.onListShards(shards, Map.of(), clusters, true, timeProvider);
+
+        // Register a successful result for the first shard
+        listener.onQueryResult(0, queryResultForShard(clusterAlias, indexExpression, indexUUID, 0));
+
+        assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 2, 1, 0, false);
+
+        // Register a failure for the final shard and confirm the state
+        var exception = new IllegalArgumentException("test");
+        var shardTarget = new SearchShardTarget(randomUUID(), shard1.shardId(), clusterAlias);
+        listener.onQueryFailure(1, shardTarget, exception);
+
+        assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.PARTIAL, 2, 1, 1, tookMillis, false);
+
+        var failure = clusters.getCluster(clusterAlias).getFailures().getLast();
+        assertThat(failure.shard(), is(shardTarget));
+        assertThat(failure.getCause(), is(exception));
+    }
+
+    private static void assertClusterMetadataRunning(
+        SearchResponse.Cluster cluster,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        boolean timedOut
+    ) {
+        assertClusterMetadata(cluster, SearchResponse.Cluster.Status.RUNNING, totalShards, successfulShards, failedShards, null, timedOut);
+    }
+
+    private static void assertClusterMetadata(
+        SearchResponse.Cluster cluster,
+        SearchResponse.Cluster.Status expectedStatus,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        TimeValue took,
+        boolean timedOut
+    ) {
+        assertThat(cluster.getStatus(), is(expectedStatus));
+        assertThat(cluster.getTotalShards(), is(totalShards));
+        assertThat(cluster.getSuccessfulShards(), is(successfulShards));
+        assertThat(cluster.getFailedShards(), is(failedShards));
+        assertThat(cluster.getFailures(), hasSize(failedShards));
+        if (took == null) {
+            assertThat(cluster.getTook(), is(nullValue()));
+        } else {
+            assertThat(cluster.getTook(), is(took));
+        }
+        assertThat(cluster.isTimedOut(), is(timedOut));
     }
 
     public void testFetchResultRefreshesTookWhenFetchPhaseEnabled() {

@@ -31,6 +31,7 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
@@ -112,17 +113,18 @@ abstract class BinaryDvConfirmedQuery extends Query {
     }
 
     /**
-     * Returns a query that runs a pre-built {@link Automaton} across all binary doc values
+     * Builds query that runs a pre-built {@link Automaton} across all binary doc values
      * (but only for docs that also match a provided approximation query, which is key to
      * getting good performance).
      *
-     * <p>The automaton must be UTF-32 (codepoint-level), as produced by
-     * {@link org.apache.lucene.search.WildcardQuery#toAutomaton} or
-     * {@link org.apache.lucene.util.automaton.RegExp#toAutomaton}. The
-     * {@link BinaryDvConfirmedAutomatonQuery} will compile it to a {@link org.apache.lucene.util.automaton.ByteRunAutomaton}
-     * via the single-arg constructor, which performs the implicit UTF-32 to UTF-8 conversion.
+     * <p>
+     *     The automaton must be UTF-32 (codepoint-level), as produced by
+     *     {@link WildcardQuery#toAutomaton} or {@link RegExp#toAutomaton}. The
+     *     {@link BinaryDvConfirmedAutomatonQuery} will compile it to a {@link ByteRunAutomaton}
+     *     via the single-arg constructor, which performs the implicit UTF-32 to UTF-8 conversion.
+     * </p>
      *
-     * @param approximation pre-filter query; use {@link org.elasticsearch.common.lucene.search.Queries#ALL_DOCS_INSTANCE}
+     * @param approximation pre-filter query; use {@link Queries#ALL_DOCS_INSTANCE}
      *                      when no cheaper approximation is available
      * @param field         the field name
      * @param automaton     the pre-built automaton to match against doc values

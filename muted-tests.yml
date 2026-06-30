@@ -770,9 +770,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.SumSerializationTests
   method: testSerializeSumWithOverflowingLongSupplier
   issue: https://github.com/elastic/elasticsearch/issues/152506
-- class: org.elasticsearch.xpack.stateless.StatelessIT
-  method: testBackgroundMergeCommitAfterRelocationHasStartedDoesNotSendANewCommitNotification
-  issue: https://github.com/elastic/elasticsearch/issues/152516
 - class: org.elasticsearch.transport.RemoteClusterClientTests
   method: testConnectAndExecuteRequest
   issue: https://github.com/elastic/elasticsearch/issues/152518

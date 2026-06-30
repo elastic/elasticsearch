@@ -121,7 +121,7 @@ With the columnar modes, fields that are unmapped will continue to be mapped via
 
 By default, for all unmapped fields doc values will be enabled. However unmapped fields will not indexed by default. This follows the design of storing each field once as doc values.
 
-The default unmapped field experience is provided by dynamic mappings. Dynamic mappings are controlled via dynamic mapping configuration and can be set to:
+Dynamic mapping behavior is controlled through configuration param `dynamic` that can be set to:
 - **true** (default): Enables the dynamic mapping behaviour as is described above.
 - **false**: Doesn't automatically map unmapped fields. Meaning that unmapped fields will not be stored at all. Data in unmapped fields will be lost.
 - **strict**: Doesn't automatically map unmapped fields and fails write requests with documents that contain unmapped fields.

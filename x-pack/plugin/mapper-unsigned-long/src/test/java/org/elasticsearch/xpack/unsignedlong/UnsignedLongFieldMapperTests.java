@@ -377,12 +377,17 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new NumberSyntheticSourceSupport(ignoreMalformed);
+        return new NumberSyntheticSourceSupport(ignoreMalformed, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        return new NumberSyntheticSourceSupport(ignoreMalformed, true);
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
-        return new NumberSyntheticSourceSupport(ignoreMalformed) {
+        return new NumberSyntheticSourceSupport(ignoreMalformed, false) {
             @Override
             public SyntheticSourceExample example(int maxVals) {
                 var example = super.example(maxVals);
@@ -450,9 +455,16 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
     class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
         private final BigInteger nullValue = usually() ? null : BigInteger.valueOf(randomNonNegativeLong());
         private final boolean ignoreMalformedEnabled;
+        private final boolean isColumnar;
 
-        NumberSyntheticSourceSupport(boolean ignoreMalformedEnabled) {
+        NumberSyntheticSourceSupport(boolean ignoreMalformedEnabled, boolean isColumnar) {
             this.ignoreMalformedEnabled = ignoreMalformedEnabled;
+            this.isColumnar = isColumnar;
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return isColumnar;
         }
 
         @Override
@@ -467,11 +479,8 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
             List<Value> values = randomList(1, maxVals, this::generateValue);
             List<Object> in = values.stream().map(Value::input).toList();
 
-            List<BigInteger> outputFromDocValues = values.stream()
-                .filter(v -> v.malformedOutput == null)
-                .map(Value::output)
-                .sorted()
-                .toList();
+            Stream<BigInteger> nonMalformedOutputs = values.stream().filter(v -> v.malformedOutput == null).map(Value::output);
+            List<BigInteger> outputFromDocValues = (isColumnar ? nonMalformedOutputs : nonMalformedOutputs.sorted()).toList();
             // Malformed values are stored as BytesRef with a type-prefix byte and sorted lexicographically.
             List<Object> malformedOutput = values.stream()
                 .filter(v -> v.malformedOutput != null)

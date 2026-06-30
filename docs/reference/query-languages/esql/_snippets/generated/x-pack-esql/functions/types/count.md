@@ -13,6 +13,7 @@
 | dense_vector | long |
 | double | long |
 | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | long |
+| flattened {applies_to}`stack: preview 9.5.0` | long |
 | geo_point | long |
 | geo_shape | long |
 | geohash | long |

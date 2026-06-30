@@ -108,16 +108,19 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
 
         apmServer().addMessageConsumer(messageConsumer);
 
-        client().performRequest(new Request("GET", "/_use_apm_metrics"));
-        client().performRequest(new Request("GET", "/_flush_telemetry"));
-        finished.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
-
-        var remainingAssertions = Stream.concat(valueAssertions.keySet().stream(), histogramAssertions.keySet().stream())
-            .collect(Collectors.joining(","));
-        assertTrue(
-            "Timeout when waiting for assertions to complete. Remaining assertions to match: " + remainingAssertions,
-            finished.getCount() == 0
-        );
+        // Retry both the metric increment and the flush: with deltaPreferred() temporality, counter values reset
+        // to zero after each export cycle, so a single failed export (e.g. send_timeout exceeded on a slow CI
+        // host) would drop the batch and leave the counters unsatisfiable on subsequent collections.
+        assertBusy(() -> {
+            client().performRequest(new Request("GET", "/_use_apm_metrics"));
+            client().performRequest(new Request("GET", "/_flush_telemetry"));
+            var remainingAssertions = Stream.concat(valueAssertions.keySet().stream(), histogramAssertions.keySet().stream())
+                .collect(Collectors.joining(","));
+            assertTrue(
+                "Timeout when waiting for assertions to complete. Remaining assertions to match: " + remainingAssertions,
+                finished.getCount() == 0
+            );
+        }, TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
     }
 
     public void testJvmMetrics() throws Exception {

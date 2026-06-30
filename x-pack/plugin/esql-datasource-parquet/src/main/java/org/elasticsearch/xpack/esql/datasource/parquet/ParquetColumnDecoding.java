@@ -14,6 +14,7 @@ import org.apache.parquet.io.api.GroupConverter;
 import org.apache.parquet.io.api.PrimitiveConverter;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -42,6 +43,15 @@ final class ParquetColumnDecoding {
             };
         }
         return raw;
+    }
+
+    /**
+     * Returns the multiplier needed to convert a Parquet TIME_* value to nanoseconds.
+     * TIME_MICROS values are stored as microseconds and must be multiplied by 1_000;
+     * TIME_MILLIS and TIME_NANOS are stored in their final unit (ms handled as INTEGER, ns as-is).
+     */
+    static long timeNanoMultiplier(LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+        return time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS ? 1_000L : 1L;
     }
 
     // ---- UUID formatting ----
@@ -112,7 +122,16 @@ final class ParquetColumnDecoding {
         int maxDef = info.maxDefLevel();
         return switch (elementType) {
             case INTEGER -> readListIntColumn(cr, maxDef, rows, blockFactory);
-            case LONG -> readListLongColumn(cr, maxDef, rows, blockFactory);
+            case LONG -> {
+                if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
+                    // TIME_MILLIS: physical INT32 widened to long (raw ms value, no unit conversion)
+                    yield readListInt32AsLongColumn(cr, maxDef, rows, blockFactory);
+                }
+                long multiplier = info.logicalType() instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time
+                    ? timeNanoMultiplier(time)
+                    : 1L;
+                yield readListLongColumn(cr, maxDef, rows, blockFactory, multiplier);
+            }
             case DOUBLE -> readListDoubleColumn(cr, maxDef, rows, blockFactory);
             case BOOLEAN -> readListBooleanColumn(cr, maxDef, rows, blockFactory);
             case KEYWORD, TEXT -> readListBytesRefColumn(cr, maxDef, rows, blockFactory);
@@ -178,9 +197,21 @@ final class ParquetColumnDecoding {
         }
     }
 
-    private static Block readListLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+    private static Block readListLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory, long multiplier) {
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendLong(cr.getLong());
+            Runnable appender = multiplier == 1
+                ? () -> builder.appendLong(cr.getLong())
+                : () -> builder.appendLong(cr.getLong() * multiplier);
+            for (int row = 0; row < rows; row++) {
+                readListRow(cr, maxDef, builder, appender);
+            }
+            return builder.build();
+        }
+    }
+
+    private static Block readListInt32AsLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+        try (var builder = blockFactory.newLongBlockBuilder(rows)) {
+            Runnable appender = () -> builder.appendLong(cr.getInteger());
             for (int row = 0; row < rows; row++) {
                 readListRow(cr, maxDef, builder, appender);
             }

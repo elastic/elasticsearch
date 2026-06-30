@@ -60,8 +60,6 @@ if (buildParams.snapshotBuild == false) {
   // * Data Stream Lifecycle. manage_data_stream_lifecycle privilege is only available with dlm_feature_flag_enabled set
   // We disable these tests for snapshot builds to maintain release build coverage.
   restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
-  // Requires ESNext codec which is not available in release test. This should be removed once the production codec supports slices.
-  restTestBlacklist.add('search.vectors/47_knn_search_bbq_disk_slice/*')
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {

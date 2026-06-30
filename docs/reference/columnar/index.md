@@ -98,7 +98,7 @@ PUT my-index
 }
 ```
 
-If you query latency is more important than storage efficiency, then only sorting by `@timestamp` is a good choice:
+If query latency is more important than storage efficiency, then sorting by just `@timestamp` will likely improve query response times:
 
 ```console
 PUT my-logs-index

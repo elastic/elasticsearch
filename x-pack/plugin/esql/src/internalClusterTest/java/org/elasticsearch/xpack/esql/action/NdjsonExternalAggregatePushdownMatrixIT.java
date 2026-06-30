@@ -107,4 +107,31 @@ public class NdjsonExternalAggregatePushdownMatrixIT extends AbstractExternalAgg
             rows -> assertThat("COUNT(tags) counts values, not rows", ((Number) rows.get(0).get(0)).longValue(), equalTo(2L * ROWS))
         );
     }
+
+    /**
+     * MIN/MAX over a multivalued column must fold across ALL values, not per-row: row {@code i} carries
+     * {@code tags=[label(2i), label(2i+1)]}, so the whole-file MIN is {@code label(0)} and MAX is
+     * {@code label(2*ROWS-1)}. A per-row (rather than per-value) fold would miss the global extremes.
+     */
+    public void testMinMaxMultivaluedColumnColdThenWarmShortCircuits() throws Exception {
+        Path dir = createTempDir();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < ROWS; i++) {
+            sb.append("{\"id\":")
+                .append(i)
+                .append(",\"tags\":[\"")
+                .append(label(2 * i))
+                .append("\",\"")
+                .append(label(2 * i + 1))
+                .append("\"]}\n");
+        }
+        Path file = dir.resolve("mv_minmax.ndjson");
+        Files.writeString(file, sb.toString());
+        registerDataset("mv_minmax_employees", StoragePath.fileUri(file));
+
+        assertColdThenWarmShortCircuit("mv_minmax_employees", "STATS lo = MIN(tags), hi = MAX(tags)", ROWS, rows -> {
+            assertThat("MIN(tags) folds across all values", String.valueOf(rows.get(0).get(0)), equalTo(label(0)));
+            assertThat("MAX(tags) folds across all values", String.valueOf(rows.get(0).get(1)), equalTo(label(2 * ROWS - 1)));
+        });
+    }
 }

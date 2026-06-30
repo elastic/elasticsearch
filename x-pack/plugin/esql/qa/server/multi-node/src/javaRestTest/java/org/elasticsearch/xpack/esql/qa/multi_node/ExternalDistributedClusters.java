@@ -26,6 +26,13 @@ public class ExternalDistributedClusters {
     static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {
         return Clusters.testCluster(spec -> {
             spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES);
+            // The external datasource components are individually gated (snapshot-on, release-off) under the
+            // umbrella; force them on so this distributed spec suite exercises every storage backend / format
+            // (GCS, Azure, ORC, parquet-rs) in release builds too.
+            spec.feature(FeatureFlag.ESQL_EXTERNAL_GCS);
+            spec.feature(FeatureFlag.ESQL_EXTERNAL_AZURE);
+            spec.feature(FeatureFlag.ESQL_EXTERNAL_ORC);
+            spec.feature(FeatureFlag.ESQL_EXTERNAL_PARQUET_RS);
             spec.plugin("inference-service-test");
             spec.module("repository-s3");
             spec.module("repository-gcs");

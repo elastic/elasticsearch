@@ -96,7 +96,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             case D2Q4_STRIPED -> new NativeD2Q4Scorer(in, dimensions, dataLength, bulkSize);
             case D2Q4_PACKED -> new NativeD2Q4PackedScorer(in, dimensions, dataLength, bulkSize);
             case D4Q4_STRIPED -> new NativeD4Q4Scorer(in, dimensions, dataLength, bulkSize);
-            case D4Q4_PACKED -> new NativePackedInt4Scorer(in, dimensions, dataLength, bulkSize);
+            case D4Q4_PACKED -> new NativeD4Q4PackedScorer(in, dimensions, dataLength, bulkSize);
             case D7Q7 -> new NativeD7Q7Scorer(in, dimensions, dataLength, bulkSize);
         };
     }
@@ -258,13 +258,14 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         );
     }
 
-    static sealed class MemorySegmentScorer permits NativeMemorySegmentScorer, NativeD7Q7Scorer, MSBitToBitESNextOSQVectorsScorer,
+    static sealed class MemorySegmentScorer permits NativeMemorySegmentScorer, MSBitToBitESNextOSQVectorsScorer,
         MSBitToInt4ES940OSQVectorsScorer, MSDibitToInt4ES940OSQVectorsScorer, MSInt4SymmetricES940OSQVectorsScorer,
-        MSD7Q7ES940OSQVectorsScorer, NativePackedInt4Scorer {
+        MSD7Q7ES940OSQVectorsScorer {
 
         static final float ONE_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[0];
         static final float TWO_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[1];
         static final float FOUR_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[3];
+        static final float SEVEN_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[6];
 
         static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;
         static final VectorSpecies<Integer> INT_SPECIES_256 = IntVector.SPECIES_256;

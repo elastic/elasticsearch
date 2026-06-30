@@ -29,22 +29,8 @@ public record EsqlStatement(LogicalPlan plan, List<QuerySetting> settings) {
         return settingOrDefault(settingDef, settingDef.defaultValue());
     }
 
-    /**
-     * Returns the value of a setting, but returns the given default value if the setting is not set.
-     * <p>
-     *     Use it like:
-     * </p>
-     * <pre><code>
-     *     var value = statement.settingOrDefault(QuerySettings.MY_SETTING, "default");
-     * </code></pre>
-     * <p>
-     *     To be used when a fallback is available.
-     * </p>
-     *
-     * @param settingDef the setting to retrieve
-     * @param defaultValue the value to return if the setting is not set
-     */
-    public <T> T settingOrDefault(QuerySettingDef<T> settingDef, T defaultValue) {
+    /** Returns the SET value of a setting, or {@code defaultValue} if it was not set in the query. */
+    private <T> T settingOrDefault(QuerySettingDef<T> settingDef, T defaultValue) {
         Expression expression = setting(settingDef.name());
         if (expression == null) {
             return defaultValue;

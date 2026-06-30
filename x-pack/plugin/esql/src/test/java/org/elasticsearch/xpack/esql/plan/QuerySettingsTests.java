@@ -356,23 +356,25 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     public void testUnknownSettingOnTheWireIsSkipped() throws IOException {
-        // Simulate a newer peer sending a setting this node's registry doesn't have, alongside a known one.
-        // The self-describing (length-prefixed) format lets the reader skip the unknown one instead of failing.
+        // Simulate a newer peer sending a setting this node's registry doesn't have. The self-describing
+        // (length-prefixed) format lets the reader skip it instead of failing. The unknown entry is placed FIRST so
+        // that the known setting after it only parses correctly if the skip consumed exactly the unknown value's bytes.
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeVInt(2);
+
+        out.writeString("a_future_setting_this_node_does_not_know");
+        BytesStreamOutput unknownValue = new BytesStreamOutput();
+        unknownValue.writeString("opaque");
+        unknownValue.writeVInt(123); // arbitrary extra bytes, of a shape this node could not guess
+        out.writeBytesReference(unknownValue.bytes());
 
         out.writeString(QuerySettings.TIME_ZONE.name());
         BytesStreamOutput knownValue = new BytesStreamOutput();
         QuerySettings.TIME_ZONE.writeValue(knownValue, ZoneId.of("Europe/Paris"));
         out.writeBytesReference(knownValue.bytes());
 
-        out.writeString("a_future_setting_this_node_does_not_know");
-        BytesStreamOutput unknownValue = new BytesStreamOutput();
-        unknownValue.writeString("opaque");
-        out.writeBytesReference(unknownValue.bytes());
-
         ResolvedSettings resolved = new ResolvedSettings(out.bytes().streamInput());
-        // The known setting survives; the unknown one is silently skipped (no throw).
+        // The unknown one is silently skipped (no throw); the known setting after it survives intact.
         assertThat(QuerySettings.TIME_ZONE.get(resolved), equalTo(ZoneId.of("Europe/Paris")));
     }
 

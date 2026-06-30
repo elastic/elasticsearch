@@ -86,8 +86,29 @@ public final class ResolvedSettings implements Writeable {
         return v != null ? (T) v : def.defaultValue();
     }
 
-    public Map<QuerySettingDef<?>, Object> values() {
+    Map<QuerySettingDef<?>, Object> values() {
         return values;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return values.equals(((ResolvedSettings) o).values);
+    }
+
+    @Override
+    public int hashCode() {
+        return values.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return values.toString();
     }
 
     /**

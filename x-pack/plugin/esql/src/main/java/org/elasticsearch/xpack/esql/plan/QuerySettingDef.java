@@ -397,6 +397,10 @@ public final class QuerySettingDef<T> {
          * Wire how the setting's typed value crosses the transport boundary. Every setting needs this;
          * each factory pre-populates it for built-in types. Settings declared via {@link #object} or
          * {@link #builder} must call this explicitly before {@code build()}.
+         * <p>
+         * The reader is handed a plain {@link org.elasticsearch.common.io.stream.StreamInput} (the value is read
+         * from its own length-delimited blob in {@code ResolvedSettings}), so a value codec must not depend on a
+         * {@code BlockStreamInput} — i.e. it cannot read a {@code Block}/{@code Column}/{@code Page}.
          */
         Builder<T> streamFormat(Writeable.Writer<T> writer, Writeable.Reader<T> reader) {
             this.streamWriter = writer;

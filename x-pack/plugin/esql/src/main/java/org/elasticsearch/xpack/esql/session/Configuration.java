@@ -524,7 +524,7 @@ public class Configuration implements Writeable {
             && profile == that.profile
             && tables.equals(that.tables)
             && allowPartialResults == that.allowPartialResults
-            && Objects.equals(resolvedSettings.values(), that.resolvedSettings.values())
+            && Objects.equals(resolvedSettings, that.resolvedSettings)
             && viewQueries.equals(that.viewQueries)
             && explainOnly == that.explainOnly
             && grokMatcherWatchdogMs == that.grokMatcherWatchdogMs;
@@ -546,7 +546,7 @@ public class Configuration implements Writeable {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
-            resolvedSettings.values(),
+            resolvedSettings,
             viewQueries,
             explainOnly,
             grokMatcherWatchdogMs
@@ -571,7 +571,7 @@ public class Configuration implements Writeable {
             + resultTruncationDefaultSize(true)
             + "]"
             + ", resolvedSettings="
-            + resolvedSettings.values()
+            + resolvedSettings
             + ", locale="
             + locale
             + ", query='"

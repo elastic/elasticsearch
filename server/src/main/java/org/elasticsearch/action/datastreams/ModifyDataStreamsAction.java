@@ -103,9 +103,7 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
             for (DataStreamAction action : actions) {
                 if (IndexNameExpressionResolver.hasSelectorSuffix(action.getDataStream())) {
                     return addValidationError(
-                        "selectors [::] are not supported in data stream modification actions but found ["
-                            + action.getDataStream()
-                            + "]",
+                        "selectors [::] are not supported in data stream modification actions but found [" + action.getDataStream() + "]",
                         null
                     );
                 }

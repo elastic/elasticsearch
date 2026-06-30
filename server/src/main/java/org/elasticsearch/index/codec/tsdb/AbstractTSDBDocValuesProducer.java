@@ -140,7 +140,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 if (version >= TSDBDocValuesFormatConfig.VERSION_NUMERIC_LARGE_BLOCKS) {
                     blockShift = in.readByte();
                 }
-                this.readContext = new NumericReadContext(1 << blockShift, formatConfig);
+                this.readContext = new NumericReadContext(1 << blockShift, formatConfig, version);
                 readFields(in, state.fieldInfos, version, blockShift);
             } catch (Throwable exception) {
                 priorE = exception;
@@ -188,7 +188,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     tempIn,
                     skipCodec,
                     TSDBDocValuesFormatConfig.VERSION_START,
-                    TSDBDocValuesFormatConfig.VERSION_SEPARATE_SKIPLIST,
+                    TSDBDocValuesFormatConfig.VERSION_CURRENT,
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
@@ -549,6 +549,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 public DocIdSetIterator tryContainsIterator(BytesRef containsTerm) throws IOException {
                     return decoder.containsTermTwoPhase(entry.numCompressedBlocks, containsTerm, maxDoc);
                 }
+
+                @Override
+                public DocIdSetIterator tryTermEqualIterator(BytesRef term) throws IOException {
+                    return decoder.termEqualTwoPhase(entry.numCompressedBlocks, term, maxDoc);
+                }
             };
         } else {
             // sparse
@@ -642,13 +647,22 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         private void decompressBlock(long blockId, int numDocsInBlock) throws IOException {
             var header = decompressOffsets(blockId, numDocsInBlock);
+            decompressValues(header.isCompressed(), numDocsInBlock);
+        }
 
+        /**
+         * Decompresses the value bytes of the block whose offsets were just loaded by
+         * {@link #decompressOffsets}. Precondition: {@code compressedData} is still positioned
+         * immediately after that block's encoded offsets — no intervening seek or read on this
+         * decoder since the offsets were loaded.
+         */
+        private void decompressValues(boolean compressed, int numDocsInBlock) throws IOException {
             int uncompressedBlockLength = uncompressedDocStarts[numDocsInBlock];
             assert uncompressedBlockLength <= uncompressedBlock.length;
             uncompressedBytesRef.offset = 0;
             uncompressedBytesRef.length = uncompressedBlock.length;
 
-            if (header.isCompressed()) {
+            if (compressed) {
                 decompressor.decompress(compressedData, uncompressedBlockLength, 0, uncompressedBlockLength, uncompressedBytesRef);
             } else {
                 compressedData.readBytes(uncompressedBlock, 0, uncompressedBlockLength);
@@ -756,7 +770,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             abstract void loadBlock(long blockId, int numDocsInBlock) throws IOException;
 
             /** Per-doc predicate evaluated against the currently-loaded block. */
-            abstract boolean matchesInBlock(int idxInBlock);
+            abstract boolean matchesInBlock(int idxInBlock) throws IOException;
         }
 
         /**
@@ -806,6 +820,60 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 public float matchCost() {
                     // SIMD substring check amortized over the decompressed block.
                     return 10f;
+                }
+            });
+        }
+
+        /**
+         * Term-equality predicate: block offsets are decompressed eagerly; the value bytes are
+         * decompressed lazily — only on the first doc in a block whose stored length matches
+         * {@code term.length}. Blocks where no doc has the matching length are rejected on offsets
+         * alone, paying only the offset decode and skipping the full Zstd/LZ4 decompression.
+         *
+         * <p>For a length-discriminating term (e.g. a hostname that is longer or shorter than most
+         * values in the field), the majority of blocks never touch the value bytes. For a
+         * non-discriminating length, the worst case is identical to decompressing every block
+         * eagerly; no work is added.
+         *
+         * <p>Only valid for single-valued docs (no length-prefix framing from the multi-valued
+         * encoding). The caller must gate on
+         * {@code countsSkipper == null || countsSkipper.maxValue() == 1} before calling this.
+         */
+        DocIdSetIterator termEqualTwoPhase(int numBlocks, BytesRef term, int leafMaxDoc) {
+            return TwoPhaseIterator.asDocIdSetIterator(new BlockAwareTwoPhase(DocIdSetIterator.all(leafMaxDoc), numBlocks) {
+                private boolean valuesLoaded;
+                private boolean blockCompressed;
+                private int blockNumDocs;
+
+                @Override
+                void loadBlock(long blockId, int numDocsInBlock) throws IOException {
+                    // Offsets only — value bytes are decompressed on demand in matchesInBlock.
+                    blockCompressed = decompressOffsets(blockId, numDocsInBlock).isCompressed();
+                    blockNumDocs = numDocsInBlock;
+                    valuesLoaded = false;
+                }
+
+                @Override
+                boolean matchesInBlock(int idx) throws IOException {
+                    int offset = uncompressedDocStarts[idx];
+                    int length = uncompressedDocStarts[idx + 1] - offset;
+                    if (length != term.length) {
+                        return false; // rejected on offsets alone — value bytes never touched
+                    }
+                    if (valuesLoaded == false) {
+                        // First length-match in this block: decompress values now. compressedData is
+                        // still positioned immediately after this block's encoded offsets.
+                        decompressValues(blockCompressed, blockNumDocs);
+                        valuesLoaded = true;
+                    }
+                    return Arrays.equals(uncompressedBlock, offset, offset + length, term.bytes, term.offset, term.offset + term.length);
+                }
+
+                @Override
+                public float matchCost() {
+                    // Most docs are rejected on offsets alone; the equality scan over matching-length
+                    // docs is one intrinsified call — cheaper than contains' SIMD substring search (10f).
+                    return 5f;
                 }
             });
         }
@@ -2188,8 +2256,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     private BlockDecoder blockDecoder(NumericEntry entry, long maxOrd) {
         if (maxOrd != AbstractTSDBDocValuesConsumer.NO_MAX_ORD) {
             final int bitsPerOrd = PackedInts.bitsRequired(maxOrd - 1);
-            var ordinalFieldReader = ordinalCodec.createReader(readContext);
-            final OrdinalFieldReader.Decoder decoder = ordinalFieldReader.decoder();
+            final OrdinalFieldReader.Decoder decoder = ordinalCodec.createReader(readContext).decoder(entry.blockSize);
             return (input, values) -> decoder.decodeOrdinals(input, values, bitsPerOrd);
         } else {
             var numericFieldReader = numericCodec.createReader(readContext);
@@ -2999,8 +3066,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         public PipelineDescriptor pipelineDescriptor;
         // NOTE: per-field block size. Equals pipelineDescriptor.blockSize() when present
         // (ES95 pipeline-encoded entries); otherwise the format-level default read from
-        // the numeric block shift header byte, used by ES819 entries and ordinal-stream
-        // entries that have no pipeline descriptor.
+        // the numeric block shift header byte, used by ES819 entries and ordinal entries.
         public int blockSize;
     }
 

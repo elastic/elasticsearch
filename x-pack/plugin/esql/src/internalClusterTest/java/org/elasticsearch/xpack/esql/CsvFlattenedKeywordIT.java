@@ -333,12 +333,12 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             this.nonKeywordPathsByDatasetIndexName = datasetPaths.nonKeywordPathsByDatasetIndexName();
 
             // Compute per-dataset junk configuration: flip one coin per dataset.
-            // Datasets with no converted keyword paths get the empty config.
+            // selectJunkFields already returns EMPTY for an empty input set, and
+            // datasets without a mapping file have no converted paths so they also get EMPTY.
             Map<String, FlattenedJunkConfig> junkMap = new HashMap<>();
-            for (Map.Entry<String, Set<String>> e : this.keywordPathsByDatasetIndexName.entrySet()) {
-                if (e.getValue().isEmpty() == false) {
-                    junkMap.put(e.getKey(), FlattenedJunkConfig.selectJunkFields(e.getValue(), random()));
-                }
+            for (CsvTestsDataLoader.TestDataset dataset : CsvTestsDataLoader.CSV_DATASET.values()) {
+                Set<String> kw = this.keywordPathsByDatasetIndexName.getOrDefault(dataset.indexName(), Set.of());
+                junkMap.put(dataset.indexName(), FlattenedJunkConfig.selectJunkFields(kw));
             }
             this.junkConfigByDatasetIndexName = Map.copyOf(junkMap);
 
@@ -675,8 +675,9 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         @Override
         public String transformDocument(CsvTestsDataLoader.TestDataset dataset, String originalDocumentJson) throws IOException {
             Set<String> paths = keywordPathsByDatasetIndexName.getOrDefault(dataset.indexName(), Set.of());
-            FlattenedJunkConfig junk = junkConfigByDatasetIndexName.getOrDefault(dataset.indexName(), FlattenedJunkConfig.EMPTY);
-            return KeywordToFlattenedTransformer.wrapKeywordValuesAsFlattened(originalDocumentJson, paths, junk, random());
+            FlattenedJunkConfig junk = junkConfigByDatasetIndexName.get(dataset.indexName());
+            assert junk != null : "no junk config for dataset: " + dataset.indexName();
+            return KeywordToFlattenedTransformer.wrapKeywordValuesAsFlattened(originalDocumentJson, paths, junk);
         }
 
         @Override

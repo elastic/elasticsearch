@@ -12,6 +12,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import org.elasticsearch.test.ESTestCase;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -19,7 +21,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 
 /**
@@ -110,7 +111,7 @@ public final class KeywordToFlattenedTransformer {
      *
      * @param junkFields the field paths whose wrapped objects will carry random extra keys;
      *                   may be empty (but never {@code null})
-     * @see #selectJunkFields(Set, Random)
+     * @see #selectJunkFields(Set)
      */
     public record FlattenedJunkConfig(Set<String> junkFields) {
         /** Canonical "no junk" config; equivalent to {@code new FlattenedJunkConfig(Set.of())}. */
@@ -122,22 +123,21 @@ public final class KeywordToFlattenedTransformer {
          * objects. The selection is deterministic for a given {@code random} seed.
          *
          * @param keywordPaths all keyword paths being converted, must not be empty
-         * @param random       randomness source (e.g. {@code ESTestCase.random()})
          * @return a {@link FlattenedJunkConfig} describing which fields get junk; the set is empty
          *         when the coin comes up tails
          */
-        public static FlattenedJunkConfig selectJunkFields(Set<String> keywordPaths, Random random) {
+        public static FlattenedJunkConfig selectJunkFields(Set<String> keywordPaths) {
             if (keywordPaths.isEmpty()) {
                 return EMPTY;
             }
-            if (random.nextBoolean() == false) {
+            if (ESTestCase.randomBoolean() == false) {
                 // tails → no junk
                 return EMPTY;
             }
             List<String> sorted = new ArrayList<>(keywordPaths);
             Collections.sort(sorted);                     // deterministic ordering before shuffle
-            Collections.shuffle(sorted, random);
-            int count = 1 + random.nextInt(sorted.size()); // 1..size inclusive
+            Collections.shuffle(sorted, ESTestCase.random());
+            int count = 1 + ESTestCase.randomIntBetween(0, sorted.size() - 1); // 1..size inclusive
             return new FlattenedJunkConfig(Set.copyOf(sorted.subList(0, count)));
         }
     }
@@ -274,7 +274,7 @@ public final class KeywordToFlattenedTransformer {
      * matches what {@code CsvTestsDataLoader.parseDocument} produces.
      */
     public static String wrapKeywordValuesAsFlattened(String documentJson, Set<String> keywordFieldPaths) throws IOException {
-        return wrapKeywordValuesAsFlattened(documentJson, keywordFieldPaths, FlattenedJunkConfig.EMPTY, null);
+        return wrapKeywordValuesAsFlattened(documentJson, keywordFieldPaths, FlattenedJunkConfig.EMPTY);
     }
 
     /**
@@ -289,20 +289,14 @@ public final class KeywordToFlattenedTransformer {
      * {@link #WRAPPER_SUBKEY} but force the engine to parse richer flattened objects.
      * <p>
      * When {@code junkConfig} is {@link FlattenedJunkConfig#EMPTY} this method is equivalent
-     * to {@link #wrapKeywordValuesAsFlattened(String, Set)} and {@code random} is not called.
+     * to {@link #wrapKeywordValuesAsFlattened(String, Set)}.
      *
      * @param documentJson       the document's source JSON
      * @param keywordFieldPaths  the dotted paths of every field to wrap
      * @param junkConfig         which of those fields should additionally receive junk entries
-     * @param random             randomness source used when writing junk; may be {@code null}
-     *                           when {@code junkConfig} is {@link FlattenedJunkConfig#EMPTY}
      */
-    public static String wrapKeywordValuesAsFlattened(
-        String documentJson,
-        Set<String> keywordFieldPaths,
-        FlattenedJunkConfig junkConfig,
-        Random random
-    ) throws IOException {
+    public static String wrapKeywordValuesAsFlattened(String documentJson, Set<String> keywordFieldPaths, FlattenedJunkConfig junkConfig)
+        throws IOException {
         if (keywordFieldPaths.isEmpty()) {
             return documentJson;
         }
@@ -320,7 +314,7 @@ public final class KeywordToFlattenedTransformer {
             ObjectNode wrapped = MAPPER.createObjectNode();
             wrapped.set(WRAPPER_SUBKEY, existing);
             if (junkConfig.junkFields().contains(path)) {
-                generateJunkEntries(wrapped, random);
+                generateJunkEntries(wrapped);
             }
             doc.set(path, wrapped);
             modified = true;
@@ -333,10 +327,10 @@ public final class KeywordToFlattenedTransformer {
      * Key names use the prefix {@code "_j"} followed by an index so they never collide
      * with the canonical {@link #WRAPPER_SUBKEY} (which is {@code "v"}).
      */
-    private static void generateJunkEntries(ObjectNode node, Random random) {
-        int count = 1 + random.nextInt(5);  // 1..5 inclusive
+    private static void generateJunkEntries(ObjectNode node) {
+        int count = ESTestCase.randomIntBetween(1, 5);
         for (int i = 0; i < count; i++) {
-            writeJunkEntry(node, "_j" + i, random);
+            writeJunkEntry(node, "_j" + i);
         }
     }
 
@@ -344,40 +338,27 @@ public final class KeywordToFlattenedTransformer {
      * Writes a single randomly typed junk entry under {@code key} into {@code node}.
      * The six value categories are: string, integer, boolean, null, nested object, array of strings.
      */
-    private static void writeJunkEntry(ObjectNode node, String key, Random random) {
-        int kind = random.nextInt(6);
+    private static void writeJunkEntry(ObjectNode node, String key) {
+        int kind = ESTestCase.randomIntBetween(0, 5);
         switch (kind) {
-            case 0 -> node.put(key, randomAlphaOfLength(random, 4, 8));   // string
-            case 1 -> node.put(key, random.nextInt(1000));                 // integer
-            case 2 -> node.put(key, random.nextBoolean());                 // boolean
-            case 3 -> node.putNull(key);                                   // null
-            case 4 -> {                                                     // nested object
+            case 0 -> node.put(key, ESTestCase.randomAlphaOfLengthBetween(4, 8));   // string
+            case 1 -> node.put(key, ESTestCase.randomIntBetween(0, 999));            // integer
+            case 2 -> node.put(key, ESTestCase.randomBoolean());                     // boolean
+            case 3 -> node.putNull(key);                                             // null
+            case 4 -> {                                                               // nested object
                 ObjectNode obj = MAPPER.createObjectNode();
-                obj.put("k", randomAlphaOfLength(random, 2, 5));
+                obj.put("k", ESTestCase.randomAlphaOfLengthBetween(2, 5));
                 node.set(key, obj);
             }
-            case 5 -> {                                                     // array of strings
+            case 5 -> {                                                               // array of strings
                 ArrayNode arr = MAPPER.createArrayNode();
-                int n = 1 + random.nextInt(3);
+                int n = ESTestCase.randomIntBetween(1, 3);
                 for (int i = 0; i < n; i++) {
-                    arr.add(randomAlphaOfLength(random, 2, 6));
+                    arr.add(ESTestCase.randomAlphaOfLengthBetween(2, 6));
                 }
                 node.set(key, arr);
             }
         }
-    }
-
-    /**
-     * Returns a random alphabetic string of length between {@code minLen} and
-     * {@code maxLen} (inclusive), using lower-case ASCII letters.
-     */
-    private static String randomAlphaOfLength(Random random, int minLen, int maxLen) {
-        int len = minLen + (maxLen > minLen ? random.nextInt(maxLen - minLen + 1) : 0);
-        StringBuilder sb = new StringBuilder(len);
-        for (int i = 0; i < len; i++) {
-            sb.append((char) ('a' + random.nextInt(26)));
-        }
-        return sb.toString();
     }
 
     /**

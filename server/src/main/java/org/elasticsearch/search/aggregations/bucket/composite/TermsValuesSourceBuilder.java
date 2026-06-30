@@ -222,8 +222,10 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
     @Override
     public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
-        // The keyword/IP composite source orders by _key on segment ordinals, keeping per-segment slot state that is
-        // remapped at each segment boundary, so collection is single-threaded.
-        return false;
+        // The composite aggregation bounds its collected state to `size` buckets per slice regardless of the field's
+        // cardinality, so concurrent collection is always memory-bounded and safe. Unlike the terms aggregation - whose
+        // bucket count grows with cardinality - it needs no cardinality gate here, which also avoids building global
+        // ordinals just to make this decision. Scripts are not safe for parallel collection.
+        return script() == null;
     }
 }

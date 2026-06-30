@@ -38,7 +38,6 @@ class GradlePluginConventionsArchUnitSpec extends AbstractArchUnitSpec {
      */
     private static final Set<String> KNOWN_AFTER_EVALUATE = [
         "org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin",
-        "org.elasticsearch.gradle.internal.ElasticsearchJavadocPlugin",
     ] as Set
 
     @Shared

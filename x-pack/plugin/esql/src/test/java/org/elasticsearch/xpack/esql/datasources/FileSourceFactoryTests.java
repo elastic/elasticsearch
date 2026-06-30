@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Regression tests for the wiring inside {@link FileSourceFactory#operatorFactory()}. The
@@ -114,6 +115,35 @@ public class FileSourceFactoryTests extends ESTestCase {
             );
         AsyncExternalSourceOperatorFactory factory = (AsyncExternalSourceOperatorFactory) built;
         assertNull(factory.lastModifiedMillis());
+    }
+
+    /**
+     * The config-aware {@code canHandle} lets the file factory claim an extensionless resource when the
+     * query config names an explicit, registered format on a scheme we have a storage provider for. Without
+     * the override the path-only form rejects extensionless objects, which is why a dataset registered with
+     * an explicit {@code format} on an extensionless resource failed to read end to end.
+     */
+    public void testCanHandleWithConfigClaimsExtensionlessWhenFormatIsExplicit() {
+        FileSourceFactory fileSourceFactory = newFileSourceFactory();
+
+        // Extension still wins on its own, with or without config.
+        assertTrue(fileSourceFactory.canHandle("s3://bucket/data.parquet", Map.of()));
+
+        // Extensionless: only claimed when an explicit, registered format is supplied.
+        String extensionless = "s3://bucket/data";
+        assertFalse("no config -> nothing to infer the format from", fileSourceFactory.canHandle(extensionless, Map.of()));
+        assertTrue(
+            "explicit registered format claims the extensionless resource",
+            fileSourceFactory.canHandle(extensionless, Map.of(FileSourceFactory.CONFIG_FORMAT, "test-parquet"))
+        );
+        assertFalse(
+            "an unregistered format is not claimed",
+            fileSourceFactory.canHandle(extensionless, Map.of(FileSourceFactory.CONFIG_FORMAT, "not-a-real-format"))
+        );
+        assertFalse(
+            "no storage provider for the scheme -> not claimed even with an explicit format",
+            fileSourceFactory.canHandle("file:///tmp/data", Map.of(FileSourceFactory.CONFIG_FORMAT, "test-parquet"))
+        );
     }
 
     private static FileSourceFactory newFileSourceFactory() {

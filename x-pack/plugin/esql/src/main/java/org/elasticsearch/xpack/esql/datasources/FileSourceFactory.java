@@ -175,6 +175,36 @@ final class FileSourceFactory implements ExternalSourceFactory {
     }
 
     @Override
+    public boolean canHandle(String location, Map<String, Object> config) {
+        // The path-only form already claims any resource whose extension maps to a known format.
+        if (canHandle(location)) {
+            return true;
+        }
+        // Otherwise the resource carries no inferable format (e.g. an extensionless object). An explicit
+        // `format` (or `reader` alias) in the query config supplies the missing piece, so claim the path
+        // when the override names a registered format on a scheme we have a storage provider for. This is
+        // the read-path counterpart to FileDataSourceValidator accepting an explicit format on an
+        // extensionless resource.
+        if (location == null || config == null || config.isEmpty()) {
+            return false;
+        }
+        try {
+            StoragePath path = StoragePath.of(location);
+            String objectName = path.objectName();
+            if (objectName == null || objectName.isEmpty()) {
+                return false;
+            }
+            if (storageRegistry.hasProvider(path.scheme()) == false) {
+                return false;
+            }
+            String format = FormatNameResolver.resolve(config, "");
+            return format != null && formatRegistry.hasFormat(format);
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    @Override
     public void validateConfig(String location, Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             return;

@@ -46,12 +46,32 @@ import java.util.Objects;
  *       source-specific classes like S3Configuration</li>
  *   <li><b>Opaque metadata</b>: Source-specific data (native schema, etc.) is stored in
  *       {@link #sourceMetadata()} and passed through without core understanding it</li>
- *   <li><b>Opaque pushed filter</b>: The {@link #pushedFilter()} is an opaque Object that only
- *       the source-specific operator factory interprets. It is NOT serialized; it is created
- *       locally on each data node by the LocalPhysicalPlanOptimizer via FormatReader.filterPushdownSupport()</li>
- *   <li><b>Data node execution</b>: Created on data nodes by LocalMapper from
- *       {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation} inside FragmentExec</li>
+ *   <li><b>Local-only creation</b>: never appears in a coordinator-side or wire-shipped plan. The
+ *       coordinator {@code Mapper} leaves the source as {@code FragmentExec(ExternalRelation)}; this
+ *       exec is materialized per-node by {@code LocalMapper} from
+ *       {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()} during
+ *       {@code PlannerUtils.localPlan()}, on whichever node runs the compute.</li>
  * </ul>
+ * <p>
+ * Field categories. The fields fall into three groups, and only the first is serialized:
+ * <ul>
+ *   <li><b>Execution inputs (serialized):</b> {@code sourcePath}, {@code sourceType},
+ *       {@code attributes}, {@code config}, {@code sourceMetadata}, {@code estimatedRowSize},
+ *       {@code splits}, {@code datasetName}. These are what a data-node operator needs to read.</li>
+ *   <li><b>Build-time state copied from {@code ExternalRelation} (not serialized):</b>
+ *       {@code fileList}, {@code schemaMap}, {@code unifiedSchema}. These originate on the relation
+ *       and are duplicated here so split discovery and {@code planExternalSource} can read them off
+ *       the exec. They are recreated per-node by {@code toPhysicalExec()} from the (still-logical)
+ *       fragment that crosses the wire, so they never need wire encoding.</li>
+ *   <li><b>Local-execution pushdown hints (not serialized):</b> {@code pushedFilter},
+ *       {@code pushedExpressions}, {@code pushedLimit}, {@code pushedTopN},
+ *       {@code deferredExtraction}. These are decisions produced by {@code LocalPhysicalPlanOptimizer}
+ *       rules that run <em>after</em> this exec is created, independently on each node. They are
+ *       intentionally re-derived per-node and must not be serialized.</li>
+ * </ul>
+ * When adding a field: if a data-node operator consumes it directly, it is an execution input and
+ * must be serialized; if it derives from the relation or from local physical optimization, it is
+ * transient and stays out of {@link #writeTo}.
  */
 public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, DataSourceExec {
 
@@ -65,39 +85,13 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private static final TransportVersion ESQL_EXTERNAL_DATASET_NAME = TransportVersion.fromName("esql_external_dataset_name");
     private static final TransportVersion DATA_SOURCE_ENCRYPTED_DATA = TransportVersion.fromName("data_source_encrypted_data");
 
+    // --- Execution inputs (serialized; see class Javadoc) ---
     private final String sourcePath;
     private final String sourceType;
     private final List<Attribute> attributes;
     private final Map<String, Object> config;
     private final Map<String, Object> sourceMetadata;
-    private final Object pushedFilter; // Opaque filter - NOT serialized, created locally on data nodes
-    private final List<Expression> pushedExpressions; // NOT serialized - ESQL expressions for per-file re-translation
-    private final int pushedLimit; // NOT serialized, set locally on data nodes
-    /**
-     * Transient hint that the data above this source is a STATS aggregation followed by a TopN over a single
-     * grouping key. When present, the {@link BlockHash} can prune non-competitive groups during aggregation.
-     * NOT serialized; set locally on each node by {@code PushTopNIntoExternalSource}.
-     */
-    @Nullable
-    private final BlockHash.TopNDef pushedTopN;
-    /**
-     * Transient flag set by {@code InsertExternalFieldExtraction} when (and only when) a paired
-     * {@code ExternalFieldExtractExec} sits downstream to consume deferred-encoded columns. The
-     * operator factory keys deferred extraction off this flag — NOT off {@code _rowPosition}
-     * presence in the projection, which {@code InjectRowPositionForExternalId} also produces for
-     * plain {@code _id} composition with no extract operator (enabling deferred mode there would
-     * create a SourceExtractors registry that nothing ever closes). NOT serialized; set locally.
-     */
-    private final boolean deferredExtraction;
     private final Integer estimatedRowSize;
-    private final FileList fileList; // NOT serialized - resolved on coordinator, null on data nodes
-    // Coordinator-only — not serialized. Drives FileSplit.readSchema + UBN SchemaAdaptingIterator.
-    private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
-    // Coordinator-only — not serialized. The pre-prune Unified schema. Survives the optimizer's
-    // projection prune of `attributes` so split discovery can narrow per-file ColumnMappings to
-    // the post-prune Query schema without rebuilding Unified names from per-file mappings.
-    @Nullable
-    private final ExternalSchema unifiedSchema;
     private final List<ExternalSplit> splits;
     // Registered dataset identifier when this exec came from FROM <dataset>, null for inline
     // EXTERNAL. Serialized so the data-node operator factory can populate _index with the
@@ -105,63 +99,36 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     @Nullable
     private final String datasetName;
 
-    public ExternalSourceExec(
-        Source source,
-        String sourcePath,
-        String sourceType,
-        List<Attribute> attributes,
-        Map<String, Object> config,
-        Map<String, Object> sourceMetadata,
-        Object pushedFilter,
-        Integer estimatedRowSize,
-        FileList fileList
-    ) {
-        this(
-            source,
-            sourcePath,
-            sourceType,
-            attributes,
-            config,
-            sourceMetadata,
-            pushedFilter,
-            List.of(),
-            FormatReader.NO_LIMIT,
-            estimatedRowSize,
-            fileList,
-            Map.of(),
-            List.of()
-        );
-    }
+    // --- Build-time state copied from ExternalRelation (not serialized; recreated per-node) ---
+    private final FileList fileList;
+    // Drives FileSplit.readSchema + UBN SchemaAdaptingIterator.
+    private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
+    // The pre-prune Unified schema. Survives the optimizer's projection prune of `attributes` so
+    // split discovery can narrow per-file ColumnMappings to the post-prune Query schema without
+    // rebuilding Unified names from per-file mappings.
+    @Nullable
+    private final ExternalSchema unifiedSchema;
 
-    public ExternalSourceExec(
-        Source source,
-        String sourcePath,
-        String sourceType,
-        List<Attribute> attributes,
-        Map<String, Object> config,
-        Map<String, Object> sourceMetadata,
-        Object pushedFilter,
-        int pushedLimit,
-        Integer estimatedRowSize,
-        FileList fileList,
-        List<ExternalSplit> splits
-    ) {
-        this(
-            source,
-            sourcePath,
-            sourceType,
-            attributes,
-            config,
-            sourceMetadata,
-            pushedFilter,
-            List.of(),
-            pushedLimit,
-            estimatedRowSize,
-            fileList,
-            Map.of(),
-            splits
-        );
-    }
+    // --- Local-execution pushdown hints (not serialized; set per-node by LocalPhysicalPlanOptimizer) ---
+    private final Object pushedFilter; // Opaque filter, interpreted only by the source-specific operator factory.
+    private final List<Expression> pushedExpressions; // ESQL expressions for per-file re-translation.
+    private final int pushedLimit;
+    /**
+     * Hint that the data above this source is a STATS aggregation followed by a TopN over a single
+     * grouping key. When present, the {@link BlockHash} can prune non-competitive groups during
+     * aggregation. Set locally on each node by {@code PushTopNIntoExternalSource}.
+     */
+    @Nullable
+    private final BlockHash.TopNDef pushedTopN;
+    /**
+     * Flag set by {@code InsertExternalFieldExtraction} when (and only when) a paired
+     * {@code ExternalFieldExtractExec} sits downstream to consume deferred-encoded columns. The
+     * operator factory keys deferred extraction off this flag — NOT off {@code _rowPosition}
+     * presence in the projection, which {@code InjectRowPositionForExternalId} also produces for
+     * plain {@code _id} composition with no extract operator (enabling deferred mode there would
+     * create a SourceExtractors registry that nothing ever closes).
+     */
+    private final boolean deferredExtraction;
 
     /**
      * Public 13-arg ctor used by {@link #info()} (via constructor reference) and by tree tests.
@@ -339,6 +306,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         this.deferredExtraction = deferredExtraction;
     }
 
+    /**
+     * Convenience ctor (no splits/fileList/schema). Use {@link #withFileList(FileList)},
+     * {@link #withSplits(List)}, and the other {@code with*} builders to attach the build-time and
+     * pushdown state. Primarily for tests and the inline {@code EXTERNAL} path.
+     */
     public ExternalSourceExec(
         Source source,
         String sourcePath,
@@ -366,6 +338,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         );
     }
 
+    /** Convenience ctor with no pushed filter; see {@link #ExternalSourceExec(Source, String, String, List, Map, Map, Object, Integer)}. */
     public ExternalSourceExec(
         Source source,
         String sourcePath,
@@ -525,6 +498,33 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             schemaMap,
             unifiedSchema,
             newSplits,
+            datasetName,
+            deferredExtraction
+        );
+    }
+
+    /**
+     * Returns a copy carrying the given (coordinator-resolved) {@link FileList}. {@code fileList} is
+     * build-time state copied from {@code ExternalRelation}; it is read off the exec by split
+     * discovery and {@code planExternalSource} and is never serialized. See the class Javadoc.
+     */
+    public ExternalSourceExec withFileList(FileList newFileList) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            pushedTopN,
+            estimatedRowSize,
+            newFileList,
+            schemaMap,
+            unifiedSchema,
+            splits,
             datasetName,
             deferredExtraction
         );

@@ -117,8 +117,7 @@ class SpatialBinaryGeometryBlockProcessor {
         for (int i = 0; i < valueCount; i++) {
             geometries.add(UNSPECIFIED.wkbToJtsGeometry(block.getBytesRef(firstValueIndex + i, scratch)));
         }
-        // Use UnaryUnionOp so the result is a homogeneous multi-type (e.g. MultiPolygon)
-        // that JTS binary overlay operations can accept.
+        // Use UnaryUnionOp to combine multiple block values into one geometry for the operation.
         return UnaryUnionOp.union(geometries);
     }
 
@@ -129,7 +128,7 @@ class SpatialBinaryGeometryBlockProcessor {
      * For anything else (a true heterogeneous collection), pre-flatten to a supported type
      * using a self-union so the binary operation can proceed.
      */
-    private static Geometry flattenIfHeterogeneousCollection(Geometry geom) {
+    static Geometry flattenIfHeterogeneousCollection(Geometry geom) {
         if (geom instanceof MultiPoint || geom instanceof MultiLineString || geom instanceof MultiPolygon) {
             return geom;
         }

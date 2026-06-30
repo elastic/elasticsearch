@@ -16,7 +16,14 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
@@ -34,7 +41,14 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
@@ -52,7 +66,14 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
@@ -70,7 +91,14 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
@@ -88,7 +116,14 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
@@ -106,7 +141,14 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
@@ -124,7 +166,14 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
@@ -142,7 +191,14 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
@@ -160,7 +216,14 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
@@ -178,7 +241,14 @@
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC."
+          "description" : "Sort order. The valid options are ASC and DESC, the default is ASC.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,

@@ -381,13 +381,15 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
             // Strict columnar modes disable indexing by default; override explicitly so this test can read timestamp ranges via points.
             boolean strictColumnar = indexMode.isStrictColumnar();
             boolean allowStore = strictColumnar == false && randomBoolean();
+            // Strict columnar rebuilds _source from doc values, so it cannot disable them; only randomize otherwise.
+            boolean docValues = strictColumnar || randomBoolean();
             if (nanosTimestampResolution) {
                 return createDocumentMapper(mapping(b -> {
                     b.startObject("@timestamp").field("type", "date_nanos").field("format", "epoch_millis");
                     if (strictColumnar) {
                         b.field("index", true);
                     }
-                    b.field("doc_values", randomBoolean()).field("store", allowStore).endObject();
+                    b.field("doc_values", docValues).field("store", allowStore).endObject();
                 }), indexMode);
             } else {
                 return createDocumentMapper(mapping(b -> {
@@ -395,7 +397,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
                     if (strictColumnar) {
                         b.field("index", true);
                     }
-                    b.field("doc_values", randomBoolean()).field("store", allowStore).endObject();
+                    b.field("doc_values", docValues).field("store", allowStore).endObject();
                 }), indexMode);
             }
         } else if (indexMode == IndexMode.TIME_SERIES) {

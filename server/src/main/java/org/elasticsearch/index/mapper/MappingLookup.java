@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -57,8 +58,8 @@ public final class MappingLookup {
     private final Map<String, ObjectMapper> objectMappers;
     private final Map<String, InferenceFieldMetadata> inferenceFields;
     private final Set<String> syntheticVectorFields;
-    private final Set<FieldMapper> indexDimensionFieldMappers;
-    private final Set<FieldMapper> indexMetricFieldMappers;
+    private final Map<String, FieldMapper> dimensionFieldMappers;
+    private final Map<String, FieldMapper> metricFieldMappers;
     private final int runtimeFieldMappersCount;
     private final NestedLookup nestedLookup;
     private final FieldTypeLookup fieldTypeLookup;
@@ -189,8 +190,8 @@ public final class MappingLookup {
 
         final Map<String, NamedAnalyzer> indexAnalyzers = new HashMap<>();
         final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
-        final Set<FieldMapper> dimensionMappers = new LinkedHashSet<>();
-        final Set<FieldMapper> metricMappers = new LinkedHashSet<>();
+        final Map<String, FieldMapper> dimensionMappers = new LinkedHashMap<>();
+        final Map<String, FieldMapper> metricMappers = new LinkedHashMap<>();
         for (FieldMapper mapper : mappers) {
             if (objects.containsKey(mapper.fullPath())) {
                 throw new MapperParsingException("Field [" + mapper.fullPath() + "] is defined both as an object and a field");
@@ -204,10 +205,10 @@ public final class MappingLookup {
             }
             MappedFieldType fieldType = mapper.fieldType();
             if (fieldType.isDimension()) {
-                dimensionMappers.add(mapper);
+                dimensionMappers.put(mapper.fullPath(), mapper);
             }
             if (fieldType.getMetricType() != null) {
-                metricMappers.add(mapper);
+                metricMappers.put(mapper.fullPath(), mapper);
             }
         }
 
@@ -226,7 +227,7 @@ public final class MappingLookup {
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughSources, runtimeFields, prefixProperties);
 
         Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
-        List<String> syntheticVectorFields = new ArrayList<>();
+        Set<String> syntheticVectorFields = new LinkedHashSet<>();
         for (FieldMapper mapper : mappers) {
             if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
                 inferenceFields.put(mapper.fullPath(), inferenceFieldMapper.getMetadata(fieldTypeLookup.sourcePaths(mapper.fullPath())));
@@ -235,8 +236,8 @@ public final class MappingLookup {
                 syntheticVectorFields.add(mapper.fullPath());
             }
         }
-        this.inferenceFields = Map.copyOf(inferenceFields);
-        this.syntheticVectorFields = Set.copyOf(syntheticVectorFields);
+        this.inferenceFields = Collections.unmodifiableMap(inferenceFields);
+        this.syntheticVectorFields = Collections.unmodifiableSet(syntheticVectorFields);
 
         if (runtimeFields.isEmpty()) {
             // without runtime fields this is the same as the field type lookup
@@ -251,13 +252,13 @@ public final class MappingLookup {
             );
         }
         // make all fields into compact+fast immutable maps
-        this.fieldMappers = Map.copyOf(fieldMappers);
-        this.indexDimensionFieldMappers = Collections.unmodifiableSet(dimensionMappers);
-        this.indexMetricFieldMappers = Collections.unmodifiableSet(metricMappers);
-        this.objectMappers = Map.copyOf(objects);
+        this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
+        this.dimensionFieldMappers = Collections.unmodifiableMap(dimensionMappers);
+        this.metricFieldMappers = Collections.unmodifiableMap(metricMappers);
+        this.objectMappers = Collections.unmodifiableMap(objects);
         this.runtimeFieldMappersCount = runtimeFields.size();
-        this.indexAnalyzers = Map.copyOf(indexAnalyzers);
-        this.indexTimeScriptMappers = List.copyOf(indexTimeScriptMappers);
+        this.indexAnalyzers = Collections.unmodifiableMap(indexAnalyzers);
+        this.indexTimeScriptMappers = Collections.unmodifiableList(indexTimeScriptMappers);
         this.indexMode = indexMode;
 
         runtimeFields.stream().flatMap(RuntimeField::asMappedFieldTypes).map(MappedFieldType::name).forEach(this::validateDoesNotShadow);
@@ -341,17 +342,57 @@ public final class MappingLookup {
     }
 
     /**
-     * Returns the set of field mappers marked as time-series dimensions, in insertion order.
+     * Returns the full path of the first field whose {@code _source} cannot be reconstructed from doc-value columns —
+     * i.e. whose {@link FieldMapper.SyntheticSourceMode} is {@link FieldMapper.SyntheticSourceMode#FALLBACK} — or
+     * {@code null} if every field is reconstructable. Columnar index modes rebuild {@code _source} purely from
+     * doc-value columns and never keep a generic source fallback, so a fallback field (no doc values, or a type whose
+     * doc-value encoding cannot rebuild its own source) has no columnar representation. The check covers every field
+     * mapper, including those nested inside object and nested fields, since {@link #fieldMappers()} is the flattened set
+     * of all field mappers by full path. Metadata fields are exempt (reconstructed by their own machinery), as are
+     * multi-fields and the internal sub-fields of an {@link InferenceFieldMapper} (e.g. a {@code semantic_text} field's
+     * chunk embeddings and offsets) - none of these appear in {@code _source}.
      */
-    public Set<FieldMapper> indexDimensionFieldMappers() {
-        return indexDimensionFieldMappers;
+    @Nullable
+    public String firstFieldNotReconstructableFromDocValues() {
+        for (Mapper mapper : fieldMappers()) {
+            if (mapper instanceof FieldMapper fieldMapper
+                && mapper instanceof MetadataFieldMapper == false
+                && isMultiField(fieldMapper.fullPath()) == false
+                && isInferenceFieldInternal(fieldMapper.fullPath()) == false
+                && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
+                return fieldMapper.fullPath();
+            }
+        }
+        return null;
     }
 
     /**
-     * Returns the set of field mappers that carry a time-series metric type, in insertion order.
+     * Whether the field is an internal sub-field of an {@link InferenceFieldMapper} (it lives under an inference field's path).
+     * Such fields are not part of {@code _source}; the inference field reconstructs them into {@code _inference_fields} itself.
      */
-    public Set<FieldMapper> indexMetricFieldMappers() {
-        return indexMetricFieldMappers;
+    private boolean isInferenceFieldInternal(String fieldPath) {
+        for (String inferenceFieldPath : inferenceFields.keySet()) {
+            if (fieldPath.length() > inferenceFieldPath.length()
+                && fieldPath.startsWith(inferenceFieldPath)
+                && fieldPath.charAt(inferenceFieldPath.length()) == '.') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns the field mappers marked as time-series dimensions, keyed by full path in insertion order.
+     */
+    public Map<String, FieldMapper> dimensionFieldMappers() {
+        return dimensionFieldMappers;
+    }
+
+    /**
+     * Returns the field mappers that carry a time-series metric type, keyed by full path in insertion order.
+     */
+    public Map<String, FieldMapper> metricFieldMappers() {
+        return metricFieldMappers;
     }
 
     void checkLimits(IndexSettings settings) {
@@ -387,11 +428,7 @@ public final class MappingLookup {
     }
 
     private void checkDimensionFieldLimit(long limit) {
-        long dimensionFieldCount = fieldMappers.values()
-            .stream()
-            .filter(m -> m instanceof FieldMapper && ((FieldMapper) m).fieldType().isDimension())
-            .count();
-        if (dimensionFieldCount > limit) {
+        if (dimensionFieldMappers.size() > limit) {
             throw new IllegalArgumentException("Limit of total dimension fields [" + limit + "] has been exceeded");
         }
     }

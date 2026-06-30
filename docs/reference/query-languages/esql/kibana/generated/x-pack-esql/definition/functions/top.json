@@ -16,7 +16,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -34,13 +37,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
@@ -58,7 +71,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -76,13 +92,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
@@ -100,13 +126,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -130,13 +166,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -160,13 +206,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -190,13 +246,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -220,13 +286,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -250,13 +326,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -280,7 +366,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -298,13 +387,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
@@ -322,13 +421,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -352,13 +461,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -382,13 +501,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -412,13 +541,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -442,13 +581,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -472,13 +621,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -502,7 +661,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -520,13 +682,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
@@ -544,13 +716,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -574,13 +756,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -604,13 +796,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -634,13 +836,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -664,13 +876,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -694,13 +916,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -724,7 +956,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -742,13 +977,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
@@ -766,7 +1011,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -784,13 +1032,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
@@ -808,13 +1066,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -838,13 +1106,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -868,13 +1146,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -898,13 +1186,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -928,13 +1226,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -958,13 +1266,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -988,7 +1306,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -1006,13 +1327,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
@@ -1030,13 +1361,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -1060,13 +1401,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -1090,13 +1441,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -1120,13 +1481,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -1150,13 +1521,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -1180,13 +1561,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -1210,7 +1601,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -1228,13 +1622,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         }
       ],
       "variadic" : false,
@@ -1252,13 +1656,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -1282,13 +1696,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -1312,13 +1736,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -1342,13 +1776,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -1372,13 +1816,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",
@@ -1402,13 +1856,23 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "order",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
+          "description" : "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.",
+          "hint" : {
+            "kind" : "constant",
+            "allowedValues" : [
+              "asc",
+              "desc"
+            ]
+          }
         },
         {
           "name" : "outputField",

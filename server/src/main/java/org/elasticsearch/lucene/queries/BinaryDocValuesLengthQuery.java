@@ -36,10 +36,13 @@ final class BinaryDocValuesLengthQuery extends Query {
 
     final String fieldName;
     final int length;
+    // See AbstractBinaryDocValuesQuery#arrayOrderInlineNull: selects the inline-null decoder for the multi-valued fallback path.
+    final boolean arrayOrderInlineNull;
 
-    BinaryDocValuesLengthQuery(String fieldName, int length) {
+    BinaryDocValuesLengthQuery(String fieldName, int length, boolean arrayOrderInlineNull) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.length = length;
+        this.arrayOrderInlineNull = arrayOrderInlineNull;
     }
 
     @Override
@@ -64,7 +67,9 @@ final class BinaryDocValuesLengthQuery extends Query {
                     iterator = direct.tryLengthIterator(length);
                 } else {
                     Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
-                    if (countsSkipper != null) {
+                    if (arrayOrderInlineNull) {
+                        iterator = AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, lengthPredicate, matchCost);
+                    } else if (countsSkipper != null) {
                         iterator = AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, lengthPredicate, matchCost);
                     } else {
                         iterator = AbstractBinaryDocValuesQuery.singleValuedIterator(values, lengthPredicate, matchCost);

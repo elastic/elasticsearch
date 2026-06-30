@@ -199,7 +199,7 @@ class FieldCapabilitiesFetcher {
             // Check the ancestor of the field to find nested and object fields.
             // Runtime fields are excluded since they can override any path.
             // TODO find a way to do this that does not require an instanceof check
-            if (ft instanceof RuntimeField == false && includeParentObjects) {
+            if (ft instanceof RuntimeField == false && (includeParentObjects || types.length == 0)) {
                 int dotIndex = ft.name().lastIndexOf('.');
                 while (dotIndex > -1) {
                     String parentField = ft.name().substring(0, dotIndex);
@@ -232,11 +232,11 @@ class FieldCapabilitiesFetcher {
 
     private static boolean checkIncludeParents(String[] filters) {
         for (String filter : filters) {
-            if ("-parent".equals(filter)) {
-                return false;
+            if ("+parent".equals(filter)) {
+                return true;
             }
         }
-        return true;
+        return false;
     }
 
     private static boolean checkIncludeDimensions(String[] filters) {
@@ -305,7 +305,7 @@ class FieldCapabilitiesFetcher {
 
         for (String filter : filters) {
             // These "filters" are handled differently, in that they are not ANDed with the field name pattern
-            if ("parent".equals(filter) || "-parent".equals(filter) || "+dimension".equals(filter)) {
+            if ("parent".equals(filter) || "+parent".equals(filter) || "-parent".equals(filter) || "+dimension".equals(filter)) {
                 continue;
             }
             Predicate<MappedFieldType> next = switch (filter) {

@@ -2,7 +2,7 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/plugin-management.html
 applies_to:
-  stack: all
+  stack: ga
   serverless: unavailable
 ---
 
@@ -24,7 +24,7 @@ How you add and manage plugins depends on where {{es}} runs:
 * On [{{eck}}](#managing-plugins-for-eck) deployments you install plugins by building a custom container image or using init containers.
 
 ::::{note} {{serverless-full}} projects
-{{serverless-full}} projects do not support custom plugin or bundle uploads. For how {{ech}} and {{serverless-short}} differ on plugins, bundles, and dictionary options, see [Compare {{ech}} and Serverless](docs-content://deploy-manage/deploy/elastic-cloud/differences-from-other-elasticsearch-offerings.md#elasticsearch-differences-custom-plugins-and-bundles).
+{{serverless-full}} projects do not support installing plugins or uploading custom plugins and bundles. {{serverless-short}} includes [core analysis plugins](./analysis-plugins.md#_core_analysis_plugins) by default. To manage synonyms, use the [synonyms API]({{es-serverless-apis}}group/endpoint-synonyms). For other differences between {{ech}} and {{serverless-short}} on plugins, bundles, and custom dictionaries, see [Compare {{ech}} and Serverless](docs-content://deploy-manage/deploy/elastic-cloud/differences-from-other-elasticsearch-offerings.md#elasticsearch-differences-custom-plugins-and-bundles).
 ::::
 
 ## Managing plugins for {{ech}} [managing-plugins-for-ech]
@@ -59,7 +59,9 @@ To add plugins to an {{ece}} deployment, refer to:
     self: ga
 ```
 
-Use the `elasticsearch-plugin` command line tool to install, list, and remove plugins. It is located in the `$ES_HOME/bin` directory by default but it may be in a different location depending on which {{es}} package you installed. For more information, see [](_plugins_directory.md)
+If you run {{es}} using the [official {{es}} Docker image](https://www.docker.elastic.co/), manage plugins with a declarative [configuration file](manage-plugins-using-configuration-file.md). When {{es}} starts, it installs, upgrades, or removes plugins to match the file.
+
+For all other installation methods, use the `elasticsearch-plugin` command line tool to install, list, and remove plugins. It is located in the `$ES_HOME/bin` directory by default but it may be in a different location depending on which {{es}} package you installed. For more information, see [](_plugins_directory.md).
 
 Run the following command to get usage instructions:
 
@@ -73,13 +75,12 @@ If {{es}} was installed using the deb or rpm package then run `/usr/share/elasti
 
 For detailed instructions on installing, managing, and configuring plugins, see the following:
 
-* [Installing Plugins](./installation.md)
+* [](./installation.md)
 * [Custom URL or file system](./plugin-management-custom-url.md)
 * [Installing multiple plugins](./installing-multiple-plugins.md)
 * [Mandatory plugins](./mandatory-plugins.md)
 * [Listing, removing and updating installed plugins](./listing-removing-updating.md)
 * [Other command line parameters](./_other_command_line_parameters.md)
-* [Manage plugins using a configuration file](./manage-plugins-using-configuration-file.md)
 
 ### Managing plugins for Docker deployments
 

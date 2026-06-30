@@ -68,8 +68,9 @@ dependencies {
   runtimeOnly 'io.opencensus:opencensus-contrib-http-util:0.31.1'
   implementation 'com.google.apis:google-api-services-storage:v1-rev20250224-2.0.0'
   compileOnly 'org.checkerframework:checker-qual:3.49.0'
-  runtimeOnly 'io.opentelemetry:opentelemetry-api:1.47.0'
-  runtimeOnly 'io.opentelemetry:opentelemetry-context:1.47.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-api:1.62.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-common:1.62.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-context:1.62.0'
   runtimeOnly 'com.google.api.grpc:proto-google-cloud-storage-v2:2.50.0'
   runtimeOnly 'io.grpc:grpc-api:1.70.0'
 

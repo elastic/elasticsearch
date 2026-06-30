@@ -834,7 +834,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             } else {
                 blockSize = defaultBlockSize;
             }
-            return new FieldContext(blockSize, fieldName, null, null);
+            return new FieldContext(blockSize, fieldName, null, null, null, false);
         };
         return new ES95TSDBDocValuesFormat(
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,

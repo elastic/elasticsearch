@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 /**
  * Verifies that the time-series target-chunk-size pragma is read independently from the regular aggregation pragmas,
@@ -24,6 +25,10 @@ public class QueryPragmasTests extends ESTestCase {
             Settings.builder().put(PlannerSettings.TIME_SERIES_TARGET_CHUNK_SIZE.getKey(), 4_096).build()
         );
         assertThat(pragmas.timeSeriesTargetChunkSize(10_000), equalTo(4_096));
+    }
+
+    public void testTimeSeriesTargetChunkSizeIsValidPragmaName() {
+        assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem(PlannerSettings.TIME_SERIES_TARGET_CHUNK_SIZE.getKey()));
     }
 
     public void testTimeSeriesTargetChunkSizePragmaFallsBackToProvidedDefault() {

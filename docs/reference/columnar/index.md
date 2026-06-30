@@ -133,7 +133,7 @@ Mappings are always flattened. When defining mappings, any object field mapper i
 The same applies to dynamic mapping updates during indexing.
 
 If `object` field mapping are flattened, the `enabled` and `dynamic` settings are preserved.
-For `passthrough` field mappings, the `priority` setting is preserved.
+Same applies to `passthrough` fields, along with their `priority` setting.
 
 For example, given a mapping with an `attributes` object (`dynamic: false`) and a `labels` passthrough field (`priority: 10`):
 

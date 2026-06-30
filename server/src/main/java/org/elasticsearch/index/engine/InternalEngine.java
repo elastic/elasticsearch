@@ -26,6 +26,7 @@ import org.apache.lucene.index.MergeScheduler;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -4085,9 +4086,7 @@ public class InternalEngine extends Engine {
             final DocIdSetIterator iterator = scorer.iterator();
             var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, null);
             var leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leaf.reader(), null);
-            final BinaryDocValues sliceIdDocValues = (sliceEnabled && columnar)
-                ? DocValues.getBinary(leaf.reader(), IdFieldMapper.NAME)
-                : null;
+            final var sliceUidLoader = sliceEnabled ? new SlicedUIDLoader(leaf, columnar) : null;
 
             for (int docId = iterator.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
                 final long primaryTerm = dv.docPrimaryTerm(docId);
@@ -4100,9 +4099,7 @@ public class InternalEngine extends Engine {
                 final String id;
                 final BytesRef uid;
                 if (sliceEnabled) {
-                    final BytesRef rawId = columnar
-                        ? (sliceIdDocValues.advanceExact(docId) ? BytesRef.deepCopyOf(sliceIdDocValues.binaryValue()) : null)
-                        : readRawStoredId(leaf, docId);
+                    final BytesRef rawId = sliceUidLoader.uid(docId);
                     if (rawId == null) {
                         assert isTombstone;
                         continue;
@@ -4136,10 +4133,31 @@ public class InternalEngine extends Engine {
         refresh("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL, true);
     }
 
-    private static BytesRef readRawStoredId(LeafReaderContext leaf, int docId) throws IOException {
-        final RawIdVisitor visitor = new RawIdVisitor();
-        leaf.reader().storedFields().document(docId, visitor);
-        return visitor.idBytes;
+    private static class SlicedUIDLoader {
+        private final StoredFields storedFields;
+        private final RawIdVisitor rawIdVisitor = new RawIdVisitor();
+        private final BinaryDocValues docValues;
+
+        private SlicedUIDLoader(LeafReaderContext leaf, boolean columnarId) throws IOException {
+            if (columnarId) {
+                docValues = DocValues.getBinary(leaf.reader(), IdFieldMapper.NAME);
+                storedFields = null;
+            } else {
+                docValues = null;
+                storedFields = leaf.reader().storedFields();
+            }
+        }
+
+        BytesRef uid(int docId) throws IOException {
+            if (docValues != null) {
+                return docValues.advanceExact(docId) ? BytesRef.deepCopyOf(docValues.binaryValue()) : null;
+            }
+            if (storedFields != null) {
+                storedFields.document(docId, rawIdVisitor);
+                return rawIdVisitor.idBytes;
+            }
+            return null;
+        }
     }
 
     @Override

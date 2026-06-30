@@ -542,7 +542,7 @@ FROM k8s
 
 
 same key and value column
-required_capability: change_point
+required_capability: change_point_multiple_events
 
 FROM k8s
   | STATS count=COUNT() BY BUCKET(@timestamp, 1 MINUTE)
@@ -578,7 +578,7 @@ count:long | type:keyword | pvalue:double
 
 
 all four columns the same
-required_capability: change_point
+required_capability: change_point_multiple_events
 
 FROM k8s
   | STATS count=COUNT() BY BUCKET(@timestamp, 1 MINUTE)
@@ -942,7 +942,7 @@ count:LONG
 
 
 detect trend_change (using row)
-required_capability: change_point
+required_capability: change_point_multiple_events
 
 ROW time = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]
   | MV_EXPAND time

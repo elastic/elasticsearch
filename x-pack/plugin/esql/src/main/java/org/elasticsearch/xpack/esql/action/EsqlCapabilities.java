@@ -3265,6 +3265,15 @@ public class EsqlCapabilities {
          */
         EMPTY_LIST_PARAM_AS_NULL,
 
+        /**
+         * CHANGE_POINT now uses EventDetector (multiple events, log-space p-values), which can report
+         * a change point at a slightly different bucket and with different p-values than the previous
+         * implementation. Gates the change_point csv-spec blocks so a mixed cluster containing a node
+         * on the old detector skips them rather than asserting new expectations against old output when
+         * the change point moves.
+         */
+        CHANGE_POINT_MULTIPLE_EVENTS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

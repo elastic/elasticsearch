@@ -65,7 +65,7 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public double logPValue() {
-            return logPValue;
+            return Math.min(logPValue, 0.0);
         }
 
         public double magnitudePercent() {
@@ -259,7 +259,7 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public double logPValue() {
-            return logPValue;
+            return Math.min(logPValue, 0.0);
         }
 
         @Override
@@ -394,7 +394,7 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public double logPValue() {
-            return logPValue;
+            return Math.min(logPValue, 0.0);
         }
 
         public double rValue() {

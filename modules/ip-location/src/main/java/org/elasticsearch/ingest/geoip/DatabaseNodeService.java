@@ -326,7 +326,7 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
         }
         // Eager downloading keeps ingest-capable nodes' databases retrieved and loaded locally even before any
         // pipeline registers an IpLocationConsumer, mirroring the downloader's `eager || hasConsumers` behavior.
-        boolean eagerOnIngestNode = Boolean.TRUE.equals(eagerDownloadSupplier.get()) && localNode.isIngestNode();
+        boolean eagerOnIngestNode = eagerDownloadSupplier.get() && localNode.isIngestNode();
         state.forEachProject(projectState -> {
             if (eagerOnIngestNode) {
                 checkDatabases(projectState);

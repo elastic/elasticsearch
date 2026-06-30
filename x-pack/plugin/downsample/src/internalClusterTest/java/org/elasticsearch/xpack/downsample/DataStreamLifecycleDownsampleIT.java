@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -57,6 +59,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
     public static final int DOC_COUNT = 25_000;
+    private static Logger logger = LogManager.getLogger(DownsamplingIntegTestCase.class);
     private final DownsamplingOperationsMonitor monitor = new DownsamplingOperationsMonitor();
 
     @Override
@@ -395,6 +398,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         assertDownsamplingMethod(updatedSamplingMethod, downsampledPrefix + secondBackingIndex);
     }
 
+    @TestLogging(value = "org.elasticsearch.datastreams.lifecycle:DEBUG", reason = "debugging")
     public void testDownsamplingTriggersOnlyUpToMaxIndices() throws Exception {
         assertAcked(
             new ClusterUpdateSettingsRequestBuilder(client(), TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(
@@ -435,7 +439,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         // We have 2 backing indices that are eligible for downsampling.
         List<Index> backingIndices = getBackingIndices(dataStreamName);
         assertThat(backingIndices.size(), is(3));
-
+        logger.info("--> backing indices: {} created", backingIndices);
         // Marking nodes for shutdown will stop the downsampling task from being assigned and will give us time to assert correctness
         markNodesForShutdown();
 
@@ -544,6 +548,8 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
                     fail(e.getMessage());
                 }
             });
+        awaitClusterState(clusterState -> clusterState.metadata().nodeShutdowns().getAll().size() == clusterState.getNodes().size());
+        logger.info("--> Marking for shutdown successful");
     }
 
     private void unmarkNodesForShutdown() {
@@ -563,5 +569,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
                     fail(e.getMessage());
                 }
             });
+        awaitClusterState(clusterState -> clusterState.metadata().nodeShutdowns().getAll().isEmpty());
+        logger.info("--> Unmarking shutdown successful");
     }
 }

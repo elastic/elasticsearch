@@ -27,15 +27,10 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
 /**
- * Generates {@code FILLNULL} commands in two shapes:
- * <ul>
- *   <li>all-fields: {@code | FILLNULL [WITH <value>]}</li>
- *   <li>targeted: {@code | FILLNULL [WITH <value>] field1, field2, ...}</li>
- * </ul>
- * When a fill value is combined with explicit targets, the value type is chosen to be compatible with the
- * selected fields, since the verifier rejects an incompatible targeted fill (that is correct behavior, not a bug).
- * Filled columns become reference attributes; {@code GenerativeRestTest#updateIndexMapped} consumes the
- * {@link #ALL_FIELDS} / {@link #FILLED_FIELDS} context entries to clear their {@code indexMapped} flag.
+ * Generates {@code FILLNULL} in all-fields ({@code | FILLNULL [WITH v]}) and targeted ({@code | FILLNULL [WITH v]
+ * f1, f2}) shapes; a targeted fill value is type-matched to the fields (incompatible targeted fills are rejected by
+ * the verifier, by design). The {@link #ALL_FIELDS} / {@link #FILLED_FIELDS} context entries let
+ * {@code GenerativeRestTest#updateIndexMapped} clear the filled columns' {@code indexMapped} flag.
  */
 public class FillNullGenerator implements CommandGenerator {
 

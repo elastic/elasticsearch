@@ -12,10 +12,8 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import java.util.EnumSet;
 
 /**
- * Golden coverage for the FILLNULL surrogate command. The ANALYSIS stage pins how the fill aliases render as
- * proper plan-tree state (the {@code col = COALESCE(col, default)} aliases live in NodeInfo, like Eval.fields),
- * and the LOGICAL_OPTIMIZATION stage pins the surrogate expansion into {@code Project(Eval(COALESCE...))} after
- * {@code SubstituteSurrogatePlans}, including NameId stability across chained instances.
+ * Golden coverage for the FILLNULL surrogate: ANALYSIS pins the fill aliases as plan-tree state and
+ * LOGICAL_OPTIMIZATION pins the expansion into {@code Project(Eval(COALESCE...))}, including chained NameId stability.
  */
 public class FillNullGoldenTests extends GoldenTestCase {
 

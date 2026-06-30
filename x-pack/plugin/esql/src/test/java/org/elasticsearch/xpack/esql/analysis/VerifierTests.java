@@ -3470,20 +3470,16 @@ public class VerifierTests extends ESTestCase {
     public void testFillNullOnNullTypedColumnPassesVerification() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
-        // A bare `null` literal in ROW yields a NULL-typed column. The fill value's KEYWORD type
-        // is "compatible" with NULL via the NULL escape clause in DataType.areCompatible, so the
-        // verifier must accept the query (the surrogate logic separately skips NULL-typed columns
-        // at plan time to avoid an unsupported KEYWORD->NULL conversion). The csv-spec test
-        // fillNullOnNullTypedColumnIsSkipped exercises the full surrogate path end-to-end.
+        // A NULL-typed column accepts a KEYWORD fill via the NULL escape clause in areCompatible, so the verifier
+        // passes; the surrogate separately skips NULL columns (see fillNullOnNullTypedColumnIsSkipped csv-spec).
         defaultAnalyzer().query("ROW a = null, b = 1 | FILLNULL WITH \"x\" a");
     }
 
     public void testFillNullThenFullTextOnFilledFieldRejected() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
-        // FILLNULL rewrites the target into a Coalesce alias (a reference attribute), so it is no longer a
-        // field from the index mapping. Full-text functions on a filled field must be rejected, exactly as
-        // for EVAL col = COALESCE(...) | WHERE MATCH(col, ...).
+        // A filled field becomes a Coalesce reference attribute, not an index field, so full-text functions on it
+        // must be rejected - exactly as for EVAL col = COALESCE(...) | WHERE MATCH(col, ...).
         fullText().error(
             "from test | FILLNULL WITH \"\" title | where match(title, \"data\")",
             containsString("[MATCH] function cannot operate on [title], which is not a field from an index mapping")

@@ -38,27 +38,17 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
- * Replaces null values in specified fields (or all fields) with a given fill value
- * or type-appropriate defaults. Expands into an {@link Eval} with {@link Coalesce} aliases,
- * wrapped in a {@link Project} to preserve the original column order.
- * <p>
- * Without an explicit fill value, only numeric, string and boolean columns receive a default;
- * columns of any other type and all-null ({@code NULL}-typed) columns are left unchanged.
- * <p>
- * A filled column becomes a reference attribute (as with {@code EVAL col = COALESCE(col, ...)}),
- * so full-text functions and Lucene filter pushdown no longer treat it as an indexed field.
- * <p>
- * The fill aliases are modeled exactly like {@link Eval#fields()}: they are materialized once
- * during analysis (see {@code Analyzer.ResolveRefs#resolveFillNull}) and stored as proper
- * {@link NodeInfo} state.
+ * Replaces nulls in the given fields (or all fields) with a fill value or type-appropriate defaults, expanding into
+ * a {@link Project} over an {@link Eval} of {@link Coalesce} aliases that preserves column order. The aliases are
+ * materialized during analysis like {@link Eval#fields()}; see #148232.
  */
 public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysisVerificationAware, TelemetryAware {
 
     private final @Nullable Expression fillValue;
     private final List<Attribute> targetFields;
     /**
-     * The {@code col = COALESCE(col, default)} aliases produced by this command, or {@code null} until
-     * they are materialized during analysis. Empty means there is nothing to fill (the command is a no-op).
+     * The {@code col = COALESCE(col, default)} aliases, or {@code null} until materialized during analysis;
+     * empty means nothing to fill (no-op).
      */
     private final @Nullable List<Alias> fields;
 
@@ -102,8 +92,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
             return child().output();
         }
         if (lazyOutput == null) {
-            // Replace each filled column with its alias attribute in place, preserving the original column order.
-            // (mergeOutputAttributes would move shadowed columns to the end, which FILLNULL must not do.)
+            // Replace each filled column in place; mergeOutputAttributes would move shadowed columns to the end.
             Map<String, Attribute> filled = new HashMap<>(fields.size());
             for (Alias field : fields) {
                 filled.put(field.name(), field.toAttribute());
@@ -124,11 +113,8 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
         if (fields != null) {
             return Eval.computeReferences(fields);
         }
-        // Before the fill aliases are materialized - notably during pre-analysis field-name collection
-        // (see FieldNameUtils) - the command's inputs are the explicit target fields plus the fill value.
-        // These must be reported so field-caps requests them; otherwise the source relation loads none of
-        // them and resolution fails with "Unknown column". The all-fields form (empty targets) needs every
-        // field and relies on the all-fields fallback rather than explicit references.
+        // Before materialization (e.g. pre-analysis field-name collection) the inputs are the target fields plus the
+        // fill value; they must be reported so field-caps requests them. The all-fields form uses the fallback instead.
         AttributeSet refs = Expressions.references(targetFields);
         return fillValue == null ? refs : refs.combine(fillValue.references());
     }
@@ -151,16 +137,13 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
 
     @Override
     public boolean expressionsResolved() {
-        // Keep the node "unresolved" until the fill aliases are materialized, so that ResolveRefs (which skips
-        // already-resolved nodes) is guaranteed to run resolveFillNull and build them - including for the
-        // all-fields form `... | FILLNULL`, which has no unresolved target attributes to begin with.
+        // Stay unresolved until the aliases are materialized so ResolveRefs (which skips resolved nodes) runs
+        // resolveFillNull - including the all-fields form `... | FILLNULL`, which has no unresolved targets.
         if (inputsResolved() == false || fields == null) {
             return false;
         }
-        // All-fields form: unmapped_fields="load" injects columns into the source after the first ResolveRefs
-        // materialization (ResolveUnmapped runs later in the same analyzer batch), so a fillable column can appear in
-        // the child output only on a later pass. Stay unresolved while such a column is still missing a fill alias, so
-        // ResolveRefs re-materializes to cover it (the targeted form gates on inputsResolved() instead and is unaffected).
+        // All-fields form: unmapped_fields="load" injects columns after the first pass, so stay unresolved while a
+        // fillable column still lacks an alias and let ResolveRefs re-materialize (targeted form gates on inputsResolved()).
         if (targetFields.isEmpty() && childrenResolved() && allFillableColumnsCovered() == false) {
             return false;
         }
@@ -190,11 +173,9 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
     }
 
     /**
-     * Builds the fill aliases against the given (resolved) child output and returns a copy carrying them.
-     * The aliases reference the same child attributes that {@link #output()} and {@link #surrogate()} build on, so
-     * later attribute rewrites stay consistent. Idempotent and incremental: for the all-fields form it may run again
-     * (driven by {@link #expressionsResolved()}) to cover columns that {@code unmapped_fields="load"} injects after the
-     * first pass, preserving the aliases already built.
+     * Builds the fill aliases against the resolved child output and returns a copy carrying them. Idempotent and
+     * incremental: for the all-fields form it may re-run (see {@link #expressionsResolved()}) to cover columns that
+     * {@code unmapped_fields="load"} injects later, keeping the aliases already built.
      */
     public FillNull materialize(List<Attribute> childOutput) {
         List<Attribute> fieldsToFill = targetFields.isEmpty() ? childOutput : targetFields;
@@ -203,10 +184,8 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
             fillNames.add(a.name());
         }
 
-        // Preserve any aliases already built (keyed by column name). Re-materialization happens for the all-fields form
-        // once unmapped_fields="load" injects columns into the source after the first pass (see expressionsResolved):
-        // keeping the existing aliases means columns that were already filled retain their attribute ids and only the
-        // newly appeared columns get a fresh fill alias.
+        // Keep aliases already built (keyed by name) so re-materialization (all-fields + unmapped_fields="load")
+        // preserves their attribute ids; only newly appeared columns get a fresh alias.
         Map<String, Alias> existing;
         if (fields == null || fields.isEmpty()) {
             existing = Map.of();
@@ -221,10 +200,8 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
         for (Attribute field : childOutput) {
             if (fillNames.contains(field.name())) {
                 Alias previous = existing.get(field.name());
-                // Reuse the existing alias (keeping its attribute id) only while it stays valid: resolved and still matching
-                // the column's type. The fill alias wraps the column in Coalesce, whose type is the column type via noText()
-                // (a TEXT column's alias reports KEYWORD), so the comparison must use noText() to avoid churning TEXT-column
-                // aliases
+                // Reuse the existing alias (keeping its id) only while valid: resolved and same type. Compare via
+                // noText() because the Coalesce alias reports the column type normalized (a TEXT column -> KEYWORD).
                 if (previous != null && previous.resolved() && previous.dataType() == field.dataType().noText()) {
                     built.add(previous);
                     continue;
@@ -294,9 +271,8 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
                     );
                     continue;
                 }
-                // Type-compatible but the literal value may not fit the field's type (e.g. a LONG value outside
-                // the INTEGER range). An explicitly targeted field must report this rather than being silently
-                // skipped, mirroring the conversion done in resolveDefaultValue.
+                // Type-compatible but the literal may not fit the field's type (e.g. a LONG value outside INTEGER range);
+                // a targeted field must report this rather than be silently skipped (mirrors resolveDefaultValue).
                 if (fillValue instanceof Literal lit
                     && lit.value() != null
                     && fillValue.dataType() != fieldType
@@ -337,20 +313,14 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
 
     @Nullable
     private Expression resolveDefaultValue(DataType type) {
-        // NULL-typed columns (e.g. unmapped fields surfaced under SET unmapped_fields="nullify",
-        // or bare `null` literals in ROW) cannot be promoted to another type by FILLNULL: every
-        // value is already null and the column type stays NULL. The verifier accepts a fill
-        // literal here because areCompatible(KEYWORD, NULL) is true via the NULL escape clause,
-        // but wrapping the column in Coalesce(col, fillLiteral) would either be a no-op (when
-        // the fill is converted down to NULL) or change the column's declared type. Skipping
-        // matches the existing `defaultForType(NULL)` behavior and keeps the column unchanged.
+        // NULL-typed columns (unmapped under "nullify", bare ROW nulls) cannot be promoted: every value is already
+        // null, so wrapping in Coalesce would be a no-op or change the type. Matches defaultForType(NULL).
         if (DataType.isNull(type)) {
             return null;
         }
         if (fillValue != null) {
-            // A null fill value (FILLNULL WITH null, or a parameter bound to null) would expand to
-            // Coalesce(col, null) - a no-op that needlessly rewrites the column into a reference attribute.
-            // Leave the column untouched regardless of the literal's declared type.
+            // A null fill (FILLNULL WITH null, or a null-bound param) expands to Coalesce(col, null) - a no-op that
+            // needlessly turns the column into a reference attribute. Leave it untouched.
             if (fillValue instanceof Literal fillLiteral && fillLiteral.value() == null) {
                 return null;
             }
@@ -358,21 +328,16 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
             if (fillType == type) {
                 return fillValue;
             }
-            // The fill value is type-compatible with the column but not the same type
-            // (e.g. INTEGER fill into a LONG column), so convert the literal once at plan time.
-            // Coalesce compares branch types via noText() and string literals are always KEYWORD,
-            // so a TEXT column takes a KEYWORD literal (matching defaultForType).
+            // Type-compatible but different type (e.g. INTEGER fill into a LONG column): convert the literal once.
+            // noText() because Coalesce compares branch types normalized and string literals are KEYWORD.
             if (DataType.areCompatible(fillType, type) && fillValue instanceof Literal lit) {
                 DataType literalType = type.noText();
                 Object converted;
                 try {
                     converted = DataTypeConverter.convert(lit.value(), literalType);
                 } catch (InvalidArgumentException e) {
-                    // Type-compatible but the value does not fit the column type (e.g. a LONG literal
-                    // outside the INTEGER range). In all-fields mode such columns are silently skipped,
-                    // matching how an incompatible fill type is skipped here; explicitly targeted fields
-                    // are rejected earlier by postAnalysisVerification, so this is only reached for
-                    // implicit (all-fields) targets.
+                    // Value does not fit the column type (e.g. LONG literal outside INTEGER range). All-fields targets are
+                    // silently skipped here; explicitly targeted fields are already rejected by postAnalysisVerification.
                     return null;
                 }
                 return new Literal(lit.source(), converted, literalType);

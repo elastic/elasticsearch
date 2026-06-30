@@ -26,10 +26,8 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 
 /**
- * Direct unit coverage for the novel {@link FillNull} machinery (materialize / resolveDefaultValue / defaultForType /
- * expressionsResolved). These exercise the alias-building logic against a synthetic child output without going through the
- * full analyzer, which lets us pin behaviors that are otherwise only reachable indirectly: incremental re-materialization
- * NameId stability, the type-mismatch alias rebuild, and the resolved-aliases guard in expressionsResolved.
+ * Direct unit coverage for the {@link FillNull} alias machinery (materialize / resolveDefaultValue / defaultForType /
+ * expressionsResolved) against a synthetic child output, pinning behaviors only reachable indirectly through the analyzer.
  */
 public class FillNullTests extends ESTestCase {
 
@@ -73,8 +71,7 @@ public class FillNullTests extends ESTestCase {
     public void testIncrementalMaterializePreservesNameIds() {
         Attribute i = getFieldAttribute("i", DataType.INTEGER);
         Attribute s = getFieldAttribute("s", DataType.KEYWORD);
-        // A TEXT column's fill alias reports KEYWORD (Coalesce normalizes via noText): it must still be recognized as
-        // unchanged and reused, otherwise re-materialization would churn its attribute id.
+        // A TEXT column's fill alias reports KEYWORD (Coalesce normalizes via noText) but must still be reused.
         Attribute t = getFieldAttribute("t", DataType.TEXT);
         List<Attribute> firstPass = List.of(i, s, t);
 
@@ -153,8 +150,7 @@ public class FillNullTests extends ESTestCase {
     }
 
     public void testExpressionsResolvedRejectsUnresolvedAlias() {
-        // Even with resolved inputs and a non-null fields list, an unresolved alias must keep the node unresolved so the
-        // Verifier still validates the Coalesce expressions instead of skipping the subtree.
+        // An unresolved alias must keep the node unresolved so the Verifier still validates the Coalesce expressions.
         Attribute i = getFieldAttribute("i", DataType.INTEGER);
         Alias unresolved = new Alias(Source.EMPTY, "i", new UnresolvedAttribute(Source.EMPTY, "i"));
         FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(i)), null, List.of(i), List.of(unresolved));

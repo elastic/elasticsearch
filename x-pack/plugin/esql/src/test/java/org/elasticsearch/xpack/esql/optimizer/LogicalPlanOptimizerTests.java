@@ -10202,18 +10202,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /*
-     * Regression test for chained FILLNULL inside a FORK branch. Historically this threw "missing references"
-     * because FILLNULL built its fill aliases lazily and cached them outside NodeInfo, so a child rewrite
-     * (replaceChild during SubstituteSurrogatePlans) could recompute alias NameIds afresh while the analyzer
-     * had already wired the FORK branch's per-branch Project to the original NameIds.
-     *
-     * Fix: FILLNULL now models its fill aliases as proper NodeInfo state (materialized once during analysis,
-     * like Eval.fields), so replaceChild simply re-parents them and NameIds stay stable across substitution.
+     * Regression: chained FILLNULL inside a FORK branch once threw "missing references" because the fill aliases were
+     * cached outside NodeInfo and recomputed on replaceChild. They are NodeInfo state now, so NameIds stay stable. See #148232.
      */
     public void testFillNullChainedWithFork() {
         assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        // optimize() invokes the post-optimization plan verifier; without the fix this throws
-        // IllegalStateException with "optimized incorrectly due to missing references".
+        // Without the fix, the post-optimization verifier throws "optimized incorrectly due to missing references".
         var plan = plan("""
             ROW a = null, b = null
             | EVAL a = a::keyword, b = b::integer
@@ -10228,10 +10222,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /*
-     * Plain chained FILLNULL without FORK - the surrogate skill's mandatory chained-instance regression.
-     * Substitution rewrites the inner FILLNULL first, then replaceChild re-parents the outer one onto the
-     * substituted subtree. The materialized fill aliases (NodeInfo state) must survive so plan() (which invokes
-     * the PostOptimizationPhasePlanVerifier) does not flag missing references.
+     * Plain chained FILLNULL: substitution rewrites the inner one, then replaceChild re-parents the outer onto the
+     * substituted subtree; the materialized aliases must survive so the verifier flags no missing references.
      */
     public void testFillNullChained() {
         assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
@@ -10246,9 +10238,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /*
-     * EVAL | FILLNULL | EVAL forces CombineEvals to merge the two user-written Evals across the surrogate's
-     * own Eval after substitution. The merged Eval must not collide alias NameIds; otherwise
-     * Layout.Builder.build() fails with "Duplicate name ids are not allowed".
+     * EVAL | FILLNULL | EVAL: CombineEvals merges the user Evals across the surrogate's Eval; the merged Eval must not
+     * collide alias NameIds, else Layout.Builder.build() fails with "Duplicate name ids are not allowed".
      */
     public void testFillNullBetweenEvalsIsCombined() {
         assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());

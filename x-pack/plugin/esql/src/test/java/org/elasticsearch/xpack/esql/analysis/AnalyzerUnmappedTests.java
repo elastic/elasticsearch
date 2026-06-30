@@ -655,10 +655,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * All-fields FILLNULL must fill a column that {@code unmapped_fields="load"} injects into the source.
-     * ResolveUnmapped runs after the first ResolveRefs pass, so the load-injected keyword column only appears in the
-     * FILLNULL child output on a later pass; the all-fields fill alias list must be (re)materialized to include it.
-     * Regression for the materialization-ordering gap: previously the loaded column passed through FILLNULL unfilled.
+     * Regression: all-fields FILLNULL must fill a column that {@code unmapped_fields="load"} injects only after the
+     * first ResolveRefs pass, so the alias list must be re-materialized to include it (previously it passed through unfilled).
      */
     public void testAllFieldsFillNullFillsLoadInjectedUnmappedColumn() {
         assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());

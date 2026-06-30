@@ -39,9 +39,10 @@ public final class ScanningBinaryDocValuesRegexpQuery extends AbstractBinaryDocV
         String pattern,
         int syntaxFlags,
         int matchFlags,
-        int maxDeterminizedStates
+        int maxDeterminizedStates,
+        boolean arrayOrderInlineNull
     ) {
-        super(fieldName, buildAutomaton(pattern, syntaxFlags, matchFlags, maxDeterminizedStates));
+        super(fieldName, buildAutomaton(pattern, syntaxFlags, matchFlags, maxDeterminizedStates), arrayOrderInlineNull);
         this.pattern = Objects.requireNonNull(pattern);
         this.syntaxFlags = syntaxFlags;
         this.matchFlags = matchFlags;

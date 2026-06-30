@@ -25,6 +25,29 @@ import java.io.IOException;
 
 public class ScanningBinaryDocValuesRangeQueryTests extends ESTestCase {
 
+    public void testArrayOrderInlineNull() throws Exception {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = ArrayOrderInlineNullTestUtils.newWriter(dir)) {
+                ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "alpha", null, "beta"); // multi-value with an inline null slot
+                ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, (String) null);          // all-null, immediately before a match
+                ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "beta");                  // single value stored raw
+                ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName);                          // empty array
+                ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "gamma", "delta");        // multi-value
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    // [alpha, beta] matches "alpha"/"beta" in the multi-value doc and "beta" in the single-value doc; the all-null doc
+                    // preceding the latter must not be matched.
+                    var alphaToBeta = new ScanningBinaryDocValuesRangeQuery(fieldName, new BytesRef("alpha"), new BytesRef("beta"), true);
+                    assertEquals(2, searcher.count(alphaToBeta));
+                    // [delta, gamma] matches only the last doc ("delta"/"gamma").
+                    var deltaToGamma = new ScanningBinaryDocValuesRangeQuery(fieldName, new BytesRef("delta"), new BytesRef("gamma"), true);
+                    assertEquals(1, searcher.count(deltaToGamma));
+                }
+            }
+        }
+    }
+
     private static BytesRef encodeIp(String ip) {
         return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(ip)));
     }
@@ -52,7 +75,7 @@ public class ScanningBinaryDocValuesRangeQueryTests extends ESTestCase {
                 writer.addDocument(docWithIps("10.0.0.3", "10.0.0.4"));
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesRangeQuery(fieldName, lower, upper);
+                    Query query = new ScanningBinaryDocValuesRangeQuery(fieldName, lower, upper, false);
                     assertEquals(2, searcher.count(query));
                 }
             }
@@ -68,7 +91,7 @@ public class ScanningBinaryDocValuesRangeQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesRangeQuery(fieldName, lower, upper);
+                    Query query = new ScanningBinaryDocValuesRangeQuery(fieldName, lower, upper, false);
                     assertEquals(0, searcher.count(query));
                 }
             }
@@ -81,7 +104,7 @@ public class ScanningBinaryDocValuesRangeQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new ScanningBinaryDocValuesRangeQuery(fieldName, lower, upper);
+                    Query query = new ScanningBinaryDocValuesRangeQuery(fieldName, lower, upper, false);
                     assertEquals(1, searcher.count(query));
                 }
             }
@@ -90,12 +113,12 @@ public class ScanningBinaryDocValuesRangeQueryTests extends ESTestCase {
 
     public void testRewriteToTermQueryWhenBoundsEqual() throws Exception {
         BytesRef term = encodeIp("192.168.1.1");
-        ScanningBinaryDocValuesRangeQuery range = new ScanningBinaryDocValuesRangeQuery("field", term, term);
+        ScanningBinaryDocValuesRangeQuery range = new ScanningBinaryDocValuesRangeQuery("field", term, term, false);
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    assertEquals(new ScanningBinaryDocValuesTermQuery("field", term), range.rewrite(searcher));
+                    assertEquals(new ScanningBinaryDocValuesTermQuery("field", term, false), range.rewrite(searcher));
                 }
             }
         }
@@ -104,7 +127,7 @@ public class ScanningBinaryDocValuesRangeQueryTests extends ESTestCase {
     public void testRewriteKeepsTrueRange() throws Exception {
         BytesRef lower = encodeIp("192.168.1.0");
         BytesRef upper = encodeIp("192.168.1.255");
-        ScanningBinaryDocValuesRangeQuery range = new ScanningBinaryDocValuesRangeQuery("field", lower, upper);
+        ScanningBinaryDocValuesRangeQuery range = new ScanningBinaryDocValuesRangeQuery("field", lower, upper, false);
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 try (IndexReader reader = writer.getReader()) {

@@ -11,6 +11,7 @@ package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.ConstantScoreScorerSupplier;
@@ -39,10 +40,13 @@ import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.Sep
 public final class BinaryDocValuesContainsTermQuery extends Query {
     final String fieldName;
     final BytesRef containsTerm;
+    // See AbstractBinaryDocValuesQuery#arrayOrderInlineNull: selects the inline-null decoder for the multi-valued fallback path.
+    final boolean arrayOrderInlineNull;
 
-    BinaryDocValuesContainsTermQuery(String fieldName, BytesRef containsTerm) {
+    BinaryDocValuesContainsTermQuery(String fieldName, BytesRef containsTerm, boolean arrayOrderInlineNull) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.containsTerm = Objects.requireNonNull(containsTerm);
+        this.arrayOrderInlineNull = arrayOrderInlineNull;
     }
 
     @Override
@@ -61,17 +65,23 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                 // on tryContainsIterator). ConstantScoreScorer unwraps the TwoPhase so Lucene's
                 // BulkScorer drives approximation.advance(min) + matches() within [min, max), giving
                 // linear scaling under sub-segment slicing (DataPartitioning.DOC).
-                final DocIdSetIterator containsIter = values instanceof BlockLoader.OptionalColumnAtATimeReader direct
-                    ? direct.tryContainsIterator(containsTerm)
-                    : null;
+                String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
+                DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
+
+                // tryContainsIterator scans the whole doc blob (including the multi-valued length-prefix framing), so it is only correct
+                // for single-valued fields where no length prefixes exist.
+                final DocIdSetIterator containsIter = (countsSkipper == null || countsSkipper.maxValue() == 1)
+                    && values instanceof BlockLoader.OptionalColumnAtATimeReader direct ? direct.tryContainsIterator(containsTerm) : null;
+
                 final DocIdSetIterator iterator;
                 if (containsIter != null) {
                     iterator = containsIter;
                 } else {
                     Predicate<BytesRef> predicate = bytes -> contains(bytes, containsTerm);
-                    String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
                     final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-                    iterator = AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, predicate, matchCost());
+                    iterator = arrayOrderInlineNull
+                        ? AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, predicate, matchCost())
+                        : AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, predicate, matchCost());
                 }
                 return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, context.reader().maxDoc());
             }

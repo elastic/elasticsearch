@@ -29,6 +29,28 @@ import java.util.Set;
 
 public class BinaryDocValuesLengthQueryTests extends ESTestCase {
 
+    public void testArrayOrderInlineNull() throws Exception {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = ArrayOrderInlineNullTestUtils.newWriter(dir)) {
+                ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "", null, "ab"); // empty string + null + 2-char value
+                ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, (String) null);   // all-null, immediately before an empty-string
+                                                                                          // doc
+                ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "");              // single empty-string value
+                ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName);                  // empty array
+                ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "xyz");           // single 3-char value
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    // length 0 matches the empty string in the multi-value doc and the single empty-string doc, but never the all-null
+                    // slot (null is distinct from the empty string) — including the all-null doc that immediately precedes it.
+                    assertEquals(2, searcher.count(new BinaryDocValuesLengthQuery(fieldName, 0, true)));
+                    // length 3 matches only "xyz".
+                    assertEquals(1, searcher.count(new BinaryDocValuesLengthQuery(fieldName, 3, true)));
+                }
+            }
+        }
+    }
+
     public void testSingleValued() throws Exception {
         String fieldName = "field";
         int numDocs = randomIntBetween(1, 100);
@@ -52,7 +74,7 @@ public class BinaryDocValuesLengthQueryTests extends ESTestCase {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
                     for (int len = 0; len <= 10; len++) {
-                        long numMatches = searcher.count(new BinaryDocValuesLengthQuery(fieldName, len));
+                        long numMatches = searcher.count(new BinaryDocValuesLengthQuery(fieldName, len, false));
                         assertEquals(lengthToCount[len], numMatches);
                     }
                 }
@@ -90,7 +112,7 @@ public class BinaryDocValuesLengthQueryTests extends ESTestCase {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
                     for (int len = 0; len <= 10; len++) {
-                        long numMatches = searcher.count(new BinaryDocValuesLengthQuery(fieldName, len));
+                        long numMatches = searcher.count(new BinaryDocValuesLengthQuery(fieldName, len, false));
                         assertEquals(lengthToCount[len], numMatches);
                     }
                 }
@@ -141,7 +163,7 @@ public class BinaryDocValuesLengthQueryTests extends ESTestCase {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
                     for (int len = 0; len <= 10; len++) {
-                        long numMatches = searcher.count(new BinaryDocValuesLengthQuery(fieldName, len));
+                        long numMatches = searcher.count(new BinaryDocValuesLengthQuery(fieldName, len, false));
                         assertEquals(lengthToCount[len], numMatches);
                     }
                 }
@@ -158,7 +180,7 @@ public class BinaryDocValuesLengthQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new BinaryDocValuesLengthQuery(fieldName, 1);
+                    Query query = new BinaryDocValuesLengthQuery(fieldName, 1, false);
                     assertEquals(0, searcher.count(query));
                 }
             }
@@ -183,7 +205,7 @@ public class BinaryDocValuesLengthQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new BinaryDocValuesLengthQuery(fieldName, 1);
+                    Query query = new BinaryDocValuesLengthQuery(fieldName, 1, false);
                     assertEquals(1, searcher.count(query));
                 }
             }

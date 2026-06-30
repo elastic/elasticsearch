@@ -176,7 +176,7 @@ public class TieredMergeStrategy<V> {
                     System.arraycopy(s, 0, allClusterSizes, off, s.length);
                     off += s.length;
                 }
-                ClusteringVectorValues<V> concatenated = ops.concatenate(parts.toArray(new ClusteringVectorValues[0]));
+                ClusteringVectorValues<V> concatenated = ops.concatenate(parts);
                 yield new Concatenation<>(concatenated, allClusterSizes, coveredVectorCount);
             }
             case FULL_REBUILD -> new FullRebuild<>();

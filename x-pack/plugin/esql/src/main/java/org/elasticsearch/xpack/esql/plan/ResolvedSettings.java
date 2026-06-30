@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -39,25 +41,29 @@ public final class ResolvedSettings implements Writeable {
         Map<QuerySettingDef<?>, Object> v = new HashMap<>(n);
         for (int i = 0; i < n; i++) {
             String name = in.readString();
+            // Each value is a self-delimiting blob (see writeTo). A setting this node doesn't know — a newer peer's
+            // setting during a rolling upgrade — is read past and ignored rather than failing the whole request.
+            BytesReference valueBytes = in.readBytesReference();
             QuerySettingDef def = QuerySettings.lookup(name);
-            if (def == null) {
-                throw new IOException("Unknown query setting on the wire: [" + name + "]");
+            if (def != null) {
+                StreamInput valueIn = valueBytes.streamInput();
+                valueIn.setTransportVersion(in.getTransportVersion());
+                v.put(def, def.readValue(valueIn));
             }
-            v.put(def, def.readValue(in));
         }
         this.values = Map.copyOf(v);
     }
 
     /**
-     * Writes every resolved setting as a (name, value) pair. The values are not length-prefixed, so a reader that
-     * does not recognize a name cannot skip its value and instead fails hard (see the constructor).
+     * Writes every resolved setting as a {@code (name, length-prefixed value)} pair. Length-prefixing each value
+     * makes the block <b>self-describing</b>: a reader can skip a setting it doesn't recognize (see the constructor),
+     * so this format is forward-compatible.
      * <p>
-     * <b>Forward-compatibility contract for adding a setting:</b> the whole block is gated in
-     * {@link org.elasticsearch.xpack.esql.session.Configuration} on the {@code esql_resolved_settings} transport
-     * version, so every setting here is safe to send to any peer that understands the block <em>as of that
-     * version</em>. A setting introduced at a <em>later</em> transport version must be version-gated by its author —
-     * either skipped here for peers below its introduction version, or the block must move to a self-describing
-     * (length-prefixed) format — otherwise an older peer will hit the "Unknown query setting on the wire" failure.
+     * <b>Adding a setting needs no new transport version.</b> The block as a whole is introduced once, gated in
+     * {@link org.elasticsearch.xpack.esql.session.Configuration} on {@code esql_resolved_settings}; thereafter a new
+     * setting is just a new entry, and older peers ignore names they don't know. (An old peer therefore falls back to
+     * the setting's default for one it hasn't learned yet — fine for coordinator-resolved settings; a future setting
+     * that must hard-fail on an old data node should additionally version-gate its inclusion here.)
      */
     @Override
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -66,7 +72,11 @@ public final class ResolvedSettings implements Writeable {
         for (Map.Entry<QuerySettingDef<?>, Object> e : values.entrySet()) {
             QuerySettingDef def = e.getKey();
             out.writeString(def.name());
-            def.writeValue(out, e.getValue());
+            try (BytesStreamOutput valueOut = new BytesStreamOutput()) {
+                valueOut.setTransportVersion(out.getTransportVersion());
+                def.writeValue(valueOut, e.getValue());
+                out.writeBytesReference(valueOut.bytes());
+            }
         }
     }
 

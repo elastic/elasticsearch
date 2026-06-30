@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.hamcrest.Matcher;
 import org.junit.AfterClass;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -351,6 +353,27 @@ public class QuerySettingsTests extends ESTestCase {
         QuerySettingDef<String> b = QuerySettingDef.string("dup").build();
         var e = expectThrows(IllegalStateException.class, () -> QuerySettings.byName(List.of(a, b)));
         assertThat(e.getMessage(), containsString("Duplicate query setting [dup]"));
+    }
+
+    public void testUnknownSettingOnTheWireIsSkipped() throws IOException {
+        // Simulate a newer peer sending a setting this node's registry doesn't have, alongside a known one.
+        // The self-describing (length-prefixed) format lets the reader skip the unknown one instead of failing.
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeVInt(2);
+
+        out.writeString(QuerySettings.TIME_ZONE.name());
+        BytesStreamOutput knownValue = new BytesStreamOutput();
+        QuerySettings.TIME_ZONE.writeValue(knownValue, ZoneId.of("Europe/Paris"));
+        out.writeBytesReference(knownValue.bytes());
+
+        out.writeString("a_future_setting_this_node_does_not_know");
+        BytesStreamOutput unknownValue = new BytesStreamOutput();
+        unknownValue.writeString("opaque");
+        out.writeBytesReference(unknownValue.bytes());
+
+        ResolvedSettings resolved = new ResolvedSettings(out.bytes().streamInput());
+        // The known setting survives; the unknown one is silently skipped (no throw).
+        assertThat(QuerySettings.TIME_ZONE.get(resolved), equalTo(ZoneId.of("Europe/Paris")));
     }
 
     public void testResolveApproximationDisjointFieldsMerge() {

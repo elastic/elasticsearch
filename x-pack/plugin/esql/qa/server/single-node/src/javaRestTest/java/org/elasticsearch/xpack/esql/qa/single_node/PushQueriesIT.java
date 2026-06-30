@@ -515,6 +515,7 @@ public class PushQueriesIT extends ESRestTestCase {
     }
 
     public void testCaseInsensitiveRLikeList() throws IOException {
+        assumeFalse("WILDCARD field type does not support automaton queries", type == Type.WILDCARD);
         String value = "v".repeat(between(1, 256));
         String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
         String esqlQuery = """

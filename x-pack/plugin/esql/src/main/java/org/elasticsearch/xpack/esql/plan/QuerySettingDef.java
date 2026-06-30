@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * The typed handle for one ES|QL query setting. Declared as a {@code public static final}
@@ -130,9 +129,7 @@ import java.util.Locale;
  * <h2>Factories</h2>
  *
  * {@link #string(String)}, {@link #string(String, FromString)} (function errors surface as the
- * user-visible message), {@link #integer(String, int)}, {@link #bool(String, boolean)},
- * {@link #enumOf(String, Class, Enum)} (case-insensitive),
- * {@link #object(String, JsonReader, ExpressionReader)}, {@link #builder(String)}.
+ * user-visible message), {@link #object(String, JsonReader, ExpressionReader)}, {@link #builder(String)}.
  *
  * <h2>When things go wrong</h2>
  *
@@ -157,26 +154,6 @@ public final class QuerySettingDef<T> {
 
     public static <T> Builder<T> string(String name, FromString<T> from) {
         return Builder.<T>of(name, DataType.KEYWORD).fromString(from);
-    }
-
-    public static Builder<Integer> integer(String name, int defaultValue) {
-        return Builder.<Integer>of(name, DataType.INTEGER)
-            .withDefault(defaultValue)
-            .expressionReader(e -> ((Number) Foldables.literalValueOf(e)).intValue())
-            .jsonReader(XContentParser::intValue)
-            .streamFormat(StreamOutput::writeInt, StreamInput::readInt);
-    }
-
-    public static Builder<Boolean> bool(String name, boolean defaultValue) {
-        return Builder.<Boolean>of(name, DataType.BOOLEAN)
-            .withDefault(defaultValue)
-            .expressionReader(e -> (Boolean) Foldables.literalValueOf(e))
-            .jsonReader(XContentParser::booleanValue)
-            .streamFormat(StreamOutput::writeBoolean, StreamInput::readBoolean);
-    }
-
-    public static <E extends Enum<E>> Builder<E> enumOf(String name, Class<E> type, E defaultValue) {
-        return string(name, s -> Enum.valueOf(type, s.toUpperCase(Locale.ROOT))).withDefault(defaultValue);
     }
 
     /** Escape hatch for non-primitive types. Supply both a JSON and an expression parser. */
@@ -383,11 +360,18 @@ public final class QuerySettingDef<T> {
             return this;
         }
 
+        /** Hard availability gate: supplying this setting on a non-snapshot build is rejected at validate/resolve. */
         public Builder<T> withSnapshotOnly() {
             this.snapshotOnly = true;
             return this;
         }
 
+        /**
+         * Deployment marker for serverless-only settings. Unlike {@link #withSnapshotOnly()} this is NOT a
+         * parse/resolve gate — it only drives telemetry/docs ({@link QuerySettings#applicableIn}). A serverless-only
+         * setting that must be hard-rejected on a stateful cluster enforces that through its {@link #withValidator}
+         * (as {@code project_routing} does via its cross-project check).
+         */
         public Builder<T> withServerlessOnly() {
             this.serverlessOnly = true;
             return this;

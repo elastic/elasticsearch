@@ -10,12 +10,13 @@ highlight:
     Fields are stored **once, as doc values only** — no inverted index or BKD
     tree is maintained by default, which eliminates redundant index structures
     and significantly reduces the storage footprint. Doc values skippers
-    (compact skip lists with min/max metadata) are enabled by default, allowing
-    large blocks of documents to be skipped without scanning individual values.
+    (compact skip lists with min/max metadata) are enabled by default for number based fields, 
+    allowing large blocks of documents to be skipped without scanning individual values.
+    Later doc value skippers will be enabled for all fields where applicable.
 
     Mappings are always flat: object and passthrough fields are auto-flattened
     to leaf fields at mapping time. The original document source is not stored;
-    a synthetic source is generated on the fly from doc values at query time.
+    the columnar source is generated on the fly from doc values at query time.
     Optionally, a pre-built columnar representation can be stored on disk using
     the new `columnar_stored` source mode.
 
@@ -32,9 +33,9 @@ highlight:
       columnar encoding and stronger schema guarantees.
     - **Required-value enforcement** (`doc_values.nullability: false`): reject
       documents that omit a field or supply an explicit `null`.
-    - **Columnar `_id`**: the `_id` metadata field is stored as binary doc
-      values rather than a stored field, consistent with the columnar storage
-      model.
+    - **Columnar metadata**: the `_id` and `_routing` metadata fields are stored 
+      as doc values rather than a stored field, consistent with the columnar 
+      storage model.
     - **Index-level defaults**: `index.mapping.doc_values.multi_value` and
       `index.mapping.doc_values.nullability` set the enforcement policy for all
       fields in an index in one place.

@@ -35,6 +35,10 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         return changePoint() != NO_CHANGE_POINT;
     }
 
+    default boolean isPointAnomaly() {
+        return false;
+    }
+
     default double pValue() {
         return 1.0;
     }
@@ -476,6 +480,11 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         }
 
         @Override
+        public boolean isPointAnomaly() {
+            return true;
+        }
+
+        @Override
         public ChangeType remapChangePoint(int changePoint) {
             return new Spike(logPValue(), magnitudePercent(), changePoint);
         }
@@ -498,6 +507,11 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         public Dip(StreamInput in) throws IOException {
             super(in);
+        }
+
+        @Override
+        public boolean isPointAnomaly() {
+            return true;
         }
 
         @Override

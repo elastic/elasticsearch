@@ -267,15 +267,19 @@ public class ChangePointOperator implements Operator {
 
         // 3. Keep only structural breaks and spikes and dips.
         //
-        // Drop NO_CHANGE_POINT classifications such as Indeterminable / Stationary, which do not
-        // belong to any row, sorted by increasing bucket index so we can annotate the pages in a
-        // single forward pass.
-        List<ChangeType> located = new ArrayList<>();
+        // Drop NO_CHANGE_POINT classifications such as Stationary / Trend, collapsing any same
+        // bucket collision to a single event. EventDetector can report a structural change and
+        // a spike/dip at the same index (the pulse stream is merged after its own de-duplication);
+        // ESQL has one (type, pvalue) pair per row, so we prefer the structural change over the
+        // point anomaly (operationally more useful), breaking any remaining tie by the more
+        // significant (smaller) p-value.
+        Map<Integer, ChangeType> byIndex = new LinkedHashMap<>();
         for (ChangeType changeType : changeTypes) {
             if (changeType.changePoint() != ChangeType.NO_CHANGE_POINT) {
-                located.add(changeType);
+                byIndex.merge(changeType.changePoint(), changeType, ChangePointOperator::preferredAtSameBucket);
             }
         }
+        List<ChangeType> located = new ArrayList<>(byIndex.values());
         located.sort((a, b) -> Integer.compare(a.changePoint(), b.changePoint()));
 
         // 4. Annotate and emit pages.
@@ -334,6 +338,20 @@ public class ChangePointOperator implements Operator {
             }
         }
         return bucketOffsetIndex;
+    }
+
+    /**
+     * Of two change types reported at the same bucket, the one ESQL should write: a structural break
+     * is preferred over a spike or dip; if both are the same kind, the more significant (smaller log
+     * p-value) wins.
+     */
+    private static ChangeType preferredAtSameBucket(ChangeType a, ChangeType b) {
+        boolean aAnomaly = a.isPointAnomaly();
+        boolean bAnomaly = b.isPointAnomaly();
+        if (aAnomaly != bAnomaly) {
+            return aAnomaly ? b : a;
+        }
+        return a.logPValue() <= b.logPValue() ? a : b;
     }
 
     /**

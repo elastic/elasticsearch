@@ -73,12 +73,16 @@ fi
 # is immediately visible without having to open a collapsed group.
 echo "+++ pi-agent: analysis"
 
-# Hard cap: kill the agent after 30 minutes so it can't silently burn the
-# full 60-minute BK step timeout. If it hasn't finished by then it is
-# either stuck or the task is too large for a single CI step.
-# -v makes nono log each sandbox allow/deny decision for observability.
-timeout --signal=TERM --kill-after=60s 30m \
-  nono run \
+# Use nono wrap (not nono run) so nono exec(2)s directly into pi-agent.
+# With nono run the supervisor PTY mux buffers the child's stdout; in a
+# non-interactive CI environment that buffer is never flushed and all
+# pi-agent output is lost if the process is killed by the outer timeout.
+# nono wrap has no supervisor — nono disappears from the process tree and
+# pi-agent's stdout/stderr go straight to the BK log.
+#
+# Hard cap: kill after 45 minutes. Exit 124 = timeout, 137 = SIGKILL.
+timeout --signal=TERM --kill-after=60s 45m \
+  nono wrap \
     -v \
     --profile always-further/pi \
     --allow "${PI_AGENT_DIR}" \

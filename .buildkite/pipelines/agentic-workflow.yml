@@ -69,20 +69,12 @@ steps:
     command: |
       set -euo pipefail
 
-      echo "--- Debug: input resolution"
-      echo "WORKFLOW env var: '${WORKFLOW:-}'"
-      echo "ISSUE_URL env var: '${ISSUE_URL:-}'"
-      echo "PR_URL env var: '${PR_URL:-}'"
-      echo "Fetching WORKFLOW from metadata:"
-      buildkite-agent meta-data get WORKFLOW --default "(not set)" || echo "meta-data get failed"
-      echo "Fetching ISSUE_URL from metadata:"
-      buildkite-agent meta-data get ISSUE_URL --default "(not set)" || echo "meta-data get failed"
-
       # Resolve inputs: metadata wins (UI input step), env var is the fallback (API trigger).
-      WORKFLOW="${WORKFLOW:-$(buildkite-agent meta-data get WORKFLOW 2>/dev/null || true)}"
-      ISSUE_URL="${ISSUE_URL:-$(buildkite-agent meta-data get ISSUE_URL 2>/dev/null || true)}"
-      PR_URL="${PR_URL:-$(buildkite-agent meta-data get PR_URL 2>/dev/null || true)}"
-      echo "Resolved WORKFLOW='${WORKFLOW}' ISSUE_URL='${ISSUE_URL}' PR_URL='${PR_URL}'"
+      # Note: buildkite-agent meta-data get writes its value to stderr, not stdout,
+      # so we must NOT redirect stderr to /dev/null when capturing in a subshell.
+      WORKFLOW="${WORKFLOW:-$(buildkite-agent meta-data get WORKFLOW 2>&1 || true)}"
+      ISSUE_URL="${ISSUE_URL:-$(buildkite-agent meta-data get ISSUE_URL 2>&1 || true)}"
+      PR_URL="${PR_URL:-$(buildkite-agent meta-data get PR_URL 2>&1 || true)}"
 
       case "${WORKFLOW}" in
         test-analysis)

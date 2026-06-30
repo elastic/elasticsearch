@@ -73,6 +73,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("user2", "x-pack-test-password", "user2", false)
         .user("user3", "x-pack-test-password", "user3", false)
         .user("user_dataset_authorize_only", "x-pack-test-password", "user_dataset_authorize_only", false)
+        .user("ds_repro_broad_reader", "x-pack-test-password", "ds_repro_broad_reader", false)
         .user("user4", "x-pack-test-password", "user4", false)
         .user("user5", "x-pack-test-password", "user5", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
@@ -2536,6 +2537,48 @@ public class EsqlSecurityIT extends ESRestTestCase {
         Request delete = new Request("DELETE", "/_query/dataset/" + datasetName);
         setUser(delete, "test-admin");
         assertOK(client().performRequest(delete));
+    }
+
+    /**
+     * Repro for the GET _query/dataset 404 reported 2026-06-30. A non-superuser whose role can both list datasets and
+     * read an unrelated (Entity-Store-style, hidden) data stream lists datasets with "*". The security layer expands
+     * the wildcard against the user's authorized namespace — which includes the data stream — and the dataset
+     * resolution then reads it back with data streams excluded, 404-ing on entities-updates-default. A superuser does
+     * not hit this because it is authorized for "*" wholesale and never enumerates.
+     */
+    public void testListDatasetsAsNonSuperuserWithCoresidentHiddenDataStream() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+
+        // Hidden, template-managed data stream, mirroring the Entity Store's entities-updates-default.
+        Request tmpl = new Request("PUT", "/_index_template/entities-updates-tmpl");
+        tmpl.setJsonEntity("{\"index_patterns\":[\"entities-updates-*\"],\"data_stream\":{\"hidden\":true}}");
+        setUser(tmpl, "test-admin");
+        assertOK(client().performRequest(tmpl));
+        Request createDs = new Request("PUT", "/_data_stream/entities-updates-default");
+        setUser(createDs, "test-admin");
+        assertOK(client().performRequest(createDs));
+
+        final String dataset = createSecurityItDatasetAsAdmin("security_it_ds_repro_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+
+        try {
+            // GET /_query/dataset (list all == "*") as the non-superuser.
+            Request list = new Request("GET", "/_query/dataset");
+            setUser(list, "ds_repro_broad_reader");
+            Response resp = client().performRequest(list);
+            assertOK(resp);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> hits = (List<Map<String, Object>>) entityAsMap(resp).get("datasets");
+            assertThat(hits.stream().anyMatch(h -> dataset.equals(h.get("name"))), equalTo(true));
+        } finally {
+            deleteDatasetAsAdmin(dataset);
+            Request delDs = new Request("DELETE", "/_data_stream/entities-updates-default");
+            setUser(delDs, "test-admin");
+            client().performRequest(delDs);
+            Request delTmpl = new Request("DELETE", "/_index_template/entities-updates-tmpl");
+            setUser(delTmpl, "test-admin");
+            client().performRequest(delTmpl);
+        }
     }
 
     /**

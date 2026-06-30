@@ -1435,5 +1435,4 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
         assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
     }
-
 }

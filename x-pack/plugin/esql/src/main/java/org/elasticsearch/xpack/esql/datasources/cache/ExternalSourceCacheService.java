@@ -699,9 +699,7 @@ public class ExternalSourceCacheService implements Closeable {
                     // last-writer-wins (no POISON fold), so an unrepresentable value (e.g. a Double past
                     // Long.MAX for a LONG-resolved column) is DROPPED rather than stored — otherwise the
                     // serve would coerce it to the resolved type and produce a wrong value.
-                    enriched.putAll(
-                        coerceColumnStatsToResolvedTypes(mergedStats, existing.columnNames(), existing.columnTypes(), true)
-                    );
+                    enriched.putAll(coerceColumnStatsToResolvedTypes(mergedStats, existing.columnNames(), existing.columnTypes(), true));
                     schemaCache.put(
                         key,
                         new SchemaCacheEntry(

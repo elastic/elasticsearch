@@ -1228,9 +1228,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         String columnName,
         DataType columnType
     ) throws Exception {
-        List<Attribute> schema = List.of(
-            new ReferenceAttribute(Source.EMPTY, null, columnName, columnType, Nullability.TRUE, null, false)
-        );
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, columnName, columnType, Nullability.TRUE, null, false));
         service.getOrComputeSchema(
             key,
             k -> SchemaCacheEntry.from(schema, "ndjson", path, Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint), Map.of())

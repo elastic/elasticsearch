@@ -174,10 +174,7 @@ public abstract class AbstractExternalAggregatePushdownMatrixIT extends Abstract
     /** Registers a dataset under the already-created {@code local_ds} data source, in this format. */
     protected void registerDataset(String datasetName, String fixtureUri) {
         assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                putDatasetRequest(datasetName, "local_ds", fixtureUri, Map.of("format", format()))
-            )
+            client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetName, "local_ds", fixtureUri, Map.of("format", format())))
         );
     }
 
@@ -207,7 +204,12 @@ public abstract class AbstractExternalAggregatePushdownMatrixIT extends Abstract
         return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
     }
 
-    private static PutDatasetAction.Request putDatasetRequest(String name, String dataSource, String resource, Map<String, Object> settings) {
+    private static PutDatasetAction.Request putDatasetRequest(
+        String name,
+        String dataSource,
+        String resource,
+        Map<String, Object> settings
+    ) {
         return new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, dataSource, resource, null, new HashMap<>(settings));
     }
 

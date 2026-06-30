@@ -547,7 +547,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                     chunkingSettings.getValue(),
                     indexOptions.getValue(),
                     inferenceField,
-                    // the semantic field is unreleased, so it always stores its input in doc values (written only under synthetic/columnar)
+                    // the semantic field always stores its input in doc values (written and read only under synthetic source or columnar)
                     true,
                     meta.getValue()
                 ),
@@ -727,9 +727,9 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
     /**
      * Whether this field stores its original input value(s) in an internal binary doc values store rather than {@code _source}.
-     * The {@code semantic} field is unreleased, so it always does; the value is only actually written and read under
-     * synthetic-source or columnar. Subclasses with a released format ({@code semantic_text}) override this to gate on the index
-     * version.
+     * The base {@code semantic} field always does; the value is only written and read under synthetic source or columnar.
+     * Subclasses override this to gate on the index version when older indices kept the input in {@code _source}, as
+     * {@code semantic_text} does.
      */
     protected boolean storesOriginalValuesInDocValues() {
         return true;

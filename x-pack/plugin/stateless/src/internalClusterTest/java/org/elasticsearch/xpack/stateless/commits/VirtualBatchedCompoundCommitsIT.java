@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -105,7 +106,10 @@ import static org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoun
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_MISSING_TIMESTAMP_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_NUMBER_COMMITS_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_SIZE_ATTRIBUTE_KEY;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_TOTAL_SIZE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
@@ -113,6 +117,7 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.S
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
@@ -1357,6 +1362,86 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                 metricsPlugin.resetMeter();
             }
         }
+    }
+
+    public void testBccTimestampRangeMetricRecordedOnUpload() throws Exception {
+        final var indexNode = startMasterAndIndexNode();
+
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        assertAcked(client().admin().indices().preparePutMapping(indexName).setSource("""
+                     {
+                       "properties": {
+                         "@timestamp": {
+                           "type": "date",
+                           "format": "epoch_millis"
+                         }
+                       }
+                     }
+            """, XContentType.JSON).get());
+
+        // Constrained positive epoch-millis so the exact minutes assertion stays clean.
+        final long tenYearsMillis = TimeValue.timeValueDays(3650).millis();
+        long min = Long.MAX_VALUE;
+        long max = Long.MIN_VALUE;
+        final int refreshCycles = randomIntBetween(1, 4);
+        for (int cycle = 0; cycle < refreshCycles; cycle++) {
+            final var bulkRequest = client().prepareBulk();
+            final int newDocs = randomIntBetween(1, 10);
+            for (int j = 0; j < newDocs; j++) {
+                final long timestamp = randomLongBetween(1, tenYearsMillis);
+                min = Math.min(min, timestamp);
+                max = Math.max(max, timestamp);
+                bulkRequest.add(new IndexRequest(indexName).source("@timestamp", timestamp));
+            }
+            bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            assertNoFailures(bulkRequest.get());
+        }
+
+        final var shardId = findIndexShard(indexName).shardId();
+        final var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        final var metricsPlugin = findPlugin(indexNode, TestTelemetryPlugin.class);
+        metricsPlugin.resetMeter();
+
+        // Capture the size before the flush freezes and uploads the VBCC; the size bucket is derived from it.
+        final VirtualBatchedCompoundCommit virtualBcc = statelessCommitService.getCurrentVirtualBcc(shardId);
+        assertNotNull(virtualBcc);
+        final long totalSize = virtualBcc.getTotalSizeInBytes();
+
+        flush(indexName);
+
+        final List<Measurement> measurements = metricsPlugin.getDoubleHistogramMeasurement(BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC);
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.get(0).getDouble(), closeTo((double) (max - min) / 60_000d, 1e-6));
+        assertThat(
+            measurements.get(0).attributes(),
+            equalTo(Map.of(BCC_SIZE_ATTRIBUTE_KEY, StatelessCommitService.bccSizeBucket(totalSize)))
+        );
+        assertThat(metricsPlugin.getLongCounterMeasurement(BCC_MISSING_TIMESTAMP_METRIC), empty());
+    }
+
+    public void testBccMissingTimestampMetricRecordedWhenNoTimestampField() throws Exception {
+        final var indexNode = startMasterAndIndexNode();
+
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+
+        // None of the indexed docs carry a @timestamp field, so every compound commit has a null range.
+        indexDocsAndRefresh(indexName);
+
+        final var shardId = findIndexShard(indexName).shardId();
+        final var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        final var metricsPlugin = findPlugin(indexNode, TestTelemetryPlugin.class);
+        metricsPlugin.resetMeter();
+
+        assertNotNull(statelessCommitService.getCurrentVirtualBcc(shardId));
+
+        flush(indexName);
+
+        final List<Measurement> missing = metricsPlugin.getLongCounterMeasurement(BCC_MISSING_TIMESTAMP_METRIC);
+        assertThat(missing, hasSize(1));
+        assertThat(missing.get(0).getLong(), equalTo(1L));
+        assertThat(metricsPlugin.getDoubleHistogramMeasurement(BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC), empty());
     }
 
     // Corrupt lucene files should be detected on upload and trigger shard failure.

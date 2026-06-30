@@ -61,16 +61,13 @@ import java.util.stream.Collectors;
  *       {@code TextFieldMapper.defaultDocValuesParameters()} returns {@code enabled=true} when
  *       {@code isStrictColumnar()}, making text fields aggregatable on the contender but not on
  *       the baseline. Normalised to {@code doc_values:true} on both sides (the columnar default).</li>
- *   <li>{@code match_only_text} – always normalised to {@code doc_values:false, index:true} on
- *       both sides. In logsdb_columnar, {@code doc_values:true} (the strict-columnar default) plus
- *       {@code multiValue=true} causes {@code usesBinaryDocValues()} to return {@code true}, which
- *       makes {@code SourceConfirmedTextQuery}'s position-confirming phase read from binary doc
- *       values in {@code ArrayOrderInlineNull} format. The existing reader
- *       ({@code binaryDocValuesFieldFetcher}) expects {@code SeparateCount} format and crashes with
- *       an invalid-vInt. Setting {@code doc_values:false} disables the binary doc-values path
- *       entirely; with {@code index:true} queries route through the inverted index and
- *       {@code SourceConfirmedTextQuery} reads from stored fields. Both sides are equally
- *       non-aggregatable, which is consistent.</li>
+ *   <li>{@code match_only_text} – always normalised to {@code doc_values:true, index:true} on
+ *       both sides. {@code doc_values:true} (the strict-columnar default) is mirrored to the logsdb
+ *       baseline so both sides become aggregatable. {@code index:true} overrides logsdb_columnar's
+ *       {@code isIndexDisabledByDefault()=true} so both sides stay searchable. The
+ *       position-confirming path in {@code SourceConfirmedTextQuery} reads from binary doc values
+ *       via {@code SortingArrayOrderBinaryDocValues}, which correctly decodes the
+ *       {@code ArrayOrderInlineNull} format written by strict-columnar multi-value fields.</li>
  *   <li>{@code keyword} and {@code ip} fields – always normalised to
  *       {@code doc_values:{cardinality:low}} and {@code index:true} on both sides (even when
  *       {@code doc_values:false} was set). Two problems arise otherwise: (a) {@code doc_values:true}
@@ -283,14 +280,13 @@ public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallen
         // isStrictColumnar(), so text fields are aggregatable=true by default on the contender but
         // aggregatable=false on the logsdb baseline. Inject doc_values:true on both sides.
         //
-        // match_only_text: always force doc_values:false + index:true on both sides. In
-        // logsdb_columnar, doc_values:true (strict-columnar default) plus multiValue=true causes
-        // usesBinaryDocValues() to return true. SourceConfirmedTextQuery's position-confirming
-        // phase then reads from binary doc values in ArrayOrderInlineNull format, but
-        // binaryDocValuesFieldFetcher expects SeparateCount format → Invalid vInt server crash.
-        // Setting doc_values:false forces usesBinaryDocValues() to false; SourceConfirmedTextQuery
-        // falls back to stored fields. index:true ensures both sides remain searchable via the
-        // inverted index (logsdb_columnar sets index_disabled_by_default=true).
+        // match_only_text: always force doc_values:true + index:true on both sides.
+        // doc_values:true (the strict-columnar default) is mirrored to the logsdb baseline so both
+        // sides are aggregatable. index:true overrides logsdb_columnar's
+        // isIndexDisabledByDefault()=true so both sides stay searchable. SourceConfirmedTextQuery's
+        // position-confirming phase reads from binary doc values via SortingArrayOrderBinaryDocValues,
+        // which correctly decodes the ArrayOrderInlineNull format written by strict-columnar
+        // multi-value fields.
         //
         // keyword / ip: always force doc_values:{cardinality:low} + index:true on both sides (even
         // overriding doc_values:false). In logsdb_columnar, doc_values:true (boolean) uses HIGH
@@ -317,10 +313,8 @@ public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallen
                 result.put("doc_values", true);
             }
         } else if ("match_only_text".equals(fieldType)) {
-            result.put("doc_values", false);
-            if (result.containsKey("index") == false) {
-                result.put("index", true);
-            }
+            result.put("doc_values", true);
+            result.put("index", true);
         } else if ("keyword".equals(fieldType) || "ip".equals(fieldType)) {
             result.put("doc_values", Map.of("cardinality", "low"));
             result.put("index", true);

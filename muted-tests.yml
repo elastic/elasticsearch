@@ -611,9 +611,6 @@ tests:
 - class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceIT
   method: testCreateIndexBatching
   issue: https://github.com/elastic/elasticsearch/issues/152041
-- class: org.elasticsearch.ingest.iplocation.IngestEnterpriseGeoIpDownloaderIT
-  method: testEnterpriseDownloaderWithIngestPipeline
-  issue: https://github.com/elastic/elasticsearch/issues/152042
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerStressTestIT
   method: testMergingFallsBehindAndThenCatchesUp
   issue: https://github.com/elastic/elasticsearch/issues/152045
@@ -713,9 +710,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:folding.dateNanos_GreaterThan_MultiValueConstant}
   issue: https://github.com/elastic/elasticsearch/issues/152314
-- class: org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldMapperTests
-  method: testExponentialHistogramValuesReader
-  issue: https://github.com/elastic/elasticsearch/issues/152318
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StUnionTests
   method: testFold {TestCase=geo_shape and geo_shape}
   issue: https://github.com/elastic/elasticsearch/issues/152323
@@ -743,12 +737,30 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OtelMetricsIT
   method: testExplicitMetrics
   issue: https://github.com/elastic/elasticsearch/issues/152379
-- class: org.elasticsearch.xpack.security.authz.microsoft.MicrosoftGraphAuthzPluginIT
-  method: testAuthenticationSuccessful
-  issue: https://github.com/elastic/elasticsearch/issues/152375
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationCycleWithNoHandlers
   issue: https://github.com/elastic/elasticsearch/issues/152412
 - class: org.elasticsearch.index.store.BytesReadHeaderIT
   method: testMultipleIndicesAccumulateBytesRead
   issue: https://github.com/elastic/elasticsearch/issues/152425
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/152439
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/152440
+- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
+  method: testStoredIgnoredSource
+  issue: https://github.com/elastic/elasticsearch/issues/152448
+- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
+  method: testDocValuesIgnoredSource
+  issue: https://github.com/elastic/elasticsearch/issues/152469
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testRelocationWithConcurrentIndexing {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/152471
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testConsecutiveRotations
+  issue: https://github.com/elastic/elasticsearch/issues/152472
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testRelocationWithConcurrentIndexing {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/152486

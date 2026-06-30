@@ -134,7 +134,7 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
 
     RandomVectorScorerSupplier getRandomVectorScorerSupplier(
         VectorSimilarityFunction similarityFunction,
-        ES818BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues scoringVectors,
+        ES818BinaryQuantizedVectorsReader.OffHeapBinarizedQueryVectorValues scoringVectors,
         OffHeapBinarizedVectorValues targetVectors
     ) {
         return new BinarizedRandomVectorScorerSupplier(scoringVectors, targetVectors, similarityFunction);
@@ -147,12 +147,12 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
 
     /** Vector scorer supplier over binarized vector values */
     static class BinarizedRandomVectorScorerSupplier implements RandomVectorScorerSupplier {
-        private final ES818BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors;
+        private final ES818BinaryQuantizedVectorsReader.OffHeapBinarizedQueryVectorValues queryVectors;
         private final OffHeapBinarizedVectorValues targetVectors;
         private final VectorSimilarityFunction similarityFunction;
 
         BinarizedRandomVectorScorerSupplier(
-            ES818BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors,
+            ES818BinaryQuantizedVectorsReader.OffHeapBinarizedQueryVectorValues queryVectors,
             OffHeapBinarizedVectorValues targetVectors,
             VectorSimilarityFunction similarityFunction
         ) {
@@ -174,7 +174,7 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
 
     /** Vector scorer over binarized vector values */
     public static class BinarizedRandomVectorScorer extends UpdateableRandomVectorScorer.AbstractUpdateableRandomVectorScorer {
-        private final ES818BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors;
+        private final ES818BinaryQuantizedVectorsReader.OffHeapBinarizedQueryVectorValues queryVectors;
         private final OffHeapBinarizedVectorValues targetVectors;
         private final VectorSimilarityFunction similarityFunction;
         private final byte[] quantizedQuery;
@@ -184,7 +184,7 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
         private final ES93BinaryQuantizedVectorScorer scorer;
 
         BinarizedRandomVectorScorer(
-            ES818BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors,
+            ES818BinaryQuantizedVectorsReader.OffHeapBinarizedQueryVectorValues queryVectors,
             OffHeapBinarizedVectorValues targetVectors,
             VectorSimilarityFunction similarityFunction
         ) throws IOException {

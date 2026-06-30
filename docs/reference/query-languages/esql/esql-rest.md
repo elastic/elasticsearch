@@ -599,7 +599,7 @@ The `is_partial` field indicates result completeness. A value of `true` means th
 
 When a query reads from an external source (for example, a query that begins with the `EXTERNAL` command, or any query routed to a {{esql}} data source you registered), the three ways to end the read have distinct semantics:
 
-* **Async stop** (`POST /_query/async/{id}/stop`) returns the rows the pipeline already buffered from the external source and sets `is_partial: true`. Use this when you want the partial results — no rows are discarded, but the response is truncated at whatever the source had delivered when the stop arrived.
+* **Async stop** (`POST /_query/async/{id}/stop`) returns the rows already accepted into the response pipeline from the external source and sets `is_partial: true`. Use this when you want the partial results. Rows that the source is still in the middle of delivering, or that the source-side buffer has not yet handed off downstream, are dropped — async stop trades freshness for a fast, deterministic shutdown.
 * **Async delete** (`DELETE /_query/async/{id}`) cancels the underlying task before deleting the saved entry. The running query fails with a task-cancelled error; no partial body is returned.
 * **Task cancel or client disconnect** (cancellation via the [task management API](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/task-management.md), or simply closing the HTTP connection that submitted a synchronous query) hard-fails the query with a task-cancelled error and returns no rows.
 

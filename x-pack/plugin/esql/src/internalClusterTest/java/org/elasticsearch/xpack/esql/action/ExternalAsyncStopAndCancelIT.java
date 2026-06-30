@@ -19,6 +19,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncStopRequest;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
@@ -56,52 +57,18 @@ import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.startAsyncQ
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Locks the partial-results / cancellation contract for a long-running EXTERNAL query: the user wants to
- * wind the read down before the source finishes producing, and the three sanctioned exits diverge by
- * design:
- *
- * <ul>
- *   <li>{@code POST /_query/async/{id}/stop} returns the rows the pipeline already accepted from the
- *       external source and flips {@code is_partial=true} so the under-count is machine-detectable.
- *       This is the "keep my buffered rows" path; STOP is explicitly not cancel (see
- *       {@link org.elasticsearch.compute.operator.exchange.ExchangeService#finishSessionEarly} — "unlike
- *       cancel, this does not discard the results"). The {@code is_partial} flag flips through
- *       {@code TransportEsqlAsyncStopAction}'s direct {@code markPartial()} call, which is required for
- *       pure-EXTERNAL queries because they carry no {@code clusterInfo} entry and therefore never go
- *       through the per-cluster status path that the CCS code uses.</li>
- *   <li>A plain task-cancel on a sync EXTERNAL query (the same path a client disconnect takes via
- *       {@code RestCancellableNodeClient}) hard-fails with {@link TaskCancelledException} and returns no
- *       rows. Matches ES's "cancel = hard-fail" convention across the codebase (e.g.
- *       {@code EsqlActionTaskIT.assertCancelled}) and is explicitly enforced by
- *       {@code ExternalSourceResolver.throwIfCancelled}'s "cancellation is never masked as a
- *       partial-stats result" guarantee.</li>
- *   <li>{@code DELETE /_query/async/{id}} on a still-running query also hard-fails with
- *       {@link TaskCancelledException} — DELETE cancels the underlying task before it deletes the saved
- *       result, so it falls on the cancel-side of the contract rather than the STOP-side. Pinning this
- *       here prevents a future "DELETE quietly partial-completes" regression.</li>
- * </ul>
- *
- * <p>The slow source is a controllable local-file fixture (the {@code slowfile://} scheme served by
- * {@link SlowFileDataSourcePlugin}). The file holds a CSV header plus {@link #LEADING_ROWS} fully
- * delimited records, so the format reader can emit pages immediately; reads after the leading prefix
- * trickle one byte at a time with a small per-byte delay until the test counts down a release latch.
- * That keeps the producer thread alive in a short read/sleep cycle — not parked deep inside a blocking
- * I/O call — so STOP lands cleanly between reads (the drain loop observes the buffer's
- * {@code noMoreInputs} flag on its next iteration) and cancel cascading through the exchange sink
- * closes the data driver's operators promptly. This pins the query in the only steady state where STOP
- * vs cancel observably differ: rows already accepted by the pipeline, source still open.
- *
- * <p>HTTP was the original fixture choice but was abandoned because {@code HttpStorageObject.fetchMetadata()}
- * requires {@code Content-Length} on HEAD, and a chunked-response slow fixture would die at the
- * resolver's first {@code object.length()} call before the trickle ever started. The local-file
- * fixture sidesteps the HEAD path entirely.
- *
- * <p>Follow-up to elastic/esql-planning#535.
+ * Locks the cancel / STOP / DELETE contract for a long-running EXTERNAL query. The four sanctioned exits
+ * are tested below; each diverges on whether the response body is partial, fully gone, or a hard error.
+ * Backing the tests is a controllable {@code slowfile://} fixture that serves a fast leading prefix and
+ * then trickles one byte at a time, so the query is observably mid-stream when STOP / cancel / DELETE
+ * land. Follow-up to elastic/esql-planning#535.
  */
 @SuppressForbidden(reason = "test fixture uses local file paths via PathUtils.get to back the slowfile:// scheme")
 public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
@@ -135,11 +102,9 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     static final AtomicInteger trickleBytesServed = new AtomicInteger();
 
     /**
-     * {@link EsqlPluginWithEnterpriseOrTrialLicense} suppresses {@link ExtensiblePlugin#loadExtensions} in the IT base
-     * (extensions can pull in heavy deps); we need extensions ON so the datasource plugins added in
-     * {@link #nodePlugins()} can register their format readers via SPI. The {@code slowfile} scheme itself is
-     * registered via {@code META-INF/services} — storage provider schemes are only loaded for {@link DataSourcePlugin}s
-     * discovered through the SPI path (see {@code FileSourceSecretDecryptionIT} for the same pattern).
+     * Reopens {@code loadExtensions} so the SPI-registered {@link SlowFileDataSourcePlugin} reaches the format
+     * reader registry. The base test plugin suppresses extensions to keep heavy deps out of the standard IT
+     * classpath.
      */
     public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
         @Override
@@ -478,10 +443,9 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * STOP path: the buffered prefix must reach the client and {@code is_partial=true} must flag the response so a
-     * downstream consumer treats the result as truncated. The source is still trickling at STOP time (we only release
-     * the latch after the stop response is observed), so any rows in the response prove they crossed the operator
-     * boundary before the early-finish drained the buffer.
+     * STOP must catch the source mid-stream, flip {@code is_partial=true}, return at least the leading prefix, and
+     * truncate strictly below the total fixture row count. Gated on {@link #trickleBytesServed} (not just first read)
+     * to exercise "STOP while EXTERNAL is actively producing", not "STOP no-ops on a completed query".
      */
     public void testAsyncStopReturnsBufferedRowsAndMarksPartial() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
@@ -501,25 +465,34 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
         );
         try {
             assertTrue("storage fixture must receive the EXTERNAL read request", requestArrived.await(30, TimeUnit.SECONDS));
+            // Strong gate: wait until the producer has visibly crossed into the trickle (i.e. it consumed the entire
+            // fast-served leading prefix and is now reading byte-by-byte). Without this, STOP can land before the
+            // producer is past the prefix and the test degenerates into "did markPartial fire" instead of "did STOP
+            // observably truncate active production".
+            assertBusy(
+                () -> assertThat("producer must be in the trickle phase before STOP fires", trickleBytesServed.get(), greaterThan(0)),
+                30,
+                TimeUnit.SECONDS
+            );
 
             AsyncStopRequest stopRequest = new AsyncStopRequest(asyncId);
             ActionFuture<EsqlQueryResponse> stopFuture = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
 
-            // Once STOP has been dispatched, the partial-vs-not flag is already locked in by
-            // TransportEsqlAsyncStopAction.markPartial(). STOP's response listener waits on asyncTask completion,
-            // which in turn requires the data driver to wind down — and the data driver can only wind down once the
-            // producer thread returns from its read loop. Releasing the latch here lets the producer EOF naturally
-            // (without it the test would deadlock against the trickle). The "STOP catches the source mid-stream"
-            // semantics still hold: STOP was issued while the source was actively trickling, and the response is
-            // explicitly marked partial as a result.
+            // STOP's listener waits on asyncTask completion, which requires the producer thread to return from its
+            // read loop. Released here so the producer can EOF; STOP has already cut the exchange source, so pages
+            // emitted after this point cannot reach the response (they fall on the dropped side of the
+            // AsyncExternalSourceBuffer/exchange boundary). The "STOP caught the source mid-stream" property is
+            // asserted below via the row-count upper bound + trickleBytesServed, not via deferred release.
             releaseHandler.countDown();
 
             try (EsqlQueryResponse response = stopFuture.actionGet(60, TimeUnit.SECONDS)) {
                 assertThat(response.isRunning(), is(false));
                 assertThat("STOP must return the schema even when the source was cut short", response.columns().size(), equalTo(2));
                 assertThat(
-                    "STOP on a pure-EXTERNAL query must flip is_partial — TransportEsqlAsyncStopAction bridges "
-                        + "isStopped \u2192 markPartial directly because there is no LOCAL_CLUSTER status entry",
+                    "STOP on a running pure-EXTERNAL query must flip is_partial — TransportEsqlAsyncStopAction "
+                        + "marks the response partial when either finishSessionEarly closed an active exchange or "
+                        + "the async task was still running when STOP arrived (coordinator-only EXTERNAL plans "
+                        + "register no exchange under the task's session id, so the second signal carries them)",
                     response.isPartial(),
                     is(true)
                 );
@@ -533,11 +506,22 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
                     rows++;
                 }
                 assertThat(
-                    "STOP must surface the rows already polled by the driver — at minimum the entire fast-served "
-                        + "leading prefix should be in the response, otherwise the 'unlike cancel, this does not "
-                        + "discard the results' guarantee was not honored",
+                    "STOP must surface the rows already accepted by the response pipeline — at minimum the entire "
+                        + "fast-served leading prefix should be present",
                     rows,
                     greaterThanOrEqualTo(LEADING_ROWS)
+                );
+                assertThat(
+                    "STOP must truncate strictly below the total fixture row count, otherwise the source was not "
+                        + "actually cut short and STOP degenerated into 'wait for natural completion'",
+                    rows,
+                    lessThan(LEADING_ROWS + TRICKLE_ROWS)
+                );
+                assertThat(
+                    "the producer must have been in the trickle phase when STOP fired — proves the response was "
+                        + "captured mid-stream, not at natural EOF",
+                    trickleBytesServed.get(),
+                    greaterThan(0)
                 );
             }
         } finally {
@@ -547,10 +531,9 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Cancel path (sync request): must hard-fail with {@link TaskCancelledException} and return no rows. The same
-     * path a client disconnect takes via {@code RestCancellableNodeClient}. We deliberately do <em>not</em> assert on
-     * {@code is_partial} — cancel never produces a response body, so the flag is moot. Mirrors the assertion shape
-     * used by {@code EsqlActionTaskIT.assertCancelled}.
+     * Sync task-cancel: hard-fails with {@link TaskCancelledException}, no response body. Same path a client
+     * disconnect takes via {@code RestCancellableNodeClient}. {@code setWaitForCompletion(true)} sequences cancel
+     * after task teardown so the queryFuture has observably failed before we release the trickle.
      */
     public void testSyncTaskCancelHardFailsWithNoRows() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
@@ -567,19 +550,24 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
         ActionFuture<EsqlQueryResponse> queryFuture = client().execute(EsqlQueryAction.INSTANCE, request);
         try {
             assertTrue("storage fixture must receive the EXTERNAL read request", requestArrived.await(30, TimeUnit.SECONDS));
+            // Strong gate: ensure cancel lands while the producer is actively trickling, not during the fast leading
+            // prefix scan (where the cancel might race with the natural prefix read).
+            assertBusy(
+                () -> assertThat("producer must be in the trickle phase before cancel fires", trickleBytesServed.get(), greaterThan(0)),
+                30,
+                TimeUnit.SECONDS
+            );
 
             TaskId esqlTaskId = findEsqlTask(marker);
             assertThat("the EsqlQueryAction task must be cancellable while the source is still trickling", esqlTaskId, notNullValue());
 
+            // setWaitForCompletion(true): cancel does not return until the task is dead. That gives us a deterministic
+            // ordering — when cancel returns, the queryFuture has already failed (or is about to fail) with the cancel
+            // exception, and the producer wound down via the cancel cascade rather than via the trickle EOF.
             CancelTasksRequest cancel = new CancelTasksRequest().setTargetTaskId(esqlTaskId).setReason("test cancel");
-            cancel.setWaitForCompletion(false);
+            cancel.setWaitForCompletion(true);
             ActionFuture<?> cancelFuture = client().admin().cluster().execute(TransportCancelTasksAction.TYPE, cancel);
-            // Release once cancel is in flight: cancel does not return until the task has wound down, and the task
-            // cannot wind down while the producer is still parked inside a slow read. The cancel-vs-trickle race
-            // resolves the way we want regardless — TaskCancelledException is the contractual outcome — but without
-            // releasing here the producer keeps the asyncTask alive and the actionGet below would time out.
-            releaseHandler.countDown();
-            cancelFuture.actionGet(30, TimeUnit.SECONDS);
+            cancelFuture.actionGet(60, TimeUnit.SECONDS);
 
             Exception thrown = expectThrows(Exception.class, () -> {
                 try (var ignored = queryFuture.actionGet(60, TimeUnit.SECONDS)) {
@@ -593,17 +581,22 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
                 cancelException,
                 notNullValue()
             );
+            assertThat(
+                "the producer must have been in the trickle phase when cancel fired — proves cancel raced active "
+                    + "production, not natural EOF",
+                trickleBytesServed.get(),
+                greaterThan(0)
+            );
         } finally {
             releaseHandler.countDown();
         }
     }
 
     /**
-     * Async DELETE while still running: {@code DELETE /_query/async/{id}} cancels the underlying task before deleting
-     * the saved result, so the still-pending submitter sees a {@link TaskCancelledException} — the same outcome as a
-     * direct task cancel. The point of this case is to prove that DELETE rides the cancel-side of the contract, not
-     * the STOP-side: it must not return a partial body. If a future change ever routes DELETE through the early-finish
-     * machinery, this test pins the regression.
+     * Async DELETE on a running query rides the cancel side: it must cancel the underlying task and then delete the
+     * saved entry, not let the query complete naturally and serve a partial body. Proof shape: gate on
+     * {@link #trickleBytesServed} > 0, confirm the task is alive before DELETE and gone after, and require the
+     * post-DELETE GET to surface {@link org.elasticsearch.ResourceNotFoundException}.
      */
     public void testAsyncDeleteHardFailsWithNoRows() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
@@ -619,36 +612,55 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
         );
         try {
             assertTrue("storage fixture must receive the EXTERNAL read request", requestArrived.await(30, TimeUnit.SECONDS));
+            assertBusy(
+                () -> assertThat(
+                    "producer must be in the trickle phase before DELETE fires — otherwise the test cannot "
+                        + "distinguish 'DELETE cancelled an active query' from 'query completed naturally then DELETE "
+                        + "removed the entry'",
+                    trickleBytesServed.get(),
+                    greaterThan(0)
+                ),
+                30,
+                TimeUnit.SECONDS
+            );
 
-            // DELETE on a running async query: cancels the task first, then deletes the index entry. DELETE blocks on
-            // task termination before deleting, so the source must be able to wind down; release the latch as soon as
-            // DELETE is dispatched so the producer's slow trickle EOFs naturally and the cancel cascade has something
-            // to finalize. Without this, the producer would park inside read() and DELETE would never return.
+            // Pre-DELETE: the async task must be present and live. The async task id is encoded inside asyncId, so
+            // we can look it up directly rather than scanning the task listing (async tasks live under a
+            // {@code AsyncExecutionId}-derived task id, not the EsqlQueryAction listing where the sync submission
+            // appears).
+            TaskId asyncTaskId = AsyncExecutionId.decode(asyncId).getTaskId();
+            assertTrue("the async task must be alive while the trickle is still feeding bytes", isTaskRunning(asyncTaskId));
+
             ActionFuture<?> deleteFuture = client().execute(TransportDeleteAsyncResultAction.TYPE, new DeleteAsyncResultRequest(asyncId));
-            releaseHandler.countDown();
+            // DELETE blocks on task cancellation before removing the entry, then the producer's drain loop observes
+            // noMoreInputs and exits — the trickle yields per-byte so the producer never parks long. Release in
+            // finally guarantees no leak if cancellation cascade has a regression.
             deleteFuture.actionGet(30, TimeUnit.SECONDS);
 
-            // After DELETE, fetching the result must fail rather than succeed with a partial body. Two failure shapes
-            // are valid manifestations of "DELETE rode the cancel path":
-            // * TaskCancelledException — the task was still alive when DELETE landed and was actively cancelled
-            // * ResourceNotFoundException — the async entry was already deleted, so the GET cannot resurrect it as
-            // a partial body
-            // The unacceptable outcome is a successful response with rows: that would mean DELETE silently partial-
-            // completed the query instead of cancelling it, and the regression would be invisible to users who only
-            // observe successful responses.
+            // Post-DELETE: task is gone from the registry. Natural-completion would have taken ~TRICKLE_ROWS *
+            // TRICKLE_MILLIS milliseconds of pure I/O plus parsing; DELETE returning within the 30s timeout *and*
+            // the task disappearing is the joint signature of cancel-driven termination.
+            assertBusy(
+                () -> assertFalse(
+                    "after DELETE the async task must be gone from the registry — cancel cascade should have torn "
+                        + "it down, otherwise DELETE did not ride the cancel side of the contract",
+                    isTaskRunning(asyncTaskId)
+                ),
+                30,
+                TimeUnit.SECONDS
+            );
+
             Exception thrown = expectThrows(Exception.class, () -> {
                 try (var ignored = EsqlAsyncTestUtils.getAsyncResponse(client(), asyncId)) {
                     fail("DELETE must cancel the running query, not let it complete with a partial body");
                 }
             });
-            boolean cancelled = ExceptionsHelper.unwrap(thrown, TaskCancelledException.class) != null;
-            boolean notFound = ExceptionsHelper.unwrap(thrown, org.elasticsearch.ResourceNotFoundException.class) != null;
-            assertTrue(
-                "DELETE on a running async query must surface a cancel-side outcome (TaskCancelledException) or a "
-                    + "deleted-entry outcome (ResourceNotFoundException), never a partial-results body. If this fires "
-                    + "the implementation may have started silently partial-completing — got: "
+            assertThat(
+                "DELETE removed the async entry, so GET must surface ResourceNotFoundException — a successful body "
+                    + "would mean DELETE silently partial-completed the query rather than cancelling it. Got: "
                     + thrown,
-                cancelled || notFound
+                ExceptionsHelper.unwrap(thrown, org.elasticsearch.ResourceNotFoundException.class),
+                notNullValue()
             );
         } finally {
             releaseHandler.countDown();
@@ -656,11 +668,73 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Resolves the {@link EsqlQueryAction} task that belongs to <em>this</em> test's submitted query by matching the
-     * caller's marker against the task description (which {@code EsqlQueryAction} sets to the query text). Without the
-     * marker filter, {@code listTasks} could return any concurrent ES|QL task — e.g. an unrelated probe submitted by a
-     * background test runner — and the cancel would target the wrong one. Picking the first task in the listing was
-     * the previous behaviour; this version is task-identity-safe.
+     * Async task-cancel: direct {@code _tasks/{id}/_cancel} on the still-running async task. Cancel-side outcome —
+     * the saved async result must surface as a hard failure or be wiped entirely on GET; never a partial body.
+     */
+    public void testAsyncTaskCancelHardFailsWithNoRows() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        String uri = SCHEME + "://" + StoragePath.fileUri(slowFile).substring("file://".length());
+        String query = "EXTERNAL \"" + uri + "\" | LIMIT 1000000";
+
+        final String asyncId = startAsyncQueryWithPragmas(
+            client(),
+            query,
+            null,
+            Map.of(QueryPragmas.PARSING_PARALLELISM.getKey(), 1, QueryPragmas.PAGE_SIZE.getKey(), 5)
+        );
+        try {
+            assertTrue("storage fixture must receive the EXTERNAL read request", requestArrived.await(30, TimeUnit.SECONDS));
+            assertBusy(
+                () -> assertThat("producer must be in the trickle phase before cancel fires", trickleBytesServed.get(), greaterThan(0)),
+                30,
+                TimeUnit.SECONDS
+            );
+
+            TaskId asyncTaskId = AsyncExecutionId.decode(asyncId).getTaskId();
+            assertTrue("the async task must be cancellable while the source is still trickling", isTaskRunning(asyncTaskId));
+
+            CancelTasksRequest cancel = new CancelTasksRequest().setTargetTaskId(asyncTaskId).setReason("test async cancel");
+            cancel.setWaitForCompletion(true);
+            client().admin().cluster().execute(TransportCancelTasksAction.TYPE, cancel).actionGet(60, TimeUnit.SECONDS);
+
+            // After cancel returns (waitForCompletion=true), the task should be torn down and the persisted async
+            // result should surface a cancel-side failure. Two valid shapes:
+            // * TaskCancelledException — the cancellation reached the stored response
+            // * ResourceNotFoundException — the cancel cascade wiped the async entry before the GET landed
+            // A successful body with rows would be a regression: async cancel must never silently partial-complete.
+            Exception thrown = expectThrows(Exception.class, () -> {
+                try (var ignored = EsqlAsyncTestUtils.getAsyncResponse(client(), asyncId)) {
+                    fail("async task cancel must hard-fail the query, not return a partial body");
+                }
+            });
+            boolean cancelled = ExceptionsHelper.unwrap(thrown, TaskCancelledException.class) != null;
+            boolean notFound = ExceptionsHelper.unwrap(thrown, org.elasticsearch.ResourceNotFoundException.class) != null;
+            assertTrue(
+                "async cancel must surface as TaskCancelledException or ResourceNotFoundException — never a partial "
+                    + "body. Got: "
+                    + thrown,
+                cancelled || notFound
+            );
+            assertThat("the producer must have been in the trickle phase when cancel fired", trickleBytesServed.get(), greaterThan(0));
+        } finally {
+            releaseHandler.countDown();
+            // best-effort cleanup of the saved async entry if cancel didn't wipe it
+            try {
+                deleteAsyncId(client(), asyncId);
+            } catch (Exception ignored) {}
+        }
+    }
+
+    /**
+     * Resolves the {@link EsqlQueryAction} task that belongs to <em>this</em> test's submitted <em>sync</em> query by
+     * matching the caller's marker against the task description (which {@code EsqlQueryAction} sets to the query
+     * text). Without the marker filter, {@code listTasks} could return any concurrent ES|QL task — e.g. an unrelated
+     * probe submitted by a background test runner — and the cancel would target the wrong one. Picking the first task
+     * in the listing was the previous behaviour; this version is task-identity-safe.
+     *
+     * <p>For async submissions the task id is encoded in the {@code asyncId}; resolve it directly via
+     * {@code AsyncExecutionId.decode(asyncId).getTaskId()} instead of going through this helper.
      */
     private TaskId findEsqlTask(String marker) throws Exception {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
@@ -680,6 +754,13 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
             Thread.sleep(50);
         }
         return null;
+    }
+
+    /** Returns true if the cluster's task registry currently lists the given task id. Used by the async tests to
+     *  confirm pre-cancellation liveness and post-cancellation absence without scanning by description. */
+    private boolean isTaskRunning(TaskId taskId) {
+        ListTasksResponse tasks = client().admin().cluster().prepareListTasks().setTargetTaskId(taskId).get();
+        return tasks.getTasks().isEmpty() == false;
     }
 
 }

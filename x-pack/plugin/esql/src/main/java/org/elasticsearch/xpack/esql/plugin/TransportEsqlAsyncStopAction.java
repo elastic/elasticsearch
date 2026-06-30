@@ -113,18 +113,34 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
         final EsqlExecutionInfo esqlExecutionInfo = asyncTask.executionInfo();
         if (esqlExecutionInfo != null) {
             esqlExecutionInfo.markAsStopped();
-            // STOP semantically guarantees a partial response — the user is cutting the query short. For queries
-            // that touch ES indices the per-cluster path in ComputeService flips LOCAL_CLUSTER to PARTIAL via
-            // {@code execInfo.isStopped()} (see {@code localClusterWasInterrupted}) and that propagates to
-            // {@code isPartial}. Pure EXTERNAL queries carry no {@code clusterInfo} entry, so the cluster-driven
-            // bridge never fires; mark partial here so the {@code is_partial} flag is honest across query shapes.
-            esqlExecutionInfo.markPartial();
         }
         Runnable getResults = () -> getResultsAction.execute(task, getAsyncResultRequest, listener);
-        exchangeService.finishSessionEarly(sessionId, ActionListener.running(() -> {
-            if (asyncTask.addCompletionListener(() -> ActionListener.running(getResults)) == false) {
+        exchangeService.finishSessionEarly(sessionId, ActionListener.wrap(interrupted -> {
+            // Gate {@link EsqlExecutionInfo#markPartial} on whether STOP could plausibly have cut execution short.
+            // Two independent signals matter:
+            //
+            // 1. {@code interrupted == true}: {@code finishSessionEarly} actually closed a registered exchange
+            // source. For ES-index queries (and CCS) the exchange is keyed by the async task's session id, so
+            // this is the strong "STOP truncated active dataflow" signal.
+            // 2. {@code addCompletionListener} returns {@code true}: the async task is still running. This catches
+            // coordinator-only pure-EXTERNAL queries — they do not register an exchange under the task's session
+            // id (see {@code ComputeService} dataNodePlan==null branch), so {@code interrupted} is always
+            // {@code false}, but the task is genuinely running and STOP semantically truncates whatever the
+            // coordinator-side compute pipeline accepts before the response is sealed.
+            //
+            // The case we explicitly avoid is the inverse: task already finished (addCompletionListener returns
+            // {@code false}) but still registered while the final result is being persisted to the async index. In
+            // that race the result body is complete; flagging it {@code is_partial=true} would be a lie.
+            boolean taskStillRunning = asyncTask.addCompletionListener(() -> ActionListener.running(getResults));
+            if (esqlExecutionInfo != null && (Boolean.TRUE.equals(interrupted) || taskStillRunning)) {
+                esqlExecutionInfo.markPartial();
+            }
+            if (taskStillRunning == false) {
                 getResults.run();
             }
+        }, e -> {
+            logger.debug(() -> "Async stop for task [" + asyncIdStr + "] failed during finishSessionEarly", e);
+            listener.onFailure(e);
         }));
     }
 

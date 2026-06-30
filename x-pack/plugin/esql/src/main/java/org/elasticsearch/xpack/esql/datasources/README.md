@@ -351,13 +351,14 @@ x-pack/plugin/
 
 ## Cancellation and Partial Results for EXTERNAL Queries
 
-A long-running EXTERNAL query can exit in three different ways. Each surfaces results differently so a
+A long-running EXTERNAL query can exit in four different ways. Each surfaces results differently so a
 client can tell "stop and give me what you have" apart from "abort, throw it all away":
 
 | How the query ends                                    | Response body  | `is_partial` flag |
 |-------------------------------------------------------|----------------|-------------------|
 | Task cancel / client disconnect                       | none — fails with `TaskCancelledException` | n/a (no body) |
-| `POST /_query/async/{id}/stop`                        | rows the pipeline already accepted          | `true`        |
+| `DELETE /_query/async/{id}`                           | none — cancels the task, then deletes the saved entry | n/a (no body) |
+| `POST /_query/async/{id}/stop`                        | rows already accepted into the response pipeline | `true`        |
 | Lenient truncation (e.g. `error_mode: skip_row`)      | rows the source emitted before the truncation | `true`     |
 
 This mirrors the existing `_query/async` + `allow_partial_results` semantics — EXTERNAL is not idiosyncratic.

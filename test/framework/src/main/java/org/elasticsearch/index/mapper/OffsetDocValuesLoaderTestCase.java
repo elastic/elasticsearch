@@ -13,7 +13,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
@@ -135,16 +134,6 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
         testOffsetArrayRandom(mapping);
     }
 
-    public void testOffsetArrayRandomHighCardinality() throws Exception {
-        assumeTrue("high cardinality option is enabled in this build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        assumeTrue("supports high cardinality option", supportsDocValuesCardinality());
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field");
-        minimalMapping(mapping);
-        mapping.startObject("doc_values").field("cardinality", "high").endObject();
-        mapping.endObject().endObject().endObject().endObject();
-        testOffsetArrayRandom(mapping);
-    }
-
     protected void minimalMapping(XContentBuilder b) throws IOException {
         String fieldTypeName = getFieldTypeName();
         assertThat(fieldTypeName, notNullValue());
@@ -154,10 +143,6 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
     protected abstract String getFieldTypeName();
 
     protected abstract Object randomValue();
-
-    protected boolean supportsDocValuesCardinality() {
-        return false;
-    }
 
     protected void verifyOffsets(String source) throws IOException {
         verifyOffsets(source, source);

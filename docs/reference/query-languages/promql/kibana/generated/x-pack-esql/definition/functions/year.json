@@ -2,7 +2,7 @@
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
   "type" : "time",
   "name" : "year",
-  "description" : "returns the year of each of those timestamps (in UTC)",
+  "description" : "Returns the year for each of the input timestamps (in UTC).",
   "signatures" : [
     {
       "params" : [

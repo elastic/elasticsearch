@@ -67,7 +67,12 @@ public class IvfQueryConfigResolver {
     }
 
     private IvfSegmentConfig mappingDefaults() {
-        return new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) quantBits), mappingUsePrecondition, Float.NaN);
+        return new IvfSegmentConfig(
+            ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+            ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) quantBits),
+            mappingUsePrecondition,
+            Float.NaN
+        );
     }
 
     private IvfSegmentConfig resolveCalibrated(FieldInfo fieldInfo, LeafReader leafReader) throws IOException {
@@ -86,7 +91,7 @@ public class IvfQueryConfigResolver {
             }
             float oversampleFactor = calibrationAwareReader.getOversampleFactor(fieldInfo);
             boolean precondition = calibrationAwareReader.shouldPrecondition(fieldInfo);
-            return new IvfSegmentConfig(quantEncoding, precondition, oversampleFactor);
+            return new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT, quantEncoding, precondition, oversampleFactor);
         }
         return mappingDefaults();
     }

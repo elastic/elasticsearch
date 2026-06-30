@@ -18,7 +18,7 @@ import java.io.IOException;
  * sorted-set fields from the TSDB block layout.
  *
  * <p>{@link #readFieldEntry} delegates to the shared metadata parsing in
- * {@link TSDBDocValuesBlockReader}. {@link #decoder()} returns the {@link Decoder} supplied at
+ * {@link TSDBDocValuesBlockReader}. {@link #decoder(int)} returns the {@link Decoder} supplied at
  * construction time, which the iteration code drives during ordinal access.
  */
 public final class TSDBOrdinalFieldReader implements OrdinalFieldReader {
@@ -41,7 +41,7 @@ public final class TSDBOrdinalFieldReader implements OrdinalFieldReader {
     }
 
     @Override
-    public Decoder decoder() {
+    public Decoder decoder(final int blockSize) {
         return decoder;
     }
 }

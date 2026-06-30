@@ -207,4 +207,17 @@ public class RateTests extends AbstractAggregationTestCase {
         DocsV3Support.Param window = new DocsV3Support.Param(DataType.TIME_DURATION, List.of(preview));
         return List.of(params.get(0), window);
     }
+
+    /**
+     * Filters out implicitly injected parameters to ensure CONSTANT hint validation
+     * only checks declared @Param arguments.
+     */
+    public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
+        assertThat(params, hasSize(5));
+        assertThat(params.get(1).type(), equalTo(DataType.DATETIME));
+        assertThat(params.get(2).type(), equalTo(DataType.KEYWORD));
+        assertThat(params.get(3).type(), equalTo(DataType.INTEGER));
+        assertThat(params.get(4).type(), equalTo(DataType.LONG));
+        return List.of(params.get(0));
+    }
 }

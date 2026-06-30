@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -42,6 +44,7 @@ import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
@@ -59,6 +62,7 @@ public class PlanExecutor {
     private final EsqlQueryLog queryLog;
     private final DataSourceModule dataSourceModule;
     private final ExternalSourceCacheService cacheService;
+    private final AnalysisRegistry analysisRegistry;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -71,7 +75,8 @@ public class PlanExecutor {
         EsqlFunctionRegistry functionRegistry,
         PromqlFunctionRegistry promqlFunctionRegistry,
         EsqlParser parser,
-        ExternalSourceCacheService cacheService
+        ExternalSourceCacheService cacheService,
+        AnalysisRegistry analysisRegistry
     ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
@@ -85,6 +90,7 @@ public class PlanExecutor {
         this.queryLog = queryLog;
         this.dataSourceModule = dataSourceModule;
         this.cacheService = cacheService;
+        this.analysisRegistry = analysisRegistry;
     }
 
     public void esql(
@@ -94,10 +100,12 @@ public class PlanExecutor {
         AnalyzerSettings analyzerSettings,
         EnrichPolicyResolver enrichPolicyResolver,
         ViewResolver viewResolver,
+        DatasetResolver datasetResolver,
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
         TransportActionServices services,
+        BooleanSupplier cancellation,
         ActionListener<Versioned<Result>> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
@@ -107,7 +115,8 @@ public class PlanExecutor {
             services.transportService().getThreadPool().executor(org.elasticsearch.threadpool.ThreadPool.Names.SEARCH),
             dataSourceModule,
             services.clusterService().getSettings(),
-            cacheService
+            cacheService,
+            cancellation
         );
         final var session = new EsqlSession(
             sessionId,
@@ -116,11 +125,13 @@ public class PlanExecutor {
             indexResolver,
             enrichPolicyResolver,
             viewResolver,
+            datasetResolver,
             externalSourceResolver,
             parser,
             preAnalyzer,
             functionRegistry,
             promqlFunctionRegistry,
+            analysisRegistry,
             mapper,
             verifier,
             metrics,

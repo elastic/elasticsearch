@@ -10,11 +10,12 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -147,6 +148,22 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
         }
 
         List<Attribute> sourceOutput = externalSource.output();
+        // When `_source` is projected, its synthesizer needs every file-resident data column at
+        // compose time. Deferring those columns would render `{}`. Pin every data attribute as
+        // eager in that case; the synthesizer runs on the producer thread before the TopN gate.
+        // Side effect: with `_source` projected the deferred set is empty by construction —
+        // the {@link VirtualAttribute} arm catches every metadata attribute ({@link
+        // ExternalMetadataAttribute} implements {@link VirtualAttribute}) and the data-column pin
+        // arm catches everything else. {@link #DEFERRED_COLUMN_MIN} then bails out, so TopN
+        // late-materialisation is disabled for `_source` queries (correctness preserves over the
+        // I/O optimisation).
+        boolean sourceProjected = false;
+        for (Attribute a : sourceOutput) {
+            if (a instanceof ExternalMetadataAttribute && ExternalMetadataColumns.SOURCE.equals(a.name())) {
+                sourceProjected = true;
+                break;
+            }
+        }
         List<Attribute> eagerColumns = new ArrayList<>(sourceOutput.size());
         List<Attribute> deferredColumns = new ArrayList<>(sourceOutput.size());
         for (Attribute a : sourceOutput) {
@@ -160,6 +177,9 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
             // keeps future virtual attributes correct by construction.
             if (a instanceof VirtualAttribute || eagerRefs.contains(a)) {
                 eagerColumns.add(a);
+            } else if (sourceProjected && a instanceof ExternalMetadataAttribute == false) {
+                // File-resident data column under `_source` projection — must be eager.
+                eagerColumns.add(a);
             } else {
                 deferredColumns.add(a);
             }
@@ -169,21 +189,16 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
             return topN;
         }
 
-        MetadataAttribute rowPositionAttribute = new MetadataAttribute(
-            externalSource.source(),
-            ROW_POSITION_NAME,
-            DataType.LONG,
-            Nullability.FALSE,
-            null,
-            true,
-            false
-        );
+        MetadataAttribute rowPositionAttribute = SyntheticColumns.newRowPositionMetadataAttribute(externalSource.source());
 
         List<Attribute> narrowedAttributes = new ArrayList<>(eagerColumns.size() + 1);
         narrowedAttributes.addAll(eagerColumns);
         narrowedAttributes.add(rowPositionAttribute);
 
-        ExternalSourceExec narrowedSource = externalSource.withAttributes(narrowedAttributes);
+        // withDeferredExtraction is the operator factory's signal that this exec is paired with the
+        // ExternalFieldExtractExec built below — _rowPosition presence alone is ambiguous, since
+        // InjectRowPositionForExternalId also injects it for plain _id composition.
+        ExternalSourceExec narrowedSource = externalSource.withAttributes(narrowedAttributes).withDeferredExtraction();
         // Rebuild the (TopN, …, ExternalSourceExec) spine with the narrowed source at the bottom.
         // Every intermediate node's children are unchanged except for the source-replacement at the
         // leaf of the spine, so the recursive copy here rewires correctly.

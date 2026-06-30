@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 151959
+summary: Update to lucene 10.5
+type: upgrade

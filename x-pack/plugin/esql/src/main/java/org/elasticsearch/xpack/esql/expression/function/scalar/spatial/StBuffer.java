@@ -149,6 +149,7 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
         @Param(
             name = "distance",
             type = { "double", "float", "long", "integer" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Buffer distance in the units of the input spatial reference system"
         ) Expression distance,
         @MapParam(

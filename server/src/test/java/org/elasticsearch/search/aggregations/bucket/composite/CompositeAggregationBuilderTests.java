@@ -132,25 +132,22 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
             }
         });
         assertFalse(builder.supportsParallelCollection(null));
-        // A (non-script) terms source supports parallel collection regardless of the field cardinality, and must not
-        // consult the resolver at all - doing so would build global ordinals, which the segment-ordinal path avoids.
-        // A resolver that throws proves the cardinality is never resolved.
-        ToLongFunction<String> mustNotResolve = field -> { throw new AssertionError("field cardinality must not be resolved"); };
-        assertTrue(
+        // A keyword/IP terms source orders on per-segment ordinals and collects single-threaded regardless of cardinality.
+        assertFalse(
             new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(new TermsValuesSourceBuilder("name")))
-                .supportsParallelCollection(mustNotResolve)
-        );
-        assertTrue(
-            new CompositeAggregationBuilder(
-                randomAlphaOfLength(10),
-                List.of(randomDateHistogramSourceBuilder(), new TermsValuesSourceBuilder("name"))
-            ).supportsParallelCollection(mustNotResolve)
+                .supportsParallelCollection(field -> randomIntBetween(-1, 100))
         );
         assertFalse(
             new CompositeAggregationBuilder(
                 randomAlphaOfLength(10),
                 Collections.singletonList(new TermsValuesSourceBuilder("name").script(new Script("id")))
             ).supportsParallelCollection(field -> randomIntBetween(-1, 100))
+        );
+        assertFalse(
+            new CompositeAggregationBuilder(
+                randomAlphaOfLength(10),
+                List.of(randomDateHistogramSourceBuilder(), new TermsValuesSourceBuilder("name"))
+            ).supportsParallelCollection(field -> randomIntBetween(51, 100))
         );
     }
 }

@@ -312,8 +312,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         Boolean nullValue = usually() ? null : randomBoolean();
         private boolean ignoreMalformed;
         // boolean fields have doc_values enabled by default, so multi_value: false can always be requested when the feature is on.
-        private final boolean enforceSingleValue = FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
-            && randomBoolean();
+        private final boolean enforceSingleValue = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
 
         BooleanSyntheticSourceSupport(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;

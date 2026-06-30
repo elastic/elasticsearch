@@ -168,13 +168,17 @@ public class EsqlCCSUtils {
         }
     }
 
-    static String createQualifiedLookupIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo, String localPattern) {
-        if (executionInfo.getClusters().isEmpty()) {
-            return localPattern;
-        }
-        return executionInfo.getRunningClusterAliases()
+    static String createQualifiedLookupIndexExpressionFromAvailableClusters(Set<String> lookupIndexScope, String localPattern) {
+        return lookupIndexScope.stream()
             .map(clusterAlias -> RemoteClusterAware.buildRemoteIndexName(clusterAlias, localPattern))
             .collect(joining(","));
+    }
+
+    static Set<String> onlyRunning(EsqlExecutionInfo executionInfo, Set<String> clusterAliases) {
+        if (executionInfo.getClusters().isEmpty()) {
+            return Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);// Happens when joining to ROW
+        }
+        return executionInfo.getRunningClusterAliases().filter(clusterAliases::contains).collect(toSet());
     }
 
     static void updateExecutionInfoWithUnavailableClusters(
@@ -431,6 +435,27 @@ public class EsqlCCSUtils {
         resolution.failures().forEach((clusterAlias, failures) -> {
             executionInfo.initCluster(clusterAlias, EsqlExecutionInfo.ORIGIN_CLUSTER_NAME_REPRESENTATION, "");
         });
+    }
+
+    /**
+     * Finalize remote clusters that were only involved in sub-plan execution (e.g. an IN-subquery running on a remote cluster while
+     * the outer FROM is local). During sub-plan execution, {@code ClusterComputeHandler.updateExecutionInfo} accumulates shard counts
+     * and took time but never advances a cluster's status past {@code RUNNING} because {@code isMainPlan()} is {@code false}. After the
+     * main plan completes, any cluster still in {@code RUNNING} state was not touched by the main plan; set its final status based on
+     * accumulated failures from the sub-plan (PARTIAL if there were failures, SUCCESSFUL otherwise).
+     */
+    public static void finalizeSubPlanOnlyRemoteClusters(EsqlExecutionInfo executionInfo) {
+        for (String clusterAlias : executionInfo.clusterAliases()) {
+            if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+                continue;
+            }
+            Cluster cluster = executionInfo.getCluster(clusterAlias);
+            if (cluster.getStatus() == Cluster.Status.RUNNING) {
+                Cluster.Status finalStatus = (Objects.requireNonNullElse(cluster.getFailedShards(), 0) > 0
+                    || cluster.getFailures().isEmpty() == false) ? Cluster.Status.PARTIAL : Cluster.Status.SUCCESSFUL;
+                executionInfo.swapCluster(clusterAlias, (k, v) -> new Cluster.Builder(v).setStatus(finalStatus).build());
+            }
+        }
     }
 
     /**

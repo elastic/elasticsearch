@@ -61,6 +61,10 @@ public final class TSDBDocValuesBlockWriter {
      * @param sortedFieldObserver receives {@code (docId, value)} pairs during the doc pass,
      *                            or {@code null} when no observer is attached
      * @param blockEncoder        codec-specific encoder for each value block
+     * @param blockSize           number of values per block for this field; must be a
+     *                            positive power of two. ES95 passes the resolved
+     *                            {@code PipelineConfig.blockSize()}, while ES819 numeric
+     *                            and ordinal writers pass {@code ctx.blockSize()}
      * @return the field's doc value count statistics
      */
     public DocValueFieldCountStats writeFieldEntry(
@@ -70,9 +74,10 @@ public final class TSDBDocValuesBlockWriter {
         long maxOrd,
         final AbstractTSDBDocValuesConsumer.DocValueCountConsumer docValueCountConsumer,
         final SortedFieldObserver sortedFieldObserver,
-        final BlockEncoder blockEncoder
+        final BlockEncoder blockEncoder,
+        int blockSize
     ) throws IOException {
-        return writeFieldEntry(ctx, field, valuesSource, maxOrd, docValueCountConsumer, sortedFieldObserver, blockEncoder, null);
+        return writeFieldEntry(ctx, field, valuesSource, maxOrd, docValueCountConsumer, sortedFieldObserver, blockEncoder, null, blockSize);
     }
 
     /**
@@ -91,6 +96,10 @@ public final class TSDBDocValuesBlockWriter {
      * @param blockEncoder        codec-specific encoder for each value block
      * @param fieldMetaWriter    optional callback invoked after the block-shift marker to write
      *                            additional per-field metadata, or {@code null}
+     * @param blockSize           number of values per block for this field; must be a
+     *                            positive power of two. ES95 passes the resolved
+     *                            {@code PipelineConfig.blockSize()}, while ES819 numeric
+     *                            and ordinal writers pass {@code ctx.blockSize()}
      * @return the field's doc value count statistics
      */
     public DocValueFieldCountStats writeFieldEntry(
@@ -101,11 +110,12 @@ public final class TSDBDocValuesBlockWriter {
         final AbstractTSDBDocValuesConsumer.DocValueCountConsumer docValueCountConsumer,
         final SortedFieldObserver sortedFieldObserver,
         final BlockEncoder blockEncoder,
-        final FieldMetaWriter fieldMetaWriter
+        final FieldMetaWriter fieldMetaWriter,
+        int blockSize
     ) throws IOException {
+        assert blockSize > 0 && (blockSize & (blockSize - 1)) == 0 : "blockSize must be a positive power of two, got " + blockSize;
         final IndexOutput meta = ctx.meta();
         final IndexOutput data = ctx.data();
-        final int blockSize = ctx.blockSize();
         final int blockShift = Integer.numberOfTrailingZeros(blockSize);
         final int maxDoc = ctx.maxDoc();
         final TSDBDocValuesFormatConfig formatConfig = ctx.formatConfig();

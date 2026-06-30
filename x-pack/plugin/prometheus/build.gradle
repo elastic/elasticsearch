@@ -92,4 +92,3 @@ tasks.named('yamlRestTest') {
 tasks.named('javaRestTest').configure {
   usesDefaultDistribution("Prometheus REST tests require full distribution")
 }
-

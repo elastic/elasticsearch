@@ -109,6 +109,11 @@ public class RLikeList extends RegexMatch<RLikePatternList> {
     }
 
     @Override
+    public String functionName() {
+        return "RLIKE";
+    }
+
+    @Override
     protected RLikeList replaceChild(Expression newChild) {
         return new RLikeList(source(), newChild, pattern(), caseInsensitive());
     }

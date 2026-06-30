@@ -1,8 +1,13 @@
 ---
 setup:
   - requires:
-      cluster_features: ["mapper.keyword.store_high_cardinality_in_binary_doc_values"]
-      reason: "requires keyword doc_values cardinality mapping option"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.keyword.columnar_default_high_cardinality"]
+      reason: "requires columnar mode high-cardinality doc values default"
 
   - do:
       indices.create:
@@ -16,8 +21,6 @@ setup:
               keyword_field:
                 type: keyword
                 index: false
-                doc_values:
-                  cardinality: low
 
   - do:
       index:
@@ -49,14 +52,14 @@ setup:
         body:
           settings:
             number_of_shards: 1
+            index:
+              mode: columnar
           mappings:
             dynamic: false
             properties:
               keyword_field:
                 type: keyword
                 index: false
-                doc_values:
-                  cardinality: high
 
   - do:
       index:

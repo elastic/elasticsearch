@@ -53,6 +53,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
         .acrossSeries(Max::new)
         .description("Returns the maximum value across the input vector.")
         .example("max(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("max");
 
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(

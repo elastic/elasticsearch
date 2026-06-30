@@ -1,5 +1,0 @@
-area: Inference
-issues: []
-pr: 149987
-summary: "When a streaming inference request is canceled, immediately release apache client networking resources"
-type: bug

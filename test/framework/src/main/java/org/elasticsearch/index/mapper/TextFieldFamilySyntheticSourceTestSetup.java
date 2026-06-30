@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -62,7 +63,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         }
 
         // text field doc_values support is behind a feature flag
-        if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
             return FieldMapper.DocValuesParameter.Values.DISABLED;
         }
 
@@ -196,16 +197,12 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         private MapperTestCase.SyntheticSourceExample docValuesFieldExample(int maxValues) {
             CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
                 b.field("type", fieldType);
-                // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
-                if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
-                    b.field("doc_values", true);
-                } else {
+                if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && docValues.multiValue() == false) {
                     b.startObject("doc_values");
-                    b.field("cardinality", docValues.cardinality().toString());
-                    if (docValues.multiValue() == false) {
-                        b.field("multi_value", false);
-                    }
+                    b.field("multi_value", false);
                     b.endObject();
+                } else {
+                    b.field("doc_values", true);
                 }
             };
 

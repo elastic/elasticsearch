@@ -122,7 +122,8 @@ public final class DatafeedManager {
             credentialManagerSupplier,
             client,
             xContentRegistry,
-            datafeedConfigProvider
+            datafeedConfigProvider,
+            crossProjectModeDecider
         );
     }
 
@@ -301,13 +302,25 @@ public final class DatafeedManager {
                     );
                     CredentialTransitions.Intent intent = CredentialTransitions.decideForUpdate(ctx);
                     UpdateDatafeedAction.Request effectiveRequest = maybeDefaultProjectRoutingForMigration(request, current, intent);
-                    ActionListener<PutDatafeedAction.Response> effectiveListener = effectiveRequest != request ? l.map(r -> {
-                        auditor.info(
-                            current.getJobId(),
-                            Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED)
-                        );
-                        return r;
-                    }) : l;
+                    final boolean defaultedProjectRoutingForMigration = effectiveRequest != request;
+                    final String defaultProjectRouting = ProjectRoutingResolver.LOCAL_ONLY;
+                    ActionListener<PutDatafeedAction.Response> updateListener = defaultedProjectRoutingForMigration
+                        ? ActionListener.wrap(response -> {
+                            logger.info(
+                                "[{}] CPS migration: defaulting project_routing to [{}] to preserve local search scope",
+                                current.getId(),
+                                defaultProjectRouting
+                            );
+                            auditor.info(
+                                current.getJobId(),
+                                Messages.getMessage(
+                                    Messages.JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED,
+                                    defaultProjectRouting
+                                )
+                            );
+                            l.onResponse(response);
+                        }, l::onFailure)
+                        : l;
                     credentialTransitions.executeUpdate(
                         intent,
                         effectiveRequest,
@@ -316,7 +329,7 @@ public final class DatafeedManager {
                         threadPool,
                         securityContext,
                         wrappedValidator,
-                        effectiveListener
+                        updateListener
                     );
                 } catch (Exception e) {
                     l.onFailure(e);
@@ -366,11 +379,6 @@ public final class DatafeedManager {
         if (request.getUpdate().getProjectRouting() != null) {
             return request;
         }
-        logger.info(
-            "[{}] CPS migration: defaulting project_routing to [{}] to preserve local search scope",
-            existingConfig.getId(),
-            ProjectRoutingResolver.LOCAL_ONLY
-        );
         DatafeedUpdate augmentedUpdate = new DatafeedUpdate.Builder(request.getUpdate()).setProjectRouting(
             ProjectRoutingResolver.LOCAL_ONLY
         ).build();

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialGeometryFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDocValuesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -108,6 +109,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                 List<Alias> changed = fields.stream()
                     .map(
                         f -> (Alias) f.transformDown(BinarySpatialFunction.class, s -> withDocValues(s, foundAttributes))
+                            .transformDown(BinarySpatialGeometryFunction.class, s -> withDocValues(s, foundAttributes))
                             .transformDown(SpatialDocValuesFunction.class, s -> withDocValues(s, foundAttributes))
                     )
                     .toList();
@@ -120,6 +122,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                 // to support shapes, we need to consider loading shape doc-values for both centroid and relates (ST_INTERSECTS)
                 var condition = filterExec.condition()
                     .transformDown(BinarySpatialFunction.class, s -> withDocValues(s, foundAttributes))
+                    .transformDown(BinarySpatialGeometryFunction.class, s -> withDocValues(s, foundAttributes))
                     .transformDown(SpatialDocValuesFunction.class, s -> withDocValues(s, foundAttributes));
                 if (filterExec.condition().equals(condition) == false) {
                     exec = new FilterExec(filterExec.source(), filterExec.child(), condition);
@@ -171,6 +174,16 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                         foundAttributes.add(fieldAttribute);
                     }
                 });
+                field.forEachDown(BinarySpatialGeometryFunction.class, spatialFunction -> {
+                    if (spatialFunction.left() instanceof FieldAttribute leftField
+                        && allowedForDocValues(leftField, ctx.searchStats(), exec, foundAttributes)) {
+                        foundAttributes.add(leftField);
+                    }
+                    if (spatialFunction.right() instanceof FieldAttribute rightField
+                        && allowedForDocValues(rightField, ctx.searchStats(), exec, foundAttributes)) {
+                        foundAttributes.add(rightField);
+                    }
+                });
             }
         });
         // Remove any fields that will be returned to the coordinator, since we must use source for those
@@ -185,6 +198,12 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
 
     private BinarySpatialFunction withDocValues(BinarySpatialFunction spatial, Set<FieldAttribute> foundAttributes) {
         // Only update the docValues flags if the field is found in the attributes
+        boolean foundLeft = foundField(spatial.left(), foundAttributes);
+        boolean foundRight = foundField(spatial.right(), foundAttributes);
+        return foundLeft || foundRight ? spatial.withDocValues(foundLeft, foundRight) : spatial;
+    }
+
+    private BinarySpatialGeometryFunction withDocValues(BinarySpatialGeometryFunction spatial, Set<FieldAttribute> foundAttributes) {
         boolean foundLeft = foundField(spatial.left(), foundAttributes);
         boolean foundRight = foundField(spatial.right(), foundAttributes);
         return foundLeft || foundRight ? spatial.withDocValues(foundLeft, foundRight) : spatial;

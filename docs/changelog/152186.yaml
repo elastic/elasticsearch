@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 152186
+summary: Add necessary attribute for internal JVM metrics
+type: bug

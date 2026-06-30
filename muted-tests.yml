@@ -755,3 +755,6 @@ tests:
 - class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
   method: testDocValuesIgnoredSource
   issue: https://github.com/elastic/elasticsearch/issues/152469
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testRelocationWithConcurrentIndexing {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/152471

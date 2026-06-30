@@ -911,7 +911,17 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         return dataStream.copy().setSettings(settings).build();
     }
 
-    public void testSelectorInDataStreamNameIsRejected() {
+    /**
+     * Verifies that {@code modifyDataStream} treats a selector-suffixed name (e.g. {@code my-ds::failures}) as a
+     * literal data stream name and fails with "not found", rather than silently routing the operation to the
+     * failure store.
+     * <p>
+     * This bypasses {@link org.elasticsearch.action.datastreams.ModifyDataStreamsAction.Request#validate()}, which
+     * is the real gate that rejects selectors before they reach the service on the actual request path.
+     * The purpose here is to test the service's lower-level behavior: it is selector-agnostic and the caller is
+     * responsible for validating/stripping selectors before invoking it.
+     */
+    public void testSelectorInDataStreamNameTreatedAsLiteralName() {
         final long epochMillis = System.currentTimeMillis();
         final String dataStreamName = randomAlphaOfLength(5);
         ProjectMetadata.Builder mb = ProjectMetadata.builder(randomProjectIdOrDefault());

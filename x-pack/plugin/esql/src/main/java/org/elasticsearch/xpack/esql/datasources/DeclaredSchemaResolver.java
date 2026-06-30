@@ -15,9 +15,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Bridges a {@link DatasetMapping} (the String-typed, server-side declaration) into the ES|QL currency the
@@ -87,6 +89,55 @@ public final class DeclaredSchemaResolver {
             }
         }
         return renames;
+    }
+
+    /**
+     * Result of a non-strict overlay: the user-facing {@code output} (declared columns renamed to their logical
+     * name and retyped, undeclared columns untouched) and the per-file {@code fileSchema} the reader matches
+     * against the file (physical names kept, declared columns retyped). The two lists are paired position-for-position
+     * so an identity column mapping relabels them downstream.
+     */
+    public record Overlaid(List<Attribute> output, List<Attribute> fileSchema) {}
+
+    /**
+     * Apply a non-strict ({@code dynamic: true}) mapping over an inferred schema: every declared column overrides the
+     * inferred column of the same physical name — renamed to its logical name and pinned to its declared type — while
+     * undeclared inferred columns pass through unchanged. A declared column whose physical name is absent from the
+     * inferred schema is an error (it references a column the source does not have).
+     */
+    public static Overlaid overlayNonStrict(List<Attribute> inferred, DatasetMapping mapping) {
+        DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
+        if (mappings == null || mappings.properties().isEmpty()) {
+            return new Overlaid(inferred, inferred);
+        }
+        // physical (file) name -> declared {logical name, type}
+        Map<String, DataType> declaredTypeByPhysical = new LinkedHashMap<>();
+        Map<String, String> logicalByPhysical = new LinkedHashMap<>();
+        for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
+            String logical = e.getKey();
+            String physical = e.getValue().source() != null ? e.getValue().source() : logical;
+            declaredTypeByPhysical.put(physical, resolveType(logical, e.getValue().type()));
+            logicalByPhysical.put(physical, logical);
+        }
+        List<Attribute> output = new ArrayList<>(inferred.size());
+        List<Attribute> fileSchema = new ArrayList<>(inferred.size());
+        Set<String> matched = new HashSet<>();
+        for (Attribute a : inferred) {
+            DataType declaredType = declaredTypeByPhysical.get(a.name());
+            if (declaredType != null) {
+                matched.add(a.name());
+                output.add(new ReferenceAttribute(Source.EMPTY, null, logicalByPhysical.get(a.name()), declaredType));
+                fileSchema.add(new ReferenceAttribute(Source.EMPTY, null, a.name(), declaredType));
+            } else {
+                output.add(a);
+                fileSchema.add(a);
+            }
+        }
+        if (matched.size() < declaredTypeByPhysical.size()) {
+            List<String> missing = declaredTypeByPhysical.keySet().stream().filter(p -> matched.contains(p) == false).toList();
+            throw new IllegalArgumentException("declared columns not found in the source: " + missing);
+        }
+        return new Overlaid(output, fileSchema);
     }
 
     private static DataType resolveType(String column, String type) {

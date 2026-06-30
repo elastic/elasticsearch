@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.metadata.DatasetMapping.Dynamic;
 import org.elasticsearch.cluster.metadata.DatasetMapping.Mappings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.LinkedHashMap;
@@ -23,6 +25,51 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
 
     private static DatasetMapping mapping(Map<String, DatasetFieldMapping> props) {
         return new DatasetMapping(new Mappings(Dynamic.TRUE, props), null, null);
+    }
+
+    private static ReferenceAttribute attr(String name, DataType type) {
+        return new ReferenceAttribute(Source.EMPTY, null, name, type);
+    }
+
+    public void testOverlayNonStrictRenamesAndRetypesDeclaredColumnsOnly() {
+        List<Attribute> inferred = List.of(
+            attr("emp_no", DataType.INTEGER),
+            attr("first_name", DataType.KEYWORD),
+            attr("dept", DataType.KEYWORD)
+        );
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("id", new DatasetFieldMapping("long", "emp_no"));     // rename emp_no -> id, retype to long
+        props.put("name", new DatasetFieldMapping("keyword", "first_name")); // rename first_name -> name
+        // dept is undeclared and must pass through unchanged
+
+        DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(inferred, mapping(props));
+
+        // user-facing output: logical names, declared types for declared columns, dept untouched
+        assertEquals(List.of("id", "name", "dept"), o.output().stream().map(Attribute::name).toList());
+        assertEquals(DataType.LONG, o.output().get(0).dataType()); // declared long beats inferred integer
+        assertEquals(DataType.KEYWORD, o.output().get(1).dataType());
+        assertEquals(DataType.KEYWORD, o.output().get(2).dataType());
+        // per-file schema the reader matches: physical names kept, declared columns retyped
+        assertEquals(List.of("emp_no", "first_name", "dept"), o.fileSchema().stream().map(Attribute::name).toList());
+        assertEquals(DataType.LONG, o.fileSchema().get(0).dataType());
+    }
+
+    public void testOverlayNonStrictErrorsOnDeclaredColumnMissingFromSource() {
+        List<Attribute> inferred = List.of(attr("a", DataType.KEYWORD));
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("b", new DatasetFieldMapping("long", null)); // 'b' is not in the inferred source
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DeclaredSchemaResolver.overlayNonStrict(inferred, mapping(props))
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("b"));
+    }
+
+    public void testOverlayNonStrictNoMappingsPassesThrough() {
+        List<Attribute> inferred = List.of(attr("a", DataType.KEYWORD));
+        DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(inferred, new DatasetMapping(null, "@timestamp", null));
+        assertSame(inferred, o.output());
+        assertSame(inferred, o.fileSchema());
     }
 
     public void testDeclaredAttributesTypesNamesAndOrder() {

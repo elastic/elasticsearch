@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -46,6 +47,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
@@ -365,6 +367,53 @@ public class ExternalSourceResolver {
         // here — they are request-driven (FROM ... METADATA _file.path, or the temporary EXTERNAL
         // shim that injects them into the relation's metadataFields). See ResolveExternalRelations.
         List<Attribute> fileSchema = extMetadata.schema();
+
+        // Non-strict declared mapping: overlay the declaration onto the inferred schema. Declared columns are renamed
+        // to their logical name and retyped in the user-facing output; the per-file schema the reader matches keeps
+        // physical names (retyped); undeclared inferred columns pass through. Applied outside the schema cache so the
+        // cache keeps caching the pure inference and a change to the declaration takes effect immediately. The inferred
+        // stats/sourceMetadata are preserved by delegating everything but the schema to the inferred metadata.
+        if (declaredMapping != null && isStrict(declaredMapping) == false) {
+            final ExternalSourceMetadata inferred = extMetadata;
+            DeclaredSchemaResolver.Overlaid overlaid = DeclaredSchemaResolver.overlayNonStrict(inferred.schema(), declaredMapping);
+            extMetadata = new ExternalSourceMetadata() {
+                @Override
+                public List<Attribute> schema() {
+                    return overlaid.output();
+                }
+
+                @Override
+                public String sourceType() {
+                    return inferred.sourceType();
+                }
+
+                @Override
+                public String location() {
+                    return inferred.location();
+                }
+
+                @Override
+                public Optional<SourceStatistics> statistics() {
+                    return inferred.statistics();
+                }
+
+                @Override
+                public Optional<List<String>> partitionColumns() {
+                    return inferred.partitionColumns();
+                }
+
+                @Override
+                public Map<String, Object> sourceMetadata() {
+                    return inferred.sourceMetadata();
+                }
+
+                @Override
+                public Map<String, Object> config() {
+                    return inferred.config();
+                }
+            };
+            fileSchema = overlaid.fileSchema();
+        }
 
         FileList singletonList = GlobExpander.fileListOf(
             List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),

@@ -142,7 +142,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         "employees_external",
         "employees_mixed",
         "stats_ds",
-        "employees_strict"
+        "employees_strict",
+        "employees_nonstrict"
     );
 
     /**
@@ -244,6 +245,47 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             assertThat(rows, hasSize(3));
             // declared LONG => values are Long, not the Integer inference would have produced
             assertThat(rows.get(0).get(0), equalTo(1L));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            assertThat(rows.get(2).get(0), equalTo(3L));
+            assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    public void testNonStrictDeclaredSchemaOverridesDeclaredColumnsAndKeepsInferredRest() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        // Non-strict (dynamic:true) declaration over the CSV fixture (emp_no:integer, first_name:keyword). We declare
+        // only emp_no, pinning it to LONG (no rename); first_name is left to inference. The result must show the
+        // declared type override AND the inferred remainder.
+        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("emp_no", new DatasetFieldMapping("long", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties), null, null);
+
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_nonstrict",
+                    "local_ds",
+                    csvFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_nonstrict | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("emp_no"));      // declared (retyped), not renamed
+            assertThat(columns.get(1).name(), equalTo("first_name"));  // inferred, passed through
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1L));               // declared LONG, not inferred Integer
             assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
             assertThat(rows.get(2).get(0), equalTo(3L));
             assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));

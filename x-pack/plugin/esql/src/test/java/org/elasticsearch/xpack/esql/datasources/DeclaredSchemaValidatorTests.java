@@ -35,6 +35,17 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
         DeclaredSchemaValidator.validate(null); // no throw
     }
 
+    public void testSourceRenameRejectedUntilReadPathLands() {
+        // TEMPORARY: `source` rename is rejected at PUT until the read-path rename is wired (no silent nulls).
+        Map<String, DatasetFieldMapping> withRename = new LinkedHashMap<>();
+        withRename.put("id", new DatasetFieldMapping("long", "emp_no"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, withRename), null, null))
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("source"));
+    }
+
     /**
      * Pin the declarable-type vocabulary to the ES|QL type registry: every type we allow must round-trip through
      * its canonical ES type name, so our supported types cannot drift from the core type names (a rename or removal

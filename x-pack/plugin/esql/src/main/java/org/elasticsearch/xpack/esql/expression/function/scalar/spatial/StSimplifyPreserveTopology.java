@@ -93,6 +93,7 @@ public class StSimplifyPreserveTopology extends SpatialDocValuesFunction {
         @Param(
             name = "tolerance",
             type = { "double", "float", "long", "integer" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Tolerance for the geometry simplification, in the units of the input SRS"
         ) Expression tolerance
     ) {

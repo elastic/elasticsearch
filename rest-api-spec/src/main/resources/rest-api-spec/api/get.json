@@ -60,6 +60,12 @@
         "type": "list",
         "description": "Specific routing value"
       },
+      "_slice": {
+        "type": "string",
+        "description": "Slice routing value, used instead of routing when the index has index.slice.enabled set to true",
+        "visibility": "feature_flag",
+        "feature_flag": "es.index_mode_feature_flag_registered"
+      },
       "_source": {
         "type": "list",
         "description": "True or false to return the _source field or not, or a list of fields to return"

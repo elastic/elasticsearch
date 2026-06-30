@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
@@ -313,6 +312,20 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/151525.
          */
         OPTIONAL_FIELDS_FIX_PARTIALLY_UNMAPPED_SMALL_NUMERIC,
+
+        /**
+         * Bugfix: {@code IndexResolver.mergedMappings} crashed with {@code UnsupportedOperationException} when a keyword
+         * field with multi-fields (e.g. {@code my_field.analyzed}) was partially unmapped across the queried indices and
+         * {@code SET unmapped_fields="load"} was active. {@code PotentiallyUnmappedKeywordEsField} was constructed with
+         * an immutable empty properties map, preventing child fields from being inserted.
+         */
+        OPTIONAL_FIELDS_FIX_LOAD_KEYWORD_WITH_MULTIFIELDS,
+
+        /**
+         * Don't implicitly cast a partially unmapped {@code dense_vector} field under {@code unmapped_fields="load"}.
+         * See https://github.com/elastic/elasticsearch/issues/152184.
+         */
+        OPTIONAL_FIELDS_FIX_PARTIALLY_UNMAPPED_DENSE_VECTOR,
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -1426,6 +1439,13 @@ public class EsqlCapabilities {
          * Views crud actions as index actions
          */
         VIEWS_CRUD_AS_INDEX_ACTIONS(VIEWS_WITH_NO_BRANCHING.isEnabled()),
+        /**
+         * Signals that {@code PUT /_query/view/{name}} is exposed with {@code @ServerlessScope(Scope.PUBLIC)}.
+         * Old nodes in a mixed cluster predate this annotation and will not report this capability via
+         * {@code /_capabilities}, so any mixed cluster containing such a node correctly returns
+         * {@code supported=false}.
+         */
+        VIEWS_PUT_SERVERLESS_SCOPE(VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled()),
         /**
          * Views with branching (requires subqueries/FORK).
          */
@@ -2660,6 +2680,14 @@ public class EsqlCapabilities {
         DATASET_IN_FROM_COMMAND(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
+         * derived external grouping reading the attribute the aggregate actually exposes (e.g. a rename alias) instead of the
+         * pre-aggregate attribute it no longer surfaces, fixing the {@code optimized incorrectly due to missing references}
+         * verification failure that old coordinators in a mixed cluster still hit.
+         */
+        FIX_PRUNE_RENAMED_DERIVED_EXTERNAL_GROUPING(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
          * Datasource file plugins (CSV, ORC, Parquet) no longer return {@code TEXT} types, only {@code KEYWORD}.
          * See <a href="https://github.com/elastic/elasticsearch/pull/145334">#145334</a>. Used to gate the affected
          * {@code external-basic.csv-spec} tests so they are skipped on mixed clusters where a pre-change coordinator
@@ -2801,19 +2829,25 @@ public class EsqlCapabilities {
         LIMIT_BY_ENRICH_FIX(ESQL_LIMIT_BY.isEnabled()),
 
         /**
+         * Fix pushdown of LIMIT BY past MV_EXPAND when grouping on expanded fields.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/148513">#148513</a>.
+         */
+        LIMIT_BY_MV_EXPAND_GROUPING_FIX,
+
+        /**
          * Fix window validation in time-series aggregations when TBUCKET uses a numeric target bucket count.
          */
         FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION,
 
         /**
-         * TSDB Temporality support which is guarded by a feature flag.
+         * TSDB Temporality support.
          */
-        TSDB_TEMPORALITY_SUPPORT_V8(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+        TSDB_TEMPORALITY_SUPPORT_V8,
 
         /**
          * Support cumulative exponential histograms in _over_time aggregations.
          */
-        TSDB_TEMPORALITY_SUPPORT_V9(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+        TSDB_TEMPORALITY_SUPPORT_V9,
 
         /**
          * Support the null column type for the CHANGE_POINT command
@@ -2947,12 +2981,12 @@ public class EsqlCapabilities {
         /**
          * Support query approximation with LOOKUP JOIN
          */
-        APPROXIMATION_LOOKUP_JOIN_V2(Build.current().isSnapshot()),
+        APPROXIMATION_LOOKUP_JOIN_V2,
 
         /**
          * Support query approximation with INLINE STATS
          */
-        APPROXIMATION_INLINE_STATS_V2(Build.current().isSnapshot()),
+        APPROXIMATION_INLINE_STATS_V2,
 
         /**
          * Support for PromQL year() function.
@@ -3071,7 +3105,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation with FORK and subqueries.
          */
-        APPROXIMATION_FORK(Build.current().isSnapshot()),
+        APPROXIMATION_FORK,
 
         /**
          * Support FIRST aggregation on extended types: version, unsigned_long, geo_point,
@@ -3178,10 +3212,20 @@ public class EsqlCapabilities {
         PROMQL_HISTOGRAM_SUM_COUNT_AVG,
 
         /**
-         * Support for the {@code HIGHLIGHT} command. Part A: parsing and plan-shape only; execution
-         * throws "not implemented yet". Snapshot-only.
+         * Support for PromQL {@code increase()} on exponential histograms.
          */
-        HIGHLIGHT_V0(Build.current().isSnapshot()),
+        PROMQL_INCREASE_ON_HISTOGRAM,
+
+        /**
+         * Support for PromQL {@code sum()} operator on exponential histograms.
+         */
+        PROMQL_SUM_ON_HISTOGRAM,
+
+        /**
+         * Support for the {@code HIGHLIGHT} command: grammar, plan nodes, serialization, and execution that exposes the
+         * generated {@code highlight_*} columns. Snapshot-only.
+         */
+        HIGHLIGHT_V1(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
@@ -3200,12 +3244,26 @@ public class EsqlCapabilities {
         PROMQL_HISTOGRAM_QUANTILE_IMPLICIT_LE,
 
         /**
+         * Fixes a bug in the planner where {@code TS} queries without an outer aggregation (group by all)
+         * would wrongly fail with an {@link IllegalStateException} if any aggregation had a filter.
+         */
+        FIX_GROUP_BY_ALL_AGGREGATION_FILTERS,
+
+        /**
          * Fix for PromQL {@code without} and ES|QL {@code TS_WITHOUT}: passthrough alias names (e.g. OTel
          * {@code cpu} for the concrete dimension {@code attributes.cpu}) are now correctly resolved in the
          * {@code _timeseries} block loader so excluded labels are actually removed from the series key.
          * https://github.com/elastic/elasticsearch/issues/151540
          */
         FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING,
+
+        /**
+         * An empty list passed as a query parameter (named or positional) is treated as null
+         * instead of producing an NPE. A defined-but-null param used in an identifier or pattern
+         * position produces a clean parsing error instead of silently yielding an empty column name.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/147448">#147448</a>.
+         */
+        EMPTY_LIST_PARAM_AS_NULL,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

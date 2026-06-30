@@ -9,12 +9,14 @@
 
 package org.elasticsearch.gradle.internal.esql;
 
+import org.elasticsearch.gradle.test.JavaRestTestPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskProvider;
 
 /**
  * Sets up the {@code csvSpecTest} source set for per-csv-spec-file ES|QL test generation.
@@ -56,9 +58,8 @@ public class EsqlCsvSpecTestsPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        EsqlCsvSpecTestsExtension extension = project.getExtensions().create("esqlCsvSpecTests", EsqlCsvSpecTestsExtension.class);
-
-        project.getTasks().register("generateEsqlSpecTests", GenerateEsqlSpecTestsTask.class, task -> {
+        var extension = project.getExtensions().create("esqlCsvSpecTests", EsqlCsvSpecTestsExtension.class);
+        var generateEsqlSpecTestsTaskTaskProvider = project.getTasks().register("generateEsqlSpecTests", GenerateEsqlSpecTestsTask.class, task -> {
             task.getSpecFilesDir().set(extension.getSpecFilesDir());
             task.getPackageName().set(extension.getPackageName());
             task.getVariantPrefixes().set(project.provider(extension::getVariantPrefixes));
@@ -72,7 +73,7 @@ public class EsqlCsvSpecTestsPlugin implements Plugin<Project> {
             SourceSetContainer sourceSets = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
 
             SourceSet csvSpecTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
-            csvSpecTestSourceSet.getJava().srcDir(project.getTasks().named("generateEsqlSpecTests"));
+            csvSpecTestSourceSet.getJava().srcDir(generateEsqlSpecTestsTaskTaskProvider);
 
             // Wire csvSpecTest against javaRestTest whenever javaRestTest is created. Using
             // sourceSets.all fires for both already-existing and future source sets, so this
@@ -82,8 +83,8 @@ public class EsqlCsvSpecTestsPlugin implements Plugin<Project> {
             // pattern used by yamlRestTest via GradleUtils.extendSourceSet. Test-class bleed
             // from javaRestTest into the csv runner is prevented by testClassesDirs being
             // scoped to csvSpecTest output only.
-            sourceSets.all(ss -> {
-                if ("javaRestTest".equals(ss.getName())) {
+            sourceSets.forEach(ss -> {
+                if (JavaRestTestPlugin.JAVA_REST_TEST.equals(ss.getName())) {
                     project.getDependencies().add(csvSpecTestSourceSet.getImplementationConfigurationName(), ss.getOutput());
                     project.getConfigurations()
                         .named(csvSpecTestSourceSet.getCompileClasspathConfigurationName())

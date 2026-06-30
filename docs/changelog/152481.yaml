@@ -4,32 +4,40 @@ highlight:
   title: Columnar index mode (Tech Preview)
   body: |-
     Two new index modes, `columnar` and `logsdb_columnar`, are now available as
-    a Tech Preview.
+    a Tech Preview. With columnar mode enabled, Elasticsearch becomes a full
+    analytical and search columnar store.
 
-    Columnar index modes store field data in a column-oriented layout using
-    per-field binary doc values rather than the traditional row-oriented stored
-    source. Reading a field's values across many documents — the access pattern
-    of ES|QL and aggregations — requires touching only the columns that are
-    queried, which reduces I/O and improves compression.
+    Fields are stored **once, as doc values only** — no inverted index or BKD
+    tree is maintained by default, which eliminates redundant index structures
+    and significantly reduces the storage footprint. Doc values skippers
+    (compact skip lists with min/max metadata) are enabled by default, allowing
+    large blocks of documents to be skipped without scanning individual values.
 
-    `logsdb_columnar` combines the columnar layout with all the LogsDB defaults
-    (routing, sort order, synthetic source) for log data. `columnar` provides the
-    same column-oriented storage without the LogsDB-specific configuration,
-    suitable for general-purpose indices.
+    Mappings are always flat: object and passthrough fields are auto-flattened
+    to leaf fields at mapping time. The original document source is not stored;
+    a synthetic source is generated on the fly from doc values at query time.
+    Optionally, a pre-built columnar representation can be stored on disk using
+    the new `columnar_stored` source mode.
 
-    Key capabilities:
+    `logsdb_columnar` adds logging-oriented defaults on top of the columnar
+    foundation: a default `@timestamp` mapping, and index sorting on `host.name`
+    and `@timestamp` when those fields are present. `columnar` provides the same
+    column-oriented storage without use-case-specific defaults, suitable for
+    general-purpose indices and data streams.
 
-    - **Binary doc values** are stored in an in-order layout that allows the
-      block loading path used by ES|QL to decode a field once per block rather
-      than once per document.
-    - **Doc-values-only text fields** (`text`, `match_only_text`) can store their
-      content in doc values in columnar mode, removing the need for a separate
-      stored source.
-    - **Single-value enforcement** (`doc_values.multi_value: false`) lets you
-      reject documents that supply more than one value for a field, enabling
-      tighter columnar encoding.
-    - **Index-level multi-value default** (`index.mapping.doc_values.multi_value`)
-      sets the single-value policy for all fields in an index in one place.
+    Additional capabilities:
+
+    - **Single-value enforcement** (`doc_values.multi_value: false`): reject
+      documents that provide more than one value for a field, enabling tighter
+      columnar encoding and stronger schema guarantees.
+    - **Required-value enforcement** (`doc_values.nullability: false`): reject
+      documents that omit a field or supply an explicit `null`.
+    - **Columnar `_id`**: the `_id` metadata field is stored as binary doc
+      values rather than a stored field, consistent with the columnar storage
+      model.
+    - **Index-level defaults**: `index.mapping.doc_values.multi_value` and
+      `index.mapping.doc_values.nullability` set the enforcement policy for all
+      fields in an index in one place.
 issues: []
 pr: 152481
 summary: Columnar index modes available as Tech Preview

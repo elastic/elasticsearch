@@ -221,15 +221,8 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     public final MapperService createSytheticSourceMapperService(XContentBuilder mappings) throws IOException {
-        return createSytheticSourceMapperService(IndexMode.STANDARD, mappings);
-    }
-
-    public final MapperService createSytheticSourceMapperService(IndexMode indexMode, XContentBuilder mappings) throws IOException {
-        var builder = Settings.builder().put("index.mapping.source.mode", "synthetic");
-        if (indexMode != IndexMode.STANDARD) {
-            builder.put(IndexSettings.MODE.getKey(), indexMode.getName());
-        }
-        return createMapperService(getVersion(), builder.build(), () -> true, mappings);
+        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        return createMapperService(getVersion(), settings, () -> true, mappings);
     }
 
     protected IndexVersion getVersion() {

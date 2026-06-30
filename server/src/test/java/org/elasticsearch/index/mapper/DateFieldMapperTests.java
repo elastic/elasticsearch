@@ -629,19 +629,11 @@ public class DateFieldMapperTests extends MapperTestCase {
             private final DateFormatter formatter = resolution == DateFieldMapper.Resolution.MILLISECONDS
                 ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER
                 : DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER;
-            private final IndexMode indexMode = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
-                ? randomFrom(IndexMode.STANDARD, IndexMode.COLUMNAR)
-                : IndexMode.STANDARD;
-            private final boolean enforceSingleValue = indexMode.isStrictColumnar() && randomBoolean();
+            private final boolean enforceSingleValue = false;
 
             @Override
             public boolean enforcesSingleValue() {
                 return enforceSingleValue;
-            }
-
-            @Override
-            public IndexMode indexMode() {
-                return indexMode;
             }
 
             @Override

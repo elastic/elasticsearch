@@ -347,11 +347,10 @@ public class IpFieldMapperTests extends MapperTestCase {
     private static class IpSyntheticSourceSupport implements SyntheticSourceSupport {
         private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean());
         private final boolean ignoreMalformed;
-        private final IndexMode indexMode = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
-            ? randomFrom(IndexMode.STANDARD, IndexMode.COLUMNAR)
-            : IndexMode.STANDARD;
-        private final boolean extendedDocValues = indexMode.isStrictColumnar() && randomBoolean();
-        private final boolean enforceSingleValue = extendedDocValues && randomBoolean();
+        // multi_value:false is columnar-only; standard synthetic source tests run in non-columnar mode.
+        // Dedicated testMultiValueFalse* methods cover that configuration with explicit columnar settings.
+        private final boolean extendedDocValues = false;
+        private final boolean enforceSingleValue = false;
 
         private IpSyntheticSourceSupport(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;
@@ -360,11 +359,6 @@ public class IpFieldMapperTests extends MapperTestCase {
         @Override
         public boolean enforcesSingleValue() {
             return enforceSingleValue;
-        }
-
-        @Override
-        public IndexMode indexMode() {
-            return indexMode;
         }
 
         @Override

@@ -1366,15 +1366,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
 
         /**
-         * @return the index mode required to create a mapper for this support instance. For example, a support that uses
-         * {@code doc_values.multi_value: false} must return {@link IndexMode#COLUMNAR} here, since that parameter is only
-         * valid in columnar index modes.
-         */
-        default IndexMode indexMode() {
-            return IndexMode.STANDARD;
-        }
-
-        /**
          * Examples that should work when source is generated from doc values.
          */
         SyntheticSourceExample example(int maxValues) throws IOException;
@@ -1393,8 +1384,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testSyntheticSource() throws IOException {
-        SyntheticSourceSupport support = syntheticSourceSupport(shouldUseIgnoreMalformed());
-        assertSyntheticSource(support.indexMode(), support.example(5));
+        assertSyntheticSource(syntheticSourceSupport(shouldUseIgnoreMalformed()).example(5));
     }
 
     public final void testSyntheticSourceWithTranslogSnapshot() throws IOException {
@@ -1446,11 +1436,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     private void assertSyntheticSource(SyntheticSourceExample example) throws IOException {
-        assertSyntheticSource(IndexMode.STANDARD, example);
-    }
-
-    private void assertSyntheticSource(IndexMode indexMode, SyntheticSourceExample example) throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(indexMode, mapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             example.mapping().accept(b);
             b.endObject();
@@ -1466,13 +1452,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     private void assertSyntheticSourceWithTranslogSnapshot(SyntheticSourceSupport support, boolean doIndexSort) throws IOException {
         var firstExample = support.example(1);
         int maxDocs = randomIntBetween(20, 50);
-        var settingsBuilder = Settings.builder()
+        var settings = Settings.builder()
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
-            .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true);
-        if (support.indexMode() != IndexMode.STANDARD) {
-            settingsBuilder.put(IndexSettings.MODE.getKey(), support.indexMode().getName());
-        }
-        var settings = settingsBuilder.build();
+            .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+            .build();
         var mapperService = createMapperService(getVersion(), settings, () -> true, mapping(b -> {
             b.startObject("field");
             firstExample.mapping().accept(b);
@@ -1559,7 +1542,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         int maxValues = randomBoolean() ? 1 : 5;
         SyntheticSourceSupport support = syntheticSourceSupport(ignoreMalformed);
-        DocumentMapper mapper = createSytheticSourceMapperService(support.indexMode(), mapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             support.example(maxValues).mapping().accept(b);
             b.endObject();
@@ -1619,10 +1602,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSyntheticSourceInObject() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
-        SyntheticSourceSupport support = syntheticSourceSupport(ignoreMalformed);
-        assumeFalse("nested objects are not supported in columnar index mode", support.indexMode().isStrictColumnar());
-        SyntheticSourceExample syntheticSourceExample = support.example(5);
-        DocumentMapper mapper = createSytheticSourceMapperService(support.indexMode(), mapping(b -> {
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport(ignoreMalformed).example(5);
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("obj").startObject("properties").startObject("field");
             syntheticSourceExample.mapping().accept(b);
             b.endObject().endObject().endObject();
@@ -1651,7 +1632,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         SyntheticSourceSupport support = syntheticSourceSupport(ignoreMalformed);
         SyntheticSourceExample syntheticSourceExample = support.example(5);
-        DocumentMapper mapper = createSytheticSourceMapperService(support.indexMode(), mapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             syntheticSourceExample.mapping().accept(b);
             b.endObject();
@@ -1682,9 +1663,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     private void assertNoDocValueLoader(CheckedConsumer<XContentBuilder, IOException> doc) throws IOException {
         boolean ignoreMalformed = supportsIgnoreMalformed() ? rarely() : false;
-        SyntheticSourceSupport support = syntheticSourceSupport(ignoreMalformed);
-        SyntheticSourceExample syntheticSourceExample = support.example(5);
-        DocumentMapper mapper = createSytheticSourceMapperService(support.indexMode(), mapping(b -> {
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport(ignoreMalformed).example(5);
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             syntheticSourceExample.mapping().accept(b);
             b.endObject();
@@ -1726,10 +1706,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSyntheticSourceInNestedObject() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
-        SyntheticSourceSupport support = syntheticSourceSupport(ignoreMalformed);
-        assumeFalse("nested objects are not supported in columnar index mode", support.indexMode().isStrictColumnar());
-        SyntheticSourceExample syntheticSourceExample = support.example(5);
-        DocumentMapper mapper = createSytheticSourceMapperService(support.indexMode(), mapping(b -> {
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport(ignoreMalformed).example(5);
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("obj").field("type", "nested").startObject("properties").startObject("field");
             syntheticSourceExample.mapping().accept(b);
             b.endObject().endObject().endObject();
@@ -1764,10 +1742,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testSyntheticSourceKeepNone() throws IOException {
-        SyntheticSourceSupport support = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed(), Mapper.SourceKeepMode.NONE);
-        assumeFalse("synthetic_source_keep is not supported in columnar index mode", support.indexMode().isStrictColumnar());
-        SyntheticSourceExample example = support.example(1);
-        DocumentMapper mapper = createSytheticSourceMapperService(support.indexMode(), mapping(b -> {
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed(), Mapper.SourceKeepMode.NONE).example(
+            1
+        );
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("synthetic_source_keep", "none");
             example.mapping().accept(b);
@@ -1777,10 +1755,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testSyntheticSourceKeepAll() throws IOException {
-        SyntheticSourceSupport support = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed(), Mapper.SourceKeepMode.ALL);
-        assumeFalse("synthetic_source_keep is not supported in columnar index mode", support.indexMode().isStrictColumnar());
-        SyntheticSourceExample example = support.example(1);
-        DocumentMapper mapperAll = createSytheticSourceMapperService(support.indexMode(), mapping(b -> {
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed(), Mapper.SourceKeepMode.ALL).example(
+            1
+        );
+        DocumentMapper mapperAll = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("synthetic_source_keep", "all");
             example.mapping().accept(b);
@@ -1799,7 +1777,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SyntheticSourceSupport support = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed(), Mapper.SourceKeepMode.ARRAYS);
         assumeFalse("multi_value: false rejects documents with more than one value", support.enforcesSingleValue());
         SyntheticSourceExample example = support.example(1);
-        DocumentMapper mapperAll = createSytheticSourceMapperService(support.indexMode(), mapping(b -> {
+        DocumentMapper mapperAll = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("synthetic_source_keep", randomSyntheticSourceKeep());
             example.mapping().accept(b);

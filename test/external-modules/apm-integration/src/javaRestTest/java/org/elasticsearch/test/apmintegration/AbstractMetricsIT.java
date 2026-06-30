@@ -91,7 +91,10 @@ public abstract class AbstractMetricsIT extends AbstractTelemetryIT {
                     if (histogramExpected != null && sampleValue instanceof ReceivedTelemetry.HistogramSample(var counts)) {
                         int total = counts.stream().mapToInt(Integer::intValue).sum();
                         int remaining = histogramExpected - total;
-                        if (remaining == 0) {
+                        // Pass once we have observed at least the expected number of counts. The retry loop below
+                        // re-records the histogram on each iteration, so cumulative counts can exceed the expectation
+                        // and drive remaining negative; requiring exactly 0 would then never be satisfiable again.
+                        if (remaining <= 0) {
                             logger.info("{} assertion PASSED", key);
                             histogramAssertions.remove(key);
                         } else {

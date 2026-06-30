@@ -10,7 +10,6 @@
 package org.elasticsearch.sourcebatch;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.eirf.EirfArrayReader;
 import org.elasticsearch.eirf.EirfKeyValueReader;
 import org.elasticsearch.xcontent.Text;
 
@@ -61,5 +60,5 @@ public interface SourceRow {
 
     EirfKeyValueReader getKeyValue(int col);
 
-    EirfArrayReader getArrayValue(int col);
+    ArrayReader getArrayValue(int col);
 }

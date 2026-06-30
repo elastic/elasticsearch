@@ -20,6 +20,7 @@ import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfEncoder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -142,7 +143,7 @@ final class BulkBatchEncoders implements Releasable {
         if (state.extractor != null) {
             state.extractor.reset();
         }
-        EirfEncoder.LeafSink sink = state.extractor != null ? state.extractor : EirfEncoder.LeafSink.NO_OP;
+        LeafSink sink = state.extractor != null ? state.extractor : LeafSink.NO_OP;
         XContentType contentType = request.getContentType();
         try {
             state.encoder.parseToScratch(request.indexSource().bytes(), contentType, sink);

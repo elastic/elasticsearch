@@ -11,6 +11,7 @@ package org.elasticsearch.eirf;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -315,7 +316,7 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
     }
 
     private Token nextArrayFrameToken() {
-        EirfArrayReader reader = (EirfArrayReader) compoundReaders[compoundDepth - 1];
+        ArrayReader reader = (ArrayReader) compoundReaders[compoundDepth - 1];
         if (reader.next()) {
             return emitArrayElementValue(reader);
         } else {
@@ -325,7 +326,7 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
         }
     }
 
-    private Token emitArrayElementValue(EirfArrayReader reader) {
+    private Token emitArrayElementValue(ArrayReader reader) {
         byte elemType = reader.type();
         switch (elemType) {
             case EirfType.INT -> {

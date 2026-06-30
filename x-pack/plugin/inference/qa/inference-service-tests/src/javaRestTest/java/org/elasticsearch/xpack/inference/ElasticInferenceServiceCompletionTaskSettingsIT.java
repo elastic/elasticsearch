@@ -37,6 +37,7 @@ import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.deleteMode
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.getModel;
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.putModel;
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.updateEndpoint;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings.CCM_SUPPORTED_ENVIRONMENT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -111,6 +112,7 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        .setting(CCM_SUPPORTED_ENVIRONMENT.getKey(), "false")
         .setting(ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL.getKey(), mockEISServer::getUrl)
         .setting(ElasticInferenceServiceSettings.AUTHORIZATION_ENABLED.getKey(), "false")
         .setting(ElasticInferenceServiceSettings.PERIODIC_AUTHORIZATION_ENABLED.getKey(), "false")

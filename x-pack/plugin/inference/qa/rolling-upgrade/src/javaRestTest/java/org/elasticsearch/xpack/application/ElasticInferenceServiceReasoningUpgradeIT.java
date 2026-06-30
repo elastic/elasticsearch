@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
@@ -31,9 +30,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.assertStatusOkOrCreated;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  * Rolling-upgrade test for the {@code reasoning} task setting on the Elastic Inference Service
@@ -61,6 +58,8 @@ public class ElasticInferenceServiceReasoningUpgradeIT extends ParameterizedRoll
     private static final String MODEL_ID = "eis-upgrade-test-model";
     private static final String EFFORT_MEDIUM = "medium";
     private static final String SUMMARY_DETAILED = "detailed";
+    // AUTHORIZATION_ENABLED setting was added in 9.3.0
+    private static final String AFTER_AUTHORIZATION_ENABLED_SETTING_ADDED_VERSION = "gte_v9.3.1";
 
     // URL provider only — no init() / enqueueAuthorizeAllModelsResponse() calls because
     // AUTHORIZATION_ENABLED=false suppresses all bootup auth traffic.
@@ -107,6 +106,11 @@ public class ElasticInferenceServiceReasoningUpgradeIT extends ParameterizedRoll
         assumeTrue(
             "Old cluster already supports reasoning task settings; skipping gate test",
             oldClusterHasFeature(InferenceFeatures.INFERENCE_ELASTIC_REASONING_TASK_SETTINGS) == false
+        );
+
+        assumeTrue(
+            "Only test versions greater than v9.3.1 to ensure that they have the AUTHORIZATION_ENABLED setting",
+            oldClusterHasFeature(AFTER_AUTHORIZATION_ENABLED_SETTING_ADDED_VERSION)
         );
 
         var inferenceId = "test-reasoning-gated";

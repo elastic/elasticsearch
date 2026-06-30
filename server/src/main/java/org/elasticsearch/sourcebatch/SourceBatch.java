@@ -13,22 +13,8 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Releasable;
 
-import java.util.Iterator;
-import java.util.NoSuchElementException;
-
 /**
  * An immutable, format-agnostic batch of source documents carrying a shared {@link SourceSchema}.
- *
- * <p>Implementations may store documents in row-major (EIRF) or column-major layout. The schema,
- * type model ({@link org.elasticsearch.eirf.EirfType}), and compound-value readers
- * ({@link org.elasticsearch.eirf.EirfArrayReader} / {@link org.elasticsearch.eirf.EirfKeyValueReader})
- * are shared across all implementations.
- *
- * <p>This abstraction is intended to support both row-major and column-major access as first-class
- * modes, so callers can pick the one that fits the task independent of the physical layout. Today
- * only {@link #row(int)} (a single document's fields, needed for source reconstruction and
- * row-oriented consumers) is exposed; column-major access will be added alongside its first
- * consumer, when the column-major format lands and can drive the shape of that API.
  *
  * <p>Batches are {@link Releasable}; callers that own the batch must close it when done.
  * Slices produced by {@link #slice(int, int)} do not own the underlying buffers and their
@@ -46,7 +32,7 @@ public interface SourceBatch extends Releasable, Accountable {
     int columnCount();
 
     /**
-     * The raw serialised bytes of this batch. Used for wire transport and translog persistence.
+     * The raw serialized bytes of this batch. Used for wire transport and translog persistence.
      * The format of the bytes is implementation-defined.
      */
     BytesReference data();
@@ -57,29 +43,6 @@ public interface SourceBatch extends Releasable, Accountable {
      * @throws IndexOutOfBoundsException if {@code docIndex} is out of {@code [0, docCount())}.
      */
     SourceRow row(int docIndex);
-
-    /**
-     * Returns an {@link Iterable} over all rows in order. Convenience wrapper around
-     * {@link #row(int)}.
-     */
-    default Iterable<SourceRow> rows() {
-        return () -> new Iterator<>() {
-            private int next = 0;
-
-            @Override
-            public boolean hasNext() {
-                return next < docCount();
-            }
-
-            @Override
-            public SourceRow next() {
-                if (hasNext() == false) {
-                    throw new NoSuchElementException();
-                }
-                return row(next++);
-            }
-        };
-    }
 
     /**
      * Returns a view of this batch covering rows {@code [from, to)}.

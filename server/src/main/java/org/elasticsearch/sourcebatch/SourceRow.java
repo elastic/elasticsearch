@@ -21,10 +21,6 @@ import org.elasticsearch.xcontent.Text;
  * <p>Column indices match the leaf indices of the batch's {@link SourceSchema}: column {@code i}
  * is the leaf at position {@code i}. Columns not present in this row report type
  * {@link org.elasticsearch.eirf.EirfType#ABSENT}.
- *
- * <p>Callers typically loop {@code 0 .. schema().leafCount()-1}, check {@link #isAbsent(int)},
- * then call the appropriate typed getter. All getters are pure reads — they do not advance any
- * cursor state.
  */
 public interface SourceRow {
 
@@ -35,8 +31,8 @@ public interface SourceRow {
     boolean isEmpty();
 
     /**
-     * The size of this row in bytes. Used as a cheap proxy for the original source size when the
-     * row has not been re-serialised to XContent bytes.
+     * The size of this row in bytes. Used as an inexpensive proxy for the original source size when the
+     * row has not been re-serialized to XContent bytes.
      */
     int sizeInBytes();
 

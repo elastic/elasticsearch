@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
@@ -136,6 +137,15 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
     @Override
     protected QueryPragmas getPragmas() {
         return QueryPragmas.EMPTY;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        // Allow the system temp dir so file:// reads created by createTempDir() in each test are permitted.
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), System.getProperty("java.io.tmpdir"))
+            .build();
     }
 
     @Before

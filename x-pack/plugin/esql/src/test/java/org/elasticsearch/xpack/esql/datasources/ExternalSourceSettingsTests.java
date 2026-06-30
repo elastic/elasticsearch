@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ExternalSourceSettingsTests extends ESTestCase {
@@ -60,7 +61,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
-        assertEquals(5, ExternalSourceSettings.settings().size());
+        assertEquals(6, ExternalSourceSettings.settings().size());
     }
 
     public void testWorkloadIdentityCredentialsDefaultFalse() {
@@ -107,5 +108,38 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertFalse(enabled.get());
         enabled.set(isStateless == false && true);
         assertTrue("dynamic enable must take effect on non-stateless nodes", enabled.get());
+    }
+
+    // --- LOCAL_ALLOWED_PATHS setting (mirrors the workload-identity block above) ---
+
+    public void testLocalAllowedPathsDefaultEmpty() {
+        List<String> paths = ExternalSourceSettings.LOCAL_ALLOWED_PATHS.get(Settings.EMPTY);
+        assertTrue("LOCAL_ALLOWED_PATHS must default to empty (file:// disabled by default)", paths.isEmpty());
+    }
+
+    public void testLocalAllowedPathsCanBeSet() {
+        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", "/data/allowed", "/mnt/shared").build();
+        List<String> paths = ExternalSourceSettings.LOCAL_ALLOWED_PATHS.get(settings);
+        assertEquals(2, paths.size());
+        assertEquals("/data/allowed", paths.get(0));
+        assertEquals("/mnt/shared", paths.get(1));
+    }
+
+    public void testLocalAllowedPathsDisabledOnStatelessNodeAtStartup() {
+        // Mirrors testWorkloadIdentityDisabledOnStatelessNodeAtStartup — build a LocalFileAccess and assert enabled() == false.
+        Settings settings = Settings.builder()
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+            .putList("esql.datasource.local_allowed_paths", "/data/allowed")
+            .build();
+        boolean isStateless = DiscoveryNode.isStateless(settings);
+        LocalFileAccess access = LocalFileAccess.create(settings, isStateless);
+        assertFalse("local disk access must be disabled on stateless nodes even when the allowlist is non-empty", access.enabled());
+    }
+
+    public void testLocalAllowedPathsEnabledOnNonStatelessNode() {
+        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", "/data/allowed").build();
+        boolean isStateless = DiscoveryNode.isStateless(settings);
+        LocalFileAccess access = LocalFileAccess.create(settings, isStateless);
+        assertTrue("local disk access must be enabled when allowlist is set and node is not stateless", access.enabled());
     }
 }

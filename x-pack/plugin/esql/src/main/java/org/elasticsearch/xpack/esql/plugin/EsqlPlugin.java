@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.LocalFileAccess;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.dataset.DatasetService;
@@ -347,6 +348,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 v -> workloadIdentityEnabled.set(isStateless == false && v)
             );
 
+        // Local-disk gate: parsed once at startup (NodeScope setting — no update consumer needed).
+        // The gate is always disabled on stateless nodes regardless of the allowlist.
+        LocalFileAccess localFileAccess = LocalFileAccess.create(settings, isStateless);
+
         // Create DataSourceModule with all discovered plugins.
         // This executor backs SPI coordination, decompression, and async-I/O plugin callbacks (e.g. the HTTP
         // client) — NOT the file-read path. Blocking external reads are routed onto the dedicated
@@ -361,7 +366,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             workloadIdentityEnabled::get,
             services.threadPool(),
             services.environment(),
-            services.resourceWatcherService()
+            services.resourceWatcherService(),
+            localFileAccess
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();

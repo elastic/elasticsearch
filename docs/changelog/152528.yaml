@@ -1,5 +1,6 @@
-area: "Mapping, Search"
-issues: []
+area: Mapping
+issues:
+  - 143287
 pr: 152528
 summary: Release semantic field
 type: feature

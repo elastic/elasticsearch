@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai.rerank;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIRateLimitServiceSettings;
@@ -26,13 +30,28 @@ import java.util.Objects;
 public class JinaAIRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, JinaAIRateLimitServiceSettings {
     public static final String NAME = "jinaai_rerank_service_settings";
 
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(
+        false,
+        ConfigurationParseContext.REQUEST
+    );
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(
+        true,
+        ConfigurationParseContext.PERSISTENT
+    );
+
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
+        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
+            ModelConfigurations.SERVICE_SETTINGS,
+            ignoreUnknownFields,
+            () -> new Builder(context)
+        );
+        JinaAICommonServiceSettings.declareCommonFields(parser);
+        return parser;
+    }
+
     public static JinaAIRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        var validationException = new ValidationException();
-
-        var commonServiceSettings = JinaAICommonServiceSettings.fromMap(map, context, validationException);
-
-        validationException.throwIfValidationErrorsExist();
-        return new JinaAIRerankServiceSettings(commonServiceSettings);
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
+        return JinaAICommonServiceSettings.fromMap(map, context, parser);
     }
 
     private final JinaAICommonServiceSettings commonSettings;
@@ -51,13 +70,11 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
 
     @Override
     public JinaAIRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-
-        var updatedCommonServiceSettings = commonSettings.updateCommonServiceSettings(serviceSettings, validationException);
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new JinaAIRerankServiceSettings(updatedCommonServiceSettings);
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            return Update.PARSER.apply(xParser, null).mergeInto(this);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse JinaAI rerank service settings update", e);
+        }
     }
 
     @Override
@@ -79,7 +96,7 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        builder = commonSettings.toXContentFragment(builder, params);
+        commonSettings.toXContentFragmentOfExposedFields(builder, params);
 
         builder.endObject();
         return builder;
@@ -112,5 +129,37 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
     @Override
     public int hashCode() {
         return Objects.hash(commonSettings);
+    }
+
+    /**
+     * Builds a {@link JinaAIRerankServiceSettings} from the common JinaAI fields. Rerank adds no settings of its own.
+     */
+    static class Builder extends JinaAICommonServiceSettings.Builder<JinaAIRerankServiceSettings> {
+
+        Builder(ConfigurationParseContext context) {
+            super(context);
+        }
+
+        @Override
+        protected JinaAIRerankServiceSettings build(JinaAICommonServiceSettings commonSettings) {
+            return new JinaAIRerankServiceSettings(commonSettings);
+        }
+    }
+
+    /**
+     * Parses an update request, which may only contain the mutable {@code rate_limit} field. Including any immutable field (such as
+     * {@code model_id}) causes the strict parser to reject the request.
+     */
+    private static class Update extends JinaAICommonServiceSettings.CommonUpdate {
+
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+
+        static {
+            JinaAICommonServiceSettings.declareCommonUpdatableFields(PARSER);
+        }
+
+        public JinaAIRerankServiceSettings mergeInto(JinaAIRerankServiceSettings existing) {
+            return new JinaAIRerankServiceSettings(existing.getCommonSettings().update(this));
+        }
     }
 }

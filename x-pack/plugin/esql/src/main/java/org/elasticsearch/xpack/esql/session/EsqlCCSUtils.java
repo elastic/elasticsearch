@@ -179,15 +179,14 @@ public class EsqlCCSUtils {
         if (executionInfo.getClusters().isEmpty()) {
             return Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);// Happens when joining to ROW
         }
-        // Use a LinkedHashSet so the local cluster (added below) is always iterated last, giving a deterministic qualified
-        // lookup expression (e.g. "cluster-a:idx,idx" rather than a hash-ordered variant) for error messages.
+        // Use a LinkedHashSet so the local cluster (added below) is always iterated last, giving a deterministic qualified lookup
+        // expression (e.g. "cluster-a:idx,idx" rather than a hash-ordered variant) for error messages.
         Set<String> running = new LinkedHashSet<>(
             executionInfo.getRunningClusterAliases().filter(clusterAliases::contains).collect(toSet())
         );
-        // The local (coordinating) cluster is always available and is never skip_unavailable, but it is only tracked as a
-        // running cluster in the execution info when the query actually resolved a local index. A lookup scoped to the local
-        // cluster (e.g. a ROW- or local-only sourced LOOKUP JOIN in an otherwise cross-cluster query) must still be resolved
-        // locally, so retain it whenever it is requested even if it is not tracked as a running cluster.
+        // This is validated by CrossClusterSubqueryIT.testSubqueryWithRowAndLookupIndicesMissingOnClustersReferencedBySubquery
+        // It happens when lookup join is in the main query, and the subqueries have ROW and remote index patterns, the remote cluster
+        // presents in executionInfo
         if (clusterAliases.contains(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
             running.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         }

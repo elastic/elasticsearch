@@ -612,7 +612,7 @@ decade:integer | m:date
 ###############################################
 
 toRange
-required_capability: to_range
+required_capability: fn_to_range
 
 // tag::to_range[]
 ROW from_dt = TO_DATETIME("2000-01-01T00:00:00.000Z"), to_dt = TO_DATETIME("2010-01-01T00:00:00.000Z")
@@ -628,7 +628,7 @@ r:date_range
 ;
 
 toRangeRoundTrip
-required_capability: to_range
+required_capability: fn_to_range
 
 FROM decades
 | EVAL r = TO_RANGE(RANGE_MIN(date_range), RANGE_MAX(date_range))
@@ -653,9 +653,25 @@ decade:integer
 2020
 ;
 
+toRangeRoundTripFilter
+required_capability: fn_to_range
+
+FROM decades
+| EVAL r = TO_RANGE(TO_DATETIME("2000-01-01T00:00:00.000Z"), RANGE_MAX(date_range))
+| WHERE date_range == r
+| KEEP decade
+| SORT decade
+;
+warningRegex:Line 2:12: evaluation of \[TO_RANGE(.*)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:12: java\.lang\.IllegalArgumentException: 'from' \[946684800000\] must be less than 'to'.*
+
+decade:integer
+2000
+;
+
 // Null propagation: null from → null result
 toRangeNullFrom
-required_capability: to_range
+required_capability: fn_to_range
 
 ROW from_dt = TO_DATETIME("2000-01-01T00:00:00.000Z")
 | EVAL r = TO_RANGE(null, from_dt)
@@ -668,7 +684,7 @@ null
 
 // Null propagation: null to → null result
 toRangeNullTo
-required_capability: to_range
+required_capability: fn_to_range
 
 ROW from_dt = TO_DATETIME("2000-01-01T00:00:00.000Z")
 | EVAL r = TO_RANGE(from_dt, null)
@@ -681,7 +697,7 @@ null
 
 // Inverted bounds: to < from → warns and yields null, consistent with TO_DATE_RANGE
 toRangeInvertedBounds
-required_capability: to_range
+required_capability: fn_to_range
 
 ROW from_dt = TO_DATETIME("2010-01-01T00:00:00.000Z"), to_dt = TO_DATETIME("2000-01-01T00:00:00.000Z")
 | EVAL r = TO_RANGE(from_dt, to_dt)
@@ -697,7 +713,7 @@ null
 // Multi-value input: MV from → warns and yields null.
 // Uses emp_no 10039 whose birth_date and hire_date are both non-null, so MV_APPEND produces a 2-element MV datetime.
 toRangeMvFromWarns
-required_capability: to_range
+required_capability: fn_to_range
 
 FROM employees
 | WHERE emp_no == 10039
@@ -714,7 +730,7 @@ null
 
 // Multi-value input: MV to → warns and yields null.
 toRangeMvToWarns
-required_capability: to_range
+required_capability: fn_to_range
 
 FROM employees
 | WHERE emp_no == 10039

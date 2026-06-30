@@ -15,6 +15,8 @@ In this scenario, we're implementing search for a cooking blog. The blog contain
 This tutorial uses a small dataset for learning purposes. The goal is to demonstrate search concepts and {{esql}} syntax.
 :::
 
+For performance guidance when adapting these examples to larger datasets, refer to [Optimize {{esql}} query performance](/reference/query-languages/esql/esql-query-performance.md).
+
 ## Requirements
 
 You need a running {{es}} cluster, together with {{kib}} to use the Dev Tools API Console. Refer to [choose your deployment type](docs-content://deploy-manage/deploy.md#choosing-your-deployment-type) for deployment options.

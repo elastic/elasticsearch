@@ -29,6 +29,7 @@ import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -197,6 +198,7 @@ public class EsqlSession {
     private final Metrics metrics;
     private final EsqlFunctionRegistry functionRegistry;
     private final PromqlFunctionRegistry promqlFunctionRegistry;
+    private final AnalysisRegistry analysisRegistry;
     private final PreMapper preMapper;
 
     private final Mapper mapper;
@@ -260,6 +262,7 @@ public class EsqlSession {
         PreAnalyzer preAnalyzer,
         EsqlFunctionRegistry functionRegistry,
         PromqlFunctionRegistry promqlFunctionRegistry,
+        AnalysisRegistry analysisRegistry,
         Mapper mapper,
         Verifier verifier,
         Metrics metrics,
@@ -283,6 +286,7 @@ public class EsqlSession {
         this.metrics = metrics;
         this.functionRegistry = functionRegistry;
         this.promqlFunctionRegistry = promqlFunctionRegistry;
+        this.analysisRegistry = analysisRegistry;
         this.mapper = mapper;
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
@@ -2091,6 +2095,7 @@ public class EsqlSession {
             configuration,
             functionRegistry,
             promqlFunctionRegistry,
+            analysisRegistry,
             unmappedResolution,
             projectMetadata,
             r,

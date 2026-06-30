@@ -1388,7 +1388,7 @@ public abstract class DocsV3Support {
 
             if (mapParam != null) {
                 EsqlFunctionRegistry.ArgSignature arg = EsqlFunctionRegistry.mapParam(mapParam);
-                builder.append("Map entries: \n    ");
+                builder.append("Map entries:\n");
 
                 Collection<EsqlFunctionRegistry.MapEntryArgSignature> mapParams = arg.mapParams().values();
                 for (EsqlFunctionRegistry.MapEntryArgSignature mapArgSignature : mapParams) {

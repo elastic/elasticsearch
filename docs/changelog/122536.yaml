@@ -1,0 +1,5 @@
+pr: 122536
+summary: Unicode Support for Case Insensitive Matching
+area: Search
+type: bug
+issues: []

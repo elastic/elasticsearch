@@ -71,5 +71,4 @@ echo "+++ pi-agent: analysis"
 # Hard cap: kill after 45 minutes. Exit 124 = timeout, 137 = SIGKILL.
 timeout --signal=TERM --kill-after=60s 45m \
   pi-agent analyze --issue-url "${ISSUE_URL}" \
-      --verbose \
-      --append-system-prompt "IMPORTANT CI CONSTRAINTS: Do NOT use fetch_content or web_search to access gradle-enterprise.elastic.co, develocity.elastic.co, or any other Elastic-internal URLs that require SSO authentication. These connections hang indefinitely in CI because no browser-based SSO flow is possible. If you need build scan data, note that it is unavailable and continue the analysis using only GitHub issue content, code files, and other accessible sources."
+      --verbose

@@ -489,6 +489,289 @@ public class PushQueriesIT extends ESRestTestCase {
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
 
+    public void testCaseInsensitiveRLike() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
+        String esqlQuery = """
+            FROM test
+            | WHERE TO_LOWER(test) rlike "%value.*"
+            """;
+        // CI RLIKE uses RegexpQuery with ASCII_CASE_INSENSITIVE flag (matchFlags=256 for WILDCARD).
+        // KEYWORD uses the same /pattern/ toString format as non-CI RLIKE (flag not shown).
+        String luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
+            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            case KEYWORD -> "test:/%value.*/";
+            case WILDCARD -> ":RegexAutomatonProvider[value=%value.*, syntaxFlags=65791, matchFlags=256, maxDeterminizedStates=10000]";
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
+    }
+
+    public void testCaseInsensitiveRLikeList() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
+        String esqlQuery = """
+            FROM test
+            | WHERE TO_LOWER(test) rlike ("%value.*", "abc.*")
+            """;
+        String luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
+            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            case KEYWORD -> "test:RLIKE(\"%value.*\", \"abc.*\"), caseInsensitive=true";
+            case WILDCARD -> ":RLIKE(\"%value.*\", \"abc.*\"), caseInsensitive=true";
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
+    }
+
+    public void testNotLike() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
+        String esqlQuery = """
+            FROM test
+            | WHERE NOT (test like "%different_value*")
+            """;
+        /*
+         * With differentValue indexed, the LIKE query survives Lucene rewrite for KEYWORD and
+         * WILDCARD. Text types still produce *:* because LIKE on text is not pushed to Lucene.
+         */
+        String luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
+            case KEYWORD -> "-test:%different_value* #*:*";
+            case WILDCARD -> "-:PatternAutomatonProvider[matchPattern=%different_value*, caseInsensitive=false] #*:*";
+            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
+    }
+
+    public void testNotRLike() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
+        String esqlQuery = """
+            FROM test
+            | WHERE NOT (test rlike "%different_value.*")
+            """;
+        String luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
+            case KEYWORD -> "-test:/%different_value.*/ #*:*";
+            case WILDCARD ->
+                "-:RegexAutomatonProvider[value=%different_value.*, syntaxFlags=65791, matchFlags=0, maxDeterminizedStates=10000] #*:*";
+            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
+    }
+
+    public void testNotCaseInsensitiveRLike() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        // Must be lowercase so TO_LOWER(test) rlike "differentValue.*" is not statically folded to false
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()).toLowerCase(Locale.ROOT));
+        String esqlQuery = """
+            FROM test
+            | WHERE NOT (TO_LOWER(test) rlike "%different_value.*")
+            """;
+        String luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
+            case KEYWORD -> "-test:/%different_value.*/ #*:*";
+            case WILDCARD ->
+                "-:RegexAutomatonProvider[value=%different_value.*, syntaxFlags=65791, matchFlags=256, maxDeterminizedStates=10000] #*:*";
+            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
+    }
+
+    public void testOrNotLike() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
+        String esqlQuery = """
+            FROM test
+            | WHERE test == "cat" OR NOT (test like "%different_value*")
+            """;
+        List<String> luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> List.of("*:*");
+            case KEYWORD -> List.of("test:cat (-test:%different_value* #*:*)", "(-test:%different_value* #*:*) test:cat");
+            case WILDCARD -> List.of(": [cat] (-:PatternAutomatonProvider[matchPattern=%different_value*, caseInsensitive=false] #*:*)");
+            case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
+    }
+
+    public void testOrNotRLike() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
+        String esqlQuery = """
+            FROM test
+            | WHERE test == "cat" OR NOT (test rlike "%different_value.*")
+            """;
+        List<String> luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> List.of("*:*");
+            case KEYWORD -> List.of("test:cat (-test:/%different_value.*/ #*:*)", "(-test:/%different_value.*/ #*:*) test:cat");
+            case WILDCARD -> {
+                String regex = ":RegexAutomatonProvider[value=%different_value.*,"
+                    + " syntaxFlags=65791, matchFlags=0, maxDeterminizedStates=10000]";
+                yield List.of(": [cat] (-" + regex + " #*:*)");
+            }
+            case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
+    }
+
+    public void testOrNotCaseInsensitiveRLike() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        // Must be lowercase so TO_LOWER(test) rlike "differentValue.*" is not statically folded to false
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()).toLowerCase(Locale.ROOT));
+        String esqlQuery = """
+            FROM test
+            | WHERE test == "cat" OR NOT (TO_LOWER(test) rlike "%different_value.*")
+            """;
+        List<String> luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> List.of("*:*");
+            case KEYWORD -> List.of("test:cat (-test:/%different_value.*/ #*:*)", "(-test:/%different_value.*/ #*:*) test:cat");
+            case WILDCARD -> {
+                String regex = ":RegexAutomatonProvider[value=%different_value.*,"
+                    + " syntaxFlags=65791, matchFlags=256, maxDeterminizedStates=10000]";
+                yield List.of(": [cat] (-" + regex + " #*:*)");
+            }
+            case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
+    }
+
+    public void testAndNotLike() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
+        String esqlQuery = """
+            FROM test
+            | WHERE foo == 1 AND NOT (test like "%different_value*")
+            """;
+        /*
+         * foo:[1 TO 1] is optimized away when all docs have foo=1. SEMANTIC adds single_value_match.
+         */
+        List<String> luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> List.of("*:*");
+            case KEYWORD -> List.of("-test:%different_value* #*:*");
+            case WILDCARD -> List.of("-:PatternAutomatonProvider[matchPattern=%different_value*, caseInsensitive=false] #*:*");
+            case SEMANTIC_TEXT_WITH_KEYWORD -> List.of(
+                "FieldExistsQuery [field=_primary_term]",
+                "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
+                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
+            );
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
+    }
+
+    public void testAndNotRLike() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
+        String esqlQuery = """
+            FROM test
+            | WHERE foo == 1 AND NOT (test rlike "%different_value.*")
+            """;
+        List<String> luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> List.of("*:*");
+            case KEYWORD -> List.of("-test:/%different_value.*/ #*:*");
+            case WILDCARD -> List.of(
+                "-:RegexAutomatonProvider[value=%different_value.*, syntaxFlags=65791, matchFlags=0, maxDeterminizedStates=10000] #*:*"
+            );
+            case SEMANTIC_TEXT_WITH_KEYWORD -> List.of(
+                "FieldExistsQuery [field=_primary_term]",
+                "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
+                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
+            );
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
+    }
+
+    public void testAndNotCaseInsensitiveLike() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        // Must be lowercase so TO_LOWER(test) like "differentValue*" is not statically folded to false
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()).toLowerCase(Locale.ROOT));
+        String esqlQuery = """
+            FROM test
+            | WHERE foo == 1 AND NOT (TO_LOWER(test) like "%different_value*")
+            """;
+        List<String> luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> List.of("*:*");
+            case KEYWORD -> List.of("-CaseInsensitiveWildcardQuery{:%different_value*} #*:*");
+            case WILDCARD -> List.of("-:PatternAutomatonProvider[matchPattern=%different_value*, caseInsensitive=true] #*:*");
+            case SEMANTIC_TEXT_WITH_KEYWORD -> List.of(
+                "FieldExistsQuery [field=_primary_term]",
+                "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
+                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
+            );
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
+    }
+
+    public void testAndNotCaseInsensitiveRLike() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        // Must be lowercase so TO_LOWER(test) rlike "differentValue.*" is not statically folded to false
+        String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()).toLowerCase(Locale.ROOT));
+        String esqlQuery = """
+            FROM test
+            | WHERE foo == 1 AND NOT (TO_LOWER(test) rlike "%different_value.*")
+            """;
+        List<String> luceneQuery = switch (type) {
+            case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> List.of("*:*");
+            case KEYWORD -> List.of("-test:/%different_value.*/ #*:*");
+            case WILDCARD -> List.of(
+                "-:RegexAutomatonProvider[value=%different_value.*, syntaxFlags=65791, matchFlags=256, maxDeterminizedStates=10000] #*:*"
+            );
+            case SEMANTIC_TEXT_WITH_KEYWORD -> List.of(
+                "FieldExistsQuery [field=_primary_term]",
+                "#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]",
+                "#foo:[1 TO 1] #single_value_match(foo) #FieldExistsQuery [field=_primary_term]"
+            );
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, differentValue, esqlQuery, luceneQuery, dataNodeSignature, hasItem(List.of(value)));
+    }
+
     enum ComputeSignature {
         FILTER_IN_COMPUTE(
             matchesList().item("LuceneSourceOperator")

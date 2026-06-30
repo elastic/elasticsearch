@@ -63,8 +63,6 @@ public interface EncryptionService {
      * consumers in other plugins (e.g. ES|QL data sources) that build their own components before Guice wiring
      * is available and therefore cannot have the service injected. Plugin load ordering
      * guarantees the encryption plugin's {@code createComponents} runs before any consumer's.
-     *
-     * <p>The instance is set exactly once: {@link #set} rejects a second set, and {@link #get} fails if it is not set.
      */
     final class Holder {
 
@@ -87,13 +85,9 @@ public interface EncryptionService {
 
         /**
          * Registers the single {@link EncryptionService} instance.
-         *
-         * @throws IllegalStateException if an instance has already been set
          */
         public static void set(EncryptionService service) {
-            if (INSTANCE.compareAndSet(null, Objects.requireNonNull(service, "encryption service must not be null")) == false) {
-                throw new IllegalStateException("encryption service instance is already set");
-            }
+            INSTANCE.set(Objects.requireNonNull(service, "encryption service must not be null"));
         }
     }
 }

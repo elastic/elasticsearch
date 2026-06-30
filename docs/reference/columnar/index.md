@@ -125,7 +125,7 @@ Dynamic mapping behavior is controlled through configuration param `dynamic` tha
 - **true** (default): Enables the dynamic mapping behaviour as is described above.
 - **false**: Unmapped fields are not mapped or stored. Data in unmapped fields are lost.
 - **strict**: Documents containing unmapped fields don't get indexed, raising indexing errors instead.
-- **runtime**: This is not supported in columnar mode.
+- **runtime**: This option is not supported in columnar mode.
 
 ## Auto flattening [auto-flattening]
 

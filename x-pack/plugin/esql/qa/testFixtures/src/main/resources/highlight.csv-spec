@@ -12,6 +12,92 @@ The quick brown <em>fox</em> jumps over the lazy dog.
 ;
 
 
+# Custom prefix renames the generated highlight column from highlight_<field> to <prefix><field>.
+highlightCustomPrefix
+required_capability: highlight_v2
+
+ROW content = "The quick brown fox jumps over the lazy dog."
+| HIGHLIGHT prefix = "hl_" "fox" ON content
+| KEEP hl_content
+;
+
+hl_content:keyword
+The quick brown <em>fox</em> jumps over the lazy dog.
+;
+
+
+# If <prefix><field> collides with an existing column, HIGHLIGHT overwrites that name.
+highlightCustomPrefixShadowsExistingColumn
+required_capability: highlight_v2
+
+ROW content = "The quick brown fox jumps over the lazy dog."
+| EVAL hl_content = "shadowed"
+| HIGHLIGHT prefix = "hl_" "fox" ON content
+| KEEP hl_content
+;
+
+hl_content:keyword
+The quick brown <em>fox</em> jumps over the lazy dog.
+;
+
+
+# Empty prefix overwrites the source column name instead of creating highlight_<field>.
+# KEEP keeps the assertion stable even though overwritten columns are appended at the end.
+highlightEmptyPrefix
+required_capability: highlight_v2
+
+ROW content = "The quick brown fox jumps over the lazy dog."
+| HIGHLIGHT prefix = "" "fox" ON content
+| KEEP content
+;
+
+content:keyword
+The quick brown <em>fox</em> jumps over the lazy dog.
+;
+
+
+# Empty prefix applies the same overwrite behavior to each ON field.
+highlightEmptyPrefixMultipleFields
+required_capability: highlight_v2
+
+ROW title = "Return of the King", body = "Tolkien wrote the epic saga."
+| HIGHLIGHT prefix = "" "king tolkien" ON title, body
+| KEEP title, body
+;
+
+title:keyword              | body:keyword
+Return of the <em>King</em> | <em>Tolkien</em> wrote the epic saga.
+;
+
+
+# Non-empty prefix keeps the source column and adds <prefix><field>.
+highlightCustomPrefixKeepsOriginalColumn
+required_capability: highlight_v2
+
+ROW content = "The One Ring was forged by Sauron."
+| HIGHLIGHT prefix = "hl_" "ring" ON content
+| KEEP content, hl_content
+;
+
+content:keyword                    | hl_content:keyword
+The One Ring was forged by Sauron. | The One <em>Ring</em> was forged by Sauron.
+;
+
+
+# Prefix and WITH options can be used together.
+highlightCustomPrefixWithOptions
+required_capability: highlight_v2
+
+ROW content = "The quick brown fox jumps over the lazy dog."
+| HIGHLIGHT prefix = "hl_" "fox" ON content WITH { "pre_tags": ["<b>"], "post_tags": ["</b>"] }
+| KEEP hl_content
+;
+
+hl_content:keyword
+The quick brown <b>fox</b> jumps over the lazy dog.
+;
+
+
 # Custom pre/post tags via WITH.
 highlightCustomTags
 required_capability: highlight_v2
@@ -242,6 +328,25 @@ FROM books
 ;
 
 book_no:keyword | highlight_title:keyword
+2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+7350            | <em>Return</em> of the Shadow
+;
+
+
+# Empty prefix overwrite is preserved when HIGHLIGHT is pushed to data nodes by SORT.
+highlightEmptyPrefixPushedToDataNodes
+required_capability: highlight_v2
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT prefix = "" "return" ON title
+| SORT title
+| LIMIT 1000
+| KEEP book_no, title
+;
+
+book_no:keyword | title:keyword
 2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
 7350            | <em>Return</em> of the Shadow
 ;

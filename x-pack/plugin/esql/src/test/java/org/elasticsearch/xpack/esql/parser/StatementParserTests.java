@@ -1268,18 +1268,59 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testHighlightRequiresQueryAndOnClause() {
         assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
-        // Both query and ON are grammatically required in v1. The plan node keeps `query` nullable
-        // and `fields` allowed-empty so the bare form can be enabled later without serialization changes.
+        // Query and ON are currently required by grammar.
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT"));
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\""));
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT ON title"));
     }
 
-    public void testHighlightRejectsPrefixSyntax() {
+    public void testHighlightCustomPrefix() {
         assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
-        // The plan node still carries a prefix field (hard-coded to "highlight_") so a future
-        // grammar extension can flip it on without breaking serialization.
-        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT prefix = \"h_\" \"elasticsearch\" ON title"));
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"h_\" \"elasticsearch\" ON title, body");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.prefix(), equalTo("h_"));
+        List<String> generated = highlight.generatedAttributes().stream().map(NamedExpression::name).toList();
+        assertThat(generated, equalTo(List.of("h_title", "h_body")));
+    }
+
+    public void testHighlightEmptyPrefixParses() {
+        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        // Empty prefix overwrites the source column name.
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"\" \"elasticsearch\" ON content");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.prefix(), equalTo(""));
+        List<String> generated = highlight.generatedAttributes().stream().map(NamedExpression::name).toList();
+        assertThat(generated, equalTo(List.of("content")));
+    }
+
+    public void testHighlightFieldNamedPrefix() {
+        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        // `prefix` remains a regular identifier and can still be used as a field name.
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON prefix");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.prefix(), equalTo("highlight_"));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(0)).name(), equalTo("prefix"));
+        List<String> generated = highlight.generatedAttributes().stream().map(NamedExpression::name).toList();
+        assertThat(generated, equalTo(List.of("highlight_prefix")));
+    }
+
+    public void testPrefixIsNotAReservedKeyword() {
+        // Guard that `prefix` is not treated as a reserved keyword.
+        as(query("FROM foo | EVAL prefix = 1"), Eval.class);
+        as(query("FROM foo | STATS x = COUNT(*) BY prefix"), Aggregate.class);
+        as(query("ROW prefix = 1"), Row.class);
+        as(query("FROM foo | KEEP prefix"), Keep.class);
+        as(query("FROM foo | WHERE prefix > 0"), Filter.class);
+    }
+
+    public void testHighlightRejectsUnknownModifier() {
+        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        // Only `prefix = ...` is accepted as a modifier.
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid modifier [bogus] in HIGHLIGHT, expected [prefix]"),
+            () -> query("FROM foo | HIGHLIGHT bogus = \"h_\" \"elasticsearch\" ON title")
+        );
     }
 
     public void testHighlightWithOptions() {

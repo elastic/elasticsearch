@@ -163,6 +163,9 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
     /**
      * Builds the {@code <prefix><field>} keyword output attributes for the given highlight fields.
      * The attributes are nullable because a field that the query does not match yields {@code null}.
+     * <p>
+     * Generated attributes always use a fresh {@link NameId}. If {@code <prefix><field>} matches an existing output
+     * column name, {@link #output()} keeps the generated one (same last-wins behavior as {@code EVAL}).
      */
     public static List<Attribute> generatedAttributesFor(Source source, String prefix, List<NamedExpression> fields) {
         return fields.stream()

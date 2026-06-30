@@ -33,6 +33,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 
 * `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
 * `dense_vector` {applies_to}`stack: preview 9.2+` {applies_to}`serverless: preview`
+* `flattened` {applies_to}`stack: preview 9.5.0`
 * `ip`
 * `keyword` [family](/reference/elasticsearch/mapping-reference/keyword.md) including `keyword`, `constant_keyword`, and `wildcard`
 * `int` (`short` and `byte` are represented as `int`)
@@ -74,7 +75,6 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * `binary`
     * `completion`
     * `double_range`
-    * `flattened`
     * `float_range`
     * `histogram`
     * `integer_range`

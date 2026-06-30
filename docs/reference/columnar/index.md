@@ -195,7 +195,7 @@ The `attributes` and `labels` object mappers are gone from `properties`; only th
 
 The following features are not supported in columnar index modes:
 
-- **nested field type**: The nested field type is not supported in columnar index modes.
+- **nested field type**: The nested field type is supported in a limited fashion in the columnar index modes. Nesting of nested field types is not supported.
 - **Mapping-level runtime fields**: Defining runtime fields in the index mappings is rejected. Runtime fields can still be defined on individual search requests.
 - **Disabling doc values**: Mapped fields cannot disable doc values. Setting `doc_values` to `false` in mappings will be ignored.
 - **Field type without doc values support**: Field types that don't support doc values are not supported in columnar mode (e.g. `search_as_you_type`).

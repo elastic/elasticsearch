@@ -520,6 +520,7 @@ null       | false
 ;
 
 containsKeywordField
+required_capability: fn_contains
 from employees | sort emp_no | limit 3 | eval c = contains(first_name, last_name) | keep emp_no, c;
 
 emp_no:integer | c:boolean

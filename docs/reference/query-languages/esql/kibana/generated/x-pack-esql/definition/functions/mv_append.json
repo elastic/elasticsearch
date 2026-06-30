@@ -116,6 +116,24 @@
       "params" : [
         {
           "name" : "field1",
+          "type" : "flattened",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "field2",
+          "type" : "flattened",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "flattened"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field1",
           "type" : "geo_point",
           "optional" : false,
           "description" : ""

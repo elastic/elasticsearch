@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -83,6 +84,8 @@ import static org.hamcrest.Matchers.instanceOf;
 public class TestAnalyzer {
     private Configuration configuration = EsqlTestUtils.TEST_CFG;
     private EsqlFunctionRegistry functionRegistry = EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+    private AnalysisRegistry analysisRegistry = EsqlTestUtils.TEST_ANALYSIS_REGISTRY;
+
     private final Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
     private final Map<String, IndexResolution> lookupResolution = new HashMap<>();
     private final Map<LinkedIndexPattern, IndexResolution> lenientResolution = new HashMap<>();
@@ -114,6 +117,15 @@ public class TestAnalyzer {
      */
     public TestAnalyzer functionRegistry(EsqlFunctionRegistry functionRegistry) {
         this.functionRegistry = functionRegistry;
+        return this;
+    }
+
+    /**
+     * Set the {@link AnalysisRegistry} used to resolve analyzer names during verification.
+     * Defaults to {@link EsqlTestUtils#TEST_ANALYSIS_REGISTRY} (prebuilt analyzers only).
+     */
+    public TestAnalyzer analysisRegistry(AnalysisRegistry analysisRegistry) {
+        this.analysisRegistry = analysisRegistry;
         return this;
     }
 
@@ -876,6 +888,7 @@ public class TestAnalyzer {
             configuration,
             functionRegistry,
             PromqlFunctionRegistry.INSTANCE,
+            analysisRegistry,
             null,
             indexResolutions,
             lookupResolution,

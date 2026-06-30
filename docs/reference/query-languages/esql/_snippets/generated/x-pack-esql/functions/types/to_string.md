@@ -13,6 +13,7 @@
 | dense_vector | keyword |
 | double | keyword |
 | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | keyword |
+| flattened {applies_to}`stack: preview 9.5.0` | keyword |
 | geo_point | keyword |
 | geo_shape | keyword |
 | geohash | keyword |

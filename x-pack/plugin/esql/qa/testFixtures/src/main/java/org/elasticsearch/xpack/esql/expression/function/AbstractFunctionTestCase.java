@@ -695,6 +695,74 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
         }
 
+        Boolean[] alwaysLiteral = new Boolean[args.size()];
+        List<Set<String>> usedAllowedValues = new ArrayList<>(args.size());
+        for (int i = 0; i < args.size(); i++) {
+            usedAllowedValues.add(new HashSet<>());
+        }
+        Set<Method> paramsFactories = new ClassModel(testClass).getAnnotatedLeafMethods(ParametersFactory.class).keySet();
+        if (paramsFactories.size() == 1) {
+            Method paramsFactory = paramsFactories.iterator().next();
+            try {
+                List<?> params = (List<?>) paramsFactory.invoke(null);
+                for (Object p : params) {
+                    TestCaseSupplier tcs = (TestCaseSupplier) ((Object[]) p)[0];
+                    try {
+                        TestCaseSupplier.TestCase tc = tcs.get();
+                        if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
+                            continue;
+                        }
+                        List<DocsV3Support.Param> sig = tc.getData()
+                            .stream()
+                            .map(d -> new DocsV3Support.Param(d.type(), d.appliesTo(), d.preview()))
+                            .toList();
+                        DocsV3Support.TypeSignature entry = new DocsV3Support.TypeSignature(
+                            signatureTypes(testClass, sig),
+                            tc.expectedType()
+                        );
+                        int initialProvidedParamIndex = getFirstParametersIndexForSignature(args, entry);
+                        List<TestCaseSupplier.TypedData> providedData = providedParameters(testClass, tc.getData());
+                        boolean hasVariadic = args.stream().anyMatch(EsqlFunctionRegistry.ArgSignature::variadic);
+                        assertTrue(
+                            "Subclass " + testClass.getSimpleName() + " failed to filter out injected parameters",
+                            hasVariadic || providedData.size() <= args.size() - initialProvidedParamIndex
+                        );
+                        for (int i = 0; i < providedData.size() && initialProvidedParamIndex + i < args.size(); i++) {
+                            int argIndex = initialProvidedParamIndex + i;
+                            TestCaseSupplier.TypedData argData = providedData.get(i);
+                            boolean isForceLiteral = argData.isForceLiteral();
+                            if (alwaysLiteral[argIndex] == null) {
+                                alwaysLiteral[argIndex] = isForceLiteral;
+                            } else {
+                                alwaysLiteral[argIndex] = alwaysLiteral[argIndex] && isForceLiteral;
+                            }
+                            if (isForceLiteral) {
+                                EsqlFunctionRegistry.ArgSignature arg = args.get(argIndex);
+                                boolean hasAllowedValues = arg.hint() != null
+                                    && arg.hint().allowedValues() != null
+                                    && arg.hint().allowedValues().isEmpty() == false;
+
+                                if (hasAllowedValues) {
+                                    Object data = argData.originalData() != null ? argData.originalData() : argData.data();
+                                    if (data instanceof String s) {
+                                        usedAllowedValues.get(argIndex).add(s.toLowerCase(Locale.ROOT));
+                                    } else if (data instanceof org.apache.lucene.util.BytesRef br) {
+                                        try {
+                                            usedAllowedValues.get(argIndex).add(br.utf8ToString().toLowerCase(Locale.ROOT));
+                                        } catch (Exception ignored) {
+                                            // random byte array doesn't matter
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (AssumptionViolatedException ignored) {}
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         for (int i = 0; i < args.size(); i++) {
             EsqlFunctionRegistry.ArgSignature arg = args.get(i);
             Set<String> annotationTypes = Arrays.stream(arg.type())
@@ -720,6 +788,27 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 signatureTypes,
                 annotationTypes
             );
+            if (alwaysLiteral[i] != null) {
+                if (alwaysLiteral[i]) {
+                    assertTrue(
+                        "Parameter [" + arg.name() + "] is always forced to be a literal in tests, so it must have the CONSTANT hint.",
+                        arg.hint() != null && "constant".equalsIgnoreCase(arg.hint().kind())
+                    );
+                    if (arg.hint() != null && arg.hint().allowedValues() != null && arg.hint().allowedValues().isEmpty() == false) {
+                        Set<String> declaredValues = new HashSet<>(arg.hint().allowedValues());
+                        assertEquals(
+                            "Tests must use all of the declared allowedValues for parameter [" + arg.name() + "].",
+                            declaredValues,
+                            usedAllowedValues.get(i)
+                        );
+                    }
+                } else {
+                    assertFalse(
+                        "Parameter [" + arg.name() + "] is not always a literal in tests, so it must not have the CONSTANT hint.",
+                        arg.hint() != null && "constant".equalsIgnoreCase(arg.hint().kind())
+                    );
+                }
+            }
         }
 
         Set<String> returnTypes = Arrays.stream(description.returnType())
@@ -881,10 +970,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
                     continue;
                 }
-                List<DocsV3Support.Param> sig = tc.getData()
-                    .stream()
-                    .map(d -> new DocsV3Support.Param(d.type(), d.appliesTo(), d.preview()))
-                    .toList();
+                List<DocsV3Support.Param> sig = tc.getData().stream().map(AbstractFunctionTestCase::docsParam).toList();
                 signatures.add(new DocsV3Support.TypeSignature(signatureTypes(testClass, sig), tc.expectedType()));
             } catch (AssumptionViolatedException ignored) {
                 // Throwing an AssumptionViolatedException in a test is a valid way of ignoring a test in junit.
@@ -894,6 +980,28 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return signatures;
     }
 
+    /**
+     * Builds the {@link DocsV3Support.Param} used to render a type in the generated "Supported types"
+     * tables, normalizing the {@code {applies_to}} lifecycle annotation for {@link DataType#FLATTENED}.
+     * <p>
+     * Flattened ships as a tech preview in 9.5.0, so every signature that accepts or returns it must be
+     * labeled exactly {@code stack: preview 9.5.0}. Flattened test cases are produced in many different
+     * places (per-function suppliers, the multivalue base class, generic representable-type loops, ...),
+     * and some of them additionally set the {@code serverless: preview} flag (e.g. via
+     * {@code previewTransform}). To keep every flattened row identical across functions, the lifecycle is
+     * normalized here: the {@code stack: preview 9.5.0} label is ensured and the redundant
+     * {@code serverless: preview} flag is dropped. Other types are passed through unchanged.
+     */
+    private static DocsV3Support.Param docsParam(TestCaseSupplier.TypedData data) {
+        if (data.type() != DataType.FLATTENED) {
+            return new DocsV3Support.Param(data.type(), data.appliesTo(), data.preview());
+        }
+        List<FunctionAppliesTo> appliesTo = data.appliesTo() == null || data.appliesTo().isEmpty()
+            ? List.of(TestCaseSupplier.appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false))
+            : data.appliesTo();
+        return new DocsV3Support.Param(DataType.FLATTENED, appliesTo, false);
+    }
+
     @SuppressWarnings("unchecked")
     private static List<DocsV3Support.Param> signatureTypes(Class<?> testClass, List<DocsV3Support.Param> types) {
         try {
@@ -901,6 +1009,23 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return (List<DocsV3Support.Param>) method.invoke(null, types);
         } catch (NoSuchMethodException ingored) {
             return types;
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /**
+     * Filters out implicitly injected parameters from test data by dynamically invoking
+     * {@code providedParameters} on the test class, if it is present. This ensures that CONSTANT
+     * hint validation only checks declared @Param arguments.
+     */
+    @SuppressWarnings("unchecked")
+    private static List<TestCaseSupplier.TypedData> providedParameters(Class<?> testClass, List<TestCaseSupplier.TypedData> params) {
+        try {
+            Method method = testClass.getMethod("providedParameters", List.class);
+            return (List<TestCaseSupplier.TypedData>) method.invoke(null, params);
+        } catch (NoSuchMethodException ignored) {
+            return params;
         } catch (Exception e) {
             throw new AssertionError(e);
         }

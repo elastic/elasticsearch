@@ -63,6 +63,8 @@ import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.DoubleHistogram;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -91,6 +93,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -106,6 +109,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.Strings.format;
@@ -211,6 +215,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";
     public static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
+    public static final String BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC = "es.bcc.timestamp_range.histogram";
+    public static final String BCC_MISSING_TIMESTAMP_METRIC = "es.bcc.missing_timestamp.total";
+    public static final String BCC_SIZE_ATTRIBUTE_KEY = "es_bcc_size";
 
     private final ClusterService clusterService;
     private final ObjectStoreService objectStoreService;
@@ -244,6 +251,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final LongHistogram bccSizeInMegabytesHistogram;
     private final LongHistogram bccNumberCommitsHistogram;
     private final LongHistogram bccAgeHistogram;
+    private final DoubleHistogram bccTimestampRangeHistogram;
+    private final LongCounter bccMissingTimestampCounter;
 
     /**
      * An estimate of the maximum size in bytes that the header and replicated contents are likely to fill in a region. This is used when a
@@ -251,6 +260,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * as the header and replicated content, in which case there is no need to replicate content for that file.
      */
     private final int estimatedMaxHeaderSizeInBytes;
+    private volatile boolean isNodeShuttingDown;
 
     public StatelessCommitService(
         Settings settings,
@@ -341,6 +351,21 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC,
                 "Histogram for elapsed time in milliseconds of batched compound commits before freezing",
                 "ms"
+            );
+        this.bccTimestampRangeHistogram = telemetryProvider.getMeterRegistry()
+            .registerDoubleHistogram(
+                BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC,
+                "Span of the max minus min @timestamp range of uploaded batched compound commits, in minutes, "
+                    + "broken down by the ["
+                    + BCC_SIZE_ATTRIBUTE_KEY
+                    + "] size bucket",
+                "minutes"
+            );
+        this.bccMissingTimestampCounter = telemetryProvider.getMeterRegistry()
+            .registerLongCounter(
+                BCC_MISSING_TIMESTAMP_METRIC,
+                "Number of uploaded batched compound commits where none of the compound commits have a @timestamp range",
+                "count"
             );
     }
 
@@ -858,8 +883,23 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         bccSizeInMegabytesHistogram.record(ByteSizeUnit.BYTES.toMB(virtualBcc.getTotalSizeInBytes()));
         bccNumberCommitsHistogram.record(virtualBcc.size());
         bccAgeHistogram.record(threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis());
+        recordBccTimestampRangeMetric(virtualBcc);
 
         bccUpload.run();
+    }
+
+    private void recordBccTimestampRangeMetric(VirtualBatchedCompoundCommit virtualBcc) {
+        final OptionalDouble spanMinutes = bccTimestampSpanMinutes(
+            virtualBcc.getPendingCompoundCommits().stream().map(pc -> pc.getStatelessCompoundCommit().getTimestampFieldValueRange())
+        );
+        if (spanMinutes.isEmpty()) {
+            bccMissingTimestampCounter.increment();
+        } else {
+            bccTimestampRangeHistogram.record(
+                spanMinutes.getAsDouble(),
+                Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(virtualBcc.getTotalSizeInBytes()))
+            );
+        }
     }
 
     ActionListener<BccUploadResult> newUploadTaskListener(
@@ -1037,6 +1077,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return getSafe(shardsCommitsStates, shardId).isDeletingIndex();
     }
 
+    public boolean isNodeShuttingDown() {
+        return isNodeShuttingDown;
+    }
+
     public void unregister(ShardId shardId) {
         ShardCommitState removed = shardsCommitsStates.remove(shardId);
         assert removed != null : shardId + " not registered";
@@ -1168,7 +1212,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return commitCleaner;
     }
 
-    public record RecoveryInfoFromSource(@Nullable SourceBlobsInfo sourceBlobsInfo, boolean hasRecentIdLookup) {}
+    public record RecoveryInfoFromSource(
+        @Nullable SourceBlobsInfo sourceBlobsInfo,
+        Set<BlobFile> lastCommitBlobs,
+        boolean lastCommitIsHollow,
+        boolean hasRecentIdLookup
+    ) {}
 
     public record SourceBlobsInfo(BlobFile latestBlobFile, long latestBlobFileLength, Set<BlobFile> otherBlobs) {}
 
@@ -3318,6 +3367,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         try {
+            if (event.state().metadata().nodeShutdowns().contains(event.state().nodes().getLocalNodeId())) {
+                isNodeShuttingDown = true;
+            }
             if (event.nodesDelta().removed()) {
                 var removedNodeIds = event.nodesDelta().removedNodes().stream().map(node -> node.getId()).collect(Collectors.toSet());
                 for (var shardCommitState : shardsCommitsStates.values()) {
@@ -3443,5 +3495,40 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             .map(e -> Tuple.tuple(e.getKey(), e.getValue().searchNodesRef.get()))
             .filter(e -> e.v2() != null && e.v2().isEmpty() == false)
             .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+    }
+
+    // visible for testing
+    static OptionalDouble bccTimestampSpanMinutes(final Stream<TimestampFieldValueRange> ranges) {
+        long min = Long.MAX_VALUE;
+        long max = Long.MIN_VALUE;
+        boolean any = false;
+        for (final Iterator<TimestampFieldValueRange> it = ranges.iterator(); it.hasNext();) {
+            final TimestampFieldValueRange range = it.next();
+            if (range == null) {
+                continue;
+            }
+            any = true;
+            min = Math.min(min, range.minMillis());
+            max = Math.max(max, range.maxMillis());
+        }
+        if (any == false) {
+            return OptionalDouble.empty();
+        }
+        // Subtract in double space so that for astronomically large spans we lose precision rather than overflow a Long.
+        return OptionalDouble.of(((double) max - (double) min) / 60_000d);
+    }
+
+    // visible for testing
+    static String bccSizeBucket(long totalSizeBytes) {
+        assert totalSizeBytes > 0 : "was " + totalSizeBytes;
+        if (totalSizeBytes <= ByteSizeUnit.MB.toBytes(16)) {
+            return "<=16MiB";
+        } else if (totalSizeBytes <= ByteSizeUnit.MB.toBytes(64)) {
+            return "<=64MiB";
+        } else if (totalSizeBytes <= ByteSizeUnit.MB.toBytes(256)) {
+            return "<=256MiB";
+        } else {
+            return ">256MiB";
+        }
     }
 }

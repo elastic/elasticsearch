@@ -39,6 +39,30 @@ count:long | integer:integer | short_int:integer
 2          | 5               | 50
 ;
 
+// Reproducer for #152184.
+partiallyUnmappedDenseVectorIsNotAutoCast
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_partially_unmapped_dense_vector
+
+SET unmapped_fields="load"\;
+FROM dense_vector, dense_vector_unmapped METADATA _index
+| KEEP _index, id, float_vector
+| SORT _index, id
+;
+
+_index: keyword       | id:l | float_vector:dense_vector
+dense_vector          | 0    | [1.0, 2.0, 3.0]
+dense_vector          | 1    | [4.0, 5.0, 6.0]
+dense_vector          | 2    | [9.0, 8.0, 7.0]
+dense_vector          | 3    | [0.0625, 0.25, 0.75]
+dense_vector          | 4    | null
+dense_vector_unmapped | 0    | null
+dense_vector_unmapped | 1    | null
+dense_vector_unmapped | 2    | null
+dense_vector_unmapped | 3    | null
+dense_vector_unmapped | 4    | null
+;
+
 
 // These ones verify we don't do anything extra when unmapped_fields is not set to "load"
 doesNotLoadUnmappedFieldsSort

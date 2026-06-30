@@ -237,7 +237,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             pageSize,
             LuceneOperator.NO_LIMIT,
             false, // no scoring
-            () -> 0L
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE
         );
         return luceneFactory.get(context);
     }
@@ -1557,7 +1558,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomPageSize(),
             LuceneOperator.NO_LIMIT,
             false, // no scoring
-            () -> 0L
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE
         );
         try (
             Driver driver = TestDriverFactory.create(
@@ -2225,7 +2227,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 1000,
                 LuceneOperator.NO_LIMIT,
                 false, // no scoring
-                () -> 0L
+                () -> 0L,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE
             );
             MappedFieldType ft = mapperService.fieldType("key");
             var readerFactory = new ValuesSourceReaderOperator.Factory(

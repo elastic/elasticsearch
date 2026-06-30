@@ -43,6 +43,12 @@ import java.util.List;
  *                         {@link FormatReader#withSchema}, which carries the projection. Empty
  *                         list and {@code null} both mean "no schema"; the compact constructor
  *                         collapses empty to {@code null} so readers do one check.
+ * @param splitStartByte   file-global byte offset at which this split begins (i.e. {@code FileSplit.offset()}).
+ *                         Text readers add the bytes they consume to this anchor to emit a file-global,
+ *                         split-invariant start byte per record for the {@code _rowPosition} channel
+ *                         (the substrate of {@code _file.record_ref} / {@code _id}). {@code 0} for the
+ *                         whole-file (non-split) case and for columnar formats, which derive a file-global
+ *                         row index from their own footer/stripe metadata rather than from a byte anchor.
  * @param maxRecordBytes   maximum bytes a single text record may occupy while split/trim code
  *                         scans for a record boundary.
  */
@@ -55,6 +61,7 @@ public record FormatReadContext(
     boolean lastSplit,
     boolean recordAligned,
     @Nullable List<Attribute> readSchema,
+    long splitStartByte,
     int maxRecordBytes
 ) {
 
@@ -91,6 +98,7 @@ public record FormatReadContext(
             lastSplit,
             recordAligned,
             readSchema,
+            splitStartByte,
             maxRecordBytes
         );
     }
@@ -108,6 +116,7 @@ public record FormatReadContext(
             lastSplit,
             recordAligned,
             readSchema,
+            splitStartByte,
             maxRecordBytes
         );
     }
@@ -125,6 +134,7 @@ public record FormatReadContext(
             last,
             recordAligned,
             readSchema,
+            splitStartByte,
             maxRecordBytes
         );
     }
@@ -146,6 +156,7 @@ public record FormatReadContext(
         private boolean recordAligned = false;
         @Nullable
         private List<Attribute> readSchema = null;
+        private long splitStartByte = 0L;
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
 
         private Builder() {}
@@ -195,6 +206,12 @@ public record FormatReadContext(
             return this;
         }
 
+        /** See {@link FormatReadContext#splitStartByte()}; the file-global byte offset of this split's start. */
+        public Builder splitStartByte(long splitStartByte) {
+            this.splitStartByte = splitStartByte;
+            return this;
+        }
+
         public Builder maxRecordBytes(int maxRecordBytes) {
             this.maxRecordBytes = maxRecordBytes;
             return this;
@@ -213,6 +230,7 @@ public record FormatReadContext(
                 lastSplit,
                 recordAligned,
                 readSchema,
+                splitStartByte,
                 maxRecordBytes
             );
         }

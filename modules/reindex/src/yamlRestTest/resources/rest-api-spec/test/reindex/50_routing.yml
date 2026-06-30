@@ -51,3 +51,110 @@
         index:   dest
         id:      "1"
   - is_false: _routing
+
+---
+"Slice alias keep command":
+  - requires:
+      cluster_features: ["index.slice_indexing"]
+      reason: "requires _slice destination routing alias support"
+
+  - do:
+      index:
+        index:  source_keep
+        id:     "1"
+        routing: r1
+        body:   { "company": "cat" }
+  - do:
+      index:
+        index:  source_keep
+        id:     "2"
+        routing: r2
+        body:   { "company": "dog" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.create:
+        index: dest_keep
+        body:
+          settings:
+            index.slice.enabled: true
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: source_keep
+          dest:
+            index: dest_keep
+            _slice: keep
+  - match: {created: 2}
+  - match: {noops: 0}
+
+  - do:
+      get:
+        index:   dest_keep
+        id:      "1"
+        _slice: r1
+  - match: { _routing: r1 }
+
+  - do:
+      get:
+        index:   dest_keep
+        id:      "2"
+        _slice: r2
+  - match: { _routing: r2 }
+
+---
+"Slice alias equals command":
+  - requires:
+      cluster_features: ["index.slice_indexing"]
+      reason: "requires _slice destination routing alias support"
+
+  - do:
+      index:
+        index:  source_equals
+        id:     "1"
+        body:   { "company": "cat" }
+  - do:
+      index:
+        index:  source_equals
+        id:     "2"
+        body:   { "company": "dog" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.create:
+        index: dest_equals
+        body:
+          settings:
+            index.slice.enabled: true
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: source_equals
+          dest:
+            index: dest_equals
+            _slice: =s1
+  - match: {created: 2}
+  - match: {noops: 0}
+
+  - do:
+      get:
+        index:   dest_equals
+        id:      "1"
+        _slice: s1
+  - match: { _routing: s1 }
+
+  - do:
+      get:
+        index:   dest_equals
+        id:      "2"
+        _slice: s1
+  - match: { _routing: s1 }
+

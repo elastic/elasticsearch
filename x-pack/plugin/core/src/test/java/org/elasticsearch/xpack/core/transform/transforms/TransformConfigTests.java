@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
@@ -52,6 +54,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransformConfigTests extends AbstractSerializingTransformTestCase<TransformConfig> {
 
@@ -1172,6 +1175,38 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
               }
             }""", "cross-project");
         assertNull(transformConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(new CrossProjectModeDecider(Settings.EMPTY), null));
+    }
+
+    public void testCloudApiKeyIdExposedOnPublicGet() throws IOException {
+        TransformConfig withCredential = new TransformConfig.Builder(randomTransformConfigWithoutHeaders()).setCredentialId("cred-abc")
+            .build();
+        TransformConfig withoutCredential = new TransformConfig.Builder(randomTransformConfigWithoutHeaders()).setCredentialId(null)
+            .build();
+        ToXContent.Params internalParams = new ToXContent.MapParams(Map.of(TransformField.FOR_INTERNAL_STORAGE, "true"));
+        ToXContent.Params excludeParams = new ToXContent.MapParams(Map.of(TransformField.EXCLUDE_GENERATED, "true"));
+
+        Map<String, Object> publicResult = toMap(withCredential, ToXContent.EMPTY_PARAMS);
+        assertThat(XContentMapValues.extractValue("authorization.cloud_api_key.id", publicResult), equalTo("cred-abc"));
+        assertThat(XContentMapValues.extractValue("credential_id", publicResult), nullValue());
+
+        // No credential: no cloud_api_key block.
+        Map<String, Object> noCredResult = toMap(withoutCredential, ToXContent.EMPTY_PARAMS);
+        assertThat(XContentMapValues.extractValue("authorization.cloud_api_key", noCredResult), nullValue());
+
+        // Internal storage: raw credential_id present; no cloud_api_key block.
+        Map<String, Object> internalResult = toMap(withCredential, internalParams);
+        assertThat(XContentMapValues.extractValue("credential_id", internalResult), equalTo("cred-abc"));
+        assertThat(XContentMapValues.extractValue("authorization.cloud_api_key", internalResult), nullValue());
+
+        // exclude_generated=true: neither field present.
+        Map<String, Object> excludeResult = toMap(withCredential, excludeParams);
+        assertThat(XContentMapValues.extractValue("authorization.cloud_api_key", excludeResult), nullValue());
+        assertThat(XContentMapValues.extractValue("credential_id", excludeResult), nullValue());
+    }
+
+    private static Map<String, Object> toMap(TransformConfig config, ToXContent.Params params) throws IOException {
+        return XContentHelper.convertToMap(XContentHelper.toXContent(config, XContentType.JSON, params, false), false, XContentType.JSON)
+            .v2();
     }
 
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {

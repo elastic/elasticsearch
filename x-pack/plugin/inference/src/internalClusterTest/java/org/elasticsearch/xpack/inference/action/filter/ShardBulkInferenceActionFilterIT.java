@@ -259,7 +259,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         assertItemFailures(INDEX_NAME, () -> Map.of("embedding_field", List.of(List.of("foo", "bar"))), r -> {
             String expectedMessage = useLegacyFormat || SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled() == false
                 ? "expected [String|Number|Boolean]"
-                : "expected [String|Number|Boolean|InferenceString]";
+                : "expected [String|Number|Boolean|Object]";
             assertThat(rootCause(r.getFailure().getCause()).getMessage(), containsString(expectedMessage));
         });
     }
@@ -392,10 +392,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         assertItemFailures(
             INDEX_NAME,
             () -> Map.of("semantic_field", List.of(List.of("foo", "bar"))),
-            r -> assertThat(
-                rootCause(r.getFailure().getCause()).getMessage(),
-                containsString("expected [String|Number|Boolean|InferenceString]")
-            )
+            r -> assertThat(rootCause(r.getFailure().getCause()).getMessage(), containsString("expected [String|Number|Boolean|Object]"))
         );
     }
 

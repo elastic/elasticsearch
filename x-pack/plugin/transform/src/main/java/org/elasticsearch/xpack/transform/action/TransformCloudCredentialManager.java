@@ -81,6 +81,15 @@ public class TransformCloudCredentialManager {
     }
 
     /**
+     * Returns {@code client} wrapped with {@code persisted} so downstream actions authenticate
+     * with the transform's stored internal cloud credential, or the original {@code client} when
+     * {@code persisted} is {@code null}.
+     */
+    public Client wrapWithPersistedIfPresent(Client client, @Nullable PersistedCloudCredential persisted) {
+        return credentialManager.wrapClient(client, persisted);
+    }
+
+    /**
      * Converts a {@link PersistedCloudCredential} (internal API key from storage) into a
      * {@link CloudCredential} suitable for attaching to a validate-transform request payload.
      * Closes {@code persisted} after conversion — the returned credential is owned by the caller

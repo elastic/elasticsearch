@@ -1,0 +1,6 @@
+pr: 152179
+summary: Add timeout support to the update inference endpoint API
+area: Inference
+type: enhancement
+issues:
+ - 140501

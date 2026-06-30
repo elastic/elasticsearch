@@ -12,10 +12,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
@@ -25,6 +27,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase<RateLimitSettings> {
@@ -122,6 +125,37 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         assertThat(settings, sameInstance(defaultValue));
         assertTrue(settings.isEnabled());
         assertTrue(validationException.validationErrors().isEmpty());
+    }
+
+    public void testCreateParser_RequestsPerMinutePresent_ReturnsParsedValue() throws IOException {
+        var settings = parseRateLimit(
+            Strings.format("{\"%s\": %d}", RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_REQUESTS_PER_MINUTE),
+            randomBoolean(),
+            createRandom()
+        );
+
+        assertThat(settings, is(new RateLimitSettings(TEST_REQUESTS_PER_MINUTE)));
+    }
+
+    public void testCreateParser_EmptyObject_ReturnsDefaultValue() throws IOException {
+        var defaultValue = createRandom();
+
+        var settings = parseRateLimit("{}", randomBoolean(), defaultValue);
+
+        assertThat(settings, sameInstance(defaultValue));
+    }
+
+    public void testCreateParser_EmptyObject_NullDefault_ReturnsNull() throws IOException {
+        var settings = parseRateLimit("{}", randomBoolean(), null);
+
+        assertThat(settings, is(nullValue()));
+    }
+
+    private RateLimitSettings parseRateLimit(String json, boolean ignoreUnknownFields, @Nullable RateLimitSettings defaultValue)
+        throws IOException {
+        try (var parser = createParser(JsonXContent.jsonXContent, json)) {
+            return RateLimitSettings.createParser(ignoreUnknownFields, defaultValue).apply(parser, null);
+        }
     }
 
     public void testOf_ZeroValue_AddsValidationError() {

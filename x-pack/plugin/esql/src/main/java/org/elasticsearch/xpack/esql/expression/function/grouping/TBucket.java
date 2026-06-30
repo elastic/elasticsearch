@@ -137,6 +137,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
         @Param(
             name = "buckets",
             type = { "integer", "date_period", "time_duration" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Target number of buckets, or desired bucket size. "
                 + "When a number is provided, the actual bucket size is derived from `from`/`to` "
                 + "or the `@timestamp` range in the query filter {applies_to}`stack: ga 9.4`. "
@@ -145,6 +146,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
         @Param(
             name = "from",
             type = { "date", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the "
                 + "query filter {applies_to}`stack: ga 9.4`."
@@ -152,6 +154,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
         @Param(
             name = "to",
             type = { "date", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "End of the range. Required with a numeric `buckets` when no `@timestamp` range is in the "
                 + "query filter {applies_to}`stack: ga 9.4`."

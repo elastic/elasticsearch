@@ -24,6 +24,7 @@ import static org.elasticsearch.threadpool.ScalingExecutorBuilder.HOT_THREADS_ON
 import static org.elasticsearch.threadpool.ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_INTERVAL_SETTING;
 import static org.elasticsearch.threadpool.ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_SIZE_THRESHOLD_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING;
+import static org.elasticsearch.threadpool.ThreadPool.WRITE_THREAD_POOL_UTILIZATION_EWMR_HALF_LIFE;
 import static org.elasticsearch.threadpool.ThreadPool.searchAutoscalingEWMA;
 
 public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
@@ -38,6 +39,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
         final int hotThreadsOnLargeQueueSizeThreshold = HOT_THREADS_ON_LARGE_QUEUE_SIZE_THRESHOLD_SETTING.get(settings);
         final TimeValue hotThreadsOnLargeQueueDurationThreshold = HOT_THREADS_ON_LARGE_QUEUE_DURATION_THRESHOLD_SETTING.get(settings);
         final TimeValue hotThreadsOnLargeQueueInterval = HOT_THREADS_ON_LARGE_QUEUE_INTERVAL_SETTING.get(settings);
+        final TimeValue writeThreadPoolUtilizationEWMRHalfLife = WRITE_THREAD_POOL_UTILIZATION_EWMR_HALF_LIFE.get(settings);
 
         Map<String, ExecutorBuilder> result = new HashMap<>();
         result.put(
@@ -66,6 +68,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                     .trackOngoingTasks()
                     .trackMaxQueueLatency()
                     .trackExecutionTime(indexAutoscalingEWMA)
+                    .threadUtilizationEwmrHalfLife(writeThreadPoolUtilizationEWMRHalfLife)
                     .build()
             )
         );

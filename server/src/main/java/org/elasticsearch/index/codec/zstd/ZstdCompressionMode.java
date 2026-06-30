@@ -21,7 +21,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.DirectAccessInput;
-import org.elasticsearch.nativeaccess.CloseableByteBuffer;
+import org.elasticsearch.foreign.CloseableByteBuffer;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.Zstd;
 

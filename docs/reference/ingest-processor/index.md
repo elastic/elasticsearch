@@ -1,9 +1,9 @@
 ---
 navigation_title: "Processor reference"
-mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/processors.html
 ---
+# Ingest processor reference
 
+<<<<<<<< HEAD:docs/reference/ingest-processor/index.md
 # Ingest processor reference [processors]
 
 :::{note}
@@ -219,3 +219,6 @@ Mark a plugin as mandatory by setting `plugin.mandatory` in `elasticsearch.yml`.
 ```yaml
 plugin.mandatory: my-ingest-plugin
 ```
+========
+This page has moved. Continue to the [Ingest processor reference](/reference/ingest-processor/index.md).
+>>>>>>>> main:docs/reference/enrich-processor/index.md

@@ -17,6 +17,7 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql'))
   javaRestTestImplementation(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
   yamlRestTestImplementation project(xpackModule('esql:qa:server'))
+  javaRestTestImplementation(testArtifact(project(":modules:ip-location")))
 
   // S3 fixture infrastructure for external source distributed tests
   javaRestTestImplementation project(':test:fixtures:s3-fixture')

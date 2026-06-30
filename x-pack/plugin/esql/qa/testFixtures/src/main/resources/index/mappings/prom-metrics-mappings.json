@@ -1,0 +1,28 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "labels": {
+      "type": "passthrough",
+      "priority": 10,
+      "time_series_dimension": true,
+      "properties": {
+        "cpu": {
+          "type": "keyword"
+        },
+        "state": {
+          "type": "keyword"
+        }
+      }
+    },
+    "metrics": {
+      "properties": {
+        "cpu_time": {
+          "type": "double",
+          "time_series_metric": "gauge"
+        }
+      }
+    }
+  }
+}

@@ -67,10 +67,10 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         if (loggerProvider != null) {
             return;
         }
-        if (OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.get(settings) == false) {
+        if (OtelSdkSettings.TELEMETRY_LOGS_ENABLED.get(settings) == false) {
             return;
         }
-        String endpoint = OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT.get(settings);
+        String endpoint = OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT.get(settings);
         OtlpGrpcLogRecordExporterBuilder exporterBuilder = OtlpGrpcLogRecordExporter.builder().setEndpoint(endpoint);
         String authHeader = OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {

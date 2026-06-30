@@ -10,8 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
-import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.util.BytesRef;
@@ -19,13 +17,18 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ValueOrdering;
 
 /**
- * Centralizes doc values field creation, branching between single-valued ({@code multi_value=false}) and multi-valued
- * ({@code multi_value=true}) Lucene types.
+ * Centralizes doc values field creation for fields that declare {@code multi_value=false} or {@code multi_value=true}.
  * <p>
- * For single-valued fields, uses single-valued Lucene types ({@link NumericDocValuesField}, {@link SortedDocValuesField},
- * {@link BinaryDocValuesField}) which enforce single-valuedness natively and enable storage optimizations.
- * For multi-valued fields, uses multi-valued types ({@link SortedNumericDocValuesField}, {@link SortedSetDocValuesField},
- * {@link MultiValuedBinaryDocValuesField}).
+ * Sortable numeric and bytes doc values are <em>always</em> written using the multi-valued Lucene types
+ * ({@link SortedNumericDocValuesField}, {@link SortedSetDocValuesField}) regardless of the {@code multi_value} setting.
+ * This ensures compatibility with index sorting: Lucene's index-sort machinery ({@code SortedNumericSortField},
+ * {@code SortedSetSortField}) requires SORTED_NUMERIC / SORTED_SET doc values at segment-merge time.
+ * <p>
+ * Single-valuedness for {@code multi_value=false} fields is enforced at parse time via
+ * {@link FieldMapper#isSingleValueEnforced()}, not by the Lucene doc-values type.
+ * <p>
+ * The {@code multi_value} flag only governs binary doc values ({@link BinaryDocValuesField} vs
+ * {@link MultiValuedBinaryDocValuesField}), where the distinction is irrelevant to index sorting.
  */
 public class DocValuesFieldFactory {
 
@@ -48,27 +51,21 @@ public class DocValuesFieldFactory {
     }
 
     /**
-     * Adds a numeric doc values field. For {@code multi_value=false}, creates a {@link NumericDocValuesField} (single-valued).
-     * Otherwise, creates a {@link SortedNumericDocValuesField} (multi-valued).
+     * Adds a numeric doc values field as {@link SortedNumericDocValuesField}. Always uses the multi-valued Lucene type
+     * regardless of the {@code multi_value} setting, so that index-sort ({@code SortedNumericSortField}) works correctly
+     * at segment-merge time for {@code multi_value=false} fields.
      */
     public void addNumericField(LuceneDocument doc, String name, long value) {
-        if (isSingleValued()) {
-            doc.add(hasSkipper ? NumericDocValuesField.indexedField(name, value) : new NumericDocValuesField(name, value));
-        } else {
-            doc.add(hasSkipper ? SortedNumericDocValuesField.indexedField(name, value) : new SortedNumericDocValuesField(name, value));
-        }
+        doc.add(hasSkipper ? SortedNumericDocValuesField.indexedField(name, value) : new SortedNumericDocValuesField(name, value));
     }
 
     /**
-     * Adds a sorted (bytes) doc values field. For {@code multi_value=false}, creates a {@link SortedDocValuesField} (single-valued).
-     * Otherwise, creates a {@link SortedSetDocValuesField} (multi-valued).
+     * Adds a sorted bytes doc values field as {@link SortedSetDocValuesField}. Always uses the multi-valued Lucene type
+     * regardless of the {@code multi_value} setting, so that index-sort ({@code SortedSetSortField}) works correctly
+     * at segment-merge time for {@code multi_value=false} fields.
      */
     public void addSortedField(LuceneDocument doc, String name, BytesRef value) {
-        if (isSingleValued()) {
-            doc.add(hasSkipper ? SortedDocValuesField.indexedField(name, value) : new SortedDocValuesField(name, value));
-        } else {
-            doc.add(hasSkipper ? SortedSetDocValuesField.indexedField(name, value) : new SortedSetDocValuesField(name, value));
-        }
+        doc.add(hasSkipper ? SortedSetDocValuesField.indexedField(name, value) : new SortedSetDocValuesField(name, value));
     }
 
     /**

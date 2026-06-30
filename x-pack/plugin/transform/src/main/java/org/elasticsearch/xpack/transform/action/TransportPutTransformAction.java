@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -46,11 +47,14 @@ import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.TransformConfigAutoMigration;
+import org.elasticsearch.xpack.transform.TransformExtensionHolder;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.AuthorizationStatePersistenceUtils;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
+import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 
 import java.time.Instant;
 import java.util.function.BooleanSupplier;
@@ -70,6 +74,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     private final TransformConfigAutoMigration transformConfigAutoMigration;
     private final BooleanSupplier hasLinkedProjects;
     private final ProjectResolver projectResolver;
+    private final TransformExtensionHolder extension;
     private final TransformCloudCredentialManager cloudCredentialManager;
 
     @Inject
@@ -83,7 +88,8 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         TransformServices transformServices,
         Client client,
         TransformConfigAutoMigration transformConfigAutoMigration,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        TransformExtensionHolder extension
     ) {
         super(
             PutTransformAction.NAME,
@@ -98,6 +104,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
         this.transformConfigManager = transformServices.configManager();
+        this.extension = extension;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
@@ -111,6 +118,11 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     @Override
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
+        if (request.isDeferValidation() == false && TransformNodes.hasNoTransformNodes(clusterState)) {
+            TransformNodes.completeWithNoTransformNodeException(listener);
+            return;
+        }
+        TransformNodes.warnIfNoTransformNodes(projectResolver.getProjectMetadata(clusterState), clusterState.getNodes());
 
         if (TransformMetadata.isUpgradeMode(projectResolver.getProjectMetadata(clusterState))) {
             listener.onFailure(
@@ -134,18 +146,18 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             return;
         }
 
-        // <4> Create the transform, stamping the minted tokenId (if any) onto the config so the
+        // <5> Create the transform, stamping the minted tokenId (if any) onto the config so the
         // running task and indexer can later load the credential by id.
         ActionListener<String> mintCredentialListener = listener.delegateFailureAndWrap(
             (l, mintedTokenId) -> putTransform(config.withCredentialId(mintedTokenId), mintedTokenId, l)
         );
 
-        // <3> Mint cloud credential if UIAM is present (no-op when the feature is off: mintAndPersist
+        // <4> Mint cloud credential if UIAM is present (no-op when the feature is off: mintAndPersist
         // sees no caller credential and responds with a null tokenId).
         ActionListener<ValidateTransformAction.Response> validateTransformListener = mintCredentialListener
             .delegateFailureIgnoreResponseAndWrap(l -> cloudCredentialManager.mintAndPersist(transformId, l));
 
-        // <2> Validate source and destination indices
+        // <3> Validate source and destination indices
         var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         var parentTaskClient = new ParentTaskAssigningClient(client, parentTaskId);
         ActionListener<Void> checkPrivilegesListener = validateTransformListener.delegateFailureAndWrap((l, aVoid) -> {
@@ -170,44 +182,62 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             );
         });
 
-        // <1> Early check to verify that the user can create the destination index and can read from the source
-        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
-            TransformPrivilegeChecker.checkPrivileges(
-                "create",
-                settings,
-                securityContext,
-                indexNameExpressionResolver,
-                clusterState,
-                client,
-                config,
-                true,
-                hasLinkedProjects.getAsBoolean(),
-                ActionListener.wrap(
-                    aVoid -> AuthorizationStatePersistenceUtils.persistAuthState(
-                        settings,
-                        transformConfigManager,
-                        transformId,
-                        AuthorizationState.green(),
-                        checkPrivilegesListener
-                    ),
-                    e -> {
-                        if (request.isDeferValidation()) {
-                            AuthorizationStatePersistenceUtils.persistAuthState(
-                                settings,
-                                transformConfigManager,
-                                transformId,
-                                AuthorizationState.red(e),
-                                checkPrivilegesListener
-                            );
-                        } else {
-                            checkPrivilegesListener.onFailure(e);
+        // <2> Early check to verify that the user can create the destination index and can read from the source
+        ActionListener<Void> createIndexListener = checkPrivilegesListener.delegateFailureAndWrap((l, r) -> {
+            if (XPackSettings.SECURITY_ENABLED.get(settings)) {
+                TransformPrivilegeChecker.checkPrivileges(
+                    "create",
+                    settings,
+                    securityContext,
+                    indexNameExpressionResolver,
+                    clusterState,
+                    client,
+                    config,
+                    true,
+                    hasLinkedProjects.getAsBoolean(),
+                    ActionListener.wrap(
+                        aVoid -> AuthorizationStatePersistenceUtils.persistAuthState(
+                            settings,
+                            transformConfigManager,
+                            transformId,
+                            AuthorizationState.green(),
+                            l
+                        ),
+                        e -> {
+                            if (request.isDeferValidation()) {
+                                AuthorizationStatePersistenceUtils.persistAuthState(
+                                    settings,
+                                    transformConfigManager,
+                                    transformId,
+                                    AuthorizationState.red(e),
+                                    l
+                                );
+                            } else {
+                                l.onFailure(e);
+                            }
                         }
-                    }
-                )
-            );
-        } else { // No security enabled, just move on
-            checkPrivilegesListener.onResponse(null);
-        }
+                    )
+                );
+            } else { // No security enabled, just move on
+                l.onResponse(null);
+            }
+        });
+
+        // <1> Check the latest internal index (IMPORTANT: according to _this_ node, which might be newer than master) is installed
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(
+            clusterService,
+            new ParentTaskAssigningClient(client, parentTaskId),
+            extension.getTransformExtension().getTransformInternalIndexAdditionalSettings(),
+            createIndexListener.delegateResponse((l, e) -> {
+                l.onFailure(
+                    new ElasticsearchStatusException(
+                        TransformMessages.REST_PUT_FAILED_CREATING_TRANSFORM_INDEX,
+                        RestStatus.SERVICE_UNAVAILABLE,
+                        ExceptionsHelper.unwrapCause(e)
+                    )
+                );
+            })
+        );
     }
 
     @Override

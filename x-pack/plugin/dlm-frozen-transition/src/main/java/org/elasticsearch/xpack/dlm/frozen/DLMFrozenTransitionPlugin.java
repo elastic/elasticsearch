@@ -99,7 +99,8 @@ public class DLMFrozenTransitionPlugin extends Plugin {
             services.clusterService(),
             originClient,
             getLicenseStateSupplier(),
-            dlmFrozenTransitionExecutor
+            dlmFrozenTransitionExecutor,
+            transitionSettings
         );
 
         transitionService.init();
@@ -122,6 +123,10 @@ public class DLMFrozenTransitionPlugin extends Plugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(DLMFrozenTransitionService.POLL_INTERVAL_SETTING, DLMFrozenCleanupService.POLL_INTERVAL_SETTING);
+        return List.of(
+            DLMFrozenTransitionService.POLL_INTERVAL_SETTING,
+            DLMFrozenCleanupService.POLL_INTERVAL_SETTING,
+            DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING
+        );
     }
 }

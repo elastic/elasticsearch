@@ -157,7 +157,7 @@ public class RetryTests extends ESIntegTestCase {
     private void testCase(
         String action,
         Function<Client, AbstractBulkByPaginatedSearchRequestBuilder<?, ?>> request,
-        BulkIndexByScrollResponseMatcher matcher
+        BulkIndexByPaginatedSearchResponseMatcher matcher
     ) throws Exception {
         /*
          * These test cases work by stuffing the bulk queue of a single node and

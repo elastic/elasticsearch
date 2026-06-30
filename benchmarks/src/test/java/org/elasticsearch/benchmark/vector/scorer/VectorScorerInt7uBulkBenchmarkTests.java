@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.benchmark.vector.VectorImplementation;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
 import java.util.List;

@@ -121,20 +121,18 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                     public void doExecute(Task task, Request request, ActionListener<Response> listener) {
                         chunkedFetchUsed.set(true);
                         FetchSearchResult fetchResult = new FetchSearchResult();
-                        try {
-                            // Return result based on context ID
-                            SearchShardTarget target = request.getShardFetchRequest().contextId().equals(ctx1)
-                                ? shardTarget1
-                                : shardTarget2;
-                            int docId = request.getShardFetchRequest().contextId().equals(ctx1) ? 42 : 43;
+                        // Return result based on context ID
+                        SearchShardTarget target = request.getShardFetchRequest().contextId().equals(ctx1) ? shardTarget1 : shardTarget2;
+                        int docId = request.getShardFetchRequest().contextId().equals(ctx1) ? 42 : 43;
 
-                            fetchResult.setSearchShardTarget(target);
-                            SearchHits hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(docId) },
-                                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                                1.0F
-                            );
-                            fetchResult.shardResult(hits, fetchProfile(profiled));
+                        fetchResult.setSearchShardTarget(target);
+                        SearchHits hits = new SearchHits(
+                            new SearchHit[] { new SearchHit(docId) },
+                            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                            1.0F
+                        );
+                        fetchResult.shardResult(hits, fetchProfile(profiled));
+                        try {
                             listener.onResponse(new Response(fetchResult));
                         } finally {
                             fetchResult.decRef();
@@ -206,18 +204,16 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                     public void doExecute(Task task, Request request, ActionListener<Response> listener) {
                         chunkedFetchUsed.set(true);
                         FetchSearchResult fetchResult = new FetchSearchResult();
+                        SearchShardTarget target = request.getShardFetchRequest().contextId().equals(ctx1) ? shardTarget1 : shardTarget2;
+                        int docId = request.getShardFetchRequest().contextId().equals(ctx1) ? 42 : 43;
+                        fetchResult.setSearchShardTarget(target);
+                        SearchHits hits = new SearchHits(
+                            new SearchHit[] { new SearchHit(docId) },
+                            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                            1.0F
+                        );
+                        fetchResult.shardResult(hits, fetchProfile(profiled));
                         try {
-                            SearchShardTarget target = request.getShardFetchRequest().contextId().equals(ctx1)
-                                ? shardTarget1
-                                : shardTarget2;
-                            int docId = request.getShardFetchRequest().contextId().equals(ctx1) ? 42 : 43;
-                            fetchResult.setSearchShardTarget(target);
-                            SearchHits hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(docId) },
-                                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                                1.0F
-                            );
-                            fetchResult.shardResult(hits, fetchProfile(profiled));
                             listener.onResponse(new Response(fetchResult));
                         } finally {
                             fetchResult.decRef();
@@ -297,14 +293,14 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                         }
 
                         FetchSearchResult fetchResult = new FetchSearchResult();
+                        fetchResult.setSearchShardTarget(shardTarget1);
+                        SearchHits hits = new SearchHits(
+                            new SearchHit[] { new SearchHit(42) },
+                            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                            1.0F
+                        );
+                        fetchResult.shardResult(hits, fetchProfile(profiled));
                         try {
-                            fetchResult.setSearchShardTarget(shardTarget1);
-                            SearchHits hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(42) },
-                                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                                1.0F
-                            );
-                            fetchResult.shardResult(hits, fetchProfile(profiled));
                             listener.onResponse(new Response(fetchResult));
                         } finally {
                             fetchResult.decRef();
@@ -379,14 +375,14 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                         }
 
                         FetchSearchResult fetchResult = new FetchSearchResult();
+                        fetchResult.setSearchShardTarget(shardTarget1);
+                        SearchHits hits = new SearchHits(
+                            new SearchHit[] { new SearchHit(42) },
+                            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                            1.0F
+                        );
+                        fetchResult.shardResult(hits, fetchProfile(profiled));
                         try {
-                            fetchResult.setSearchShardTarget(shardTarget1);
-                            SearchHits hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(42) },
-                                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                                1.0F
-                            );
-                            fetchResult.shardResult(hits, fetchProfile(profiled));
                             listener.onResponse(new Response(fetchResult));
                         } finally {
                             fetchResult.decRef();
@@ -821,17 +817,17 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
             ) {
                 traditionalFetchUsed.set(true);
                 FetchSearchResult fetchResult = new FetchSearchResult();
-                try {
-                    SearchShardTarget target = request.contextId().equals(ctx1) ? shardTarget1 : shardTarget2;
-                    int docId = request.contextId().equals(ctx1) ? 42 : 43;
+                SearchShardTarget target = request.contextId().equals(ctx1) ? shardTarget1 : shardTarget2;
+                int docId = request.contextId().equals(ctx1) ? 42 : 43;
 
-                    fetchResult.setSearchShardTarget(target);
-                    SearchHits hits = new SearchHits(
-                        new SearchHit[] { new SearchHit(docId) },
-                        new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                        1.0F
-                    );
-                    fetchResult.shardResult(hits, fetchProfile(profiled));
+                fetchResult.setSearchShardTarget(target);
+                SearchHits hits = new SearchHits(
+                    new SearchHit[] { new SearchHit(docId) },
+                    new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                    1.0F
+                );
+                fetchResult.shardResult(hits, fetchProfile(profiled));
+                try {
                     listener.onResponse(fetchResult);
                 } finally {
                     fetchResult.decRef();

@@ -88,8 +88,10 @@ final class ES87TSDBDocValuesProducer extends DocValuesProducer {
                     state.segmentSuffix
                 );
 
-                readFields(in, state.fieldInfos);
-
+                readFields(in, state.fieldInfos, version);
+                if (version < ES87TSDBDocValuesFormat.VERSION_SKIPPER_MAX_VALUE_COUNT) {
+                    inferMaxValueCounts(state.fieldInfos);
+                }
             } catch (Throwable exception) {
                 priorE = exception;
             } finally {
@@ -846,6 +848,11 @@ final class ES87TSDBDocValuesProducer extends DocValuesProducer {
             public int docCount() {
                 return entry.docCount;
             }
+
+            @Override
+            public int maxValueCount() {
+                return entry.maxValueCount;
+            }
         };
     }
 
@@ -859,7 +866,7 @@ final class ES87TSDBDocValuesProducer extends DocValuesProducer {
         data.close();
     }
 
-    private void readFields(IndexInput meta, FieldInfos infos) throws IOException {
+    private void readFields(IndexInput meta, FieldInfos infos, int version) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             FieldInfo info = infos.fieldInfo(fieldNumber);
             if (info == null) {
@@ -867,7 +874,7 @@ final class ES87TSDBDocValuesProducer extends DocValuesProducer {
             }
             byte type = meta.readByte();
             if (info.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
-                skippers.put(info.number, readDocValueSkipperMeta(meta));
+                skippers.put(info.number, readDocValueSkipperMeta(meta, version));
             }
             if (type == ES87TSDBDocValuesFormat.NUMERIC) {
                 numerics.put(info.number, readNumeric(meta));
@@ -891,15 +898,66 @@ final class ES87TSDBDocValuesProducer extends DocValuesProducer {
         return entry;
     }
 
-    private static DocValuesSkipperEntry readDocValueSkipperMeta(IndexInput meta) throws IOException {
+    private static DocValuesSkipperEntry readDocValueSkipperMeta(IndexInput meta, int version) throws IOException {
         long offset = meta.readLong();
         long length = meta.readLong();
         long maxValue = meta.readLong();
         long minValue = meta.readLong();
         int docCount = meta.readInt();
         int maxDocID = meta.readInt();
+        int maxValueCount = docCount == 0 ? 0 : -1;
+        if (version >= ES87TSDBDocValuesFormat.VERSION_SKIPPER_MAX_VALUE_COUNT) {
+            maxValueCount = meta.readInt();
+        }
 
-        return new DocValuesSkipperEntry(offset, length, minValue, maxValue, docCount, maxDocID);
+        return new DocValuesSkipperEntry(offset, length, minValue, maxValue, docCount, maxDocID, maxValueCount);
+    }
+
+    private void inferMaxValueCounts(FieldInfos fieldInfos) {
+        for (IntObjectHashMap.IntObjectCursor<DocValuesSkipperEntry> cursor : skippers) {
+            DocValuesSkipperEntry entry = cursor.value;
+            if (entry.maxValueCount == -1 && entry.docCount != 0) {
+                FieldInfo info = fieldInfos.fieldInfo(cursor.key);
+                if (info != null) {
+                    int inferred = -1;
+                    switch (info.getDocValuesType()) {
+                        case NUMERIC, SORTED -> inferred = 1;
+                        case SORTED_NUMERIC -> {
+                            SortedNumericEntry sne = sortedNumerics.get(cursor.key);
+                            if (sne != null && sne.numValues == sne.numDocsWithField) {
+                                inferred = 1;
+                            }
+                        }
+                        case SORTED_SET -> {
+                            SortedSetEntry sse = sortedSets.get(cursor.key);
+                            if (sse != null) {
+                                if (sse.singleValueEntry != null) {
+                                    inferred = 1;
+                                } else if (sse.ordsEntry != null && sse.ordsEntry.numValues == sse.ordsEntry.numDocsWithField) {
+                                    inferred = 1;
+                                }
+                            }
+                        }
+                        case BINARY, NONE -> {
+                        }
+                    }
+                    if (inferred != -1) {
+                        skippers.put(
+                            cursor.key,
+                            new DocValuesSkipperEntry(
+                                entry.offset,
+                                entry.length,
+                                entry.minValue,
+                                entry.maxValue,
+                                entry.docCount,
+                                entry.maxDocId,
+                                inferred
+                            )
+                        );
+                    }
+                }
+            }
+        }
     }
 
     private static void readNumeric(IndexInput meta, NumericEntry entry) throws IOException {
@@ -1412,7 +1470,15 @@ final class ES87TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private record DocValuesSkipperEntry(long offset, long length, long minValue, long maxValue, int docCount, int maxDocId) {}
+    private record DocValuesSkipperEntry(
+        long offset,
+        long length,
+        long minValue,
+        long maxValue,
+        int docCount,
+        int maxDocId,
+        int maxValueCount
+    ) {}
 
     private static class NumericEntry {
         long docsWithFieldOffset;

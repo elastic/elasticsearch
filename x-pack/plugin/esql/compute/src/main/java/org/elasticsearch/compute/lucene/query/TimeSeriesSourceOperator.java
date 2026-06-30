@@ -52,7 +52,8 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
                 maxPageSize,
                 limit,
                 false,
-                directoryBytesRead
+                directoryBytesRead,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE
             );
         }
 

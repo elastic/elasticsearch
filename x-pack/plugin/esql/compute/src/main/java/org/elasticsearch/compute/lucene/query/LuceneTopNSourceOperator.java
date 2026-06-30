@@ -81,15 +81,14 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 contexts,
                 queryFunction,
                 dataPartitioning,
-                dataPartitioning == DataPartitioning.AUTO ? autoStrategy.pickStrategy(limit) : query -> {
-                    throw new UnsupportedOperationException("locked in " + dataPartitioning);
-                },
+                autoStrategy.pickStrategy(limit),
                 LuceneOperator.SMALL_INDEX_BOUNDARY,
                 taskConcurrency,
                 limit,
                 needsScore,
                 scoreModeFunction(sorts, needsScore),
-                directoryBytesRead
+                directoryBytesRead,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE
             );
             this.contexts = contexts;
             this.maxPageSize = maxPageSize;

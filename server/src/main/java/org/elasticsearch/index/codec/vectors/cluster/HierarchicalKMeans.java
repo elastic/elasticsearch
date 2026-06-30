@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
+import org.elasticsearch.core.WelfordVariance;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -146,18 +147,13 @@ public class HierarchicalKMeans<V> {
 
         // if we have a small number of vectors calculate the centroid directly
         if (vectors.size() <= targetSize) {
-            CentroidOps.FloatOps floatOps = (CentroidOps.FloatOps) ops;
-            float[] centroidF = floatOps.newCentroid(dimension);
-            for (int i = 0; i < vectors.size(); i++) {
-                float[] vector = (float[]) vectors.vectorValue(i);
-                floatOps.accumulate(centroidF, vector, dimension);
-            }
-            floatOps.divide(centroidF, vectors.size(), dimension);
-            @SuppressWarnings("unchecked")
-            V centroid = (V) centroidF;
+            V centroid = ops.computeMeanCentroid(vectors, dimension);
             V[] centroids = ops.newCentroidArrayShallow(1);
             centroids[0] = centroid;
-            return new KMeansIntermediate<>(centroids, new int[vectors.size()]);
+            KMeansIntermediate<V> result = new KMeansIntermediate<>(centroids, new int[vectors.size()]);
+            // All vectors are assigned to the single centroid (index 0)
+            result.setCentroids(centroids, new int[] { vectors.size() });
+            return result;
         }
 
         // partition the space
@@ -666,8 +662,8 @@ public class HierarchicalKMeans<V> {
         float[][] centroids = (float[][]) kMeansIntermediate.centroids();
         if (centroids.length > clustersPerNeighborhood) {
             neighborhoods = executor == null || numWorkers < 2
-                ? NeighborHood.computeNeighborhoods(centroids, clustersPerNeighborhood)
-                : NeighborHood.computeNeighborhoods(executor, numWorkers, centroids, clustersPerNeighborhood);
+                ? NeighborHood.computeNeighborhoods(CentroidOps.FLOAT, centroids, clustersPerNeighborhood)
+                : NeighborHood.computeNeighborhoods(CentroidOps.FLOAT, executor, numWorkers, centroids, clustersPerNeighborhood);
         }
 
         kMeansIntermediate.setSoarAssignments(new int[vectors.size()]);
@@ -1137,22 +1133,14 @@ public class HierarchicalKMeans<V> {
         int maxClusterSize = Integer.MIN_VALUE;
 
         // Use Welford's algorithm to compute the variance in one pass and compute min/max in the same loop
-        int count = 0;
-        double meanClusterSize = 0.0;
-        double M2 = 0.0; // Running sum of squares of differences
-
+        WelfordVariance clusterSizeStats = new WelfordVariance();
         for (int x : clusterSizes) {
-            count++;
-            double delta = x - meanClusterSize;
-            meanClusterSize += delta / count;
-            double delta2 = x - meanClusterSize;
-            M2 += delta * delta2;
+            clusterSizeStats.add(x);
             minClusterSize = Math.min(minClusterSize, x);
             maxClusterSize = Math.max(maxClusterSize, x);
         }
 
-        // M2 / clusterSizes.length is the variance
-        double stdClusterSizes = Math.sqrt(M2 / clusterSizes.length);
+        double stdClusterSizes = clusterSizeStats.populationStdDev();
 
         logger.debug(
             "Inertia: {}; Centroid count: {} min: {} max: {} mean: {} stdDev: {}",
@@ -1160,7 +1148,7 @@ public class HierarchicalKMeans<V> {
             clusterSizes.length,
             minClusterSize,
             maxClusterSize,
-            meanClusterSize,
+            clusterSizeStats.mean(),
             stdClusterSizes
         );
     }

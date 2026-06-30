@@ -11,9 +11,20 @@ package org.elasticsearch.gradle.internal.transport
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.BuildResult
+import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
 
 class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
+
+    @Override
+    GradleRunner gradleRunner(Object... arguments) {
+        // Strip CI branch env vars so tests are not affected by the branch name the CI build is running on.
+        // Tests that explicitly exercise CI behavior set these via .withEnvironment() themselves.
+        Map<String, String> env = new HashMap<>(System.getenv())
+        env.remove("BUILDKITE_BRANCH")
+        env.remove("BUILDKITE_PULL_REQUEST_BASE_BRANCH")
+        return super.gradleRunner(arguments).withEnvironment(env)
+    }
 
     def javaResource(String project, String path, String content) {
         file("${project}/src/main/resources/${path}").withWriter { writer ->

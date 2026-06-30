@@ -10,6 +10,7 @@ ant = "org.apache.ant:ant:1.10.12"
 antlrst4 = "org.antlr:ST4:4.3.4"
 apache-compress = "org.apache.commons:commons-compress:1.26.1"
 apache-rat = "org.apache.rat:apache-rat:0.11"
+archunit = "com.tngtech.archunit:archunit:1.4.0"
 asm = { group = "org.ow2.asm", name="asm", version.ref="asm" }
 asm-tree = { group = "org.ow2.asm", name="asm-tree", version.ref="asm" }
 bytebuddy = "net.bytebuddy:byte-buddy:1.15.11"

@@ -52,7 +52,9 @@ import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.TestSearchContext;
+import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -98,15 +100,13 @@ public class DfsPhaseTimeoutTests extends IndexShardTestCase {
         dir.close();
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeShard() throws Exception {
         indexShard = newShard(true);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeIndexShard() throws Exception {
         closeShards(indexShard);
     }
 

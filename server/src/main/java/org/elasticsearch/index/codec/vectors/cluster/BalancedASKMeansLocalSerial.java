@@ -55,6 +55,6 @@ class BalancedASKMeansLocalSerial<V> extends BalancedASKMeansLocal<V> {
 
     @Override
     protected NeighborHood[] computeNeighborhoods(V[] centroids, int clustersPerNeighborhood) throws IOException {
-        return NeighborHood.computeNeighborhoods(ops.toFloatCentroids(centroids), clustersPerNeighborhood);
+        return NeighborHood.computeNeighborhoods(ops, centroids, clustersPerNeighborhood);
     }
 }

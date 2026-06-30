@@ -84,6 +84,15 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
     private Object expected(Map<String, Object> fieldMapping, Object value, BlockLoaderTestCase.TestContext testContext) {
         assert fieldMapping.containsKey("fields");
 
+        var textFieldMapping = (Map<String, Object>) ((Map<String, Object>) fieldMapping.get("fields")).get("subfield_text");
+
+        // In strict-columnar mode the text subfield enables doc values by default, and the text loader reads its own doc values before
+        // ever delegating to the keyword parent, so the value comes from the subfield's own (source-ordered) doc values rather than the
+        // parent field's loader.
+        if (params.indexMode().isStrictColumnar()) {
+            return TextFieldBlockLoaderTests.expectedValue(textFieldMapping, value, params, testContext, false);
+        }
+
         Object normalizer = fieldMapping.get("normalizer");
         boolean docValues = hasDocValues(fieldMapping, true);
         boolean store = fieldMapping.getOrDefault("store", false).equals(true);
@@ -94,7 +103,6 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
         }
 
         // we are using block loader of the text field itself
-        var textFieldMapping = (Map<String, Object>) ((Map<String, Object>) fieldMapping.get("fields")).get("subfield_text");
         return TextFieldBlockLoaderTests.expectedValue(textFieldMapping, value, params, testContext, false);
     }
 }

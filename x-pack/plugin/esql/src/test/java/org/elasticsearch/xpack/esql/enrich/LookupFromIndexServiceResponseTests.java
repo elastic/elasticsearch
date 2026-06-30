@@ -44,7 +44,7 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
 
     LookupFromIndexService.LookupResponse createTestInstance(BlockFactory blockFactory) {
         String planString = randomBoolean() ? randomAlphaOfLength(20) : null;
-        return new LookupFromIndexService.LookupResponse(randomList(0, 10, () -> randomPage(blockFactory)), blockFactory, planString);
+        return new LookupFromIndexService.LookupResponse(randomList(0, 10, () -> randomPage(blockFactory)), blockFactory, planString, 0L);
     }
 
     /**
@@ -98,7 +98,7 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
             // Mutate planString
             planString = planString == null ? randomAlphaOfLength(20) : planString + "_mutated";
         }
-        return new LookupFromIndexService.LookupResponse(pages, instance.blockFactory, planString);
+        return new LookupFromIndexService.LookupResponse(pages, instance.blockFactory, planString, instance.bytesRead() + 1L);
     }
 
     public void testWithBreaker() throws IOException {
@@ -136,7 +136,8 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
         LookupFromIndexService.LookupResponse origWithPlan = new LookupFromIndexService.LookupResponse(
             randomList(0, 5, () -> randomPage(origFactory)),
             origFactory,
-            "test-plan-string"
+            "test-plan-string",
+            0L
         );
         try {
             LookupFromIndexService.LookupResponse copyWithPlan = copyInstance(
@@ -160,7 +161,8 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
         LookupFromIndexService.LookupResponse origWithoutPlan = new LookupFromIndexService.LookupResponse(
             randomList(0, 5, () -> randomPage(origFactory)),
             origFactory,
-            null
+            null,
+            0L
         );
         try {
             LookupFromIndexService.LookupResponse copyWithoutPlan = copyInstance(
@@ -209,7 +211,7 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
         BlockFactory pageFactory = blockFactory();
         BlockFactory writeToFactory = blockFactory(ByteSizeValue.ZERO);
         List<Page> pages = randomList(2, 5, () -> randomPage(pageFactory));
-        LookupFromIndexService.LookupResponse response = new LookupFromIndexService.LookupResponse(pages, writeToFactory, null);
+        LookupFromIndexService.LookupResponse response = new LookupFromIndexService.LookupResponse(pages, writeToFactory, null, 0L);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             expectThrows(CircuitBreakingException.class, () -> response.writeTo(out));
         } finally {
@@ -225,7 +227,8 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
         LookupFromIndexService.LookupResponse sender = new LookupFromIndexService.LookupResponse(
             originalPages,
             senderFactory,
-            randomBoolean() ? randomAlphaOfLength(20) : null
+            randomBoolean() ? randomAlphaOfLength(20) : null,
+            0L
         );
         BytesReference wireBytes;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -265,7 +268,8 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
         LookupFromIndexService.LookupResponse sender = new LookupFromIndexService.LookupResponse(
             randomList(pageCount, pageCount, () -> randomPage(senderFactory)),
             senderFactory,
-            randomAlphaOfLength(20) // ensure non-null planString so trailing bytes exist to truncate
+            randomAlphaOfLength(20), // ensure non-null planString so trailing bytes exist to truncate
+            0L
         );
         BytesReference wireBytes;
         try (BytesStreamOutput out = new BytesStreamOutput()) {

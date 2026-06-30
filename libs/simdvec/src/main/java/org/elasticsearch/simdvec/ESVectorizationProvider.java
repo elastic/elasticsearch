@@ -34,7 +34,7 @@ public abstract class ESVectorizationProvider {
 
     ESVectorizationProvider() {}
 
-    abstract ESVectorUtilSupport getVectorUtilSupport();
+    public abstract ESVectorUtilSupport getVectorUtilSupport();
 
     public abstract VectorScorerFactory getVectorScorerFactory();
 

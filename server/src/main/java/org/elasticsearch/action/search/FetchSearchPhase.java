@@ -19,6 +19,7 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocShardInfo;
 import org.elasticsearch.transport.Transport;
@@ -134,14 +135,11 @@ class FetchSearchPhase extends SearchPhase {
             ? SearchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, numShards)
             : null;
         final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
+        context.addReleasable(fetchResults);
         final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(
             fetchResults,
             docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
-            () -> {
-                try (fetchResults) {
-                    moveToNextPhase(fetchResults.getAtomicArray(), reducedQueryPhase, phaseStartTimeInNanos);
-                }
-            },
+            () -> moveToNextPhase(fetchResults.getAtomicArray(), reducedQueryPhase, phaseStartTimeInNanos),
             context
         );
         for (int i = 0; i < docIdsToLoad.length; i++) {
@@ -245,13 +243,17 @@ class FetchSearchPhase extends SearchPhase {
             listener.onFailure(e);
             return;
         }
+        ShardSearchRequest fetchShardSearchRequest = context.buildShardSearchRequest(
+            context.shardIterators[shardPhaseResult.getShardIndex()],
+            shardPhaseResult.getShardIndex()
+        );
         context.getSearchTransport()
             .sendExecuteFetch(
                 connection,
                 new ShardFetchSearchRequest(
                     context.getOriginalIndices(shardPhaseResult.getShardIndex()),
                     contextId,
-                    shardPhaseResult.getShardSearchRequest(),
+                    fetchShardSearchRequest,
                     entry,
                     rankDocs,
                     lastEmittedDocForShard,

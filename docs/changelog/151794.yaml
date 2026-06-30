@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 151794
+summary: "[Inference] Add requires org.apache.commons.lang3 to module-info"
+type: upgrade

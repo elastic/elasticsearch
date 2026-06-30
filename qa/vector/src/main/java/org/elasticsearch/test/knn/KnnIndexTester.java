@@ -523,6 +523,9 @@ public class KnnIndexTester {
                 if (testConfiguration.forceMerge()) {
                     forceMerge(knnIndexer, indexResults, sharedDir, testConfiguration, dataGenerator.getIndexSort());
                 }
+                if (testConfiguration.numDeletedDocs() > 0) {
+                    deleteDocuments(knnIndexer, indexResults, sharedDir, testConfiguration);
+                }
             }
             numSegments(indexPath, indexResults, sharedDir);
 
@@ -564,8 +567,49 @@ public class KnnIndexTester {
         }
     }
 
+    static void deleteDocuments(KnnIndexer knnIndexer, Results indexResults, Directory sharedDir, TestConfiguration testConfiguration)
+        throws Exception {
+        if (sharedDir != null) {
+            knnIndexer.deleteDocuments(
+                sharedDir,
+                indexResults,
+                testConfiguration.numDocs(),
+                testConfiguration.numDeletedDocs(),
+                testConfiguration.deleteSeed()
+            );
+        } else {
+            knnIndexer.deleteDocuments(
+                indexResults,
+                testConfiguration.numDocs(),
+                testConfiguration.numDeletedDocs(),
+                testConfiguration.deleteSeed()
+            );
+        }
+    }
+
+    private static final String DISKSTATS_DEVICE = System.getProperty("bench.device", "nvme1n1");
+
     private static void logDiagnostics(DirectoryTypeConfig dirConfig, Directory dir, String label) {
         dirConfig.diagnosticLogger().accept(dir, label);
+        logDiskStats(label);
+    }
+
+    private static void logDiskStats(String label) {
+        Path diskstats = Path.of("/proc/diskstats");
+        if (Files.exists(diskstats) == false) {
+            return;
+        }
+        try {
+            for (String line : Files.readAllLines(diskstats)) {
+                String[] fields = line.trim().split("\\s+");
+                if (fields.length >= 6 && fields[2].equals(DISKSTATS_DEVICE)) {
+                    logger.info("DISKSTATS[{}] device={} reads={} sectors_read={}", label, DISKSTATS_DEVICE, fields[3], fields[5]);
+                    return;
+                }
+            }
+        } catch (IOException e) {
+            logger.warn("Failed to read /proc/diskstats: {}", e.getMessage());
+        }
     }
 
     static void numSegments(Path indexPath, Results indexResults, Directory sharedDir) throws IOException {
@@ -705,6 +749,7 @@ public class KnnIndexTester {
                 "index_name",
                 "index_type",
                 "num_docs",
+                "num_deleted_docs",
                 "doc_add_time(ms)",
                 "total_index_time(ms)",
                 "force_merge_time(ms)",
@@ -749,6 +794,7 @@ public class KnnIndexTester {
                     indexResult.indexName,
                     indexResult.indexType,
                     Integer.toString(indexResult.numDocs),
+                    Integer.toString(indexResult.numDeletedDocs),
                     Long.toString(indexResult.docAddTimeMS),
                     Long.toString(indexResult.indexTimeMS),
                     Long.toString(indexResult.forceMergeTimeMS),
@@ -857,6 +903,7 @@ public class KnnIndexTester {
         final String indexType, indexName;
         public long docAddTimeMS;
         int numDocs;
+        int numDeletedDocs;
         float filterSelectivity;
         long indexTimeMS;
         long forceMergeTimeMS;
@@ -995,6 +1042,7 @@ public class KnnIndexTester {
         "index_name",
         "index_type",
         "num_docs",
+        "num_deleted_docs",
         "num_segments",
         "quantize_bits",
         "query_quantize_bits",
@@ -1106,6 +1154,7 @@ public class KnnIndexTester {
                             qr.indexName,
                             qr.indexType,
                             Integer.toString(qr.numDocs),
+                            Integer.toString(indexResult.numDeletedDocs),
                             Integer.toString(qr.numSegments),
                             config.quantizeBits() != null ? Integer.toString(config.quantizeBits()) : "",
                             config.queryQuantizeBits() != null ? Integer.toString(config.queryQuantizeBits()) : "",

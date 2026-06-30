@@ -104,21 +104,21 @@ public class IpLocationDownloadConsumersTests extends AbstractChunkedSerializing
         );
     }
 
-    public void testIsRelevantForNode_esqlConsumerMatchesDataAndCoordinatingOnlyNodes() {
+    public void testIsRelevantForNode_esqlConsumerMatchesAllNodes() {
         assertTrue(
             "ESQL consumer is relevant for a data-only node",
             IpLocationDownloadConsumers.isRelevantForNode(IpLocationConsumer.ESQL, nodeWithRoles(DiscoveryNodeRole.DATA_ROLE))
         );
         assertTrue(
-            "ESQL consumer is relevant for a coordinating-only node (no roles), which may run the coordinator portion of a plan",
+            "ESQL consumer is relevant for a coordinating-only node (no roles)",
             IpLocationDownloadConsumers.isRelevantForNode(IpLocationConsumer.ESQL, nodeWithRoles())
         );
-        assertFalse(
-            "ESQL consumer is not relevant for an ingest-only node (approximation; tracked by TODO in isRelevantForNode)",
+        assertTrue(
+            "ESQL consumer is relevant for an ingest-only node",
             IpLocationDownloadConsumers.isRelevantForNode(IpLocationConsumer.ESQL, nodeWithRoles(DiscoveryNodeRole.INGEST_ROLE))
         );
-        assertFalse(
-            "ESQL consumer is not relevant for a master-only node",
+        assertTrue(
+            "ESQL consumer is relevant for a master-only node",
             IpLocationDownloadConsumers.isRelevantForNode(IpLocationConsumer.ESQL, nodeWithRoles(DiscoveryNodeRole.MASTER_ROLE))
         );
     }

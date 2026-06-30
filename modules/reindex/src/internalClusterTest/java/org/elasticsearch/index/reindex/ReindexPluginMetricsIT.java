@@ -18,7 +18,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.reindex.BulkByPaginatedSearchSearchContextMetrics;
-import org.elasticsearch.reindex.BulkIndexByScrollResponseMatcher;
+import org.elasticsearch.reindex.BulkIndexByPaginatedSearchResponseMatcher;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.ReindexSettings;
 import org.elasticsearch.reindex.Reindexer;
@@ -120,8 +120,8 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         return new DeleteByQueryRequestBuilder(client());
     }
 
-    public static BulkIndexByScrollResponseMatcher matcher() {
-        return new BulkIndexByScrollResponseMatcher();
+    public static BulkIndexByPaginatedSearchResponseMatcher matcher() {
+        return new BulkIndexByPaginatedSearchResponseMatcher();
     }
 
     public void testReindexFromRemoteMetrics() throws Exception {

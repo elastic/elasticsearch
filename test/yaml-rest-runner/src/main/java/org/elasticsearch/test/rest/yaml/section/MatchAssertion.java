@@ -50,12 +50,16 @@ public class MatchAssertion extends Assertion {
 
     @Override
     protected void doAssert(Object actualValue, Object expectedValue) {
+        assertMatches(getField(), actualValue, expectedValue);
+    }
+
+    static void assertMatches(String field, Object actualValue, Object expectedValue) {
         // if the value is wrapped into / it is a regexp (e.g. /s+d+/)
         if (expectedValue instanceof String) {
             String expValue = ((String) expectedValue).trim();
             if (expValue.length() > 2 && expValue.startsWith("/") && expValue.endsWith("/")) {
                 assertThat(
-                    "field [" + getField() + "] was expected to be of type String but is an instanceof [" + safeClass(actualValue) + "]",
+                    "field [" + field + "] was expected to be of type String but is an instanceof [" + safeClass(actualValue) + "]",
                     actualValue,
                     instanceOf(String.class)
                 );
@@ -63,7 +67,7 @@ public class MatchAssertion extends Assertion {
                 String regex = expValue.substring(1, expValue.length() - 1);
                 logger.trace("assert that [{}] matches [{}]", stringValue, regex);
                 assertThat(
-                    "field [" + getField() + "] was expected to match the provided regex but didn't",
+                    "field [" + field + "] was expected to match the provided regex but didn't",
                     stringValue,
                     matches(regex, Pattern.COMMENTS)
                 );
@@ -71,18 +75,18 @@ public class MatchAssertion extends Assertion {
             }
         }
 
-        logger.trace("assert that [{}] matches [{}] (field [{}])", actualValue, expectedValue, getField());
+        logger.trace("assert that [{}] matches [{}] (field [{}])", actualValue, expectedValue, field);
         if (expectedValue == null) {
-            assertNull("field [" + getField() + "] should be null but was [" + actualValue + "]", actualValue);
+            assertNull("field [" + field + "] should be null but was [" + actualValue + "]", actualValue);
             return;
         }
-        assertNotNull("field [" + getField() + "] is null", actualValue);
+        assertNotNull("field [" + field + "] is null", actualValue);
 
-        if (actualValue.getClass().equals(safeClass(expectedValue)) == false) {
+        if (actualValue.getClass().equals(expectedValue.getClass()) == false) {
             if (actualValue instanceof Number && expectedValue instanceof Number) {
                 // Double 1.0 is equal to Integer 1
                 assertThat(
-                    "field [" + getField() + "] doesn't match the expected value",
+                    "field [" + field + "] doesn't match the expected value",
                     ((Number) actualValue).doubleValue(),
                     equalTo(((Number) expectedValue).doubleValue())
                 );
@@ -97,6 +101,6 @@ public class MatchAssertion extends Assertion {
             assertThat(actualValue, instanceOf(List.class));
             assertMap((List<?>) actualValue, matchesList((List<?>) expectedValue));
         }
-        assertThat("field [" + getField() + "] does not match the expected value", actualValue, equalTo(expectedValue));
+        assertThat("field [" + field + "] does not match the expected value", actualValue, equalTo(expectedValue));
     }
 }

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 151475
+pr: 151633
+summary: Resolve surrogates in union type field resolution before plan serialization
+type: bug

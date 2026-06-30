@@ -105,6 +105,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         try (
             NdJsonPageDecoder decoder = new NdJsonPageDecoder(
                 new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null, // DateFormatter
                 List.of(attribute("k", DataType.KEYWORD)),
                 null,
                 10,
@@ -171,6 +172,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         try (
             NdJsonPageDecoder decoder = new NdJsonPageDecoder(
                 new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null, // DateFormatter
                 List.of(attribute("i", DataType.INTEGER)),
                 null,
                 10,
@@ -227,6 +229,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         try (
             NdJsonPageDecoder decoder = new NdJsonPageDecoder(
                 new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null, // DateFormatter
                 attributes,
                 null,
                 1024,

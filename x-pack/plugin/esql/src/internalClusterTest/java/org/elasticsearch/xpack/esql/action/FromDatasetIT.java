@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
@@ -68,6 +69,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
     private Path csvFixture;
     private Path csvFixtureAlt;
+    private Path ndjsonFixture;
 
     /** Minimal pass-through validator registered for type {@code test}; accepts any resource scheme. */
     public static final class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
@@ -107,6 +109,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(HttpDataSourcePlugin.class);
         plugins.add(CsvDataSourcePlugin.class);
+        plugins.add(NdJsonDataSourcePlugin.class);
         plugins.add(TestDataSourcePlugin.class);
         return plugins;
     }
@@ -128,6 +131,18 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         Files.writeString(csvFixture, String.join("\n", "emp_no:integer,first_name:keyword", "1,Alice", "2,Bob", "3,Carol") + "\n");
         csvFixtureAlt = createTempFile("dataset-fixture-alt-", ".csv");
         Files.writeString(csvFixtureAlt, String.join("\n", "emp_no:integer,first_name:keyword", "10,Diana", "11,Eve") + "\n");
+        // NDJSON fixture with the SAME physical field names (emp_no/first_name) as the CSV fixture, so rename tests can
+        // exercise the by-name (JSON key) read path: a declared `source` maps the logical column to its JSON field.
+        ndjsonFixture = createTempFile("dataset-fixture-", ".ndjson");
+        Files.writeString(
+            ndjsonFixture,
+            String.join(
+                "\n",
+                "{\"emp_no\":1,\"first_name\":\"Alice\"}",
+                "{\"emp_no\":2,\"first_name\":\"Bob\"}",
+                "{\"emp_no\":3,\"first_name\":\"Carol\"}"
+            ) + "\n"
+        );
     }
 
     /**
@@ -145,7 +160,12 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         "employees_strict",
         "employees_nonstrict",
         "employees_strict_multi",
-        "employees_nonstrict_multi"
+        "employees_nonstrict_multi",
+        "employees_rename_strict",
+        "employees_rename_nonstrict",
+        "employees_rename_keep",
+        "employees_ndjson_rename_strict",
+        "employees_ndjson_rename_nonstrict"
     );
 
     /**
@@ -407,6 +427,84 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             assertThat(rows, hasSize(3));
             assertThat(rows.get(0).get(0), equalTo(1L));
             assertThat(rows.get(2).get(0), equalTo(3L));
+        }
+    }
+
+    public void testNdJsonRenameStrictReadsByPhysicalJsonKey() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        // NDJSON is read BY NAME (JSON key), so rename exercises the reader's logical->physical key resolution: the
+        // declared id/name columns must be read from the JSON fields emp_no/first_name.
+        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", "emp_no"));
+        properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), null, null);
+
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_ndjson_rename_strict",
+                    "local_ds",
+                    ndjsonFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_ndjson_rename_strict | SORT id | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("id"));
+            assertThat(columns.get(1).name(), equalTo("name"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1L));            // read from JSON field emp_no
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice")); // read from JSON field first_name
+            assertThat(rows.get(2).get(0), equalTo(3L));
+            assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    public void testNdJsonRenameNonStrictReadsByPhysicalJsonKey() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        // Non-strict over NDJSON: emp_no renamed to id (retyped LONG); first_name inferred and read by its own JSON key.
+        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", "emp_no"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties), null, null);
+
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_ndjson_rename_nonstrict",
+                    "local_ds",
+                    ndjsonFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_ndjson_rename_nonstrict | SORT id | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("id"));          // renamed from emp_no
+            assertThat(columns.get(1).name(), equalTo("first_name"));  // inferred
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1L));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
         }
     }
 

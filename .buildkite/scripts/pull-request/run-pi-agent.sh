@@ -91,20 +91,9 @@ EOF
 # is immediately visible without having to open a collapsed group.
 echo "+++ pi-agent: analysis"
 
-# Use nono wrap (not nono run) so nono exec(2)s directly into pi-agent.
-# With nono run the supervisor PTY mux buffers the child's stdout; in a
-# non-interactive CI environment that buffer is never flushed and all
-# pi-agent output is lost if the process is killed by the outer timeout.
-# nono wrap has no supervisor — nono disappears from the process tree and
-# pi-agent's stdout/stderr go straight to the BK log.
-#
+# nono sandboxing temporarily disabled — running pi-agent directly.
 # Hard cap: kill after 45 minutes. Exit 124 = timeout, 137 = SIGKILL.
 timeout --signal=TERM --kill-after=60s 45m \
-  nono wrap \
-    -v \
-    --profile always-further/pi \
-    --allow "${PI_AGENT_DIR}" \
-    --allow-cwd \
-    -- pi-agent analyze --issue-url "${ISSUE_URL}" \
+  pi-agent analyze --issue-url "${ISSUE_URL}" \
       --verbose \
       --append-system-prompt "IMPORTANT CI CONSTRAINTS: Do NOT use fetch_content or web_search to access gradle-enterprise.elastic.co, develocity.elastic.co, or any other Elastic-internal URLs that require SSO authentication. These connections hang indefinitely in CI because no browser-based SSO flow is possible. If you need build scan data, note that it is unavailable and continue the analysis using only GitHub issue content, code files, and other accessible sources."

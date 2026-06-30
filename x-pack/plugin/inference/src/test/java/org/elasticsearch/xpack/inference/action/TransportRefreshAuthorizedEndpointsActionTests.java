@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -32,8 +33,6 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
-import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
-import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
@@ -46,10 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction.REFRESHED_RESPONSE;
 import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_SCHEMA_VERSION;
-import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureTests.createMockCCMFeature;
-import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMServiceTests.createMockCCMService;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createAuthorizedEndpoint;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createInvalidTaskTypeAuthorizedEndpoint;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -67,8 +63,6 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
     private InferenceFeatureService inferenceFeatureServiceMock;
     private ModelRegistry mockRegistry;
     private ElasticInferenceServiceAuthorizationRequestHandler mockAuthHandler;
-    private CCMFeature ccmFeature;
-    private CCMService ccmService;
     private Client mockClient;
 
     @Before
@@ -85,62 +79,29 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
 
     public void testDoesNotSendAuthorizationRequest_WhenModelRegistryIsNotReady() {
         when(mockRegistry.isReady()).thenReturn(false);
-        ccmFeature = createMockCCMFeature(false);
-        ccmService = createMockCCMService(false);
         var action = createAction();
 
-        var future = new TestPlainActionFuture<RefreshAuthorizedEndpointsAction.Response>();
+        var future = new TestPlainActionFuture<ActionResponse.Empty>();
         action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), future);
 
-        assertThat(future.actionGet(), is(REFRESHED_RESPONSE));
-        verify(mockAuthHandler, never()).getAuthorization(any(), any());
-    }
-
-    public void testDoesNotSendAuthorizationRequest_WhenCCMIsDisabled() {
-        when(mockRegistry.isReady()).thenReturn(true);
-        ccmFeature = createMockCCMFeature(true);
-        ccmService = createMockCCMService(false);
-        var action = createAction();
-
-        var future = new TestPlainActionFuture<RefreshAuthorizedEndpointsAction.Response>();
-        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), future);
-
-        assertThat(future.actionGet().status(), is(RefreshAuthorizedEndpointsAction.Response.Status.CCM_DISABLED));
+        assertThat(future.actionGet(), is(ActionResponse.Empty.INSTANCE));
         verify(mockAuthHandler, never()).getAuthorization(any(), any());
     }
 
     public void testDoesNotSendAuthorizationRequest_WhenClusterDoesNotIncludeMetadata_MappingUpdate() {
         when(mockRegistry.isReady()).thenReturn(true);
-        ccmFeature = createMockCCMFeature(true);
-        ccmService = createMockCCMService(true);
         when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD)).thenReturn(false);
         var action = createAction();
 
-        var future = new TestPlainActionFuture<RefreshAuthorizedEndpointsAction.Response>();
+        var future = new TestPlainActionFuture<ActionResponse.Empty>();
         action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), future);
 
-        assertThat(future.actionGet(), is(REFRESHED_RESPONSE));
+        assertThat(future.actionGet(), is(ActionResponse.Empty.INSTANCE));
         verify(mockAuthHandler, never()).getAuthorization(any(), any());
     }
 
     public void testSendsAuthorizationRequest_WhenModelRegistryIsReady() {
         when(mockRegistry.isReady()).thenReturn(true);
-        ccmFeature = createMockCCMFeature(true);
-        ccmService = createMockCCMService(true);
-
-        var url = "eis-url";
-        var sparseModel = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> null);
-        givenAuthHandlerReturnsEndpointsForUrl(url, List.of(sparseModel));
-
-        var action = createAction();
-
-        sendAuthRequestAndVerifyStoreActionCalledForSparseEndpoints(url, action, sparseModel);
-    }
-
-    public void testSendsAuthorizationRequest_WhenCCMIsNotConfigurable() {
-        when(mockRegistry.isReady()).thenReturn(true);
-        ccmFeature = createMockCCMFeature(false);
-        ccmService = createMockCCMService(false);
 
         var url = "eis-url";
         var sparseModel = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> null);
@@ -168,8 +129,6 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
                 createEisSparseSettingsWithFingerprintAndVersion("my_matching_fingerprint_3", ENDPOINT_SCHEMA_VERSION)
             )
         );
-        ccmFeature = createMockCCMFeature(true);
-        ccmService = createMockCCMService(true);
 
         givenAuthHandlerReturnsEndpointsForUrl(url, List.of(sparseModel1, sparseModel2, sparseModel3));
 
@@ -192,8 +151,6 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
                 createEisSparseSettingsWithFingerprintAndVersion("my_matching_fingerprint_2", ENDPOINT_SCHEMA_VERSION)
             )
         );
-        ccmFeature = createMockCCMFeature(true);
-        ccmService = createMockCCMService(true);
 
         givenAuthHandlerReturnsEndpointsForUrl(url, List.of(sparseModel1, sparseModel2, sparseModel3));
 
@@ -219,8 +176,6 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
                 createEisSparseSettingsWithFingerprintAndVersion("my_original_fingerprint_3", ENDPOINT_SCHEMA_VERSION)
             )
         );
-        ccmFeature = createMockCCMFeature(true);
-        ccmService = createMockCCMService(true);
 
         givenAuthHandlerReturnsEndpointsForUrl(url, List.of(sparseModel1, sparseModel2, sparseModel3));
 
@@ -246,8 +201,6 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
                 createEisSparseSettingsWithFingerprintAndVersion("my_matching_fingerprint_3", ENDPOINT_SCHEMA_VERSION)
             )
         );
-        ccmFeature = createMockCCMFeature(true);
-        ccmService = createMockCCMService(true);
 
         givenAuthHandlerReturnsEndpointsForUrl(url, List.of(sparseModel1, sparseModel2, sparseModel3));
 
@@ -261,8 +214,6 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
         var invalidTaskTypeEndpoint = createInvalidTaskTypeAuthorizedEndpoint();
 
         when(mockRegistry.isReady()).thenReturn(true);
-        ccmFeature = createMockCCMFeature(true);
-        ccmService = createMockCCMService(true);
 
         givenAuthHandlerReturnsEndpointsForUrl(url, List.of(invalidTaskTypeEndpoint));
 
@@ -277,8 +228,6 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
 
         when(mockRegistry.isReady()).thenReturn(true);
         when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id-1", "id-2", "id-3"));
-        ccmFeature = createMockCCMFeature(true);
-        ccmService = createMockCCMService(true);
 
         givenAuthHandlerRespondsForUrl(randomAlphaOfLength(10), List.of(), endpointsToDelete);
 
@@ -293,8 +242,6 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
 
         when(mockRegistry.isReady()).thenReturn(true);
         when(mockRegistry.getInferenceIds()).thenReturn(endpointsToDelete);
-        ccmFeature = createMockCCMFeature(true);
-        ccmService = createMockCCMService(true);
 
         givenAuthHandlerRespondsForUrl(randomAlphaOfLength(10), List.of(), Set.of("id-1", "id-2", "id-3", "id-4"));
 
@@ -307,8 +254,6 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
     public void testSendsAuthorizationRequest_ShouldNotDeleteAnyWhenNoRemovedEndpointIsPresentInRegistry() {
         when(mockRegistry.isReady()).thenReturn(true);
         when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id-1", "id-2"));
-        ccmFeature = createMockCCMFeature(true);
-        ccmService = createMockCCMService(true);
 
         givenAuthHandlerRespondsForUrl(randomAlphaOfLength(10), List.of(), Set.of("id-3", "id-4"));
 
@@ -325,8 +270,6 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
             mockRegistry,
             mockAuthHandler,
             mock(Sender.class),
-            ccmFeature,
-            ccmService,
             inferenceFeatureServiceMock,
             mockClient
         );

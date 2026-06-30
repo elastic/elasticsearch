@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
@@ -18,6 +19,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 import org.junit.Before;
 
 import java.util.Map;
@@ -27,6 +30,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureTests.createMockCCMFeature;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMServiceTests.createMockCCMService;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -50,6 +55,8 @@ public class AuthorizationPollerTests extends ESTestCase {
     private DeterministicTaskQueue taskQueue;
     private Client mockClient;
     private ElasticInferenceServiceSettings eisSettings;
+    private CCMFeature ccmFeature;
+    private CCMService ccmService;
 
     @Before
     public void init() throws Exception {
@@ -57,27 +64,23 @@ public class AuthorizationPollerTests extends ESTestCase {
         mockClient = mock(Client.class);
         when(mockClient.threadPool()).thenReturn(taskQueue.getThreadPool());
         eisSettings = ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true);
+        // Default: CCM is not a supported environment, so the poller always proceeds to send.
+        ccmFeature = createMockCCMFeature(false);
+        ccmService = createMockCCMService(false);
 
-        // Default: the action responds with REFRESHED so the callback + latch fire normally.
+        // Default: the action completes normally so the callback + latch fire.
         doAnswer(invocation -> {
-            ActionListener<RefreshAuthorizedEndpointsAction.Response> listener = invocation.getArgument(2);
-            listener.onResponse(new RefreshAuthorizedEndpointsAction.Response(RefreshAuthorizedEndpointsAction.Response.Status.REFRESHED));
+            ActionListener<ActionResponse.Empty> listener = invocation.getArgument(2);
+            listener.onResponse(ActionResponse.Empty.INSTANCE);
             return null;
         }).when(mockClient).execute(eq(RefreshAuthorizedEndpointsAction.INSTANCE), any(), any());
     }
 
     public void testOnlyMarksCompletedOnce() {
-        // Override the default stub: respond with CCM_DISABLED so the poller calls
-        // shutdownInternal(markAsCompleted) on the success path.
-        doAnswer(invocation -> {
-            ActionListener<RefreshAuthorizedEndpointsAction.Response> listener = invocation.getArgument(2);
-            listener.onResponse(
-                new RefreshAuthorizedEndpointsAction.Response(RefreshAuthorizedEndpointsAction.Response.Status.CCM_DISABLED)
-            );
-            return null;
-        }).when(mockClient).execute(eq(RefreshAuthorizedEndpointsAction.INSTANCE), any(), any());
-
-        var poller = createPoller();
+        // CCM is supported but disabled: the first call to scheduleAndSendAuthorizationRequest
+        // should complete the task. The second call hits the shutdown guard and returns
+        // immediately, not triggering a second completion.
+        var poller = createPoller(null, createMockCCMFeature(true), createMockCCMService(false));
 
         var persistentTaskId = "id";
         var allocationId = 0L;
@@ -85,8 +88,8 @@ public class AuthorizationPollerTests extends ESTestCase {
         var mockPersistentTasksService = mock(PersistentTasksService.class);
         poller.init(mockPersistentTasksService, mock(TaskManager.class), persistentTaskId, allocationId);
 
-        poller.sendAuthorizationRequest();
-        poller.sendAuthorizationRequest();
+        poller.scheduleAndSendAuthorizationRequest();
+        poller.scheduleAndSendAuthorizationRequest();
 
         verify(mockPersistentTasksService).sendCompletionRequest(eq(persistentTaskId), eq(allocationId), isNull(), isNull(), any(), any());
     }
@@ -164,12 +167,70 @@ public class AuthorizationPollerTests extends ESTestCase {
         );
     }
 
-    private AuthorizationPoller createPoller() {
-        return createPoller(null);
+    public void testDoesNotSendAuthorizationRequest_WhenCCMIsSupportedButDisabled() {
+        var poller = createPoller(null, createMockCCMFeature(true), createMockCCMService(false));
+
+        var persistentTaskId = "id";
+        var allocationId = 0L;
+        var mockPersistentTasksService = mock(PersistentTasksService.class);
+        poller.init(mockPersistentTasksService, mock(TaskManager.class), persistentTaskId, allocationId);
+
+        poller.scheduleAndSendAuthorizationRequest();
+
+        assertTrue(poller.isShutdown());
+        verify(mockClient, never()).execute(eq(RefreshAuthorizedEndpointsAction.INSTANCE), any(), any());
+        verify(mockPersistentTasksService).sendCompletionRequest(eq(persistentTaskId), eq(allocationId), isNull(), isNull(), any(), any());
+    }
+
+    public void testSendsAuthorizationRequest_WhenCCMIsSupportedAndEnabled() {
+        var poller = createPoller(null, createMockCCMFeature(true), createMockCCMService(true));
+
+        poller.scheduleAndSendAuthorizationRequest();
+
+        verify(mockClient).execute(eq(RefreshAuthorizedEndpointsAction.INSTANCE), any(), any());
+        assertFalse(poller.isShutdown());
+    }
+
+    public void testSendsAuthorizationRequest_WhenCCMIsNotASupportedEnvironment() {
+        var poller = createPoller(null, createMockCCMFeature(false), createMockCCMService(false));
+
+        poller.scheduleAndSendAuthorizationRequest();
+
+        verify(mockClient).execute(eq(RefreshAuthorizedEndpointsAction.INSTANCE), any(), any());
+        assertFalse(poller.isShutdown());
+    }
+
+    public void testSchedulesNextPoll_WhenCCMEnabledCheckFails() {
+        var ccmServiceWithFailure = mock(CCMService.class);
+        doAnswer(invocation -> {
+            ActionListener<Boolean> listener = invocation.getArgument(0);
+            listener.onFailure(new RuntimeException("isEnabled failed"));
+            return null;
+        }).when(ccmServiceWithFailure).isEnabled(any());
+
+        var poller = createPoller(null, createMockCCMFeature(true), ccmServiceWithFailure);
+
+        poller.scheduleAndSendAuthorizationRequest();
+
+        assertFalse(poller.isShutdown());
+        verify(mockClient, never()).execute(eq(RefreshAuthorizedEndpointsAction.INSTANCE), any(), any());
+        assertTrue(taskQueue.hasDeferredTasks());
     }
 
     private AuthorizationPoller createPoller(Runnable callback) {
-        return new AuthorizationPoller(TASK_FIELDS, createWithEmptySettings(taskQueue.getThreadPool()), eisSettings, mockClient, callback);
+        return createPoller(callback, ccmFeature, ccmService);
+    }
+
+    private AuthorizationPoller createPoller(Runnable callback, CCMFeature ccmFeature, CCMService ccmService) {
+        return new AuthorizationPoller(
+            TASK_FIELDS,
+            createWithEmptySettings(taskQueue.getThreadPool()),
+            eisSettings,
+            mockClient,
+            ccmFeature,
+            ccmService,
+            callback
+        );
     }
 
     private void givenSchedulingFailure(Exception exception) {

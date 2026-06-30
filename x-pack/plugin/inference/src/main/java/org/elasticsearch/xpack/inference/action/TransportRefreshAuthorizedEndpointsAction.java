@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -35,8 +36,6 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
-import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
-import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -45,19 +44,15 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction.REFRESHED_RESPONSE;
-
 public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportAction<
     RefreshAuthorizedEndpointsAction.Request,
-    RefreshAuthorizedEndpointsAction.Response> {
+    ActionResponse.Empty> {
 
     private static final Logger logger = LogManager.getLogger(TransportRefreshAuthorizedEndpointsAction.class);
 
     private final ModelRegistry modelRegistry;
     private final ElasticInferenceServiceAuthorizationRequestHandler authorizationHandler;
     private final Sender sender;
-    private final CCMFeature ccmFeature;
-    private final CCMService ccmService;
     private final InferenceFeatureService inferenceFeatureService;
     private final Client client;
 
@@ -68,8 +63,6 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
         ModelRegistry modelRegistry,
         ElasticInferenceServiceAuthorizationRequestHandler authorizationHandler,
         Sender sender,
-        CCMFeature ccmFeature,
-        CCMService ccmService,
         InferenceFeatureService inferenceFeatureService,
         Client client
     ) {
@@ -83,54 +76,35 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
         this.modelRegistry = Objects.requireNonNull(modelRegistry);
         this.authorizationHandler = Objects.requireNonNull(authorizationHandler);
         this.sender = Objects.requireNonNull(sender);
-        this.ccmFeature = Objects.requireNonNull(ccmFeature);
-        this.ccmService = Objects.requireNonNull(ccmService);
         this.inferenceFeatureService = Objects.requireNonNull(inferenceFeatureService);
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ClientHelper.INFERENCE_ORIGIN);
     }
 
     @Override
-    protected void doExecute(
-        Task task,
-        RefreshAuthorizedEndpointsAction.Request request,
-        ActionListener<RefreshAuthorizedEndpointsAction.Response> listener
-    ) {
+    protected void doExecute(Task task, RefreshAuthorizedEndpointsAction.Request request, ActionListener<ActionResponse.Empty> listener) {
         if (modelRegistry.isReady() == false) {
             logger.info("Skipping sending authorization request, because the model registry is not ready");
-            listener.onResponse(REFRESHED_RESPONSE);
+            listener.onResponse(ActionResponse.Empty.INSTANCE);
             return;
         }
 
         if (inferenceFeatureService.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD) == false) {
             logger.info("Skipping sending authorization request, because the cluster is currently upgrading and missing required features");
-            listener.onResponse(REFRESHED_RESPONSE);
+            listener.onResponse(ActionResponse.Empty.INSTANCE);
             return;
         }
 
-        if (ccmFeature.isCcmSupportedEnvironment() == false) {
-            sendRequest(listener);
-            return;
-        }
-
-        ccmService.isEnabled(listener.delegateFailureAndWrap((delegate, enabled) -> {
-            if (enabled == null || enabled == false) {
-                delegate.onResponse(
-                    new RefreshAuthorizedEndpointsAction.Response(RefreshAuthorizedEndpointsAction.Response.Status.CCM_DISABLED)
-                );
-                return;
-            }
-            sendRequest(delegate);
-        }));
+        sendRequest(listener);
     }
 
-    private void sendRequest(ActionListener<RefreshAuthorizedEndpointsAction.Response> listener) {
+    private void sendRequest(ActionListener<ActionResponse.Empty> listener) {
         SubscribableListener.<ElasticInferenceServiceAuthorizationModel>newForked(
             authModelListener -> authorizationHandler.getAuthorization(authModelListener, sender)
         )
             .<ElasticInferenceServiceAuthorizationModel>andThen(
                 (nextListener, authModel) -> deleteRemovedEndpoints(authModel, nextListener)
             )
-            .andThenApply(this::selectEndpointsToPersist).<RefreshAuthorizedEndpointsAction.Response>andThen(
+            .andThenApply(this::selectEndpointsToPersist).<ActionResponse.Empty>andThen(
                 (storeListener, inferenceIdsToPersist) -> storePreconfiguredModels(inferenceIdsToPersist, storeListener)
             )
             .addListener(listener);
@@ -204,9 +178,9 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
         return false;
     }
 
-    private void storePreconfiguredModels(List<Model> newEndpoints, ActionListener<RefreshAuthorizedEndpointsAction.Response> listener) {
+    private void storePreconfiguredModels(List<Model> newEndpoints, ActionListener<ActionResponse.Empty> listener) {
         if (newEndpoints.isEmpty()) {
-            listener.onResponse(REFRESHED_RESPONSE);
+            listener.onResponse(ActionResponse.Empty.INSTANCE);
             return;
         }
 
@@ -227,7 +201,7 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
                         .log("Successfully stored EIS preconfigured inference endpoint with inference ID [{}]", response.inferenceId());
                 }
             }
-            d.onResponse(REFRESHED_RESPONSE);
+            d.onResponse(ActionResponse.Empty.INSTANCE);
         }));
     }
 }

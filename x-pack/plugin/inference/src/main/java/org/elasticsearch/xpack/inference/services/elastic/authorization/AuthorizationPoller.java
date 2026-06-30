@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.elastic.authorization;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Randomness;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 
 import java.util.Map;
 import java.util.Objects;
@@ -48,13 +51,17 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final Client client;
     private final CountDownLatch receivedFirstAuthResponseLatch = new CountDownLatch(1);
+    private final CCMFeature ccmFeature;
+    private final CCMService ccmService;
 
     public record TaskFields(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {}
 
     public record Parameters(
         ServiceComponents serviceComponents,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
-        Client client
+        Client client,
+        CCMFeature ccmFeature,
+        CCMService ccmService
     ) {}
 
     public static AuthorizationPoller create(TaskFields taskFields, Parameters parameters) {
@@ -62,7 +69,15 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
     }
 
     private AuthorizationPoller(TaskFields taskFields, Parameters parameters) {
-        this(taskFields, parameters.serviceComponents, parameters.elasticInferenceServiceSettings, parameters.client, null);
+        this(
+            taskFields,
+            parameters.serviceComponents,
+            parameters.elasticInferenceServiceSettings,
+            parameters.client,
+            parameters.ccmFeature,
+            parameters.ccmService,
+            null
+        );
     }
 
     // default for testing
@@ -71,6 +86,8 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         ServiceComponents serviceComponents,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
         Client client,
+        CCMFeature ccmFeature,
+        CCMService ccmService,
         // this is a hack to facilitate testing
         Runnable callback
     ) {
@@ -78,6 +95,8 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
         this.elasticInferenceServiceSettings = Objects.requireNonNull(elasticInferenceServiceSettings);
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ClientHelper.INFERENCE_ORIGIN);
+        this.ccmFeature = Objects.requireNonNull(ccmFeature);
+        this.ccmService = Objects.requireNonNull(ccmService);
         this.callback = callback;
     }
 
@@ -179,28 +198,50 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         }
     }
 
-    private void scheduleAndSendAuthorizationRequest() {
+    // default for testing
+    void scheduleAndSendAuthorizationRequest() {
         if (shutdown.get()) {
             return;
         }
 
+        if (ccmFeature.isCcmSupportedEnvironment() == false) {
+            scheduleNextAndSend();
+            return;
+        }
+
+        ccmService.isEnabled(ActionListener.wrap(enabled -> {
+            if (enabled == null || enabled == false) {
+                logger.info("Skipping sending authorization request and completing task, because CCM is not enabled");
+                shutdownInternal(this::markAsCompleted);
+                return;
+            }
+            scheduleNextAndSend();
+        }, e -> {
+            logger.atWarn().withThrowable(e).log("Failed to determine whether CCM is enabled");
+            // keep polling: skip this cycle's send but schedule the next attempt
+            scheduleAuthorizationRequest();
+        }));
+    }
+
+    private void scheduleNextAndSend() {
         scheduleAuthorizationRequest();
         sendAuthorizationRequest();
     }
 
     // default for testing
     void sendAuthorizationRequest() {
-        var finalListener = ActionListener.runAfter(ActionListener.<RefreshAuthorizedEndpointsAction.Response>wrap(response -> {
-            if (response.status() == RefreshAuthorizedEndpointsAction.Response.Status.CCM_DISABLED) {
-                logger.info("Completing task, because CCM is not enabled");
-                shutdownInternal(AuthorizationPoller.this::markAsCompleted);
+        var finalListener = ActionListener.runAfter(
+            ActionListener.<ActionResponse.Empty>wrap(
+                ignored -> {},
+                e -> logger.atWarn().withThrowable(e).log("Failed processing EIS preconfigured endpoints")
+            ),
+            () -> {
+                if (callback != null) {
+                    callback.run();
+                }
+                receivedFirstAuthResponseLatch.countDown();
             }
-        }, e -> logger.atWarn().withThrowable(e).log("Failed processing EIS preconfigured endpoints")), () -> {
-            if (callback != null) {
-                callback.run();
-            }
-            receivedFirstAuthResponseLatch.countDown();
-        });
+        );
 
         client.execute(RefreshAuthorizedEndpointsAction.INSTANCE, new RefreshAuthorizedEndpointsAction.Request(), finalListener);
     }

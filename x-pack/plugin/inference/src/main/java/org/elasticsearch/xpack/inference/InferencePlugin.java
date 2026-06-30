@@ -529,7 +529,7 @@ public class InferencePlugin extends Plugin
             services.featureService(),
             ccmEnablementService,
             ccmFeature,
-            new AuthorizationPoller.Parameters(serviceComponents, inferenceServiceSettings, services.client())
+            new AuthorizationPoller.Parameters(serviceComponents, inferenceServiceSettings, services.client(), ccmFeature, ccmService)
         );
         authorizationTaskExecutorRef.set(authTaskExecutor);
         authTaskExecutor.startAndLazilyCreateTask();

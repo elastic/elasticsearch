@@ -142,6 +142,16 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             """, "line 3:8: Unknown column [does_not_exist_field]");
     }
 
+    // A pattern DROP that doesn't match the missing field still lets nullify inject it for a later reference.
+    public void testNullifyMissingFieldAfterDropPattern() {
+        var plan = test().statement(setUnmappedNullify("""
+            FROM test
+            | DROP emp_*
+            | KEEP does_not_exist_field
+            """));
+        assertTrue(plan.resolved());
+    }
+
     public void testFailDropThenEval() {
         assertUnmappedFailure(test(), """
             FROM test

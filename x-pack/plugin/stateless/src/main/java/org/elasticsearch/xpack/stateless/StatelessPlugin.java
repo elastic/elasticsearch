@@ -94,11 +94,9 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
-import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
-import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
@@ -1273,8 +1271,6 @@ public class StatelessPlugin extends Plugin
             SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
             SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING,
             RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING,
-            PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
-            ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING,
             StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT,
             SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
             HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED,

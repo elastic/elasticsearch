@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.anthropic.request;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.completion.Tool;
 import org.elasticsearch.inference.completion.ToolChoice;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
@@ -44,7 +45,7 @@ public final class AnthropicToolUtils {
      * {@code toolChoice} is {@code null}.
      *
      * <ul>
-     *     <li>Object {@code {"type":"function","function":{"name":"x"}}} becomes {@code {"type":"tool","name":"x"}}.</li>
+     *     <li>Object {@code {"type":"function","function":{"name":"function_name"}}} becomes {@code {"type":"tool","name":"function_name"}}.</li>
      *     <li>String {@code "auto"}/{@code "none"} are passed through and {@code "required"} maps to Anthropic's {@code "any"}.</li>
      * </ul>
      *
@@ -67,7 +68,7 @@ public final class AnthropicToolUtils {
                 case "auto" -> "auto";
                 case "required" -> "any";
                 default -> throw new ElasticsearchStatusException(
-                    "Unsupported tool_choice value [" + toolChoiceString.value() + "] for the Anthropic chat completion API.",
+                    Strings.format("Unsupported tool_choice value [%s] for the Anthropic chat completion API.", toolChoiceString.value()),
                     RestStatus.BAD_REQUEST
                 );
             };

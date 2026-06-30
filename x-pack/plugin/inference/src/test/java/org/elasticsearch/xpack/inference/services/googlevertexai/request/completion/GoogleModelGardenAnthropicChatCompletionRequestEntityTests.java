@@ -41,8 +41,8 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends 
 
     private static final GoogleVertexAiChatCompletionTaskSettings EMPTY_SETTINGS = GoogleVertexAiChatCompletionTaskSettings.EMPTY_SETTINGS;
 
-    // OpenAI-shaped tool_choice object {"type":"function","function":{"name":"name"}} must be translated to Anthropic's
-    // {"type":"tool","name":"name"} form, otherwise Anthropic rejects the request with a 400 (unexpected tag 'function').
+    // OpenAI-shaped tool_choice object {"type":"function","function":{"name":"function_name"}} must be translated to Anthropic's
+    // {"type":"tool","name":"function_name"} form, otherwise Anthropic rejects the request with a 400 (unexpected tag 'function').
     private static final ToolChoice FUNCTION_TOOL_CHOICE = new ToolChoiceObject("function", new ToolChoiceObject.FunctionField(TOOL_NAME));
     private static final Tool TOOL = new Tool(
         "function",

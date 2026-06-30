@@ -65,18 +65,18 @@ public class DataSourceService {
     protected final ClusterService clusterService;
     private final Map<String, DataSourceValidator> validatorsByType;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
-    private final Supplier<EncryptionService> encryptionService;
+    private final Supplier<EncryptionService> encryptionServiceSupplier;
 
     private volatile int maxDataSourcesCount;
 
     public DataSourceService(
         ClusterService clusterService,
         Map<String, DataSourceValidator> validatorsByType,
-        Supplier<EncryptionService> encryptionService
+        Supplier<EncryptionService> encryptionServiceSupplier
     ) {
         this.clusterService = clusterService;
         this.validatorsByType = Map.copyOf(validatorsByType);
-        this.encryptionService = Objects.requireNonNull(encryptionService, "encryption service must not be null");
+        this.encryptionServiceSupplier = Objects.requireNonNull(encryptionServiceSupplier, "encryptionServiceSupplier");
         this.taskQueue = clusterService.createTaskQueue(
             "update-esql-data-source-metadata",
             Priority.NORMAL,
@@ -144,9 +144,9 @@ public class DataSourceService {
      * <p>Settings with no secrets, and already-encrypted carriers, pass through unchanged.
      */
     DataSourceSettings applyEncryption(String dataSourceName, DataSourceSettings settings) {
-        EncryptionService service = encryptionService.get();
+        EncryptionService encryptionService = encryptionServiceSupplier.get();
         try {
-            return encryptSettings(settings, service);
+            return encryptSettings(settings, encryptionService);
         } catch (EncryptionKeyNotYetAvailableException e) {
             throw new ElasticsearchStatusException(
                 "cannot store secrets for data source [" + dataSourceName + "]: " + e.getMessage() + " Retry once the cluster is ready.",
@@ -154,7 +154,7 @@ public class DataSourceService {
                 e
             );
         } catch (EncryptionServiceUnavailableException e) {
-            if (service.isEncryptionRequired()) {
+            if (encryptionService.isEncryptionRequired()) {
                 throw new ElasticsearchStatusException(
                     "cannot store secrets for data source [" + dataSourceName + "]: " + e.getMessage(),
                     RestStatus.SERVICE_UNAVAILABLE,
@@ -171,14 +171,14 @@ public class DataSourceService {
         }
     }
 
-    private static DataSourceSettings encryptSettings(DataSourceSettings settings, EncryptionService service) {
+    private static DataSourceSettings encryptSettings(DataSourceSettings settings, EncryptionService encryptionService) {
         Map<String, DataSourceSetting> result = new HashMap<>(settings.size());
         for (var entry : settings) {
             String key = entry.getKey();
             DataSourceSetting setting = entry.getValue();
             // Skip null-valued secrets (nothing to protect) and already-encrypted carriers (no double-encryption).
             if (setting.secret() && setting.rawValue() != null && setting.isEncrypted() == false) {
-                result.put(key, encryptSecret(setting.rawValue(), service));
+                result.put(key, encryptSecret(setting.rawValue(), encryptionService));
             } else {
                 result.put(key, setting);
             }
@@ -191,10 +191,10 @@ public class DataSourceService {
      * the plaintext buffer is zeroed after. The source value object outlives this call until the CAS task
      * completes — narrowing that is Phase 2.
      */
-    private static DataSourceSetting encryptSecret(Object value, EncryptionService service) {
+    private static DataSourceSetting encryptSecret(Object value, EncryptionService encryptionService) {
         byte[] plaintext = serializeValue(value);
         try {
-            return new DataSourceSetting(service.encrypt(plaintext), true);
+            return new DataSourceSetting(encryptionService.encrypt(plaintext), true);
         } finally {
             Arrays.fill(plaintext, (byte) 0);
         }

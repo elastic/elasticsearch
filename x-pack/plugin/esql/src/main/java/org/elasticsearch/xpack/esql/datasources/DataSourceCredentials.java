@@ -29,10 +29,10 @@ import java.util.function.Supplier;
  */
 public final class DataSourceCredentials {
 
-    private final Supplier<EncryptionService> encryptionService;
+    private final Supplier<EncryptionService> encryptionServiceSupplier;
 
-    public DataSourceCredentials(Supplier<EncryptionService> encryptionService) {
-        this.encryptionService = Objects.requireNonNull(encryptionService, "encryptionService");
+    public DataSourceCredentials(Supplier<EncryptionService> encryptionServiceSupplier) {
+        this.encryptionServiceSupplier = Objects.requireNonNull(encryptionServiceSupplier, "encryptionServiceSupplier");
     }
 
     public Map<String, Object> decryptInPlace(Map<String, Object> config) {
@@ -43,7 +43,7 @@ public final class DataSourceCredentials {
         for (Map.Entry<String, Object> entry : config.entrySet()) {
             Object value = entry.getValue();
             if (value instanceof EncryptedData encrypted) {
-                result.put(entry.getKey(), decryptValue(encrypted, encryptionService.get()));
+                result.put(entry.getKey(), decryptValue(encrypted, encryptionServiceSupplier.get()));
             } else {
                 result.put(entry.getKey(), value);
             }

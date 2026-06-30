@@ -234,6 +234,10 @@ public final class FrozenEngine extends ReadOnlyEngine {
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> externalDirectoryReaderWrapper,
         ReferenceManager<ElasticsearchDirectoryReader> referenceManager
     ) throws EngineException {
+        // Note that `externalDirectoryReaderWrapper` is unused.
+        // This is intentional, `externalDirectoryReaderWrapper` is used for features like resharding that are not relevant
+        // to the frozen engine.
+
         final Store store = this.store;
         store.incRef();
         return new SearcherSupplier(wrapper) {

@@ -1026,7 +1026,7 @@ public abstract class Engine implements Closeable {
         return reader;
     }
 
-    public SearcherSupplier acquireSearcherSupplier(
+    public final SearcherSupplier acquireSearcherSupplier(
         Function<Searcher, Searcher> wrapper,
         SearcherScope scope,
         SplitShardCountSummary splitShardCountSummary

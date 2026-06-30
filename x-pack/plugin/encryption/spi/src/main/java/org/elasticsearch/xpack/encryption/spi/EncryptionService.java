@@ -57,12 +57,10 @@ public interface EncryptionService {
     }
 
     /**
-     * Process-wide holder for the single {@link EncryptionService} instance.
-     *
-     * <p>The encryption plugin populates this once from its {@code createComponents}. It exists for {@code createComponents}-time
-     * consumers in other plugins (e.g. ES|QL data sources) that build their own components before Guice wiring
-     * is available and therefore cannot have the service injected. Plugin load ordering
-     * guarantees the encryption plugin's {@code createComponents} runs before any consumer's.
+     * Process-wide holder for the node's {@link EncryptionService}, populated by the encryption plugin's {@code createComponents}.
+     * It exists only for usage by {@code createComponents} in other plugins (e.g. ES|QL data sources) that build their own
+     * components before Guice wiring is available and therefore cannot have the service injected. Plugin load ordering guarantees
+     * the encryption plugin's {@code createComponents} runs before any consumer's.
      */
     final class Holder {
 

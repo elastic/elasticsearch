@@ -347,8 +347,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         DataSourceCapabilities dataSourceCapabilities = DataSourceCapabilities.build(allDataSourcePlugins);
 
         EncryptionService encryptionService = EncryptionService.Holder.get();
-        DataSourceCredentials dataSourceCredentials = new DataSourceCredentials();
-        dataSourceCredentials.setEncryptionService(encryptionService);
+        DataSourceCredentials dataSourceCredentials = new DataSourceCredentials(encryptionService);
 
         boolean isStateless = DiscoveryNode.isStateless(settings);
         AtomicBoolean workloadIdentityEnabled = new AtomicBoolean(

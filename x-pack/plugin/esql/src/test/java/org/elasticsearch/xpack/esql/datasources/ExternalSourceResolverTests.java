@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -63,6 +64,7 @@ import java.util.function.BooleanSupplier;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests for {@link ExternalSourceResolver} multi-file schema resolution behavior.
@@ -784,7 +786,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(),
+            new DataSourceCredentials(mock(EncryptionService.class)),
             () -> false
         );
 
@@ -2125,7 +2127,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(),
+            new DataSourceCredentials(mock(EncryptionService.class)),
             () -> false
         );
 
@@ -2207,7 +2209,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(),
+            new DataSourceCredentials(mock(EncryptionService.class)),
             () -> false
         );
 
@@ -2315,7 +2317,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(),
+            new DataSourceCredentials(mock(EncryptionService.class)),
             () -> false
         );
 
@@ -2442,7 +2444,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(),
+            new DataSourceCredentials(mock(EncryptionService.class)),
             () -> false
         );
 
@@ -2486,7 +2488,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(),
+            new DataSourceCredentials(mock(EncryptionService.class)),
             () -> false
         );
 

@@ -42,6 +42,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -214,7 +215,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(),
+                new DataSourceCredentials(mock(EncryptionService.class)),
                 () -> false
             )
         ) {
@@ -325,7 +326,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(),
+                new DataSourceCredentials(mock(EncryptionService.class)),
                 () -> false
             )
         ) {
@@ -429,7 +430,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(),
+                new DataSourceCredentials(mock(EncryptionService.class)),
                 () -> false
             )
         ) {
@@ -507,7 +508,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(),
+                new DataSourceCredentials(mock(EncryptionService.class)),
                 () -> false
             )
         ) {
@@ -571,7 +572,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(),
+                new DataSourceCredentials(mock(EncryptionService.class)),
                 () -> false
             )
         ) {

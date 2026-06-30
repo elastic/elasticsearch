@@ -24,14 +24,17 @@ import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
 import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandler;
+import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -62,12 +65,64 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         runTest(false);
     }
 
+    /**
+     * A multi-field may keep {@code doc_values:false} in columnar mode (it is exempt from the doc-values contract since it never
+     * appears in {@code _source}). Verify both source modes accept such a mapping and reconstruct identical {@code _source}.
+     */
+    public void testMultiFieldWithoutDocValues() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("message")
+            .field("type", "text")
+            .startObject("fields")
+            .startObject("raw")
+            .field("type", "keyword")
+            .field("doc_values", false)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        assertEqualSource(mappingXContent, Map.of("message", "foo bar"), randomBoolean());
+    }
+
+    /**
+     * A dynamic field inside a nested object must be mapped inside the nested mapper rather than flattened to a root leaf (the
+     * columnar default is {@code subobjects:false}). Indexing such a document used to never converge its dynamic mapping and trip
+     * the noop-mapping-update retry guard. Verify the document indexes and both source modes reconstruct identical {@code _source}.
+     */
+    public void testDynamicFieldInsideNested() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("n")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("leaf")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        // 'extra' is not in the mapping, so it is dynamically mapped inside the nested object.
+        var document = Map.of("n", List.of(Map.of("leaf", "a", "extra", "x"), Map.of("leaf", "b", "extra", "y")));
+        assertEqualSource(mappingXContent, document, randomBoolean());
+    }
+
     private void runTest(boolean useTimeSeriesDocValuesFormat) throws Exception {
         var spec = buildSpec();
         var template = new TemplateGenerator(spec).generate();
         var mapping = new MappingGenerator(spec).generate(template);
         var mappingXContent = XContentFactory.jsonBuilder().map(mapping.raw());
+        var document = new DocumentGenerator(spec).generate(template, mapping);
+        logger.info("mappings: {}", Strings.toString(mappingXContent));
+        logger.info("document: {}", document);
+        assertEqualSource(mappingXContent, document, useTimeSeriesDocValuesFormat);
+    }
 
+    private void assertEqualSource(XContentBuilder mappingXContent, Map<String, ?> document, boolean useTimeSeriesDocValuesFormat) {
         var syntheticSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
@@ -82,9 +137,6 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test_synthetic").setMapping(mappingXContent).setSettings(syntheticSettings));
         assertAcked(prepareCreate("test_columnar_stored").setMapping(mappingXContent).setSettings(columnarStoredSettings));
 
-        var document = new DocumentGenerator(spec).generate(template, mapping);
-        logger.info("mappings: {}", Strings.toString(mappingXContent));
-        logger.info("document: {}", document);
         prepareIndex("test_synthetic").setId("1").setSource(document).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         prepareIndex("test_columnar_stored").setId("1").setSource(document).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
@@ -108,7 +160,10 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         return DataGeneratorSpecification.builder()
             .withMaxFieldCountPerLevel(5)
             .withMaxObjectDepth(2)
-            .withNestedFieldsLimit(0)
+            // Allow a single nested field so the equivalence check also covers nested reconstruction across both source modes.
+            // The limit of 1 means at most one nested field total, so the generator can never produce nested-inside-nested, which
+            // columnar rejects (columnar supports only a single level of nesting).
+            .withNestedFieldsLimit(1)
             .withDataSourceHandlers(List.of(new ASCIIStringsHandler()))
             .withDataSourceHandlers(List.of(new DataSourceHandler() {
                 @Override
@@ -125,23 +180,34 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
                     // columnar mode does not support the subobjects mapping parameter
                     return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new);
                 }
-            }, new DefaultMappingParametersHandler() {
-                @Override
-                public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
-                    var delegated = super.handle(request);
-                    if (delegated == null) {
-                        return null;
+            },
+                // Randomly attach a string multi-field (text<->keyword) to string fields, exercising columnar source
+                // equivalence with multi-fields present. Only TEXT/KEYWORD are used since the other string types are
+                // filtered out above.
+                new MultifieldAddonHandler(Map.of(FieldType.TEXT, List.of(FieldType.KEYWORD), FieldType.KEYWORD, List.of(FieldType.TEXT))),
+                new DefaultMappingParametersHandler() {
+                    @Override
+                    public DataSourceResponse.LeafMappingParametersGenerator handle(
+                        DataSourceRequest.LeafMappingParametersGenerator request
+                    ) {
+                        var delegated = super.handle(request);
+                        if (delegated == null) {
+                            return null;
+                        }
+                        return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
+                            var mapping = new HashMap<>(delegated.mappingGenerator().get());
+                            // synthetic_source_keep is not allowed in columnar index mode
+                            mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
+                            mapping.remove("store");
+                            mapping.remove("copy_to");
+                            // doc_values cannot be disabled in columnar modes: a field must be reconstructable from its
+                            // doc values, so let it fall back to the (enabled) default.
+                            mapping.remove("doc_values");
+                            return mapping;
+                        });
                     }
-                    return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
-                        var mapping = new HashMap<>(delegated.mappingGenerator().get());
-                        // synthetic_source_keep is not allowed in columnar index mode
-                        mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
-                        mapping.remove("store");
-                        mapping.remove("copy_to");
-                        return mapping;
-                    });
                 }
-            }))
+            ))
             .build();
     }
 }

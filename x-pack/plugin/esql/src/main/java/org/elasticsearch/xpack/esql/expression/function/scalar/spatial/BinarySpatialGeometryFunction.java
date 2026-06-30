@@ -17,8 +17,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.operation.union.UnaryUnionOp;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -29,6 +31,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialBinaryGeometryBlockProcessor.flattenIfHeterogeneousCollection;
 
 /**
  * Abstract base for spatial functions that combine two geometry arguments and return a new geometry
@@ -179,17 +182,17 @@ public abstract class BinarySpatialGeometryFunction extends EsqlScalarFunction {
 
     private static Geometry toJts(Object value) throws ParseException {
         return switch (value) {
-            case BytesRef wkb -> UNSPECIFIED.wkbToJtsGeometry(wkb);
+            case BytesRef wkb -> flattenIfHeterogeneousCollection(UNSPECIFIED.wkbToJtsGeometry(wkb));
             case List<?> list -> {
-                Geometry[] geometries = new Geometry[list.size()];
-                for (int i = 0; i < list.size(); i++) {
-                    if (list.get(i) instanceof BytesRef wkb) {
-                        geometries[i] = UNSPECIFIED.wkbToJtsGeometry(wkb);
+                List<Geometry> geometries = new ArrayList<>(list.size());
+                for (Object item : list) {
+                    if (item instanceof BytesRef wkb) {
+                        geometries.add(UNSPECIFIED.wkbToJtsGeometry(wkb));
                     } else {
-                        throw new IllegalArgumentException("unsupported list element type: " + list.get(i).getClass().getSimpleName());
+                        throw new IllegalArgumentException("unsupported list element type: " + item.getClass().getSimpleName());
                     }
                 }
-                yield GEOMETRY_FACTORY.createGeometryCollection(geometries);
+                yield UnaryUnionOp.union(geometries);
             }
             default -> throw new IllegalArgumentException("unsupported geometry type: " + value.getClass().getSimpleName());
         };

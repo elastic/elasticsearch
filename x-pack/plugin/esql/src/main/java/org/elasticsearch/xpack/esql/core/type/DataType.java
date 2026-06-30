@@ -488,7 +488,10 @@ public enum DataType implements Writeable {
      * }
      */
     FLATTENED(
-        builder().esType("flattened").estimatedSize(1024).docValues().underConstruction(DataTypesTransportVersions.ESQL_FLATTENED_DATATYPE)
+        builder().esType("flattened")
+            .estimatedSize(1024)
+            .docValues()
+            .supportedSince(DataTypesTransportVersions.ESQL_FLATTENED_DATATYPE, DataTypesTransportVersions.ESQL_FLATTENED_DATATYPE_RELEASE)
     );
 
     public static final Set<DataType> UNDER_CONSTRUCTION = Arrays.stream(DataType.values())
@@ -1272,6 +1275,11 @@ public enum DataType implements Writeable {
          * Development version for flattened field type support.
          */
         public static final TransportVersion ESQL_FLATTENED_DATATYPE = TransportVersion.fromName("esql_flattened_datatype");
+
+        /**
+         * Release version for flattened field type support.
+         */
+        public static final TransportVersion ESQL_FLATTENED_DATATYPE_RELEASE = TransportVersion.fromName("esql_flattened_datatype_release");
 
         /**
          * Tech preview transport version for date_range field type support.

@@ -32,6 +32,7 @@ public enum FeatureFlag {
     PROMETHEUS_FEATURE_FLAG("es.prometheus_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
     ES95_CODEC_FEATURE_FLAG("es.es95_codec_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     SLICE_INDEXING("es.slice_indexing_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
+    INFERENCE_REGION_POLICY("es.inference_region_policy_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     ESQL_EXTERNAL_DATASOURCES_LOCAL("es.esql_external_datasources_local_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     ESQL_EXTERNAL_DATASOURCES_HTTP("es.esql_external_datasources_http_feature_flag_enabled=true", Version.fromString("9.5.0"), null);
 

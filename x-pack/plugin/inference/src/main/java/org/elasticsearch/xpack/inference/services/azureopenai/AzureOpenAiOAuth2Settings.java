@@ -188,7 +188,7 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
                 new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(TENANT_ID_CONFIG_DESCRIPTION)
                     .setLabel("OAuth2 Tenant ID")
                     .setRequired(false)
-                    .setSensitive(true)
+                    .setSensitive(false)
                     .setUpdatable(true)
                     .setType(SettingsConfigurationFieldType.STRING)
                     .build()

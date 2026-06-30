@@ -46,23 +46,29 @@ import java.util.Objects;
  *       source-specific classes like S3Configuration</li>
  *   <li><b>Opaque metadata</b>: Source-specific data (native schema, etc.) is stored in
  *       {@link #sourceMetadata()} and passed through without core understanding it</li>
- *   <li><b>Local-only creation</b>: never appears in a coordinator-side or wire-shipped plan. The
- *       coordinator {@code Mapper} leaves the source as {@code FragmentExec(ExternalRelation)}; this
- *       exec is materialized per-node by {@code LocalMapper} from
+ *   <li><b>Coordinator plan never holds it</b>: the coordinator {@code Mapper} leaves the source as
+ *       {@code FragmentExec(ExternalRelation)}; this exec is materialized per-node by
+ *       {@code LocalMapper} from
  *       {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()} during
- *       {@code PlannerUtils.localPlan()}, on whichever node runs the compute.</li>
+ *       {@code PlannerUtils.localPlan()}, on whichever node runs the compute. It is a serializable
+ *       {@code NamedWriteable} (see {@link #writeTo} / {@link #readFrom}) so it can ride the wire,
+ *       but only its execution inputs survive that round trip; see the field categories below.</li>
  * </ul>
  * <p>
  * Field categories. The fields fall into three groups, and only the first is serialized:
  * <ul>
  *   <li><b>Execution inputs (serialized):</b> {@code sourcePath}, {@code sourceType},
  *       {@code attributes}, {@code config}, {@code sourceMetadata}, {@code estimatedRowSize},
- *       {@code splits}, {@code datasetName}. These are what a data-node operator needs to read.</li>
- *   <li><b>Build-time state copied from {@code ExternalRelation} (not serialized):</b>
- *       {@code fileList}, {@code schemaMap}, {@code unifiedSchema}. These originate on the relation
- *       and are duplicated here so split discovery and {@code planExternalSource} can read them off
- *       the exec. They are recreated per-node by {@code toPhysicalExec()} from the (still-logical)
- *       fragment that crosses the wire, so they never need wire encoding.</li>
+ *       {@code splits}, {@code datasetName}. These are what a data-node operator needs to read; in
+ *       the distributed path the data node reads the files via the serialized {@code splits}.</li>
+ *   <li><b>Build-time state (not serialized):</b> {@code fileList}, {@code schemaMap},
+ *       {@code unifiedSchema}. These are coordinator-resolved and read off the exec by split
+ *       discovery and {@code planExternalSource}. {@code fileList} and {@code schemaMap} originate
+ *       on {@code ExternalRelation} and are coordinator-only (a data node deserializes the relation
+ *       with {@code FileList.UNRESOLVED} / an empty {@code schemaMap}, so {@code toPhysicalExec()}
+ *       does not rebuild them there); the data node relies on the serialized {@code splits} instead.
+ *       {@code unifiedSchema} is the exception: {@code toPhysicalExec()} rebuilds it on every node
+ *       from the serialized {@code metadata.schema()}.</li>
  *   <li><b>Local-execution pushdown hints (not serialized):</b> {@code pushedFilter},
  *       {@code pushedExpressions}, {@code pushedLimit}, {@code pushedTopN},
  *       {@code deferredExtraction}. These are decisions produced by {@code LocalPhysicalPlanOptimizer}
@@ -99,13 +105,16 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     @Nullable
     private final String datasetName;
 
-    // --- Build-time state copied from ExternalRelation (not serialized; recreated per-node) ---
+    // --- Build-time state (not serialized; see class Javadoc) ---
+    // Coordinator-resolved; on a data node toPhysicalExec() leaves these empty and the read goes
+    // through the serialized splits instead.
     private final FileList fileList;
     // Drives FileSplit.readSchema + UBN SchemaAdaptingIterator.
     private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
-    // The pre-prune Unified schema. Survives the optimizer's projection prune of `attributes` so
-    // split discovery can narrow per-file ColumnMappings to the post-prune Query schema without
-    // rebuilding Unified names from per-file mappings.
+    // The pre-prune Unified schema, rebuilt on every node by toPhysicalExec() from the serialized
+    // metadata.schema(). Survives the optimizer's projection prune of `attributes` so split
+    // discovery can narrow per-file ColumnMappings to the post-prune Query schema without rebuilding
+    // Unified names from per-file mappings.
     @Nullable
     private final ExternalSchema unifiedSchema;
 

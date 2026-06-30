@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
@@ -18,6 +19,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 
 /**
@@ -100,6 +102,45 @@ public final class KeywordToFlattenedTransformer {
 
     /** The single sub-key under which scalar keyword values are wrapped inside the flattened object. */
     public static final String WRAPPER_SUBKEY = "v";
+
+    /**
+     * Describes which keyword field paths (in a given dataset) should receive extra junk
+     * key/value pairs alongside the canonical {@link #WRAPPER_SUBKEY} key in their wrapped
+     * flattened objects. An empty {@link #junkFields()} set means "no junk for this dataset".
+     *
+     * @param junkFields the field paths whose wrapped objects will carry random extra keys;
+     *                   may be empty (but never {@code null})
+     * @see #selectJunkFields(Set, Random)
+     */
+    public record FlattenedJunkConfig(Set<String> junkFields) {
+        /** Canonical "no junk" config; equivalent to {@code new FlattenedJunkConfig(Set.of())}. */
+        public static final FlattenedJunkConfig EMPTY = new FlattenedJunkConfig(Set.of());
+
+        /**
+         * Given the full set of keyword field paths that will be converted to flattened for one
+         * dataset, randomly selects a subset that will receive extra junk keys in their wrapped
+         * objects. The selection is deterministic for a given {@code random} seed.
+         *
+         * @param keywordPaths all keyword paths being converted, must not be empty
+         * @param random       randomness source (e.g. {@code ESTestCase.random()})
+         * @return a {@link FlattenedJunkConfig} describing which fields get junk; the set is empty
+         *         when the coin comes up tails
+         */
+        public static FlattenedJunkConfig selectJunkFields(Set<String> keywordPaths, Random random) {
+            if (keywordPaths.isEmpty()) {
+                return EMPTY;
+            }
+            if (random.nextBoolean() == false) {
+                // tails → no junk
+                return EMPTY;
+            }
+            List<String> sorted = new ArrayList<>(keywordPaths);
+            Collections.sort(sorted);                     // deterministic ordering before shuffle
+            Collections.shuffle(sorted, random);
+            int count = 1 + random.nextInt(sorted.size()); // 1..size inclusive
+            return new FlattenedJunkConfig(Set.copyOf(sorted.subList(0, count)));
+        }
+    }
 
     /**
      * Mapping parameters whose presence on a {@code keyword} field declaration makes the
@@ -233,6 +274,35 @@ public final class KeywordToFlattenedTransformer {
      * matches what {@code CsvTestsDataLoader.parseDocument} produces.
      */
     public static String wrapKeywordValuesAsFlattened(String documentJson, Set<String> keywordFieldPaths) throws IOException {
+        return wrapKeywordValuesAsFlattened(documentJson, keywordFieldPaths, FlattenedJunkConfig.EMPTY, null);
+    }
+
+    /**
+     * Returns a new document source JSON where every top-level key matching a path in
+     * {@code keywordFieldPaths} has its value wrapped in
+     * {@code {"v": <value>}} (no junk) or
+     * {@code {"v": <value>, "_j0": ..., ...}} (with junk) depending on whether the path
+     * is listed in {@code junkConfig.junkFields()}.
+     * <p>
+     * Junk key/value pairs are randomly generated from a mix of scalars, booleans, null,
+     * nested objects, and string arrays. They are irrelevant to queries that only access
+     * {@link #WRAPPER_SUBKEY} but force the engine to parse richer flattened objects.
+     * <p>
+     * When {@code junkConfig} is {@link FlattenedJunkConfig#EMPTY} this method is equivalent
+     * to {@link #wrapKeywordValuesAsFlattened(String, Set)} and {@code random} is not called.
+     *
+     * @param documentJson       the document's source JSON
+     * @param keywordFieldPaths  the dotted paths of every field to wrap
+     * @param junkConfig         which of those fields should additionally receive junk entries
+     * @param random             randomness source used when writing junk; may be {@code null}
+     *                           when {@code junkConfig} is {@link FlattenedJunkConfig#EMPTY}
+     */
+    public static String wrapKeywordValuesAsFlattened(
+        String documentJson,
+        Set<String> keywordFieldPaths,
+        FlattenedJunkConfig junkConfig,
+        Random random
+    ) throws IOException {
         if (keywordFieldPaths.isEmpty()) {
             return documentJson;
         }
@@ -249,10 +319,65 @@ public final class KeywordToFlattenedTransformer {
             }
             ObjectNode wrapped = MAPPER.createObjectNode();
             wrapped.set(WRAPPER_SUBKEY, existing);
+            if (junkConfig.junkFields().contains(path)) {
+                generateJunkEntries(wrapped, random);
+            }
             doc.set(path, wrapped);
             modified = true;
         }
         return modified ? MAPPER.writeValueAsString(doc) : documentJson;
+    }
+
+    /**
+     * Appends between 1 and 5 randomly generated junk key/value pairs to {@code node}.
+     * Key names use the prefix {@code "_j"} followed by an index so they never collide
+     * with the canonical {@link #WRAPPER_SUBKEY} (which is {@code "v"}).
+     */
+    private static void generateJunkEntries(ObjectNode node, Random random) {
+        int count = 1 + random.nextInt(5);  // 1..5 inclusive
+        for (int i = 0; i < count; i++) {
+            writeJunkEntry(node, "_j" + i, random);
+        }
+    }
+
+    /**
+     * Writes a single randomly typed junk entry under {@code key} into {@code node}.
+     * The six value categories are: string, integer, boolean, null, nested object, array of strings.
+     */
+    private static void writeJunkEntry(ObjectNode node, String key, Random random) {
+        int kind = random.nextInt(6);
+        switch (kind) {
+            case 0 -> node.put(key, randomAlphaOfLength(random, 4, 8));   // string
+            case 1 -> node.put(key, random.nextInt(1000));                 // integer
+            case 2 -> node.put(key, random.nextBoolean());                 // boolean
+            case 3 -> node.putNull(key);                                   // null
+            case 4 -> {                                                     // nested object
+                ObjectNode obj = MAPPER.createObjectNode();
+                obj.put("k", randomAlphaOfLength(random, 2, 5));
+                node.set(key, obj);
+            }
+            case 5 -> {                                                     // array of strings
+                ArrayNode arr = MAPPER.createArrayNode();
+                int n = 1 + random.nextInt(3);
+                for (int i = 0; i < n; i++) {
+                    arr.add(randomAlphaOfLength(random, 2, 6));
+                }
+                node.set(key, arr);
+            }
+        }
+    }
+
+    /**
+     * Returns a random alphabetic string of length between {@code minLen} and
+     * {@code maxLen} (inclusive), using lower-case ASCII letters.
+     */
+    private static String randomAlphaOfLength(Random random, int minLen, int maxLen) {
+        int len = minLen + (maxLen > minLen ? random.nextInt(maxLen - minLen + 1) : 0);
+        StringBuilder sb = new StringBuilder(len);
+        for (int i = 0; i < len; i++) {
+            sb.append((char) ('a' + random.nextInt(26)));
+        }
+        return sb.toString();
     }
 
     /**

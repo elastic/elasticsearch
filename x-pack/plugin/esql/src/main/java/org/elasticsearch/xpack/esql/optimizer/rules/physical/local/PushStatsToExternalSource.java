@@ -233,6 +233,14 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
             if (ExternalSourceAggregatePushdown.columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
                 return null;
             }
+            // COUNT(col) counts non-null VALUES. Prefer the harvested value count, which is multivalue-correct
+            // (an NDJSON array [a,b,c] contributes 3). It is -1 for footer formats (parquet) that don't harvest
+            // it, where the column is single-valued and rowCount - nullCount is exact under the implicit-nulls
+            // contract; fall back to that.
+            long vc = stats.columnValueCount(ref.name());
+            if (vc >= 0) {
+                return vc;
+            }
             long nc = stats.columnNullCount(ref.name());
             if (nc >= 0) {
                 return stats.rowCount() - nc;

@@ -101,6 +101,25 @@ public final class MergedSplitStats implements org.elasticsearch.xpack.esql.data
     }
 
     /**
+     * Returns the sum of non-null value counts across children for the named column (multivalue-aware),
+     * or {@code -1} if any child returns {@code -1} (the column was not observed in that child's stats).
+     * A single unavailable child poisons the aggregate because the summed COUNT(col) would otherwise
+     * under-count that child's rows; the caller then falls back to {@code rowCount - columnNullCount}.
+     */
+    @Override
+    public long columnValueCount(String name) {
+        long total = 0;
+        for (org.elasticsearch.xpack.esql.datasources.spi.SplitStats child : children) {
+            long vc = child.columnValueCount(name);
+            if (vc < 0) {
+                return -1;
+            }
+            total += vc;
+        }
+        return total;
+    }
+
+    /**
      * Returns {@code true} only when <b>every</b> child observed the column in its stats. A single
      * child that lacks the column makes the merged answer "not fully harvested": for a text-format
      * multi-file query where one file's scan harvested the column and another's did not, the merged

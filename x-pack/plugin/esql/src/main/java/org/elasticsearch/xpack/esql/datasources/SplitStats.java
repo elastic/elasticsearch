@@ -49,6 +49,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         new String[0],
         new int[0][],
         new long[0],
+        new long[0],
         new Object[0],
         new Object[0],
         new long[0]
@@ -59,6 +60,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
     private final String[] segments;
     private final int[][] columnSegmentOrdinals;
     private final long[] nullCounts;
+    private final long[] valueCounts;
     private final Object[] mins;
     private final Object[] maxs;
     private final long[] sizesBytes;
@@ -69,6 +71,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         String[] segments,
         int[][] columnSegmentOrdinals,
         long[] nullCounts,
+        long[] valueCounts,
         Object[] mins,
         Object[] maxs,
         long[] sizesBytes
@@ -78,6 +81,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         this.segments = segments;
         this.columnSegmentOrdinals = columnSegmentOrdinals;
         this.nullCounts = nullCounts;
+        this.valueCounts = valueCounts;
         this.mins = mins;
         this.maxs = maxs;
         this.sizesBytes = sizesBytes;
@@ -94,6 +98,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         int colCount = in.readVInt();
         this.columnSegmentOrdinals = new int[colCount][];
         this.nullCounts = new long[colCount];
+        this.valueCounts = new long[colCount];
         this.mins = new Object[colCount];
         this.maxs = new Object[colCount];
         this.sizesBytes = new long[colCount];
@@ -104,6 +109,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
                 columnSegmentOrdinals[i][j] = in.readVInt();
             }
             nullCounts[i] = in.readZLong();
+            valueCounts[i] = in.readZLong();
             if (in.readBoolean()) {
                 mins[i] = in.readGenericValue();
             }
@@ -130,6 +136,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
                 out.writeVInt(ord);
             }
             out.writeZLong(nullCounts[i]);
+            out.writeZLong(valueCounts[i]);
             if (mins[i] != null) {
                 out.writeBoolean(true);
                 out.writeGenericValue(mins[i]);
@@ -199,6 +206,11 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
     /** Returns null count for the column, or {@code -1} if unknown. */
     public long nullCount(int col) {
         return nullCounts[col];
+    }
+
+    /** Returns value count (non-null values, multivalue-aware) for the column, or {@code -1} if unknown. */
+    public long valueCount(int col) {
+        return valueCounts[col];
     }
 
     /** Returns the min value for the column, or {@code null} if unknown. */
@@ -276,6 +288,18 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
     }
 
     /**
+     * Returns the count of non-null values for the column with the given name (multivalue-aware:
+     * a multivalued cell contributes one per value), or {@code -1} if the column is not present in
+     * this split's statistics. {@code -1} signals "not available" so the caller falls back to
+     * {@code rowCount - columnNullCount}.
+     */
+    @Override
+    public long columnValueCount(String name) {
+        int col = findColumn(name);
+        return col >= 0 ? valueCounts[col] : -1;
+    }
+
+    /**
      * Returns {@code true} iff this split carries a column-family entry for {@code name}. A column is
      * present in the compact representation only when the reader emitted at least one stat for it (the
      * producer contract documented on {@link org.elasticsearch.xpack.esql.datasources.spi.SplitStats#columnNullCount}),
@@ -329,6 +353,10 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
     static Object mergedMin(@Nullable Object existing, @Nullable Object incoming) {
         if (existing == null) return incoming;
         if (incoming == null) return existing;
+        // A NaN operand is unmergeable: the runtime aggregator propagates NaN (Math.min(x,NaN)=NaN), but
+        // Comparable.compareTo orders NaN as the largest double, which would silently drop it from a MIN.
+        // Returning null poisons the fold so the column safe-misses and a full scan returns the correct NaN.
+        if (isNaN(existing) || isNaN(incoming)) return null;
         if (existing.getClass() == incoming.getClass()) {
             if (existing instanceof Comparable c) {
                 return c.compareTo(incoming) <= 0 ? existing : incoming;
@@ -336,6 +364,11 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             return null;
         }
         return crossTypeExtremum(existing, incoming, true);
+    }
+
+    /** True for a {@code Double}/{@code Float} NaN; such a value cannot be folded as an extremum. */
+    private static boolean isNaN(Object o) {
+        return (o instanceof Double d && d.isNaN()) || (o instanceof Float f && f.isNaN());
     }
 
     /**
@@ -347,6 +380,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
     static Object mergedMax(@Nullable Object existing, @Nullable Object incoming) {
         if (existing == null) return incoming;
         if (incoming == null) return existing;
+        if (isNaN(existing) || isNaN(incoming)) return null; // NaN is unmergeable — see mergedMin
         if (existing.getClass() == incoming.getClass()) {
             if (existing instanceof Comparable c) {
                 return c.compareTo(incoming) >= 0 ? existing : incoming;
@@ -429,6 +463,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
                     int ord = builder.addColumn(colName);
                     columnOrdinals.put(colName, ord);
                     builder.nullCount(ord, stats.nullCounts[i]);
+                    builder.valueCount(ord, stats.valueCounts[i]);
                     builder.min(ord, stats.mins[i]);
                     builder.max(ord, stats.maxs[i]);
                     builder.sizeBytes(ord, stats.sizesBytes[i]);
@@ -439,6 +474,12 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
                     long newNc = stats.nullCounts[i];
                     if (existingNc >= 0 && newNc >= 0) {
                         builder.nullCount(ord, existingNc + newNc);
+                    }
+                    // Sum value counts (non-null values; multivalue-aware)
+                    long existingVc = builder.valueCountsList.get(ord);
+                    long newVc = stats.valueCounts[i];
+                    if (existingVc >= 0 && newVc >= 0) {
+                        builder.valueCount(ord, existingVc + newVc);
                     }
                     // Min of mins (widen numeric types if needed; null on incompatible)
                     if (poisonedMins.get(ord) == false) {
@@ -510,6 +551,9 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             if (nullCounts[i] >= 0) {
                 map.put(SourceStatisticsSerializer.columnNullCountKey(name), nullCounts[i]);
             }
+            if (valueCounts[i] >= 0) {
+                map.put(SourceStatisticsSerializer.columnValueCountKey(name), valueCounts[i]);
+            }
             if (mins[i] != null) {
                 map.put(SourceStatisticsSerializer.columnMinKey(name), mins[i]);
             }
@@ -574,6 +618,10 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             if (nc instanceof Number) {
                 builder.nullCount(ordinal, ((Number) nc).longValue());
             }
+            Object vc = stats.get(".value_count");
+            if (vc instanceof Number) {
+                builder.valueCount(ordinal, ((Number) vc).longValue());
+            }
             Object min = stats.get(".min");
             if (min != null) {
                 builder.min(ordinal, min);
@@ -637,6 +685,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             && Arrays.equals(segments, that.segments)
             && Arrays.deepEquals(columnSegmentOrdinals, that.columnSegmentOrdinals)
             && Arrays.equals(nullCounts, that.nullCounts)
+            && Arrays.equals(valueCounts, that.valueCounts)
             && Arrays.deepEquals(mins, that.mins)
             && Arrays.deepEquals(maxs, that.maxs)
             && Arrays.equals(sizesBytes, that.sizesBytes);
@@ -648,6 +697,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         result = 31 * result + Arrays.hashCode(segments);
         result = 31 * result + Arrays.deepHashCode(columnSegmentOrdinals);
         result = 31 * result + Arrays.hashCode(nullCounts);
+        result = 31 * result + Arrays.hashCode(valueCounts);
         result = 31 * result + Arrays.deepHashCode(mins);
         result = 31 * result + Arrays.deepHashCode(maxs);
         result = 31 * result + Arrays.hashCode(sizesBytes);
@@ -669,6 +719,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         private long sizeInBytes = -1;
         private final List<int[]> columnOrdinals = new ArrayList<>();
         private final List<Long> nullCountsList = new ArrayList<>();
+        private final List<Long> valueCountsList = new ArrayList<>();
         private final List<Object> minsList = new ArrayList<>();
         private final List<Object> maxsList = new ArrayList<>();
         private final List<Long> sizesBytesList = new ArrayList<>();
@@ -704,6 +755,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             }
             columnOrdinals.add(ords);
             nullCountsList.add(-1L);
+            valueCountsList.add(-1L);
             minsList.add(null);
             maxsList.add(null);
             sizesBytesList.add(-1L);
@@ -730,6 +782,11 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             return this;
         }
 
+        public Builder valueCount(int columnOrdinal, long valueCount) {
+            valueCountsList.set(columnOrdinal, valueCount);
+            return this;
+        }
+
         public Builder min(int columnOrdinal, Object min) {
             minsList.set(columnOrdinal, min);
             return this;
@@ -753,16 +810,18 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             int colCount = columnOrdinals.size();
             int[][] colSegOrdinals = columnOrdinals.toArray(int[][]::new);
             long[] nc = new long[colCount];
+            long[] vc = new long[colCount];
             Object[] mn = new Object[colCount];
             Object[] mx = new Object[colCount];
             long[] sb = new long[colCount];
             for (int i = 0; i < colCount; i++) {
                 nc[i] = nullCountsList.get(i);
+                vc[i] = valueCountsList.get(i);
                 mn[i] = minsList.get(i);
                 mx[i] = maxsList.get(i);
                 sb[i] = sizesBytesList.get(i);
             }
-            return new SplitStats(rowCount, sizeInBytes, segs, colSegOrdinals, nc, mn, mx, sb);
+            return new SplitStats(rowCount, sizeInBytes, segs, colSegOrdinals, nc, vc, mn, mx, sb);
         }
     }
 }

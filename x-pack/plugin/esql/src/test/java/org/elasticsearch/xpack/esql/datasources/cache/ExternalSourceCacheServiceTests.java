@@ -822,6 +822,30 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         );
     }
 
+    public void testColumnValueCountFoldsAcrossStripesAsSum() throws Exception {
+        // COUNT(col) is served from the harvested value count. Across stripes it must SUM (each stripe holds
+        // the non-null value count of its own rows), so a multivalued column's whole-file COUNT is the total
+        // value count, not the row count.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/events.ndjson";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of("format", "ndjson"));
+            seedSchemaCacheTyped(service, key, path, "fp", "tags", DataType.KEYWORD);
+
+            Map<String, Object> s0 = stripeFragment(mtime, "fp", 60L, 100L, 0, 0, 100, true, true, false);
+            s0.put(SourceStatisticsSerializer.columnValueCountKey("tags"), 130L); // 60 rows, 130 values
+            Map<String, Object> s1 = stripeFragment(mtime, "fp", 40L, 100L, 1, 100, 180, true, true, true);
+            s1.put(SourceStatisticsSerializer.columnValueCountKey("tags"), 95L); // 40 rows, 95 values
+
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(s0, s1)));
+
+            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            Object vc = enriched.safeMetadata().get(SourceStatisticsSerializer.columnValueCountKey("tags"));
+            assertNotNull("value_count must fold across stripes", vc);
+            assertEquals("value_count folds as SUM (130 + 95), independent of the 100-row count", 225L, ((Number) vc).longValue());
+        }
+    }
+
     public void testReconcileAccumulatesStripesAcrossQueries() throws Exception {
         // Stripe knowledge composes across queries: query A commits stripe 0 (no EOF observed), query B
         // commits stripe 1 + EOF; the whole-file fold fires only once the union is complete.

@@ -133,7 +133,7 @@ public final class ColumnStatsAccumulator {
         Map<String, ExternalStats.ColumnStats> out = new LinkedHashMap<>(states.length);
         for (int i = 0; i < states.length; i++) {
             ColumnState s = states[i];
-            out.put(columnNames[i], new ExternalStats.ColumnStats(s.nullCount, s.min, s.max));
+            out.put(columnNames[i], new ExternalStats.ColumnStats(s.nullCount, s.valueCount, s.min, s.max));
         }
         return out;
     }
@@ -145,6 +145,7 @@ public final class ColumnStatsAccumulator {
          */
         private final byte typeOrdinal;
         private long nullCount;
+        private long valueCount; // non-null VALUES (multivalue-aware); COUNT(col) is served from this
         private Object min;
         private Object max;
 
@@ -188,12 +189,16 @@ public final class ColumnStatsAccumulator {
                     nullCount++;
                     continue;
                 }
+                int vc = block.getValueCount(p);
+                // COUNT(col) counts non-null VALUES, not rows: a multivalued position contributes vc>1.
+                // Tracked over every column (incl. T_UNTRACKED) so COUNT(col) pushdown is correct regardless
+                // of whether min/max are also tracked.
+                valueCount += vc;
                 if (t == T_UNTRACKED) {
                     continue;
                 }
-                int valueCount = block.getValueCount(p);
                 int firstValue = block.getFirstValueIndex(p);
-                for (int v = 0; v < valueCount; v++) {
+                for (int v = 0; v < vc; v++) {
                     int idx = firstValue + v;
                     switch (t) {
                         case T_BOOLEAN -> updateBoolean(((BooleanBlock) block).getBoolean(idx));
@@ -236,6 +241,7 @@ public final class ColumnStatsAccumulator {
                 nullCount++;
                 return;
             }
+            valueCount++; // one non-null value (called once per scalar and per non-null multivalue element)
             switch (typeOrdinal) {
                 case T_UNTRACKED -> {
                     // Null count only — mirrors the Block path's universal null tracking for untracked types.
@@ -283,11 +289,14 @@ public final class ColumnStatsAccumulator {
         }
 
         private void updateDouble(double val) {
-            // NaN comparisons always return false, so a leading NaN would wedge the tracker on NaN
-            // forever (no value compares < NaN or > NaN). Skip NaN entirely — it neither shrinks min
-            // nor extends max under standard SQL ordering. The non-null count still includes the cell
-            // because the outer block.isNull(p) check has already ruled out the SQL-null case.
+            // The runtime Min/MaxDoubleAggregator use Math.min/Math.max, which PROPAGATE NaN: once any value
+            // is NaN the aggregate is NaN. Record NaN as both extremes so a served stat matches a full scan;
+            // it stays NaN because no later value compares < or > NaN. The cross-stripe/cross-file fold
+            // (SplitStats.mergedMin/mergedMax) treats a NaN operand as unmergeable, so a multi-unit column
+            // safe-misses there instead of serving a non-NaN extreme — MIN/MAX matches a scan in every shape.
             if (Double.isNaN(val)) {
+                min = Double.NaN;
+                max = Double.NaN;
                 return;
             }
             Double cur = (Double) min;

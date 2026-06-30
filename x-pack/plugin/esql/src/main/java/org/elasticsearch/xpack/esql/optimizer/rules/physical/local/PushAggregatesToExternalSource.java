@@ -232,6 +232,12 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 if (ExternalSourceAggregatePushdown.columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
                     return null;
                 }
+                // COUNT(col) counts non-null VALUES. Prefer the harvested value count (multivalue-correct);
+                // it is -1 for footer formats that don't harvest it, where rowCount - nullCount is exact.
+                long vc = stats.columnValueCount(ref.name());
+                if (vc >= 0) {
+                    return vc;
+                }
                 long nc = stats.columnNullCount(ref.name());
                 if (nc >= 0) {
                     return stats.rowCount() - nc;

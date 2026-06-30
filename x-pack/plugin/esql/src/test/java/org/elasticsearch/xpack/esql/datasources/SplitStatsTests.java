@@ -56,6 +56,59 @@ public class SplitStatsTests extends ESTestCase {
         assertEquals(12000, stats.sizeBytes(1));
     }
 
+    public void testValueCountServesCountColForMultivaluedColumn() throws IOException {
+        // A multivalued column: 100 rows, 10 null, but 270 non-null VALUES (the other 90 rows average 3 each).
+        SplitStats.Builder builder = new SplitStats.Builder();
+        builder.rowCount(100);
+        int tags = builder.addColumn("tags");
+        builder.nullCount(tags, 10);
+        builder.valueCount(tags, 270);
+        SplitStats stats = builder.build();
+
+        // COUNT(tags) must be the VALUE count (270), not rowCount - nullCount (90, the non-null ROW count).
+        assertEquals(270L, stats.columnValueCount("tags"));
+        assertEquals(270L, stats.valueCount(0));
+        assertEquals(90L, stats.rowCount() - stats.columnNullCount("tags"));
+
+        // wire round-trip preserves valueCount
+        BytesStreamOutput out = new BytesStreamOutput();
+        stats.writeTo(out);
+        SplitStats back = new SplitStats(out.bytes().streamInput());
+        assertEquals(270L, back.columnValueCount("tags"));
+
+        // flat-map carries it under the canonical key
+        assertEquals(270L, ((Number) stats.toMap().get(SourceStatisticsSerializer.columnValueCountKey("tags"))).longValue());
+    }
+
+    public void testColumnValueCountIsMinusOneWhenNotHarvested() {
+        // Footer formats (parquet) don't harvest a value count; columnValueCount returns -1 so COUNT(col)
+        // falls back to rowCount - nullCount. A column added without valueCount(...) must report -1.
+        SplitStats.Builder builder = new SplitStats.Builder();
+        builder.rowCount(10);
+        int age = builder.addColumn("age");
+        builder.nullCount(age, 2);
+        SplitStats stats = builder.build();
+        assertEquals(-1L, stats.columnValueCount("age"));
+        assertEquals(-1L, stats.columnValueCount("does_not_exist"));
+    }
+
+    public void testMergedMinMaxTreatNaNAsUnmergeable() {
+        // A NaN MERGED with a real value is unmergeable -> null (poison) -> the column safe-misses and a
+        // full scan returns the correct NaN. Comparable.compareTo would otherwise order NaN as the largest
+        // double and silently drop it from a MIN.
+        assertNull(SplitStats.mergedMin(Double.NaN, 5.0));
+        assertNull(SplitStats.mergedMin(5.0, Double.NaN));
+        assertNull(SplitStats.mergedMax(Double.NaN, 5.0));
+        assertNull(SplitStats.mergedMax(5.0, Double.NaN));
+        // Non-NaN doubles still merge normally.
+        assertEquals(1.0, SplitStats.mergedMin(1.0, 2.0));
+        assertEquals(2.0, SplitStats.mergedMax(1.0, 2.0));
+        // A lone NaN contribution (other side null) is the column's value and is served as NaN — the poison
+        // only fires when NaN actually meets another value in a fold.
+        assertEquals(Double.NaN, SplitStats.mergedMin(Double.NaN, null));
+        assertEquals(Double.NaN, SplitStats.mergedMax(null, Double.NaN));
+    }
+
     public void testBulkAddColumn() {
         SplitStats.Builder builder = new SplitStats.Builder().rowCount(500).sizeInBytes(10000);
         int ord = builder.addColumn("score", 5L, 0.0, 100.0, 2000);

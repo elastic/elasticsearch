@@ -49,6 +49,7 @@ public final class SourceStatisticsSerializer {
     public static final String STATS_COL_PREFIX = "_stats.columns.";
     // Package-private: the only off-class consumer is StatFolds, in this package.
     static final String NULL_COUNT_SUFFIX = ".null_count";
+    static final String VALUE_COUNT_SUFFIX = ".value_count";
     static final String MIN_SUFFIX = ".min";
     static final String MAX_SUFFIX = ".max";
     static final String SIZE_BYTES_SUFFIX = ".size_bytes";
@@ -71,6 +72,7 @@ public final class SourceStatisticsSerializer {
                 String prefix = STATS_COL_PREFIX + entry.getKey();
                 SourceStatistics.ColumnStatistics cs = entry.getValue();
                 cs.nullCount().ifPresent(nc -> result.put(prefix + NULL_COUNT_SUFFIX, nc));
+                cs.valueCount().ifPresent(vc -> result.put(prefix + VALUE_COUNT_SUFFIX, vc));
                 cs.minValue().ifPresent(mv -> result.put(prefix + MIN_SUFFIX, mv));
                 cs.maxValue().ifPresent(mv -> result.put(prefix + MAX_SUFFIX, mv));
                 cs.sizeInBytes().ifPresent(sb -> result.put(prefix + SIZE_BYTES_SUFFIX, sb));
@@ -137,6 +139,16 @@ public final class SourceStatisticsSerializer {
     }
 
     /**
+     * Extracts the value count (count of non-null values) for a specific column directly from the
+     * sourceMetadata map. Returns {@code null} if the metadata is null or the value count is
+     * absent/non-numeric.
+     */
+    @Nullable
+    public static Long extractColumnValueCount(Map<String, Object> sourceMetadata, String columnName) {
+        return sourceMetadata != null ? asBoxedLong(sourceMetadata.get(columnValueCountKey(columnName))) : null;
+    }
+
+    /**
      * Extracts the min value for a specific column directly from the sourceMetadata map.
      * Returns {@code null} if the metadata is null or the min is absent.
      */
@@ -157,6 +169,11 @@ public final class SourceStatisticsSerializer {
     /** Returns the flat key used for a column's null count statistic. */
     public static String columnNullCountKey(String columnName) {
         return STATS_COL_PREFIX + columnName + NULL_COUNT_SUFFIX;
+    }
+
+    /** Returns the flat key used for a column's value count (non-null values) statistic. */
+    public static String columnValueCountKey(String columnName) {
+        return STATS_COL_PREFIX + columnName + VALUE_COUNT_SUFFIX;
     }
 
     /** Returns the flat key used for a column's min statistic. */
@@ -322,6 +339,7 @@ public final class SourceStatisticsSerializer {
                 }
                 if (observedInEveryFile == false) {
                     acc.remove(columnNullCountKey(colName));
+                    acc.remove(columnValueCountKey(colName));
                     acc.remove(columnMinKey(colName));
                     acc.remove(columnMaxKey(colName));
                     acc.remove(columnSizeBytesKey(colName));
@@ -361,6 +379,11 @@ public final class SourceStatisticsSerializer {
         @Override
         public OptionalLong nullCount() {
             return toOptionalLong(extractColumnNullCount(map, colName));
+        }
+
+        @Override
+        public OptionalLong valueCount() {
+            return toOptionalLong(extractColumnValueCount(map, colName));
         }
 
         @Override

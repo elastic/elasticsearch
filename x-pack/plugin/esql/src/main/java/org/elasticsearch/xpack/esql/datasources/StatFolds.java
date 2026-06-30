@@ -13,6 +13,7 @@ import static org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerialize
 import static org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.SIZE_BYTES_SUFFIX;
 import static org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.STATS_ROW_COUNT;
 import static org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.STATS_SIZE_BYTES;
+import static org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.VALUE_COUNT_SUFFIX;
 
 /**
  * Maps a flat {@code _stats.*} statistic key to its {@link StatFold} law, so a statistics combine folds
@@ -38,6 +39,7 @@ final class StatFolds {
         if (key.equals(STATS_ROW_COUNT)
             || key.equals(STATS_SIZE_BYTES)
             || key.endsWith(NULL_COUNT_SUFFIX)
+            || key.endsWith(VALUE_COUNT_SUFFIX)
             || key.endsWith(SIZE_BYTES_SUFFIX)) {
             return StatFold.SUM;
         }

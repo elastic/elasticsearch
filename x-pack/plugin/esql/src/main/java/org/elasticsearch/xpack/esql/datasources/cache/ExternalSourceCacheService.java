@@ -452,8 +452,10 @@ public class ExternalSourceCacheService implements Closeable {
      * branch → POISON → the column's min/max is dropped → safe-miss → full scan. Coercing every contribution
      * to the resolved type up front removes the collision at its source.
      *
-     * <p>Coercion is loss-free for an extremum: widening an integral min/max to {@code double} is exact
-     * because IEEE round-to-nearest is monotonic, so {@code (double) max(longs) == max((double) longs)}.
+     * <p>Coercion preserves the extremum (it is NOT bit-exact above 2^53): IEEE round-to-nearest is monotonic,
+     * so {@code (double) max(longs) == max((double) longs)} — an individual value may round, but a full scan
+     * reads the column in the same resolved DOUBLE type and rounds it identically, so the served value equals
+     * the scan's (result-parity, not bit-exactness).
      * When a value cannot be represented in the resolved type (the genuinely inconsistent case — e.g. a
      * {@code Double > Long.MAX} for a column the entry resolved to LONG), it is NOT coerced: in the stripe
      * path ({@code dropUnrepresentable=false}) it is left for the existing POISON fold to safe-miss the whole
@@ -527,7 +529,8 @@ public class ExternalSourceCacheService implements Closeable {
                 Long l = toExactLong(value);
                 yield (l != null && l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE) ? Integer.valueOf(l.intValue()) : null;
             }
-            default -> value;
+            // Unreachable: callers gate on isNumericStatType, so only the numeric types above reach here.
+            default -> throw new AssertionError("coerceNumberToType called for non-numeric stat type: " + type);
         };
     }
 
@@ -544,8 +547,10 @@ public class ExternalSourceCacheService implements Closeable {
             if (Double.isFinite(d) == false) {
                 return null;
             }
+            // Not DataTypeConverter.safeToLong: that rounds (Math.round) and throws out of range. An extremum
+            // must be exact-or-miss, so we accept only a lossless round-trip and return null otherwise.
             long asLong = (long) d;
-            return (double) asLong == d ? asLong : null; // exact iff the round-trip is lossless
+            return (double) asLong == d ? asLong : null;
         }
         return null;
     }

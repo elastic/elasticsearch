@@ -84,4 +84,27 @@ public class NdjsonExternalAggregatePushdownMatrixIT extends AbstractExternalAgg
             assertThat("warm MAX(uid) == cold MAX(uid)", warm.get(0).get(1), equalTo(cold.get(0).get(1)));
         }
     }
+
+    /**
+     * COUNT on a multivalued (array) column counts VALUES, not rows: ES|QL's {@code Count} returns the number
+     * of values. The warm short-circuit must serve the same number a full scan computes — here every row has a
+     * 2-element {@code tags} array, so {@code COUNT(tags)} is {@code 2*ROWS}, NOT {@code ROWS}.
+     */
+    public void testCountMultivaluedColumnColdThenWarmShortCircuits() throws Exception {
+        Path dir = createTempDir();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < ROWS; i++) {
+            sb.append("{\"id\":").append(i).append(",\"tags\":[\"x").append(i).append("\",\"y").append(i).append("\"]}\n");
+        }
+        Path file = dir.resolve("mv.ndjson");
+        Files.writeString(file, sb.toString());
+        registerDataset("mv_employees", StoragePath.fileUri(file));
+
+        assertColdThenWarmShortCircuit(
+            "mv_employees",
+            "STATS c = COUNT(tags)",
+            ROWS,
+            rows -> assertThat("COUNT(tags) counts values, not rows", ((Number) rows.get(0).get(0)).longValue(), equalTo(2L * ROWS))
+        );
+    }
 }

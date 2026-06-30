@@ -60,6 +60,19 @@ public interface SplitStats {
     long columnNullCount(String name);
 
     /**
+     * Number of non-null values in the named column (multivalue-aware: a multivalued cell
+     * contributes one per value). This is what {@code COUNT(col)} returns, served directly
+     * rather than derived from {@code rowCount - columnNullCount} (which under-counts
+     * multivalued columns).
+     * <p>
+     * Returns {@code -1} when not available; the caller then falls back to
+     * {@code rowCount - nullCount}.
+     */
+    default long columnValueCount(String name) {
+        return -1;
+    }
+
+    /**
      * Whether the named column carries any per-column statistics in this split (a null count, a
      * min/max, or a size). This is the "column was observed by the stats layer" predicate, distinct
      * from {@link #columnNullCount}'s implicit-nulls contract: for footer formats an absent column is

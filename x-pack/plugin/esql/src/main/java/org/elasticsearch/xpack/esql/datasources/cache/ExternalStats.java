@@ -141,6 +141,14 @@ public final class ExternalStats {
     /**
      * Per-column statistics. Null {@code min} / {@code max} means the column is untracked at this layer
      * (e.g. type without an ordered comparator at the capture site, or all rows were null).
+     *
+     * @param nullCount  number of null cells (one per null row position; an empty multivalue is a null)
+     * @param valueCount number of non-null VALUES — for a single-valued column this equals
+     *                   {@code rows - nullCount}, but for a multivalued column it counts every value
+     *                   (e.g. an NDJSON array {@code [a,b,c]} contributes 3). This is what
+     *                   {@code COUNT(col)} returns ({@code Count}: "COUNTing a multivalued field returns
+     *                   the number of values"), so it is served directly rather than derived from
+     *                   {@code rows - nullCount}, which would under-count multivalued columns.
      */
-    public record ColumnStats(long nullCount, Object min, Object max) {}
+    public record ColumnStats(long nullCount, long valueCount, Object min, Object max) {}
 }

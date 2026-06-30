@@ -7,14 +7,12 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
-import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
@@ -50,6 +48,10 @@ import static org.hamcrest.Matchers.equalTo;
  * {@link #format()}, {@link #formatPlugins()} and a {@link #writeFixture(Path, int)} that lays the same
  * logical columns out in that format. Mirrors {@link AbstractExternalMetadataMatrixIT}.
  */
+// numDataNodes=1: multi-node dataset publication trips an unrelated ProjectMetadata.Builder assertion
+// already on main (same reason AbstractExternalMetadataMatrixIT pins it); a single node also makes the
+// per-coordinator stats cache deterministic without pinning queries to a specific node.
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public abstract class AbstractExternalAggregatePushdownMatrixIT extends AbstractEsqlIntegTestCase {
 
     protected static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
@@ -64,8 +66,8 @@ public abstract class AbstractExternalAggregatePushdownMatrixIT extends Abstract
     /**
      * Write a {@code rows}-row fixture into {@code dir} and return the resource URI string. The fixture has
      * three columns over {@code i} in {@code [0, rows)}: {@code emp_no} (a whole number {@code i}),
-     * {@code label} (the keyword {@code String.format("k%04d", i)}, zero-padded so lexicographic order ==
-     * numeric order), and {@code val} (the double {@code i + 0.5}).
+     * {@code label} (the keyword {@link #label(int)}, zero-padded under {@link Locale#ROOT} so lexicographic
+     * order == numeric order), and {@code val} (the double {@code i + 0.5}).
      */
     protected abstract String writeFixture(Path dir, int rows) throws Exception;
 
@@ -114,20 +116,6 @@ public abstract class AbstractExternalAggregatePushdownMatrixIT extends Abstract
     @Override
     protected QueryPragmas getPragmas() {
         return new QueryPragmas(Settings.builder().put("parsing_parallelism", 1).build());
-    }
-
-    /**
-     * Pins every query to the master coordinator. The reconciled schema cache is per-coordinator, so the cold
-     * scan and the warm short-circuit must hit the same node; the default {@code run()} routes to a random
-     * node per call, which would land the warm query on a coordinator whose cache the cold scan never enriched.
-     */
-    @Override
-    public EsqlQueryResponse run(EsqlQueryRequest request, TimeValue timeout) {
-        try {
-            return client(internalCluster().getMasterName()).execute(EsqlQueryAction.INSTANCE, request).actionGet(timeout);
-        } catch (ElasticsearchTimeoutException e) {
-            throw new AssertionError("timeout", e);
-        }
     }
 
     @Before
@@ -211,15 +199,5 @@ public abstract class AbstractExternalAggregatePushdownMatrixIT extends Abstract
         Map<String, Object> settings
     ) {
         return new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, dataSource, resource, null, new HashMap<>(settings));
-    }
-
-    @SuppressWarnings("unused") // symmetry with the metadata matrix base; kept for subclass/cleanup use
-    private static DeleteDataSourceAction.Request deleteDataSourceRequest(String name) {
-        return new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
-    }
-
-    @SuppressWarnings("unused")
-    private static DeleteDatasetAction.Request deleteDatasetRequest(String name) {
-        return new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
     }
 }

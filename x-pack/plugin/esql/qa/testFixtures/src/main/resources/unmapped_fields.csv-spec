@@ -780,6 +780,102 @@ fork1         | null                 | 43
 fork2         | null                 | Disconnected from 10.1.0.1
 ;
 
+// FORK branches share one source, so an unmapped field referenced in one branch loads from _source in EVERY branch (unlike
+// sibling subqueries); the branch-scoped EVAL alias (tag) still null-fills the other branch. See #142033.
+loadUnmappedFieldEvalInOneForkBranchLoadsAllBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE message == "42" | EVAL tag = unmapped_message)
+       (WHERE message == "Connected to 10.1.0.1!")
+| KEEP _fork, message, unmapped_message, tag
+| SORT _fork, message
+;
+
+_fork:keyword | message:keyword        | unmapped_message:keyword   | tag:keyword
+fork1         | 42                     | 43                         | 43
+fork2         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | null
+;
+
+// Referenced only after a three-branch FORK, the unmapped field still loads in all three branches.
+loadUnmappedFieldReferencedOnlyAboveThreeBranchFork
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE message == "42")
+       (WHERE message == "Connected to 10.1.0.1!")
+       (WHERE message == "Connected to 10.1.0.2!")
+| EVAL upper = TO_UPPER(unmapped_message)
+| KEEP _fork, message, unmapped_message, upper
+| SORT _fork
+;
+
+_fork:keyword | message:keyword        | unmapped_message:keyword   | upper:keyword
+fork1         | 42                     | 43                         | 43
+fork2         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | DISCONNECTED FROM 10.1.0.1
+fork3         | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | DISCONNECTED FROM 10.1.0.2
+;
+
+// The unmapped field, loaded across both branches, drives an outer STATS grouping key.
+loadUnmappedFieldOuterStatsByAcrossForkBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE message == "42")
+       (WHERE message == "Connected to 10.1.0.1!")
+| STATS c = COUNT(*) BY unmapped_message
+| SORT unmapped_message
+;
+
+c:long | unmapped_message:keyword
+1      | 43
+1      | Disconnected from 10.1.0.1
+;
+
+// An outer WHERE on the loaded unmapped field filters across branches; the branch that never mentions it is still materialized.
+loadUnmappedFieldOuterWhereAcrossForkBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE message == "42")
+       (WHERE message == "Connection error?")
+| WHERE unmapped_message == "Disconnection error"
+| KEEP _fork, message, unmapped_message
+| SORT _fork, message
+;
+
+_fork:keyword | message:keyword   | unmapped_message:keyword
+fork2         | Connection error? | Disconnection error
+fork2         | Connection error? | Disconnection error
+fork2         | Connection error? | Disconnection error
+;
+
+// DROP in one branch null-fills it there at the merge while the sibling still materializes its _source value.
+loadUnmappedFieldDropInOneForkBranchMaterializesSibling
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE message == "42" | DROP unmapped_message)
+       (WHERE message == "Connected to 10.1.0.1!")
+| KEEP _fork, message, unmapped_message
+| SORT _fork
+;
+
+_fork:keyword | message:keyword        | unmapped_message:keyword
+fork1         | 42                     | null
+fork2         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
 ##############################
 # LOAD mode + subqueries/views #
 ##############################

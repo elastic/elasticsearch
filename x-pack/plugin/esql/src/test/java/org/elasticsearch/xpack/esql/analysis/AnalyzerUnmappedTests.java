@@ -441,9 +441,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             );
     }
 
-    // Known gap (PR #151750 review follow-up to #142033): WHERE x IN (subquery) lowers to a semi-join, and load
-    // resolution does not materialize a field used as the IN's left (LHS) key, so it stays unresolved
-    // ("Unknown column [..] in left side of join") across every IN-subquery shape below.
+    // Known gap (#142033 / PR #151750 review): an IN-subquery lowers to a semi-join and load does not materialize the
+    // field used as the IN's left key, so it stays unresolved across every shape below.
     public void testLoadModeRejectsUnmappedFieldAsInSubqueryLeftKey() {
         expectInSubqueryLeftKeyRejected("unmapped_message", """
             FROM partial_mapping_sample_data
@@ -531,10 +530,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     private void expectInSubqueryLeftKeyRejected(String column, String query) {
         assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-        partialMappingTest().statementError(
-            setUnmappedLoad(query),
-            containsString("Unknown column [" + column + "] in left side of join")
-        );
+        partialMappingTest().statementError(setUnmappedLoad(query), containsString("Unknown column [" + column + "] in left side of join"));
     }
 
     // Regression: multi-key LOOKUP JOIN where one key resolves and another doesn't in iteration 1.

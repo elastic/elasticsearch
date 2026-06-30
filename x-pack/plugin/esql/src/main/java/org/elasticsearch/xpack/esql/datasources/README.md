@@ -358,8 +358,7 @@ client can tell "stop and give me what you have" apart from "abort, throw it all
 |-------------------------------------------------------|----------------|-------------------|
 | Task cancel / client disconnect                       | none — fails with `TaskCancelledException` | n/a (no body) |
 | `DELETE /_query/async/{id}`                           | none — cancels the task, then deletes the saved entry | n/a (no body) |
-| `POST /_query/async/{id}/stop` *(distributed plan)*   | rows already accepted into the response pipeline | `true`        |
-| `POST /_query/async/{id}/stop` *(coordinator-only plan)* | full natural-completion body (STOP cannot cut) | `false`       |
+| `POST /_query/async/{id}/stop`                        | rows already accepted into the response pipeline | `true`        |
 | Lenient truncation (e.g. `error_mode: skip_row`)      | rows the source emitted before the truncation | `true`     |
 
 This mirrors the existing `_query/async` + `allow_partial_results` semantics — EXTERNAL is not idiosyncratic.
@@ -376,31 +375,29 @@ client cannot accidentally end up holding a half-built result it never asked for
 this explicitly at resolution time: `ExternalSourceResolver.throwIfCancelled` reads "cancellation is never
 masked as a partial-stats result". Users who want to keep their buffered rows must use STOP, not cancel.
 
-### Why STOP returns buffered rows — and when it does not
+### How STOP cuts an EXTERNAL pipeline
 
-`EsqlAsyncStopAction` reaches the coordinator's `ExchangeService#finishSessionEarly`, whose Javadoc
-records the explicit contract: "unlike cancel, this does not discard the results". The early-finish
-closes the upstream exchange source; the closed remote sink propagates back to the data node, the data
-driver tears down its operators, and the producer thread reading the external source observes
-`noMoreInputs` on its next iteration of the drain loop and exits. Pages that already crossed the
-operator boundary into the response sink stay in the response; pages still queued in the per-driver
-`AsyncExternalSourceBuffer` are dropped via `buffer.finish(true)`.
+`EsqlAsyncStopAction` runs two complementary cut paths so STOP works uniformly across plan shapes:
 
-**The truncation only happens when the plan has a data-node distribution** (and therefore an exchange
-source handler registered under the async task's session id). For EXTERNAL plans that stay on the
-coordinator — single-split scans under the default adaptive distribution, or any plan with
-`external_distribution=coordinator_only` — `ComputeService` runs the read directly through a coordinator
-`Driver` with no exchange in between. `finishSessionEarly` finds nothing to close, STOP becomes a
-wait-for-completion no-op, and the response carries the natural-completion outcome with
-`is_partial=false`. This is enforced by `TransportEsqlAsyncStopAction`: it only flips
-`EsqlExecutionInfo#markPartial` when `finishSessionEarly` reports it actually interrupted an exchange.
-Any other "STOP fired while task was registered" signal would be a lie about a possibly complete result
-(for example, when the task is in the async-store persistence window between final compute and
-`onResponse`).
+1. **Exchange-close cascade.** `ExchangeService#finishSessionEarly` closes the upstream exchange source
+   registered under the async task's session id. The closed remote sink propagates back to the data
+   node, the data driver tears down its operators, and the producer thread observes `noMoreInputs` on
+   its next iteration of the drain loop. This is the path for distributed plans and CCS — its Javadoc
+   pins the contract: "unlike cancel, this does not discard the results".
+2. **Per-task stop hooks.** `AsyncExternalSourceOperatorFactory` registers a hook on its driver's
+   `DriverContext` that calls `AsyncExternalSourceBuffer.finish(false)`. `TransportEsqlAsyncStopAction`
+   fans those hooks out via `EsqlExecutionInfo#runStopHooks`. The hook flips `noMoreInputs` on the
+   buffer — pages already accepted into the queue stay reachable to the driver loop and flow through
+   the pipeline normally, while producer threads exit instead of accepting more. This covers
+   coordinator-only plans (single-split EXTERNAL reads under the default adaptive distribution) where
+   there is no exchange source handler under the task's session id for the cascade above to find.
 
-To make STOP cut a coordinator-only EXTERNAL plan, force distribution at submission time with
-`pragma external_distribution=round_robin` (or the equivalent strategy). A future change can wire a
-per-task stop hook into the coordinator-only `Driver` so STOP works uniformly; that is not yet in place.
+`TransportEsqlAsyncStopAction` flips `EsqlExecutionInfo#markPartial` only when at least one of the two
+paths reports it actually transitioned a still-running unit of work — `finishSessionEarly` returning
+`true`, or `runStopHooks` returning `true`. Any other "STOP fired while task was registered" signal
+would be a lie about a possibly complete result (for example, when the task is in the async-store
+persistence window between final compute and `onResponse`). Stop hooks that fire on already-finished
+buffers report `false` and never mark a complete response partial.
 
 ### A note on the opt-in "always return partial on first cancel"
 

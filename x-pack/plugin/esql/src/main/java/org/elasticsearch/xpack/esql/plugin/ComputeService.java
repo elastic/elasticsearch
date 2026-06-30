@@ -56,6 +56,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -1318,6 +1319,25 @@ public class ComputeService {
                 throw new IllegalStateException("no drivers created");
             }
             LOGGER.debug("using {} drivers", drivers.size());
+            // Bridge per-driver stop hooks to the async task's execution info. Source operators register
+            // non-destructive hooks on their {@link DriverContext} (today: {@code AsyncExternalSourceOperator}
+            // closes its buffer's input side, which lets the driver drain already-buffered pages while the
+            // producer thread exits). {@code TransportEsqlAsyncStopAction} fires the resulting list when the
+            // user requests STOP, so coordinator-only plans with no exchange-sink path back to the
+            // coordinator still wind down cleanly. Distributed plans get their pipeline cut by the
+            // exchange-close cascade — these hooks are idempotent overlays that never re-cut a driver.
+            //
+            // Only async ES|QL tasks carry an {@link EsqlExecutionInfo} we own here — sync tasks have no STOP
+            // semantics, and data-node tasks are not {@link EsqlQueryTask} instances, so no hooks register
+            // there and STOP on the coordinator never reaches across nodes through this path.
+            if (task instanceof EsqlQueryTask asyncTask) {
+                EsqlExecutionInfo execInfo = asyncTask.executionInfo();
+                if (execInfo != null) {
+                    for (Driver d : drivers) {
+                        execInfo.addStopHook(d::runStopHooks);
+                    }
+                }
+            }
             long planningBytesRead = planningBytesRead(directoryBytesRead, bytesBefore);
             // Pass the ORIGINAL plan (immutable, not transformed) for profiling
             ActionListener<Void> driverListener = addCompletionInfo(

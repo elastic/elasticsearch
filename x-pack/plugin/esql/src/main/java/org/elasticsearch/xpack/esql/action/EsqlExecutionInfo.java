@@ -40,7 +40,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -97,6 +99,16 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private final transient Predicate<String> skipOnFailurePredicate; // Predicate to determine if we should skip a cluster on failure
     private volatile boolean isPartial; // Does this request have partial results?
     private transient volatile boolean isStopped; // Have we received stop command?
+    /**
+     * Hooks that {@code TransportEsqlAsyncStopAction} fires to interrupt query execution for plans that have no
+     * exchange-sink path back to the coordinator. Each hook should return {@code true} only when it actually
+     * cut a live unit of work (e.g. transitioned a {@link org.elasticsearch.compute.operator.Driver} from
+     * running to early-finishing). The aggregate signal is what we use to gate {@code is_partial} —
+     * "no-op" hook calls do not mark the response partial. The list is task-local and short-lived; using
+     * {@link CopyOnWriteArrayList} keeps registration cheap during plan setup and lets STOP iterate
+     * concurrently with late registrations.
+     */
+    private final transient List<BooleanSupplier> stopHooks = new CopyOnWriteArrayList<>();
 
     private final EsqlQueryProfile queryProfile;
 
@@ -366,6 +378,35 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public boolean isStopped() {
         return isStopped;
+    }
+
+    /**
+     * Registers a hook that {@link #runStopHooks()} fires when the user requests async STOP for this query.
+     * The hook should return {@code true} only on the transition from running to finishing — see
+     * {@link #stopHooks} for the rationale.
+     */
+    public void addStopHook(BooleanSupplier hook) {
+        stopHooks.add(hook);
+    }
+
+    /**
+     * Fires all registered stop hooks and returns {@code true} if at least one hook reported that it cut a
+     * live unit of work. Callers can use this to decide whether STOP truncated the query (and therefore
+     * the response should be flagged {@code is_partial=true}) or whether STOP merely raced with natural
+     * completion (in which case the response is honestly complete).
+     */
+    public boolean runStopHooks() {
+        boolean anyCut = false;
+        for (BooleanSupplier hook : stopHooks) {
+            try {
+                anyCut |= hook.getAsBoolean();
+            } catch (Exception ignored) {
+                // Hooks are best-effort signals — a faulty hook must not prevent the rest from firing or
+                // break the STOP response path. Failures here only weaken the partial-marking signal,
+                // never the result delivery.
+            }
+        }
+        return anyCut;
     }
 
     public void clusterInfoInitializing(boolean clusterInfoInitializing) {

@@ -114,20 +114,23 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
         if (esqlExecutionInfo != null) {
             esqlExecutionInfo.markAsStopped();
         }
+        // Fire per-task stop hooks before the exchange-close path so that any local driver that is not behind an
+        // {@link org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator} (today: coordinator-only EXTERNAL
+        // reads) winds down too. Hooks return {@code true} only when they transitioned a driver from running to
+        // finishing, so this gives us an honest signal of "STOP actually cut something" independent of the exchange
+        // path. Hooks for distributed plans are redundant with the exchange-close cascade but idempotent, so they
+        // never double-cut a driver.
+        final boolean stopHookCutSomething = esqlExecutionInfo != null && esqlExecutionInfo.runStopHooks();
         Runnable getResults = () -> getResultsAction.execute(task, getAsyncResultRequest, listener);
         exchangeService.finishSessionEarly(sessionId, ActionListener.wrap(interrupted -> {
-            // Mark the response partial only when {@code finishSessionEarly} actually closed an active exchange
-            // source. That is the sole signal we have that STOP truncated live dataflow. Other plausible-looking
-            // signals (task still in the registry, completion listener not yet fired) do not prove interruption —
-            // the task can be in the async-store persistence window with a fully complete result, in which case
-            // flagging {@code is_partial=true} would be a lie. The exchange-close path covers every query shape
-            // that registers a source handler under the async task's session id: ES-index queries, CCS, and
-            // EXTERNAL queries that were planned with data-node distribution. Coordinator-only EXTERNAL plans
-            // (see {@code ComputeService} dataNodePlan==null branch) deliberately bypass the exchange machinery
-            // and therefore cannot be cut by STOP today — STOP becomes a wait-for-completion no-op for them, and
-            // {@code is_partial} reflects the natural completion status rather than user intent. Removing that
-            // limitation requires a per-task stop hook for the coordinator pipeline (tracked separately).
-            if (Boolean.TRUE.equals(interrupted) && esqlExecutionInfo != null) {
+            // Mark the response partial when {@code STOP} provably interrupted execution: either {@code
+            // finishSessionEarly} closed an active exchange source (distributed plans, CCS, ES-index reads), or a
+            // task-local stop hook flipped a still-running driver into early-finishing (coordinator-only EXTERNAL
+            // reads). Either condition is a hard signal that we truncated live dataflow; without it the task can be
+            // in the async-store persistence window with a fully complete result, in which case flagging {@code
+            // is_partial=true} would be a lie.
+            final boolean cutLiveWork = Boolean.TRUE.equals(interrupted) || stopHookCutSomething;
+            if (cutLiveWork && esqlExecutionInfo != null) {
                 esqlExecutionInfo.markPartial();
             }
             if (asyncTask.addCompletionListener(() -> ActionListener.running(getResults)) == false) {

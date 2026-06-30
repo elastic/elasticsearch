@@ -1003,9 +1003,16 @@ public final class ServiceUtils {
         throw new UnsupportedOperationException(Strings.format("The %s service does not support %s", serviceName, taskName));
     }
 
-    public static ElasticsearchStatusException createUnsupportedMultimodalRerankException(String serviceName) {
+    public static ElasticsearchStatusException createUnsupportedMultimodalRerankInputException(String serviceName) {
         return new ElasticsearchStatusException(
-            Strings.format("The %s service does not support rerank with non-text inputs or queries", serviceName),
+            Strings.format("The %s service does not support rerank with non-text inputs", serviceName),
+            RestStatus.BAD_REQUEST
+        );
+    }
+
+    public static ElasticsearchStatusException createUnsupportedMultimodalRerankQueryException(String serviceName) {
+        return new ElasticsearchStatusException(
+            Strings.format("The %s service does not support rerank with non-text queries", serviceName),
             RestStatus.BAD_REQUEST
         );
     }

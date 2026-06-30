@@ -443,7 +443,14 @@ public class NvidiaServiceTests extends InferenceServiceTestCase {
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
-            assertThat(thrownException.getMessage(), is("The nvidia service does not support rerank with non-text inputs or queries"));
+            assertThat(
+                thrownException.getMessage(),
+                is(
+                    query.isNonText()
+                        ? "The nvidia service does not support rerank with non-text queries"
+                        : "The nvidia service does not support rerank with non-text inputs"
+                )
+            );
         }
     }
 

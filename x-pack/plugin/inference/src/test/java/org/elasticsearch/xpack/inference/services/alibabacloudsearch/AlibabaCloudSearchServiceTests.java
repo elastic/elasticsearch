@@ -481,7 +481,11 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
             assertThat(
                 thrownException.getMessage(),
-                is("The alibabacloud-ai-search service does not support rerank with non-text inputs or queries")
+                is(
+                    query.isNonText()
+                        ? "The alibabacloud-ai-search service does not support rerank with non-text queries"
+                        : "The alibabacloud-ai-search service does not support rerank with non-text inputs"
+                )
             );
         }
     }

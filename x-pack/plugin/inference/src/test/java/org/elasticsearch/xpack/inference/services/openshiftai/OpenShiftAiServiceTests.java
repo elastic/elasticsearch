@@ -450,7 +450,11 @@ public class OpenShiftAiServiceTests extends InferenceServiceTestCase {
             assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
             assertThat(
                 thrownException.getMessage(),
-                is("The openshift_ai service does not support rerank with non-text inputs or queries")
+                is(
+                    query.isNonText()
+                        ? "The openshift_ai service does not support rerank with non-text queries"
+                        : "The openshift_ai service does not support rerank with non-text inputs"
+                )
             );
         }
     }

@@ -54,7 +54,8 @@ import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankInputException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankQueryException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -315,9 +316,11 @@ public abstract class SenderService<M extends Model> implements InferenceService
     public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         try {
             // Rerank queries are always restricted to text. Non-text inputs are only accepted by services that support multimodal rerank.
-            if (request.query().isNonText()
-                || (supportsMultimodalRerank() == false && request.inputs().stream().anyMatch(InferenceString::isNonText))) {
-                listener.onFailure(createUnsupportedMultimodalRerankException(name()));
+            if (request.query().isNonText()) {
+                listener.onFailure(createUnsupportedMultimodalRerankQueryException(name()));
+                return;
+            } else if (supportsMultimodalRerank() == false && request.inputs().stream().anyMatch(InferenceString::isNonText)) {
+                listener.onFailure(createUnsupportedMultimodalRerankInputException(name()));
                 return;
             }
 

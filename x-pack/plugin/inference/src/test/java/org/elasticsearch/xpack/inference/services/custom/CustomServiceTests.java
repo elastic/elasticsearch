@@ -172,7 +172,11 @@ public class CustomServiceTests extends InferenceServiceTestCase {
             assertThat(thrownException.status(), CoreMatchers.is(RestStatus.BAD_REQUEST));
             assertThat(
                 thrownException.getMessage(),
-                CoreMatchers.is("The custom service does not support rerank with non-text inputs or queries")
+                CoreMatchers.is(
+                    query.isNonText()
+                        ? "The custom service does not support rerank with non-text queries"
+                        : "The custom service does not support rerank with non-text inputs"
+                )
             );
         }
     }

@@ -1388,7 +1388,14 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
-            assertThat(thrownException.getMessage(), is("The jinaai service does not support rerank with non-text inputs or queries"));
+            assertThat(
+                thrownException.getMessage(),
+                is(
+                    query.isNonText()
+                        ? "The jinaai service does not support rerank with non-text queries"
+                        : "The jinaai service does not support rerank with non-text inputs"
+                )
+            );
         }
     }
 

@@ -1416,7 +1416,11 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
             assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
             assertThat(
                 thrownException.getMessage(),
-                is("The azureaistudio service does not support rerank with non-text inputs or queries")
+                is(
+                    query.isNonText()
+                        ? "The azureaistudio service does not support rerank with non-text queries"
+                        : "The azureaistudio service does not support rerank with non-text inputs"
+                )
             );
         }
     }

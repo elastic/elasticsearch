@@ -83,7 +83,8 @@ import java.util.function.Function;
 import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankInputException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankQueryException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -602,8 +603,11 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        if (request.query().isNonText() || request.inputs().stream().anyMatch(InferenceString::isNonText)) {
-            listener.onFailure(createUnsupportedMultimodalRerankException(name()));
+        if (request.query().isNonText()) {
+            listener.onFailure(createUnsupportedMultimodalRerankQueryException(name()));
+            return;
+        } else if (request.inputs().stream().anyMatch(InferenceString::isNonText)) {
+            listener.onFailure(createUnsupportedMultimodalRerankInputException(name()));
             return;
         }
         if (!(model instanceof ElasticsearchInternalModel esModel)) {

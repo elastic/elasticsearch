@@ -172,7 +172,7 @@ public class EsqlDataTypeConverter {
         Map.entry(LONG, ToLong::new),
         // ToRadians, typeless
         Map.entry(TDIGEST, ToTDigest::new),
-        Map.entry(TEXT, ToText::new),
+        // TODO: `ToText` conversion needs to be added, but it break implicit conversion for unmapped fields
         Map.entry(TIME_DURATION, ToTimeDuration::new),
         Map.entry(UNSIGNED_LONG, ToUnsignedLong::new),
         Map.entry(VERSION, ToVersion::new)

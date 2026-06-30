@@ -28,5 +28,6 @@
   "unsigned_long" : "to_unsigned_long",
   "version" : "to_version",
   "counter" : "to_counter",
-  "gauge" : "to_gauge"
+  "gauge" : "to_gauge",
+  "text" : "to_text"
 }

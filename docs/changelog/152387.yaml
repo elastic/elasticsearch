@@ -1,0 +1,5 @@
+pr: 152387
+summary: Store semantic_text input in doc values
+area: Mapping
+type: enhancement
+issues: []

@@ -26,6 +26,9 @@ public class Clusters {
         boolean isDetachedVersion = System.getProperty("tests.bwc.refspec.main") != null;
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
+            // The columnar index mode is behind a snapshot-only feature flag and isn't supported across mixed node versions,
+            // so disable it here to keep its tests out of upgrade clusters. The property is ignored once the flag is removed.
+            .systemProperty("es.columnar_index_mode_feature_flag_enabled", "false")
             .withNode(node -> node.version(oldVersionString, isDetachedVersion))
             .withNode(node -> node.version(Version.CURRENT))
             .withNode(node -> node.version(oldVersionString, isDetachedVersion))

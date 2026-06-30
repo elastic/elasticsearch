@@ -11,7 +11,6 @@
 | date | long |
 | date_nanos | long |
 | date_range {applies_to}`stack: preview 9.5.0` | long |
-| date_range | long |
 | dense_vector | long |
 | double | long |
 | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | long |

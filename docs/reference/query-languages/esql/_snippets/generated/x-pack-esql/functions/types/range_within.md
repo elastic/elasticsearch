@@ -4,6 +4,6 @@
 
 | left | right | result |
 | --- | --- | --- |
-| date | date_range | boolean |
-| date_range | date_range | boolean |
+| date | date_range {applies_to}`stack: preview 9.5.0` | boolean |
+| date_range {applies_to}`stack: preview 9.5.0` | date_range {applies_to}`stack: preview 9.5.0` | boolean |
 

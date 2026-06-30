@@ -4,7 +4,7 @@
 
 | field | result |
 | --- | --- |
-| date_range | date_range |
+| date_range {applies_to}`stack: preview 9.5.0` | date_range |
 | keyword | date_range |
 | text | date_range |
 

@@ -21,12 +21,11 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.elasticsearch.test.fixtures.tls.TestTrustStore;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -37,10 +36,12 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -55,67 +56,72 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * End-to-end regression guard for {@code auth=workload_identity} on Azure Blob Storage external data sources.
+ * AKS Workload Identity end-to-end regression guard for {@code auth=managed_identity} on the
+ * {@code esql-datasource-azure} plugin.
  *
- * <p>Spawns a separate ES cluster JVM whose {@code AZURE_POD_IDENTITY_AUTHORITY_HOST} system property
- * points at a local {@link AzureHttpFixture} (HTTPS), registers an Azure data source with
- * {@code auth=workload_identity}, registers a dataset over a fixture-seeded NDJSON blob, and runs an ESQL query
- * via REST. A successful query proves the full chain end-to-end:
- * {@code PUT data_source(auth=workload_identity) → cluster setting gate → AzureStorageProvider builds an
- * Azure SDK client → ManagedIdentityCredential resolves a bearer token from the fixture's IMDS endpoint
- * → that bearer token authenticates the blob fetch → NDJSON reader returns rows}.
+ * <p>Sibling of {@link AzureManagedIdentityAuthIT}, which exercises the IMDS / Managed Identity
+ * branch of the same chain. This class spawns a separate ES cluster JVM with the AKS env triple
+ * set ({@code AZURE_FEDERATED_TOKEN_FILE}, {@code AZURE_CLIENT_ID}, {@code AZURE_TENANT_ID}), the
+ * federated token symlinked at the entitled config path, and the Azure SDK's OAuth authority host
+ * redirected to the local fixture's OAuth token endpoint. The {@code AzureStorageProvider}'s
+ * workload-identity chain therefore picks the {@code WorkloadIdentityCredential} branch, exchanges
+ * the federated token at the fixture's OAuth endpoint for an access token, and uses that token to
+ * read the seeded blob over HTTPS.
  *
- * <p>This is the Azure analog of {@code FileSourceWorkloadIdentityAuthIT} (S3) and {@code GcsWorkloadIdentityAuthIT}
- * (GCS), but as an HTTPS REST IT: Azure's IMDS / OAuth flows in the SDK are reached via system
- * properties that must be set
- * <em>before</em> the SDK initializes, which only works on a separate cluster JVM. Mirrors the
- * fixture-and-system-property pattern in {@code AzureRepositoryAnalysisRestIT}.
- *
- * <p>Validator-level coverage of the {@code esql.datasource.managed_identity.enabled} gate lives
- * in {@code AzureDataSourceValidatorTests}; this IT focuses on the credential-resolution happy path
- * that unit tests cannot reach.
+ * <p>A non-empty query result proves every step of the AKS path:
+ * {@code PUT data_source(auth=managed_identity) → cluster setting gate → AzureStorageProvider
+ * builds a chained credential → WorkloadIdentityCredential reads the entitled token symlink →
+ * exchanges it at the OAuth fixture → that bearer reads the blob through the strict workload-
+ * identity bearer predicate → NDJSON reader returns rows}.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-public class AzureWorkloadIdentityAuthIT extends ESRestTestCase {
+public class AzureAksManagedIdentityAuthIT extends ESRestTestCase {
 
     private static final String ACCOUNT = "testaccount";
     private static final String CONTAINER = "testcontainer";
-    private static final String OBJECT_KEY = "data/rows.ndjson";
-    private static final String DATASOURCE_NAME = "workload_identity_azure_ds";
-    private static final String DATASET_NAME = "workload_identity_azure_rows";
-    private static final byte[] NDJSON_CONTENT = "{\"id\":1,\"city\":\"Vienna\"}\n{\"id\":2,\"city\":\"Berlin\"}\n".getBytes(
+    private static final String OBJECT_KEY = "data/aks-rows.ndjson";
+    private static final String DATASOURCE_NAME = "aks_workload_identity_azure_ds";
+    private static final String DATASET_NAME = "aks_workload_identity_azure_rows";
+    private static final byte[] NDJSON_CONTENT = "{\"id\":1,\"city\":\"Paris\"}\n{\"id\":2,\"city\":\"Rome\"}\n".getBytes(
         StandardCharsets.UTF_8
     );
+
+    private static final String CLIENT_ID = UUID.randomUUID().toString();
+    private static final String TENANT_ID = UUID.randomUUID().toString();
 
     private static final TestTlsCertificate TEST_TLS_CERTIFICATE = TestTlsCertificate.generate("localhost");
     private static final TestTrustStore TEST_TRUST_STORE = new TestTrustStore(TEST_TLS_CERTIFICATE::getPemCertificateStream);
 
-    // MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE makes the fixture accept exactly the bearer token
-    // emitted by its own metadata server, so a successful blob fetch proves the cluster used the
-    // IMDS-discovered token rather than any other credential.
+    // WORK_IDENTITY_BEARER_TOKEN_PREDICATE makes the fixture accept exactly the bearer token
+    // emitted by its own OAuth token service, so a successful blob fetch proves the cluster used
+    // the WorkloadIdentityCredential path rather than a managed-identity bearer or any other source.
     private static final AzureHttpFixture fixture = new AzureHttpFixture(
         AzureHttpFixture.Protocol.HTTPS,
         TEST_TLS_CERTIFICATE,
         ACCOUNT,
         CONTAINER,
-        null,
-        null,
-        AzureHttpFixture.MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE,
+        TENANT_ID,
+        CLIENT_ID,
+        AzureHttpFixture.WORK_IDENTITY_BEARER_TOKEN_PREDICATE,
         MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE
     );
 
-    // The DEFAULT distribution already bundles repository-azure and every esql-datasource-* module
-    // this test needs, so no .module()/.plugin() calls are required.
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        // Open the workload identity gate so the validator accepts auth=workload_identity.
         .setting("esql.datasource.managed_identity.enabled", "true")
-        // Redirect the Azure IMDS endpoint to our fixture so ManagedIdentityCredential resolves a
-        // bearer token against the metadata server instead of the default 169.254.169.254 (which
-        // entitlements would block in the cluster JVM anyway).
-        .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", fixture::getMetadataAddress)
+        // Operator-managed symlink that the Azure SDK is pointed at via tokenFilePath().
+        .configFile("esql-datasource-azure/azure-federated-token", Resource.fromString(fixture.getFederatedToken()))
+        // Redirect the SDK's authority host to the fixture's OAuth token endpoint so federated
+        // token exchanges hit the loopback fixture instead of the real Microsoft Entra service.
+        .systemProperty("AZURE_AUTHORITY_HOST", fixture::getOAuthTokenServiceAddress)
+        // Disable instance metadata discovery; without this, WorkloadIdentityCredential probes IMDS first.
+        .systemProperty("tests.azure.credentials.disable_instance_discovery", "true")
+        // The plugin only checks the AKS env triple for presence; values are read directly here.
+        .environment("AZURE_FEDERATED_TOKEN_FILE", "/var/run/secrets/azure/tokens/azure-identity-token")
+        .environment("AZURE_CLIENT_ID", CLIENT_ID)
+        .environment("AZURE_TENANT_ID", TENANT_ID)
         .apply(builder -> TEST_TRUST_STORE.apply(builder, true))
         .build();
 
@@ -134,60 +140,32 @@ public class AzureWorkloadIdentityAuthIT extends ESRestTestCase {
 
     @BeforeClass
     public static void seedFixture() throws Exception {
-        // The fixture exposes no Java API for direct blob seeding; mimic an authenticated client:
-        // ask the (plain-HTTP) IMDS metadata endpoint for the same bearer the cluster will use,
-        // then PUT a BlockBlob over HTTPS using that token. Round-tripping through the fixture's
-        // own auth path exercises the same predicate the cluster will be checked against.
-        String token = fetchManagedIdentityToken();
-        putBlockBlob(token, OBJECT_KEY, NDJSON_CONTENT);
+        // Round-trip through the fixture's own OAuth path to seed the blob: exchange the
+        // federated token for an access token, then PUT a BlockBlob with that bearer. Using the
+        // same code path the cluster uses keeps the test honest — if the OAuth fixture is broken,
+        // seeding fails at @BeforeClass instead of producing a confusing test failure later.
+        String bearer = fetchWorkloadIdentityBearer();
+        putBlockBlob(bearer, OBJECT_KEY, NDJSON_CONTENT);
     }
 
-    @Before
-    public void cleanupBefore() throws IOException {
-        deleteDatasetIfExists(DATASET_NAME);
-        deleteDataSourceIfExists(DATASOURCE_NAME);
-    }
-
-    @AfterClass
-    public static void cleanupAfter() {
-        // RuleChain stops cluster + fixture; nothing to do here beyond preventing a leak warning.
-    }
-
-    /**
-     * Core regression guard: register an workload identity Azure data source, register a dataset, run an
-     * ESQL query, and assert rows are returned. A non-empty result requires every step of the
-     * workload identity credential chain to have worked: the validator gate accepted {@code auth=workload_identity},
-     * the Azure storage client constructed successfully, {@code ManagedIdentityCredential}
-     * resolved a bearer token from the fixture's metadata endpoint, and that token was accepted
-     * by the fixture's strict bearer-token predicate while reading the seeded NDJSON blob.
-     */
-    public void testWorkloadIdentityAuthQueryReturnsRows() throws IOException {
+    public void testAksWorkloadIdentityAuthQueryReturnsRows() throws IOException {
         putWorkloadIdentityDataSource(DATASOURCE_NAME, fixture.getAddress());
         putDataset(DATASET_NAME, DATASOURCE_NAME, "wasbs://" + ACCOUNT + ".blob.core.windows.net/" + CONTAINER + "/" + OBJECT_KEY);
 
-        // Trailing LIMIT 1 silences ESQL's "no limit defined, adding default limit of [1000]" warning,
-        // which ESRestTestCase strict-mode would otherwise surface as WarningFailureException.
         Map<String, Object> result = runEsql("FROM " + DATASET_NAME + " | STATS count = COUNT(*) | LIMIT 1");
         @SuppressWarnings("unchecked")
         List<List<Object>> values = (List<List<Object>>) result.get("values");
-        assertThat("auth=workload_identity query must return at least one stats row", values, hasSize(greaterThanOrEqualTo(1)));
-        // STATS COUNT(*) over a 2-line NDJSON blob returns exactly one row whose first column is 2.
+        assertThat("AKS workload identity query must return at least one stats row", values, hasSize(greaterThanOrEqualTo(1)));
         Number count = (Number) values.get(0).get(0);
-        assertThat("auth=workload_identity query must count both seeded NDJSON rows", count.intValue(), equalTo(2));
+        assertThat("AKS workload identity query must count both seeded NDJSON rows", count.intValue(), equalTo(2));
     }
 
-    /**
-     * Negative companion: with the cluster setting flipped off, the same PUT data-source request
-     * must be rejected at the validator. Confirms the gate is wired through the cluster setting
-     * (not just the validator unit-test default) and that the dynamic supplier in {@code EsqlPlugin}
-     * actually observes operator changes.
-     */
-    public void testWorkloadIdentityAuthRejectedWhenClusterSettingDisabled() throws IOException {
+    public void testAksWorkloadIdentityAuthRejectedWhenClusterSettingDisabled() throws IOException {
         try {
             setWorkloadIdentityCredentialsEnabled(false);
             ResponseException ex = expectThrows(
                 ResponseException.class,
-                () -> putWorkloadIdentityDataSource(DATASOURCE_NAME, fixture.getAddress())
+                () -> putWorkloadIdentityDataSource(DATASOURCE_NAME + "_disabled", fixture.getAddress())
             );
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(
@@ -195,7 +173,6 @@ public class AzureWorkloadIdentityAuthIT extends ESRestTestCase {
                 containsString("esql.datasource.managed_identity.enabled")
             );
         } finally {
-            // Restore for the rest of the suite. @Before's cleanup runs against fresh state.
             setWorkloadIdentityCredentialsEnabled(true);
         }
     }
@@ -206,27 +183,36 @@ public class AzureWorkloadIdentityAuthIT extends ESRestTestCase {
 
     private static final Pattern ACCESS_TOKEN_PATTERN = Pattern.compile("\"access_token\"\\s*:\\s*\"([^\"]+)\"");
 
-    @SuppressForbidden(reason = "test seeds a blob through the Azure fixture's loopback HTTP/HTTPS endpoints")
-    private static String fetchManagedIdentityToken() throws IOException {
-        // Mirrors AzureMetadataServiceHttpHandler's accepted query string exactly.
-        URI metadata = URI.create(
-            fixture.getMetadataAddress() + "metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://storage.azure.com"
-        );
-        HttpURLConnection conn = (HttpURLConnection) metadata.toURL().openConnection();
-        conn.setRequestMethod("GET");
-        conn.setConnectTimeout(10_000);
-        conn.setReadTimeout(10_000);
+    @SuppressForbidden(reason = "test seeds a blob through the Azure fixture's loopback HTTPS endpoint")
+    private static String fetchWorkloadIdentityBearer() throws Exception {
+        URI tokenUri = URI.create(fixture.getOAuthTokenServiceAddress() + TENANT_ID + "/oauth2/v2.0/token");
+        HttpsURLConnection conn = (HttpsURLConnection) tokenUri.toURL().openConnection();
+        conn.setSSLSocketFactory(testSslContext().getSocketFactory());
+        conn.setRequestMethod("POST");
+        conn.setDoOutput(true);
+        conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+        String form = "client_id="
+            + URLEncoder.encode(CLIENT_ID, StandardCharsets.UTF_8)
+            + "&client_assertion="
+            + URLEncoder.encode(fixture.getFederatedToken(), StandardCharsets.UTF_8)
+            + "&client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+            + "&grant_type=client_credentials"
+            + "&scope="
+            + URLEncoder.encode("https://storage.azure.com/.default", StandardCharsets.UTF_8);
+        try (OutputStream out = conn.getOutputStream()) {
+            out.write(form.getBytes(StandardCharsets.UTF_8));
+        }
         try (InputStream in = conn.getInputStream()) {
             String body = new String(in.readAllBytes(), StandardCharsets.UTF_8);
             Matcher m = ACCESS_TOKEN_PATTERN.matcher(body);
-            assertTrue("metadata response missing access_token: " + body, m.find());
+            assertTrue("OAuth fixture response missing access_token: " + body, m.find());
             return m.group(1);
         } finally {
             conn.disconnect();
         }
     }
 
-    @SuppressForbidden(reason = "test seeds a blob through the Azure fixture's loopback HTTP/HTTPS endpoints")
+    @SuppressForbidden(reason = "test seeds a blob through the Azure fixture's loopback HTTPS endpoint")
     private static void putBlockBlob(String bearerToken, String blobName, byte[] body) throws Exception {
         URI url = URI.create(fixture.getAddress() + "/" + CONTAINER + "/" + blobName);
         HttpsURLConnection conn = (HttpsURLConnection) url.toURL().openConnection();
@@ -299,26 +285,6 @@ public class AzureWorkloadIdentityAuthIT extends ESRestTestCase {
         Response r = client().performRequest(req);
         assertThat(r.getStatusLine().getStatusCode(), equalTo(200));
         return entityAsMap(r);
-    }
-
-    private static void deleteDataSourceIfExists(String name) throws IOException {
-        try {
-            client().performRequest(new Request("DELETE", "/_query/data_source/" + name));
-        } catch (ResponseException e) {
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
-            }
-        }
-    }
-
-    private static void deleteDatasetIfExists(String name) throws IOException {
-        try {
-            client().performRequest(new Request("DELETE", "/_query/dataset/" + name));
-        } catch (ResponseException e) {
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
-            }
-        }
     }
 
     private static void setWorkloadIdentityCredentialsEnabled(boolean enabled) throws IOException {

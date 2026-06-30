@@ -41,17 +41,17 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * End-to-end regression guard for {@code auth=workload_identity} on GCS external data sources.
+ * End-to-end regression guard for {@code auth=managed_identity} on GCS external data sources.
  *
  * <p>Spawns a separate ES cluster JVM with {@code GCE_METADATA_HOST} pointing at a local
- * {@link GoogleCloudStorageHttpFixture}, registers a GCS data source with {@code auth=workload_identity},
+ * {@link GoogleCloudStorageHttpFixture}, registers a GCS data source with {@code auth=managed_identity},
  * registers a dataset over a fixture-seeded NDJSON blob, and runs an ESQL query via REST. A
  * successful query proves the full chain end-to-end:
- * {@code PUT data_source(auth=workload_identity) → cluster setting gate → GCS client construction →
+ * {@code PUT data_source(auth=managed_identity) → cluster setting gate → GCS client construction →
  * ComputeEngineCredentials hits the metadata fixture → bearer token used to read the bucket →
  * NDJSON reader returns rows}.
  *
- * <p>This is the GCS analog of {@code FileSourceWorkloadIdentityAuthIT} (S3) but as a REST IT rather
+ * <p>This is the GCS analog of {@code S3ManagedIdentityAuthIT} (S3) but as a REST IT rather
  * than {@code ESIntegTestCase}: the Google auth library reads {@code GCE_METADATA_HOST} from
  * environment variables only (see {@code GoogleCloudStorageService} in {@code repository-gcs}),
  * which Java cannot set on its own JVM at runtime — so the cluster must be a separate process.
@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.hasSize;
  * happy path that unit tests cannot reach.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-public class GcsWorkloadIdentityAuthIT extends ESRestTestCase {
+public class GcsManagedIdentityAuthIT extends ESRestTestCase {
 
     private static final String BUCKET = "test-workload-identity-bucket";
     private static final String OBJECT_KEY = "data/rows.ndjson";
@@ -84,7 +84,7 @@ public class GcsWorkloadIdentityAuthIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        // Open the workload identity gate so the validator accepts auth=workload_identity.
+        // Open the workload identity gate so the validator accepts auth=managed_identity.
         .setting("esql.datasource.managed_identity.enabled", "true")
         // Redirect the GCE metadata server to our fixture so ComputeEngineCredentials.refresh()
         // resolves a bearer token against FakeOAuth2HttpHandler instead of metadata.google.internal.
@@ -125,7 +125,7 @@ public class GcsWorkloadIdentityAuthIT extends ESRestTestCase {
     /**
      * Core regression guard: register an workload identity GCS data source, register a dataset, run an
      * ESQL query, and assert rows are returned. A non-empty result requires every step of the
-     * workload identity credential chain to have worked: the validator gate accepted {@code auth=workload_identity},
+     * workload identity credential chain to have worked: the validator gate accepted {@code auth=managed_identity},
      * the GCS storage client constructed successfully, {@link com.google.auth.oauth2.ComputeEngineCredentials}
      * resolved a bearer token from the fixture's metadata endpoint, and that token was used to
      * read the seeded NDJSON blob.
@@ -139,10 +139,10 @@ public class GcsWorkloadIdentityAuthIT extends ESRestTestCase {
         Map<String, Object> result = runEsql("FROM " + DATASET_NAME + " | STATS count = COUNT(*) | LIMIT 1");
         @SuppressWarnings("unchecked")
         List<List<Object>> values = (List<List<Object>>) result.get("values");
-        assertThat("auth=workload_identity query must return at least one stats row", values, hasSize(greaterThanOrEqualTo(1)));
+        assertThat("auth=managed_identity query must return at least one stats row", values, hasSize(greaterThanOrEqualTo(1)));
         // STATS COUNT(*) over a 2-line NDJSON blob returns exactly one row whose first column is 2.
         Number count = (Number) values.get(0).get(0);
-        assertThat("auth=workload_identity query must count both seeded NDJSON rows", count.intValue(), equalTo(2));
+        assertThat("auth=managed_identity query must count both seeded NDJSON rows", count.intValue(), equalTo(2));
     }
 
     /**

@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Token-rotation regression guard for EKS IRSA on the {@code esql-datasource-s3} plugin. Sibling of
- * {@link IrsaWorkloadIdentityAuthIT}, which only proves the happy path with a single, never-changing
+ * {@link IrsaManagedIdentityAuthIT}, which only proves the happy path with a single, never-changing
  * token. The custom {@code CustomWebIdentityTokenCredentialsProvider} exists precisely so rotated
  * service-account tokens are picked up before the cached STS credentials expire; this test exercises
  * that re-read path end-to-end.

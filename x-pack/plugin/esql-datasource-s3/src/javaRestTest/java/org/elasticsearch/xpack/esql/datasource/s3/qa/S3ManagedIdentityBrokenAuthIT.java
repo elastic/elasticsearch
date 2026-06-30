@@ -39,16 +39,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * Negative regression guard for {@code auth=workload_identity} on the {@code esql-datasource-s3}
+ * Negative regression guard for {@code auth=managed_identity} on the {@code esql-datasource-s3}
  * plugin: when IRSA is configured but credentials can never be obtained (the on-disk token never
  * matches what STS expects, so STS always returns 401), a query must fail with a clean error
  * response rather than hanging or surfacing an internal failure (e.g. NPE) to the client.
  *
- * <p>Complements {@link IrsaWorkloadIdentityAuthIT} (happy path) and {@link IrsaCredentialsReloadIT}
+ * <p>Complements {@link IrsaManagedIdentityAuthIT} (happy path) and {@link IrsaCredentialsReloadIT}
  * (token rotation). Here the token is deliberately and permanently wrong.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-public class S3WorkloadIdentityBrokenAuthIT extends ESRestTestCase {
+public class S3ManagedIdentityBrokenAuthIT extends ESRestTestCase {
 
     // Operator-managed symlink location relative to ${ES_PATH_CONF}; mirrors
     // CustomWebIdentityTokenCredentialsProvider.WEB_IDENTITY_TOKEN_FILE_LOCATION (not on the qa

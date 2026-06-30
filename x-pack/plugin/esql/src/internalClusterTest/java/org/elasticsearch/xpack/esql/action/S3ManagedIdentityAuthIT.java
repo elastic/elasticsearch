@@ -86,8 +86,8 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 @SuppressForbidden(reason = "uses HttpServer for local S3 fixture and System.setProperty for workload identity credential seeding")
-@ThreadLeakFilters(filters = { S3WorkloadIdentityAuthIT.AwsSdkThreadFilter.class })
-public class S3WorkloadIdentityAuthIT extends AbstractEsqlIntegTestCase {
+@ThreadLeakFilters(filters = { S3ManagedIdentityAuthIT.AwsSdkThreadFilter.class })
+public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
 
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
 

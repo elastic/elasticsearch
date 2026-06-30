@@ -91,7 +91,7 @@ dependencies {
   javaRestTestImplementation project(':test:fixtures:tls-utils')
 
   // The DEFAULT distribution already bundles repository-azure, workload-identity, and the
-  // datasource modules exercised by AzureWorkloadIdentityAuthIT. Mapper plugins are not part of
+  // datasource modules exercised by AzureManagedIdentityAuthIT. Mapper plugins are not part of
   // DEFAULT and still need to be provisioned explicitly for the test cluster.
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')

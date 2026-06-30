@@ -197,7 +197,7 @@ The following features are not supported in columnar index modes:
 
 - **nested field type**: The nested field type is supported in a limited fashion in the columnar index modes. Nesting of nested field types is not supported.
 - **Mapping-level runtime fields**: Defining runtime fields in the index mappings is rejected. Runtime fields can still be defined on individual search requests.
-- **Disabling doc values**: Mapped fields cannot disable doc values. Setting `doc_values` to `false` in mappings will be ignored.
+- **Disabling doc values**: Mapped fields cannot disable doc values. Setting `doc_values` to `false` leads to mapping errors. The only exception is multi-fields, where it's often desirable to store doc values for just one and use different index configurations for the rest.
 - **Incompatible field types**: Field types that don't support doc values are not supported in columnar mode (e.g. `search_as_you_type`).
 - **Disabling `_source`**: Setting `"_source": {"enabled": false}` is not allowed.
 - **Stored source mode**: The traditional `stored` source mode is not supported; only `synthetic` and `columnar_stored` are available.

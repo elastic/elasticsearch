@@ -20,7 +20,9 @@ import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
-public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends UntypedActionRequest implements IndicesRequest.Replaceable {
+public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends UntypedActionRequest
+    implements
+        IndicesRequest.Replaceable {
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 

@@ -219,6 +219,7 @@ public final class QueryPragmas implements Writeable {
         MAX_CONCURRENT_OPEN_SEGMENTS,
         MAX_RECORD_SIZE,
         FORCE_DOC_SEQUENCE,
+        PlannerSettings.TIME_SERIES_TARGET_CHUNK_SIZE,
         RUNTIME_LEXICAL_SEARCH
     ).map(Setting::getKey).toList();
 

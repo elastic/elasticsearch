@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasources.dataset;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -57,7 +59,20 @@ public class TransportGetDatasetAction extends TransportLocalProjectMetadataActi
         ActionListener<GetDatasetAction.Response> listener
     ) {
         final DatasetMetadata metadata = DatasetMetadata.get(project.metadata());
-        final List<String> resolved = indexNameExpressionResolver.datasets(project.metadata(), request.indicesOptions(), request);
+        // Resolve + type-filter against the local project's cluster state. We don't consume
+        // request.getResolvedIndexExpressions(): datasets have no cross-project resolution today, so
+        // re-resolving from indices() is equivalent — revisit (like view GET) when datasets become remotable.
+        // `resolveDatasets` is additive: an explicit name that resolves to a non-dataset abstraction (e.g. a data
+        // stream) throws IndexNotFoundException before the Type.DATASET filter runs. Translate it to a dataset-shaped
+        // not-found instead of leaking a raw index_not_found_exception, mirroring TransportDeleteDatasetAction.
+        final List<String> resolved;
+        try {
+            resolved = indexNameExpressionResolver.datasets(project.metadata(), request.indicesOptions(), request);
+        } catch (IndexNotFoundException e) {
+            final String missing = e.getIndex() != null ? e.getIndex().getName() : String.join(",", request.indices());
+            listener.onFailure(new ResourceNotFoundException("dataset [{}] not found", missing));
+            return;
+        }
         final List<Dataset> hits = new ArrayList<>();
         for (String name : resolved) {
             Dataset ds = metadata.get(name);

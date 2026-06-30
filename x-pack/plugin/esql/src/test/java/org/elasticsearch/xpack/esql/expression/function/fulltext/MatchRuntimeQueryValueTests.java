@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
@@ -131,13 +132,14 @@ public class MatchRuntimeQueryValueTests extends ESTestCase {
      * {@link EsqlDataTypeConverter} converters and reject out-of-range / unparseable values.
      */
     public void testStringQueriesValidateRanges() {
-        // Out of int range.
-        expectThrows(Exception.class, () -> queryAsRuntimeSearchValue(INTEGER, KEYWORD, str("3000000000")));
-        // Out of unsigned_long range.
-        expectThrows(Exception.class, () -> queryAsRuntimeSearchValue(UNSIGNED_LONG, KEYWORD, str("99999999999999999999999")));
-        // Unparseable ip.
-        expectThrows(Exception.class, () -> queryAsRuntimeSearchValue(IP, KEYWORD, str("not-an-ip")));
-        // Unparseable datetime.
-        expectThrows(Exception.class, () -> queryAsRuntimeSearchValue(DATETIME, KEYWORD, str("not-a-date")));
+        // Out-of-range numeric strings fail with InvalidArgumentException from the strict converters.
+        expectThrows(InvalidArgumentException.class, () -> queryAsRuntimeSearchValue(INTEGER, KEYWORD, str("3000000000")));
+        expectThrows(
+            InvalidArgumentException.class,
+            () -> queryAsRuntimeSearchValue(UNSIGNED_LONG, KEYWORD, str("99999999999999999999999"))
+        );
+        // Unparseable ip / datetime strings fail with IllegalArgumentException.
+        expectThrows(IllegalArgumentException.class, () -> queryAsRuntimeSearchValue(IP, KEYWORD, str("not-an-ip")));
+        expectThrows(IllegalArgumentException.class, () -> queryAsRuntimeSearchValue(DATETIME, KEYWORD, str("not-a-date")));
     }
 }

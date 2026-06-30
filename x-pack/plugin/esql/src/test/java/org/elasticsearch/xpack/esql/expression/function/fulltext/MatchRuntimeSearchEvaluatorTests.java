@@ -8,8 +8,12 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -17,7 +21,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -29,8 +32,14 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.junit.After;
+import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
@@ -39,6 +48,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * End-to-end execution tests for runtime {@code match} (the {@code runtime_lexical_search} path, where the field is
@@ -54,6 +64,20 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
     private static final Configuration RUNTIME_CONFIG = configuration(
         new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build())
     );
+
+    private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
+
+    @Before
+    public void assumeRuntimeSearchSupported() {
+        assumeTrue("requires the runtime match capability to be enabled", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
+    }
+
+    @After
+    public void allMemoryReleased() {
+        for (CircuitBreaker breaker : breakers) {
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
+    }
 
     /** A field evaluator that simply hands back the block at channel 0 of the page. */
     private static final ExpressionEvaluator.Factory FIELD_AT_0 = context -> new ExpressionEvaluator() {
@@ -87,8 +111,10 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
         };
     }
 
-    private static DriverContext driverContext() {
-        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+    private DriverContext driverContext() {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
+        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
+        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
     }
 
     private static Match runtimeMatch(DataType fieldType, Object queryValue, DataType queryType) {
@@ -100,11 +126,13 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
     }
 
     /**
-     * Builds the runtime evaluator for {@code match} and runs it over a single field block, returning the per-position
-     * boolean results ({@code null} only if a position could not be evaluated, which never happens for these inputs).
+     * Builds the runtime evaluator for {@code match} and runs it over a single field block (built from the breaking
+     * block factory so {@link #allMemoryReleased()} verifies nothing leaks), returning the per-position boolean
+     * results ({@code null} only if a position could not be evaluated, which never happens for these inputs).
      */
-    private static Boolean[] evaluate(Match match, Block fieldBlock) {
+    private Boolean[] evaluate(Match match, Function<BlockFactory, Block> fieldBuilder) {
         DriverContext context = driverContext();
+        Block fieldBlock = fieldBuilder.apply(context.blockFactory());
         ExpressionEvaluator.Factory factory = match.toEvaluator(toEvaluator());
         try (ExpressionEvaluator evaluator = factory.get(context)) {
             Page page = new Page(fieldBlock);
@@ -120,131 +148,120 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
         }
     }
 
-    private static Block bytesRefBlock(Consumer<BytesRefBlock.Builder> build) {
-        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
-        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(4)) {
+    private static Block bytesRefBlock(BlockFactory factory, Consumer<BytesRefBlock.Builder> build) {
+        try (BytesRefBlock.Builder builder = factory.newBytesRefBlockBuilder(4)) {
             build.accept(builder);
             return builder.build();
         }
     }
 
-    private void assumeRuntimeSearchSupported() {
-        assumeTrue("requires the runtime match capability to be enabled", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
-    }
-
     // ---- text: analyzed full-text matching (the to_text case) ----
 
     public void testTextIsAnalyzed() {
-        assumeRuntimeSearchSupported();
-        Block field = bytesRefBlock(builder -> {
+        // "brown" matches "Brown" (standard analyzer lowercases) on the first row; no row mentions a dog.
+        Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("brown"), KEYWORD), factory -> bytesRefBlock(factory, builder -> {
             builder.appendBytesRef(new BytesRef("This is a Brown fox"));
             builder.appendBytesRef(new BytesRef("The cat sat on the mat"));
-        });
-        // "brown" matches "Brown" (standard analyzer lowercases) on the first row; no row mentions a dog.
-        assertArrayEquals(new Boolean[] { true, false }, evaluate(runtimeMatch(TEXT, new BytesRef("brown"), KEYWORD), field));
+        }));
+        assertArrayEquals(new Boolean[] { true, false }, result);
     }
 
     public void testTextMatchesAnyTokenWithOrSemantics() {
-        assumeRuntimeSearchSupported();
-        Block field = bytesRefBlock(builder -> {
-            builder.appendBytesRef(new BytesRef("a quick fox"));
-            builder.appendBytesRef(new BytesRef("a slow turtle"));
-        });
         // Multi-term query uses OR semantics on the runtime path, so a single shared token is enough to match.
-        assertArrayEquals(new Boolean[] { true, true }, evaluate(runtimeMatch(TEXT, new BytesRef("quick turtle"), KEYWORD), field));
+        Boolean[] result = evaluate(
+            runtimeMatch(TEXT, new BytesRef("quick turtle"), KEYWORD),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("a quick fox"));
+                builder.appendBytesRef(new BytesRef("a slow turtle"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, true }, result);
     }
 
     public void testTextMultiValueAndNull() {
-        assumeRuntimeSearchSupported();
-        Block field = bytesRefBlock(builder -> {
+        // Matches if any value in the position matches; a missing value never matches.
+        Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("cat"), KEYWORD), factory -> bytesRefBlock(factory, builder -> {
             builder.beginPositionEntry();
             builder.appendBytesRef(new BytesRef("brown fox"));
             builder.appendBytesRef(new BytesRef("white cat"));
             builder.endPositionEntry();
             builder.appendNull();
-        });
-        // Matches if any value in the position matches; a missing value never matches.
-        assertArrayEquals(new Boolean[] { true, false }, evaluate(runtimeMatch(TEXT, new BytesRef("cat"), KEYWORD), field));
+        }));
+        assertArrayEquals(new Boolean[] { true, false }, result);
     }
 
     // ---- keyword: exact (unanalyzed) matching ----
 
     public void testKeywordIsExactAndCaseSensitive() {
-        assumeRuntimeSearchSupported();
-        Block field = bytesRefBlock(builder -> {
+        // Unlike text, keyword compares the whole value byte-for-byte: only the exact "hello" matches.
+        Boolean[] result = evaluate(runtimeMatch(KEYWORD, new BytesRef("hello"), KEYWORD), factory -> bytesRefBlock(factory, builder -> {
             builder.appendBytesRef(new BytesRef("Hello"));
             builder.appendBytesRef(new BytesRef("hello"));
             builder.appendBytesRef(new BytesRef("hell"));
-        });
-        // Unlike text, keyword compares the whole value byte-for-byte: only the exact "hello" matches.
-        assertArrayEquals(new Boolean[] { false, true, false }, evaluate(runtimeMatch(KEYWORD, new BytesRef("hello"), KEYWORD), field));
+        }));
+        assertArrayEquals(new Boolean[] { false, true, false }, result);
     }
 
     public void testKeywordMultiValueAndNull() {
-        assumeRuntimeSearchSupported();
-        Block field = bytesRefBlock(builder -> {
+        Boolean[] result = evaluate(runtimeMatch(KEYWORD, new BytesRef("b"), KEYWORD), factory -> bytesRefBlock(factory, builder -> {
             builder.beginPositionEntry();
             builder.appendBytesRef(new BytesRef("a"));
             builder.appendBytesRef(new BytesRef("b"));
             builder.endPositionEntry();
             builder.appendNull();
-        });
-        assertArrayEquals(new Boolean[] { true, false }, evaluate(runtimeMatch(KEYWORD, new BytesRef("b"), KEYWORD), field));
+        }));
+        assertArrayEquals(new Boolean[] { true, false }, result);
     }
 
     // ---- numeric / boolean: exact value matching ----
 
     public void testLong() {
-        assumeRuntimeSearchSupported();
-        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
-        Block field;
-        try (var builder = blockFactory.newLongBlockBuilder(3)) {
-            builder.appendLong(10L);
-            builder.beginPositionEntry();
-            builder.appendLong(20L);
-            builder.appendLong(30L);
-            builder.endPositionEntry();
-            builder.appendNull();
-            field = builder.build();
-        }
-        assertArrayEquals(new Boolean[] { false, true, false }, evaluate(runtimeMatch(LONG, 30L, LONG), field));
+        Boolean[] result = evaluate(runtimeMatch(LONG, 30L, LONG), factory -> {
+            try (var builder = factory.newLongBlockBuilder(3)) {
+                builder.appendLong(10L);
+                builder.beginPositionEntry();
+                builder.appendLong(20L);
+                builder.appendLong(30L);
+                builder.endPositionEntry();
+                builder.appendNull();
+                return builder.build();
+            }
+        });
+        assertArrayEquals(new Boolean[] { false, true, false }, result);
     }
 
     public void testInteger() {
-        assumeRuntimeSearchSupported();
-        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
-        Block field;
-        try (var builder = blockFactory.newIntBlockBuilder(2)) {
-            builder.appendInt(7);
-            builder.appendInt(8);
-            field = builder.build();
-        }
-        assertArrayEquals(new Boolean[] { true, false }, evaluate(runtimeMatch(INTEGER, 7, INTEGER), field));
+        Boolean[] result = evaluate(runtimeMatch(INTEGER, 7, INTEGER), factory -> {
+            try (var builder = factory.newIntBlockBuilder(2)) {
+                builder.appendInt(7);
+                builder.appendInt(8);
+                return builder.build();
+            }
+        });
+        assertArrayEquals(new Boolean[] { true, false }, result);
     }
 
     public void testDouble() {
-        assumeRuntimeSearchSupported();
-        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
-        Block field;
-        try (var builder = blockFactory.newDoubleBlockBuilder(2)) {
-            builder.appendDouble(1.5);
-            builder.appendDouble(2.5);
-            field = builder.build();
-        }
-        assertArrayEquals(new Boolean[] { false, true }, evaluate(runtimeMatch(DOUBLE, 2.5d, DOUBLE), field));
+        Boolean[] result = evaluate(runtimeMatch(DOUBLE, 2.5d, DOUBLE), factory -> {
+            try (var builder = factory.newDoubleBlockBuilder(2)) {
+                builder.appendDouble(1.5);
+                builder.appendDouble(2.5);
+                return builder.build();
+            }
+        });
+        assertArrayEquals(new Boolean[] { false, true }, result);
     }
 
     public void testBoolean() {
-        assumeRuntimeSearchSupported();
-        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
-        Block field;
-        try (var builder = blockFactory.newBooleanBlockBuilder(3)) {
-            builder.appendBoolean(true);
-            builder.appendBoolean(false);
-            builder.appendNull();
-            field = builder.build();
-        }
-        assertArrayEquals(new Boolean[] { true, false, false }, evaluate(runtimeMatch(BOOLEAN, true, BOOLEAN), field));
+        Boolean[] result = evaluate(runtimeMatch(BOOLEAN, true, BOOLEAN), factory -> {
+            try (var builder = factory.newBooleanBlockBuilder(3)) {
+                builder.appendBoolean(true);
+                builder.appendBoolean(false);
+                builder.appendNull();
+                return builder.build();
+            }
+        });
+        assertArrayEquals(new Boolean[] { true, false, false }, result);
     }
 
     /**
@@ -254,14 +271,16 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
      * every result.
      */
     public void testScratchIsThreadSafe() {
-        assumeRuntimeSearchSupported();
         Match match = runtimeMatch(KEYWORD, new BytesRef("needle"), KEYWORD);
         ExpressionEvaluator.Factory factory = match.toEvaluator(toEvaluator());
 
         runInParallel(64, task -> {
             boolean expectMatch = (task & 1) == 0;
-            Block field = bytesRefBlock(builder -> builder.appendBytesRef(new BytesRef(expectMatch ? "needle" : "haystack")));
             DriverContext context = driverContext();
+            Block field = bytesRefBlock(
+                context.blockFactory(),
+                builder -> builder.appendBytesRef(new BytesRef(expectMatch ? "needle" : "haystack"))
+            );
             try (ExpressionEvaluator evaluator = factory.get(context)) {
                 Page page = new Page(field);
                 try (BooleanBlock result = (BooleanBlock) evaluator.eval(page)) {

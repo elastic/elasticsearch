@@ -20,15 +20,18 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.results.ModelStoreResponse;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
+import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
@@ -59,6 +62,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
+
+    private static final String URL = "eis-url";
+    private static final String STORED_INFERENCE_ID = "stored-inference-id";
+    private static final String FAILED_INFERENCE_ID = "failed-inference-id";
 
     private InferenceFeatureService inferenceFeatureServiceMock;
     private ModelRegistry mockRegistry;
@@ -110,6 +117,50 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
         var action = createAction();
 
         sendAuthRequestAndVerifyStoreActionCalledForSparseEndpoints(url, action, sparseModel);
+    }
+
+    public void testRefreshesCacheOnAllNodes_WhenAtLeastOneEndpointIsStored() {
+        when(mockRegistry.isReady()).thenReturn(true);
+
+        var sparseModel = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> null);
+        givenAuthHandlerReturnsEndpointsForUrl(URL, List.of(sparseModel));
+        givenStoreActionRespondsWith(
+            new ModelStoreResponse(STORED_INFERENCE_ID, RestStatus.OK, null),
+            new ModelStoreResponse(FAILED_INFERENCE_ID, RestStatus.INTERNAL_SERVER_ERROR, new RuntimeException("boom"))
+        );
+
+        var action = createAction();
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), new TestPlainActionFuture<>());
+
+        verify(mockClient).execute(eq(ClearInferenceEndpointCacheAction.INSTANCE), any(), any());
+    }
+
+    public void testDoesNotRefreshCacheOnAllNodes_WhenNoEndpointsAreStored() {
+        when(mockRegistry.isReady()).thenReturn(true);
+
+        var sparseModel = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> null);
+        givenAuthHandlerReturnsEndpointsForUrl(URL, List.of(sparseModel));
+        givenStoreActionRespondsWith();
+
+        var action = createAction();
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), new TestPlainActionFuture<>());
+
+        verify(mockClient, never()).execute(eq(ClearInferenceEndpointCacheAction.INSTANCE), any(), any());
+    }
+
+    public void testDoesNotRefreshCacheOnAllNodes_WhenAllEndpointsFailToStore() {
+        when(mockRegistry.isReady()).thenReturn(true);
+
+        var sparseModel = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> null);
+        givenAuthHandlerReturnsEndpointsForUrl(URL, List.of(sparseModel));
+        givenStoreActionRespondsWith(
+            new ModelStoreResponse(FAILED_INFERENCE_ID, RestStatus.INTERNAL_SERVER_ERROR, new RuntimeException("boom"))
+        );
+
+        var action = createAction();
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), new TestPlainActionFuture<>());
+
+        verify(mockClient, never()).execute(eq(ClearInferenceEndpointCacheAction.INSTANCE), any(), any());
     }
 
     public void testSendsAuthorizationRequest_ShouldNotStoreAnyModels_WhenTheyAlreadyExistAndHaveMatchingFingerprintsAndVersions() {
@@ -306,6 +357,14 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
             );
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
+    }
+
+    private void givenStoreActionRespondsWith(ModelStoreResponse... results) {
+        doAnswer(invocation -> {
+            ActionListener<StoreInferenceEndpointsAction.Response> listener = invocation.getArgument(2);
+            listener.onResponse(new StoreInferenceEndpointsAction.Response(List.of(results)));
+            return null;
+        }).when(mockClient).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
     }
 
     private void sendAuthRequestAndVerifyStoreActionCalledForSparseEndpoints(

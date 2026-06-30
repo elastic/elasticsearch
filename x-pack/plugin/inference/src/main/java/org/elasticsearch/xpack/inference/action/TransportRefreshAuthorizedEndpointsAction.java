@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsActi
 import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
+import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
@@ -191,6 +192,12 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
         var storeRequest = new StoreInferenceEndpointsAction.Request(newEndpoints, TimeValue.THIRTY_SECONDS);
 
         ActionListener<StoreInferenceEndpointsAction.Response> logResultsListener = ActionListener.wrap(responses -> {
+            // If any of the endpoints were successfully stored,
+            // we need to refresh the cache on all nodes so that they can pick up the new endpoints.
+            if (responses.getResults().stream().anyMatch(r -> r.failed() == false)) {
+                InferenceEndpointRegistry.refreshCacheOnAllNodes(client);
+            }
+
             for (var response : responses.getResults()) {
                 if (response.failed()) {
                     logger.atWarn()

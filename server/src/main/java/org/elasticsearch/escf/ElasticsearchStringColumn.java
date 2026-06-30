@@ -1,0 +1,39 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.escf;
+
+import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.eirf.EirfType;
+import org.elasticsearch.xcontent.Text;
+import org.elasticsearch.xcontent.XContentString;
+
+/** An ESCF column whose values are all UTF-8 strings (Arrow varbinary layout). */
+final class ElasticsearchStringColumn extends AbstractVarColumn {
+
+    ElasticsearchStringColumn(int columnIndex, int docCount, FixedBitSet absent, byte[] data, int base, int[] offsets) {
+        super(columnIndex, docCount, absent, data, base, offsets);
+    }
+
+    @Override
+    byte kind() {
+        return ElasticsearchColumnKind.STRING;
+    }
+
+    @Override
+    byte typeByteForPresent(int d) {
+        return EirfType.STRING;
+    }
+
+    @Override
+    Text getStringValue(int d) {
+        int off0 = offsets[d];
+        return new Text(new XContentString.UTF8Bytes(data, base + off0, offsets[d + 1] - off0));
+    }
+}

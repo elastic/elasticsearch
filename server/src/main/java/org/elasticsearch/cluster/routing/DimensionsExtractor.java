@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.eirf.EirfEncoder;
 import org.elasticsearch.eirf.EirfType;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -26,7 +25,7 @@ import org.elasticsearch.xcontent.XContentString;
  * org.elasticsearch.common.bytes.BytesReference) ForIndexDimensions.buildTsid}, which feeds
  * {@link XContentParserTsidFunnel}) is preserved by mapping each {@link EirfType} the encoder
  * produces to the same {@link TsidBuilder} call the funnel would have made for the same parser
- * token. The extractor returns {@code false} from {@link EirfEncoder.LeafSink#passRawText()} so
+ * token. The extractor returns {@code false} from {@link org.elasticsearch.sourcebatch.LeafSink#passRawText()} so
  * the encoder hands it unboxed values directly, avoiding a wasteful
  * {@code parser.optimizedText().bytes()} call per numeric / boolean leaf.
  *

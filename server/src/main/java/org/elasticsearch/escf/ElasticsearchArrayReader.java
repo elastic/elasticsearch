@@ -1,0 +1,87 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.escf;
+
+import org.elasticsearch.eirf.EirfKeyValueReader;
+import org.elasticsearch.sourcebatch.ArrayReader;
+
+/**
+ * An {@link ArrayReader} over an {@link ElasticsearchArrayColumn} row: a forward cursor across the
+ * Arrow child sub-column's elements in {@code [start, end)}. Element values are read directly from the
+ * primitive child column. Arrow arrays hold only homogeneous primitives, so {@link #nestedArray()} and
+ * {@link #nestedKeyValue()} are unreachable and throw.
+ */
+final class ElasticsearchArrayReader implements ArrayReader {
+
+    private final ElasticsearchColumn child;
+    private final int end;
+    private int pos;
+
+    ElasticsearchArrayReader(ElasticsearchColumn child, int start, int end) {
+        this.child = child;
+        this.end = end;
+        this.pos = start - 1;
+    }
+
+    @Override
+    public boolean next() {
+        return ++pos < end;
+    }
+
+    @Override
+    public byte type() {
+        return child.typeByteForPresent(pos);
+    }
+
+    @Override
+    public boolean isNull() {
+        return false;
+    }
+
+    @Override
+    public boolean booleanValue() {
+        return child.getBooleanValue(pos);
+    }
+
+    @Override
+    public int intValue() {
+        return child.getIntValue(pos);
+    }
+
+    @Override
+    public float floatValue() {
+        return child.getFloatValue(pos);
+    }
+
+    @Override
+    public long longValue() {
+        return child.getLongValue(pos);
+    }
+
+    @Override
+    public double doubleValue() {
+        return child.getDoubleValue(pos);
+    }
+
+    @Override
+    public String stringValue() {
+        return child.getStringValue(pos).string();
+    }
+
+    @Override
+    public ArrayReader nestedArray() {
+        throw new UnsupportedOperationException("ESCF Arrow arrays hold only primitive elements");
+    }
+
+    @Override
+    public EirfKeyValueReader nestedKeyValue() {
+        throw new UnsupportedOperationException("ESCF Arrow arrays hold only primitive elements");
+    }
+}

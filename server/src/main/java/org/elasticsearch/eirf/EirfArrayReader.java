@@ -10,6 +10,7 @@
 package org.elasticsearch.eirf;
 
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.sourcebatch.ArrayReader;
 
 import java.nio.charset.StandardCharsets;
 
@@ -31,7 +32,7 @@ import java.nio.charset.StandardCharsets;
  * and do not advance the cursor. There is no need to call {@code advance()} or consume
  * the value before calling {@code next()} again.
  */
-public final class EirfArrayReader {
+public final class EirfArrayReader implements ArrayReader {
 
     private final byte[] data;
     private final int endOffset;

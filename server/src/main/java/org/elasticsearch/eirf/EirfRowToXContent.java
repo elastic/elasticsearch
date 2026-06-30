@@ -10,6 +10,7 @@
 package org.elasticsearch.eirf;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -104,7 +105,7 @@ public final class EirfRowToXContent {
         }
     }
 
-    static void writeArray(EirfArrayReader reader, XContentBuilder builder) throws IOException {
+    static void writeArray(ArrayReader reader, XContentBuilder builder) throws IOException {
         builder.startArray();
         while (reader.next()) {
             writeElementValue(reader, builder);
@@ -112,7 +113,7 @@ public final class EirfRowToXContent {
         builder.endArray();
     }
 
-    private static void writeElementValue(EirfArrayReader array, XContentBuilder builder) throws IOException {
+    private static void writeElementValue(ArrayReader array, XContentBuilder builder) throws IOException {
         switch (array.type()) {
             case EirfType.INT -> builder.value(array.intValue());
             case EirfType.FLOAT -> builder.value((double) array.floatValue());

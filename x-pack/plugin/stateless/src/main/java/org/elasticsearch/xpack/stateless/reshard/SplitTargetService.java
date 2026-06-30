@@ -774,7 +774,7 @@ public class SplitTargetService {
         private final Split split;
         private final AtomicBoolean cancelled;
 
-        public InitiateSplitWithSourceShardAction(
+        InitiateSplitWithSourceShardAction(
             ClusterService clusterService,
             Client client,
             Split split,

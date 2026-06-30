@@ -16,7 +16,6 @@ import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
-import org.gradle.api.tasks.TaskProvider;
 
 /**
  * Sets up the {@code csvSpecTest} source set for per-csv-spec-file ES|QL test generation.
@@ -59,15 +58,16 @@ public class EsqlCsvSpecTestsPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         var extension = project.getExtensions().create("esqlCsvSpecTests", EsqlCsvSpecTestsExtension.class);
-        var generateEsqlSpecTestsTaskTaskProvider = project.getTasks().register("generateEsqlSpecTests", GenerateEsqlSpecTestsTask.class, task -> {
-            task.getSpecFilesDir().set(extension.getSpecFilesDir());
-            task.getPackageName().set(extension.getPackageName());
-            task.getVariantPrefixes().set(project.provider(extension::getVariantPrefixes));
-            task.getVariantBaseClasses().set(project.provider(extension::getVariantBaseClasses));
-            task.getOutputDirectory().set(project.getLayout().getBuildDirectory().dir("generated-csv-spec-test-sources/java"));
-            task.setDescription("Generates per-csv-spec-file IT classes for each declared variant.");
-            task.setGroup("verification");
-        });
+        var generateEsqlSpecTestsTaskTaskProvider = project.getTasks()
+            .register("generateEsqlSpecTests", GenerateEsqlSpecTestsTask.class, task -> {
+                task.getSpecFilesDir().set(extension.getSpecFilesDir());
+                task.getPackageName().set(extension.getPackageName());
+                task.getVariantPrefixes().set(project.provider(extension::getVariantPrefixes));
+                task.getVariantBaseClasses().set(project.provider(extension::getVariantBaseClasses));
+                task.getOutputDirectory().set(project.getLayout().getBuildDirectory().dir("generated-csv-spec-test-sources/java"));
+                task.setDescription("Generates per-csv-spec-file IT classes for each declared variant.");
+                task.setGroup("verification");
+            });
 
         project.getPlugins().withType(JavaBasePlugin.class, javaPlugin -> {
             SourceSetContainer sourceSets = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();

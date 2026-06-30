@@ -31,7 +31,6 @@ import java.util.Locale;
  * than only later during local planning.
  */
 // TODO: add an analyzer name field here once the "analyzer" option is supported.
-
 public record HighlightOptions(
     String preTag,
     String postTag,

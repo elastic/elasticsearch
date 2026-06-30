@@ -18,6 +18,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
@@ -69,6 +71,7 @@ class SegmentOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private SortedSetDocValues lookup;                   // current segment doc values
     private long currentValue;                           // encoded ordinal of the current document (even = real ord)
     private long afterEncoded = MISSING;                 // encoded after value for the current segment
+    private LeafReaderContext preparedLeaf;              // segment this source has resolved doc values and remapped slots for
 
     // Dynamic pruning: once the composite queue is full we know the largest competitive key, so we can skip documents
     // whose value is out of range using the inverted index.
@@ -294,12 +297,28 @@ class SegmentOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         }
     }
 
+    /**
+     * Resolve this segment's doc values and, the first time the segment is seen, remap the queue slots into its ordinal
+     * space and encode the after value. The doc values are re-resolved on every call: they are a forward-only iterator,
+     * and on the {@link TermsSortedDocsProducer} path the producer re-scans the segment's documents once per
+     * leading-source term, so a non-leading source (which reads its doc values for each of those documents) must not
+     * reuse an iterator already advanced past them. The remap is O(size) and only changes at segment boundaries, so it is
+     * cached. Composite collection over an ordinal source is single-threaded (see
+     * {@code TermsValuesSourceBuilder#supportsParallelCollection}), so this per-segment state needs no synchronization.
+     */
+    private void prepareSegment(LeafReaderContext context) throws IOException {
+        lookup = docValuesFunc.apply(context);
+        if (context != preparedLeaf) {
+            preparedLeaf = context;
+            remapSlots();
+            afterEncoded = afterValue != null ? encode(afterValue) : MISSING;
+            totalSegments++;
+        }
+    }
+
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
-        lookup = docValuesFunc.apply(context);
-        remapSlots();
-        afterEncoded = afterValue != null ? encode(afterValue) : MISSING;
-        totalSegments++;
+        prepareSegment(context);
         final SegmentCompetitiveIterator competitiveIterator = mayDynamicallyPrune() ? new SegmentCompetitiveIterator(context) : null;
         currentCompetitiveIterator = competitiveIterator;
         final SortedDocValues singleton = DocValues.unwrapSingleton(lookup);
@@ -344,14 +363,29 @@ class SegmentOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
-    LeafBucketCollector getLeafCollector(Comparable<BytesRef> value, LeafReaderContext context, LeafBucketCollector next) {
-        throw new UnsupportedOperationException("segment ordinals composite source does not support a forced lead value");
+    LeafBucketCollector getLeafCollector(Comparable<BytesRef> value, LeafReaderContext context, LeafBucketCollector next)
+        throws IOException {
+        // Forced-lead-value path, driven by {@link TermsSortedDocsProducer}: the producer walks the terms dictionary in
+        // order and feeds us, term by term, only documents that contain {@code value}. {@code value} is therefore present
+        // in this segment, so its encoding is a real (even) ordinal, and it is constant for every document of this term.
+        prepareSegment(context);
+        currentValue = encode((BytesRef) value);
+        assert (currentValue & 1L) == 0L : "forced lead value [" + value + "] is absent from the segment";
+        return next;
     }
 
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
-        // This source compares on per-segment ordinals and does not support being driven by a forced lead value.
-        return null;
+        // Order composite buckets by walking the terms dictionary directly. This needs no global ordinals: it seeks to the
+        // after key, visits terms in order via their postings, and early-terminates once the queue can no longer improve.
+        // It is what keeps deep composite pagination (e.g. transforms grouping by a keyword) from scanning every document
+        // on every page.
+        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false
+            || fieldType instanceof StringFieldType == false
+            || (query != null && query.getClass() != MatchAllDocsQuery.class)) {
+            return null;
+        }
+        return new TermsSortedDocsProducer(fieldType.name());
     }
 
     void collectDebugInfo(String namespace, BiConsumer<String, Object> add) {

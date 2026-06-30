@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -285,7 +286,8 @@ public final class KeywordToFlattenedTransformer {
      * Returns a new document source JSON where every top-level key matching a path in
      * {@code keywordFieldPaths} has its value wrapped in
      * {@code {"v": <value>}} (no junk) or
-     * {@code {"v": <value>, "_j0": ..., ...}} (with junk) depending on whether the path
+     * {@code {"v": <value>, "<rnd>": ..., ...}} (with junk, where {@code "<rnd>"} is a random
+     * alpha key distinct from every other key in the object) depending on whether the path
      * is listed in {@code junkConfig.junkFields()}.
      * <p>
      * Junk key/value pairs are randomly generated from a mix of scalars, booleans, null,
@@ -328,13 +330,23 @@ public final class KeywordToFlattenedTransformer {
 
     /**
      * Appends between 1 and 5 randomly generated junk key/value pairs to {@code node}.
-     * Key names use the prefix {@code "_j"} followed by an index so they never collide
-     * with the canonical {@link #WRAPPER_SUBKEY} (which is {@code "v"}).
+     * Key names are random alpha strings; a {@link TreeMap} of the existing field names is used
+     * to guarantee that each generated name is distinct from every key already present in
+     * {@code node} (including {@link #WRAPPER_SUBKEY}) and from the other junk keys added in
+     * this same call.
      */
     private static void generateJunkEntries(ObjectNode node) {
+        // Snapshot existing field names so generated junk keys do not collide with them.
+        TreeMap<String, JsonNode> existing = new TreeMap<>();
+        node.fields().forEachRemaining(e -> existing.put(e.getKey(), e.getValue()));
         int count = randomIntBetween(1, 5);
         for (int i = 0; i < count; i++) {
-            writeJunkEntry(node, "_j" + i);
+            String key;
+            do {
+                key = randomAlphaOfLengthBetween(3, 8);
+            } while (existing.containsKey(key));
+            existing.put(key, null); // reserve the name before writing
+            writeJunkEntry(node, key);
         }
     }
 

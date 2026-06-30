@@ -1206,11 +1206,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
      */
     public void testBase64InputExceedingMaxSizeIsRejected() throws Exception {
         assumeFalse("Multimodal base64 inputs are only supported in the non-legacy format", useLegacyFormat);
-        assumeTrue(
-            "Multimodal base64 inputs require the semantic field feature",
-            SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()
-        );
-
         ByteSizeValue maxSize = ByteSizeValue.ofBytes(2);
         // 8 base64 chars without padding decode to 6 bytes, which exceeds the 2 byte limit.
         InferenceString input = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,AAAAAAAA");
@@ -1231,11 +1226,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
      */
     public void testBase64InputAtMaxSizeWithPaddingIsAccepted() throws Exception {
         assumeFalse("Multimodal base64 inputs are only supported in the non-legacy format", useLegacyFormat);
-        assumeTrue(
-            "Multimodal base64 inputs require the semantic field feature",
-            SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()
-        );
-
         // "AAA=" -> 4 base64 chars with one padding char -> 2 decoded bytes, exactly at the 2 byte limit.
         InferenceString singlePadding = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,AAA=");
         assertNull("a base64 input at the limit should be accepted", runSingleInputThroughFilter(ByteSizeValue.ofBytes(2), singlePadding));

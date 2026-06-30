@@ -34,6 +34,7 @@ public class Clusters {
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
+            .setting("esql.datasource.local_allowed_paths", csvDataPath::toString)
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .shared(true);
         if (supportRetryOnShardFailures(version) == false) {
@@ -100,6 +101,7 @@ public class Clusters {
             .setting("cluster.remote.connections_per_cluster", "1")
             .setting("cluster.remote." + REMOTE_CLUSTER_NAME + ".skip_unavailable", skipUnavailable.toString())
             .setting("path.repo", csvDataPath::toString)
+            .setting("esql.datasource.local_allowed_paths", csvDataPath::toString)
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .shared(true);
         if (supportRetryOnShardFailures(version) == false) {

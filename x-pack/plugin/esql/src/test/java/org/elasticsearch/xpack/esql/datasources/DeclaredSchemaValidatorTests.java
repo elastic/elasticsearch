@@ -43,6 +43,28 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
         DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, withRename), null, null)); // no throw
     }
 
+    public void testRenameAllowedForWiredFormatsRejectedForColumnar() {
+        Map<String, DatasetFieldMapping> withRename = new LinkedHashMap<>();
+        withRename.put("id", new DatasetFieldMapping("long", "emp_no"));
+        DatasetMapping mapping = new DatasetMapping(new Mappings(Dynamic.TRUE, withRename), null, null);
+
+        for (String wired : new String[] { "csv", "tsv", "ndjson", "NDJSON" }) {
+            DeclaredSchemaValidator.validateRenameFormat(mapping, wired); // no throw
+        }
+        for (String columnar : new String[] { "parquet", "orc", null }) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> DeclaredSchemaValidator.validateRenameFormat(mapping, columnar)
+            );
+            assertTrue(e.getMessage(), e.getMessage().contains("not yet supported for format"));
+        }
+
+        // No rename declared -> the format gate is a no-op even for columnar formats.
+        Map<String, DatasetFieldMapping> noRename = new LinkedHashMap<>();
+        noRename.put("id", new DatasetFieldMapping("long", null));
+        DeclaredSchemaValidator.validateRenameFormat(new DatasetMapping(new Mappings(Dynamic.TRUE, noRename), null, null), "parquet");
+    }
+
     /**
      * Pin the declarable-type vocabulary to the ES|QL type registry: every type we allow must round-trip through
      * its canonical ES type name, so our supported types cannot drift from the core type names (a rename or removal

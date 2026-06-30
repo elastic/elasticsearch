@@ -13,31 +13,7 @@ export BUILDKITE_RO_API_TOKEN
 DEVELOCITY_API_KEY=$(vault read -field=develocity_api_token secret/ci/elastic-elasticsearch/agentic-workflows)
 export DEVELOCITY_API_KEY
 
-# ── bootstrap nono sandbox (cached after first run on this agent) ────────
-echo "--- nono: install"
-NONO_BIN="${HOME}/.local/bin/nono"
-if [[ ! -x "${NONO_BIN}" ]]; then
-  NONO_VERSION=$(curl -fsSL -I https://github.com/always-further/nono/releases/latest \
-    | grep -i "^location:" | grep -oP 'v\K[0-9a-zA-Z.-]+' | tr -d '\r')
-  NONO_ARCH=$(dpkg --print-architecture)
-  NONO_DEB="nono-cli_${NONO_VERSION}_${NONO_ARCH}.deb"
-  NONO_TMP="$(mktemp -d)"
-  curl -fsSL \
-    "https://github.com/always-further/nono/releases/download/v${NONO_VERSION}/${NONO_DEB}" \
-    -o "${NONO_TMP}/${NONO_DEB}"
-  # Extract without requiring root — dpkg-deb unpacks the deb into a local dir
-  dpkg-deb --extract "${NONO_TMP}/${NONO_DEB}" "${NONO_TMP}/nono-root"
-  mkdir -p "${HOME}/.local/bin"
-  cp "${NONO_TMP}/nono-root/usr/bin/nono" "${HOME}/.local/bin/nono"
-  chmod +x "${HOME}/.local/bin/nono"
-  rm -rf "${NONO_TMP}"
-fi
 export PATH="${HOME}/.local/bin:${PATH}"
-
-# ── verify kernel sandbox support and pull pi profile pack ────────────
-echo "--- nono: verify sandbox + pull pi profile"
-nono setup --check-only
-nono pull always-further/pi
 
 # ── bootstrap pi-agent (cached after first run on this agent) ─────────
 echo "--- pi-agent: install"

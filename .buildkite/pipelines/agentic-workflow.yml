@@ -51,18 +51,16 @@ steps:
     command: |
       set -euo pipefail
 
+      # ── Validate inputs ────────────────────────────────────────────────────
       case "${WORKFLOW}" in
         test-analysis)
           [[ -n "${ISSUE_URL:-}" ]] || { echo "ISSUE_URL is required for test-analysis" >&2; exit 1; }
-          pi-agent analyze --issue-url "${ISSUE_URL}"
           ;;
         pull-request-fix)
           [[ -n "${PR_URL:-}" ]] || { echo "PR_URL is required for pull-request-fix" >&2; exit 1; }
-          pi-agent fix-pr --pr-url "${PR_URL}"
           ;;
         pull-request-creation)
           [[ -n "${ISSUE_URL:-}" ]] || { echo "ISSUE_URL is required for pull-request-creation" >&2; exit 1; }
-          pi-agent create --issue-url "${ISSUE_URL}"
           ;;
         *)
           echo "WORKFLOW is not set or not recognised: '${WORKFLOW:-}'" >&2
@@ -73,3 +71,30 @@ steps:
           exit 1
           ;;
       esac
+
+      # ── Opening annotation (visible immediately in the Buildkite UI) ───────
+      REF="${ISSUE_URL:-${PR_URL:-}}"
+      buildkite-agent annotate \
+        "### 🤖 pi-agent starting\n\n**Workflow:** \`${WORKFLOW}\`  \n**Ref:** ${REF}  \nSession is initialising…" \
+        --context "pi-agent-progress" --style "info"
+
+      # ── Run pi-agent ───────────────────────────────────────────────────────
+      PI_EXIT=0
+      case "${WORKFLOW}" in
+        test-analysis)       pi-agent analyze --issue-url "${ISSUE_URL}" || PI_EXIT=$? ;;
+        pull-request-fix)    pi-agent fix-pr  --pr-url    "${PR_URL}"    || PI_EXIT=$? ;;
+        pull-request-creation) pi-agent create --issue-url "${ISSUE_URL}" || PI_EXIT=$? ;;
+      esac
+
+      # ── Final annotation ───────────────────────────────────────────────────
+      if [[ $PI_EXIT -eq 0 ]]; then
+        buildkite-agent annotate \
+          "### ✅ pi-agent completed\n\n**Workflow:** \`${WORKFLOW}\`  \n**Ref:** ${REF}" \
+          --context "pi-agent-progress" --style "success"
+      else
+        buildkite-agent annotate \
+          "### ❌ pi-agent failed (exit ${PI_EXIT})\n\n**Workflow:** \`${WORKFLOW}\`  \n**Ref:** ${REF}  \nSee the job log for details." \
+          --context "pi-agent-progress" --style "error"
+      fi
+
+      exit $PI_EXIT

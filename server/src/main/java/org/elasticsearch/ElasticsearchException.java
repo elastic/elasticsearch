@@ -2103,6 +2103,18 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.action.SliceMissingException::new,
             194,
             SLICE_MISSING_EXCEPTION_VERSION
+        ),
+        REMOTE_DATASET_NOT_SUPPORTED_EXCEPTION(
+            org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException.class,
+            org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException::new,
+            195,
+            org.elasticsearch.action.support.IndicesOptions.INDICES_OPTIONS_RESOLVE_DATASETS
+        ),
+        REMOTE_RESOURCE_NOT_SUPPORTED_EXCEPTION(
+            org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException.class,
+            org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException::new,
+            196,
+            org.elasticsearch.action.support.IndicesOptions.INDICES_OPTIONS_RESOLVE_DATASETS
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

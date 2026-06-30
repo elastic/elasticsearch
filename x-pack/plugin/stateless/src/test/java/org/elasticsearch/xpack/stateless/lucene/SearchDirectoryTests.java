@@ -163,6 +163,7 @@ public class SearchDirectoryTests extends ESTestCase {
                     threadPool,
                     BlobCacheMetrics.NOOP,
                     clusterService,
+                    indicesService,
                     new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
                 ) {
                     @Override

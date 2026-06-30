@@ -121,7 +121,7 @@ toc:
                   - file: esql/commands/fuse.md
                   - file: esql/commands/grok.md
                   - file: esql/commands/inlinestats-by.md
-                  - hidden: esql/commands/ip-location.md
+                  - file: esql/commands/ip-location.md
                   - file: esql/commands/keep.md
                   - file: esql/commands/limit.md
                   - file: esql/commands/lookup-join.md
@@ -402,6 +402,7 @@ toc:
           - file: esql/esql-cross-serverless-projects.md
           - file: esql/esql-subquery.md
           - file: esql/esql-views.md
+      - hidden: esql/esql-federated-data.md
       - file: esql/esql-advanced.md
         children:
           - file: esql/esql-process-data-with-dissect-grok.md
@@ -434,6 +435,7 @@ toc:
           - file: promql/functions/math.md
           - file: promql/functions/date-time.md
           - file: promql/functions/conversion.md
+      - file: promql/promql-grafana.md
       - file: promql/promql-limitations.md
   - file: sql.md
     children:

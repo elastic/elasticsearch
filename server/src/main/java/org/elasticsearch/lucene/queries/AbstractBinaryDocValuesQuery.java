@@ -49,16 +49,9 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-                if (values == null) {
+                final DocIdSetIterator iterator = getDocIdSetIterator(context, matchCost);
+                if (iterator == null) {
                     return null;
-                }
-                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
-                final DocIdSetIterator iterator;
-                if (counts != null) {
-                    iterator = multiValuedIterator(values, counts, matcher, matchCost);
-                } else {
-                    iterator = singleValuedIterator(values, matcher, matchCost);
                 }
                 return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iterator));
             }
@@ -68,6 +61,19 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
                 return DocValues.isCacheable(ctx, fieldName);
             }
         };
+    }
+
+    protected DocIdSetIterator getDocIdSetIterator(LeafReaderContext context, float matchCost) throws IOException {
+        final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
+        if (values == null) {
+            return null;
+        }
+        final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
+        if (counts != null) {
+            return multiValuedIterator(values, counts, matcher, matchCost);
+        } else {
+            return singleValuedIterator(values, matcher, matchCost);
+        }
     }
 
     protected abstract float matchCost();

@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -43,14 +44,29 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TestUtils {
 
     private TestUtils() {}
+
+    public static IndicesService mockIndicesService(ClusterService clusterService) {
+        final IndicesService indicesService = mock(IndicesService.class);
+        when(indicesService.clusterService()).thenReturn(clusterService);
+        when(indicesService.hasShardPredicate()).thenReturn(shardId -> false);
+        return indicesService;
+    }
+
+    public static IndicesService mockIndicesService(ClusterService clusterService, Predicate<ShardId> hasShardPredicate) {
+        final IndicesService indicesService = mockIndicesService(clusterService);
+        when(indicesService.hasShardPredicate()).thenReturn(hasShardPredicate);
+        return indicesService;
+    }
 
     public static class StatelessPluginWithTrialLicense extends StatelessPlugin {
         public StatelessPluginWithTrialLicense(Settings settings) {
@@ -92,6 +108,7 @@ public class TestUtils {
             threadPool,
             meterRegistry == null ? new BlobCacheMetrics(MeterRegistry.NOOP) : new BlobCacheMetrics(meterRegistry),
             clusterService,
+            mockIndicesService(clusterService),
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
         );
         statelessSharedBlobCacheService.assertInvariants();

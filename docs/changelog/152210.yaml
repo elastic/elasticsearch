@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 147603
+pr: 152210
+summary: "FORK: Fix error handling for unsupported types"
+type: bug

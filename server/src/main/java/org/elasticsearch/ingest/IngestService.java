@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -72,6 +73,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.grok.MatcherWatchdog;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -92,6 +94,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -100,6 +103,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -152,6 +156,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private volatile ClusterState state;
     private final ProjectResolver projectResolver;
+    /**
+     * Cache of "is it safe to pre-flatten the source map before serialization" per index name.
+     * Keyed by {@code projectId/indexName} so entries from different projects don't collide.
+     * Cleared whenever the cluster-state version advances (checked lazily on each access).
+     */
+    private final ConcurrentHashMap<String, Boolean> flattenSafeCache = new ConcurrentHashMap<>();
+    private volatile long flattenSafeCacheVersion = -1;
     private final FeatureService featureService;
     private final Consumer<ActionListener<NodesInfoResponse>> nodeInfoListener;
 
@@ -1355,7 +1366,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                      * At this point, all pipelines have been executed, and we are about to overwrite ingestDocument with the results.
                      * This is our chance to sample with both the original document and all changes.
                      */
-                    updateIndexRequestSource(indexRequest, ingestDocument);
+                    updateIndexRequestSource(indexRequest, ingestDocument, pipelines.projectId());
                     cacheRawTimestamp(indexRequest, ingestDocument);
                     listener.onResponse(IngestPipelinesExecutionResult.SUCCESSFUL_RESULT); // document succeeded!
                 }
@@ -1498,14 +1509,195 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     /**
-     * Updates an index request based on the source of an ingest document, guarding against self-references if necessary.
+     * Field types whose {@code supportsParsingObject()} returns {@code true}: they parse a JSON object as a single
+     * value and must NOT have their object-form source pre-flattened to dotted keys.
      */
-    private static void updateIndexRequestSource(final IndexRequest request, final IngestDocument document) {
+    private static final Set<String> OBJECT_ACCEPTING_FIELD_TYPES = Set.of(
+        "geo_point",
+        "point",
+        "completion",
+        "flattened",
+        "sparse_vector",
+        "percolator",
+        "rank_features",
+        "join",
+        "t_digest",
+        "aggregate_metric_double",
+        "histogram",
+        "exponential_histogram",
+        "offset_source",
+        "ip_range",
+        "date_range",
+        "integer_range",
+        "float_range",
+        "double_range",
+        "long_range"
+    );
+
+    /**
+     * Returns {@code true} when the target index is in a columnar mode (which implies
+     * {@code subobjects:false}) AND the resolved mapping contains no field type that accepts an
+     * object-form value (e.g. {@code geo_point}, {@code flattened}, {@code range} subtypes) and
+     * no dynamic template that fires on {@code match_mapping_type: object}.
+     * <p>
+     * When the result is {@code true} it is safe to pre-flatten the ingest document's source map
+     * to dotted leaf keys before serialization, which avoids per-intermediate-object
+     * {@link org.elasticsearch.xcontent.FlatteningXContentParser} work on the shard side.
+     */
+    private boolean isColumnarFlattenSafe(String indexName, ProjectId projectId) {
+        ClusterState currentState = state;
+        if (currentState == null) {
+            return false;
+        }
+        long stateVersion = currentState.version();
+        if (stateVersion != flattenSafeCacheVersion) {
+            flattenSafeCache.clear();
+            flattenSafeCacheVersion = stateVersion;
+        }
+        return flattenSafeCache.computeIfAbsent(
+            projectId.id() + "/" + indexName,
+            k -> computeIsColumnarFlattenSafe(indexName, projectId, currentState)
+        );
+    }
+
+    private static boolean computeIsColumnarFlattenSafe(String indexName, ProjectId projectId, ClusterState state) {
+        ProjectMetadata project = state.metadata().projects().get(projectId);
+        if (project == null) {
+            return false;
+        }
+        IndexAbstraction indexAbstraction = project.getIndicesLookup().get(indexName);
+        if (indexAbstraction == null) {
+            return false;
+        }
+        IndexMode mode;
+        MappingMetadata mapping;
+        IndexMetadata indexMetadata = project.index(indexAbstraction.getWriteIndex());
+        if (indexMetadata == null) {
+            return false;
+        }
+        mode = indexMetadata.getIndexMode();
+        if (mode == null || mode.isStrictColumnar() == false) {
+            return false;
+        }
+        mapping = indexMetadata.mapping();
+        return isMappingFlattenSafe(mapping);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean isMappingFlattenSafe(@Nullable MappingMetadata mapping) {
+        if (mapping == null) {
+            return true;
+        }
+        Map<String, Object> root = mapping.sourceAsMap();
+        // Reject if any dynamic template fires on object-type nodes
+        Object dynamicTemplates = root.get("dynamic_templates");
+        if (dynamicTemplates instanceof List<?> templates) {
+            for (Object tpl : templates) {
+                if (tpl instanceof Map<?, ?> tplMap) {
+                    for (Object tplDef : tplMap.values()) {
+                        if (tplDef instanceof Map<?, ?> def) {
+                            Object matchType = ((Map<String, Object>) def).get("match_mapping_type");
+                            if ("object".equals(matchType) || "*".equals(matchType)) {
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Reject if any mapped field accepts object-form input
+        Object properties = root.get("properties");
+        if (properties instanceof Map<?, ?> props) {
+            return arePropertiesFlattenSafe((Map<String, Object>) props);
+        }
+        return true;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean arePropertiesFlattenSafe(Map<String, Object> properties) {
+        for (Object fieldDef : properties.values()) {
+            if (fieldDef instanceof Map<?, ?> field) {
+                String type = (String) ((Map<String, Object>) field).get("type");
+                if (type != null && OBJECT_ACCEPTING_FIELD_TYPES.contains(type)) {
+                    return false;
+                }
+                Object subProperties = ((Map<String, Object>) field).get("properties");
+                if (subProperties instanceof Map<?, ?> sp) {
+                    if (arePropertiesFlattenSafe((Map<String, Object>) sp) == false) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Flattens a nested source map into a single-level map with dotted keys, matching the
+     * semantics of {@code subobjects:false} document parsing:
+     * <ul>
+     *   <li>Nested maps become dotted keys: {@code {"a":{"b":1}} → {"a.b":1}}</li>
+     *   <li>Arrays-of-objects push values to leaf arrays:
+     *       {@code {"a":[{"b":1},{"b":2}]} → {"a.b":[1,2]}}</li>
+     *   <li>Scalar arrays and null values are preserved as-is.</li>
+     * </ul>
+     */
+    static Map<String, Object> flattenSourceForSubobjectsDisabled(Map<String, Object> source) {
+        Map<String, Object> result = new LinkedHashMap<>(source.size() * 2);
+        flattenInto(result, null, source);
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void flattenInto(Map<String, Object> result, @Nullable String prefix, Object value) {
+        if (value instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : ((Map<String, Object>) map).entrySet()) {
+                String key = prefix == null ? (String) entry.getKey() : prefix + "." + entry.getKey();
+                flattenInto(result, key, entry.getValue());
+            }
+        } else if (value instanceof List<?> list) {
+            for (Object item : list) {
+                if (item instanceof Map) {
+                    flattenInto(result, prefix, item);
+                } else {
+                    appendFlatValue(result, prefix, item);
+                }
+            }
+        } else {
+            appendFlatValue(result, prefix, value);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void appendFlatValue(Map<String, Object> result, String key, Object value) {
+        Object existing = result.get(key);
+        if (existing == null) {
+            result.put(key, value);
+        } else if (existing instanceof List<?>) {
+            ((List<Object>) existing).add(value);
+        } else {
+            ArrayList<Object> list = new ArrayList<>(2);
+            list.add(existing);
+            list.add(value);
+            result.put(key, list);
+        }
+    }
+
+    /**
+     * Updates an index request based on the source of an ingest document, guarding against self-references if necessary.
+     * When the target index is in a columnar mode with a flatten-safe mapping, the source is pre-flattened to dotted
+     * leaf keys to avoid per-intermediate-object parse overhead on the shard side.
+     */
+    private void updateIndexRequestSource(final IndexRequest request, final IngestDocument document, ProjectId projectId) {
         boolean ensureNoSelfReferences = document.doNoSelfReferencesCheck();
         // we already check for self references elsewhere (and clear the bit), so this should always be false,
         // keeping the check and assert as a guard against extraordinarily surprising circumstances
         assert ensureNoSelfReferences == false;
-        request.source(document.getSource(), request.getContentType(), ensureNoSelfReferences);
+        Map<String, Object> source = document.getSource();
+        if (isColumnarFlattenSafe(request.index(), projectId)) {
+            source = flattenSourceForSubobjectsDisabled(source);
+        }
+        request.source(source, request.getContentType(), ensureNoSelfReferences);
     }
 
     /**

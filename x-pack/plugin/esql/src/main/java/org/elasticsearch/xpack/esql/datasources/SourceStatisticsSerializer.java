@@ -191,6 +191,20 @@ public final class SourceStatisticsSerializer {
         return STATS_COL_PREFIX + columnName + SIZE_BYTES_SUFFIX;
     }
 
+    /** The column name of a {@code min}/{@code max} extremum key, or {@code null} if {@code key} is not one. */
+    private static String extremumColumnName(String key) {
+        if (key.startsWith(STATS_COL_PREFIX) == false) {
+            return null;
+        }
+        if (key.endsWith(MIN_SUFFIX)) {
+            return key.substring(STATS_COL_PREFIX.length(), key.length() - MIN_SUFFIX.length());
+        }
+        if (key.endsWith(MAX_SUFFIX)) {
+            return key.substring(STATS_COL_PREFIX.length(), key.length() - MAX_SUFFIX.length());
+        }
+        return null;
+    }
+
     /**
      * Extracts the size in bytes for a specific column directly from the sourceMetadata map.
      * Returns {@code null} if the metadata is null or the size is absent/non-numeric.
@@ -354,6 +368,24 @@ public final class SourceStatisticsSerializer {
 
         for (String colName : poisonedNullCounts) {
             acc.remove(columnNullCountKey(colName));
+        }
+        // A poisoned MIN/MAX is encoded above as a key removal, which the NEXT fold level cannot
+        // distinguish from "this contribution never observed the column" -- the column's surviving
+        // null_count/value_count still mark it observed, so a sibling contribution's finite extremum
+        // refills the dropped min/max key and is served instead of the safe-miss the poison intends
+        // (e.g. a NaN in one fragment of a stripe drops that stripe's min, then another stripe's finite
+        // min is served as the whole-file MIN). Taint the WHOLE column so it is genuinely absent here:
+        // the next level's drop pass (text) or hasColumn==false (serve) then safe-misses every aggregate
+        // over it, and COUNT(col) re-scans rather than under/over-counting.
+        for (String key : poisoned) {
+            String colName = extremumColumnName(key);
+            if (colName != null) {
+                acc.remove(columnNullCountKey(colName));
+                acc.remove(columnValueCountKey(colName));
+                acc.remove(columnMinKey(colName));
+                acc.remove(columnMaxKey(colName));
+                acc.remove(columnSizeBytesKey(colName));
+            }
         }
         // Match the prior contract: a zero total size is not emitted (no file reported size bytes).
         Object size = acc.get(STATS_SIZE_BYTES);

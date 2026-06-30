@@ -189,6 +189,62 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertNull("once poisoned, max must stay cleared", result.get(SourceStatisticsSerializer.columnMaxKey("val")));
     }
 
+    /**
+     * A poisoned MIN/MAX must taint the WHOLE column, not just drop the min/max keys, so a later fold
+     * level cannot resurrect a finite extremum from a sibling. POISON is encoded as key removal, which
+     * is indistinguishable from "column absent here" at the next fold; left as-is, the column stays
+     * "observed" via its surviving null_count/value_count (which the real harvest always emits), so a
+     * sibling stripe's finite min refills the key and is served instead of the intended safe-miss. This
+     * is the two-level fold (stripe fragments -&gt; per-stripe, then per-stripe -&gt; whole-file): a NaN in
+     * one fragment of a stripe must not let another stripe's finite value become the served file MIN.
+     */
+    public void testMergeStatisticsPoisonedExtremumTaintsWholeColumnAcrossFoldLevels() {
+        // Level 1 (text path, implicitNullsForAbsentColumn=false): two fragments of ONE stripe; the NaN
+        // fragment poisons the finite fragment's MIN/MAX. null_count/value_count are present, as the real
+        // harvest always emits them.
+        Map<String, Object> finiteFragment = new HashMap<>();
+        finiteFragment.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+        finiteFragment.put(SourceStatisticsSerializer.columnNullCountKey("v"), 0L);
+        finiteFragment.put(SourceStatisticsSerializer.columnValueCountKey("v"), 10L);
+        finiteFragment.put(SourceStatisticsSerializer.columnMinKey("v"), 5.0);
+        finiteFragment.put(SourceStatisticsSerializer.columnMaxKey("v"), 9.0);
+
+        Map<String, Object> nanFragment = new HashMap<>();
+        nanFragment.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+        nanFragment.put(SourceStatisticsSerializer.columnNullCountKey("v"), 0L);
+        nanFragment.put(SourceStatisticsSerializer.columnValueCountKey("v"), 10L);
+        nanFragment.put(SourceStatisticsSerializer.columnMinKey("v"), Double.NaN);
+        nanFragment.put(SourceStatisticsSerializer.columnMaxKey("v"), Double.NaN);
+
+        Map<String, Object> poisonedStripe = SourceStatisticsSerializer.mergeStatistics(List.of(finiteFragment, nanFragment), false);
+        assertNotNull(poisonedStripe);
+        assertEquals(20L, poisonedStripe.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertNull("poisoned min must be cleared", poisonedStripe.get(SourceStatisticsSerializer.columnMinKey("v")));
+        assertNull("poisoned max must be cleared", poisonedStripe.get(SourceStatisticsSerializer.columnMaxKey("v")));
+        // The whole column must be gone -- otherwise it reads as "observed" and resurrects at the next level.
+        assertNull("poisoned column null_count must be dropped", poisonedStripe.get(SourceStatisticsSerializer.columnNullCountKey("v")));
+        assertNull("poisoned column value_count must be dropped", poisonedStripe.get(SourceStatisticsSerializer.columnValueCountKey("v")));
+
+        // Level 2: fold the poisoned stripe with a finite sibling stripe; MIN/MAX must NOT resurrect.
+        Map<String, Object> finiteStripe = new HashMap<>();
+        finiteStripe.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+        finiteStripe.put(SourceStatisticsSerializer.columnNullCountKey("v"), 0L);
+        finiteStripe.put(SourceStatisticsSerializer.columnValueCountKey("v"), 10L);
+        finiteStripe.put(SourceStatisticsSerializer.columnMinKey("v"), 5.0);
+        finiteStripe.put(SourceStatisticsSerializer.columnMaxKey("v"), 9.0);
+
+        Map<String, Object> wholeFile = SourceStatisticsSerializer.mergeStatistics(List.of(poisonedStripe, finiteStripe), false);
+        assertNotNull(wholeFile);
+        assertNull(
+            "a finite sibling stripe must not resurrect a NaN-poisoned MIN",
+            wholeFile.get(SourceStatisticsSerializer.columnMinKey("v"))
+        );
+        assertNull(
+            "a finite sibling stripe must not resurrect a NaN-poisoned MAX",
+            wholeFile.get(SourceStatisticsSerializer.columnMaxKey("v"))
+        );
+    }
+
     public void testMergeStatisticsAddsImplicitNullsForAbsentColumns() {
         // File A: 100 rows, has bonus with 5 explicit nulls.
         Map<String, Object> a = new HashMap<>();

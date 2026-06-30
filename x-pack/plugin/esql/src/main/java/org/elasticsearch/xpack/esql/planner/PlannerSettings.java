@@ -15,7 +15,6 @@ import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
-import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -232,28 +231,29 @@ public class PlannerSettings {
     );
 
     /**
-     * The number of rows the {@link org.elasticsearch.compute.operator.topn.TopNOperator} must
-     * accumulate before it promotes itself to a {@link org.elasticsearch.compute.operator.topn.ParallelTopNOperator}
-     * backed by {@code esql_worker} threads. Lower values promote sooner; {@code 0} promotes after
-     * the very first row, which is useful in tests to force the parallel path.
+     * The number of rows a parallel-capable operator, such as
+     * {@link org.elasticsearch.compute.operator.topn.TopNOperator}, must accumulate before it
+     * promotes itself to a parallel operator backed by {@code esql_worker} threads. Lower values
+     * promote sooner; {@code 0} promotes after the very first row, which is useful in tests to
+     * force the parallel path.
      */
-    public static final Setting<Long> PARALLEL_TOPN_PROMOTION_THRESHOLD_ROWS = Setting.longSetting(
-        "esql.parallel_topn_promotion_threshold_rows",
-        TopNOperator.DEFAULT_PROMOTION_THRESHOLD_ROWS,
+    public static final Setting<Long> PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS = Setting.longSetting(
+        "esql.parallel_operator_promotion_threshold_rows",
+        1_000_000L,
         0L,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
     /**
-     * Hard cap on the number of background worker threads a single
-     * {@link org.elasticsearch.compute.operator.topn.ParallelTopNOperator} may use. The actual
+     * Hard cap on the number of background worker threads a single parallel operator, such as
+     * {@link org.elasticsearch.compute.operator.topn.ParallelTopNOperator}, may use. The actual
      * worker count is {@code max(1, min(this, esql_worker_pool_size / 2))}. Increase this to
      * exploit more parallelism on large nodes; lower it to bound per-query thread usage.
      */
-    public static final Setting<Integer> PARALLEL_TOPN_MAX_WORKERS = Setting.intSetting(
-        "esql.parallel_topn_max_workers",
-        TopNOperator.DEFAULT_MAX_PARALLEL_TOPN_WORKERS,
+    public static final Setting<Integer> PARALLEL_OPERATOR_MAX_WORKERS = Setting.intSetting(
+        "esql.parallel_operator_max_workers",
+        4,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -290,8 +290,8 @@ public class PlannerSettings {
             BYTES_REF_RAM_OVERESTIMATE_THRESHOLD,
             BYTES_REF_RAM_OVERESTIMATE_FACTOR,
             DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD,
-            PARALLEL_TOPN_PROMOTION_THRESHOLD_ROWS,
-            PARALLEL_TOPN_MAX_WORKERS,
+            PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS,
+            PARALLEL_OPERATOR_MAX_WORKERS,
             IN_SUBQUERY_HASH_JOIN_THRESHOLD
         );
     }
@@ -341,10 +341,10 @@ public class PlannerSettings {
                 v -> settings.updateAndGet(s -> s.docSequenceBytesRefFieldThreshold(v))
             );
             clusterSettings.initializeAndWatch(
-                PARALLEL_TOPN_PROMOTION_THRESHOLD_ROWS,
+                PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS,
                 v -> settings.updateAndGet(s -> s.parallelTopNPromotionThresholdRows(v))
             );
-            clusterSettings.initializeAndWatch(PARALLEL_TOPN_MAX_WORKERS, v -> settings.updateAndGet(s -> s.parallelTopNMaxWorkers(v)));
+            clusterSettings.initializeAndWatch(PARALLEL_OPERATOR_MAX_WORKERS, v -> settings.updateAndGet(s -> s.parallelTopNMaxWorkers(v)));
             clusterSettings.initializeAndWatch(
                 IN_SUBQUERY_HASH_JOIN_THRESHOLD,
                 v -> settings.updateAndGet(s -> s.inSubqueryHashJoinThreshold(v))
@@ -394,8 +394,8 @@ public class PlannerSettings {
         BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.getDefault(Settings.EMPTY),
         BYTES_REF_RAM_OVERESTIMATE_FACTOR.getDefault(Settings.EMPTY),
         DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
-        PARALLEL_TOPN_PROMOTION_THRESHOLD_ROWS.getDefault(Settings.EMPTY),
-        PARALLEL_TOPN_MAX_WORKERS.getDefault(Settings.EMPTY),
+        PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS.getDefault(Settings.EMPTY),
+        PARALLEL_OPERATOR_MAX_WORKERS.getDefault(Settings.EMPTY),
         IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY)
     );
 

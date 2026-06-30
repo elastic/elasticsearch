@@ -44,10 +44,6 @@ public class TopNOperator implements Operator, Accountable {
 
     public static final FeatureFlag PARALLEL_TOPN_FEATURE_FLAG = new FeatureFlag("parallel_topn");
 
-    public static final long DEFAULT_PROMOTION_THRESHOLD_ROWS = 1_000_000L;
-
-    public static final int DEFAULT_MAX_PARALLEL_TOPN_WORKERS = 4;
-
     /** Opts the operator into parallel workers; promotion is one-way once {@code promotionThresholdRows} is crossed. */
     public record ParallelWorkerConfig(Executor executor, int workerCount, int maxInFlightPages, long promotionThresholdRows) {}
 

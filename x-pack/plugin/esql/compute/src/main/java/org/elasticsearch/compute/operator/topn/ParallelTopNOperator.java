@@ -271,9 +271,8 @@ public class ParallelTopNOperator implements Operator, Accountable {
             if (allWorkersDone.isDone() == false) {
                 return new IsBlockedResult(allWorkersDone, "waiting for parallel topn workers");
             }
-            return NOT_BLOCKED;
         }
-        return in.waitForWriting();
+        return NOT_BLOCKED;
     }
 
     @Override

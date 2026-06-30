@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.ml.action.datafeed;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -24,6 +26,8 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.Collections;
 import java.util.Date;
+import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
@@ -104,6 +108,26 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         TransportStartDatafeedAction.auditDeprecations(config, job1, auditor, xContentRegistry());
 
         verify(auditor, never()).warning(any(), any());
+    }
+
+    public void testStartDatafeedOriginQualifiedIndexExcludedFromRemoteClusterChecks() {
+        assertThat(TransportStartDatafeedAction.trueRemoteIndices(List.of("_origin:foo")), equalTo(List.of()));
+        assertThat(TransportStartDatafeedAction.trueRemoteIndices(List.of("_origin:*")), equalTo(List.of()));
+        assertThat(
+            TransportStartDatafeedAction.trueRemoteIndices(List.of("remote:foo", "_origin:bar", "local")),
+            equalTo(List.of("remote:foo"))
+        );
+        assertThat(
+            RemoteClusterLicenseChecker.remoteClusterAliases(
+                Set.of(),
+                TransportStartDatafeedAction.trueRemoteIndices(List.of("_origin:foo"))
+            ),
+            equalTo(List.of())
+        );
+        expectThrows(
+            NoSuchRemoteClusterException.class,
+            () -> RemoteClusterLicenseChecker.remoteClusterAliases(Set.of(), List.of("_origin:foo"))
+        );
     }
 
     public static TransportStartDatafeedAction.DatafeedTask createDatafeedTask(

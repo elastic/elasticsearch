@@ -32,6 +32,6 @@
   "examples" : [
     "ROW a = [\"this\", \"is\", \"a\", \"text\"]\n| EVAL text_a = TO_TEXT(a)"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 150531
+summary: "[ES|QL|DS] Add \"datetime_format\" to ndjson reader settings"
+type: enhancement

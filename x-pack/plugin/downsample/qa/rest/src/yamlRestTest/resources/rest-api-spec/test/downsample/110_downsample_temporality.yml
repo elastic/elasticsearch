@@ -1,7 +1,8 @@
-# TODO: guarded by IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG — add a cluster_features
-# requirement and remove the excludeTestsMatching entry in build.gradle when the flag is lifted.
-
 "Downsample delta temporality counter":
+
+  - requires:
+      cluster_features: ["mapper.tsdb.metric_temporality_support"]
+      reason: "metric temporality support added in 9.5"
 
   - do:
       indices.create:
@@ -89,6 +90,10 @@
 ---
 "Downsample mixed temporality counters":
 
+  - requires:
+      cluster_features: ["mapper.tsdb.metric_temporality_support"]
+      reason: "metric temporality support added in 9.5"
+
   - do:
       indices.create:
         index: test-mixed-temporality
@@ -173,6 +178,10 @@
 ---
 "Downsample delta temporality exponential histogram":
 
+  - requires:
+      cluster_features: ["mapper.tsdb.metric_temporality_support"]
+      reason: "metric temporality support added in 9.5"
+
   - do:
       indices.create:
         index: test-delta-histogram
@@ -254,6 +263,10 @@
 
 ---
 "Downsample cumulative temporality exponential histogram":
+
+  - requires:
+      cluster_features: ["mapper.tsdb.metric_temporality_support"]
+      reason: "metric temporality support added in 9.5"
 
   - do:
       indices.create:
@@ -343,6 +356,10 @@
 
 ---
 "Downsample cumulative temporality exponential histogram across buckets":
+
+  - requires:
+      cluster_features: ["mapper.tsdb.metric_temporality_support"]
+      reason: "metric temporality support added in 9.5"
 
   - do:
       indices.create:
@@ -439,6 +456,10 @@
 
 ---
 "Downsample mixed temporality exponential histograms":
+
+  - requires:
+      cluster_features: ["mapper.tsdb.metric_temporality_support"]
+      reason: "metric temporality support added in 9.5"
 
   - do:
       indices.create:

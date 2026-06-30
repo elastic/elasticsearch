@@ -34,7 +34,7 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
     public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
         .systemProperty("telemetry.otel.metrics.enabled", "true")
         .systemProperty("telemetry.metrics.otel_jvm.enabled", "true")
-        .setting("telemetry.export.endpoint", () -> "http://" + recordingApmServer.getHttpAddress())
+        .setting("telemetry.export.endpoint", () -> recordingApmServer.getGrpcEndpoint())
         .setting("telemetry.metrics.buffer.disk_size", "10mb")
         .setting("telemetry.metrics.buffer.ttl", "5m")
         // interval > send_timeout > initial_backoff so a failing export fully fails within an interval and the
@@ -102,17 +102,22 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
 
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 
+        // Assert only the end-to-end property: batches buffered to disk during the outage are replayed after
+        // recovery. Exact writes==replays accounting is covered deterministically by BufferingMetricExporterTests
+        // with injected millisecond rotation windows. Asserting strict equality here is racy because the
+        // PeriodicMetricReader keeps adding writes throughout the outage and the final write can land just before
+        // recovery, so its file does not age into the 33s readable window until after the earlier batches drain.
         assertBusy(() -> {
             long written = writtenFiles.get();
             long replayed = replayedFiles.get();
             assertTrue(
-                "expected the drain loop to replay all disk-buffered batches after recovery "
+                "expected disk-buffered batches to be replayed after recovery "
                     + "(es.apm.metrics.disk_buffer.writes peaked at "
                     + written
                     + ", es.apm.metrics.disk_buffer.replays peaked at "
                     + replayed
                     + ")",
-                written > 0 && written == replayed
+                written > 0 && replayed > 0
             );
         }, BUFFER_DRAIN_TIMEOUT, TimeUnit.SECONDS);
         assertBusy(

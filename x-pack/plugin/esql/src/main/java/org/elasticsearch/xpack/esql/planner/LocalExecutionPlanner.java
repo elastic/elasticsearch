@@ -40,6 +40,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
+import org.elasticsearch.compute.operator.HighlightConfig;
+import org.elasticsearch.compute.operator.HighlightOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
@@ -146,6 +148,7 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
@@ -373,8 +376,8 @@ public class LocalExecutionPlanner {
             return planMvExpand(mvExpand, context);
         } else if (node instanceof TimeSeriesCollapseExec tsCollapse) {
             return planTimeSeriesCollapse(tsCollapse, context);
-        } else if (node instanceof HighlightExec) {
-            throw new UnsupportedOperationException("HIGHLIGHT is not implemented yet");
+        } else if (node instanceof HighlightExec highlight) {
+            return planHighlight(highlight, context);
         } else if (node instanceof RerankExec rerank) {
             return planRerank(rerank, context);
         } else if (node instanceof ChangePointExec changePoint) {
@@ -1254,6 +1257,42 @@ public class LocalExecutionPlanner {
             ),
             outputLayout
         );
+    }
+
+    // TODO: when highlighting can run directly against shard data, use real index offsets and per-field analyzers
+    // instead of re-analyzing each row in a MemoryIndex.
+    private PhysicalOperation planHighlight(HighlightExec highlight, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(highlight.child(), context);
+
+        Expression queryExpr = highlight.query();
+        if (queryExpr == null) {
+            throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query string");
+        }
+        String queryText = BytesRefs.toString(queryExpr.fold(context.foldCtx));
+        // TODO: honour boundary_scanner*, order, max_analyzed_offset, and phrase_limit once HighlightOptions exposes them.
+        HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
+        HighlightConfig config = new HighlightConfig(
+            queryText,
+            options.preTag(),
+            options.postTag(),
+            options.encoder(),
+            options.numberOfFragments(),
+            options.fragmentSize(),
+            options.noMatchSize()
+        );
+
+        List<ExpressionEvaluator.Factory> fieldEvaluators = highlight.fields()
+            .stream()
+            .map(field -> EvalMapper.toEvaluator(context.foldCtx(), field, source.layout, context.analysisRegistry()))
+            .toList();
+
+        // Append one keyword column per highlighted field.
+        // The generated attributes are appended in the same order as the ON fields,
+        // so the operator's appended blocks line up with these layout channels.
+        Layout.Builder layoutBuilder = source.layout.builder();
+        layoutBuilder.append(highlight.generatedFields());
+
+        return source.with(new HighlightOperator.Factory(config, fieldEvaluators), layoutBuilder.build());
     }
 
     private PhysicalOperation planHashJoin(HashJoinExec join, LocalExecutionPlannerContext context) {

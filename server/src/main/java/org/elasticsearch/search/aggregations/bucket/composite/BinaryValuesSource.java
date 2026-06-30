@@ -148,7 +148,9 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     void setAfter(Comparable<?> value) {
         if (missingBucket && value == null) {
             afterValue = null;
-        } else if (value.getClass() == String.class) {
+        } else if (value.getClass() == String.class || fieldType == null) {
+            // the value might not be a string if this field is unmapped on this shard but present on others
+            // with a non-string type
             afterValue = format.parseBytesRef(value);
         } else if (value.getClass() == BytesRef.class) {
             // The value may be a bytes reference (eg an encoded tsid field)

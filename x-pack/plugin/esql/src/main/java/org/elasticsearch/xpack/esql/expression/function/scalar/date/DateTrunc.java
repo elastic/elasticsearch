@@ -88,6 +88,7 @@ public class DateTrunc extends EsqlConfigurationFunction {
         @Param(
             name = "interval",
             type = { "date_period", "time_duration" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Interval; [time span](/reference/query-languages/esql/esql-time-spans.md) (DATE_PERIOD or TIME_DURATION)."
         ) Expression interval,
         @Param(name = "date", type = { "date", "date_nanos" }, description = "Date expression") Expression field,

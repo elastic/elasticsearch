@@ -10,7 +10,7 @@ highlight:
     and significantly reduces the storage footprint. Doc values skippers
     (compact skip lists with min/max metadata) are enabled by default for number based fields,
     allowing large blocks of documents to be skipped without scanning individual values.
-    Later doc value skippers will be enabled for all fields where applicable.
+    Doc value skippers will be enabled for all applicable fields at a later point.
 
     Mappings are always flat: object and passthrough fields are auto-flattened
     to leaf fields at mapping time. The original document source is not stored;

@@ -170,7 +170,12 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
      * means no project encryption key is needed. Idempotent via {@link DatasetRegistry#ensureDataSource}.
      */
     private void ensureDataSourceRegistered() throws IOException {
-        DatasetRegistry.ensureDataSource(adminClient(), DATA_SOURCE, "s3", Map.of("endpoint", S3_FIXTURE.getAddress(), "auth", "anonymous"));
+        DatasetRegistry.ensureDataSource(
+            adminClient(),
+            DATA_SOURCE,
+            "s3",
+            Map.of("endpoint", S3_FIXTURE.getAddress(), "auth", "anonymous")
+        );
     }
 
     /*

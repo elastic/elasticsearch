@@ -61,33 +61,20 @@ import java.util.stream.Collectors;
  *       {@code TextFieldMapper.defaultDocValuesParameters()} returns {@code enabled=true} when
  *       {@code isStrictColumnar()}, making text fields aggregatable on the contender but not on
  *       the baseline. Normalised to {@code doc_values:true} on both sides (the columnar default).</li>
- *   <li>{@code match_only_text} – always normalised to {@code doc_values:true, index:true} on
- *       both sides. {@code doc_values:true} (the strict-columnar default) is mirrored to the logsdb
- *       baseline so both sides become aggregatable. {@code index:true} overrides logsdb_columnar's
- *       {@code isIndexDisabledByDefault()=true} so both sides stay searchable. The
- *       position-confirming path in {@code SourceConfirmedTextQuery} reads from binary doc values
- *       via {@code SortingArrayOrderBinaryDocValues}, which correctly decodes the
- *       {@code ArrayOrderInlineNull} format written by strict-columnar multi-value fields.</li>
- *   <li>{@code keyword} and {@code ip} fields – always normalised to
- *       {@code doc_values:{cardinality:low}} and {@code index:true} on both sides (even when
- *       {@code doc_values:false} was set). Two problems arise otherwise: (a) {@code doc_values:true}
- *       (or the mode default) resolves to {@code cardinality=HIGH} in logsdb_columnar via
- *       {@code defaultDocValuesParameters()}, activating {@code usesBinaryDocValues()=true};
- *       combined with {@code FieldMapper.indexParam()} defaulting to {@code false} when
- *       {@code isIndexDisabledByDefault()=true} (set by logsdb_columnar), {@code hasTerms()=false}
- *       routes term/prefix/range queries through {@code ScanningBinaryDocValues*Query}, which
- *       uses {@code MultiValueSeparateCountBinaryDocValuesReader} expecting {@code SeparateCount}
- *       format; the binary DV is stored in {@code ArrayOrderInlineNull} format
- *       ({@code arrayOrderBinaryDocValues=true} in strict-columnar + multiValue), causing an
- *       invalid-vInt server crash. (b) {@code doc_values:false} kept as-is leaves the contender
- *       with {@code indexed=false} (due to {@code isIndexDisabledByDefault()=true}) AND no doc
- *       values, so {@code searchable=false}, while the baseline (which defaults to
- *       {@code indexed=true}) remains {@code searchable=true}, diverging in field-caps.
- *       Two safeguards prevent the binary-DV query path: {@code {cardinality:low}} disables
- *       binary DV writes ({@code usesBinaryDocValues()=false}), and {@code index:true} explicitly
- *       enables the inverted index on both sides (overriding logsdb_columnar's
- *       {@code isIndexDisabledByDefault()=true}), so {@code hasTerms()=true} and term queries
- *       use the inverted index. Both sides remain searchable and aggregatable.</li>
+ *   <li>{@code match_only_text} – always normalised to {@code doc_values:false, index:true} on
+ *       both sides. {@code SourceConfirmedTextQuery} (used for phrase and span queries) requires
+ *       candidates from the inverted index; without {@code index:true} the query returns no results
+ *       in logsdb_columnar where {@code isIndexDisabledByDefault()=true}. Setting
+ *       {@code doc_values:false} avoids a secondary issue: when {@code doc_values:true} (the
+ *       strict-columnar default) combined with {@code multiValue:true} activates
+ *       {@code usesBinaryDocValues()=true}, {@code SourceConfirmedTextQuery}'s position-confirming
+ *       reader ({@code binaryDocValuesFieldFetcher}) decodes the companion {@code .counts} field
+ *       via {@code MultiValuedSortedBinaryDocValues}, which expects the SeparateCount encoding but
+ *       receives the {@code ArrayOrderInlineNull} encoding (lengths are stored as {@code realLen+1}
+ *       rather than {@code realLen}), producing off-by-one reads and incorrect position
+ *       confirmation. {@code doc_values:false} disables the binary-DV path entirely; with
+ *       {@code index:true} queries route through the inverted index and position confirmation reads
+ *       from stored fields / synthetic source instead.</li>
  * </ul>
  *
  * <p>Fully-dynamic mapping (where no fields are in the static mapping) is disabled. With
@@ -102,13 +89,9 @@ import java.util.stream.Collectors;
  * probability). When those fields' values are indexed, ES creates dynamic field mappings. The
  * contender template (priority 101) overrides the built-in {@code logs} template (priority 100),
  * so without explicit intervention the built-in {@code strings_as_keyword} dynamic template is
- * not inherited and dynamic string fields become {@code text}. In {@code logsdb_columnar},
- * {@code text} fields have {@code doc_values:true} by default, storing values in
- * {@code ArrayOrderInlineNull} format. Term queries on those fields crash with an
- * {@code AssertionError} in the search thread. To prevent this, the contender mapping explicitly
- * includes its own {@code strings_as_keyword} dynamic template — using
- * {@code doc_values:{cardinality:low}} and {@code index:true} — so dynamic strings are mapped as
- * columnar-safe keyword fields on both sides.
+ * not inherited and dynamic string fields become {@code text}. To prevent this, the contender
+ * mapping explicitly includes its own {@code strings_as_keyword} dynamic template so that dynamic
+ * string fields are mapped as {@code keyword} on both sides (matching the built-in logs template).
  *
  * <p>{@code geo_shape} and {@code shape} fields are excluded entirely from both the mapping
  * and documents. The reason is that their wire format is a JSON object (e.g. GeoJSON
@@ -185,25 +168,13 @@ public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallen
         var raw = new LinkedHashMap<>(stripShapeFields(strip(dataGenerationHelper.mapping().raw())));
         // The contender template (priority 101) overrides the built-in logs template (priority 100),
         // so the built-in strings_as_keyword dynamic template is not inherited. Without it, dynamically
-        // mapped string fields become text in logsdb_columnar, where text fields have binary doc values
-        // (ArrayOrderInlineNull format) by default. Term queries on those fields cause an AssertionError.
-        // Add strings_as_keyword with columnar-safe settings to match the baseline's dynamic mapping
-        // behaviour while avoiding the binary-DV crash path.
+        // mapped string fields become text in logsdb_columnar. Add strings_as_keyword here to match
+        // the baseline's dynamic mapping behaviour (same as the built-in logs template).
         if (raw.get("_doc") instanceof Map<?, ?> docMap) {
             var inner = new LinkedHashMap<>((Map<String, Object>) docMap);
             inner.put(
                 "dynamic_templates",
-                List.of(
-                    Map.of(
-                        "strings_as_keyword",
-                        Map.of(
-                            "match_mapping_type",
-                            "string",
-                            "mapping",
-                            Map.of("type", "keyword", "doc_values", Map.of("cardinality", "low"), "index", true)
-                        )
-                    )
-                )
+                List.of(Map.of("strings_as_keyword", Map.of("match_mapping_type", "string", "mapping", Map.of("type", "keyword"))))
             );
             raw.put("_doc", inner);
         }
@@ -280,44 +251,22 @@ public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallen
         // isStrictColumnar(), so text fields are aggregatable=true by default on the contender but
         // aggregatable=false on the logsdb baseline. Inject doc_values:true on both sides.
         //
-        // match_only_text: always force doc_values:true + index:true on both sides.
-        // doc_values:true (the strict-columnar default) is mirrored to the logsdb baseline so both
-        // sides are aggregatable. index:true overrides logsdb_columnar's
-        // isIndexDisabledByDefault()=true so both sides stay searchable. SourceConfirmedTextQuery's
-        // position-confirming phase reads from binary doc values via SortingArrayOrderBinaryDocValues,
-        // which correctly decodes the ArrayOrderInlineNull format written by strict-columnar
-        // multi-value fields.
-        //
-        // keyword / ip: always force doc_values:{cardinality:low} + index:true on both sides (even
-        // overriding doc_values:false). In logsdb_columnar, doc_values:true (boolean) uses HIGH
-        // cardinality by default (KeywordFieldMapper/IpFieldMapper.defaultDocValuesParameters()
-        // returns HIGH when isStrictColumnar()), which activates usesBinaryDocValues()=true.
-        // Combined with isIndexDisabledByDefault()=true (FieldMapper.indexParam() returns false by
-        // default when the index setting is disabled), index:false means hasTerms()=false →
-        // term/prefix/range queries route through ScanningBinaryDocValues*Query. That reader uses
-        // MultiValueSeparateCountBinaryDocValuesReader which expects SeparateCount format, but the
-        // data is stored in ArrayOrderInlineNull format (arrayOrderBinaryDocValues=true in strict-
-        // columnar + multiValue mode) → Invalid vInt server crash.
-        // Two safeguards prevent the binary-DV query path:
-        // (a) {cardinality:low} disables binary DV writes entirely (usesBinaryDocValues()=false),
-        // routing queries through SortedSet doc values instead.
-        // (b) index:true explicitly enables the inverted index on both sides, so hasTerms()=true
-        // and term queries use the inverted index rather than doc values. This is an explicit
-        // override of the logsdb_columnar mode default (isIndexDisabledByDefault()=true).
-        // Keeping doc_values:false causes a different divergence (contender: indexed=false AND no
-        // DV → searchable=false; baseline: indexed=true default → searchable=true). Forcing
-        // {cardinality:low} + index:true on both sides keeps both sides consistently
-        // searchable=true and aggregatable=true.
+        // match_only_text: force doc_values:false + index:true on both sides. SourceConfirmedTextQuery
+        // (phrase/span) requires the inverted index for candidate finding; without index:true the
+        // query returns nothing in logsdb_columnar (isIndexDisabledByDefault()=true). doc_values:false
+        // avoids an additional bug where binaryDocValuesFieldFetcher expects SeparateCount encoding
+        // but receives ArrayOrderInlineNull, causing incorrect position confirmation for multi-value
+        // fields. With doc_values:false the binary-DV path is bypassed and position confirmation
+        // reads from stored fields / synthetic source via the inverted index path.
         if ("text".equals(fieldType)) {
             if (result.containsKey("doc_values") == false) {
                 result.put("doc_values", true);
             }
         } else if ("match_only_text".equals(fieldType)) {
-            result.put("doc_values", true);
-            result.put("index", true);
-        } else if ("keyword".equals(fieldType) || "ip".equals(fieldType)) {
-            result.put("doc_values", Map.of("cardinality", "low"));
-            result.put("index", true);
+            result.put("doc_values", false);
+            if (result.containsKey("index") == false) {
+                result.put("index", true);
+            }
         } else if (Boolean.FALSE.equals(result.get("doc_values")) || "false".equals(result.get("doc_values"))) {
             // For other non-text types, strip doc_values:false. In columnar mode numeric/geo/etc.
             // fields take the doc_values-skippers path, so they remain searchable and aggregatable

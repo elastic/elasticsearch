@@ -1439,4 +1439,32 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
         assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
     }
+
+    /**
+     * In strictly columnar index mode, the field's binary doc values are stored via
+     * {@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}, a different byte layout than the sorted-and-deduplicated format used
+     * elsewhere. Query confirmation ({@link BinaryDvConfirmedQuery}) reads that binary doc values column directly, bypassing the field's
+     * blockLoader/fielddata abstractions, so it must be told to decode the in-order format too; otherwise it misreads the bytes for any
+     * multi-valued doc.
+     */
+    public void testQueriesAgainstMultiValuedDocInColumnarMode() throws IOException {
+        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "wildcard")));
+        DocumentMapper mapper = mapperService.documentMapper();
+
+        withLuceneIndex(
+            mapperService,
+            iw -> { iw.addDocument(mapper.parse(source(b -> b.array("field", "aaaaa", "bbbbb"))).rootDoc()); },
+            reader -> {
+                IndexSearcher searcher = newSearcher(reader);
+                SearchExecutionContext context = createSearchExecutionContext(mapperService, searcher);
+                WildcardFieldMapper.WildcardFieldType fieldType = (WildcardFieldMapper.WildcardFieldType) mapperService.fieldType("field");
+
+                assertEquals(1, searcher.count(fieldType.termQuery("bbbbb", context)));
+                assertEquals(0, searcher.count(fieldType.termQuery("ccccc", context)));
+                assertEquals(1, searcher.count(fieldType.wildcardQuery("bbb*", null, false, context)));
+            }
+        );
+    }
 }

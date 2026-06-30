@@ -31,6 +31,7 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
             randomLongBetween(0, TimeValue.timeValueHours(1).millis()),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomNonNegativeLong()
         );
     }
@@ -43,20 +44,30 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
         long totalRows = in.totalRows();
         long emittedPages = in.emittedPages();
         long emittedRows = in.emittedRows();
-        switch (randomIntBetween(0, 5)) {
+        long bytesRead = in.bytesRead();
+        switch (randomIntBetween(0, 6)) {
             case 0 -> receivedPages = randomValueOtherThan(receivedPages, ESTestCase::randomNonNegativeLong);
             case 1 -> completedPages = randomValueOtherThan(completedPages, ESTestCase::randomNonNegativeLong);
             case 2 -> procesNanos = randomValueOtherThan(procesNanos, ESTestCase::randomNonNegativeLong);
             case 3 -> totalRows = randomValueOtherThan(totalRows, ESTestCase::randomNonNegativeLong);
             case 4 -> emittedPages = randomValueOtherThan(emittedPages, ESTestCase::randomNonNegativeLong);
             case 5 -> emittedRows = randomValueOtherThan(emittedRows, ESTestCase::randomNonNegativeLong);
+            case 6 -> bytesRead = randomValueOtherThan(bytesRead, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
-        return new LookupFromIndexOperator.Status(receivedPages, completedPages, procesNanos, totalRows, emittedPages, emittedRows);
+        return new LookupFromIndexOperator.Status(
+            receivedPages,
+            completedPages,
+            procesNanos,
+            totalRows,
+            emittedPages,
+            emittedRows,
+            bytesRead
+        );
     }
 
     public void testToXContent() {
-        var status = new LookupFromIndexOperator.Status(100, 50, TimeValue.timeValueNanos(10).nanos(), 120, 88, 800);
+        var status = new LookupFromIndexOperator.Status(100, 50, TimeValue.timeValueNanos(10).nanos(), 120, 88, 800, 4096);
         String json = Strings.toString(status, true, true);
         assertThat(json, equalTo("""
             {
@@ -66,7 +77,8 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
               "pages_completed" : 50,
               "pages_emitted" : 88,
               "rows_emitted" : 800,
-              "total_rows" : 120
+              "total_rows" : 120,
+              "bytes_read" : 4096
             }"""));
     }
 }

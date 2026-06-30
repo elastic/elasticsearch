@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -120,6 +121,21 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         Setting.Property.OperatorDynamic
     );
 
+    private static final ByteSizeValue DEFAULT_MAX_BINARY_INPUT_SIZE = ByteSizeValue.ofMb(1);
+
+    /**
+     * Defines the maximum allowed size, in decoded bytes, of a single base64-encoded input value sent to a semantic field.
+     * Inputs exceeding this limit are rejected with a {@code 400 Bad Request}.
+     */
+    public static Setting<ByteSizeValue> INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE = Setting.byteSizeSetting(
+        "indices.inference.max_binary_input_size",
+        DEFAULT_MAX_BINARY_INPUT_SIZE,
+        ByteSizeValue.ONE,
+        ByteSizeValue.ofMb(20),
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
+
     private static final Object EXPLICIT_NULL = new Object();
     private static final ChunkedInference EMPTY_CHUNKED_INFERENCE = new EmptyChunkedInference();
 
@@ -130,6 +146,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private final IndexingPressure indexingPressure;
     private final InferenceStats inferenceStats;
     private volatile long batchSizeInBytes;
+    private volatile long maxBase64InputSizeInBytes;
 
     public ShardBulkInferenceActionFilter(
         ClusterService clusterService,
@@ -147,10 +164,16 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         this.inferenceStats = inferenceStats;
         this.batchSizeInBytes = INDICES_INFERENCE_BATCH_SIZE.get(clusterService.getSettings()).getBytes();
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_INFERENCE_BATCH_SIZE, this::setBatchSize);
+        this.maxBase64InputSizeInBytes = INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.get(clusterService.getSettings()).getBytes();
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE, this::setMaxBase64InputSize);
     }
 
     private void setBatchSize(ByteSizeValue newBatchSize) {
         batchSizeInBytes = newBatchSize.getBytes();
+    }
+
+    private void setMaxBase64InputSize(ByteSizeValue newMaxBase64InputSize) {
+        maxBase64InputSizeInBytes = newMaxBase64InputSize.getBytes();
     }
 
     @Override
@@ -840,8 +863,49 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             int order,
             int sourceFieldInputIndex
         ) {
+            if (input.dataFormat() == DataFormat.BASE64) {
+                long decodedSize = base64BinarySize(input.value());
+                if (decodedSize > maxBase64InputSizeInBytes) {
+                    setInferenceResponseFailure(
+                        itemIndex,
+                        new ElasticsearchStatusException(
+                            "Input for field [{}] from source field [{}] has a decoded base64 size of [{}] which exceeds the maximum "
+                                + "allowed size of [{}]. The maximum allowed size can be configured using the [{}] cluster setting.",
+                            RestStatus.BAD_REQUEST,
+                            field,
+                            sourceField,
+                            ByteSizeValue.ofBytes(decodedSize),
+                            ByteSizeValue.ofBytes(maxBase64InputSizeInBytes),
+                            INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE.getKey()
+                        )
+                    );
+                    return -1;
+                }
+            }
             requests.add(new InferenceStringFieldInferenceRequest(itemIndex, field, sourceField, input, order, sourceFieldInputIndex));
             return input.value().length();
+        }
+
+        /**
+         * Computes the size, in decoded bytes, that a base64 data URI value represents without allocating the decoded byte array.
+         * The value is expected to be a data URI of the form {@code data:{MIME-type};base64,<base64-data>}, as enforced by
+         * {@link InferenceString}. The decoded size is derived from the length of the base64 payload and its padding so that
+         * oversized inputs can be rejected before any decoding takes place.
+         */
+        private static long base64BinarySize(String value) {
+            int dataStart = value.indexOf(',') + 1;
+            if (dataStart >= value.length()) {
+                return 0;
+            }
+
+            int lastIdx = value.length() - 1;
+            while (lastIdx >= dataStart && value.charAt(lastIdx) == '=') {
+                lastIdx--;
+            }
+
+            long dataChars = lastIdx + 1 - dataStart;
+            long rem = dataChars % 4;
+            return dataChars / 4 * 3 + (rem > 0 ? rem - 1 : 0);
         }
 
         private boolean incrementIndexingPressurePreInference(ExtendedIndexRequest indexRequest, int itemIndex) {

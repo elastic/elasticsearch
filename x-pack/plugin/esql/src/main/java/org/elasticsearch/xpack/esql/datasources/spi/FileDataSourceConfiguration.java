@@ -71,15 +71,13 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
     static final String AUTH_DEPRECATED_WORKLOAD_IDENTITY = "workload_identity";
 
     /**
-     * Deprecated {@code auth} value names, mapped to their canonical replacement. Still accepted for
-     * backwards compatibility; {@link #normalize(Map)} rewrites them to the canonical value on parse and
+     * Maps each deprecated {@code auth} value name (the entry key) to its canonical replacement (the entry value).
+     * Still accepted for backwards compatibility; {@link #normalize(Map)} rewrites the key to the value on parse and
      * emits a deprecation warning per use.
      */
-    private static final Map<String, String> DEPRECATED_AUTH_ALIASES = Map.of(
-        AUTH_DEPRECATED_NONE,
-        AUTH_ANONYMOUS,
-        AUTH_DEPRECATED_WORKLOAD_IDENTITY,
-        AUTH_MANAGED_IDENTITY
+    private static final Map<String, String> DEPRECATED_AUTH_ALIASES = Map.ofEntries(
+        Map.entry(AUTH_DEPRECATED_NONE, AUTH_ANONYMOUS),
+        Map.entry(AUTH_DEPRECATED_WORKLOAD_IDENTITY, AUTH_MANAGED_IDENTITY)
     );
 
     /**

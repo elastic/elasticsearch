@@ -79,19 +79,7 @@ class BalancedOTKMeansLocalConcurrent<V> extends BalancedOTKMeansLocal<V> {
         NeighborHood[] neighborhoods,
         float soarLambda
     ) throws IOException {
-        int[] assignments = new int[vectors.size()];
-        final int len = vectors.size() / numWorkers;
-        final List<Callable<Void>> runners = new ArrayList<>(numWorkers);
-        for (int i = 0; i < numWorkers; i++) {
-            final int start = i * len;
-            final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
-            runners.add(() -> {
-                assignSpilledSlice(vectors.copy(), ops, kmeansIntermediate, neighborhoods, soarLambda, start, end, assignments);
-                return null;
-            });
-        }
-        executor.invokeAll(runners);
-        return assignments;
+        return assignSpilledConcurrent(executor, numWorkers, vectors, ops, kmeansIntermediate, neighborhoods, soarLambda);
     }
 
     @Override

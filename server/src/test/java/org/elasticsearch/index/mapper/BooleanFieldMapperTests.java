@@ -312,7 +312,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         Boolean nullValue = usually() ? null : randomBoolean();
         private boolean ignoreMalformed;
         // boolean fields have doc_values enabled by default, so multi_value: false can always be requested when the feature is on.
-        private final boolean enforceSingleValue = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        private final boolean enforceSingleValue = randomBoolean();
 
         BooleanSyntheticSourceSupport(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;
@@ -430,7 +430,6 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     }
 
     public void testColumnarBooleanArrayOrderRoundTrip() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
         DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "boolean").endObject()))
             .documentMapper();

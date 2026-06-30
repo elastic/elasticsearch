@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -101,7 +100,7 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        columnarEnabled = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        columnarEnabled = randomBoolean();
         return Settings.builder()
             .put(super.nodeSettings())
             .put("cluster.logsdb.enabled", "true")
@@ -218,7 +217,7 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
     }
 
     public void testShrink() throws Exception {
-        String indexMode = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean() ? "logsdb_columnar" : "logsdb";
+        String indexMode = randomBoolean() ? "logsdb_columnar" : "logsdb";
         client().admin()
             .indices()
             .prepareCreate("my-logs")

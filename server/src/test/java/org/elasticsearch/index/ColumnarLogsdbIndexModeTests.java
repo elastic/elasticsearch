@@ -26,12 +26,6 @@ import static org.hamcrest.Matchers.not;
 
 public class ColumnarLogsdbIndexModeTests extends ESTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        assumeTrue("logsdb_columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
-
     public void testColumnarLogsdbFromString() {
         assertThat(IndexMode.fromString("logsdb_columnar"), equalTo(IndexMode.LOGSDB_COLUMNAR));
         assertThat(IndexMode.fromString("LOGSDB_COLUMNAR"), equalTo(IndexMode.LOGSDB_COLUMNAR));
@@ -232,7 +226,6 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
     }
 
     public void testIndexDisabledByDefault() {
-        assumeTrue("columnar feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = IndexSettingsTests.newIndexMeta("test", buildSettings()).getSettings();
         assertTrue(IndexSettings.INDEX_DISABLED_BY_DEFAULT.get(settings));
     }

@@ -2286,29 +2286,27 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         ensureGreen(timeSeriesIndexName);
         assertReshardNonstandardIndexFails(timeSeriesIndexName, IndexMode.TIME_SERIES);
 
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            final String columnarIndexName = "columnar-index";
-            createIndex(
-                columnarIndexName,
-                Settings.builder()
-                    .put(indexSettings(randomIntBetween(1, 5), 0).build())
-                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                    .build()
-            );
-            ensureGreen(columnarIndexName);
-            assertReshardNonstandardIndexFails(columnarIndexName, IndexMode.COLUMNAR);
+        final String columnarIndexName = "columnar-index";
+        createIndex(
+            columnarIndexName,
+            Settings.builder()
+                .put(indexSettings(randomIntBetween(1, 5), 0).build())
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .build()
+        );
+        ensureGreen(columnarIndexName);
+        assertReshardNonstandardIndexFails(columnarIndexName, IndexMode.COLUMNAR);
 
-            final String columnarLogsdbIndexName = "columnar-logsdb-index";
-            createIndex(
-                columnarLogsdbIndexName,
-                Settings.builder()
-                    .put(indexSettings(randomIntBetween(1, 5), 0).build())
-                    .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
-                    .build()
-            );
-            ensureGreen(columnarLogsdbIndexName);
-            assertReshardNonstandardIndexFails(columnarLogsdbIndexName, IndexMode.LOGSDB_COLUMNAR);
-        }
+        final String columnarLogsdbIndexName = "columnar-logsdb-index";
+        createIndex(
+            columnarLogsdbIndexName,
+            Settings.builder()
+                .put(indexSettings(randomIntBetween(1, 5), 0).build())
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
+                .build()
+        );
+        ensureGreen(columnarLogsdbIndexName);
+        assertReshardNonstandardIndexFails(columnarLogsdbIndexName, IndexMode.LOGSDB_COLUMNAR);
     }
 
     public void testReshardTargetWillEqualToPrimaryTermOfSource() throws Exception {

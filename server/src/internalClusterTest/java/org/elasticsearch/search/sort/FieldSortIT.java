@@ -27,7 +27,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
@@ -1607,7 +1606,6 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testSortColumnarId() {
-        assumeTrue("feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         if (randomBoolean()) {
             prepareCreate("test", Settings.builder().put("index.mapping.use_columnar_id_mode_by_default", true)).get();
         } else {

@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -45,14 +44,6 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     }
 
     public static FieldMapper.DocValuesParameter.Values randomDocValuesParams(boolean allowIgnoredSource) {
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-            if (allowIgnoredSource && ESTestCase.randomBoolean()) {
-                return FieldMapper.DocValuesParameter.Values.DISABLED;
-            } else {
-                return new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true);
-            }
-        }
-
         return switch (ESTestCase.randomInt(allowIgnoredSource ? 2 : 1)) {
             case 0 -> new FieldMapper.DocValuesParameter.Values(
                 true,
@@ -168,7 +159,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
 
         if (docValues.enabled() == false) {
             b.field("doc_values", false);
-        } else if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && docValues.multiValue() == false) {
+        } else if (docValues.multiValue() == false) {
             b.startObject("doc_values");
             b.field("multi_value", false);
             b.endObject();

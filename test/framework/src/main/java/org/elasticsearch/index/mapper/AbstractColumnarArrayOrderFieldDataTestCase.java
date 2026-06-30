@@ -39,9 +39,7 @@ public abstract class AbstractColumnarArrayOrderFieldDataTestCase extends Mapper
     protected abstract String fieldTypeName();
 
     @Before
-    public void assumeColumnarFeatureEnabled() {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
+    public void assumeColumnarFeatureEnabled() {}
 
     public final void setUp() throws Exception {
         super.setUp();

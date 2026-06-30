@@ -220,7 +220,6 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
     }
 
     public void testColumnarIndexRejectsSourceOnlySnapshot() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             ShardRouting shardRouting = shardRoutingBuilder(
                 new ShardId("index", "_na_", 0),

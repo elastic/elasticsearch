@@ -569,7 +569,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
      * The value round-trip itself is covered by {@link #testOriginalValueRoundTripFromDocValues()} (the loader is identical).
      */
     public void testSemanticTextAcceptedInColumnar() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeFalse("the legacy format keeps the original value in _source", useLegacyFormat);
         final String dvFieldName = SemanticTextField.getOriginalValuesFieldName("field");
         // Deliberately use an index version BEFORE the synthetic-source gate: in columnar mode the input is always stored in doc

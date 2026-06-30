@@ -398,7 +398,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         private final Long nullValue = usually() ? null : randomNumber().longValue();
         private final boolean coerce = rarely();
         private final boolean docValues = randomBoolean();
-        private final boolean enforceSingleValue = docValues && IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        private final boolean enforceSingleValue = docValues && randomBoolean();
 
         private final Function<Number, Number> round;
         private final boolean ignoreMalformed;
@@ -531,7 +531,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      * {@link FieldMapper#parse(DocumentParserContext)} call before either is handled.
      */
     public void testMultiValueFalseRejectsTwoIgnoreMalformedFallbacks() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("ignore_malformed", true);
@@ -552,7 +551,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      * second (malformed) value.
      */
     public void testMultiValueFalseRejectsRegularPlusMalformed() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("ignore_malformed", true);
@@ -573,7 +571,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      * second (regular) value.
      */
     public void testMultiValueFalseRejectsMalformedPlusRegular() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("ignore_malformed", true);
@@ -590,8 +587,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     public void testColumnarModeSkippers() throws IOException {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
         {
             // In columnar mode, non-indexed numeric fields use skippers
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();

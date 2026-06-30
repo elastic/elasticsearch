@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -59,11 +58,6 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
     private static FieldMapper.DocValuesParameter.Values docValuesParams(boolean supportsDocValues) {
         // currently, only text fields support doc values, so if doc_values aren't supported, then there is no reason to generate them
         if (supportsDocValues == false) {
-            return FieldMapper.DocValuesParameter.Values.DISABLED;
-        }
-
-        // text field doc_values support is behind a feature flag
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
             return FieldMapper.DocValuesParameter.Values.DISABLED;
         }
 
@@ -197,7 +191,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         private MapperTestCase.SyntheticSourceExample docValuesFieldExample(int maxValues) {
             CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
                 b.field("type", fieldType);
-                if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && docValues.multiValue() == false) {
+                if (docValues.multiValue() == false) {
                     b.startObject("doc_values");
                     b.field("multi_value", false);
                     b.endObject();

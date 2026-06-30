@@ -46,9 +46,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
 
     @Before
-    public void checkFeatureFlag() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
+    public void checkFeatureFlag() {}
 
     @Override
     protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {

@@ -827,7 +827,6 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRoutingPathColumnar() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         int shards = between(2, 1000);
         IndexRouting routing = IndexRouting.fromIndexMetadata(
             IndexMetadata.builder("test")
@@ -854,7 +853,6 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRerouteToTargetColumnar() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         int shards = between(2, 500);
         IndexMetadata startingMetadata = IndexMetadata.builder("test")
             .settings(
@@ -886,7 +884,6 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRoutingPathColumnarLogsdb() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         int shards = between(2, 1000);
         IndexRouting routing = IndexRouting.fromIndexMetadata(
             IndexMetadata.builder("test")
@@ -913,7 +910,6 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRerouteToTargetColumnarLogsdb() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         int shards = between(2, 500);
         IndexMetadata startingMetadata = IndexMetadata.builder("test")
             .settings(

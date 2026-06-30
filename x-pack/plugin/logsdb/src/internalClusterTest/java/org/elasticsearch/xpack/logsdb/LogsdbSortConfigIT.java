@@ -77,7 +77,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         return Settings.builder()
             .put(super.nodeSettings())
             .put("cluster.logsdb.enabled", "true")
-            .put("cluster.logsdb_columnar.enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean())
+            .put("cluster.logsdb_columnar.enabled", randomBoolean())
             .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             .build();
     }
@@ -95,8 +95,6 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     public void testHostnameMessageTimestampSortConfig() throws IOException {
-        assumeTrue("test uses cardinality option", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
         final String dataStreamName = "test-logsdb-sort-hostname-message-timestamp";
 
         final String mapping = """
@@ -179,8 +177,6 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     public void testHostnameTimestampSortConfig() throws Exception {
-        assumeTrue("test uses cardinality option", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
         final String dataStreamName = "test-logsdb-sort-hostname-timestamp";
 
         final String MAPPING = """
@@ -238,8 +234,6 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     public void testTimestampOnlySortConfig() throws IOException {
-        assumeTrue("test uses cardinality option", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
         final String dataStreamName = "test-logsdb-sort-timestamp-only";
 
         final String MAPPING = """
@@ -446,7 +440,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
 
     private void createDataStream(String dataStreamName, String mapping, UnaryOperator<Settings.Builder> settings) throws IOException {
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
-        String indexMode = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean() ? "logsdb_columnar" : "logsdb";
+        String indexMode = randomBoolean() ? "logsdb_columnar" : "logsdb";
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName + "*"))

@@ -15,8 +15,8 @@ highlight:
     Mappings are always flat: object and passthrough fields are auto-flattened
     to leaf fields at mapping time. The original document source is not stored;
     the columnar source is generated on the fly from doc values at query time.
-    Optionally, a pre-built columnar representation can be stored on disk using
-    the new `columnar_stored` source mode.
+    A pre-built columnar representation can be stored on disk using the new
+    `columnar_stored` source mode (optional for Enterprise licenses).
 
     New multi-value semantics: the original ordering of multiple values per field
     per document (e.g., in arrays) is preserved by default. Optionally, fields in

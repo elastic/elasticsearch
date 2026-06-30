@@ -48,6 +48,17 @@ public final class ResolvedSettings implements Writeable {
         this.values = Map.copyOf(v);
     }
 
+    /**
+     * Writes every resolved setting as a (name, value) pair. The values are not length-prefixed, so a reader that
+     * does not recognize a name cannot skip its value and instead fails hard (see the constructor).
+     * <p>
+     * <b>Forward-compatibility contract for adding a setting:</b> the whole block is gated in
+     * {@link org.elasticsearch.xpack.esql.session.Configuration} on the {@code esql_resolved_settings} transport
+     * version, so every setting here is safe to send to any peer that understands the block <em>as of that
+     * version</em>. A setting introduced at a <em>later</em> transport version must be version-gated by its author —
+     * either skipped here for peers below its introduction version, or the block must move to a self-describing
+     * (length-prefixed) format — otherwise an older peer will hit the "Unknown query setting on the wire" failure.
+     */
     @Override
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void writeTo(StreamOutput out) throws IOException {

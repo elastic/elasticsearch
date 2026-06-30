@@ -149,7 +149,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
 
 /**
@@ -435,7 +434,7 @@ public class EsqlSession {
 
         analyzedPlan(
             plan,
-            statement.setting(UNMAPPED_FIELDS),
+            QuerySettings.UNMAPPED_FIELDS.get(finalConfiguration.resolvedSettings()),
             finalConfiguration,
             executionInfo,
             request.filter(),

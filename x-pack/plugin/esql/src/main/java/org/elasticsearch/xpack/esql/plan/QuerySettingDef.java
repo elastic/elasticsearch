@@ -52,9 +52,9 @@ import java.util.Locale;
  *   <li>{@code withPreview}, {@code withSnapshotOnly}, {@code withServerlessOnly} — lifecycle.</li>
  * </ul>
  *
- * Inferred: registration, body parser wiring, {@code SET} dispatch, the precedence fold
- * ({@code default < body < SET}, applied per setting via its reconciler), the read API. You write
- * no code outside the one declaration.
+ * Inferred: body parser wiring, {@code SET} dispatch, the precedence fold
+ * ({@code default < body < SET}, applied per setting via its reconciler), the read API. The one thing
+ * you write outside the declaration is adding the constant to {@link QuerySettings#ALL} to register it.
  *
  * <h2>How to declare a setting</h2>
  *
@@ -352,10 +352,6 @@ public final class QuerySettingDef<T> {
         /** Body alias at the top level of the request body, named after the SET key. Implies {@link #withRequestBody()}. */
         public Builder<T> withAliasAtRoot() {
             return withAliasAt("", name);
-        }
-
-        public Builder<T> withAliasAtRoot(String aliasName) {
-            return withAliasAt("", aliasName);
         }
 
         /**

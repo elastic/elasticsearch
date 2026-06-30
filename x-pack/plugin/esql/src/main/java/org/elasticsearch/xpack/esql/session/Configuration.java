@@ -477,15 +477,6 @@ public class Configuration implements Writeable {
     }
 
     /**
-     * Returns a new Configuration with the given resolved settings. Use this when overriding any
-     * {@link QuerySettingDef}-backed knob — compose the new {@link ResolvedSettings} via
-     * {@link ResolvedSettings#withOverride} on the caller side and hand it in.
-     */
-    public Configuration withResolvedSettings(ResolvedSettings newResolvedSettings) {
-        return new ConfigurationBuilder(this).resolvedSettings(newResolvedSettings).build();
-    }
-
-    /**
      * Returns a new Configuration with the given view queries added.
      */
     public Configuration withViewQueries(Map<String, String> viewQueries) {

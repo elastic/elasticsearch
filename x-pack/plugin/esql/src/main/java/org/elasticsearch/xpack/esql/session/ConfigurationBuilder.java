@@ -148,11 +148,6 @@ public class ConfigurationBuilder {
         return this;
     }
 
-    /** Returns the current resolved-settings view; callers compose with {@link ResolvedSettings#withOverride} as needed. */
-    public ResolvedSettings resolvedSettings() {
-        return resolvedSettings;
-    }
-
     public ConfigurationBuilder viewQueries(Map<String, String> viewQueries) {
         this.viewQueries = viewQueries;
         return this;

@@ -13,7 +13,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.metadata.DatasetSchema;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -57,7 +57,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         private static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp_field");
         private static final ParseField ID_FIELD = new ParseField("id_field");
 
-        /** Gates the optional {@link DatasetSchema} on the request wire (mixed-version upgrade). */
+        /** Gates the optional {@link DatasetMapping} on the request wire (mixed-version upgrade). */
         private static final TransportVersion DATASET_DECLARED_SCHEMA = TransportVersion.fromName("dataset_declared_schema");
 
         public record ParseContext(String name, TimeValue masterNodeTimeout, TimeValue ackTimeout) {}
@@ -74,7 +74,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
                 (String) args[1],
                 (String) args[2],
                 (Map<String, Object>) args[3],
-                DatasetSchema.assemble((DatasetSchema.Mappings) args[4], (String) args[5], (String) args[6])
+                DatasetMapping.assemble((DatasetMapping.Mappings) args[4], (String) args[5], (String) args[6])
             )
         );
 
@@ -83,7 +83,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), RESOURCE);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
-            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DatasetSchema.parseMappings(p), MAPPINGS);
+            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DatasetMapping.parseMappings(p), MAPPINGS);
             PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), TIMESTAMP_FIELD);
             PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), ID_FIELD);
         }
@@ -100,7 +100,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         private final String description;
         private final Map<String, Object> rawSettings;
         @Nullable
-        private final DatasetSchema schema;
+        private final DatasetMapping schema;
 
         public Request(
             TimeValue masterNodeTimeout,
@@ -122,7 +122,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             String resource,
             @Nullable String description,
             Map<String, Object> rawSettings,
-            @Nullable DatasetSchema schema
+            @Nullable DatasetMapping schema
         ) {
             super(masterNodeTimeout, ackTimeout);
             this.name = name;
@@ -140,7 +140,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             this.resource = in.readString();
             this.description = in.readOptionalString();
             this.rawSettings = in.readGenericMap();
-            this.schema = in.getTransportVersion().supports(DATASET_DECLARED_SCHEMA) ? in.readOptionalWriteable(DatasetSchema::new) : null;
+            this.schema = in.getTransportVersion().supports(DATASET_DECLARED_SCHEMA) ? in.readOptionalWriteable(DatasetMapping::new) : null;
         }
 
         @Override
@@ -217,7 +217,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
 
         /** The parsed declared schema (mapping + role designations), or {@code null} when none was supplied. */
         @Nullable
-        public DatasetSchema schema() {
+        public DatasetMapping schema() {
             return schema;
         }
 

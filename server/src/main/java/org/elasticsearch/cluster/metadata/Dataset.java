@@ -55,7 +55,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
     private static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp_field");
     private static final ParseField ID_FIELD = new ParseField("id_field");
 
-    /** Gates the optional {@link DatasetSchema} (declared mapping + role designations) on the wire. */
+    /** Gates the optional {@link DatasetMapping} (declared mapping + role designations) on the wire. */
     private static final TransportVersion DATASET_DECLARED_SCHEMA = TransportVersion.fromName("dataset_declared_schema");
 
     @SuppressWarnings("unchecked")
@@ -68,7 +68,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
             (String) args[2],
             (String) args[3],
             args[4] != null ? (Map<String, Object>) args[4] : Map.of(),
-            DatasetSchema.assemble((DatasetSchema.Mappings) args[5], (String) args[6], (String) args[7])
+            DatasetMapping.assemble((DatasetMapping.Mappings) args[5], (String) args[6], (String) args[7])
         )
     );
 
@@ -82,7 +82,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
         // Declared schema: an optional `mappings` block plus the orthogonal top-level role designations.
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DatasetSchema.parseMappings(p), MAPPINGS);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DatasetMapping.parseMappings(p), MAPPINGS);
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), TIMESTAMP_FIELD);
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), ID_FIELD);
     }
@@ -93,7 +93,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
     private final String description;
     private final Map<String, Object> settings;
     @Nullable
-    private final DatasetSchema schema;
+    private final DatasetMapping schema;
 
     public Dataset(
         String name,
@@ -111,7 +111,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         String resource,
         @Nullable String description,
         Map<String, Object> settings,
-        @Nullable DatasetSchema schema
+        @Nullable DatasetMapping schema
     ) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.dataSource = Objects.requireNonNull(dataSource, "data source must not be null");
@@ -128,7 +128,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         this.description = in.readOptionalString();
         // readMap returns a mutable HashMap when non-empty; wrap to preserve the class invariant that settings is unmodifiable
         this.settings = Collections.unmodifiableMap(in.readMap(StreamInput::readGenericValue));
-        this.schema = in.getTransportVersion().supports(DATASET_DECLARED_SCHEMA) ? in.readOptionalWriteable(DatasetSchema::new) : null;
+        this.schema = in.getTransportVersion().supports(DATASET_DECLARED_SCHEMA) ? in.readOptionalWriteable(DatasetMapping::new) : null;
     }
 
     @Override
@@ -165,7 +165,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
 
     /** The user-declared schema (mapping + role designations), or {@code null} when the dataset relies on inference. */
     @Nullable
-    public DatasetSchema schema() {
+    public DatasetMapping schema() {
         return schema;
     }
 

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.metadata.DatasetSchema;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
@@ -47,7 +47,7 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
     @Nullable
     private final String datasetName;
     @Nullable
-    private final DatasetSchema schema;
+    private final DatasetMapping schema;
     private final String unresolvedMsg;
 
     /**
@@ -106,7 +106,7 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
     }
 
     /**
-     * Full constructor carrying the dataset's user-declared schema ({@link DatasetSchema}), if any. Only the
+     * Full constructor carrying the dataset's user-declared schema ({@link DatasetMapping}), if any. Only the
      * {@code FROM <dataset>} path (via {@code DatasetRewriter}) supplies a non-null schema; the inline
      * {@code EXTERNAL} path and tests pass {@code null} (inference only). The schema is consumed in pre-analysis
      * by the external-source resolver to drive the strict-skip / non-strict-overlay decision.
@@ -117,7 +117,7 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
         Map<String, Object> config,
         List<NamedExpression> metadataFields,
         @Nullable String datasetName,
-        @Nullable DatasetSchema schema
+        @Nullable DatasetMapping schema
     ) {
         super(source);
         this.tablePath = tablePath;
@@ -181,7 +181,7 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
      * (inference only) or for the inline {@code EXTERNAL} path. Consumed by the external-source resolver.
      */
     @Nullable
-    public DatasetSchema schema() {
+    public DatasetMapping schema() {
         return schema;
     }
 

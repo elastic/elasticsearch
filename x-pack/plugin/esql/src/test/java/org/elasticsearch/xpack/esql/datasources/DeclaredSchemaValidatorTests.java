@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
-import org.elasticsearch.cluster.metadata.DatasetSchema;
-import org.elasticsearch.cluster.metadata.DatasetSchema.Dynamic;
-import org.elasticsearch.cluster.metadata.DatasetSchema.Mappings;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping.Dynamic;
+import org.elasticsearch.cluster.metadata.DatasetMapping.Mappings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.LinkedHashMap;
@@ -18,8 +18,8 @@ import java.util.Map;
 
 public class DeclaredSchemaValidatorTests extends ESTestCase {
 
-    private static DatasetSchema schema(Dynamic dynamic, Map<String, DatasetFieldMapping> props, String timestamp, String id) {
-        return new DatasetSchema(new Mappings(dynamic, props), timestamp, id);
+    private static DatasetMapping schema(Dynamic dynamic, Map<String, DatasetFieldMapping> props, String timestamp, String id) {
+        return new DatasetMapping(new Mappings(dynamic, props), timestamp, id);
     }
 
     private static Map<String, DatasetFieldMapping> props(Object... pairs) {
@@ -89,6 +89,6 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
 
     public void testRoleOnlyNoMappingsIsValid() {
         // timestamp_field with no mappings block at all — orthogonal role designation, deferred to query time.
-        DeclaredSchemaValidator.validate(new DatasetSchema(null, "@timestamp", "row_id"));
+        DeclaredSchemaValidator.validate(new DatasetMapping(null, "@timestamp", "row_id"));
     }
 }

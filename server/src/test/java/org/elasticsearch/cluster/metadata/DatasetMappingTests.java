@@ -16,36 +16,36 @@ import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class DatasetSchemaTests extends AbstractWireSerializingTestCase<DatasetSchema> {
+public class DatasetMappingTests extends AbstractWireSerializingTestCase<DatasetMapping> {
 
     @Override
-    protected Writeable.Reader<DatasetSchema> instanceReader() {
-        return DatasetSchema::new;
+    protected Writeable.Reader<DatasetMapping> instanceReader() {
+        return DatasetMapping::new;
     }
 
     @Override
-    protected DatasetSchema createTestInstance() {
+    protected DatasetMapping createTestInstance() {
         return DatasetTests.randomSchema();
     }
 
     @Override
-    protected DatasetSchema mutateInstance(DatasetSchema instance) {
+    protected DatasetMapping mutateInstance(DatasetMapping instance) {
         return randomValueOtherThan(instance, DatasetTests::randomSchema);
     }
 
     public void testAssembleReturnsNullWhenAllAbsent() {
-        assertNull(DatasetSchema.assemble(null, null, null));
+        assertNull(DatasetMapping.assemble(null, null, null));
     }
 
     public void testAssembleNonNullWithOnlyTimestamp() {
-        DatasetSchema schema = DatasetSchema.assemble(null, "@timestamp", null);
+        DatasetMapping schema = DatasetMapping.assemble(null, "@timestamp", null);
         assertNotNull(schema);
         assertNull(schema.mappings());
         assertEquals("@timestamp", schema.timestampField());
     }
 
     public void testDynamicRejectsUnknownValue() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DatasetSchema.Dynamic.fromString("strict"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DatasetMapping.Dynamic.fromString("strict"));
         assertTrue(e.getMessage().contains("strict"));
     }
 
@@ -53,9 +53,9 @@ public class DatasetSchemaTests extends AbstractWireSerializingTestCase<DatasetS
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
         props.put("when", new DatasetFieldMapping("date", "ts"));
         props.put("amount", new DatasetFieldMapping("double", null));
-        DatasetSchema.Mappings mappings = new DatasetSchema.Mappings(DatasetSchema.Dynamic.TRUE, props);
-        DatasetSchema schema = new DatasetSchema(mappings, null, null);
-        DatasetSchema copy = copyInstance(schema);
+        DatasetMapping.Mappings mappings = new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props);
+        DatasetMapping schema = new DatasetMapping(mappings, null, null);
+        DatasetMapping copy = copyInstance(schema);
         assertEquals(schema, copy);
         assertEquals("ts", copy.mappings().properties().get("when").source());
         assertEquals(java.util.List.of("when", "amount"), java.util.List.copyOf(copy.mappings().properties().keySet()));

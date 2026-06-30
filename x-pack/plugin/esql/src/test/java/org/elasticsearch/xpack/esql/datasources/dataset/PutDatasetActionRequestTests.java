@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.dataset;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
-import org.elasticsearch.cluster.metadata.DatasetSchema;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction.Request;
@@ -177,11 +177,11 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
         return randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
     }
 
-    static DatasetSchema randomSchemaOrNull() {
+    static DatasetMapping randomSchemaOrNull() {
         if (randomBoolean()) {
             return null;
         }
-        DatasetSchema.Mappings mappings = null;
+        DatasetMapping.Mappings mappings = null;
         if (randomBoolean()) {
             Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
             int n = between(0, 3);
@@ -194,14 +194,14 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
                     )
                 );
             }
-            mappings = new DatasetSchema.Mappings(randomFrom(DatasetSchema.Dynamic.values()), props);
+            mappings = new DatasetMapping.Mappings(randomFrom(DatasetMapping.Dynamic.values()), props);
         }
         String ts = randomBoolean() ? null : randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         String id = randomBoolean() ? null : randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         if (mappings == null && ts == null && id == null) {
             ts = "@timestamp";
         }
-        return DatasetSchema.assemble(mappings, ts, id);
+        return DatasetMapping.assemble(mappings, ts, id);
     }
 
     private static Map<String, Object> randomSettings() {

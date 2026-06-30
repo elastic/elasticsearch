@@ -105,23 +105,23 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
         );
     }
 
-    static DatasetSchema randomSchemaOrNull() {
+    static DatasetMapping randomSchemaOrNull() {
         return randomBoolean() ? null : randomSchema();
     }
 
-    static DatasetSchema randomSchema() {
-        DatasetSchema.Mappings mappings = randomBoolean() ? null : randomMappings();
+    static DatasetMapping randomSchema() {
+        DatasetMapping.Mappings mappings = randomBoolean() ? null : randomMappings();
         String timestampField = randomBoolean() ? null : randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         String idField = randomBoolean() ? null : randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         // assemble() returns null when everything is absent; force at least one piece so we always get a schema
         if (mappings == null && timestampField == null && idField == null) {
             mappings = randomMappings();
         }
-        return DatasetSchema.assemble(mappings, timestampField, idField);
+        return DatasetMapping.assemble(mappings, timestampField, idField);
     }
 
-    private static DatasetSchema.Mappings randomMappings() {
-        DatasetSchema.Dynamic dynamic = randomFrom(DatasetSchema.Dynamic.values());
+    private static DatasetMapping.Mappings randomMappings() {
+        DatasetMapping.Dynamic dynamic = randomFrom(DatasetMapping.Dynamic.values());
         int count = randomIntBetween(0, 4);
         Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>(count);
         for (int i = 0; i < count; i++) {
@@ -129,7 +129,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
             String source = randomBoolean() ? null : randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
             properties.put("col_" + i, new DatasetFieldMapping(type, source));
         }
-        return new DatasetSchema.Mappings(dynamic, properties);
+        return new DatasetMapping.Mappings(dynamic, properties);
     }
 
     private static Map<String, Object> randomSettings() {
@@ -283,7 +283,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
         Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("when", new DatasetFieldMapping("date", "ts"));
         properties.put("status", new DatasetFieldMapping("integer", null));
-        var schema = new DatasetSchema(new DatasetSchema.Mappings(DatasetSchema.Dynamic.FALSE, properties), "when", "request_id");
+        var schema = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), "when", "request_id");
         var dataset = new Dataset(
             "access_logs",
             new DataSourceReference("my-s3"),
@@ -299,7 +299,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
         dataset.writeTo(out);
         Dataset deserialized = new Dataset(out.bytes().streamInput());
         assertEquals(dataset, deserialized);
-        assertEquals(DatasetSchema.Dynamic.FALSE, deserialized.schema().mappings().dynamic());
+        assertEquals(DatasetMapping.Dynamic.FALSE, deserialized.schema().mappings().dynamic());
         assertEquals("ts", deserialized.schema().mappings().properties().get("when").source());
         assertEquals("when", deserialized.schema().timestampField());
         assertEquals("request_id", deserialized.schema().idField());
@@ -307,7 +307,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
 
     public void testXContentRoundTripRoleOnlyNoMappings() throws IOException {
         // timestamp_field with no mappings block — the orthogonality case (works under inference)
-        var schema = new DatasetSchema(null, "@timestamp", null);
+        var schema = new DatasetMapping(null, "@timestamp", null);
         var dataset = new Dataset("events", new DataSourceReference("s3"), "s3://b/*.ndjson", null, Map.of(), schema);
         assertExplicitXContentRoundTrip(dataset);
         assertNull(dataset.schema().mappings());

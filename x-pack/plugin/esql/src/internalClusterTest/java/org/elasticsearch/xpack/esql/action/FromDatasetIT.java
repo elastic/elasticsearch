@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
-import org.elasticsearch.cluster.metadata.DatasetSchema;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -216,7 +216,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", null));
         properties.put("name", new DatasetFieldMapping("keyword", null));
-        DatasetSchema schema = new DatasetSchema(new DatasetSchema.Mappings(DatasetSchema.Dynamic.FALSE, properties), null, null);
+        DatasetMapping schema = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), null, null);
 
         assertAcked(
             client().execute(

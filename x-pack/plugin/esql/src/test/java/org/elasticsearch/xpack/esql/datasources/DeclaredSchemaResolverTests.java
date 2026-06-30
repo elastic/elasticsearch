@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
-import org.elasticsearch.cluster.metadata.DatasetSchema;
-import org.elasticsearch.cluster.metadata.DatasetSchema.Dynamic;
-import org.elasticsearch.cluster.metadata.DatasetSchema.Mappings;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping.Dynamic;
+import org.elasticsearch.cluster.metadata.DatasetMapping.Mappings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -21,8 +21,8 @@ import java.util.Map;
 
 public class DeclaredSchemaResolverTests extends ESTestCase {
 
-    private static DatasetSchema schema(Map<String, DatasetFieldMapping> props) {
-        return new DatasetSchema(new Mappings(Dynamic.TRUE, props), null, null);
+    private static DatasetMapping schema(Map<String, DatasetFieldMapping> props) {
+        return new DatasetMapping(new Mappings(Dynamic.TRUE, props), null, null);
     }
 
     public void testDeclaredAttributesTypesNamesAndOrder() {
@@ -74,7 +74,7 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
     }
 
     public void testNoMappingsYieldsEmpty() {
-        DatasetSchema roleOnly = new DatasetSchema(null, "@timestamp", "row_id");
+        DatasetMapping roleOnly = new DatasetMapping(null, "@timestamp", "row_id");
         assertTrue(DeclaredSchemaResolver.declaredAttributes(roleOnly).isEmpty());
         assertTrue(DeclaredSchemaResolver.renameMap(roleOnly).isEmpty());
         assertTrue(DeclaredSchemaResolver.declaredAttributes(null).isEmpty());

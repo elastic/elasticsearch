@@ -27,7 +27,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 
 /**
  * A user-declared schema attached to a {@link Dataset}. Entirely optional — a dataset with no
- * {@code DatasetSchema} resolves its schema by inference, exactly as before.
+ * {@code DatasetMapping} resolves its schema by inference, exactly as before.
  *
  * <p>Groups the three declaration surfaces of the dataset PUT body:
  * <ul>
@@ -47,7 +47,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * flat {@code mappings}/{@code timestamp_field}/{@code id_field} keys and {@link Dataset#PARSER} reads them
  * back, assembling this object via {@link #assemble}. That keeps a single on-disk JSON shape.
  */
-public final class DatasetSchema implements Writeable {
+public final class DatasetMapping implements Writeable {
 
     /** Undeclared-column policy. Mirrors Elasticsearch {@code mappings.dynamic}; only the two read-applicable values. */
     public enum Dynamic {
@@ -102,13 +102,13 @@ public final class DatasetSchema implements Writeable {
     @Nullable
     private final String idField;
 
-    public DatasetSchema(@Nullable Mappings mappings, @Nullable String timestampField, @Nullable String idField) {
+    public DatasetMapping(@Nullable Mappings mappings, @Nullable String timestampField, @Nullable String idField) {
         this.mappings = mappings;
         this.timestampField = timestampField;
         this.idField = idField;
     }
 
-    public DatasetSchema(StreamInput in) throws IOException {
+    public DatasetMapping(StreamInput in) throws IOException {
         this.mappings = in.readOptionalWriteable(Mappings::new);
         this.timestampField = in.readOptionalString();
         this.idField = in.readOptionalString();
@@ -122,15 +122,15 @@ public final class DatasetSchema implements Writeable {
     }
 
     /**
-     * Builds a {@link DatasetSchema} from the three parsed top-level pieces, or {@code null} when none are present
+     * Builds a {@link DatasetMapping} from the three parsed top-level pieces, or {@code null} when none are present
      * (a dataset with no declared schema). Used by {@link Dataset#PARSER}.
      */
     @Nullable
-    public static DatasetSchema assemble(@Nullable Mappings mappings, @Nullable String timestampField, @Nullable String idField) {
+    public static DatasetMapping assemble(@Nullable Mappings mappings, @Nullable String timestampField, @Nullable String idField) {
         if (mappings == null && timestampField == null && idField == null) {
             return null;
         }
-        return new DatasetSchema(mappings, timestampField, idField);
+        return new DatasetMapping(mappings, timestampField, idField);
     }
 
     /** Parses the {@code mappings} object ({@code dynamic} + {@code properties}) into a {@link Mappings}. */
@@ -205,7 +205,7 @@ public final class DatasetSchema implements Writeable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        DatasetSchema that = (DatasetSchema) o;
+        DatasetMapping that = (DatasetMapping) o;
         return Objects.equals(mappings, that.mappings)
             && Objects.equals(timestampField, that.timestampField)
             && Objects.equals(idField, that.idField);
@@ -218,6 +218,6 @@ public final class DatasetSchema implements Writeable {
 
     @Override
     public String toString() {
-        return "DatasetSchema[mappings=" + mappings + ", timestampField=" + timestampField + ", idField=" + idField + "]";
+        return "DatasetMapping[mappings=" + mappings + ", timestampField=" + timestampField + ", idField=" + idField + "]";
     }
 }

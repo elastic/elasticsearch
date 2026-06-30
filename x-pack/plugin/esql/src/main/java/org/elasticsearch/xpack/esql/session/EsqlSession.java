@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.cluster.metadata.DatasetSchema;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.TriConsumer;
@@ -1476,7 +1476,7 @@ public class EsqlSession {
         }
 
         Map<String, Map<String, Object>> pathConfigs = extractExternalConfigs(plan);
-        Map<String, DatasetSchema> declaredSchemas = extractDeclaredSchemas(plan);
+        Map<String, DatasetMapping> declaredSchemas = extractDeclaredSchemas(plan);
 
         var filterHints = PartitionFilterHintExtractor.extract(plan);
 
@@ -1495,8 +1495,8 @@ public class EsqlSession {
      * schema are absent — the resolver infers them as before.
      */
     // package-private for testing
-    static Map<String, DatasetSchema> extractDeclaredSchemas(LogicalPlan plan) {
-        Map<String, DatasetSchema> declaredSchemas = new HashMap<>();
+    static Map<String, DatasetMapping> extractDeclaredSchemas(LogicalPlan plan) {
+        Map<String, DatasetMapping> declaredSchemas = new HashMap<>();
         plan.forEachUp(org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation.class, p -> {
             if (p.schema() != null
                 && p.tablePath() instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal

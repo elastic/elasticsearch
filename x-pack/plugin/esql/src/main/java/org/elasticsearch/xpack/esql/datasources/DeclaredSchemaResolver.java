@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
-import org.elasticsearch.cluster.metadata.DatasetSchema;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Bridges a {@link DatasetSchema} (the String-typed, server-side declaration) into the ES|QL currency the
+ * Bridges a {@link DatasetMapping} (the String-typed, server-side declaration) into the ES|QL currency the
  * external-source resolver speaks: {@link Attribute}s typed with {@link DataType}, plus the logical&rarr;physical
  * rename map. This is the one place the declared {@code type} String becomes a {@code DataType}; everything
  * downstream (planner, reader, output) sees logical names only.
@@ -38,8 +38,8 @@ public final class DeclaredSchemaResolver {
      * The declared columns as ES|QL attributes, keyed by <b>logical</b> name and in declaration order. Returns an
      * empty list when there is no {@code mappings} block (role-only declarations contribute no columns).
      */
-    public static List<Attribute> declaredAttributes(DatasetSchema schema) {
-        DatasetSchema.Mappings mappings = schema == null ? null : schema.mappings();
+    public static List<Attribute> declaredAttributes(DatasetMapping schema) {
+        DatasetMapping.Mappings mappings = schema == null ? null : schema.mappings();
         if (mappings == null) {
             return List.of();
         }
@@ -57,8 +57,8 @@ public final class DeclaredSchemaResolver {
      * attributes, so an identity column mapping relabels physical&rarr;logical downstream by position. Empty when there
      * is no {@code mappings} block.
      */
-    public static List<Attribute> physicalAttributes(DatasetSchema schema) {
-        DatasetSchema.Mappings mappings = schema == null ? null : schema.mappings();
+    public static List<Attribute> physicalAttributes(DatasetMapping schema) {
+        DatasetMapping.Mappings mappings = schema == null ? null : schema.mappings();
         if (mappings == null) {
             return List.of();
         }
@@ -75,8 +75,8 @@ public final class DeclaredSchemaResolver {
      * The reader/{@code ColumnMapping} uses this to find a renamed column's physical column in the file; nothing above
      * the reader ever sees the physical name.
      */
-    public static Map<String, String> renameMap(DatasetSchema schema) {
-        DatasetSchema.Mappings mappings = schema == null ? null : schema.mappings();
+    public static Map<String, String> renameMap(DatasetMapping schema) {
+        DatasetMapping.Mappings mappings = schema == null ? null : schema.mappings();
         if (mappings == null) {
             return Map.of();
         }

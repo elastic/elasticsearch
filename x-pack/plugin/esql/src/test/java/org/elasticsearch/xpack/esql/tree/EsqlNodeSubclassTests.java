@@ -612,11 +612,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return PromqlBuiltinFunctionDefinitions.VECTOR;
         }
 
-        if (argClass == org.elasticsearch.cluster.metadata.DatasetSchema.class) {
+        if (argClass == org.elasticsearch.cluster.metadata.DatasetMapping.class) {
             // final type, can't be mocked — build a small real instance (declared mapping on UnresolvedExternalRelation)
-            return new org.elasticsearch.cluster.metadata.DatasetSchema(
-                new org.elasticsearch.cluster.metadata.DatasetSchema.Mappings(
-                    randomFrom(org.elasticsearch.cluster.metadata.DatasetSchema.Dynamic.values()),
+            return new org.elasticsearch.cluster.metadata.DatasetMapping(
+                new org.elasticsearch.cluster.metadata.DatasetMapping.Mappings(
+                    randomFrom(org.elasticsearch.cluster.metadata.DatasetMapping.Dynamic.values()),
                     java.util.Map.of(
                         randomAlphaOfLength(5),
                         new org.elasticsearch.cluster.metadata.DatasetFieldMapping(

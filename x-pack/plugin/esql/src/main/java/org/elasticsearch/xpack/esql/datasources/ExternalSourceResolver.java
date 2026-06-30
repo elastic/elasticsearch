@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.DatasetSchema;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
@@ -238,7 +238,7 @@ public class ExternalSourceResolver {
         List<String> paths,
         Map<String, Map<String, Object>> pathConfigs,
         @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
-        @Nullable Map<String, DatasetSchema> declaredSchemas,
+        @Nullable Map<String, DatasetMapping> declaredSchemas,
         ActionListener<ExternalSourceResolution> listener
     ) {
         if (paths == null || paths.isEmpty()) {
@@ -259,7 +259,7 @@ public class ExternalSourceResolver {
                     Map<String, Object> config = pathConfigs.getOrDefault(path, Map.of());
                     List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(path) : null;
                     boolean hivePartitioning = isHivePartitioningEnabled(config);
-                    DatasetSchema declaredSchema = declaredSchemas != null ? declaredSchemas.get(path) : null;
+                    DatasetMapping declaredSchema = declaredSchemas != null ? declaredSchemas.get(path) : null;
 
                     try {
                         ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(
@@ -313,7 +313,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         boolean hivePartitioning,
-        @Nullable DatasetSchema declaredSchema
+        @Nullable DatasetMapping declaredSchema
     ) throws Exception {
         LOGGER.debug("Resolving external source: path=[{}]", path);
 
@@ -376,10 +376,10 @@ public class ExternalSourceResolver {
     }
 
     /** True when the dataset declared a strict mapping ({@code dynamic: false}) — the declaration is the whole schema. */
-    private static boolean isStrict(@Nullable DatasetSchema declaredSchema) {
+    private static boolean isStrict(@Nullable DatasetMapping declaredSchema) {
         return declaredSchema != null
             && declaredSchema.mappings() != null
-            && declaredSchema.mappings().dynamic() == DatasetSchema.Dynamic.FALSE;
+            && declaredSchema.mappings().dynamic() == DatasetMapping.Dynamic.FALSE;
     }
 
     /**
@@ -394,7 +394,7 @@ public class ExternalSourceResolver {
         StoragePath storagePath,
         StorageProvider provider,
         Map<String, Object> config,
-        DatasetSchema declaredSchema
+        DatasetMapping declaredSchema
     ) throws Exception {
         StorageObject object = provider.newObject(storagePath);
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredSchema);
@@ -432,7 +432,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         boolean hivePartitioning,
-        @Nullable DatasetSchema declaredSchema
+        @Nullable DatasetMapping declaredSchema
     ) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);

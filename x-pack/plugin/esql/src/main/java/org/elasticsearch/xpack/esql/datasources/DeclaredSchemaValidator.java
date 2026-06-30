@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
-import org.elasticsearch.cluster.metadata.DatasetSchema;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
@@ -18,7 +18,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * Shape-only validation of a dataset's {@link DatasetSchema} at PUT time — no file I/O.
+ * Shape-only validation of a dataset's {@link DatasetMapping} at PUT time — no file I/O.
  *
  * <p>What is checked here:
  * <ul>
@@ -54,16 +54,16 @@ public final class DeclaredSchemaValidator {
 
     private static final Set<DataType> DATE_TYPES = Set.of(DataType.DATETIME, DataType.DATE_NANOS);
 
-    public static void validate(DatasetSchema schema) {
+    public static void validate(DatasetMapping schema) {
         if (schema == null) {
             return;
         }
-        DatasetSchema.Mappings mappings = schema.mappings();
+        DatasetMapping.Mappings mappings = schema.mappings();
         if (mappings != null) {
             for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
                 validateType(e.getKey(), e.getValue().type());
             }
-            boolean strict = mappings.dynamic() == DatasetSchema.Dynamic.FALSE;
+            boolean strict = mappings.dynamic() == DatasetMapping.Dynamic.FALSE;
             validateRole("timestamp_field", schema.timestampField(), mappings, strict, true);
             validateRole("id_field", schema.idField(), mappings, strict, false);
         }
@@ -78,7 +78,7 @@ public final class DeclaredSchemaValidator {
         }
     }
 
-    private static void validateRole(String role, String column, DatasetSchema.Mappings mappings, boolean strict, boolean mustBeDate) {
+    private static void validateRole(String role, String column, DatasetMapping.Mappings mappings, boolean strict, boolean mustBeDate) {
         if (column == null) {
             return;
         }

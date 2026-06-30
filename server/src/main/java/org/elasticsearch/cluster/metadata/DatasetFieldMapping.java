@@ -26,7 +26,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * One declared column inside a dataset's {@link DatasetSchema} {@code properties} block — the value
+ * One declared column inside a dataset's {@link DatasetMapping} {@code properties} block — the value
  * of a {@code "logical_name": { ... }} entry.
  *
  * <p>Carries the declared {@code type} and an optional {@code source} (the physical column name in the

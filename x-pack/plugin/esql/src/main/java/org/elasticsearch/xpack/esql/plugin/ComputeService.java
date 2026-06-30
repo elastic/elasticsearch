@@ -110,6 +110,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -242,20 +243,36 @@ public class ComputeService {
         return formatReaderRegistry;
     }
 
-    PhysicalPlan discoverSplits(PhysicalPlan plan, Configuration configuration) {
+    PhysicalPlan discoverSplits(PhysicalPlan plan, Configuration configuration, EsqlExecutionInfo execInfo, BooleanSupplier isCancelled) {
         if (operatorFactoryRegistry == null) {
             return plan;
         }
         try {
-            PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(
+            SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
                 plan,
                 operatorFactoryRegistry.sourceFactories(),
-                maxRecordBytes(configuration)
+                maxRecordBytes(configuration),
+                isCancelled
             );
-            return coalesceSplits(discovered);
+            recordExternalScanStats(execInfo, result);
+            return coalesceSplits(result.plan());
+        } catch (TaskCancelledException e) {
+            // Cancellation is not a discovery failure — propagate it without the warn.
+            throw e;
         } catch (Exception e) {
             LOGGER.warn("split discovery failed for external source", e);
             throw e;
+        }
+    }
+
+    /**
+     * Adds the post-prune external scan accounting to the query profile. The counts are captured
+     * before split coalescing, so {@code splits_scanned} reflects the pre-coalesce discovered split
+     * count rather than the smaller post-coalesce count.
+     */
+    private static void recordExternalScanStats(EsqlExecutionInfo execInfo, SplitDiscoveryPhase.Result result) {
+        if (execInfo != null && result.splitsScanned() > 0) {
+            execInfo.queryProfile().addExternalScanStats(result.filesScanned(), result.splitsScanned(), result.bytesScanned());
         }
     }
 
@@ -287,8 +304,13 @@ public class ComputeService {
         };
     }
 
-    ExternalDistributionResult applyExternalDistributionStrategy(PhysicalPlan plan, Configuration configuration) {
-        List<ExternalSplit> externalSplits = collectExternalSplits(plan, configuration);
+    ExternalDistributionResult applyExternalDistributionStrategy(
+        PhysicalPlan plan,
+        Configuration configuration,
+        EsqlExecutionInfo execInfo,
+        BooleanSupplier isCancelled
+    ) {
+        List<ExternalSplit> externalSplits = collectExternalSplits(plan, configuration, execInfo, isCancelled);
         if (externalSplits.isEmpty()) {
             return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, List.of());
         }
@@ -321,12 +343,23 @@ public class ComputeService {
         }
     }
 
-    private List<ExternalSplit> collectExternalSplits(PhysicalPlan plan, Configuration configuration) {
+    private List<ExternalSplit> collectExternalSplits(
+        PhysicalPlan plan,
+        Configuration configuration,
+        EsqlExecutionInfo execInfo,
+        BooleanSupplier isCancelled
+    ) {
         List<ExternalSplit> splits = new ArrayList<>();
+        // A physical plan is produced by a single mapper, so top-level ExternalSourceExec nodes and
+        // fragment-wrapped ExternalRelation nodes never coexist: the distributed Mapper wraps every
+        // ExternalRelation in a FragmentExec (handled by discoverSplitsFromFragments below), while the
+        // LocalMapper lowers each one to a physical ExternalSourceExec. Splits already attached to a
+        // top-level ExternalSourceExec were accounted for by discoverSplits, so only the fragment path
+        // needs to record scan stats here.
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
         if (splits.isEmpty()) {
             if (canSkipSplitDiscovery(plan, formatReaderRegistry) == false) {
-                discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration));
+                discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo, isCancelled);
                 if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
                     if (coalesced != splits) {
@@ -424,21 +457,29 @@ public class ComputeService {
         return result;
     }
 
-    private void discoverSplitsFromFragments(PhysicalPlan plan, List<ExternalSplit> splits, int maxRecordBytes) {
+    private void discoverSplitsFromFragments(
+        PhysicalPlan plan,
+        List<ExternalSplit> splits,
+        int maxRecordBytes,
+        EsqlExecutionInfo execInfo,
+        BooleanSupplier isCancelled
+    ) {
         if (operatorFactoryRegistry == null) {
             return;
         }
         plan.forEachDown(FragmentExec.class, fragment -> {
             fragment.fragment().forEachDown(ExternalRelation.class, external -> {
                 ExternalSourceExec tempExec = external.toPhysicalExec();
-                PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(
+                SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
                     tempExec,
                     operatorFactoryRegistry.sourceFactories(),
-                    maxRecordBytes
+                    maxRecordBytes,
+                    isCancelled
                 );
-                if (discovered instanceof ExternalSourceExec withSplits) {
+                if (result.plan() instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
                 }
+                recordExternalScanStats(execInfo, result);
             });
         });
     }
@@ -717,8 +758,18 @@ public class ComputeService {
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile
     ) {
-        final PhysicalPlan splitPlan = discoverSplits(physicalPlan, configuration);
-        final ExternalDistributionResult distributionResult = applyExternalDistributionStrategy(splitPlan, configuration);
+        final PhysicalPlan splitPlan;
+        final ExternalDistributionResult distributionResult;
+        try {
+            // Phase 2 split discovery runs synchronously here and can be long (thousands of footer
+            // reads); thread the query's cancellation signal so a cancel aborts it promptly. A cancel
+            // (or any discovery failure) is surfaced through the listener rather than thrown raw.
+            splitPlan = discoverSplits(physicalPlan, configuration, execInfo, rootTask::isCancelled);
+            distributionResult = applyExternalDistributionStrategy(splitPlan, configuration, execInfo, rootTask::isCancelled);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         final PhysicalPlan resolvedPlan = distributionResult.plan();
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             resolvedPlan,

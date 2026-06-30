@@ -935,6 +935,10 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             DataType.EXPONENTIAL_HISTOGRAM,
             DataType.TDIGEST,
 
+            // dense_vector has a KEYWORD converter, but it parses hex strings rather than the arrays loaded from _source, so the
+            // implicit cast is intentionally disabled (#152184); see testLoadWithPartiallyMappedDenseVectorIsNotAutoCast.
+            DataType.DENSE_VECTOR,
+
             // Types with no converter function at all
             DataType.TEXT,
             DataType.COUNTER_LONG,

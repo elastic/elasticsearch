@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggreg
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantSortClauses;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneUnusedIndexMode;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushAggregateThroughUnionAll;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimitBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
@@ -249,6 +250,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownJoinPastProject(),
             new PushDownAndCombineOrderBy(),
             new PushDownFilterAndLimitIntoUnionAll(),
+            new PushAggregateThroughUnionAll(),
             new PushDownLimitAndOrderByIntoFork(),
             new PushDownFiltersIntoFork(),
             new PruneRedundantOrderBy(),

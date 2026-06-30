@@ -42,6 +42,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;
@@ -65,7 +66,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private static final TimeValue DEFAULT_CONNECTION_TIMEOUT = TimeValue.timeValueSeconds(30);
     private static final TimeValue DEFAULT_MAX_CONNECTION_IDLE_TIME = TimeValue.timeValueSeconds(60);
     private static final int DEFAULT_MAX_CONNECTIONS = 50;
-    private static final int DEFAULT_EVENT_LOOP_THREAD_COUNT = 1;
     private static final int PENDING_CONNECTION_QUEUE_SIZE = -1; // see ConnectionProvider.ConnectionPoolSpec.pendingAcquireMaxCount
 
     /**
@@ -81,8 +81,9 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
     static final Setting<Integer> EVENT_LOOP_THREAD_COUNT = Setting.intSetting(
         "repository.azure.http_client.event_loop_executor_thread_count",
-        DEFAULT_EVENT_LOOP_THREAD_COUNT,
+        settings -> Integer.toString(Math.max(1, EsExecutors.allocatedProcessors(settings) / 4)),
         1,
+        Integer.MAX_VALUE,
         Setting.Property.NodeScope
     );
 

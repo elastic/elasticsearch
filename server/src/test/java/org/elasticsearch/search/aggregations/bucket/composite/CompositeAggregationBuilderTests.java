@@ -132,29 +132,25 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
             }
         });
         assertFalse(builder.supportsParallelCollection(null));
-        assertFalse(
-            new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(new TermsValuesSourceBuilder("name")))
-                .supportsParallelCollection(field -> -1)
-        );
+        // A (non-script) terms source supports parallel collection regardless of the field cardinality, and must not
+        // consult the resolver at all - doing so would build global ordinals, which the segment-ordinal path avoids.
+        // A resolver that throws proves the cardinality is never resolved.
+        ToLongFunction<String> mustNotResolve = field -> { throw new AssertionError("field cardinality must not be resolved"); };
         assertTrue(
             new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(new TermsValuesSourceBuilder("name")))
-                .supportsParallelCollection(field -> randomIntBetween(0, 50))
+                .supportsParallelCollection(mustNotResolve)
         );
-        assertFalse(
-            new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(new TermsValuesSourceBuilder("name")))
-                .supportsParallelCollection(field -> randomIntBetween(51, 100))
+        assertTrue(
+            new CompositeAggregationBuilder(
+                randomAlphaOfLength(10),
+                List.of(randomDateHistogramSourceBuilder(), new TermsValuesSourceBuilder("name"))
+            ).supportsParallelCollection(mustNotResolve)
         );
         assertFalse(
             new CompositeAggregationBuilder(
                 randomAlphaOfLength(10),
                 Collections.singletonList(new TermsValuesSourceBuilder("name").script(new Script("id")))
             ).supportsParallelCollection(field -> randomIntBetween(-1, 100))
-        );
-        assertFalse(
-            new CompositeAggregationBuilder(
-                randomAlphaOfLength(10),
-                List.of(randomDateHistogramSourceBuilder(), new TermsValuesSourceBuilder("name"))
-            ).supportsParallelCollection(field -> randomIntBetween(51, 100))
         );
     }
 }

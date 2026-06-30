@@ -636,7 +636,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             List.of(),
             List.of(),
             List.of(),
-            Map.of("attributes", new PrefixProperties(null, 1))
+            Map.of("attributes", new PrefixProperties(null, 1, null))
         );
 
         assertSame(envField.fieldType(), lookup.get("env"));
@@ -658,7 +658,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             List.of(),
             List.of(),
             List.of(),
-            Map.of("path.to", new PrefixProperties(null, 0))
+            Map.of("path.to", new PrefixProperties(null, 0, null))
         );
 
         // alias is everything after "path.to." — "my.field", not just "field"
@@ -678,7 +678,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             List.of(),
             List.of(),
             List.of(),
-            Map.of("attributes", new PrefixProperties(null, 1), "resource", new PrefixProperties(null, 2))
+            Map.of("attributes", new PrefixProperties(null, 1, null), "resource", new PrefixProperties(null, 2, null))
         );
 
         // resource has priority 2 > 1, so resource.env wins for alias "env"
@@ -708,7 +708,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             List.of(),
             List.of(),
             List.of(),
-            Map.of("attributes", new PrefixProperties(null, 1))
+            Map.of("attributes", new PrefixProperties(null, 1, null))
         );
 
         assertSame(rootEnv.fieldType(), lookup.get("env"));

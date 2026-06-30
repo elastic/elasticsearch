@@ -21,6 +21,9 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -54,8 +57,44 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         return oldClusterHasFeature(feature.id());
     }
 
+    private static boolean randomizeColumnarIndexMode;
+
+    /**
+     * Opt in to randomly running with the {@code logsdb_columnar} index mode in addition to plain
+     * {@code logsdb}. Call from a static initializer in the concrete subclass:
+     * <pre>{@code
+     * static {
+     *     enableColumnarIndexModeRandomization();
+     * }
+     * }</pre>
+     * The columnar mode is only applied when the old cluster version already supports it (≥ 9.5.0).
+     */
+    protected static void enableColumnarIndexModeRandomization() {
+        randomizeColumnarIndexMode = true;
+    }
+
+    // Set in columnarRandomizer.before() and exposed so that opt-in subclasses can branch their
+    // assertions on which mode was actually selected for the run.
+    protected static boolean columnarEnabled;
+
+    private static final ExternalResource columnarRandomizer = new ExternalResource() {
+        @Override
+        protected void before() {
+            columnarEnabled = randomizeColumnarIndexMode && randomBoolean();
+        }
+
+        @Override
+        protected void after() {
+            // Reset so the flag from an opt-in class does not bleed into subsequent classes in the
+            // same JVM. The subclass static initializer re-sets it before the next class's before().
+            randomizeColumnarIndexMode = false;
+        }
+    };
+
+    public static final ElasticsearchCluster cluster = Clusters.oldVersionCluster(USER, PASS, () -> columnarEnabled);
+
     @ClassRule
-    public static final ElasticsearchCluster cluster = Clusters.oldVersionCluster(USER, PASS);
+    public static final TestRule ruleChain = RuleChain.outerRule(columnarRandomizer).around(cluster);
 
     @Override
     protected String getTestRestCluster() {

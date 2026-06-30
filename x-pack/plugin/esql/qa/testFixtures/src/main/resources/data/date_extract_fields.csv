@@ -1,5 +1,5 @@
-date_part:keyword,date_val:date
-day_of_month,2022-05-06T14:30:00.000Z
-hour_of_day,2022-05-06T14:30:00.000Z
-month_of_year,2022-05-06T14:30:00.000Z
-year,2022-05-06T14:30:00.000Z
+date_part:keyword,date_val:date,format_val:keyword,date_string:keyword,inner_val:keyword,outer_val:keyword
+day_of_month,2022-05-06T14:30:00.000Z,yyyy-MM-dd,2023-02-01,day,month
+hour_of_day,2022-05-06T14:30:00.000Z,yyyy-MM,2023-02-02,hour,day
+month_of_year,2022-05-06T14:30:00.000Z,yyyy,2023-02-03,month,year
+year,2022-05-06T14:30:00.000Z,yy,2023-02-04,year,century

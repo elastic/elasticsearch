@@ -736,8 +736,11 @@ create logsdb_columnar data stream with custom sorting and missing host.name fie
   - match: { .$backing_index.mappings.properties.host\.name: null }
 
 ---
-create logsdb_columnar data stream with custom sorting and host.name field without doc values:
+create logsdb_columnar data stream with host.name field without doc values is rejected:
+  # In columnar modes _source is rebuilt from doc-value columns, so a field that cannot be reconstructed from doc values
+  # (here doc_values:false) is rejected at mapping validation rather than producing a lossy field.
   - do:
+      catch: bad_request
       indices.put_index_template:
         name: cl-logs-template
         body:
@@ -759,17 +762,12 @@ create logsdb_columnar data stream with custom sorting and host.name field witho
                       doc_values: false
 
           data_stream: { }
-      allowed_warnings:
-        - "index template [cl-logs-template] has index patterns [logs-cl-http-dev] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
-  - is_true: acknowledged
-
-  - do:
-      catch: bad_request
-      indices.create_data_stream:
-        name: logs-cl-http-dev
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "docvalues not found for index sort field:[host.name]" }
+  - match: { error.reason: "composable template [cl-logs-template] template after composition is invalid" }
+  # Assert the underlying cause, not just the composable-template wrapper.
+  - match:
+      error.caused_by.caused_by.reason: "field [host.name] cannot reconstruct _source from doc values; every field must be reconstructable from doc values in index using [logsdb_columnar] index mode"
 
 ---
 create logsdb_columnar data stream with incompatible ignore_above on host.name:

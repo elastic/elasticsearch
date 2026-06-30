@@ -79,7 +79,7 @@ public final class TransformInternalIndex {
      * of changes above. Increment this constant by one at the same time as adding a new
      * entry to the table of changes above.
      */
-    public static final int TRANSFORM_INDEX_MAPPINGS_VERSION = 2;
+    public static final int TRANSFORM_INDEX_MAPPINGS_VERSION = 3;
     /**
      * No longer used for determining the age of mappings, but system index descriptor
      * code requires <em>something</em> be set. We use a value that can be parsed by
@@ -371,7 +371,13 @@ public final class TransformInternalIndex {
     }
 
     private static XContentBuilder addTransformCloudCredentialMappings(XContentBuilder builder) throws IOException {
-        return builder.startObject("persisted_credential")
+        return builder.startObject(TransformConfigManager.CLOUD_CREDENTIAL_TRANSFORM_ID_FIELD)
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(TransformConfigManager.CLOUD_CREDENTIAL_TOKEN_ID_FIELD)
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject("persisted_credential")
             .startObject(PROPERTIES)
             .startObject("version")
             .field(TYPE, LONG)

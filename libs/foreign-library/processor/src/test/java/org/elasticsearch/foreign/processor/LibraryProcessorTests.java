@@ -170,4 +170,82 @@ public class LibraryProcessorTests extends ProcessorTestCase {
         boolean hasProcessorError = result.errors().stream().anyMatch(msg -> msg.contains("@LibrarySpecification must be on an interface"));
         assertTrue("Expected error about @LibrarySpecification on non-interface but got: " + result.errors(), hasProcessorError);
     }
+
+    /**
+     * A library with {@code unavailableOn} listing a single platform compiles cleanly (no warning).
+     */
+    public void testUnavailableOnSinglePlatformCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.Platform;
+            @LibrarySpecification(name = "testlib", unavailableOn = { Platform.WINDOWS_X64 })
+            public interface MyLib {
+                @Function("native_fn")
+                int fn(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.MyLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        boolean hasAllPlatformsWarning = result.warnings().stream().anyMatch(msg -> msg.contains("never be natively loaded"));
+        assertFalse("Unexpected all-platforms warning for single-platform unavailableOn", hasAllPlatformsWarning);
+    }
+
+    /**
+     * A library with {@code unavailableOn} listing an empty array compiles cleanly (no warning).
+     */
+    public void testUnavailableOnEmptyCompilesClean() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            @LibrarySpecification(name = "testlib", unavailableOn = {})
+            public interface MyLib {
+                @Function("native_fn")
+                int fn(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.MyLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        boolean hasAllPlatformsWarning = result.warnings().stream().anyMatch(msg -> msg.contains("never be natively loaded"));
+        assertFalse("Unexpected all-platforms warning for empty unavailableOn", hasAllPlatformsWarning);
+    }
+
+    /**
+     * A library with {@code unavailableOn} listing all five platforms must fail compilation — a library
+     * that can never load natively is a mistake, not a valid configuration.
+     */
+    public void testUnavailableOnAllPlatformsFailsCompilation() {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.Platform;
+            @LibrarySpecification(
+                name = "testlib",
+                unavailableOn = {
+                    Platform.LINUX_X64,
+                    Platform.LINUX_AARCH64,
+                    Platform.DARWIN_X64,
+                    Platform.DARWIN_AARCH64,
+                    Platform.WINDOWS_X64
+                }
+            )
+            public interface MyLib {
+                @Function("native_fn")
+                int fn(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.MyLib", source);
+
+        assertFalse("Expected compilation to fail when all platforms are listed in unavailableOn", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("never be natively loaded"));
+        assertTrue("Expected error about all platforms listed but got: " + result.errors(), hasError);
+    }
 }

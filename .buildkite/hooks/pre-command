@@ -87,7 +87,7 @@ export BUILDKITE_API_TOKEN
 export GH_TOKEN="${VAULT_GITHUB_TOKEN:-}"
 
 # ── pi-agent ──────────────────────────────────────────────────────────────────
-# Bootstraps the self-contained pi-agent CLI (https://github.com/elastic/rene-bk-experiments)
+# Bootstraps the self-contained pi-agent CLI (https://github.com/breskeby/rene-bk-experiments)
 # so the elasticsearch-agentic-workflow pipeline can run pi sessions on this agent.
 #
 # Completely inert unless USE_PI_AGENT=true is set on the step. The required
@@ -117,21 +117,36 @@ if [[ "${USE_PI_AGENT:-}" == "true" ]]; then
   if [[ ! -x "${PI_AGENT_DIR}/bin/pi-agent.js" ]]; then
     echo "--- Bootstrapping pi-agent (${PI_AGENT_TAG})"
 
-    # The release repo is private — use the org-level gh_token from Vault.
+    # The release lives on the breskeby fork (a personal repo with no elastic
+    # SAML enforcement) — use the gh_token from Vault, which can read it.
     GH_ADMIN_TOKEN=$(vault_with_retry read -field=gh_token secret/ci/elastic-elasticsearch/agentic-workflows)
-
-    # Resolve the pinned release's .tgz asset API URL.
-    PI_TARBALL_URL=$(curl -fsSL \
-      -H "Authorization: Bearer ${GH_ADMIN_TOKEN}" \
-      "https://api.github.com/repos/elastic/rene-bk-experiments/releases/tags/${PI_AGENT_TAG}" \
-      | node -e "
-          const r = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8'));
-          const a = r.assets.find(a => a.name.endsWith('.tgz') && !a.name.includes('sha256'));
-          if (!a) { process.stderr.write('No .tgz asset found in release\n'); process.exit(1); }
-          process.stdout.write(a.url);
-        ")
+    PI_AGENT_REPO="${PI_AGENT_REPO:-breskeby/rene-bk-experiments}"
 
     TMPDIR_DL="$(mktemp -d)"
+
+    # Resolve the pinned release's .tgz asset API URL. Capture the HTTP status
+    # so an auth/permission failure surfaces clearly instead of crashing the
+    # downstream JSON parse with an opaque "Unexpected end of JSON input".
+    PI_RELEASE_API="https://api.github.com/repos/${PI_AGENT_REPO}/releases/tags/${PI_AGENT_TAG}"
+    PI_RELEASE_HTTP=$(curl -sSL -w '%{http_code}' -o "${TMPDIR_DL}/release.json" \
+      -H "Authorization: Bearer ${GH_ADMIN_TOKEN}" \
+      "${PI_RELEASE_API}")
+    if [[ "${PI_RELEASE_HTTP}" != "200" ]]; then
+      echo "Failed to fetch pi-agent release ${PI_AGENT_TAG} from ${PI_AGENT_REPO}" >&2
+      echo "  GET ${PI_RELEASE_API} -> HTTP ${PI_RELEASE_HTTP}" >&2
+      echo "  Response body:" >&2
+      cat "${TMPDIR_DL}/release.json" >&2 || true
+      rm -rf "${TMPDIR_DL}"
+      exit 1
+    fi
+
+    PI_TARBALL_URL=$(node -e "
+        const r = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'));
+        const a = (r.assets || []).find(a => a.name.endsWith('.tgz') && !a.name.includes('sha256'));
+        if (!a) { process.stderr.write('No .tgz asset found in release\n'); process.exit(1); }
+        process.stdout.write(a.url);
+      " "${TMPDIR_DL}/release.json")
+
     curl -fsSL \
       -H "Authorization: Bearer ${GH_ADMIN_TOKEN}" \
       -H "Accept: application/octet-stream" \

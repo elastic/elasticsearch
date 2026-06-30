@@ -42,6 +42,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -230,7 +231,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         // Verify data extractor factory can be created, then start persistent task
         Consumer<Job> createDataExtractor = job -> {
-            final List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices());
+            final List<String> remoteIndices = trueRemoteIndices(params.getDatafeedIndices());
             if (remoteIndices.isEmpty() == false) {
                 if (remoteClusterClient == false) {
                     responseHeaderPreservingListener.onFailure(
@@ -276,7 +277,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     remoteClusterLicenseChecker.checkRemoteClusterLicenses(
                         RemoteClusterLicenseChecker.remoteClusterAliases(
                             transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(),
-                            params.getDatafeedIndices()
+                            remoteIndices
                         ),
                         ActionListener.wrap(response -> {
                             if (response.isSuccess() == false) {
@@ -296,11 +297,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                             }
                         },
                             e -> responseHeaderPreservingListener.onFailure(
-                                createUnknownLicenseError(
-                                    params.getDatafeedId(),
-                                    RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices()),
-                                    e
-                                )
+                                createUnknownLicenseError(params.getDatafeedId(), remoteIndices, e)
                             )
                         )
                     );
@@ -329,6 +326,15 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }, responseHeaderPreservingListener::onFailure);
 
         datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), null, datafeedListener);
+    }
+
+    // _origin: is the CPS origin-project qualifier, resolved at search time by the CPS rewriter, not a
+    // registered remote cluster. Exclude it from remote-cluster checks (mirrors SourceDestValidator).
+    static List<String> trueRemoteIndices(List<String> datafeedIndices) {
+        return RemoteClusterLicenseChecker.remoteIndices(datafeedIndices)
+            .stream()
+            .filter(index -> index.startsWith(ProjectRoutingResolver.ORIGIN + ":") == false)
+            .toList();
     }
 
     static void checkRemoteConfigVersions(

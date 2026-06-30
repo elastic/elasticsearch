@@ -833,9 +833,6 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             valueSums = leafReader.getNumericDocValues(valuesSumSubFieldName(fullPath));
             valueMinima = leafReader.getNumericDocValues(valuesMinSubFieldName(fullPath));
             valueMaxima = leafReader.getNumericDocValues(valuesMaxSubFieldName(fullPath));
-            if (valueCounts == null) {
-                currentDocId = DocIdSetIterator.NO_MORE_DOCS;
-            }
             docIdSetIterator = new DocIdSetIterator() {
 
                 @Override
@@ -847,6 +844,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 public int nextDoc() throws IOException {
                     if (valueCounts != null) {
                         currentDocId = valueCounts.nextDoc();
+                    } else {
+                        currentDocId = DocIdSetIterator.NO_MORE_DOCS;
                     }
                     return currentDocId;
                 }
@@ -855,6 +854,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 public int advance(int target) throws IOException {
                     if (valueCounts != null) {
                         currentDocId = valueCounts.advance(target);
+                    } else {
+                        currentDocId = DocIdSetIterator.NO_MORE_DOCS;
                     }
                     return currentDocId;
                 }

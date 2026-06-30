@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -168,6 +169,17 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
             assertThat(result.covered, containsInAnyOrder(ts));
             assertThat(result.createdNames.size(), is(1));
         }
+
+        // Add future timestamp should be skipped.
+        {
+            Instant futureTimestamp = Instant.now().plus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.MILLIS);
+            TaskResult result = run(clusterState, futureTimestamp.toEpochMilli());
+            assertThat(result.covered, is(empty()));
+            assertThat(result.createdNames, is(empty()));
+            assertThat(result.rejectedTimestamps.size(), is(1));
+            assertThat(result.rejectedTimestamps.keySet(), contains(futureTimestamp));
+            assertThat(result.rejectedTimestamps.get(futureTimestamp), containsString("is after the request start time"));
+        }
     }
 
     public void testFillGapBetweenIndices() throws Exception {
@@ -237,7 +249,8 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
                 new HashSet<>(),
                 new HashMap<>(),
                 INDEX_DURATION_MILLIS,
-                -1
+                -1,
+                Instant.now().toEpochMilli()
             )
         );
     }
@@ -269,7 +282,8 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
                 new HashSet<>(),
                 new HashMap<>(),
                 INDEX_DURATION_MILLIS,
-                -1L
+                -1L,
+                Instant.now().toEpochMilli()
             )
         );
         assertThat(
@@ -300,7 +314,8 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
                 new HashSet<>(),
                 new HashMap<>(),
                 INDEX_DURATION_MILLIS,
-                -1L
+                -1L,
+                Instant.now().toEpochMilli()
             )
         );
         assertThat(illegalArgumentException.getMessage(), containsString(", it needs to be a time series data stream."));
@@ -333,7 +348,8 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
                 new HashSet<>(),
                 new HashMap<>(),
                 INDEX_DURATION_MILLIS,
-                -1L
+                -1L,
+                Instant.now().toEpochMilli()
             )
         );
         assertThat(illegalArgumentException.getMessage(), containsString("Cannot create past TSDB backing index for system data stream"));
@@ -424,7 +440,8 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
             covered,
             rejectedTimestamps,
             INDEX_DURATION_MILLIS,
-            eligibleWriteWindowStart
+            eligibleWriteWindowStart,
+            Instant.now().toEpochMilli()
         );
         return new TaskResult(updatedClusterState, covered, createdNames, rejectedTimestamps);
     }

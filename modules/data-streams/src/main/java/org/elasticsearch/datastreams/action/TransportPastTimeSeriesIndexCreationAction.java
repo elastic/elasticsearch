@@ -266,7 +266,8 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                         coveredTimestamps,
                         rejectedTimestamps,
                         indexIntervalMillis,
-                        eligibleWriteWindowStart
+                        eligibleWriteWindowStart,
+                        task.requestStartTimestamp
                     );
                     stateChanged |= createdIndexNames.isEmpty() == false;
                     taskContext.success(new ClusterStateAckListener() {
@@ -357,7 +358,8 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             Set<Instant> coveredTimestamps,
             Map<Instant, String> rejectedTimestamps,
             long indexDurationMillis,
-            long eligibleWriteWindowStart
+            long eligibleWriteWindowStart,
+            long requestStartTime
         ) throws Exception {
             String dataStreamName = task.dataStreamName();
             long[] timestamps = task.sortedTimestamps();
@@ -381,6 +383,17 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
 
             for (long ts : timestamps) {
                 Instant timestampInstant = Instant.ofEpochMilli(ts);
+                if (ts > requestStartTime) {
+                    rejectedTimestamps.put(
+                        timestampInstant,
+                        "the document timestamp ["
+                            + timestampInstant
+                            + "] is after the request start time ["
+                            + Instant.ofEpochMilli(requestStartTime)
+                            + "]"
+                    );
+                    continue;
+                }
                 if (eligibleWriteWindowStart > 0 && ts < eligibleWriteWindowStart) {
                     rejectedTimestamps.put(
                         timestampInstant,

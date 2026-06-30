@@ -143,7 +143,8 @@ public final class ExpectedRecall {
             mu += fx;
             stddevSq += fx * fx;
         }
-        double stddev = Math.sqrt(Math.max(0.0, mu - stddevSq));
+        double stddev = Math.sqrt(mu - stddevSq);
+        assert stddev >= 0 : "stddev must be non-negative, got " + stddev;
         return normalCdf(rankThreshold, mu, stddev);
     }
 

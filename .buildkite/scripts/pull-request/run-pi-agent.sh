@@ -68,6 +68,24 @@ chmod +x "${PI_AGENT_DIR}/bin/pi-agent.js"
 rm -rf "${TMPDIR_DL}"
 fi
 
+# ── configure pi project settings ───────────────────────────────────────
+# .pi is gitignored, so write the project settings at runtime.
+# httpIdleTimeoutMs: caps each LLM streaming connection at 60 s of idle.
+# retry.*: 1 retry max so a hung call fails in ~2 min instead of ~23 min.
+mkdir -p .pi
+cat > .pi/settings.json << 'EOF'
+{
+  "httpIdleTimeoutMs": 60000,
+  "retry": {
+    "maxRetries": 1,
+    "provider": {
+      "maxRetries": 1,
+      "maxRetryDelayMs": 10000
+    }
+  }
+}
+EOF
+
 # ── run ───────────────────────────────────────────────────────────────
 # +++ expands this section by default in the BK log so the pi-agent output
 # is immediately visible without having to open a collapsed group.
@@ -87,4 +105,6 @@ timeout --signal=TERM --kill-after=60s 45m \
     --profile always-further/pi \
     --allow "${PI_AGENT_DIR}" \
     --allow-cwd \
-    -- pi-agent analyze --issue-url "${ISSUE_URL}"
+    -- pi-agent analyze --issue-url "${ISSUE_URL}" \
+      --verbose \
+      --append-system-prompt "IMPORTANT CI CONSTRAINTS: Do NOT use fetch_content or web_search to access gradle-enterprise.elastic.co, develocity.elastic.co, or any other Elastic-internal URLs that require SSO authentication. These connections hang indefinitely in CI because no browser-based SSO flow is possible. If you need build scan data, note that it is unavailable and continue the analysis using only GitHub issue content, code files, and other accessible sources."

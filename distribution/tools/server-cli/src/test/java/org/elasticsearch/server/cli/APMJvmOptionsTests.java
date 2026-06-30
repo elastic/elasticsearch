@@ -13,7 +13,6 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
@@ -30,8 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
-import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
-import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_SYSTEM_PROPERTY;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -48,24 +45,16 @@ public class APMJvmOptionsTests extends ESTestCase {
 
     private Path installDir;
     private Path agentPath;
-    private String otelMetricsEnabled;
-    private String otelTracesEnabled;
 
     @Before
     public void setup() throws IOException, UserException {
-        otelMetricsEnabled = System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
-        otelTracesEnabled = System.getProperty(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY);
         installDir = makeFakeAgentJar();
         agentPath = APMJvmOptions.findAgentJar(installDir.toAbsolutePath().toString());
-        clearSystemProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
-        clearSystemProperty(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY);
     }
 
     @After
     public void cleanup() throws IOException {
         Files.delete(agentPath);
-        restoreSystemProperty(otelMetricsEnabled, OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
-        restoreSystemProperty(otelTracesEnabled, OTEL_TRACES_ENABLED_SYSTEM_PROPERTY);
     }
 
     public void testFindJar() throws IOException {
@@ -162,7 +151,9 @@ public class APMJvmOptionsTests extends ESTestCase {
             null,
             createTempDir(),
             tempDir,
-            installDir.toAbsolutePath().toString()
+            installDir.toAbsolutePath().toString(),
+            false,
+            false
         );
 
         assertFalse(options.isEmpty());
@@ -170,18 +161,20 @@ public class APMJvmOptionsTests extends ESTestCase {
         Properties properties = extractProperties(options);
         assertThat(properties.getProperty("metrics_interval"), equalTo("120s"));
         assertNull(properties.getProperty("disable_metrics"));
+        assertNull(extractDynamicOption(options, "disable_instrumentations"));
         assertThat(extractDynamicOption(options, "transaction_sample_rate"), equalTo("0.001"));
     }
 
     public void testAPMAgentMetricsDisabledWhenOtelMetricsEnabled() throws Exception {
-        setSystemProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "true");
         Path tempDir = createTempDir();
         List<String> options = APMJvmOptions.apmJvmOptions(
             Settings.builder().put("telemetry.agent.server_url", "https://myurl:443").build(),
             null,
             createTempDir(),
             tempDir,
-            installDir.toAbsolutePath().toString()
+            installDir.toAbsolutePath().toString(),
+            true,
+            false
         );
 
         assertFalse(options.isEmpty());
@@ -189,18 +182,20 @@ public class APMJvmOptionsTests extends ESTestCase {
         Properties properties = extractProperties(options);
         assertThat(properties.getProperty("metrics_interval"), equalTo("0s"));
         assertThat(properties.getProperty("disable_metrics"), equalTo("*"));
+        assertThat(extractDynamicOption(options, "disable_instrumentations"), equalTo("opentelemetry-metrics"));
         assertThat(extractDynamicOption(options, "transaction_sample_rate"), equalTo("0.001"));
     }
 
     public void testAPMAgentTracesDisabledWhenOtelTracesEnabled() throws Exception {
-        setSystemProperty(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY, "true");
         Path tempDir = createTempDir();
         List<String> options = APMJvmOptions.apmJvmOptions(
             Settings.builder().put("telemetry.agent.server_url", "https://myurl:443").build(),
             null,
             createTempDir(),
             tempDir,
-            installDir.toAbsolutePath().toString()
+            installDir.toAbsolutePath().toString(),
+            false,
+            true
         );
 
         assertFalse(options.isEmpty());
@@ -253,23 +248,5 @@ public class APMJvmOptionsTests extends ESTestCase {
         Files.move(tempFile, apmAgentFile);
 
         return tempFile.getParent();
-    }
-
-    @SuppressForbidden(reason = "sets system property for test scenario")
-    private static void setSystemProperty(String key, String value) {
-        System.setProperty(key, value);
-    }
-
-    @SuppressForbidden(reason = "clears system property for test setup/teardown")
-    private static void clearSystemProperty(String key) {
-        System.clearProperty(key);
-    }
-
-    private static void restoreSystemProperty(String value, String key) {
-        if (value == null) {
-            clearSystemProperty(key);
-        } else {
-            setSystemProperty(key, value);
-        }
     }
 }

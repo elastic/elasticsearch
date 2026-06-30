@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
@@ -47,6 +46,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -59,6 +59,7 @@ import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -168,14 +169,16 @@ import java.util.function.Supplier;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
 
-    // Data sources store credentials encrypted under the project encryption key, so the feature requires it
-    // (enforced in createComponents). The PEK flag lives in the encryption impl plugin, not the SPI we
-    // compile against, so we reference it by name — FeatureFlag resolves identically off the build flag.
-    private static final FeatureFlag PROJECT_ENCRYPTION_KEY_FEATURE_FLAG = new FeatureFlag("project_encryption_key");
-
     private static final Logger logger = LogManager.getLogger(EsqlPlugin.class);
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
+
+    /**
+     * Shared bounded thread pool for blocking external-storage reads (GCS today; any future offloading blocking
+     * backend). Sized by {@code esql.external.max_connections}. The truly-async backends (S3, Azure) bound their
+     * read concurrency through their SDK connection pools instead and do not use this pool.
+     */
+    public static final String EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME = "esql_external_blocking_io";
 
     public static final Setting<Integer> ESQL_WORKER_THREAD_POOL_SIZE = Setting.intSetting(
         "esql.worker.thread_pool_size",
@@ -199,6 +202,19 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
      */
     public static final Setting<Boolean> LOOKUP_JOIN_STREAMING = Setting.boolSetting(
         "esql.query.lookup_join_streaming",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Kill switch for the {@code flattened} data type in ES|QL. When {@code false}, {@code flattened} fields resolve as {@code unsupported}
+     * during index resolution (the exact pre-flattened-support behavior: {@code FROM} still works and the column is
+     * returned as {@code unsupported}, but any explicit use errors). Because {@code field_extract} only operates on
+     * {@code flattened} fields, disabling the type also disables that function transitively.
+     */
+    public static final Setting<Boolean> FLATTENED_ENABLED = Setting.boolSetting(
+        "esql.query.flattened.enabled",
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -248,6 +264,17 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     );
 
     /**
+     * Maximum time (in milliseconds) that a GROK matcher is allowed to run before being interrupted.
+     * Limits how long a GROK matcher can run to protect against expensive regex patterns.
+     */
+    public static final Setting<TimeValue> GROK_WATCHDOG_MAX_EXECUTION_TIME = Setting.timeSetting(
+        "esql.grok.watchdog.max_execution_time",
+        TimeValue.timeValueMillis(1000),
+        TimeValue.timeValueMillis(0),
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Tuning parameter for deciding when to use the "merge" stored field loader.
      * Think of it as "how similar to a sequential block of documents do I have to
      * be before I'll use the merge reader?" So a value of {@code 1} means I have to
@@ -285,15 +312,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        // Refuse to start with data sources on but encryption off — the CRUD layer could never store a
-        // secret. Coupling the flags here lets the feature rely on an EncryptionService always being bound.
-        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-            && PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalStateException(
-                "ES|QL external data sources require the project encryption key feature; enable the "
-                    + "[project_encryption_key] feature flag, or disable [esql_external_datasources]"
-            );
-        }
         Settings settings = services.clusterService().getSettings();
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         var blockFactoryProvider = blockFactoryProvider(
@@ -342,8 +360,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 v -> workloadIdentityEnabled.set(isStateless == false && v)
             );
 
-        // Create DataSourceModule with all discovered plugins
-        // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)
+        // Kill switch for the flattened data type. The IndexResolver is a node-level singleton, so the dynamic
+        // setting is tracked here in an AtomicBoolean and read (at field-caps resolution time) through a supplier.
+        AtomicBoolean flattenedDataTypeEnabled = new AtomicBoolean(FLATTENED_ENABLED.get(settings));
+        services.clusterService().getClusterSettings().addSettingsUpdateConsumer(FLATTENED_ENABLED, flattenedDataTypeEnabled::set);
+
+        // Create DataSourceModule with all discovered plugins.
+        // This executor backs SPI coordination, decompression, and async-I/O plugin callbacks (e.g. the HTTP
+        // client) — NOT the file-read path. Blocking external reads are routed onto the dedicated
+        // esql_external_blocking_io pool via OperatorFactoryRegistry#fileReadExecutor (wired in TransportEsqlQueryAction).
         dataSourceModule = new DataSourceModule(
             allDataSourcePlugins,
             dataSourceCapabilities,
@@ -358,7 +383,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
+        MatcherWatchdog grokWatchdog = MatcherWatchdog.newInstance(GROK_WATCHDOG_MAX_EXECUTION_TIME.get(settings).millis());
+        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry, grokWatchdog));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
 
         services.ipLocationService()
@@ -441,7 +467,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         return List.of(
             new PlanExecutor(
-                new IndexResolver(services.client()),
+                new IndexResolver(services.client(), flattenedDataTypeEnabled::get),
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
                 new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
@@ -451,7 +477,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 functionRegistry,
                 PromqlFunctionRegistry.INSTANCE,
                 parser,
-                cacheService
+                cacheService,
+                services.indicesService().getAnalysis()
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -499,6 +526,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
                 QUERY_ALLOW_PARTIAL_RESULTS,
                 LOOKUP_JOIN_STREAMING,
+                FLATTENED_ENABLED,
                 ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
                 ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
                 ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
@@ -512,7 +540,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
                 DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING,
-                DatasetService.MAX_DATASETS_COUNT_SETTING
+                DatasetService.MAX_DATASETS_COUNT_SETTING,
+                GROK_WATCHDOG_MAX_EXECUTION_TIME
             )
         );
         settings.addAll(PlannerSettings.settings());
@@ -678,6 +707,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 queueSize,
                 ESQL_WORKER_THREAD_POOL_NAME,
                 EsExecutors.TaskTrackingConfig.DEFAULT
+            ),
+            // Shared bounded pool for blocking external reads (GCS today; any future offloading blocking backend),
+            // sized by esql.external.max_connections. Scales from 0 so idle nodes pay nothing.
+            new ScalingExecutorBuilder(
+                EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME,
+                0,
+                ExternalSourceSettings.MAX_CONNECTIONS.get(settings),
+                TimeValue.timeValueSeconds(30),
+                false
             )
         );
     }

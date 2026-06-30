@@ -40,6 +40,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
+import org.elasticsearch.compute.operator.HighlightConfig;
+import org.elasticsearch.compute.operator.HighlightOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
@@ -146,6 +148,7 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
@@ -207,6 +210,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -248,6 +252,9 @@ public class LocalExecutionPlanner {
     private final ProjectResolver projectResolver;
     private final AbstractPhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
+    @Nullable
+    private final Executor parallelWorkerExecutor;
+    private final int esqlWorkerPoolSize;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -266,7 +273,9 @@ public class LocalExecutionPlanner {
         IpLocationService ipLocationService,
         ProjectResolver projectResolver,
         AbstractPhysicalOperationProviders physicalOperationProviders,
-        OperatorFactoryRegistry operatorFactoryRegistry
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        @Nullable Executor parallelWorkerExecutor,
+        int esqlWorkerPoolSize
     ) {
 
         this.sessionId = sessionId;
@@ -286,6 +295,8 @@ public class LocalExecutionPlanner {
         this.projectResolver = projectResolver;
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
+        this.parallelWorkerExecutor = parallelWorkerExecutor;
+        this.esqlWorkerPoolSize = esqlWorkerPoolSize;
     }
 
     /**
@@ -373,8 +384,8 @@ public class LocalExecutionPlanner {
             return planMvExpand(mvExpand, context);
         } else if (node instanceof TimeSeriesCollapseExec tsCollapse) {
             return planTimeSeriesCollapse(tsCollapse, context);
-        } else if (node instanceof HighlightExec) {
-            throw new UnsupportedOperationException("HIGHLIGHT is not implemented yet");
+        } else if (node instanceof HighlightExec highlight) {
+            return planHighlight(highlight, context);
         } else if (node instanceof RerankExec rerank) {
             return planRerank(rerank, context);
         } else if (node instanceof ChangePointExec changePoint) {
@@ -759,6 +770,16 @@ public class LocalExecutionPlanner {
             return source.with(numericFactory, source.layout);
         }
         var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
+        TopNOperator.ParallelWorkerConfig parallelWorkerConfig = null;
+        if (parallelWorkerExecutor != null && TopNOperator.PARALLEL_TOPN_FEATURE_FLAG.isEnabled()) {
+            int workerCount = Math.max(1, Math.min(context.plannerSettings.parallelTopNMaxWorkers(), esqlWorkerPoolSize / 2));
+            parallelWorkerConfig = new TopNOperator.ParallelWorkerConfig(
+                parallelWorkerExecutor,
+                workerCount,
+                2 * workerCount,
+                context.plannerSettings.parallelTopNPromotionThresholdRows()
+            );
+        }
         // For a single keyword/text sort key directly over an external source, publish the generic
         // TopNOperator's competitive BytesRef bound to DynamicThresholdAware format readers so they
         // can skip row groups/stripes that cannot contain a globally competitive row. This is the
@@ -775,7 +796,8 @@ public class LocalExecutionPlanner {
                 context.pageSize(topNExec, rowSize),
                 context.plannerSettings.valuesLoadingJumboSize().getBytes(),
                 topNExec.inputOrdering(),
-                minCompetitive
+                minCompetitive,
+                parallelWorkerConfig
             ),
             source.layout
         );
@@ -1254,6 +1276,42 @@ public class LocalExecutionPlanner {
             ),
             outputLayout
         );
+    }
+
+    // TODO: when highlighting can run directly against shard data, use real index offsets and per-field analyzers
+    // instead of re-analyzing each row in a MemoryIndex.
+    private PhysicalOperation planHighlight(HighlightExec highlight, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(highlight.child(), context);
+
+        Expression queryExpr = highlight.query();
+        if (queryExpr == null) {
+            throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query string");
+        }
+        String queryText = BytesRefs.toString(queryExpr.fold(context.foldCtx));
+        // TODO: honour boundary_scanner*, order, max_analyzed_offset, and phrase_limit once HighlightOptions exposes them.
+        HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
+        HighlightConfig config = new HighlightConfig(
+            queryText,
+            options.preTag(),
+            options.postTag(),
+            options.encoder(),
+            options.numberOfFragments(),
+            options.fragmentSize(),
+            options.noMatchSize()
+        );
+
+        List<ExpressionEvaluator.Factory> fieldEvaluators = highlight.fields()
+            .stream()
+            .map(field -> EvalMapper.toEvaluator(context.foldCtx(), field, source.layout, context.analysisRegistry()))
+            .toList();
+
+        // Append one keyword column per highlighted field.
+        // The generated attributes are appended in the same order as the ON fields,
+        // so the operator's appended blocks line up with these layout channels.
+        Layout.Builder layoutBuilder = source.layout.builder();
+        layoutBuilder.append(highlight.generatedFields());
+
+        return source.with(new HighlightOperator.Factory(config, fieldEvaluators), layoutBuilder.build());
     }
 
     private PhysicalOperation planHashJoin(HashJoinExec join, LocalExecutionPlannerContext context) {

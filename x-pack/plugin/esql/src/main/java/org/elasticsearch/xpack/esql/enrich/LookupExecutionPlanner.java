@@ -73,6 +73,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * Plans the execution of a lookup physical plan
@@ -159,11 +160,18 @@ public class LookupExecutionPlanner {
     private final BlockFactory blockFactory;
     private final BigArrays bigArrays;
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
+    private final LongSupplier directoryBytesRead;
 
-    public LookupExecutionPlanner(BlockFactory blockFactory, BigArrays bigArrays, LocalCircuitBreaker.SizeSettings localBreakerSettings) {
+    public LookupExecutionPlanner(
+        BlockFactory blockFactory,
+        BigArrays bigArrays,
+        LocalCircuitBreaker.SizeSettings localBreakerSettings,
+        LongSupplier directoryBytesRead
+    ) {
         this.blockFactory = blockFactory;
         this.bigArrays = bigArrays;
         this.localBreakerSettings = localBreakerSettings;
+        this.directoryBytesRead = directoryBytesRead;
     }
 
     /**
@@ -318,7 +326,8 @@ public class LookupExecutionPlanner {
             queryListFromPlanFactory,
             parameterizedQueryExec.emptyResult(),
             parameterizedQueryExec.bulkLookupLeft(),
-            parameterizedQueryExec.bulkLookupRight()
+            parameterizedQueryExec.bulkLookupRight(),
+            directoryBytesRead
         );
 
         return PhysicalOperation.fromSource(sourceFactory, layout).with(enrichQueryFactory, layout);
@@ -424,7 +433,7 @@ public class LookupExecutionPlanner {
                     docChannel,
                     PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY),
                     PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
-                    () -> 0L
+                    directoryBytesRead
                 );
             }
 
@@ -497,7 +506,8 @@ public class LookupExecutionPlanner {
         QueryListFromPlanFactory queryListFromPlanFactory,
         boolean emptyResult,
         Attribute bulkLookupLeft,
-        Attribute bulkLookupRight
+        Attribute bulkLookupRight,
+        LongSupplier directoryBytesRead
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
@@ -529,7 +539,8 @@ public class LookupExecutionPlanner {
                 shardId,
                 searchExecutionContext,
                 warnings,
-                emptyResult
+                emptyResult,
+                directoryBytesRead
             );
         }
 

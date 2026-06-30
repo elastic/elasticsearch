@@ -221,7 +221,16 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     public final MapperService createSytheticSourceMapperService(XContentBuilder mappings) throws IOException {
-        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        return createSytheticSourceMapperService(mappings, false);
+    }
+
+    public final MapperService createSytheticSourceMapperService(XContentBuilder mappings, boolean isColumnar) throws IOException {
+        Settings settings;
+        if (isColumnar) {
+            settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        } else {
+            settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        }
         return createMapperService(getVersion(), settings, () -> true, mappings);
     }
 

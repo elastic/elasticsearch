@@ -29,6 +29,7 @@ import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.IORunnable;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -151,7 +152,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         IndexOutput postingsOutput,
         long fileOffset,
         int[] assignments,
-        int[] overspillAssignments,
+        OverspillAssignments overspillAssignments,
         IvfSegmentConfig ivfSegmentConfig
     ) throws IOException;
 
@@ -163,7 +164,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         long fileOffset,
         MergeState mergeState,
         int[] assignments,
-        int[] overspillAssignments,
+        OverspillAssignments overspillAssignments,
         IvfSegmentConfig ivfSegmentConfig
     ) throws IOException;
 
@@ -365,11 +366,16 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         // For flat centroid assignments there is a single global centroid and no SOAR (secondary) centroid assignments,
         // so we pass an empty array for soarAssignments.
         int[] assignments = new int[count];
-        return new CentroidAssignments(dimension, new float[][] { centroid }, assignments, new int[0]);
+        return new CentroidAssignments(dimension, new float[][] { centroid }, assignments, new SoarAssignments(new int[0]));
     }
 
     @Override
-    public final void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+    public final IORunnable mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        // Per-field merge hook (see beginIvfFieldMerge): subclasses such as ESNextDiskBBQVectorsWriter resolve their
+        // segment config here, and it must run for every field, including non-float encodings. The result is intentionally
+        // not used in this base implementation - the float path re-resolves it inside mergeOneFieldIVF and the byte path
+        // writes IvfSegmentConfig.NONE below.
+        beginIvfFieldMerge(fieldInfo, mergeState);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
             mergeOneFieldIVF(fieldInfo, mergeState);
         } else {
@@ -378,6 +384,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         }
         // we merge the vectors at the end so we only have two copies of the vectors on disk at the same time.
         rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
+        return null;
     }
 
     private void writeMeta(
@@ -507,7 +514,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             final long postingListLength;
             final int numCentroids;
             final int[] assignments;
-            final int[] overspillAssignments;
+            final OverspillAssignments overspillAssignments;
             final float[] calculatedGlobalCentroid;
             final CentroidSlices centroidSlices;
             String centroidTempName = null;

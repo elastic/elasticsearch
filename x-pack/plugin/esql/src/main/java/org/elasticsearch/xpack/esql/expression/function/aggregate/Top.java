@@ -109,11 +109,17 @@ public class Top extends AggregateFunction
             type = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text" },
             description = "The field to collect the top values for."
         ) Expression field,
-        @Param(name = "limit", type = { "integer" }, description = "The maximum number of values to collect.") Expression limit,
+        @Param(
+            name = "limit",
+            type = { "integer" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = "The maximum number of values to collect."
+        ) Expression limit,
         @Param(
             optional = true,
             name = "order",
             type = { "keyword" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT, allowedValues = { "asc", "desc" }),
             description = "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
         ) Expression order,
         @Param(

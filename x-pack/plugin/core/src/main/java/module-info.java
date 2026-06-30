@@ -84,6 +84,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ilm;
     exports org.elasticsearch.xpack.core.indexing;
     exports org.elasticsearch.xpack.core.inference.action;
+    exports org.elasticsearch.xpack.core.inference.regionpolicy;
     exports org.elasticsearch.xpack.core.inference.results;
     exports org.elasticsearch.xpack.core.inference.usage;
     exports org.elasticsearch.xpack.core.inference;

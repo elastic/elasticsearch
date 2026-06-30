@@ -332,6 +332,27 @@ employee_id:integer | given_name:keyword | last_name:keyword | salary:integer
 10003          | "Parto"            | "Bamford"         | 61805
 ;
 
+// Renaming an external column, deriving a value from it, then grouping by both used to fail optimization with a 500
+// (PruneRedundantAggregateGroupings rebuilt the pruned derived grouping referencing the pre-rename column).
+// Runs against both EXTERNAL and FROM <dataset> (same read path) via the dataset directive.
+renameDerivedGroupingPrune
+required_capability: fix_prune_renamed_derived_external_grouping
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| WHERE emp_no <= 10005
+| RENAME languages AS lang
+| EVAL lang_plus = lang + 1
+| STATS count = COUNT(*) BY lang, lang_plus
+| SORT lang;
+
+count:long | lang:integer | lang_plus:integer
+1          | 1            | 2
+1          | 2            | 3
+1          | 4            | 5
+2          | 5            | 6
+;
+
 // Additional STATS aggregate: SUM
 
 aggregateSumSalary

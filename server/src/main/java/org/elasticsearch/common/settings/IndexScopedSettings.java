@@ -210,7 +210,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE,
                 IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD,
                 IndexSettings.SLICE_ENABLED,
-                IndexSettings.SLICE_VALIDATED,
                 IndexSettings.PREFER_ILM_SETTING,
                 DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING,
                 FieldMapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING,
@@ -270,9 +269,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
         settings.add(IndexSettings.DISABLE_SEQUENCE_NUMBERS);
         settings.add(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
-        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
-            settings.add(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD);
-        }
+        settings.add(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD);
         if (IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled()) {
             settings.add(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
         }

@@ -193,6 +193,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -644,6 +645,16 @@ public class IndicesService extends AbstractLifecycleComponent
         assert indexService.indexUUID().equals(index.getUUID())
             : "uuid mismatch local: " + indexService.indexUUID() + " incoming: " + index.getUUID();
         return indexService;
+    }
+
+    /**
+     * Returns a predicate that is {@code true} for shards open on this node.
+     */
+    public Predicate<ShardId> hasShardPredicate() {
+        return shardId -> {
+            final IndexService indexService = indexService(shardId.getIndex());
+            return indexService != null && indexService.hasShard(shardId.id());
+        };
     }
 
     /**

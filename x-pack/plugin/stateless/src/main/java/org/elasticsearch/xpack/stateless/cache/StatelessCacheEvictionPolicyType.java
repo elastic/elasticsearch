@@ -13,7 +13,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
+
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING;
@@ -24,24 +28,30 @@ import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheSe
 public enum StatelessCacheEvictionPolicyType {
     ALWAYS {
         @Override
-        EvictionPolicy<FileCacheKey> create(ClusterService clusterService) {
+        EvictionPolicy<FileCacheKey> create(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
             return new DefaultEvictionPolicy<>();
         }
     },
     PINNED_WINDOW {
         @Override
-        EvictionPolicy<FileCacheKey> create(ClusterService clusterService) {
-            return new PinnedWindowEvictionPolicy(clusterService);
+        EvictionPolicy<FileCacheKey> create(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
+            return new PinnedWindowEvictionPolicy(
+                clusterService.getClusterSettings(),
+                threadPool,
+                // We consult IndicesService rather than cluster-state routing because routing can lag behind locally open shards
+                // during cluster-state application. Once a shard is open here, IndicesService reflects that immediately.
+                indicesService.hasShardPredicate()
+            );
         }
     },
     INDEX_AGE {
         @Override
-        EvictionPolicy<FileCacheKey> create(ClusterService clusterService) {
+        EvictionPolicy<FileCacheKey> create(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
             return new IndexAgeEvictionPolicy(clusterService);
         }
     };
 
-    abstract EvictionPolicy<FileCacheKey> create(ClusterService clusterService);
+    abstract EvictionPolicy<FileCacheKey> create(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool);
 
     static StatelessCacheEvictionPolicyType resolveEvictionPolicyFromSettings(Settings settings) {
         if (STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings) == false) {
@@ -53,7 +63,16 @@ public enum StatelessCacheEvictionPolicyType {
         return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE) ? PINNED_WINDOW : ALWAYS;
     }
 
-    static EvictionPolicy<FileCacheKey> createEvictionPolicy(Settings settings, ClusterService clusterService) {
-        return resolveEvictionPolicyFromSettings(settings).create(clusterService);
+    static EvictionPolicy<FileCacheKey> createEvictionPolicy(
+        Settings settings,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool
+    ) {
+        return resolveEvictionPolicyFromSettings(settings).create(
+            clusterService,
+            Objects.requireNonNull(indicesService),
+            Objects.requireNonNull(threadPool)
+        );
     }
 }

@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.stateless.commits;
 
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -18,6 +22,7 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.unmodifiableNavigableMap;
 
@@ -30,7 +35,7 @@ import static java.util.Collections.unmodifiableNavigableMap;
  * region of the blob, and if the number of bytes to read does not exceed the length of the range, the {@link #getPosition(long, int)}
  * method will return the actual position within the first region that points to the range.
  */
-public class BlobFileRanges {
+public class BlobFileRanges implements Writeable {
 
     private final BlobLocation blobLocation;
     private final NavigableMap<Long, ReplicatedByteRange> replicatedRanges;
@@ -57,6 +62,25 @@ public class BlobFileRanges {
         this.blobLocation = Objects.requireNonNull(blobLocation);
         this.replicatedRanges = Objects.requireNonNull(replicatedRanges);
         this.timestampRange = timestampRange;
+    }
+
+    public BlobFileRanges(final StreamInput in) throws IOException {
+        blobLocation = BlobLocation.readFromTransport(in);
+        replicatedRanges = unmodifiableNavigableMap(
+            in.<Long, ReplicatedByteRange, TreeMap<Long, ReplicatedByteRange>>readMapValues(
+                ReplicatedByteRange::new,
+                ReplicatedByteRange::position,
+                ignored -> new TreeMap<>()
+            )
+        );
+        timestampRange = in.readOptionalWriteable(StatelessCompoundCommit.TimestampFieldValueRange::new);
+    }
+
+    @Override
+    public void writeTo(final StreamOutput out) throws IOException {
+        blobLocation.writeTo(out);
+        out.writeMapValues(replicatedRanges);
+        out.writeOptionalWriteable(timestampRange);
     }
 
     public BlobLocation blobLocation() {
@@ -118,7 +142,7 @@ public class BlobFileRanges {
      * @param length    the length of the range of bytes
      * @param copy      the position at which a copy of the same bytes exists in the blob
      */
-    private record ReplicatedByteRange(long position, short length, long copy) {
+    private record ReplicatedByteRange(long position, short length, long copy) implements Writeable {
 
         /**
          * Returns the position to read in the replicated range if the bytes to read are present in the range, otherwise returns {@code pos}
@@ -128,6 +152,17 @@ public class BlobFileRanges {
                 return this.copy + (pos - this.position);
             }
             return pos;
+        }
+
+        ReplicatedByteRange(StreamInput in) throws IOException {
+            this(in.readVLong(), in.readShort(), in.readVLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(position);
+            out.writeShort(length);
+            out.writeVLong(copy);
         }
     }
 
@@ -145,7 +180,7 @@ public class BlobFileRanges {
 
         var replicatedRanges = new TreeMap<Long, ReplicatedByteRange>();
         for (var range : compoundCommit.internalFilesReplicatedRanges().replicatedRanges()) {
-            long position = internalFilesOffset + range.position();
+            long position = Math.addExact(internalFilesOffset, range.position());
             var previous = replicatedRanges.put(position, new ReplicatedByteRange(position, range.length(), replicatedRangesOffset));
             assert previous == null : "replicated range already exists: " + previous;
             replicatedRangesOffset += range.length();
@@ -215,12 +250,24 @@ public class BlobFileRanges {
         return Objects.hash(blobLocation, replicatedRanges, timestampRange);
     }
 
+    @Override
     public String toString() {
-        return blobLocation.toString();
+        return "BlobFileRanges{"
+            + "blobLocation="
+            + blobLocation
+            + ", replicatedRanges="
+            + replicatedRanges
+            + ", timestampRange="
+            + timestampRange
+            + '}';
     }
 
     // for tests only
     public @Nullable Long locationOfFirstReplicatedContents() {
         return replicatedRanges.isEmpty() ? null : replicatedRanges.firstEntry().getValue().copy;
+    }
+
+    public void forEachReplicatedRange(BiConsumer<Long, Short> consumer) {
+        replicatedRanges.forEach((position, replicated) -> consumer.accept(replicated.copy(), replicated.length()));
     }
 }

@@ -43,14 +43,12 @@ main() {
 	local version=${PROMCHECK_VER:?missing required env: PROMCHECK_VER}
 	local test_instance_timeout=${PROMCHECK_TEST_INSTANCE_TIMEOUT:?missing required env: PROMCHECK_TEST_INSTANCE_TIMEOUT}
 	local python_version=3.14
-	local seed=${PROMCHECK_SEED:?missing required env: PROMCHECK_SEED}
 	local branch=${BUILDKITE_PULL_REQUEST_BASE_BRANCH:?missing required env: BUILDKITE_PULL_REQUEST_BASE_BRANCH}
-	local job_id=${BUILDKITE_JOB_ID:?missing required env: BUILDKITE_JOB_ID}
 	local tag=v$version release url
 	local data=$work/promcheck-data.tar.gz
 	local pkg=$work/$artifact
 	local data_dir=$work/data
-	local csv=$input/$dataset.csv
+	local fixture=$input/$dataset.jsonl
 	local control_log=$output/@$dataset-control.log
 	local test_log=$output/@$dataset-test.log
 	local src dst n=0 rc
@@ -58,11 +56,10 @@ main() {
 	local t_ok t_fail t_err t_skip t_total
 	local delta status
 
-	for cmd in buildkite-agent curl find git jq tar tee uv; do
+	for cmd in curl find git jq tar tee uv; do
 		command -v "$cmd" >/dev/null || die "missing: $cmd"
 	done
 	[[ $token ]] || die 'missing GH_TOKEN or GITHUB_TOKEN'
-	[[ $seed =~ ^[0-9]+$ ]] || die "PROMCHECK_SEED must be an integer: $seed"
 	[[ $test_instance_timeout =~ ^[0-9]+$ ]] || die "PROMCHECK_TEST_INSTANCE_TIMEOUT must be an integer: $test_instance_timeout"
 	((test_instance_timeout > 0)) || die "PROMCHECK_TEST_INSTANCE_TIMEOUT must be greater than 0: $test_instance_timeout"
 
@@ -102,10 +99,10 @@ main() {
 		[[ ! -e $dst ]] || die "duplicate query corpus filename: ${src##*/}"
 		cp -- "$src" "$dst"
 		((n += 1))
-	done < <(find "$data_dir" -type f -path '*/data/results/*' -name '*.csv' -print0)
+	done < <(find "$data_dir" -type f -path '*/data/results/*' -name '*.jsonl' -print0)
 
 	((n)) || die "can't find query corpus files under data/results"
-	[[ -f $csv ]] || die "query corpus file not found: $dataset.csv"
+	[[ -f $fixture ]] || die "query corpus file not found: $dataset.jsonl"
 	[[ -f $pkg ]] || die "promcheck artifact not found: $pkg"
 
 	trap cleanup EXIT
@@ -116,16 +113,13 @@ main() {
 	git worktree add --detach "$control" "origin/$branch"
 	uv python install "$python_version"
 
-	buildkite-agent meta-data set "tests-seed-$job_id" "$seed" >/dev/null 2>&1 || true
-
 	log 'running control'
 	set +e
 	NO_COLOR=1 uv run --cache-dir "$cache" --python "$python_version" --with "$pkg" promcheck \
-		--rng-seed "$seed" \
 		--granularity 15s \
 		--test-instance-timeout "$test_instance_timeout" \
 		--workspace "$control" \
-		"$csv" 2>&1 | tee "$control_log"
+		"$fixture" 2>&1 | tee "$control_log"
 	rc=${PIPESTATUS[0]}
 	set -e
 	if ((rc != 0 && rc != 1)); then
@@ -135,11 +129,10 @@ main() {
 	log 'running test'
 	set +e
 	NO_COLOR=1 uv run --cache-dir "$cache" --python "$python_version" --with "$pkg" promcheck \
-		--rng-seed "$seed" \
 		--granularity 15s \
 		--test-instance-timeout "$test_instance_timeout" \
 		--workspace "$PWD" \
-		"$csv" 2>&1 | tee "$test_log"
+		"$fixture" 2>&1 | tee "$test_log"
 	rc=${PIPESTATUS[0]}
 	set -e
 	if ((rc != 0 && rc != 1)); then

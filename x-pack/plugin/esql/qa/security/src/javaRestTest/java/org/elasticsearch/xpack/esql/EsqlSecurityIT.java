@@ -2418,6 +2418,78 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertOK(client().performRequest(delete));
     }
 
+    /**
+     * End-to-end regression for #152216 under security: the authorization layer expands a dataset DELETE
+     * wildcard across the whole (security-narrowed) index namespace, so the match set can include real
+     * indices. The transport must type-filter to datasets — deleting only the dataset, never the index,
+     * and not 404ing on an index name. Reproduces the reported {@code .siem-signals-default} scenario,
+     * which the no-security {@code DataSourceCrudIT} cannot exercise.
+     */
+    public void testDeleteDatasetWildcardResolvesOnlyDatasetsUnderSecurity() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String suffix = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        final String datasetName = "wildcard_it_d_" + suffix;
+        final String indexName = "wildcard_it_x_" + suffix;
+        try {
+            // A dataset and a same-prefix index that the wildcard also matches.
+            Request put = new Request("PUT", "/_query/dataset/" + datasetName);
+            XContentBuilder body = JsonXContent.contentBuilder();
+            body.startObject();
+            body.field("data_source", SECURITY_IT_SHARED_DATASOURCE);
+            body.field("resource", "s3://bucket/wildcard/*.parquet");
+            body.endObject();
+            put.setJsonEntity(Strings.toString(body));
+            setUser(put, "test-admin");
+            assertOK(client().performRequest(put));
+
+            Request createIndex = new Request("PUT", "/" + indexName);
+            setUser(createIndex, "test-admin");
+            assertOK(client().performRequest(createIndex));
+
+            // Relax the destructive guard so the wildcard resolves; the guard-rejection path is covered in DataSourceCrudIT.
+            setDestructiveRequiresName("false");
+
+            // DELETE the wildcard: resolves to datasets only — never the index, no index-named 404.
+            Request delete = new Request("DELETE", "/_query/dataset/wildcard_it_*");
+            setUser(delete, "test-admin");
+            assertOK(client().performRequest(delete));
+
+            // The dataset is gone...
+            Request getDataset = new Request("GET", "/_query/dataset/" + datasetName);
+            setUser(getDataset, "test-admin");
+            ResponseException notFound = expectThrows(ResponseException.class, () -> client().performRequest(getDataset));
+            assertThat(notFound.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_NOT_FOUND));
+
+            // ...and the index is untouched.
+            Request getIndex = new Request("GET", "/" + indexName);
+            setUser(getIndex, "test-admin");
+            assertOK(client().performRequest(getIndex));
+        } finally {
+            setDestructiveRequiresName(null);
+            deleteIndexQuietly(indexName);
+        }
+    }
+
+    private void setDestructiveRequiresName(String value) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity(
+            "{\"persistent\":{\"action.destructive_requires_name\":" + (value == null ? "null" : "\"" + value + "\"") + "}}"
+        );
+        setUser(request, "test-admin");
+        assertOK(client().performRequest(request));
+    }
+
+    private void deleteIndexQuietly(String indexName) {
+        try {
+            Request request = new Request("DELETE", "/" + indexName);
+            setUser(request, "test-admin");
+            client().performRequest(request);
+        } catch (Exception ignored) {
+            // best-effort cleanup
+        }
+    }
+
     public void testGetDatasetForbiddenWithoutReadDatasetMetadata() throws IOException {
         assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
         ensureSecurityItDatasourcesForTests();

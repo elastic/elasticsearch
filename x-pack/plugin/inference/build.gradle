@@ -570,6 +570,13 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named('yamlRestTest') {
   usesDefaultDistribution("Uses the inference API")
+  if (buildParams.snapshotBuild == false) {
+    // The columnar index mode is not available in release builds.
+    def snapshotOnlyTests = [
+      'inference/181_semantic_text_columnar_source/*'
+    ]
+    systemProperty 'tests.rest.blacklist', snapshotOnlyTests.join(',')
+  }
 }
 
 artifacts {

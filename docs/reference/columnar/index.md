@@ -119,7 +119,7 @@ With the columnar modes, fields that are not referenced in static mappings get d
 * Strings are mapped as a keyword field type.
 * Objects/arrays are mapped as one or more leaf fields (depending on the number of unmapped field paths). Mappings are flattened in columnar mode and that applies to unmapped objects too. Each leaf field under the unmapped object will be mapped as a separate leaf field. No object fields are added to the mappings.
 
-By default, for all unmapped fields doc values will be enabled. However unmapped fields will not indexed by default. This follows the design of storing each field once as doc values.
+Dynamically mapped fields are configured with doc values enabled and indexes disabled by default, in line with the columnar premise of storing each field once using doc values.
 
 Dynamic mapping behavior is controlled through configuration param `dynamic` that can be set to:
 - **true** (default): Enables the dynamic mapping behaviour as is described above.

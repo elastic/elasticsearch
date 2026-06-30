@@ -478,7 +478,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (t != null) {
                 name = parentName == null ? name : parentName + "." + name;
                 var fieldProperties = t.getProperties();
-                t = widenSmallNumeric(t);
+                t = t.withWidenedSmallNumeric();
                 var type = t.getDataType();
 
                 FieldAttribute attribute;
@@ -3162,11 +3162,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * <ol>
      *     <li>Field is a PUNK (partially unmapped non-KEYWORD)</li>
      *     <li>Field's type is consistent where mapped. It can't be mapped as two different non-KEYWORD types.</li>
-     *     <li>There exists a converter function to cast KEYWORD to the mapped type</li>
+     *     <li>There exists a converter function to cast {@code KEYWORD} to the mapped type</li>
      * </ol>
-     * PUNKs that fail the last criterion (no implicit KEYWORD converter, e.g. {@code TEXT}) are left untouched here and resolved later:
-     * {@code ResolveUnionTypes} loads the unmapped leg when an explicit cast is applied directly to the field, and otherwise
-     * {@code UnionTypesCleanup} falls them back to their mapped type ({@code null} where unmapped).
+     * PUNKs that fail the last criterion (no implicit {@code KEYWORD} converter, e.g., {@code TEXT}) are left untouched here and resolved
+     * later: {@code ResolveUnionTypes} loads the unmapped leg when an explicit cast is applied directly to the field, and otherwise
+     * {@code UnionTypesCleanup} replaces them with their mapped type ({@code null} where unmapped).
      */
     private static class ResolveTwoLeggedPunksInEsRelation extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
@@ -3191,8 +3191,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         // We can only load an unmapped field from _source as KEYWORD, so without a converter accepting KEYWORD input we
                         // can't auto-cast. Leave the PUNK in place: a cast applied directly to the field is resolved by ResolveUnionTypes
                         // (which loads the unmapped leg from _source), while every other use falls back to the mapped type in
-                        // UnionTypesCleanup (null where unmapped). Since the PUNK reports its mapped type, renames and groupings carry that
-                        // type instead of leaking UNSUPPORTED.
+                        // UnionTypesCleanup (null where unmapped). The PUNK reports its mapped type rather than UNSUPPORTED, so renames and
+                        // groupings carry the real type.
                         if (convert == null || convert.supportedTypes().contains(KEYWORD) == false) {
                             return fa;
                         }
@@ -3245,16 +3245,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static FieldAttribute fallbackToMappedType(FieldAttribute fieldAttribute, PotentiallyUnmappedSingleTypeEsField punk) {
-        return fieldAttribute.withField(widenSmallNumeric(punk.mappedField()));
-    }
-
-    /**
-     * Widen small numeric types (e.g. {@code SHORT} -> {@code INTEGER}) on a mapped field, returning a copy carrying the widened type (or
-     * the field unchanged when nothing widens). The copy is required because the {@link Attribute} hierarchy reads the type straight off the
-     * {@link EsField}. Shared with {@code mappingAsAttributes} so a fallen-back PUNK matches a normally mapped field.
-     */
-    private static EsField widenSmallNumeric(EsField field) {
-        return field.withDataType(field.getDataType().widenSmallNumeric());
+        return fieldAttribute.withField(punk.mappedField().withWidenedSmallNumeric());
     }
 
     /**
@@ -3315,7 +3306,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (original instanceof FieldAttribute fa
                 && fa.field() instanceof TypeConflictedField tcf
                 && tcf instanceof PotentiallyUnmappedSingleTypeEsField == false
-                && canBeCasted(tcf)) {
+                && canBeCast(tcf)) {
                 Map<String, Expression> typeConverters = new HashMap<>();
                 for (DataType type : tcf.types()) {
                     ConvertFunction convert = type == AGGREGATE_METRIC_DOUBLE
@@ -3343,7 +3334,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return original;
         }
 
-        private static boolean canBeCasted(TypeConflictedField tcf) {
+        private static boolean canBeCast(TypeConflictedField tcf) {
             return tcf.types().contains(AGGREGATE_METRIC_DOUBLE)
                 && tcf.types().stream().allMatch(f -> f == AGGREGATE_METRIC_DOUBLE || f.isNumeric());
         }
@@ -3356,13 +3347,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             AnalyzerContext context
         ) {
             if (field instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
-                // A bare PUNK is a single mapped type, not a multi-type conflict: leave it so UnionTypesCleanup falls it back to the plain
+                // A bare PUNK is a single mapped type, not a multi-type conflict: leave it so UnionTypesCleanup replaces it with the plain
                 // mapped field and native aggregation applies. (Count's AMD surrogate COALESCEs an empty group to 0, unlike the bare
                 // Sum(metric.count) this rule would build, which yields null.)
                 if (tcf instanceof PotentiallyUnmappedSingleTypeEsField) {
                     return aggFunc;
                 }
-                if (canBeCasted(tcf) == false) {
+                if (canBeCast(tcf) == false) {
                     aborted.set(Boolean.TRUE);
                     return aggFunc;
                 }

@@ -18,9 +18,9 @@ import java.util.TreeMap;
 
 /**
  * A variant of {@link PotentiallyUnmappedKeywordEsField} that is mapped to exactly one, non-keyword type where it is mapped, and unmapped
- * in other indices. It reports that mapped type (widened for small numerics) as its {@link #getDataType()}, retaining the original,
- * unwidened mapped {@link EsField} (with its original properties) to fall back to, so renames and groupings carry the mapped type rather
- * than leaking {@link DataType#UNSUPPORTED}.
+ * in other indices. Its {@link #getDataType()} is that mapped type (widened for small numerics), because reporting
+ * {@link DataType#UNSUPPORTED} (as a bare {@link TypeConflictedField} does) breaks renames and groupings that read the type before this
+ * field is resolved. It retains the original, unwidened mapped {@link EsField} (with its properties) to fall back to.
  * <p>
  * If an implicit cast from {@link DataType#KEYWORD} to the mapped type exists, it is auto-cast to that type. Otherwise it behaves exactly
  * as without {@code UNMAPPED_FIELDS="LOAD"} (mapped type where mapped, {@code null} where unmapped), unless an explicit cast accepting

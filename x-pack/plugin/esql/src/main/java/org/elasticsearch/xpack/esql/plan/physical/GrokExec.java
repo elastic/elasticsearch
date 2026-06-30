@@ -42,12 +42,13 @@ public class GrokExec extends RegexExtractExec {
     }
 
     private static GrokExec readFrom(StreamInput in) throws IOException {
-        Source source = Source.readFrom((PlanStreamInput) in);
+        PlanStreamInput planIn = (PlanStreamInput) in;
+        Source source = Source.readFrom(planIn);
         return new GrokExec(
             source,
             in.readNamedWriteable(PhysicalPlan.class),
             in.readNamedWriteable(Expression.class),
-            Grok.pattern(source, in.readString()),
+            Grok.pattern(source, in.readString(), planIn.grokMatcherWatchdog()),
             in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }

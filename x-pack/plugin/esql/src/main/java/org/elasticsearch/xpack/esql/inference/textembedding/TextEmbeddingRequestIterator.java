@@ -13,6 +13,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.AbstractEmbeddingRequestIterator;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
@@ -20,6 +21,8 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceReq
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItemIterator;
 
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.inference.InferenceService.ESQL_PRODUCT_USE_CASE;
 
 /**
  * Embedding request iterator for plain (untyped) text inputs.
@@ -41,7 +44,9 @@ class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
         if (text == null) {
             return new BulkInferenceRequestItem(null, pvcs);
         }
-        InferenceAction.Request.Builder builder = InferenceAction.Request.builder(inferenceId, taskType).setInput(List.of(text));
+        InferenceAction.Request.Builder builder = InferenceAction.Request.builder(inferenceId, taskType)
+            .setInput(List.of(text))
+            .setContext(new InferenceContext(ESQL_PRODUCT_USE_CASE));
         if (timeout != null) {
             builder.setInferenceTimeout(timeout);
         }

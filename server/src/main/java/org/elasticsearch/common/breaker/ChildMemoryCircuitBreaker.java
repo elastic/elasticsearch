@@ -13,10 +13,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 
-import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.core.Strings.format;
@@ -34,21 +38,70 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private final HierarchyCircuitBreakerService parent;
     private final String name;
     private final LongCounter trippedCountMeter;
+    private final LongUpDownCounter memoryHeldMeter;
+    private final Map<String, Object> uncategorizedHeldAttributes;
+    private final Map<String, Map<String, Object>> categoryAttributeCache;
 
+    /**
+     * Attribute key identifying the breaker on the legacy {@link CircuitBreakerMetrics#ES_BREAKER_TRIP_COUNT_TOTAL} counter.
+     * Retained as {@code "type"} for backwards compatibility with existing trip-count dashboards.
+     */
     public static final String CIRCUIT_BREAKER_TYPE_ATTRIBUTE = "type";
+
+    /**
+     * Attribute key identifying the breaker on the memory gauges ({@code es.breaker.memory.*}). Equivalent in meaning to
+     * {@link #CIRCUIT_BREAKER_TYPE_ATTRIBUTE} but namespaced as {@code "es_breaker_type"} to follow the newer metric naming convention.
+     */
+    public static final String BREAKER_METRIC_TYPE_ATTRIBUTE = "es_breaker_type";
+
+    /**
+     * Attribute key on the memory gauges identifying the (bounded) category a charge was admitted/released under. The value is
+     * derived from the caller-supplied label via {@link #categoryFor(String)} and is always one of {@link #KNOWN_CATEGORIES} or
+     * {@link #CATEGORY_UNCATEGORIZED}, so this dimension can never explode the metric's time-series cardinality.
+     */
+    public static final String CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE = "es_breaker_category";
+
+    /**
+     * Category value for any charge or release that does not map to one of the {@link #KNOWN_CATEGORIES}: the fallback for
+     * unrecognized labels and the bucket used by the unlabeled {@link #addWithoutBreaking(long)} path.
+     */
+    public static final String CATEGORY_UNCATEGORIZED = "uncategorized";
+
+    /** Per-phase retained query memory charged by {@link org.elasticsearch.index.query.AbstractQueryBuilder#toQuery}. */
+    public static final String CATEGORY_QUERY = "query";
+
+    /** Query-construction reservation for compiled wildcard automata. */
+    public static final String CATEGORY_WILDCARD = "wildcard";
+
+    /** Query-construction reservation for compiled regexp automata. */
+    public static final String CATEGORY_REGEXP = "regexp";
+
+    /** Range-query retained memory (label is {@code range:<field>}; the field suffix is stripped for the metric). */
+    public static final String CATEGORY_RANGE = "range";
+
+    /** Up-front reservation made by {@link PreallocatedCircuitBreakerService} (label is {@code preallocate[<detail>]}). */
+    public static final String CATEGORY_PREALLOCATE = "preallocate";
+
+    private static final Set<String> KNOWN_CATEGORIES = Set.of(
+        CATEGORY_QUERY,
+        CATEGORY_WILDCARD,
+        CATEGORY_REGEXP,
+        CATEGORY_RANGE,
+        CATEGORY_PREALLOCATE
+    );
 
     /**
      * Create a circuit breaker that will break if the number of estimated
      * bytes grows above the limit. All estimations will be multiplied by
      * the given overheadConstant. Uses the given oldBreaker to initialize
      * the starting offset.
-     * @param trippedCountMeter the counter used to report the tripped count metric
+     * @param metrics the metrics container used to report trip count and held-bytes metrics
      * @param settings settings to configure this breaker
      * @param parent parent circuit breaker service to delegate tripped breakers to
      * @param name the name of the breaker
      */
     public ChildMemoryCircuitBreaker(
-        LongCounter trippedCountMeter,
+        CircuitBreakerMetrics metrics,
         BreakerSettings settings,
         Logger logger,
         HierarchyCircuitBreakerService parent,
@@ -62,18 +115,45 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         this.logger = logger;
         logger.trace(() -> format("creating ChildCircuitBreaker with settings %s", settings));
         this.parent = parent;
-        this.trippedCountMeter = trippedCountMeter;
+        this.trippedCountMeter = metrics.getTripCount();
+        this.memoryHeldMeter = metrics.getMemoryHeld();
+        this.uncategorizedHeldAttributes = Map.of(
+            BREAKER_METRIC_TYPE_ATTRIBUTE,
+            this.name,
+            CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
+            CATEGORY_UNCATEGORIZED
+        );
+        final Map<String, Map<String, Object>> cache = new HashMap<>(KNOWN_CATEGORIES.size() + 1);
+        for (String category : KNOWN_CATEGORIES) {
+            cache.put(category, Map.of(BREAKER_METRIC_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, category));
+        }
+        cache.put(CATEGORY_UNCATEGORIZED, this.uncategorizedHeldAttributes);
+        this.categoryAttributeCache = Map.copyOf(cache);
     }
 
     /**
-     * Method used to trip the breaker, delegates to the parent to determine
-     * whether to trip the breaker or not
+     * Backwards-compatible constructor preserving the pre-telemetry-overhaul signature for out-of-tree callers that only have a
+     * trip {@link LongCounter}.
+     */
+    @Deprecated(forRemoval = true)
+    public ChildMemoryCircuitBreaker(
+        LongCounter trippedCountMeter,
+        BreakerSettings settings,
+        Logger logger,
+        HierarchyCircuitBreakerService parent,
+        String name
+    ) {
+        this(CircuitBreakerMetrics.fromTripCount(trippedCountMeter), settings, logger, parent, name);
+    }
+
+    /**
+     * Method used to trip the breaker, delegates to the parent to determine whether to trip the breaker or not.
      */
     @Override
     public void circuitBreak(String fieldName, long bytesNeeded) {
         final long memoryBytesLimit = this.limitAndOverhead.limit;
         this.trippedCount.incrementAndGet();
-        this.trippedCountMeter.incrementBy(1L, Collections.singletonMap(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, this.name));
+        this.trippedCountMeter.incrementBy(1L, Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, this.name));
         final String message = "["
             + this.name
             + "] Data too large, data for ["
@@ -95,10 +175,13 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     }
 
     /**
-     * Add a number of bytes, tripping the circuit breaker if the aggregated
-     * estimates are above the limit. Automatically trips the breaker if the
-     * memory limit is set to 0. Will never trip the breaker if the limit is
-     * set to -1, but can still be used to aggregate estimations.
+     * Add a number of bytes, tripping the circuit breaker if the aggregated estimates are above the limit. Automatically trips the breaker
+     * if the memory limit is set to 0. Will never trip the breaker if the limit is set to -1, but can still be used to aggregate
+     * estimations.
+     * <p>
+     * Only positive {@code bytes} values are recorded on the {@code es.breaker.memory.held.usage} gauge. Callers that need to release
+     * memory and keep the gauge balanced must use {@link #addWithoutBreaking(long, String)} with the same label as the original admit.
+     *
      * @param bytes number of bytes to add to the breaker
      */
     @Override
@@ -128,8 +211,11 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             // If the parent breaker is tripped, this breaker has to be
             // adjusted back down because the allocation is "blocked" but the
             // breaker has already been incremented
-            this.addWithoutBreaking(-bytes);
+            this.adjustUsedBytes(-bytes);
             throw e;
+        }
+        if (bytes > 0) {
+            this.memoryHeldMeter.add(bytes, heldAttributes(label));
         }
         assert newUsed >= 0 : "Used bytes: [" + newUsed + "] must be >= 0";
     }
@@ -195,11 +281,71 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      *
      * Also does not check with the parent breaker to see if the parent limit
      * has been exceeded.
+     * <p>
+     * Updates {@code es.breaker.memory.held.usage} under {@code category="uncategorized"}.
+     * Use {@link #addWithoutBreaking(long, String)} when the corresponding admit was labeled so that the per-category gauge stays balanced.
      *
      * @param bytes number of bytes to add to the breaker
      */
     @Override
     public void addWithoutBreaking(long bytes) {
+        adjustUsedBytes(bytes);
+        this.memoryHeldMeter.add(bytes, uncategorizedHeldAttributes);
+    }
+
+    /**
+     * Category-aware variant of {@link #addWithoutBreaking(long)} - records the delta on {@code es.breaker.memory.held.usage}
+     * under the bounded {@code es_breaker_category} that {@code label} maps to (see {@link #categoryFor(String)}), so that an
+     * admit / release pair sharing the same label cancels out on the per-category gauge.
+     */
+    @Override
+    public void addWithoutBreaking(long bytes, String label) {
+        adjustUsedBytes(bytes);
+        this.memoryHeldMeter.add(bytes, heldAttributes(label));
+    }
+
+    /**
+     * Builds the {@code es.breaker.memory.held.usage} attributes for {@code label}, mapping the free-text label to a bounded
+     * {@code es_breaker_category} via {@link #categoryFor(String)}. Returns a pre-computed cached map for every valid category
+     * (including {@link #CATEGORY_UNCATEGORIZED}) so no allocation occurs on the hot path.
+     */
+    private Map<String, Object> heldAttributes(String label) {
+        return categoryAttributeCache.get(categoryFor(label));
+    }
+
+    /**
+     * Maps a free-text breaker label to one of the bounded {@link #KNOWN_CATEGORIES}, or {@link #CATEGORY_UNCATEGORIZED} when the
+     * label is unrecognized or {@code null}. For composite labels of the form {@code <category>[<detail>]} (e.g.
+     * {@code preallocate[aggregations]}) or {@code <category>:<detail>} (e.g. {@code range:my_field}) only the {@code <category>}
+     * prefix - the text before the first {@code '['} or {@code ':'} - is matched, so the per-detail suffix adds no cardinality.
+     */
+    static String categoryFor(String label) {
+        if (label == null) {
+            return CATEGORY_UNCATEGORIZED;
+        }
+        final int separator = firstSeparator(label);
+        final String base = separator >= 0 ? label.substring(0, separator) : label;
+        return KNOWN_CATEGORIES.contains(base) ? base : CATEGORY_UNCATEGORIZED;
+    }
+
+    /** Index of the first {@code '['} or {@code ':'} in {@code label}, or {@code -1} when neither is present. */
+    private static int firstSeparator(String label) {
+        final int bracket = label.indexOf('[');
+        final int colon = label.indexOf(':');
+        if (bracket < 0) {
+            return colon;
+        }
+        if (colon < 0) {
+            return bracket;
+        }
+        return Math.min(bracket, colon);
+    }
+
+    void recordHeldDelta(long bytes, String label) {
+        this.memoryHeldMeter.add(bytes, heldAttributes(label));
+    }
+
+    private void adjustUsedBytes(long bytes) {
         long u = used.addAndGet(bytes);
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] Adjusted breaker by [{}] bytes, now [{}]", this.name, bytes, u);

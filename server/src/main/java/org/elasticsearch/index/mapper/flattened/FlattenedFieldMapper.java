@@ -38,6 +38,7 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -773,7 +774,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             }
 
             TermRangeQuery query = new TermRangeQuery(name(), lower, upper, lowerInclusive, upperInclusive);
-            context.addCircuitBreakerMemory(query.ramBytesUsed(), "range:" + name());
+            context.addCircuitBreakerMemory(query.ramBytesUsed(), ChildMemoryCircuitBreaker.CATEGORY_RANGE + ":" + name());
             return query;
         }
 

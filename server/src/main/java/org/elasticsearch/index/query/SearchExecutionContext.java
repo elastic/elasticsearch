@@ -23,6 +23,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -78,6 +79,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -139,6 +142,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     @Nullable
     private final CircuitBreaker circuitBreaker;
     private final AtomicLong queryConstructionMemoryUsed = new AtomicLong(0);
+    private final ConcurrentMap<String, AtomicLong> queryConstructionMemoryByLabel = new ConcurrentHashMap<>();
 
     public SearchExecutionContext(
         int shardId,
@@ -834,9 +838,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (delta > 0) {
             circuitBreaker.addEstimateBytesAndMaybeBreak(delta, label);
         } else if (delta < 0) {
-            circuitBreaker.addWithoutBreaking(delta);
+            circuitBreaker.addWithoutBreaking(delta, label);
         }
-        queryConstructionMemoryUsed.addAndGet(delta);
+        if (delta != 0) {
+            queryConstructionMemoryByLabel.computeIfAbsent(label, k -> new AtomicLong()).addAndGet(delta);
+            queryConstructionMemoryUsed.addAndGet(delta);
+        }
         if (held > 0 && CB_RESERVATION_LOGGER.isDebugEnabled()) {
             CB_RESERVATION_LOGGER.debug(
                 "automaton CB reservation swap: actual=[{}] reservation=[{}] label=[{}]",
@@ -859,23 +866,48 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * call multiple times; subsequent calls after the pool is drained are no-ops.
      */
     public void releaseQueryConstructionMemory() {
-        long memoryToRelease = queryConstructionMemoryUsed.getAndSet(0);
-        if (memoryToRelease > 0 && circuitBreaker != null) {
-            circuitBreaker.addWithoutBreaking(-memoryToRelease);
+        if (circuitBreaker == null) {
+            return;
         }
+        for (var entry : queryConstructionMemoryByLabel.entrySet()) {
+            long held = entry.getValue().getAndSet(0);
+            if (held > 0) {
+                circuitBreaker.addWithoutBreaking(-held, entry.getKey());
+            }
+        }
+        queryConstructionMemoryByLabel.clear();
+        queryConstructionMemoryUsed.set(0);
+    }
+
+    /**
+     * Release {@code bytes} of accumulated query construction memory back to the circuit breaker.
+     * Prefer {@link #releaseQueryConstructionMemory(long, String)} so the release is attributed to
+     * the correct {@code es_breaker_category} on the held-bytes gauge.
+     *
+     * @param bytes the number of bytes to refund; must be {@code >= 0}
+     * @deprecated use {@link #releaseQueryConstructionMemory(long, String)} to preserve per-category gauge balance
+     */
+    @Deprecated(forRemoval = true)
+    public void releaseQueryConstructionMemory(long bytes) {
+        releaseQueryConstructionMemory(bytes, ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED);
     }
 
     /**
      * Release {@code bytes} of accumulated query construction memory back to the circuit breaker.
      *
      * @param bytes the number of bytes to refund; must be {@code >= 0}
+     * @param label the label the bytes were originally admitted under
      */
-    public void releaseQueryConstructionMemory(long bytes) {
+    public void releaseQueryConstructionMemory(long bytes, String label) {
         assert bytes >= 0 : "negative refund: " + bytes;
         if (circuitBreaker == null || bytes <= 0) {
             return;
         }
-        circuitBreaker.addWithoutBreaking(-bytes);
+        circuitBreaker.addWithoutBreaking(-bytes, label);
+        AtomicLong held = queryConstructionMemoryByLabel.get(label);
+        if (held != null) {
+            held.addAndGet(-bytes);
+        }
         queryConstructionMemoryUsed.addAndGet(-bytes);
     }
 }

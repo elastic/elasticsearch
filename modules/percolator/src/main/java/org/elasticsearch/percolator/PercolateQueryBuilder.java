@@ -84,7 +84,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -647,7 +650,7 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
             : "source must not be an anonymous class as overridden methods will be lost when a new SearchExecutionContext is created";
         var wrapped = new SearchExecutionContext(source) {
 
-            private final AtomicLong perIterationCharges = new AtomicLong(0);
+            private final ConcurrentMap<String, AtomicLong> perIterationCharges = new ConcurrentHashMap<>();
 
             @Override
             public IndexReader getIndexReader() {
@@ -711,13 +714,13 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
             @Override
             public void addCircuitBreakerMemory(long bytes, String label) {
                 source.addCircuitBreakerMemory(bytes, label);
-                perIterationCharges.addAndGet(bytes);
+                perIterationCharges.computeIfAbsent(label, k -> new AtomicLong()).addAndGet(bytes);
             }
 
             @Override
             public void addCircuitBreakerMemory(long bytes, long heldBreakerBytes, String label) {
                 source.addCircuitBreakerMemory(bytes, heldBreakerBytes, label);
-                perIterationCharges.addAndGet(bytes - heldBreakerBytes);
+                perIterationCharges.computeIfAbsent(label, k -> new AtomicLong()).addAndGet(bytes - heldBreakerBytes);
             }
 
             @Override
@@ -727,10 +730,13 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
 
             @Override
             public void releaseQueryConstructionMemory() {
-                long bytes = perIterationCharges.getAndSet(0);
-                if (bytes > 0) {
-                    source.releaseQueryConstructionMemory(bytes);
+                for (Map.Entry<String, AtomicLong> entry : perIterationCharges.entrySet()) {
+                    long bytes = entry.getValue().getAndSet(0);
+                    if (bytes > 0) {
+                        source.releaseQueryConstructionMemory(bytes, entry.getKey());
+                    }
                 }
+                perIterationCharges.clear();
             }
         };
 

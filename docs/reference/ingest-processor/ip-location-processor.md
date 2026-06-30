@@ -23,7 +23,7 @@ If you would like to have {{es}} download database files directly from Maxmind u
 
 If {{es}} can’t connect to the endpoint for 30 days all updated databases will become invalid. {{es}} will stop enriching documents with ip geolocation data and will add `tags: ["_ip_location_expired_database"]` field instead.
 
-## Using the `ip_location` Processor in a Pipeline [using-ingest-ip-location]
+## Using the `ip_location` processor in a pipeline [using-ingest-ip-location]
 
 $$$ingest-ip-location-options$$$
 

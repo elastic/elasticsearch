@@ -28,17 +28,10 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 
 /**
  * Integration tests for the {@code _slice} metadata field in ES|QL.
- * Verifies that {@code METADATA _slice} can be requested, projected, and filtered
- * (with Lucene pushdown) against indices with {@code index.slice.enabled: true}.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MetadataSliceIT extends ESRestTestCase {
 
-    /**
-     * Dedicated cluster with the {@code slice_indexing} feature flag enabled.
-     * Without the flag {@code index.slice.enabled} is rejected at index creation and
-     * the {@code _slice} metadata attribute is not registered in ES|QL.
-     */
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(c -> c.feature(FeatureFlag.SLICE_INDEXING));
 
@@ -50,10 +43,6 @@ public class MetadataSliceIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    /**
-     * Verifies that {@code FROM idx METADATA _slice | KEEP _slice} returns the routing
-     * value for each document as the {@code _slice} column.
-     */
     public void testMetadataSliceReturnsRoutingValues() throws IOException {
         String index = "slice_test_read";
         createSliceIndex(index);
@@ -81,10 +70,6 @@ public class MetadataSliceIT extends ESRestTestCase {
         assertEquals(List.of("s1", "s1", "s2"), sliceValues);
     }
 
-    /**
-     * Verifies that {@code WHERE _slice == "s1"} is pushed down to Lucene and returns
-     * only documents whose routing matches the given slice value.
-     */
     public void testWhereSliceEqualityFilterPushdown() throws IOException {
         String index = "slice_test_filter";
         createSliceIndex(index);
@@ -107,10 +92,6 @@ public class MetadataSliceIT extends ESRestTestCase {
         }
     }
 
-    /**
-     * Verifies that {@code WHERE _slice != "s1"} returns only documents with a different
-     * slice value.
-     */
     public void testWhereSliceNotEqualityFilterPushdown() throws IOException {
         String index = "slice_test_neq";
         createSliceIndex(index);
@@ -132,10 +113,6 @@ public class MetadataSliceIT extends ESRestTestCase {
         assertEquals("s3", values.get(1).get(0));
     }
 
-    /**
-     * Verifies that {@code LIKE} on {@code _slice} is pushed to Lucene via a doc-values
-     * wildcard query and returns all documents whose routing matches the pattern.
-     */
     public void testWhereSliceLikeFilterPushdown() throws IOException {
         String index = "slice_test_like";
         createSliceIndex(index);
@@ -157,10 +134,6 @@ public class MetadataSliceIT extends ESRestTestCase {
         assertEquals("s1b", values.get(1).get(0));
     }
 
-    /**
-     * Verifies that {@code RLIKE} on {@code _slice} is pushed to Lucene via a doc-values
-     * regexp query and returns all documents whose routing matches the pattern.
-     */
     public void testWhereSliceRlikeFilterPushdown() throws IOException {
         String index = "slice_test_rlike";
         createSliceIndex(index);
@@ -182,9 +155,6 @@ public class MetadataSliceIT extends ESRestTestCase {
         assertEquals("s2", values.get(1).get(0));
     }
 
-    /**
-     * Verifies that {@code OR} of slice equalities returns the union of both slices.
-     */
     public void testWhereSliceOrFilter() throws IOException {
         String index = "slice_test_or";
         createSliceIndex(index);
@@ -206,10 +176,6 @@ public class MetadataSliceIT extends ESRestTestCase {
         assertEquals("s2", values.get(1).get(0));
     }
 
-    /**
-     * Verifies that a conflicting AND ({@code _slice == "s1" AND _slice == "s2"}) returns
-     * zero results — no document can satisfy both routing constraints simultaneously.
-     */
     public void testWhereSliceConflictingAndReturnsNoResults() throws IOException {
         String index = "slice_test_and_conflict";
         createSliceIndex(index);
@@ -228,11 +194,6 @@ public class MetadataSliceIT extends ESRestTestCase {
         assertTrue("conflicting AND on _slice must return zero results", values == null || values.isEmpty());
     }
 
-    /**
-     * Verifies that RENAME followed by WHERE on the renamed column works correctly.
-     * This exercises the plan traversal path where the filter references an alias rather
-     * than the original {@code _slice} attribute name.
-     */
     public void testRenameSliceThenFilter() throws IOException {
         String index = "slice_test_rename";
         createSliceIndex(index);
@@ -257,13 +218,6 @@ public class MetadataSliceIT extends ESRestTestCase {
         }
     }
 
-    /**
-     * Verifies that {@code _slice} works correctly when the filter <em>cannot</em> be pushed
-     * to Lucene and must be evaluated in the compute engine via the block loader.
-     * {@code SUBSTRING(_slice, 1, 1)} is not a pushable predicate, so the optimizer keeps
-     * the filter above the Lucene reader; ES|QL must load {@code _slice} values from doc
-     * values and apply the condition in-memory.
-     */
     public void testNonPushdownFilterViaBlockLoader() throws IOException {
         String index = "slice_test_non_pushdown";
         createSliceIndex(index);
@@ -286,10 +240,6 @@ public class MetadataSliceIT extends ESRestTestCase {
         assertEquals("apricot", values.get(1).get(0));
     }
 
-    /**
-     * Verifies that {@code _slice} can be used in a STATS aggregation, which reads values
-     * via the block loader without any filter pushdown.
-     */
     public void testStatsGroupBySlice() throws IOException {
         String index = "slice_test_stats";
         createSliceIndex(index);
@@ -313,13 +263,6 @@ public class MetadataSliceIT extends ESRestTestCase {
         assertEquals(1, ((Number) values.get(1).get(0)).intValue());
     }
 
-    // ---- helpers ----
-
-    /**
-     * Creates a slice-enabled index with {@code index.slice.enabled: true}.
-     * {@code DiskBBQPlugin.IndexSettingProvider} injects {@code index.slice.validated=true}
-     * automatically at creation time; without it the shard cannot start.
-     */
     private void createSliceIndex(String index) throws IOException {
         Request createIndex = new Request("PUT", "/" + index);
         createIndex.setJsonEntity("""
@@ -334,10 +277,6 @@ public class MetadataSliceIT extends ESRestTestCase {
         assertOK(client().performRequest(createIndex));
     }
 
-    /**
-     * Indexes a document using the given slice value.
-     * Slice-enabled indices require the {@code _slice} parameter rather than {@code routing}.
-     */
     private void indexDocWithSlice(String index, String id, String slice) throws IOException {
         Request req = new Request("PUT", "/" + index + "/_doc/" + id);
         req.addParameter("_slice", slice);

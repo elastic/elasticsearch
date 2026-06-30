@@ -111,7 +111,7 @@ public class S3ManagedIdentityBrokenAuthIT extends ESRestTestCase {
     }
 
     public void testQueryFailsCleanlyWhenCredentialsUnavailable() throws IOException {
-        putWorkloadIdentityDataSource(DATASOURCE_NAME, s3HttpFixture.getAddress());
+        putManagedIdentityDataSource(DATASOURCE_NAME, s3HttpFixture.getAddress());
         putDataset(DATASET_NAME, DATASOURCE_NAME, "s3://" + BUCKET + "/" + OBJECT_KEY);
 
         ResponseException ex = expectThrows(
@@ -127,7 +127,7 @@ public class S3ManagedIdentityBrokenAuthIT extends ESRestTestCase {
     // REST helpers
     // -----------------------------------------------------------------------------------------
 
-    private static void putWorkloadIdentityDataSource(String name, String endpoint) throws IOException {
+    private static void putManagedIdentityDataSource(String name, String endpoint) throws IOException {
         Request req = new Request("PUT", "/_query/data_source/" + name);
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject()

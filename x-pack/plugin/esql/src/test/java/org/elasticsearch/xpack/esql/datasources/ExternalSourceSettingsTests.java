@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ExternalSourceSettingsTests extends ESTestCase {
@@ -90,6 +92,26 @@ public class ExternalSourceSettingsTests extends ESTestCase {
             .put("esql.datasource.managed_identity.enabled", true)
             .build();
         assertTrue(ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings));
+    }
+
+    public void testDynamicUpdateOfDeprecatedKeyFiresConsumer() {
+        // EsqlPlugin gates ambient credentials on a live boolean updated by a ClusterSettings consumer registered on
+        // the new setting. An operator flipping the deprecated key at runtime must still fire that consumer — in both
+        // directions, including the security-critical disable — because the new setting's raw value resolves the fallback.
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(ExternalSourceSettings.MANAGED_IDENTITY_ENABLED, ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED)
+        );
+        AtomicBoolean enabled = new AtomicBoolean(false);
+        clusterSettings.addSettingsUpdateConsumer(ExternalSourceSettings.MANAGED_IDENTITY_ENABLED, enabled::set);
+
+        clusterSettings.applySettings(Settings.builder().put("esql.datasource.workload_identity.enabled", true).build());
+        assertTrue("enabling the deprecated key dynamically must fire the consumer on the new setting", enabled.get());
+
+        clusterSettings.applySettings(Settings.builder().put("esql.datasource.workload_identity.enabled", false).build());
+        assertFalse("disabling the deprecated key dynamically must fire the consumer (security-critical)", enabled.get());
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED });
     }
 
     // --- Stateless gate (mirrors the AtomicBoolean wiring in EsqlPlugin.createComponents) ---

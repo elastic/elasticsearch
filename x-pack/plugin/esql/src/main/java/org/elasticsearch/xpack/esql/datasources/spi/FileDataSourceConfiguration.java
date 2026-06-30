@@ -55,20 +55,20 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
     protected static final DataSourceConfigDefinition AUTH = plaintext("auth").asCaseInsensitive();
 
     /** Resolve the mode from the fields present (the default when {@code auth} is omitted). */
-    static final String AUTH_AUTO = "auto";
+    private static final String AUTH_AUTO = "auto";
     /** Public / unauthenticated access. */
-    static final String AUTH_ANONYMOUS = "anonymous";
+    private static final String AUTH_ANONYMOUS = "anonymous";
     /** A stored long-lived secret (access key + secret, service-account JSON, account key, SAS, ...). */
-    static final String AUTH_STATIC_CREDENTIALS = "static_credentials";
+    private static final String AUTH_STATIC_CREDENTIALS = "static_credentials";
     /** Issuer-minted OIDC federation, configured via keyless settings. */
-    static final String AUTH_FEDERATED_IDENTITY = "federated_identity";
+    private static final String AUTH_FEDERATED_IDENTITY = "federated_identity";
     /** The node's ambient cloud identity (instance profile / IMDS / metadata server). */
-    static final String AUTH_MANAGED_IDENTITY = "managed_identity";
+    private static final String AUTH_MANAGED_IDENTITY = "managed_identity";
 
     /** Deprecated former name for {@link #AUTH_ANONYMOUS}. */
-    static final String AUTH_DEPRECATED_NONE = "none";
+    private static final String AUTH_DEPRECATED_NONE = "none";
     /** Deprecated former name for {@link #AUTH_MANAGED_IDENTITY}. */
-    static final String AUTH_DEPRECATED_WORKLOAD_IDENTITY = "workload_identity";
+    private static final String AUTH_DEPRECATED_WORKLOAD_IDENTITY = "workload_identity";
 
     /**
      * Maps each deprecated {@code auth} value name (the entry key) to its canonical replacement (the entry value).

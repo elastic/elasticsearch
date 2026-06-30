@@ -80,8 +80,8 @@ public class AzureAksManagedIdentityAuthIT extends ESRestTestCase {
     private static final String ACCOUNT = "testaccount";
     private static final String CONTAINER = "testcontainer";
     private static final String OBJECT_KEY = "data/aks-rows.ndjson";
-    private static final String DATASOURCE_NAME = "aks_workload_identity_azure_ds";
-    private static final String DATASET_NAME = "aks_workload_identity_azure_rows";
+    private static final String DATASOURCE_NAME = "aks_managed_identity_azure_ds";
+    private static final String DATASET_NAME = "aks_managed_identity_azure_rows";
     private static final byte[] NDJSON_CONTENT = "{\"id\":1,\"city\":\"Paris\"}\n{\"id\":2,\"city\":\"Rome\"}\n".getBytes(
         StandardCharsets.UTF_8
     );
@@ -148,8 +148,8 @@ public class AzureAksManagedIdentityAuthIT extends ESRestTestCase {
         putBlockBlob(bearer, OBJECT_KEY, NDJSON_CONTENT);
     }
 
-    public void testAksWorkloadIdentityAuthQueryReturnsRows() throws IOException {
-        putWorkloadIdentityDataSource(DATASOURCE_NAME, fixture.getAddress());
+    public void testAksManagedIdentityAuthQueryReturnsRows() throws IOException {
+        putManagedIdentityDataSource(DATASOURCE_NAME, fixture.getAddress());
         putDataset(DATASET_NAME, DATASOURCE_NAME, "wasbs://" + ACCOUNT + ".blob.core.windows.net/" + CONTAINER + "/" + OBJECT_KEY);
 
         Map<String, Object> result = runEsql("FROM " + DATASET_NAME + " | STATS count = COUNT(*) | LIMIT 1");
@@ -160,12 +160,12 @@ public class AzureAksManagedIdentityAuthIT extends ESRestTestCase {
         assertThat("AKS workload identity query must count both seeded NDJSON rows", count.intValue(), equalTo(2));
     }
 
-    public void testAksWorkloadIdentityAuthRejectedWhenClusterSettingDisabled() throws IOException {
+    public void testAksManagedIdentityAuthRejectedWhenClusterSettingDisabled() throws IOException {
         try {
-            setWorkloadIdentityCredentialsEnabled(false);
+            setManagedIdentityCredentialsEnabled(false);
             ResponseException ex = expectThrows(
                 ResponseException.class,
-                () -> putWorkloadIdentityDataSource(DATASOURCE_NAME + "_disabled", fixture.getAddress())
+                () -> putManagedIdentityDataSource(DATASOURCE_NAME + "_disabled", fixture.getAddress())
             );
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(
@@ -173,7 +173,7 @@ public class AzureAksManagedIdentityAuthIT extends ESRestTestCase {
                 containsString("esql.datasource.managed_identity.enabled")
             );
         } finally {
-            setWorkloadIdentityCredentialsEnabled(true);
+            setManagedIdentityCredentialsEnabled(true);
         }
     }
 
@@ -250,7 +250,7 @@ public class AzureAksManagedIdentityAuthIT extends ESRestTestCase {
     // REST helpers
     // -----------------------------------------------------------------------------------------
 
-    private static void putWorkloadIdentityDataSource(String name, String endpoint) throws IOException {
+    private static void putManagedIdentityDataSource(String name, String endpoint) throws IOException {
         Request req = new Request("PUT", "/_query/data_source/" + name);
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject()
@@ -287,7 +287,7 @@ public class AzureAksManagedIdentityAuthIT extends ESRestTestCase {
         return entityAsMap(r);
     }
 
-    private static void setWorkloadIdentityCredentialsEnabled(boolean enabled) throws IOException {
+    private static void setManagedIdentityCredentialsEnabled(boolean enabled) throws IOException {
         Request req = new Request("PUT", "/_cluster/settings");
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject().startObject("persistent").field("esql.datasource.managed_identity.enabled", enabled).endObject().endObject();

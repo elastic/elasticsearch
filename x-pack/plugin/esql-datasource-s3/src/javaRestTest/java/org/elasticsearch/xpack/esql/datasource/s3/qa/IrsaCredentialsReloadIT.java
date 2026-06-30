@@ -124,7 +124,7 @@ public class IrsaCredentialsReloadIT extends ESRestTestCase {
     }
 
     public void testReloadCredentials() throws IOException {
-        putWorkloadIdentityDataSource(DATASOURCE_NAME, s3HttpFixture.getAddress());
+        putManagedIdentityDataSource(DATASOURCE_NAME, s3HttpFixture.getAddress());
         putDataset(DATASET_NAME, DATASOURCE_NAME, "s3://" + BUCKET + "/" + OBJECT_KEY);
 
         // The token file starts mismatched, so STS returns 401 and the S3 read cannot obtain
@@ -162,7 +162,7 @@ public class IrsaCredentialsReloadIT extends ESRestTestCase {
     // REST helpers
     // -----------------------------------------------------------------------------------------
 
-    private static void putWorkloadIdentityDataSource(String name, String endpoint) throws IOException {
+    private static void putManagedIdentityDataSource(String name, String endpoint) throws IOException {
         Request req = new Request("PUT", "/_query/data_source/" + name);
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject()

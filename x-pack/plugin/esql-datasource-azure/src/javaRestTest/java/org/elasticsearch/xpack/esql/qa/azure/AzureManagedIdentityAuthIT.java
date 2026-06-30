@@ -81,8 +81,8 @@ public class AzureManagedIdentityAuthIT extends ESRestTestCase {
     private static final String ACCOUNT = "testaccount";
     private static final String CONTAINER = "testcontainer";
     private static final String OBJECT_KEY = "data/rows.ndjson";
-    private static final String DATASOURCE_NAME = "workload_identity_azure_ds";
-    private static final String DATASET_NAME = "workload_identity_azure_rows";
+    private static final String DATASOURCE_NAME = "managed_identity_azure_ds";
+    private static final String DATASET_NAME = "managed_identity_azure_rows";
     private static final byte[] NDJSON_CONTENT = "{\"id\":1,\"city\":\"Vienna\"}\n{\"id\":2,\"city\":\"Berlin\"}\n".getBytes(
         StandardCharsets.UTF_8
     );
@@ -161,8 +161,8 @@ public class AzureManagedIdentityAuthIT extends ESRestTestCase {
      * resolved a bearer token from the fixture's metadata endpoint, and that token was accepted
      * by the fixture's strict bearer-token predicate while reading the seeded NDJSON blob.
      */
-    public void testWorkloadIdentityAuthQueryReturnsRows() throws IOException {
-        putWorkloadIdentityDataSource(DATASOURCE_NAME, fixture.getAddress());
+    public void testManagedIdentityAuthQueryReturnsRows() throws IOException {
+        putManagedIdentityDataSource(DATASOURCE_NAME, fixture.getAddress());
         putDataset(DATASET_NAME, DATASOURCE_NAME, "wasbs://" + ACCOUNT + ".blob.core.windows.net/" + CONTAINER + "/" + OBJECT_KEY);
 
         // Trailing LIMIT 1 silences ESQL's "no limit defined, adding default limit of [1000]" warning,
@@ -182,12 +182,12 @@ public class AzureManagedIdentityAuthIT extends ESRestTestCase {
      * (not just the validator unit-test default) and that the dynamic supplier in {@code EsqlPlugin}
      * actually observes operator changes.
      */
-    public void testWorkloadIdentityAuthRejectedWhenClusterSettingDisabled() throws IOException {
+    public void testManagedIdentityAuthRejectedWhenClusterSettingDisabled() throws IOException {
         try {
-            setWorkloadIdentityCredentialsEnabled(false);
+            setManagedIdentityCredentialsEnabled(false);
             ResponseException ex = expectThrows(
                 ResponseException.class,
-                () -> putWorkloadIdentityDataSource(DATASOURCE_NAME, fixture.getAddress())
+                () -> putManagedIdentityDataSource(DATASOURCE_NAME, fixture.getAddress())
             );
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(
@@ -196,7 +196,7 @@ public class AzureManagedIdentityAuthIT extends ESRestTestCase {
             );
         } finally {
             // Restore for the rest of the suite. @Before's cleanup runs against fresh state.
-            setWorkloadIdentityCredentialsEnabled(true);
+            setManagedIdentityCredentialsEnabled(true);
         }
     }
 
@@ -264,7 +264,7 @@ public class AzureManagedIdentityAuthIT extends ESRestTestCase {
     // REST helpers
     // -----------------------------------------------------------------------------------------
 
-    private static void putWorkloadIdentityDataSource(String name, String endpoint) throws IOException {
+    private static void putManagedIdentityDataSource(String name, String endpoint) throws IOException {
         Request req = new Request("PUT", "/_query/data_source/" + name);
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject()
@@ -321,7 +321,7 @@ public class AzureManagedIdentityAuthIT extends ESRestTestCase {
         }
     }
 
-    private static void setWorkloadIdentityCredentialsEnabled(boolean enabled) throws IOException {
+    private static void setManagedIdentityCredentialsEnabled(boolean enabled) throws IOException {
         Request req = new Request("PUT", "/_cluster/settings");
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject().startObject("persistent").field("esql.datasource.managed_identity.enabled", enabled).endObject().endObject();

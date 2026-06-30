@@ -70,8 +70,8 @@ public class PodIdentityManagedIdentityAuthIT extends ESRestTestCase {
 
     private static final String BUCKET = "pod-identity-test-bucket";
     private static final String OBJECT_KEY = "data/rows.ndjson";
-    private static final String DATASOURCE_NAME = "pod_identity_workload_identity_ds";
-    private static final String DATASET_NAME = "pod_identity_workload_identity_rows";
+    private static final String DATASOURCE_NAME = "pod_identity_managed_identity_ds";
+    private static final String DATASET_NAME = "pod_identity_managed_identity_rows";
     private static final byte[] NDJSON_CONTENT = "{\"id\":1,\"city\":\"Lisbon\"}\n{\"id\":2,\"city\":\"Madrid\"}\n".getBytes(
         StandardCharsets.UTF_8
     );
@@ -127,8 +127,8 @@ public class PodIdentityManagedIdentityAuthIT extends ESRestTestCase {
      * but exercises the {@code ContainerCredentialsProvider} branch of the workload-identity
      * chain instead of the IRSA branch.
      */
-    public void testPodIdentityWorkloadIdentityAuthQueryReturnsRows() throws IOException {
-        putWorkloadIdentityDataSource(DATASOURCE_NAME, s3HttpFixture.getAddress());
+    public void testPodIdentityManagedIdentityAuthQueryReturnsRows() throws IOException {
+        putManagedIdentityDataSource(DATASOURCE_NAME, s3HttpFixture.getAddress());
         putDataset(DATASET_NAME, DATASOURCE_NAME, "s3://" + BUCKET + "/" + OBJECT_KEY);
 
         Map<String, Object> result = runEsql("FROM " + DATASET_NAME + " | STATS count = COUNT(*) | LIMIT 1");
@@ -149,17 +149,17 @@ public class PodIdentityManagedIdentityAuthIT extends ESRestTestCase {
      * so this exists for symmetry — deleting one of the gates should fail the negative test in
      * both surfaces.
      */
-    public void testPodIdentityWorkloadIdentityAuthRejectedWhenClusterSettingDisabled() throws IOException {
+    public void testPodIdentityManagedIdentityAuthRejectedWhenClusterSettingDisabled() throws IOException {
         try {
-            setWorkloadIdentityEnabled(false);
+            setManagedIdentityEnabled(false);
             ResponseException ex = expectThrows(
                 ResponseException.class,
-                () -> putWorkloadIdentityDataSource(DATASOURCE_NAME + "_disabled", s3HttpFixture.getAddress())
+                () -> putManagedIdentityDataSource(DATASOURCE_NAME + "_disabled", s3HttpFixture.getAddress())
             );
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("esql.datasource.managed_identity.enabled"));
         } finally {
-            setWorkloadIdentityEnabled(true);
+            setManagedIdentityEnabled(true);
         }
     }
 
@@ -167,7 +167,7 @@ public class PodIdentityManagedIdentityAuthIT extends ESRestTestCase {
     // REST helpers
     // -----------------------------------------------------------------------------------------
 
-    private static void putWorkloadIdentityDataSource(String name, String endpoint) throws IOException {
+    private static void putManagedIdentityDataSource(String name, String endpoint) throws IOException {
         Request req = new Request("PUT", "/_query/data_source/" + name);
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject()
@@ -205,7 +205,7 @@ public class PodIdentityManagedIdentityAuthIT extends ESRestTestCase {
         return entityAsMap(r);
     }
 
-    private static void setWorkloadIdentityEnabled(boolean enabled) throws IOException {
+    private static void setManagedIdentityEnabled(boolean enabled) throws IOException {
         Request req = new Request("PUT", "/_cluster/settings");
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject().startObject("persistent").field("esql.datasource.managed_identity.enabled", enabled).endObject().endObject();

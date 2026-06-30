@@ -95,8 +95,8 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
     static final String WORKLOAD_IDENTITY_SECRET_KEY = "workload-identity-test-secret-key";
     static final String BUCKET = "test-workload-identity-bucket";
     static final String OBJECT_KEY = "data/rows.ndjson";
-    static final String DATASOURCE_NAME = "workload_identity_s3";
-    static final String DATASET_NAME = "workload_identity_rows";
+    static final String DATASOURCE_NAME = "managed_identity_s3";
+    static final String DATASET_NAME = "managed_identity_rows";
 
     /** Captures the Authorization header from the most recent S3 request for assertion. */
     static final AtomicReference<String> lastAuthorizationHeader = new AtomicReference<>();
@@ -264,8 +264,8 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
      * — proving the credential came from the workload identity chain (system properties) rather than
      * anonymous access or explicit credentials.
      */
-    public void testWorkloadIdentityAuthReadsRowsAndUsesWorkloadIdentityCredential() throws Exception {
-        registerWorkloadIdentityDatasource();
+    public void testManagedIdentityAuthReadsRowsAndUsesWorkloadIdentityCredential() throws Exception {
+        registerManagedIdentityDatasource();
         registerDataset();
 
         try (EsqlQueryResponse response = run(syncEsqlQueryRequest("FROM " + DATASET_NAME + " | STATS count = COUNT(*)"))) {
@@ -327,8 +327,8 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
      * Verifies that {@code auth=managed_identity} is rejected at data-source registration time when
      * the cluster setting is disabled.
      */
-    public void testWorkloadIdentityAuthRejectedWhenSettingDisabledAtValidation() {
-        // workloadIdentityEnabled defaults to () -> false
+    public void testManagedIdentityAuthRejectedWhenSettingDisabledAtValidation() {
+        // managedIdentityEnabled defaults to () -> false
         var validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, java.util.Set.of("s3", "s3a", "s3n"));
         var e = expectThrows(
             org.elasticsearch.common.ValidationException.class,
@@ -378,7 +378,7 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
     // Helpers
     // --------------------------------------------------------------------------------------------
 
-    private void registerWorkloadIdentityDatasource() throws Exception {
+    private void registerManagedIdentityDatasource() throws Exception {
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,

@@ -30,6 +30,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 /**
  * End-to-end REST coverage for the CRUD API against a cluster with {@code esql-datasource-s3}
@@ -185,6 +186,33 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         deleteDataSource(parent);
         client().performRequest(new Request("DELETE", "/_data_stream/" + dataStream));
         client().performRequest(new Request("DELETE", "/_index_template/entities-updates-tmpl"));
+    }
+
+    public void testGetDatasetByExplicitDataStreamNameReturnsCleanNotFound() throws IOException {
+        // GET an explicit name that happens to be a co-resident data stream. The dataset resolver throws
+        // IndexNotFoundException (with excluded_ds) before its Type.DATASET filter runs; the GET transport must
+        // translate that to a clean dataset-shaped not-found — never leak the raw index_not_found_exception.
+        // Mirrors the DELETE behavior. (Before the fix this leaked "excluded_ds"; that was the shape of Tyler's 404.)
+        final String dataStream = "entities-updates-default";
+        Request tmpl = new Request("PUT", "/_index_template/entities-updates-tmpl");
+        tmpl.setJsonEntity("{\"index_patterns\":[\"entities-updates-*\"],\"data_stream\":{}}");
+        assertThat(client().performRequest(tmpl).getStatusLine().getStatusCode(), equalTo(200));
+        Request createDs = new Request("PUT", "/_data_stream/" + dataStream);
+        assertThat(client().performRequest(createDs).getStatusLine().getStatusCode(), equalTo(200));
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> client().performRequest(new Request("GET", "/_query/dataset/" + dataStream))
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+            String body = EntityUtils.toString(ex.getResponse().getEntity());
+            assertThat(body, containsString("dataset [" + dataStream + "] not found"));
+            assertThat("GET must not leak the raw index resolution error", body, not(containsString("excluded_ds")));
+            assertThat(body, not(containsString("index_not_found_exception")));
+        } finally {
+            client().performRequest(new Request("DELETE", "/_data_stream/" + dataStream));
+            client().performRequest(new Request("DELETE", "/_index_template/entities-updates-tmpl"));
+        }
     }
 
     public void testPutDatasetWithMissingParent() throws IOException {

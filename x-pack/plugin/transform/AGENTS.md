@@ -1,8 +1,6 @@
-# CLAUDE.md
+# Transform plugin (transform)
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-This file covers the **Transform plugin** (`:x-pack:plugin:transform`, esplugin artifact `transform`). The repository-root `AGENTS.md` is authoritative for build toolchain, formatting, logging, transport-version, and general testing conventions — this file does not repeat them. Read the root `AGENTS.md` first; the notes below are transform-specific.
+Guidance for coding agents working in `x-pack/plugin/transform/` (Gradle `:x-pack:plugin:transform`, esplugin artifact `transform`). The repository-root `AGENTS.md` is authoritative for build toolchain, formatting, logging, transport-version, and general testing conventions — this file does not repeat them. Read the root `AGENTS.md` first; the notes below are transform-specific.
 
 ## Build & Test Commands
 
@@ -47,7 +45,7 @@ YAML REST specs live in `src/yamlRestTest/resources/rest-api-spec/test/transform
 - `getActions()` — transport actions; `getRestHandlers()` — REST endpoints.
 - `createComponents()` — builds `TransformServices` (config manager, checkpoint service, auditor, scheduler, transform-node tracker, cloud-credential manager) and returns it for DI.
 - `getPersistentTasksExecutor()` — wires `TransformPersistentTasksExecutor`.
-- Settings of note: `NUM_FAILURE_RETRIES_SETTING` (default 10), scheduler frequency (default 1s).
+- Settings of note: `NUM_FAILURE_RETRIES_SETTING` (per-transform failure-retry cap) and `SCHEDULER_FREQUENCY` (how often the scheduler ticks) — see `Transform.java` for current defaults.
 
 ## xpack-core vs plugin split
 

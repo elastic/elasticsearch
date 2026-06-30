@@ -1,8 +1,6 @@
-# CLAUDE.md
+# ML contracts library (xpack-core/ml)
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-This file covers the **ML contracts library** — the `org.elasticsearch.xpack.core.ml` package inside xpack-core. It holds the *contracts* (serializable config/state POJOs, transport action definitions, registries, cluster-state metadata, versioning), **not** runtime logic. The execution side (transport handlers, REST handlers, persistent-task executors, native processes) lives in `x-pack/plugin/ml` (see its own `CLAUDE.md`). The repository-root `AGENTS.md` is authoritative for toolchain, formatting, logging, and transport-version rules — this file does not repeat them.
+Guidance for coding agents working in the `org.elasticsearch.xpack.core.ml` package inside xpack-core. It holds the *contracts* (serializable config/state POJOs, transport action definitions, registries, cluster-state metadata, versioning), **not** runtime logic. The execution side (transport handlers, REST handlers, persistent-task executors, native processes) lives in `x-pack/plugin/ml` (see its own `AGENTS.md`). The repository-root `AGENTS.md` is authoritative for toolchain, formatting, logging, and transport-version rules — this file does not repeat them.
 
 ## Build & Test
 
@@ -67,7 +65,7 @@ Configs are immutable with a nested `Builder`; validation runs at `build()` time
 
 ## Versioning & backwards compatibility
 
-`MlConfigVersion` is a **config-format version, distinct from `TransportVersion`**: it is human-readable and persisted inside documents and cluster state, so it tracks the schema of stored ML configs rather than the wire protocol. Post-8.10 it uses detached incrementing integer ids (current `V_12`), and each constant carries a unique id string to avoid duplicate-id git merge collisions; `MlConfigVersionComponent` surfaces it in node info.
+`MlConfigVersion` is a **config-format version, distinct from `TransportVersion`**: it is human-readable and persisted inside documents and cluster state, so it tracks the schema of stored ML configs rather than the wire protocol. Post-8.10 it uses detached incrementing integer ids (the latest is `MlConfigVersion.CURRENT`), and each constant carries a unique id string to avoid duplicate-id git merge collisions; `MlConfigVersionComponent` surfaces it in node info.
 
 For wire-format changes across mixed-version clusters, follow the root `AGENTS.md` "Backwards compatibility" section and `.claude/rules/elasticsearch-transport-version.md` — do not restate that workflow here. Any change to a `Writeable`'s `writeTo`/`StreamInput` constructor needs a new named `TransportVersion` gate and a BWC round-trip test.
 
@@ -95,6 +93,13 @@ For wire-format changes across mixed-version clusters, follow the root `AGENTS.m
 - `utils/` — shared validation/serialization helpers (`ExceptionsHelper`, `ToXContentParams`, `NamedXContentObjectHelper`, `RuntimeMappingsValidator`).
 
 Top-level: `MachineLearningField` (ML settings/constants, `machine-learning` feature family, PLATINUM license), `MachineLearningFeatureSetUsage`.
+
+## Gotchas
+
+- **Pick the right parser.** Use `STRICT_PARSER`/`REST_REQUEST_PARSER` for API input and `LENIENT_PARSER` for persisted docs / cluster state. The wrong one either rejects valid stored data or lets clients set internal fields.
+- **Register new polymorphic subtypes.** A new inference config, tokenization, data-frame analysis, evaluation metric, or result type must be added to the matching `Ml*NamedXContentProvider` (NamedWriteable + NamedXContent) or it will not deserialize.
+- **Gate wire changes.** Any change to a `Writeable`'s `writeTo`/`StreamInput` constructor needs a new named `TransportVersion` gate **and** a BWC round-trip test (`AbstractBWC*SerializationTestCase`). Follow the root `AGENTS.md` "Backwards compatibility" workflow.
+- **`MlConfigVersion` ≠ `TransportVersion`.** They version different things (stored config schema vs. wire protocol); don't substitute one for the other, and don't reuse a version constant's unique id string.
 
 ## Testing conventions
 

@@ -1,8 +1,6 @@
-# CLAUDE.md
+# Inference API plugin (x-pack-inference)
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-This file covers the **Inference API plugin** (`:x-pack:plugin:inference`, esplugin artifact `x-pack-inference`, class `InferencePlugin`). It implements the `_inference` API, integrates ~28 external/internal inference services, and provides `semantic_text` and inference-based reranking. The repository-root `AGENTS.md` is authoritative for toolchain, formatting, logging, transport-version, and general testing conventions — this file does not repeat them. Read it first.
+Guidance for coding agents working in `x-pack/plugin/inference/` (Gradle `:x-pack:plugin:inference`, esplugin artifact `x-pack-inference`, class `InferencePlugin`). It implements the `_inference` API, integrates many external/internal inference services (see the provider subdirs under `services/`), and provides `semantic_text` and inference-based reranking. The repository-root `AGENTS.md` is authoritative for toolchain, formatting, logging, transport-version, and general testing conventions — this file does not repeat them. Read it first.
 
 ## This plugin vs. the ML plugin — don't confuse them
 
@@ -94,6 +92,14 @@ For services that call out over HTTP, a request flows:
 - **Ingest:** `action/filter/ShardBulkInferenceActionFilter` intercepts bulk shard requests, batches inference over the configured `inference_fields` (chunking long text, respecting `INDICES_INFERENCE_BATCH_SIZE`), and injects the embeddings into the document source before normal indexing.
 - **Search:** `queries/SemanticQueryBuilder` and the `Semantic{Knn,Match,SparseVector}QueryRewriteInterceptor`s auto-embed the query text at rewrite time and rewrite to native vector/sparse/match queries. `highlight/SemanticTextHighlighter` highlights matched chunks.
 - **Reranking:** `rank/textsimilarity/TextSimilarityRankBuilder` reranks first-pass hits through a rerank endpoint.
+
+## Gotchas
+
+- **Register on both sides.** A new service/model/results type must be registered as a service factory in `InferencePlugin` **and** as `NamedWriteable`(s) in `InferenceNamedWriteablesProvider`, or it silently fails to deserialize from cluster state / the index.
+- **Right parse context.** Honor `ConfigurationParseContext`: `REQUEST` (strict, rejects unknown fields — user API input) vs `PERSISTENT` (lenient — loaded from `.inference`). Using the wrong one breaks either client validation or forward-compat reads.
+- **Secrets stay separate.** Credentials are written to `.inference-secrets`, never `.inference`. Don't fold secret settings into the config document.
+- **SPI is in server.** The `InferenceService`/`Model`/settings/`TaskType` contracts live in server's `org.elasticsearch.inference`, not this plugin and not xpack-core — extend those, don't fork them.
+- **Don't block.** External calls go through the async `Sender`/`HttpRequestSender` path on the inference thread pools; don't call services synchronously from a transport or cluster-state thread.
 
 ## Testing conventions specific to inference
 

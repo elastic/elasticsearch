@@ -1,8 +1,6 @@
-# CLAUDE.md
+# Machine Learning plugin (x-pack-ml)
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-This file covers the **Machine Learning plugin** (`:x-pack:plugin:ml`, Gradle artifact `x-pack-ml`). The repository-root `AGENTS.md` is authoritative for build toolchain, formatting, logging, transport-version, and general testing conventions — this file does not repeat them. Read the root `AGENTS.md` first; the notes below are ML-specific.
+Guidance for coding agents working in `x-pack/plugin/ml/` (Gradle `:x-pack:plugin:ml`, artifact `x-pack-ml`). The repository-root `AGENTS.md` is authoritative for build toolchain, formatting, logging, transport-version, and general testing conventions — this file does not repeat them. Read the root `AGENTS.md` first; the notes below are ML-specific.
 
 ## Build & Test Commands
 
@@ -45,12 +43,12 @@ YAML REST tests for ML live in `src/test/resources/rest-api-spec/test/ml/`. Use 
 This plugin sets `hasNativeController = true` and ships the C++ backend (`ml-cpp`) as a downloaded artifact (see `build.gradle`). The Java side **launches and communicates with native processes** rather than computing in-JVM. The Java↔C++ boundary is the most important architectural fact in this plugin:
 
 - Anomaly detection, normalization, data-frame-analytics, and PyTorch inference each run in a separate native process.
-- Each process type is created behind a `*ProcessFactory` abstraction (`AutodetectProcessFactory`, `NormalizerProcessFactory`, `AnalyticsProcessFactory`, `PyTorchProcessFactory`). **Tests use `BlackHole`/no-op factory implementations** to avoid spawning native code — follow this pattern; do not require `ml-cpp` in unit tests.
-- `ml-cpp` is a sibling repo in this workspace. ML behavior is split across the Java plugin and the C++ backend; a change in process I/O framing usually requires coordinated edits on both sides.
+- Each process type is created behind a `*ProcessFactory` abstraction (`AutodetectProcessFactory`, `NormalizerProcessFactory`, `AnalyticsProcessFactory`, `PyTorchProcessFactory`). **Tests use `BlackHole*` process implementations** (e.g. `BlackHoleAutodetectProcess`, `BlackHolePyTorchProcess`) to avoid spawning native code — follow this pattern; do not require `ml-cpp` in unit tests.
+- The C++ backend lives in the separate `elastic/ml-cpp` repository and is consumed as a downloaded build artifact (see `build.gradle`). ML behavior is split across the Java plugin and the C++ backend; a change in process I/O framing usually requires coordinated edits on both sides.
 
 ## Plugin entry point
 
-`MachineLearning.java` (~2,500 lines) is the single registration hub. It implements many Elasticsearch plugin SPIs (`SystemIndexPlugin`, `PersistentTaskPlugin`, `IngestPlugin`, `SearchPlugin`, `CircuitBreakerPlugin`, `ShutdownAwarePlugin`, `AnalysisPlugin`, `ExtensiblePlugin`). When adding a feature you typically register it here:
+`MachineLearning.java` is the single, large registration hub. It implements many Elasticsearch plugin SPIs (`SystemIndexPlugin`, `AnalysisPlugin`, `CircuitBreakerPlugin`, `IngestPlugin`, `PersistentTaskPlugin`, `SearchPlugin`, `ShutdownAwarePlugin`, `ExtensiblePlugin`). When adding a feature you typically register it here:
 
 - `getActions()` — transport actions
 - `getRestHandlers()` — REST endpoints
@@ -76,12 +74,12 @@ Cross-cutting infrastructure: `process/` (native process management), `notificat
 ### Recurring patterns
 
 - **Manager → Provider/Persister.** `*ConfigProvider` reads config from system indices; `*ResultsPersister`/`*ResultsProvider` write/read results. All use an origin-setting client (`ML_ORIGIN`) for system-level index access.
-- **Persistent tasks.** Jobs/datafeeds/analytics/deployments are persistent tasks assigned to nodes by the master; see `AbstractJobPersistentTasksExecutor` and the `assignment/` rebalancer for trained models. Assignment can fail and be retried — assume node churn (see workspace rule `serverless-node-churn.md`).
+- **Persistent tasks.** Jobs/datafeeds/analytics/deployments are persistent tasks assigned to nodes by the master; see `AbstractJobPersistentTasksExecutor` and the `assignment/` rebalancer for trained models. Assignment can fail and be retried — assume node churn (especially in stateless/serverless, where nodes are drained and relocated routinely).
 - **Auditing.** User-facing lifecycle events go through `AnomalyDetectionAuditor` / `DataFrameAnalyticsAuditor` / `InferenceAuditor`, not just the logger.
 
 ## Testing conventions specific to ML
 
 - Unit-test base classes: `ESTestCase`, `MlSingleNodeTestCase`, `org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase` (multi-node), `CategorizationTestCase`.
 - Internal cluster tests are in `src/internalClusterTest/java/.../integration/` and named `*IT`.
-- Do not spawn native processes in unit tests — use the BlackHole/no-op process factories.
+- Do not spawn native processes in unit tests — use the `BlackHole*` process implementations.
 - This plugin requires a Platinum/Trial license; test clusters set `xpack.license.self_generated.type = trial`.

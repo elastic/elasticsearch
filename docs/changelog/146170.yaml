@@ -1,0 +1,6 @@
+pr: 146170
+summary: "ES|QL: add FMT_BYTES, FMT_BYTES_SI, FMT_DURATION, FMT_PERCENT human-readable formatting functions"
+area: ES|QL
+type: enhancement
+issues:
+  - 136533

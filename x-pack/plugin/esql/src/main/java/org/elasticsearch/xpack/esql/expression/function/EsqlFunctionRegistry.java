@@ -218,6 +218,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chicken;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtBytes;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtBytesSi;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtDuration;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtPercent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
@@ -473,6 +477,10 @@ public class EsqlFunctionRegistry {
                 BitLength.DEFINITION,
                 ByteLength.DEFINITION,
                 Chicken.DEFINITION,
+                FmtBytes.DEFINITION,
+                FmtBytesSi.DEFINITION,
+                FmtDuration.DEFINITION,
+                FmtPercent.DEFINITION,
                 Concat.DEFINITION,
                 Contains.DEFINITION,
                 EndsWith.DEFINITION,

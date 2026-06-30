@@ -17,6 +17,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Clamp
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtBytes;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtBytesSi;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtDuration;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtPercent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateDiff;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;

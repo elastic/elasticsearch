@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.inference.ToXContentParams;
@@ -54,6 +55,7 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
     private final OriginSettingClient client;
     private final Optional<SecurityContext> securityContext;
     private final ClusterService clusterService;
+    private final FeatureService featureService;
 
     @Inject
     public TransportPutRegionPolicyAction(
@@ -62,7 +64,8 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Client client,
-        ClusterService clusterService
+        ClusterService clusterService,
+        FeatureService featureService
     ) {
         super(
             PutRegionPolicyAction.NAME,
@@ -76,6 +79,7 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
             ? Optional.of(new SecurityContext(settings, threadPool.getThreadContext()))
             : Optional.empty();
         this.clusterService = clusterService;
+        this.featureService = featureService;
     }
 
     @Override
@@ -118,7 +122,7 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
             .setId(RegionPolicyDoc.DOCUMENT_ID)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        boolean includeDocType = InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state());
+        boolean includeDocType = InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state(), featureService);
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             ToXContent.Params params = includeDocType
                 ? new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"))

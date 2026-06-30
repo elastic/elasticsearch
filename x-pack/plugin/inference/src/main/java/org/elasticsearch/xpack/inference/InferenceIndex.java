@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 
 import java.util.Map;
@@ -46,7 +47,7 @@ public class InferenceIndex {
      * <p>
      * Callers are responsible for also checking the region-policy feature flag before acting on this result.
      */
-    public static boolean inferenceIndexHasV4Mappings(ClusterState clusterState) {
+    public static boolean inferenceIndexHasV4Mappings(ClusterState clusterState, FeatureService featureService) {
         var projectMetadata = clusterState.metadata().getProject();
         IndexMetadata indexMetadata = projectMetadata.index(InferenceIndex.INDEX_NAME);
         if (indexMetadata == null) {
@@ -64,8 +65,7 @@ public class InferenceIndex {
             // which guarantees that whoever creates the index will apply v4 mappings. An old node missing
             // the feature would create the index with v3 mappings, causing a strict_dynamic_mapping_exception
             // if doc_type were written.
-            return clusterState.clusterFeatures()
-                .clusterHasFeature(clusterState.nodes(), InferenceFeatures.INFERENCE_INFERENCE_INDEX_DOC_TYPE);
+            return featureService.clusterHasFeature(clusterState, InferenceFeatures.INFERENCE_INFERENCE_INDEX_DOC_TYPE);
         }
         MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata == null) {

@@ -19,16 +19,19 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 public class InferenceIndexTests extends ESTestCase {
 
     private static final String NODE_ID = "node";
+    private static final FeatureService featureService = new FeatureService(List.of());
 
     /** All nodes carry the doc_type feature — safe to write doc_type when the index is absent. */
     private static ClusterState clusterState(ProjectMetadata project) {
@@ -65,13 +68,13 @@ public class InferenceIndexTests extends ESTestCase {
     public void testInferenceIndexHasV4Mappings_GivenIndexDoesNotExist() {
         // All nodes support doc_type — safe to assume v4 will be used on creation.
         var project = ProjectMetadata.builder(ProjectId.DEFAULT).build();
-        assertTrue(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project)));
+        assertTrue(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project), featureService));
     }
 
     public void testInferenceIndexHasV4Mappings_GivenIndexDoesNotExistAndNodeLacksDocTypeFeature() {
         // At least one node does not carry the feature — that node might create the index with v3 mappings.
         var project = ProjectMetadata.builder(ProjectId.DEFAULT).build();
-        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterStateWithoutDocTypeFeature(project)));
+        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterStateWithoutDocTypeFeature(project), featureService));
     }
 
     public void testInferenceIndexHasV4Mappings_GivenV4Mappings() {
@@ -79,7 +82,7 @@ public class InferenceIndexTests extends ESTestCase {
             .put(indexWithMappings(InferenceIndex.INDEX_NAME, InferenceIndex.mappingsV4()), false)
             .build();
 
-        assertTrue(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project)));
+        assertTrue(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project), featureService));
     }
 
     public void testInferenceIndexHasV4Mappings_GivenV3Mappings() {
@@ -87,7 +90,7 @@ public class InferenceIndexTests extends ESTestCase {
             .put(indexWithMappings(InferenceIndex.INDEX_NAME, InferenceIndex.mappingsV3()), false)
             .build();
 
-        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project)));
+        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project), featureService));
     }
 
     public void testInferenceIndexHasV4Mappings_GivenV2Mappings() {
@@ -95,7 +98,7 @@ public class InferenceIndexTests extends ESTestCase {
             .put(indexWithMappings(InferenceIndex.INDEX_NAME, InferenceIndex.mappingsV2()), false)
             .build();
 
-        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project)));
+        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project), featureService));
     }
 
     public void testInferenceIndexHasV4Mappings_GivenV1Mappings() {
@@ -103,7 +106,7 @@ public class InferenceIndexTests extends ESTestCase {
             .put(indexWithMappings(InferenceIndex.INDEX_NAME, InferenceIndex.mappingsV1()), false)
             .build();
 
-        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project)));
+        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project), featureService));
     }
 
     public void testInferenceIndexHasV4Mappings_GivenMappingHasNoMeta() {
@@ -119,7 +122,7 @@ public class InferenceIndexTests extends ESTestCase {
             .put(indexWithMappings(InferenceIndex.INDEX_NAME, mappingsWithNoMeta), false)
             .build();
 
-        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project)));
+        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project), featureService));
     }
 
     public void testInferenceIndexHasV4Mappings_GivenMappingMetaHasNoVersionKey() {
@@ -136,7 +139,7 @@ public class InferenceIndexTests extends ESTestCase {
             .put(indexWithMappings(InferenceIndex.INDEX_NAME, mappingsWithNoVersionKey), false)
             .build();
 
-        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project)));
+        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project), featureService));
     }
 
     public void testInferenceIndexHasV4Mappings_GivenMigratedIndexWithV4Mappings() {
@@ -154,7 +157,7 @@ public class InferenceIndexTests extends ESTestCase {
         // projectMetadata.index(".inference") returns null because ".inference" is an alias, not a concrete name.
         // The method must fall through to the indicesLookup resolution path.
         assertNull(project.index(InferenceIndex.INDEX_NAME));
-        assertTrue(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project)));
+        assertTrue(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project), featureService));
     }
 
     public void testInferenceIndexHasV4Mappings_GivenMigratedIndexWithV3Mappings() {
@@ -169,6 +172,6 @@ public class InferenceIndexTests extends ESTestCase {
         ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT).put(migratedIndex, false).build();
 
         assertNull(project.index(InferenceIndex.INDEX_NAME));
-        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project)));
+        assertFalse(InferenceIndex.inferenceIndexHasV4Mappings(clusterState(project), featureService));
     }
 }

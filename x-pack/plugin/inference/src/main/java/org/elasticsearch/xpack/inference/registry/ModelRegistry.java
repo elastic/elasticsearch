@@ -46,6 +46,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -159,10 +160,12 @@ public class ModelRegistry implements ClusterStateListener {
     private final AtomicBoolean upgradeMetadataInProgress = new AtomicBoolean(false);
     private final Set<String> preventDeletionLock = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final ClusterService clusterService;
+    private final FeatureService featureService;
     private final AtomicReference<Metadata> lastMetadata = new AtomicReference<>();
 
-    public ModelRegistry(ClusterService clusterService, Client client) {
+    public ModelRegistry(ClusterService clusterService, Client client, FeatureService featureService) {
         this.clusterService = Objects.requireNonNull(clusterService);
+        this.featureService = Objects.requireNonNull(featureService);
         this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
         this.defaultConfigIds = new ConcurrentHashMap<>();
         var executor = new SimpleBatchedAckListenerTaskExecutor<ModelRegistryMetadataTask.MetadataTask>() {
@@ -632,7 +635,7 @@ public class ModelRegistry implements ClusterStateListener {
             preventDeletionLock.add(inferenceEntityId);
         }
 
-        boolean includeDocType = InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state());
+        boolean includeDocType = InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state(), featureService);
         SubscribableListener.<BulkResponse>newForked((subListener) -> {
             // in this block, we try to update the stored model configurations
             var configRequestBuilder = createIndexRequestBuilder(
@@ -823,7 +826,7 @@ public class ModelRegistry implements ClusterStateListener {
         }
 
         var bulkRequestBuilder = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        boolean includeDocType = InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state());
+        boolean includeDocType = InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state(), featureService);
 
         for (var model : models) {
             bulkRequestBuilder.add(

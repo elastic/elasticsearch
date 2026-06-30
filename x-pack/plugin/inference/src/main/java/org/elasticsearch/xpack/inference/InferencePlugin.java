@@ -387,7 +387,7 @@ public class InferencePlugin extends Plugin
         var amazonBedrockRequestSenderFactory = new AmazonBedrockRequestSender.Factory(serviceComponents.get(), services.clusterService());
         amazonBedrockFactory.set(amazonBedrockRequestSenderFactory);
 
-        modelRegistry.set(new ModelRegistry(services.clusterService(), services.client()));
+        modelRegistry.set(new ModelRegistry(services.clusterService(), services.client(), services.featureService()));
         services.clusterService().addListener(modelRegistry.get());
 
         if (inferenceServiceExtensions == null) {

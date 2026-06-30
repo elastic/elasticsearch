@@ -58,5 +58,6 @@ Metric definition help text is not surfaced yet, so the `help` field remains an 
 
 ## Exemplar queries (HTTP API) [promql-limitations-exemplars]
 
-`/api/v1/query_exemplars` is not implemented yet.
-Turn off exemplar queries in your Prometheus-compatible client for now (for example, the Grafana data source exemplars option) so it does not call that endpoint.
+`/api/v1/query_exemplars` is not implemented yet, so exemplar queries are not supported.
+To avoid errors, turn off exemplar queries in your Prometheus-compatible client.
+In Grafana, go to **Data sources → Elasticsearch → Exemplars** and disable all configured exemplar links.

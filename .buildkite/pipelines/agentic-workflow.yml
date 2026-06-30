@@ -69,6 +69,11 @@ steps:
     command: |
       set -euo pipefail
 
+      # Resolve inputs: metadata wins (UI input step), env var is the fallback (API trigger).
+      WORKFLOW="${WORKFLOW:-$(buildkite-agent meta-data get WORKFLOW 2>/dev/null || true)}"
+      ISSUE_URL="${ISSUE_URL:-$(buildkite-agent meta-data get ISSUE_URL 2>/dev/null || true)}"
+      PR_URL="${PR_URL:-$(buildkite-agent meta-data get PR_URL 2>/dev/null || true)}"
+
       case "${WORKFLOW}" in
         test-analysis)
           [[ -n "${ISSUE_URL:-}" ]] || { echo "ISSUE_URL is required for test-analysis" >&2; exit 1; }

@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
@@ -345,9 +346,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Build capabilities from plugin declarations (cheap -- no I/O, no heavy deps)
         DataSourceCapabilities dataSourceCapabilities = DataSourceCapabilities.build(allDataSourcePlugins);
 
-        // createComponents can't reach the encryption plugin's binding, so TransportPutDataSourceAction's
-        // ctor pushes the EncryptionService into this shared holder for the read-path wrappers.
+        EncryptionService encryptionService = EncryptionService.Holder.get();
         DataSourceCredentials dataSourceCredentials = new DataSourceCredentials();
+        dataSourceCredentials.setEncryptionService(encryptionService);
 
         boolean isStateless = DiscoveryNode.isStateless(settings);
         AtomicBoolean workloadIdentityEnabled = new AtomicBoolean(
@@ -497,7 +498,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.crossProjectModeDecider()
             ),
             new ViewService(services.clusterService(), parser),
-            new DataSourceService(services.clusterService(), crudValidators),
+            new DataSourceService(services.clusterService(), crudValidators, encryptionService),
             new DatasetService(services.clusterService(), crudValidators)
         );
     }

@@ -43,7 +43,6 @@ import java.util.function.Supplier;
 public class EncryptionPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, ReloadablePlugin, HealthPlugin {
 
     private final List<EncryptedDataHandlerProvider> encryptedDataHandlerProviders = new ArrayList<>();
-
     private final SetOnce<ProjectEncryptionKeyService> pekService = new SetOnce<>();
     private final SetOnce<KeyRotationCoordinator> coordinator = new SetOnce<>();
     private final SetOnce<ProjectEncryptionKeyHealthIndicatorService> healthIndicatorService = new SetOnce<>();
@@ -75,6 +74,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             pekService::state,
             pekService::isEncryptionRequired
         );
+        EncryptionService.Holder.set(encryptionService);
         List<EncryptedDataHandler<?>> handlers = encryptedDataHandlerProviders.stream().flatMap(p -> p.getHandlers().stream()).toList();
         EncryptedDataHandlerRegistry handlerRegistry = new EncryptedDataHandlerRegistry(handlers);
         KeyRotationCoordinator coordinator = KeyRotationCoordinator.create(

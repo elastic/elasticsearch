@@ -349,6 +349,50 @@ x-pack/plugin/
         └── ...
 ```
 
+## Cancellation and Partial Results for EXTERNAL Queries
+
+A long-running EXTERNAL query can exit in three different ways. Each surfaces results differently so a
+client can tell "stop and give me what you have" apart from "abort, throw it all away":
+
+| How the query ends                                    | Response body  | `is_partial` flag |
+|-------------------------------------------------------|----------------|-------------------|
+| Task cancel / client disconnect                       | none — fails with `TaskCancelledException` | n/a (no body) |
+| `POST /_query/async/{id}/stop`                        | rows the pipeline already accepted          | `true`        |
+| Lenient truncation (e.g. `error_mode: skip_row`)      | rows the source emitted before the truncation | `true`     |
+
+This mirrors the existing `_query/async` + `allow_partial_results` semantics — EXTERNAL is not idiosyncratic.
+The defaults (1 s `wait_for_completion_timeout`, the `RestCancellableNodeClient` disconnect hookup) apply
+to EXTERNAL queries with no additional setup.
+
+### Why cancel is hard-fail, not partial
+
+Cancel is the ES-wide convention for "abort this work; I don't want its output". A
+`TaskCancelledException` surfaces as an HTTP 400 with no result body, which keeps EXTERNAL aligned with
+the rest of the ESQL action surface (`EsqlActionTaskIT.assertCancelled`). The same code path runs when
+a sync client disconnects mid-query — `RestCancellableNodeClient` cancels the task on disconnect, so the
+client cannot accidentally end up holding a half-built result it never asked for. EXTERNAL also enforces
+this explicitly at resolution time: `ExternalSourceResolver.throwIfCancelled` reads "cancellation is never
+masked as a partial-stats result". Users who want to keep their buffered rows must use STOP, not cancel.
+
+### Why STOP returns buffered rows
+
+`EsqlAsyncStopAction` reaches the coordinator's `ExchangeService#finishSessionEarly`, whose Javadoc
+records the explicit contract: "unlike cancel, this does not discard the results". The early-finish
+closes the upstream exchange source; the data driver running the EXTERNAL operators sees its exchange
+sink closed via `Driver#initializeEarlyTerminationChecker`, throws `DriverEarlyTerminationException`,
+and tears down its operators. Pages that already crossed the operator boundary into the response sink
+stay in the response; pages still queued in the per-driver `AsyncExternalSourceBuffer` are dropped via
+`buffer.finish(true)`. The producer thread reading the external source observes `noMoreInputs` on its
+next iteration of the drain loop (it parks on `waitForSpace` when the buffer is full, and is woken via
+`notifyNotFull`) and exits without producing more pages.
+
+### A note on the opt-in "always return partial on first cancel"
+
+ClickHouse offers a `partial_result_on_first_cancel` setting (default off) that flips cancel into a
+soft early-return. ESQL has explicitly deferred that — STOP is the answer when a user wants their
+buffered rows back. Adopting a ClickHouse-style cancel-as-partial mode would be additive and is out of
+scope for the current contract.
+
 ## Testing
 
 The abstraction includes comprehensive tests:

@@ -1,0 +1,36 @@
+area: Mapping
+highlight:
+  notable: true
+  title: Columnar index mode (Tech Preview)
+  body: |-
+    Two new index modes, `columnar` and `logsdb_columnar`, are now available as
+    a Tech Preview.
+
+    Columnar index modes store field data in a column-oriented layout using
+    per-field binary doc values rather than the traditional row-oriented stored
+    source. Reading a field's values across many documents — the access pattern
+    of ES|QL and aggregations — requires touching only the columns that are
+    queried, which reduces I/O and improves compression.
+
+    `logsdb_columnar` combines the columnar layout with all the LogsDB defaults
+    (routing, sort order, synthetic source) for log data. `columnar` provides the
+    same column-oriented storage without the LogsDB-specific configuration,
+    suitable for general-purpose indices.
+
+    Key capabilities:
+
+    - **Binary doc values** are stored in an in-order layout that allows the
+      block loading path used by ES|QL to decode a field once per block rather
+      than once per document.
+    - **Doc-values-only text fields** (`text`, `match_only_text`) can store their
+      content in doc values in columnar mode, removing the need for a separate
+      stored source.
+    - **Single-value enforcement** (`doc_values.multi_value: false`) lets you
+      reject documents that supply more than one value for a field, enabling
+      tighter columnar encoding.
+    - **Index-level multi-value default** (`index.mapping.doc_values.multi_value`)
+      sets the single-value policy for all fields in an index in one place.
+issues: []
+pr: 152481
+summary: Columnar index modes available as Tech Preview
+type: enhancement

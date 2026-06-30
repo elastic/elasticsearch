@@ -584,6 +584,17 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
     }
 
+    public void testGetViewByMissingNameReturnsCleanNotFoundUnderSecurity() throws IOException {
+        // Security-on counterpart to ViewRestTests: GET a view by a name that does not resolve to a view must return a
+        // clean view-shaped not-found, never leak the raw index_not_found_exception. The translation lives in the
+        // transport, after authorization, so it holds the same with security enabled.
+        ResponseException ex = expectThrows(ResponseException.class, () -> getView("test-admin", "no-such-view-under-security"));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        String body = EntityUtils.toString(ex.getResponse().getEntity());
+        assertThat(body, containsString("view [no-such-view-under-security] not found"));
+        assertThat(body, not(containsString("index_not_found_exception")));
+    }
+
     public void testViewWildcardFiltersUnauthorized() throws Exception {
         Response resp = runESQLCommand("user1", "FROM view-user* | STATS sum=sum(value)");
         assertOK(resp);

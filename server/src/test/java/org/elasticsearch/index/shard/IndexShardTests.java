@@ -3750,7 +3750,7 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardRecoveryNotCancellableException.class,
             () -> target.requestRecoveryCancellation(cause)
         );
-        assertThat(e.getMessage(), containsString("cannot cancel primary relocation recovery after primary handover on shard"));
+        assertThat(e.getMessage(), containsString("unable to direct cancel recovery for shard"));
 
         proceedWithDone.countDown();
         recoveryThread.join(10_000L);

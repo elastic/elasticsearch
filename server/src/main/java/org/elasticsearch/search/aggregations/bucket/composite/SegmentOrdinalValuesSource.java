@@ -64,10 +64,6 @@ class SegmentOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     // Only prune when the competitive ordinal range is narrow enough to enumerate into a postings disjunction.
     static final int MAX_TERMS_FOR_DYNAMIC_PRUNING = 128;
 
-    // ...and only when the field has at least this many distinct values per competitive term. Otherwise most values stay
-    // competitive, so the disjunction covers most documents and pruning is pure overhead rather than a saving.
-    static final int MIN_DISTINCT_VALUES_PER_COMPETITIVE_TERM = 2;
-
     private final CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc;
     private final LongConsumer breakerConsumer;
     private LongArray values;                            // per-slot encoded ordinal in the current segment
@@ -409,8 +405,6 @@ class SegmentOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         private int doc = -1;
         private boolean exhausted = false;       // no competitive documents remain in this segment
         private PriorityQueue<PostingsEnum> disjunction; // null => no pruning yet (pass through)
-        private long disjunctionMinOrd = -1;     // ordinal window the current disjunction was built for (-1 = none)
-        private long disjunctionMaxOrd = -1;
         private boolean pruningCounted = false;  // whether this segment has been counted as having pruned
 
         SegmentCompetitiveIterator(LeafReaderContext context) {
@@ -496,19 +490,6 @@ class SegmentOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                 disjunction = null; // too wide to enumerate; fall back to a full pass
                 return;
             }
-            if ((maxOrd - minOrd + 1) * MIN_DISTINCT_VALUES_PER_COMPETITIVE_TERM >= lookup.getValueCount()) {
-                // The competitive range covers most of the segment's distinct values, so the disjunction would span most
-                // documents and skip too little to be worth its overhead. Pruning only pays off when the field's
-                // cardinality dwarfs the competitive range.
-                disjunction = null;
-                return;
-            }
-            if (disjunction != null && minOrd == disjunctionMinOrd && maxOrd == disjunctionMaxOrd) {
-                // The competitive window is unchanged - the queue's worst key moved within the same leading-source value
-                // (e.g. only a secondary source advanced). Keep the existing disjunction and its already-advanced postings
-                // instead of re-opening them from the start, which on a low-cardinality leading field dominates the scan.
-                return;
-            }
             final Terms terms = context.reader().terms(fieldType.name());
             if (terms == null) {
                 disjunction = null;
@@ -534,8 +515,6 @@ class SegmentOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                 pq.add(postings);
             }
             disjunction = pq;
-            disjunctionMinOrd = minOrd;
-            disjunctionMaxOrd = maxOrd;
             if (pruningCounted == false) {
                 segmentsDynamicPruningUsed++;
                 pruningCounted = true;

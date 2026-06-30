@@ -3562,45 +3562,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    public void testWithKeywordGivenNoIndexSortingAndDynamicPruningIsNotApplicableDueToLowCardinality() throws Exception {
-        // A leading field with only a few distinct values keeps (almost) every value competitive, so a pruning
-        // disjunction would cover (almost) every document - pure overhead. Pruning must stay off here even though it is
-        // otherwise applicable (indexed, doc values, no missing bucket).
-        for (SortOrder order : List.of(SortOrder.ASC, SortOrder.DESC)) {
-            final CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
-                "name",
-                List.of(new TermsValuesSourceBuilder("leading").field("keyword").order(order))
-            ).size(2);
-            final MappedFieldType keywordMapping = new KeywordFieldMapper.KeywordFieldType("keyword");
-            final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
-
-            CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
-                for (int i = 1; i <= 100; i++) {
-                    addDocWithKeywordFields(iw, "keyword", "v_" + (i % 2), "foo", "bar"); // 2 distinct values (vendor_id-like)
-                }
-            };
-
-            debugTestCase(
-                aggregationBuilder,
-                new TermQuery(new Term("foo", "bar")),
-                buildIndex,
-                (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
-                    assertEquals(CompositeAggregator.class, impl);
-                    assertMap(
-                        debug,
-                        matchesMap().entry(
-                            "name",
-                            matchesMap().entry("sources.leading.segments_dynamic_pruning_used", equalTo(0))
-                                .entry("sources.leading.segments_collected", greaterThanOrEqualTo(1))
-                        )
-                    );
-                },
-                keywordMapping,
-                fooMapping
-            );
-        }
-    }
-
     public void testWithKeywordGivenNoIndexSortingAndDynamicPruningIsApplicableAndDescendingOrder() throws Exception {
         CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
             "name",

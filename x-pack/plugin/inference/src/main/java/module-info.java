@@ -53,6 +53,7 @@ module org.elasticsearch.inference {
     exports org.elasticsearch.xpack.inference.services.elastic;
     exports org.elasticsearch.xpack.inference.common.oauth2;
     exports org.elasticsearch.xpack.inference.common;
+    exports org.elasticsearch.xpack.inference.features;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.inference.InferenceFeatures;
 }

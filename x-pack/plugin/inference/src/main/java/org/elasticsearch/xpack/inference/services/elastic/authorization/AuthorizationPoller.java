@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -22,8 +21,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.inference.action.AuthorizationAction;
-import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
+import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 
@@ -192,21 +190,18 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
 
     // default for testing
     void sendAuthorizationRequest() {
-        var finalListener = ActionListener.<StoreInferenceEndpointsAction.Response>running(() -> {
+        var finalListener = ActionListener.runAfter(ActionListener.<RefreshAuthorizedEndpointsAction.Response>wrap(response -> {
+            if (response.status() == RefreshAuthorizedEndpointsAction.Response.Status.CCM_DISABLED) {
+                logger.info("Completing task, because CCM is not enabled");
+                shutdownInternal(AuthorizationPoller.this::markAsCompleted);
+            }
+        }, e -> logger.atWarn().withThrowable(e).log("Failed processing EIS preconfigured endpoints")), () -> {
             if (callback != null) {
                 callback.run();
             }
             receivedFirstAuthResponseLatch.countDown();
-        }).delegateResponse((delegate, e) -> {
-            if (ExceptionsHelper.unwrapCause(e) instanceof CcmDisabledException) {
-                logger.info("Completing task, because CCM is not enabled");
-                shutdownInternal(AuthorizationPoller.this::markAsCompleted);
-            } else {
-                logger.atWarn().withThrowable(e).log("Failed processing EIS preconfigured endpoints");
-            }
-            delegate.onResponse(null);
         });
 
-        client.execute(AuthorizationAction.INSTANCE, new AuthorizationAction.Request(), finalListener);
+        client.execute(RefreshAuthorizedEndpointsAction.INSTANCE, new RefreshAuthorizedEndpointsAction.Request(), finalListener);
     }
 }

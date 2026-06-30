@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -21,7 +22,7 @@ import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.inference.action.AuthorizationAction;
+import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
@@ -29,7 +30,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.CcmDisabledException;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
@@ -46,13 +46,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction.REFRESHED_RESPONSE;
 import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_SCHEMA_VERSION;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureTests.createMockCCMFeature;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMServiceTests.createMockCCMService;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createAuthorizedEndpoint;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createInvalidTaskTypeAuthorizedEndpoint;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -62,7 +62,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class TransportElasticInferenceServiceAuthorizationActionTests extends ESTestCase {
+public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
 
     private InferenceFeatureService inferenceFeatureServiceMock;
     private ModelRegistry mockRegistry;
@@ -89,10 +89,10 @@ public class TransportElasticInferenceServiceAuthorizationActionTests extends ES
         ccmService = createMockCCMService(false);
         var action = createAction();
 
-        var future = new TestPlainActionFuture<StoreInferenceEndpointsAction.Response>();
-        action.doExecute(null, new AuthorizationAction.Request(), future);
+        var future = new TestPlainActionFuture<RefreshAuthorizedEndpointsAction.Response>();
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), future);
 
-        assertThat(future.actionGet(), is(TransportElasticInferenceServiceAuthorizationAction.EMPTY_RESPONSE));
+        assertThat(future.actionGet(), is(REFRESHED_RESPONSE));
         verify(mockAuthHandler, never()).getAuthorization(any(), any());
     }
 
@@ -102,15 +102,10 @@ public class TransportElasticInferenceServiceAuthorizationActionTests extends ES
         ccmService = createMockCCMService(false);
         var action = createAction();
 
-        var future = new TestPlainActionFuture<StoreInferenceEndpointsAction.Response>();
-        action.doExecute(null, new AuthorizationAction.Request(), future);
+        var future = new TestPlainActionFuture<RefreshAuthorizedEndpointsAction.Response>();
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), future);
 
-        var ex = expectThrows(Exception.class, future::actionGet);
-        Throwable cause = ex;
-        while (cause.getCause() != null) {
-            cause = cause.getCause();
-        }
-        assertThat(cause, instanceOf(CcmDisabledException.class));
+        assertThat(future.actionGet().status(), is(RefreshAuthorizedEndpointsAction.Response.Status.CCM_DISABLED));
         verify(mockAuthHandler, never()).getAuthorization(any(), any());
     }
 
@@ -121,10 +116,10 @@ public class TransportElasticInferenceServiceAuthorizationActionTests extends ES
         when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD)).thenReturn(false);
         var action = createAction();
 
-        var future = new TestPlainActionFuture<StoreInferenceEndpointsAction.Response>();
-        action.doExecute(null, new AuthorizationAction.Request(), future);
+        var future = new TestPlainActionFuture<RefreshAuthorizedEndpointsAction.Response>();
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), future);
 
-        assertThat(future.actionGet(), is(TransportElasticInferenceServiceAuthorizationAction.EMPTY_RESPONSE));
+        assertThat(future.actionGet(), is(REFRESHED_RESPONSE));
         verify(mockAuthHandler, never()).getAuthorization(any(), any());
     }
 
@@ -180,7 +175,7 @@ public class TransportElasticInferenceServiceAuthorizationActionTests extends ES
 
         var action = createAction();
 
-        action.doExecute(null, new AuthorizationAction.Request(), new TestPlainActionFuture<>());
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), new TestPlainActionFuture<>());
         verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
     }
 
@@ -273,7 +268,7 @@ public class TransportElasticInferenceServiceAuthorizationActionTests extends ES
 
         var action = createAction();
 
-        action.doExecute(null, new AuthorizationAction.Request(), new TestPlainActionFuture<>());
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), new TestPlainActionFuture<>());
         verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
     }
 
@@ -288,7 +283,7 @@ public class TransportElasticInferenceServiceAuthorizationActionTests extends ES
         givenAuthHandlerRespondsForUrl(randomAlphaOfLength(10), List.of(), endpointsToDelete);
 
         var action = createAction();
-        action.doExecute(null, new AuthorizationAction.Request(), new TestPlainActionFuture<>());
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), new TestPlainActionFuture<>());
 
         verify(mockRegistry).deleteModels(eq(endpointsToDelete), any());
     }
@@ -304,7 +299,7 @@ public class TransportElasticInferenceServiceAuthorizationActionTests extends ES
         givenAuthHandlerRespondsForUrl(randomAlphaOfLength(10), List.of(), Set.of("id-1", "id-2", "id-3", "id-4"));
 
         var action = createAction();
-        action.doExecute(null, new AuthorizationAction.Request(), new TestPlainActionFuture<>());
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), new TestPlainActionFuture<>());
 
         verify(mockRegistry).deleteModels(eq(endpointsToDelete), any());
     }
@@ -318,13 +313,13 @@ public class TransportElasticInferenceServiceAuthorizationActionTests extends ES
         givenAuthHandlerRespondsForUrl(randomAlphaOfLength(10), List.of(), Set.of("id-3", "id-4"));
 
         var action = createAction();
-        action.doExecute(null, new AuthorizationAction.Request(), new TestPlainActionFuture<>());
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), new TestPlainActionFuture<>());
 
         verify(mockRegistry, never()).deleteModels(any(), any());
     }
 
-    private TransportElasticInferenceServiceAuthorizationAction createAction() {
-        return new TransportElasticInferenceServiceAuthorizationAction(
+    private TransportRefreshAuthorizedEndpointsAction createAction() {
+        return new TransportRefreshAuthorizedEndpointsAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
             mockRegistry,
@@ -359,7 +354,7 @@ public class TransportElasticInferenceServiceAuthorizationActionTests extends ES
 
     private void givenAuthHandlerRespondsForUrl(String url, List<AuthorizedEndpoint> endpoints, Set<String> removedEndpoints) {
         doAnswer(invocation -> {
-            var listener = invocation.<org.elasticsearch.action.ActionListener<ElasticInferenceServiceAuthorizationModel>>getArgument(0);
+            var listener = invocation.<ActionListener<ElasticInferenceServiceAuthorizationModel>>getArgument(0);
             listener.onResponse(
                 ElasticInferenceServiceAuthorizationModel.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity(endpoints, removedEndpoints),
@@ -372,11 +367,11 @@ public class TransportElasticInferenceServiceAuthorizationActionTests extends ES
 
     private void sendAuthRequestAndVerifyStoreActionCalledForSparseEndpoints(
         String url,
-        TransportElasticInferenceServiceAuthorizationAction action,
+        TransportRefreshAuthorizedEndpointsAction action,
         AuthorizedEndpoint... endpoints
     ) {
         var requestArgCaptor = ArgumentCaptor.forClass(StoreInferenceEndpointsAction.Request.class);
-        action.doExecute(null, new AuthorizationAction.Request(), new TestPlainActionFuture<>());
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), new TestPlainActionFuture<>());
         verify(mockClient).execute(eq(StoreInferenceEndpointsAction.INSTANCE), requestArgCaptor.capture(), any());
         var capturedRequest = requestArgCaptor.getValue();
 

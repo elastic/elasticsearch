@@ -26,14 +26,13 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.inference.action.AuthorizationAction;
+import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.CcmDisabledException;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
@@ -46,21 +45,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-/**
- * Transport action that encapsulates the EIS authorization decision and the full auth/store pipeline.
- * <p>
- * {@code doExecute} replicates the logic formerly in {@code AuthorizationPoller.shouldSendAuthRequest}:
- * early-exit with an empty response when the registry is not ready or a required cluster feature is
- * missing; skip the send and signal the poller to complete via {@link CcmDisabledException} when CCM
- * is supported but disabled; otherwise call EIS, reconcile endpoints, and return the store result.
- */
-public class TransportElasticInferenceServiceAuthorizationAction extends HandledTransportAction<
-    AuthorizationAction.Request,
-    StoreInferenceEndpointsAction.Response> {
+import static org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction.REFRESHED_RESPONSE;
 
-    private static final Logger logger = LogManager.getLogger(TransportElasticInferenceServiceAuthorizationAction.class);
+public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportAction<
+    RefreshAuthorizedEndpointsAction.Request,
+    RefreshAuthorizedEndpointsAction.Response> {
 
-    static final StoreInferenceEndpointsAction.Response EMPTY_RESPONSE = new StoreInferenceEndpointsAction.Response(List.of());
+    private static final Logger logger = LogManager.getLogger(TransportRefreshAuthorizedEndpointsAction.class);
 
     private final ModelRegistry modelRegistry;
     private final ElasticInferenceServiceAuthorizationRequestHandler authorizationHandler;
@@ -71,7 +62,7 @@ public class TransportElasticInferenceServiceAuthorizationAction extends Handled
     private final Client client;
 
     @Inject
-    public TransportElasticInferenceServiceAuthorizationAction(
+    public TransportRefreshAuthorizedEndpointsAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ModelRegistry modelRegistry,
@@ -83,10 +74,10 @@ public class TransportElasticInferenceServiceAuthorizationAction extends Handled
         Client client
     ) {
         super(
-            AuthorizationAction.NAME,
+            RefreshAuthorizedEndpointsAction.NAME,
             transportService,
             actionFilters,
-            AuthorizationAction.Request::new,
+            RefreshAuthorizedEndpointsAction.Request::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.modelRegistry = Objects.requireNonNull(modelRegistry);
@@ -101,18 +92,18 @@ public class TransportElasticInferenceServiceAuthorizationAction extends Handled
     @Override
     protected void doExecute(
         Task task,
-        AuthorizationAction.Request request,
-        ActionListener<StoreInferenceEndpointsAction.Response> listener
+        RefreshAuthorizedEndpointsAction.Request request,
+        ActionListener<RefreshAuthorizedEndpointsAction.Response> listener
     ) {
         if (modelRegistry.isReady() == false) {
             logger.info("Skipping sending authorization request, because the model registry is not ready");
-            listener.onResponse(EMPTY_RESPONSE);
+            listener.onResponse(REFRESHED_RESPONSE);
             return;
         }
 
         if (inferenceFeatureService.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD) == false) {
             logger.info("Skipping sending authorization request, because the cluster is currently upgrading and missing required features");
-            listener.onResponse(EMPTY_RESPONSE);
+            listener.onResponse(REFRESHED_RESPONSE);
             return;
         }
 
@@ -123,21 +114,23 @@ public class TransportElasticInferenceServiceAuthorizationAction extends Handled
 
         ccmService.isEnabled(listener.delegateFailureAndWrap((delegate, enabled) -> {
             if (enabled == null || enabled == false) {
-                delegate.onFailure(new CcmDisabledException());
+                delegate.onResponse(
+                    new RefreshAuthorizedEndpointsAction.Response(RefreshAuthorizedEndpointsAction.Response.Status.CCM_DISABLED)
+                );
                 return;
             }
             sendRequest(delegate);
         }));
     }
 
-    private void sendRequest(ActionListener<StoreInferenceEndpointsAction.Response> listener) {
+    private void sendRequest(ActionListener<RefreshAuthorizedEndpointsAction.Response> listener) {
         SubscribableListener.<ElasticInferenceServiceAuthorizationModel>newForked(
             authModelListener -> authorizationHandler.getAuthorization(authModelListener, sender)
         )
             .<ElasticInferenceServiceAuthorizationModel>andThen(
                 (nextListener, authModel) -> deleteRemovedEndpoints(authModel, nextListener)
             )
-            .andThenApply(this::selectEndpointsToPersist).<StoreInferenceEndpointsAction.Response>andThen(
+            .andThenApply(this::selectEndpointsToPersist).<RefreshAuthorizedEndpointsAction.Response>andThen(
                 (storeListener, inferenceIdsToPersist) -> storePreconfiguredModels(inferenceIdsToPersist, storeListener)
             )
             .addListener(listener);
@@ -211,9 +204,9 @@ public class TransportElasticInferenceServiceAuthorizationAction extends Handled
         return false;
     }
 
-    private void storePreconfiguredModels(List<Model> newEndpoints, ActionListener<StoreInferenceEndpointsAction.Response> listener) {
+    private void storePreconfiguredModels(List<Model> newEndpoints, ActionListener<RefreshAuthorizedEndpointsAction.Response> listener) {
         if (newEndpoints.isEmpty()) {
-            listener.onResponse(EMPTY_RESPONSE);
+            listener.onResponse(REFRESHED_RESPONSE);
             return;
         }
 
@@ -234,7 +227,7 @@ public class TransportElasticInferenceServiceAuthorizationAction extends Handled
                         .log("Successfully stored EIS preconfigured inference endpoint with inference ID [{}]", response.inferenceId());
                 }
             }
-            d.onResponse(responses);
+            d.onResponse(REFRESHED_RESPONSE);
         }));
     }
 }

@@ -15,13 +15,11 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.action.AuthorizationAction;
-import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
+import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
 import org.junit.Before;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -60,22 +58,24 @@ public class AuthorizationPollerTests extends ESTestCase {
         when(mockClient.threadPool()).thenReturn(taskQueue.getThreadPool());
         eisSettings = ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true);
 
-        // Default: the action responds with an empty store response so the callback + latch fire normally.
+        // Default: the action responds with REFRESHED so the callback + latch fire normally.
         doAnswer(invocation -> {
-            ActionListener<StoreInferenceEndpointsAction.Response> listener = invocation.getArgument(2);
-            listener.onResponse(new StoreInferenceEndpointsAction.Response(List.of()));
+            ActionListener<RefreshAuthorizedEndpointsAction.Response> listener = invocation.getArgument(2);
+            listener.onResponse(new RefreshAuthorizedEndpointsAction.Response(RefreshAuthorizedEndpointsAction.Response.Status.REFRESHED));
             return null;
-        }).when(mockClient).execute(eq(AuthorizationAction.INSTANCE), any(), any());
+        }).when(mockClient).execute(eq(RefreshAuthorizedEndpointsAction.INSTANCE), any(), any());
     }
 
     public void testOnlyMarksCompletedOnce() {
-        // Override the default stub: fail the listener with a CCM-disabled marker so the poller
-        // calls shutdownInternal(markAsCompleted) via the failure-handler path.
+        // Override the default stub: respond with CCM_DISABLED so the poller calls
+        // shutdownInternal(markAsCompleted) on the success path.
         doAnswer(invocation -> {
-            ActionListener<StoreInferenceEndpointsAction.Response> listener = invocation.getArgument(2);
-            listener.onFailure(new CcmDisabledException());
+            ActionListener<RefreshAuthorizedEndpointsAction.Response> listener = invocation.getArgument(2);
+            listener.onResponse(
+                new RefreshAuthorizedEndpointsAction.Response(RefreshAuthorizedEndpointsAction.Response.Status.CCM_DISABLED)
+            );
             return null;
-        }).when(mockClient).execute(eq(AuthorizationAction.INSTANCE), any(), any());
+        }).when(mockClient).execute(eq(RefreshAuthorizedEndpointsAction.INSTANCE), any(), any());
 
         var poller = createPoller();
 

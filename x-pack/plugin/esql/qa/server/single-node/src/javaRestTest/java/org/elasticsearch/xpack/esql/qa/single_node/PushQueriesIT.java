@@ -56,9 +56,7 @@ import static org.hamcrest.Matchers.startsWith;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class PushQueriesIT extends ESRestTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(
-        spec -> spec.plugin("inference-service-test").setting("xpack.ml.autodetect_process", "false")
-    );
+    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();

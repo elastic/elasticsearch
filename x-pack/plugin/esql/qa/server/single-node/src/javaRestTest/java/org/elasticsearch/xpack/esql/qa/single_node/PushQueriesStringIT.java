@@ -793,7 +793,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
         ),
         FIND_NONE(matchesList().item("LocalSourceOperator").item("ExchangeSinkOperator"));
 
-        private final ListMatcher matcher;
+        final ListMatcher matcher;
 
         ComputeSignature(ListMatcher sig) {
             this.matcher = sig;

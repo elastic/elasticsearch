@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.hamcrest.Matcher;
 import org.junit.ClassRule;
 import org.junit.Rule;
 
@@ -441,7 +442,7 @@ public class PushQueriesFieldExtractIT extends ESRestTestCase {
 
     private void runAndAssert(
         String esqlQuery,
-        org.hamcrest.Matcher<String> luceneQueryMatcher,
+        Matcher<String> luceneQueryMatcher,
         ComputeSignature dataNodeSignature,
         int expectedHitCount
     ) throws IOException {

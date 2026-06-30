@@ -37,7 +37,8 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
     // version 5: add esql.profile longs mapping (broken — two templates merged into one array entry)
     // version 6: fix dynamic_templates to use one array entry per template
     // version 7: params support
-    public static final int INDEX_TEMPLATE_VERSION = 7;
+    // version 8: params is indexable
+    public static final int INDEX_TEMPLATE_VERSION = 8;
 
     public static final String QUERY_LOGGING_TEMPLATE_VERSION_VARIABLE = "xpack.stack.querylog.template.version";
 

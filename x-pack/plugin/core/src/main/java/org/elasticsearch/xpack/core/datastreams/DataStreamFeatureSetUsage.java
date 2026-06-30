@@ -65,15 +65,15 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
         builder.field("effectively_enabled_count", streamStats.failuresLifecycleEffectivelyEnabledCount);
 
         // Retention
-        DataStreamLifecycleFeatureSetUsage.RetentionStats.toXContentFragment(
+        DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.toXContentFragment(
             builder,
             streamStats.failuresLifecycleDataRetentionStats,
-            false
+            DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.DATA_RETENTION
         );
-        DataStreamLifecycleFeatureSetUsage.RetentionStats.toXContentFragment(
+        DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.toXContentFragment(
             builder,
             streamStats.failuresLifecycleEffectiveRetentionStats,
-            true
+            DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.EFFECTIVE_RETENTION
         );
         builder.startObject("global_retention");
         DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.toXContentFragment(
@@ -121,8 +121,8 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
         long failureStoreIndicesCount,
         long failuresLifecycleExplicitlyEnabledCount,
         long failuresLifecycleEffectivelyEnabledCount,
-        DataStreamLifecycleFeatureSetUsage.RetentionStats failuresLifecycleDataRetentionStats,
-        DataStreamLifecycleFeatureSetUsage.RetentionStats failuresLifecycleEffectiveRetentionStats,
+        DataStreamLifecycleFeatureSetUsage.TimeThresholdStats failuresLifecycleDataRetentionStats,
+        DataStreamLifecycleFeatureSetUsage.TimeThresholdStats failuresLifecycleEffectiveRetentionStats,
         Map<String, DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats> globalRetentionStats
     ) implements Writeable {
 
@@ -138,11 +138,11 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? in.readVLong() : 0,
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? in.readVLong() : 0,
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
-                    ? DataStreamLifecycleFeatureSetUsage.RetentionStats.read(in)
-                    : DataStreamLifecycleFeatureSetUsage.RetentionStats.NO_DATA,
+                    ? DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.read(in)
+                    : DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.NO_DATA,
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
-                    ? DataStreamLifecycleFeatureSetUsage.RetentionStats.read(in)
-                    : DataStreamLifecycleFeatureSetUsage.RetentionStats.NO_DATA,
+                    ? DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.read(in)
+                    : DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.NO_DATA,
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
                     ? in.readMap(DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats::new)
                     : Map.of()

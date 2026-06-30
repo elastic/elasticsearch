@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.startsWith;
  * Tests for pushing queries to lucene.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-public class PushQueriesIT extends ESRestTestCase {
+public class PushQueriesStringIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
 
@@ -85,7 +85,7 @@ public class PushQueriesIT extends ESRestTestCase {
 
     private final Type type;
 
-    public PushQueriesIT(Type type) {
+    public PushQueriesStringIT(Type type) {
         this.type = type;
     }
 

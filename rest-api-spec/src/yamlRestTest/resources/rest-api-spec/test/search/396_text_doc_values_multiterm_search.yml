@@ -1,7 +1,12 @@
 ---
 setup:
   - requires:
-      cluster_features: ["mapper.text.doc_values_prefix_wildcard_regexp"]
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.text.doc_values_prefix_wildcard_regexp", "mapper.keyword.columnar_default_high_cardinality"]
       reason: "prefix/wildcard/regexp queries on doc-values-only text fields require mapper.text.doc_values_prefix_wildcard_regexp"
 
   - do:
@@ -16,8 +21,7 @@ setup:
               text_field:
                 type: text
                 index: false
-                doc_values:
-                  cardinality: low
+                doc_values: true
 
   - do:
       index:
@@ -49,14 +53,14 @@ setup:
         body:
           settings:
             number_of_shards: 1
+            index:
+              mode: columnar
           mappings:
             dynamic: false
             properties:
               text_field:
                 type: text
                 index: false
-                doc_values:
-                  cardinality: high
 
   - do:
       index:

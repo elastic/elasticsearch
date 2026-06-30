@@ -150,7 +150,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE,
                 SEMANTIC_TEXT_ELEMENT_TYPE_IN_INDEX_OPTIONS,
                 SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES,
-                SEMANTIC_TEXT_EMBEDDING_TASK
+                SEMANTIC_TEXT_EMBEDDING_TASK,
+                SemanticTextFieldMapper.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES
             )
         );
         if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {

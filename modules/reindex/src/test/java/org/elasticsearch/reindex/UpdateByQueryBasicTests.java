@@ -148,7 +148,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
             IllegalArgumentException.class,
             () -> client().execute(UpdateByQueryAction.INSTANCE, routingOnly).actionGet()
         );
-        assertThat(routingOnlyException.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
+        assertThat(routingOnlyException.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
 
         UpdateByQueryRequest disabledSlice = new UpdateByQueryRequest("slice-disabled").setQuery(termQuery("foo", "a"));
         disabledSlice.getSearchRequest().searchSlice("s1");

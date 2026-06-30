@@ -316,11 +316,12 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             return ESTestCase.randomBoolean();
         }
 
-        return switch (ESTestCase.randomInt(3)) {
+        // Only multi_value: true is emitted here because this handler does not coordinate single-value data generation, so emitting. The
+        // multi_value: false path is exercised by SingleValueDocValuesDataSourceHandler.
+        return switch (ESTestCase.randomInt(2)) {
             case 0 -> false;
-            case 1 -> Map.of("cardinality", "low");
-            case 2 -> Map.of("cardinality", "high");
-            case 3 -> true;
+            case 1 -> true;
+            case 2 -> Map.of("multi_value", true);
             default -> throw new IllegalStateException();
         };
     }

@@ -197,15 +197,12 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         private MapperTestCase.SyntheticSourceExample docValuesFieldExample(int maxValues) {
             CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
                 b.field("type", fieldType);
-                if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-                    b.field("doc_values", true);
-                } else {
+                if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && docValues.multiValue() == false) {
                     b.startObject("doc_values");
-                    b.field("cardinality", docValues.cardinality().toString());
-                    if (docValues.multiValue() == false) {
-                        b.field("multi_value", false);
-                    }
+                    b.field("multi_value", false);
                     b.endObject();
+                } else {
+                    b.field("doc_values", true);
                 }
             };
 

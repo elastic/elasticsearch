@@ -168,17 +168,12 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
 
         if (docValues.enabled() == false) {
             b.field("doc_values", false);
+        } else if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && docValues.multiValue() == false) {
+            b.startObject("doc_values");
+            b.field("multi_value", false);
+            b.endObject();
         } else {
-            if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-                b.field("doc_values", true);
-            } else {
-                b.startObject("doc_values");
-                b.field("cardinality", docValues.cardinality().toString());
-                if (docValues.multiValue() == false) {
-                    b.field("multi_value", false);
-                }
-                b.endObject();
-            }
+            b.field("doc_values", true);
         }
     }
 

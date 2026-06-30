@@ -2,7 +2,7 @@
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
   "type" : "within_series",
   "name" : "delta",
-  "description" : "Calculates the difference between the first and last value of each time series in a range vector.",
+  "description" : "Calculates the difference between the first and last value of each time series in a range vector. Operates on gauges: counter inputs are automatically and transparently converted to a gauge with `to_gauge`. The result is always a `double`.",
   "signatures" : [
     {
       "params" : [

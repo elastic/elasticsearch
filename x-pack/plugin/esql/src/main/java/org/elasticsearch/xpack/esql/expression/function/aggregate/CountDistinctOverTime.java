@@ -65,6 +65,7 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
             optional = true,
             name = "precision",
             type = { "integer", "long", "unsigned_long" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. "
                 + "The maximum supported value is 40000. Thresholds above this number will have the "
                 + "same effect as a threshold of 40000. The default value is 3000."

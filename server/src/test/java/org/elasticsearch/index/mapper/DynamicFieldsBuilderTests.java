@@ -128,6 +128,6 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         assertThat(built, instanceOf(KeywordFieldMapper.class));
         KeywordFieldMapper kwdBuilt = (KeywordFieldMapper) built;
         assertFalse(kwdBuilt.multiFields().iterator().hasNext());
-        assertTrue(kwdBuilt.fieldType().usesBinaryDocValues());
+        assertFalse(kwdBuilt.fieldType().usesBinaryDocValues());
     }
 }

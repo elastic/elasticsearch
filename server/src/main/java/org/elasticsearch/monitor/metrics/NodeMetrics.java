@@ -52,15 +52,15 @@ public class NodeMetrics extends AbstractLifecycleComponent {
      *
      * @param meterRegistry     The MeterRegistry used to register metrics.
      * @param nodeService       The NodeService for interacting with the Elasticsearch node and extracting statistics.
-     * @param metricsInterval   The interval at which the agent sends metrics to the APM Server
+     * @param metricsInterval   The interval at which metrics are collected and sent to the APM Server
      * */
     public NodeMetrics(MeterRegistry meterRegistry, NodeService nodeService, TimeValue metricsInterval) {
         this.registry = meterRegistry;
         this.nodeService = nodeService;
         this.metrics = new ArrayList<>(17);
-        // we set the cache to expire after half the interval at which the agent sends
-        // metrics to the APM Server so that there is enough time for the cache not
-        // update during the same poll period and that expires before a new poll period
+        // we set the cache to expire after half the metrics collection interval so that there is
+        // enough time for the cache not to update during the same poll period and that it expires
+        // before a new poll period
         this.cacheExpiry = new TimeValue(metricsInterval.getMillis() / 2);
     }
 

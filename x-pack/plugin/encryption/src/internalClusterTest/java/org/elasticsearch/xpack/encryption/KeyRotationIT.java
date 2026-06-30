@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -60,6 +61,19 @@ public class KeyRotationIT extends SecurityIntegTestCase {
 
     private final List<Integer> keyAddEvents = new CopyOnWriteArrayList<>();
 
+    /**
+     * Stops rotation before the framework's post-test cluster-state consistency check runs. Without this,
+     * 1-second rotation ticks can keep submitting cluster-state tasks during teardown, occasionally pushing
+     * the 10-second {@code safeGet} timeout in {@code doEnsureClusterStateConsistency} on loaded CI.
+     * {@link KeyRotationCoordinator#close()} is idempotent; the plugin lifecycle closes it again as a no-op.
+     */
+    @After
+    public void stopKeyRotationCoordinators() {
+        for (String nodeName : internalCluster().getNodeNames()) {
+            internalCluster().getInstance(KeyRotationCoordinator.class, nodeName).close();
+        }
+    }
+
     @Override
     protected boolean addMockHttpTransport() {
         return false;
@@ -68,15 +82,12 @@ public class KeyRotationIT extends SecurityIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        // The encryption settings are only registered when the feature flag is enabled
-        if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
-            builder.put(KeyRotationCoordinator.ROTATION_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(5))
-                .put(KeyRotationCoordinator.CHECK_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1));
-            SecuritySettingsSource.addSecureSettings(builder, secure -> {
-                secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "v1");
-                secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v1", "encryption-test-password");
-            });
-        }
+        builder.put(KeyRotationCoordinator.ROTATION_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(5))
+            .put(KeyRotationCoordinator.CHECK_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1));
+        SecuritySettingsSource.addSecureSettings(builder, secure -> {
+            secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "v1");
+            secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v1", "encryption-test-password");
+        });
         return builder.build();
     }
 
@@ -88,13 +99,19 @@ public class KeyRotationIT extends SecurityIntegTestCase {
         return plugins;
     }
 
+    @After
+    public void stopCoordinators() {
+        // Close all coordinator instances so no new cluster-state publications are submitted after
+        // the test assertions complete. Without this the coordinator's 1-second tick can start a
+        // publish_state (including a PBKDF2 disk-wrap) that is still in-flight when the framework's
+        // assertRequestsFinished check runs, causing a spurious teardown failure.
+        for (String nodeName : internalCluster().getNodeNames()) {
+            internalCluster().getInstance(KeyRotationCoordinator.class, nodeName).close();
+        }
+    }
+
     @Before
     public void setup() throws Exception {
-        // Check feature flag
-        assumeTrue(
-            "project encryption key feature flag must be enabled",
-            ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()
-        );
         // Add listener that registers PEK changes
         internalCluster().clusterService().addListener(event -> {
             if (event.changedCustomProjectMetadataSet().contains(ProjectEncryptionKeyMetadata.TYPE) == false) {

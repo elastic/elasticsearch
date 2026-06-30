@@ -43,6 +43,7 @@ public final class TSDBNumericFieldWriter implements NumericFieldWriter {
         final AbstractTSDBDocValuesConsumer.DocValueCountConsumer docValueCountConsumer,
         final SortedFieldObserver sortedFieldObserver
     ) throws IOException {
+        final int blockSize = ctx.blockSize();
         return BLOCK_WRITER.writeFieldEntry(
             ctx,
             field,
@@ -50,7 +51,8 @@ public final class TSDBNumericFieldWriter implements NumericFieldWriter {
             AbstractTSDBDocValuesConsumer.NO_MAX_ORD,
             docValueCountConsumer,
             sortedFieldObserver,
-            (buffer, data) -> encoder.encodeBlock(buffer, ctx.blockSize(), data)
+            (buffer, data) -> encoder.encodeBlock(buffer, blockSize, data),
+            blockSize
         );
     }
 }

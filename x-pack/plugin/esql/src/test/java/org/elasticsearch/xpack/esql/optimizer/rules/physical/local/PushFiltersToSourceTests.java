@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -211,9 +210,9 @@ public class PushFiltersToSourceTests extends ESTestCase {
         // the field_extract see a true FieldAttribute and become eligible for the keyed-name
         // lookup.
         ReferenceAttribute aliasAttr = new ReferenceAttribute(SRC, "my_root", DataType.FLATTENED);
-        AttributeMap.Builder<Attribute> aliasBuilder = AttributeMap.builder();
+        AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
         aliasBuilder.put(aliasAttr, realRoot);
-        AttributeMap<Attribute> aliasReplacedBy = aliasBuilder.build();
+        AttributeMap<Expression> aliasReplacedBy = aliasBuilder.build();
 
         FieldExtract aliasedExtract = new FieldExtract(SRC, aliasAttr, Literal.keyword(SRC, "host.name"));
         Expression lower = new GreaterThanOrEqual(SRC, aliasedExtract, Literal.keyword(SRC, "node-a"));

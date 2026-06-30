@@ -1267,11 +1267,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
             assertThat(
                 thrownException.getMessage(),
-                is(
-                    query.isNonText()
-                        ? "The hugging_face service does not support rerank with non-text queries"
-                        : "The hugging_face service does not support rerank with non-text inputs"
-                )
+                is("The hugging_face service does not support rerank with non-text inputs or queries")
             );
         }
     }

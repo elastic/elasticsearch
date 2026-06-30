@@ -1118,11 +1118,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
             assertThat(
                 thrownException.getMessage(),
-                is(
-                    query.isNonText()
-                        ? "The googlevertexai service does not support rerank with non-text queries"
-                        : "The googlevertexai service does not support rerank with non-text inputs"
-                )
+                is("The googlevertexai service does not support rerank with non-text inputs or queries")
             );
         }
     }

@@ -52,8 +52,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankInputException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankQueryException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveInferenceTimeout;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
@@ -275,11 +274,8 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
 
     @Override
     public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        if (request.query().isNonText()) {
-            listener.onFailure(createUnsupportedMultimodalRerankQueryException(name()));
-            return;
-        } else if (request.inputs().stream().anyMatch(InferenceString::isNonText)) {
-            listener.onFailure(createUnsupportedMultimodalRerankInputException(name()));
+        if (request.query().isNonText() || request.inputs().stream().anyMatch(InferenceString::isNonText)) {
+            listener.onFailure(createUnsupportedMultimodalRerankException(name()));
             return;
         }
         if (!(model instanceof SageMakerModel sageMakerModel)) {

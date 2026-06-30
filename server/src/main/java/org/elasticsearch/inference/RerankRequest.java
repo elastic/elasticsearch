@@ -61,14 +61,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *   {"type": "text", "value": "text input"},
  *   {"type": "image", "value": "data:image/png;base64,..."}
  * ]</pre>
- * The {@code "query"} field is specified using either a single string or a single object. Unlike the input, the query only supports
- * {@link DataType#TEXT}.
+ * The {@code "query"} field is specified using either a single string or a single object.
  * String query:
  * <pre>
  * "query": "some query text"</pre>
  * Object query:
  * <pre>
- * "query": {"type": "text", "value": "some query text"}</pre>
+ * "query": {"type": "image", "format": "base64", "value": "data:image/png;base64,..."}</pre>
  *
  * @param inputs          The list of {@link InferenceString} inputs to rerank
  * @param query           The query to use when reranking inputs
@@ -89,8 +88,7 @@ public record RerankRequest(
     public static final String TOP_N_FIELD = "top_n";
     public static final String RETURN_DOCUMENTS_FIELD = "return_documents";
 
-    public static final EnumSet<DataType> SUPPORTED_RERANK_INPUT_DATA_TYPES = EnumSet.of(DataType.TEXT, DataType.IMAGE);
-    public static final EnumSet<DataType> SUPPORTED_RERANK_QUERY_DATA_TYPES = EnumSet.of(DataType.TEXT);
+    public static final EnumSet<DataType> SUPPORTED_RERANK_DATA_TYPES = EnumSet.of(DataType.TEXT, DataType.IMAGE);
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RerankRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -113,7 +111,7 @@ public record RerankRequest(
         );
         PARSER.declareField(
             constructorArg(),
-            (parser, context) -> parseStringOrObject(parser, QUERY_FIELD, SUPPORTED_RERANK_QUERY_DATA_TYPES),
+            (parser, context) -> parseStringOrObject(parser, QUERY_FIELD),
             new ParseField(QUERY_FIELD),
             ObjectParser.ValueType.OBJECT_OR_STRING
         );
@@ -180,29 +178,28 @@ public record RerankRequest(
         var token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_STRING || token == XContentParser.Token.START_OBJECT) {
             // Single input of String or object
-            return singletonList(parseStringOrObject(parser, INPUT_FIELD, SUPPORTED_RERANK_INPUT_DATA_TYPES));
+            return singletonList(parseStringOrObject(parser, INPUT_FIELD));
         } else if (token == XContentParser.Token.START_ARRAY) {
             // Array of String or objects
-            return XContentParserUtils.parseList(parser, p -> parseStringOrObject(p, INPUT_FIELD, SUPPORTED_RERANK_INPUT_DATA_TYPES));
+            return XContentParserUtils.parseList(parser, p -> parseStringOrObject(p, INPUT_FIELD));
         }
         throw new XContentParseException("Unsupported token [" + token + "]");
     }
 
-    private static InferenceString parseStringOrObject(XContentParser parser, String fieldName, EnumSet<DataType> supportedDataTypes)
-        throws IOException {
+    private static InferenceString parseStringOrObject(XContentParser parser, String fieldName) throws IOException {
         var currentToken = parser.currentToken();
         if (currentToken == XContentParser.Token.VALUE_STRING) {
             return InferenceString.ofText(parser.text());
         } else if (currentToken == XContentParser.Token.START_OBJECT) {
             var inferenceString = InferenceString.PARSER.parse(parser, null);
-            if (supportedDataTypes.contains(inferenceString.dataType()) == false) {
+            if (SUPPORTED_RERANK_DATA_TYPES.contains(inferenceString.dataType()) == false) {
                 throw new XContentParseException(
                     Strings.format(
                         "Field [%s] contains unsupported [%s] value [%s]. Supported values are %s",
                         fieldName,
                         TYPE_FIELD,
                         inferenceString.dataType(),
-                        supportedDataTypes
+                        SUPPORTED_RERANK_DATA_TYPES
                     )
                 );
             }

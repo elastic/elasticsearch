@@ -293,11 +293,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
             assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
             assertThat(
                 thrownException.getMessage(),
-                is(
-                    query.isNonText()
-                        ? "The amazon_sagemaker service does not support rerank with non-text queries"
-                        : "The amazon_sagemaker service does not support rerank with non-text inputs"
-                )
+                is("The amazon_sagemaker service does not support rerank with non-text inputs or queries")
             );
         }
     }

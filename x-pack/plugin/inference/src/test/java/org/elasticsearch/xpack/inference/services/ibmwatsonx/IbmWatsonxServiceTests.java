@@ -824,14 +824,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
-            assertThat(
-                thrownException.getMessage(),
-                is(
-                    query.isNonText()
-                        ? "The watsonxai service does not support rerank with non-text queries"
-                        : "The watsonxai service does not support rerank with non-text inputs"
-                )
-            );
+            assertThat(thrownException.getMessage(), is("The watsonxai service does not support rerank with non-text inputs or queries"));
         }
     }
 

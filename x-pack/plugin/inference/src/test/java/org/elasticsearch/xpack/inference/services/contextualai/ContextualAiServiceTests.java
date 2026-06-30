@@ -167,11 +167,7 @@ public class ContextualAiServiceTests extends InferenceServiceTestCase {
             assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
             assertThat(
                 thrownException.getMessage(),
-                is(
-                    query.isNonText()
-                        ? "The contextualai service does not support rerank with non-text queries"
-                        : "The contextualai service does not support rerank with non-text inputs"
-                )
+                is("The contextualai service does not support rerank with non-text inputs or queries")
             );
         }
     }

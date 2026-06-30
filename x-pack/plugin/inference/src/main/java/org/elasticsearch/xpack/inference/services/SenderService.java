@@ -54,8 +54,7 @@ import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankInputException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankQueryException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -315,12 +314,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
     @Override
     public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         try {
-            // Rerank queries are always restricted to text. Non-text inputs are only accepted by services that support multimodal rerank.
-            if (request.query().isNonText()) {
-                listener.onFailure(createUnsupportedMultimodalRerankQueryException(name()));
-                return;
-            } else if (supportsMultimodalRerank() == false && request.inputs().stream().anyMatch(InferenceString::isNonText)) {
-                listener.onFailure(createUnsupportedMultimodalRerankInputException(name()));
+            if (supportsMultimodalRerank() == false
+                && (request.query().isNonText() || request.inputs().stream().anyMatch(InferenceString::isNonText))) {
+                listener.onFailure(createUnsupportedMultimodalRerankException(name()));
                 return;
             }
 
@@ -336,9 +332,8 @@ public abstract class SenderService<M extends Model> implements InferenceService
     }
 
     /**
-     * Override as necessary for services which support images in rerank inputs. Rerank queries are always restricted to text,
-     * regardless of this setting.
-     * @return true if the service supports images in rerank inputs
+     * Override as necessary for services which support images in rerank inputs and queries
+     * @return true if the service supports images in rerank inputs and queries
      */
     protected boolean supportsMultimodalRerank() {
         return false;

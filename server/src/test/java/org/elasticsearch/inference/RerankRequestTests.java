@@ -25,8 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
-import static org.elasticsearch.inference.RerankRequest.SUPPORTED_RERANK_INPUT_DATA_TYPES;
-import static org.elasticsearch.inference.RerankRequest.SUPPORTED_RERANK_QUERY_DATA_TYPES;
+import static org.elasticsearch.inference.RerankRequest.SUPPORTED_RERANK_DATA_TYPES;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -134,17 +133,17 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
         }
     }
 
-    public void testParser_WithImageInputAndTextQuery() throws IOException {
+    public void testParser_WithImageInputAndQuery() throws IOException {
         var requestJson = Strings.format("""
             {
                 "input": {"type":"image", "format":"base64", "value":"%s"},
-                "query": "%s"
+                "query": {"type":"image", "format":"base64", "value":"%s"}
             }
-            """, TEST_DATA_URI, QUERY_TEXT);
+            """, TEST_DATA_URI, TEST_DATA_URI);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = RerankRequest.PARSER.apply(parser, null);
             assertThat(request.inputs(), is(List.of(new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI))));
-            assertThat(request.query(), is(InferenceString.ofText(QUERY_TEXT)));
+            assertThat(request.query(), is(new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI)));
             assertThat(request.topN(), is(nullValue()));
             assertThat(request.returnDocuments(), is(nullValue()));
             assertThat(request.taskSettings(), anEmptyMap());
@@ -239,7 +238,7 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
     }
 
     public void testParser_WithUnsupportedRerankDataTypeInInputs_Throws() throws IOException {
-        var unsupportedDataType = randomFrom(EnumSet.complementOf(SUPPORTED_RERANK_INPUT_DATA_TYPES));
+        var unsupportedDataType = randomFrom(EnumSet.complementOf(SUPPORTED_RERANK_DATA_TYPES));
         var requestJson = Strings.format("""
             {
                 "input": {"type":"%s", "value":"%s"},
@@ -262,7 +261,7 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
     }
 
     public void testParser_WithUnsupportedRerankDataTypeInQuery_Throws() throws IOException {
-        var unsupportedDataType = randomFrom(EnumSet.complementOf(SUPPORTED_RERANK_QUERY_DATA_TYPES));
+        var unsupportedDataType = randomFrom(EnumSet.complementOf(SUPPORTED_RERANK_DATA_TYPES));
         var requestJson = Strings.format("""
             {
                 "input": "%s",
@@ -275,7 +274,10 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
             assertThat(
                 exception.getCause().getMessage(),
                 containsString(
-                    Strings.format("Field [query] contains unsupported [type] value [%s]. Supported values are [text]", unsupportedDataType)
+                    Strings.format(
+                        "Field [query] contains unsupported [type] value [%s]. Supported values are [text, image]",
+                        unsupportedDataType
+                    )
                 )
             );
         }
@@ -294,7 +296,7 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
     public static RerankRequest createRandom() {
         return new RerankRequest(
             randomInputs(),
-            getRandomSupportedQuery(),
+            getRandomSupportedInferenceString(),
             randomFrom(randomIntBetween(1, 1028), null),
             randomOptionalBoolean(),
             Map.of(randomAlphanumericOfLength(8), randomAlphanumericOfLength(8))
@@ -304,17 +306,13 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
     private static List<InferenceString> randomInputs() {
         var contents = new ArrayList<InferenceString>();
         for (int i = 0; i < randomIntBetween(1, 5); ++i) {
-            contents.add(getRandomSupportedInput());
+            contents.add(getRandomSupportedInferenceString());
         }
         return contents;
     }
 
-    public static InferenceString getRandomSupportedInput() {
-        return InferenceStringTests.createRandomUsingDataTypes(SUPPORTED_RERANK_INPUT_DATA_TYPES);
-    }
-
-    public static InferenceString getRandomSupportedQuery() {
-        return InferenceStringTests.createRandomUsingDataTypes(SUPPORTED_RERANK_QUERY_DATA_TYPES);
+    public static InferenceString getRandomSupportedInferenceString() {
+        return InferenceStringTests.createRandomUsingDataTypes(SUPPORTED_RERANK_DATA_TYPES);
     }
 
     @Override
@@ -326,7 +324,7 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
         var taskSettings = instance.taskSettings();
         switch (randomInt(4)) {
             case 0 -> inputs = randomValueOtherThan(inputs, RerankRequestTests::randomInputs);
-            case 1 -> query = randomValueOtherThan(query, RerankRequestTests::getRandomSupportedQuery);
+            case 1 -> query = randomValueOtherThan(query, RerankRequestTests::getRandomSupportedInferenceString);
             case 2 -> topN = randomValueOtherThan(topN, () -> randomFrom(randomIntBetween(1, 1028), null));
             case 3 -> returnDocuments = randomValueOtherThan(returnDocuments, ESTestCase::randomOptionalBoolean);
             case 4 -> taskSettings = randomValueOtherThan(

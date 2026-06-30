@@ -1117,11 +1117,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
             assertThat(
                 thrownException.getMessage(),
-                is(
-                    query.isNonText()
-                        ? "The elasticsearch service does not support rerank with non-text queries"
-                        : "The elasticsearch service does not support rerank with non-text inputs"
-                )
+                is("The elasticsearch service does not support rerank with non-text inputs or queries")
             );
         }
     }

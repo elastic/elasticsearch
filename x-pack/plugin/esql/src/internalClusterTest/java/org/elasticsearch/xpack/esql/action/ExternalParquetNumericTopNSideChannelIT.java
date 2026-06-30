@@ -14,11 +14,15 @@ import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.io.OutputFile;
+import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -30,21 +34,33 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.function.IntFunction;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
-public class ExternalParquetNumericTopNSideChannelIT extends AbstractExternalDataSourceIT {
+public class ExternalParquetNumericTopNSideChannelIT extends AbstractEsqlIntegTestCase {
 
     private static final TimeValue LONG_TIMEOUT = TimeValue.timeValueMinutes(2);
 
+    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
+        @Override
+        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
+            super.loadExtensions(loader);
+        }
+    }
+
     @Override
-    protected Collection<Class<? extends Plugin>> formatPlugins() {
-        return List.of(ParquetDataSourcePlugin.class);
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
+        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
+        plugins.add(HttpDataSourcePlugin.class);
+        plugins.add(ParquetDataSourcePlugin.class);
+        return plugins;
     }
 
     @Override
@@ -53,6 +69,7 @@ public class ExternalParquetNumericTopNSideChannelIT extends AbstractExternalDat
     }
 
     public void testRowGroupSkipAscendingMonotonicData() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path file = writeParquetFile(1_000, 1L, 2 * 1024 * 1024, i -> (long) i);
         try {
             QueryResult result = runTopN(file, "id ASC", 10);
@@ -63,6 +80,7 @@ public class ExternalParquetNumericTopNSideChannelIT extends AbstractExternalDat
     }
 
     public void testRowGroupSkipDescendingMonotonicData() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path file = writeParquetFile(1_000, 1L, 2 * 1024 * 1024, i -> 999L - i);
         try {
             QueryResult result = runTopN(file, "id DESC", 10);
@@ -73,6 +91,7 @@ public class ExternalParquetNumericTopNSideChannelIT extends AbstractExternalDat
     }
 
     public void testPageLevelSkipWithinSingleRowGroup() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path file = writeParquetFile(2_000, 64L * 1024 * 1024, 64, i -> (long) i);
         try {
             QueryResult result = runTopN(file, "id ASC", 10);
@@ -83,6 +102,7 @@ public class ExternalParquetNumericTopNSideChannelIT extends AbstractExternalDat
     }
 
     public void testSinglePageRowGroupNegativeControlReadsWholeGroup() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path file = writeParquetFile(2_000, 64L * 1024 * 1024, 2 * 1024 * 1024, i -> (long) i);
         try {
             QueryResult result = runTopN(file, "id ASC", 10);
@@ -94,6 +114,7 @@ public class ExternalParquetNumericTopNSideChannelIT extends AbstractExternalDat
     }
 
     public void testNullsFirstEarlyTermination() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path file = writeParquetFile(1_000, 1L, 2 * 1024 * 1024, i -> i < 100 ? null : (long) i);
         try {
             QueryResult result = runTopN(file, "id ASC NULLS FIRST", 50);
@@ -107,6 +128,7 @@ public class ExternalParquetNumericTopNSideChannelIT extends AbstractExternalDat
     }
 
     public void testNullsLastDoesNotTriggerEarlyTermination() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path file = writeParquetFile(1_000, 1L, 2 * 1024 * 1024, i -> i < 100 ? null : (long) i);
         try {
             QueryResult result = runTopN(file, "id ASC NULLS LAST", 10);
@@ -118,6 +140,7 @@ public class ExternalParquetNumericTopNSideChannelIT extends AbstractExternalDat
     }
 
     public void testOverlappingRowGroupsKeepCorrectness() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path file = writeParquetFile(500, 1L, 2 * 1024 * 1024, i -> (long) ((i * 37) % 1_000));
         try {
             QueryResult result = runTopN(file, "id ASC", 50);
@@ -133,8 +156,7 @@ public class ExternalParquetNumericTopNSideChannelIT extends AbstractExternalDat
     }
 
     private QueryResult runTopN(Path file, String order, int limit) throws IOException {
-        String dataset = registerDataset("numeric_topn_sc", StoragePath.fileUri(file), Map.of());
-        String query = "FROM " + dataset + " | SORT " + order + " | LIMIT " + limit + " | KEEP id, payload";
+        String query = "EXTERNAL \"" + StoragePath.fileUri(file) + "\" | SORT " + order + " | LIMIT " + limit + " | KEEP id, payload";
         var request = syncEsqlQueryRequest(query);
         request.profile(true);
         try (var response = run(request, LONG_TIMEOUT)) {
@@ -193,6 +215,49 @@ public class ExternalParquetNumericTopNSideChannelIT extends AbstractExternalDat
         }
         Files.write(tempFile, baos.toByteArray());
         return tempFile;
+    }
+
+    private static OutputFile createOutputFile(ByteArrayOutputStream baos) {
+        return new OutputFile() {
+            @Override
+            public PositionOutputStream create(long blockSizeHint) {
+                return new PositionOutputStream() {
+                    private long position;
+
+                    @Override
+                    public long getPos() {
+                        return position;
+                    }
+
+                    @Override
+                    public void write(int b) throws IOException {
+                        baos.write(b);
+                        position++;
+                    }
+
+                    @Override
+                    public void write(byte[] b, int off, int len) throws IOException {
+                        baos.write(b, off, len);
+                        position += len;
+                    }
+                };
+            }
+
+            @Override
+            public PositionOutputStream createOrOverwrite(long blockSizeHint) {
+                return create(blockSizeHint);
+            }
+
+            @Override
+            public boolean supportsBlockSize() {
+                return false;
+            }
+
+            @Override
+            public long defaultBlockSize() {
+                return 0;
+            }
+        };
     }
 
     private static String bytesRefToString(Object cell) {

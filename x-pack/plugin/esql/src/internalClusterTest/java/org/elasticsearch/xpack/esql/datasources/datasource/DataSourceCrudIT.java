@@ -13,6 +13,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -22,7 +23,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
@@ -57,6 +57,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -549,6 +550,111 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
+    /**
+     * Regression for elastic/elasticsearch#152216: with {@code action.destructive_requires_name=false},
+     * {@code DELETE /_query/dataset/*} must resolve the wildcard to datasets only, never to indices.
+     * Before the fix the transport passed the raw names to the registry, so {@code *} (expanded across
+     * the whole index namespace) brought back concrete index names and failed with a 404 naming an index.
+     * The transport now type-filters via {@code IndexNameExpressionResolver.datasets}, mirroring
+     * {@code TransportDeleteViewAction}.
+     */
+    public void testDeleteWildcardResolvesDatasetsNotIndices() throws Exception {
+        final String dsName = "wildcard_parent";
+        final String datasetA = "wildcard_logs_a";
+        final String datasetB = "wildcard_logs_b";
+        final String index = "wildcard_regular_index";
+        updateClusterSettings(Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false));
+        try {
+            assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
+            assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetA, dsName, "test://a/", Map.of())));
+            assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetB, dsName, "test://b/", Map.of())));
+            assertAcked(client().execute(TransportCreateIndexAction.TYPE, new CreateIndexRequest(index)).get(30, TimeUnit.SECONDS));
+
+            // DELETE /_query/dataset/* resolves to the datasets only.
+            assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest("*")));
+
+            // Both datasets are gone; the index is untouched.
+            assertThat(client().execute(GetDatasetAction.INSTANCE, getDatasetRequest("*")).get().getDatasets(), hasSize(0));
+            assertThat(indexExists(index), equalTo(true));
+
+            // A second wildcard delete now matches zero datasets: an empty resolution acks (no 404).
+            assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest("*")));
+
+            assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(DestructiveOperations.REQUIRES_NAME_SETTING.getKey()));
+        }
+    }
+
+    /**
+     * With {@code action.destructive_requires_name=true} (the production default), a wildcard dataset
+     * delete is rejected outright by the destructive-operations guard — same as index deletion and view
+     * deletion — and never reaches the index namespace. Explicitly named deletes are still allowed.
+     */
+    public void testDeleteWildcardGuardedByDestructiveRequiresName() throws Exception {
+        final String dsName = "guard_parent";
+        final String datasetName = "guard_dataset";
+        updateClusterSettings(Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true));
+        try {
+            assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
+            assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetName, dsName, "test://x/", Map.of())));
+
+            ExecutionException guarded = expectThrows(
+                ExecutionException.class,
+                () -> client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest("*")).get()
+            );
+            assertThat(guarded.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(guarded.getCause().getMessage(), containsString("Wildcard expressions or all indices are not allowed"));
+
+            // The dataset still exists — the guard rejected before any deletion — and a named delete works.
+            assertThat(client().execute(GetDatasetAction.INSTANCE, getDatasetRequest(datasetName)).get().getDatasets(), hasSize(1));
+            assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(datasetName)));
+            assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(DestructiveOperations.REQUIRES_NAME_SETTING.getKey()));
+        }
+    }
+
+    /**
+     * A concrete delete of a name that exists but is not a dataset (here, a real index) is a no-op ack, not a
+     * 404: the type filter drops the non-dataset and the index is never touched. Mirrors view delete.
+     */
+    public void testDeleteConcreteNonDatasetNameIsNoOp() throws Exception {
+        final String indexName = "not_a_dataset_index";
+        assertAcked(client().execute(TransportCreateIndexAction.TYPE, new CreateIndexRequest(indexName)).get(30, TimeUnit.SECONDS));
+
+        // DELETE /_query/dataset/<index>: the name resolves to an index, gets type-filtered out, and acks empty.
+        assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(indexName)));
+
+        // The index is untouched.
+        assertThat(indexExists(indexName), equalTo(true));
+    }
+
+    /**
+     * PUT of an identical dataset is a no-op: it acks without publishing a new cluster state, mirroring
+     * {@code ViewService.putView}. A changed PUT still publishes.
+     */
+    public void testPutIdenticalDatasetIsNoOp() throws Exception {
+        final String dsName = "noop_parent";
+        final String datasetName = "noop_dataset";
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetName, dsName, "test://x/", Map.of())));
+
+        final ClusterService masterCs = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+        final long versionBefore = masterCs.state().version();
+
+        // Identical re-PUT: acked, no cluster-state update published.
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetName, dsName, "test://x/", Map.of())));
+        assertThat(masterCs.state().version(), equalTo(versionBefore));
+
+        // A changed PUT does publish a new state.
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetName, dsName, "test://changed/", Map.of())));
+        assertThat(masterCs.state().version(), greaterThan(versionBefore));
+
+        assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(datasetName)));
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+    }
+
     static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
         return new PutDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name, "test", null, new HashMap<>(settings));
     }
@@ -593,7 +699,10 @@ public class DataSourceCrudIT extends ESIntegTestCase {
             ExecutionException.class,
             () -> client().execute(GetDatasetAction.INSTANCE, getDatasetRequest(name)).get()
         );
-        assertThat(err.getCause(), instanceOf(IndexNotFoundException.class));
+        // GET resolves the name and translates a non-dataset/missing name to a clean dataset-shaped not-found,
+        // matching expectDataSourceMissing — never a raw IndexNotFoundException.
+        assertThat(err.getCause(), instanceOf(ResourceNotFoundException.class));
+        assertThat(err.getCause().getMessage(), containsString("dataset [" + name + "] not found"));
     }
 
     private static boolean isActionSuccess(ActionFuture<AcknowledgedResponse> fut) {

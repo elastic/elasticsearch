@@ -160,7 +160,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
 
     public void testListDatasetsWithCoresidentDataStream() throws IOException {
         // Repro for the GET _query/dataset 404 reported 2026-06-30: listing datasets must not blow up just because the
-        // cluster also holds an unrelated data stream (Tyler's was the Entity Store's entities-updates-default). End to
+        // cluster also holds an unrelated data stream (the reported one was the Entity Store's entities-updates-default). End to
         // end through the real transport path (action filters + resolution), unlike the resolver unit test.
         final String dataStream = "entities-updates-default";
         Request tmpl = new Request("PUT", "/_index_template/entities-updates-tmpl");
@@ -192,7 +192,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         // GET an explicit name that happens to be a co-resident data stream. The dataset resolver throws
         // IndexNotFoundException (with excluded_ds) before its Type.DATASET filter runs; the GET transport must
         // translate that to a clean dataset-shaped not-found — never leak the raw index_not_found_exception.
-        // Mirrors the DELETE behavior. (Before the fix this leaked "excluded_ds"; that was the shape of Tyler's 404.)
+        // Mirrors the DELETE behavior. (Before the fix this leaked "excluded_ds"; that was the shape of the reported 404.)
         final String dataStream = "entities-updates-default";
         Request tmpl = new Request("PUT", "/_index_template/entities-updates-tmpl");
         tmpl.setJsonEntity("{\"index_patterns\":[\"entities-updates-*\"],\"data_stream\":{}}");
@@ -210,6 +210,38 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
             assertThat("GET must not leak the raw index resolution error", body, not(containsString("excluded_ds")));
             assertThat(body, not(containsString("index_not_found_exception")));
         } finally {
+            client().performRequest(new Request("DELETE", "/_data_stream/" + dataStream));
+            client().performRequest(new Request("DELETE", "/_index_template/entities-updates-tmpl"));
+        }
+    }
+
+    public void testGetDatasetMixedValidAndDataStreamNamesNotFound() throws IOException {
+        // A comma-separated GET naming a valid dataset and a co-resident data stream: resolution throws on the
+        // data stream, so the whole request is a clean not-found that names the offending name (not the valid one,
+        // and not the raw index error). Confirms the error reports the specific failed name, mirroring delete.
+        final String dataStream = "entities-updates-default";
+        Request tmpl = new Request("PUT", "/_index_template/entities-updates-tmpl");
+        tmpl.setJsonEntity("{\"index_patterns\":[\"entities-updates-*\"],\"data_stream\":{}}");
+        assertThat(client().performRequest(tmpl).getStatusLine().getStatusCode(), equalTo(200));
+        Request createDs = new Request("PUT", "/_data_stream/" + dataStream);
+        assertThat(client().performRequest(createDs).getStatusLine().getStatusCode(), equalTo(200));
+        final String parent = "mixed_parent";
+        final String dataset = "valid_ds";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1"));
+        putDataset(dataset, parent, "s3://bucket/x/*.parquet", Map.of());
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> client().performRequest(new Request("GET", "/_query/dataset/" + dataset + "," + dataStream))
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+            String body = EntityUtils.toString(ex.getResponse().getEntity());
+            assertThat(body, containsString("dataset [" + dataStream + "] not found"));
+            assertThat(body, not(containsString("excluded_ds")));
+            assertThat(body, not(containsString("index_not_found_exception")));
+        } finally {
+            deleteDataset(dataset);
+            deleteDataSource(parent);
             client().performRequest(new Request("DELETE", "/_data_stream/" + dataStream));
             client().performRequest(new Request("DELETE", "/_index_template/entities-updates-tmpl"));
         }

@@ -20,6 +20,7 @@ import org.elasticsearch.plugins.Plugin;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -84,7 +85,7 @@ public class ViewRestTests extends AbstractViewTestCase {
         // GET a view by a name that does not exist. The view resolver throws IndexNotFoundException; the transport must
         // translate it to a clean view-shaped not-found, never leak the raw index_not_found_exception. Mirrors the
         // dataset get/delete and view delete transports.
-        final String missing = "no-such-view-" + randomAlphaOfLength(6).toLowerCase(java.util.Locale.ROOT);
+        final String missing = "no-such-view-" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         GetViewAction.Request request = new GetViewAction.Request(TimeValue.timeValueMinutes(1));
         request.indices(missing);
         TestResponseCapture<GetViewAction.Response> capture = new TestResponseCapture<>();

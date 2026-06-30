@@ -54,9 +54,10 @@ public class TransportGetViewAction extends TransportLocalProjectMetadataAction<
         ProjectState project,
         ActionListener<GetViewAction.Response> listener
     ) {
-        // An explicit name that resolves to a non-view abstraction (e.g. a data stream) throws IndexNotFoundException
-        // before the Type.VIEW filter runs. Translate it to a view-shaped not-found instead of leaking a raw
-        // index_not_found_exception, mirroring TransportDeleteViewAction (and the dataset get/delete transports).
+        // An explicit name that doesn't resolve to a view throws IndexNotFoundException before the Type.VIEW filter
+        // runs. (A co-resident data stream resolves to empty, not a throw — views don't share the dataset
+        // data-stream leak.) Translate the throw to a view-shaped not-found instead of leaking a raw
+        // index_not_found_exception, mirroring the dataset get/delete and view delete transports.
         final ViewResolutionService.ViewResolutionResult result;
         try {
             result = viewResolutionService.resolveViews(

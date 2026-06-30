@@ -476,6 +476,7 @@ public class EsqlFunctionRegistry {
                 Concat.DEFINITION,
                 Contains.DEFINITION,
                 EndsWith.DEFINITION,
+                FieldExtract.DEFINITION,
                 Hash.DEFINITION,
                 JsonExtract.DEFINITION,
                 LTrim.DEFINITION,
@@ -662,8 +663,7 @@ public class EsqlFunctionRegistry {
                 RangeMin.DEFINITION,
                 RangeWithin.DEFINITION,
                 ToDateRange.DEFINITION,
-                ToText.DEFINITION,
-                FieldExtract.DEFINITION } };
+                ToText.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

@@ -113,7 +113,7 @@ PUT my-logs-index
 
 ## Dynamic mappings [dynamic-mappings]
 
-With the columnar modes, fields that are unmapped will continue to be mapped via dynamic mappings:
+With the columnar modes, fields that are not referenced in static mappings get dynamically mapped as follows:
 * Whole numbers are mapped as a long field type.
 * Decimal numbers are mapped as a double type.
 * Strings are mapped as a keyword field type.

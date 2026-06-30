@@ -72,7 +72,7 @@ Custom plugins can include the official {{es}} plugins not provided with ECH, an
 
 To learn more about the official and community-sourced plugins, refer to [{{es}} Plugins and Integrations](index.md).
 
-For a detailed guide with examples of using the Elasticsearch Service API to create, get information about, update, and delete extensions and plugins, check [Managing plugins and extensions through the API](./cloud/ec-plugins-guide.md).
+For a detailed guide with examples of using the Elasticsearch Service API to create, get information about, update, and delete extensions and plugins, check [Manage plugins and extensions through the API](docs-content://deploy-manage/deploy/elastic-cloud/manage-plugins-extensions-through-api.md).
 
 ### Add plugins provided with ECH [ec-adding-elastic-plugins]
 

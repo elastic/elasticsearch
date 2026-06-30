@@ -9,6 +9,7 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.foreign.adapter.ArenaAdapter;
 import org.elasticsearch.nativeaccess.WindowsNativeAccess.ConsoleCtrlHandler;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 
@@ -34,7 +35,7 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.elasticsearch.foreign.LinkerHelper.downcallHandle;
 import static org.elasticsearch.foreign.LinkerHelper.upcallHandle;
 import static org.elasticsearch.foreign.LinkerHelper.upcallStub;
-import static org.elasticsearch.foreign.MemorySegmentUtil.varHandleWithoutOffset;
+import static org.elasticsearch.foreign.adapter.MemorySegmentAdapter.varHandleWithoutOffset;
 
 class JdkKernel32Library implements Kernel32Library {
     static {
@@ -287,7 +288,7 @@ class JdkKernel32Library implements Kernel32Library {
     @Override
     public int GetCompressedFileSizeW(String lpFileName, IntConsumer lpFileSizeHigh) {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment wideFileName = ArenaUtil.allocateFrom(arena, lpFileName + "\0", StandardCharsets.UTF_16LE);
+            MemorySegment wideFileName = ArenaAdapter.allocateFrom(arena, lpFileName + "\0", StandardCharsets.UTF_16LE);
             MemorySegment fileSizeHigh = arena.allocate(JAVA_INT);
 
             int ret = (int) GetCompressedFileSizeW$mh.invokeExact(lastErrorState, wideFileName, fileSizeHigh);
@@ -301,10 +302,10 @@ class JdkKernel32Library implements Kernel32Library {
     @Override
     public int GetShortPathNameW(String lpszLongPath, char[] lpszShortPath, int cchBuffer) {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment wideFileName = ArenaUtil.allocateFrom(arena, lpszLongPath + "\0", StandardCharsets.UTF_16LE);
+            MemorySegment wideFileName = ArenaAdapter.allocateFrom(arena, lpszLongPath + "\0", StandardCharsets.UTF_16LE);
             MemorySegment shortPath;
             if (lpszShortPath != null) {
-                shortPath = ArenaUtil.allocate(arena, JAVA_CHAR, cchBuffer);
+                shortPath = ArenaAdapter.allocate(arena, JAVA_CHAR, cchBuffer);
             } else {
                 shortPath = MemorySegment.NULL;
             }

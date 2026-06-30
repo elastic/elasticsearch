@@ -11,8 +11,8 @@ package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.MeterProvider;
-import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter;
-import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporterBuilder;
+import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter;
+import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporterBuilder;
 import io.opentelemetry.instrumentation.runtimetelemetry.RuntimeTelemetry;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
@@ -95,7 +95,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     }
 
     private MetricExporter wrapWithBuffering(
-        OtlpHttpMetricExporter delegate,
+        OtlpGrpcMetricExporter delegate,
         Path bufferPath,
         Supplier<MeterProvider> meterProviderSupplier
     ) {
@@ -115,16 +115,15 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         return SdkMeterProvider.builder().setResource(OtelSdkResource.get(settings)).registerMetricReader(reader).build();
     }
 
-    private OtlpHttpMetricExporter createOTLPExporter(Supplier<MeterProvider> meterProviderSupplier) {
+    private OtlpGrpcMetricExporter createOTLPExporter(Supplier<MeterProvider> meterProviderSupplier) {
         String endpoint = OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.get(settings);
         if (endpoint == null || endpoint.isEmpty()) {
             throw new IllegalStateException(
                 OTEL_METRICS_ENABLED_SYSTEM_PROPERTY + "=true requires telemetry.export.endpoint to be configured"
             );
         }
-        OtlpHttpMetricExporterBuilder builder = OtlpHttpMetricExporter.builder()
-            // OTLP/HTTP requires the per-signal path; the shared telemetry.export.endpoint carries only the base URL.
-            .setEndpoint(endpoint + "/v1/metrics")
+        OtlpGrpcMetricExporterBuilder builder = OtlpGrpcMetricExporter.builder()
+            .setEndpoint(endpoint)
             .setMeterProvider(meterProviderSupplier)
             .setAggregationTemporalitySelector(AggregationTemporalitySelector.deltaPreferred())
             .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)

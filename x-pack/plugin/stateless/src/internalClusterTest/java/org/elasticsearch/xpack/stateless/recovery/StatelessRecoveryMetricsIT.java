@@ -381,8 +381,9 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             // We don't warm for to-be-hollowed shards. This is a weak assertion as there is no wait.
             assertThat(measurements.size(), equalTo(0));
         } else {
-            // One from IndexShardCacheWarmer and the other from StatelessIndexEventListener (which we may need to wait for it to appear)
-            assertBusy(() -> assertThat(measurements.size(), equalTo(2)));
+            // One from IndexShardCacheWarmer, one for the region 0 pre-warming
+            // and the other from StatelessIndexEventListener (which we may need to wait for it to appear)
+            assertBusy(() -> assertThat(measurements.size(), equalTo(3)));
             long totalBytesWarmed = 0;
             for (final Measurement metric : measurements) {
                 final long bytesWarmed = metric.getLong();

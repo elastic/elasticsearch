@@ -341,18 +341,30 @@ public class IpFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new IpSyntheticSourceSupport(ignoreMalformed);
+        return new IpSyntheticSourceSupport(ignoreMalformed, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        return new IpSyntheticSourceSupport(ignoreMalformed, true);
     }
 
     private static class IpSyntheticSourceSupport implements SyntheticSourceSupport {
         private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean());
         private final boolean ignoreMalformed;
         // Decided once per instance so that the generated mapping is stable across the throwaway and per-document examples.
-        private final boolean extendedDocValues = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
-        private final boolean enforceSingleValue = extendedDocValues && randomBoolean();
+        private final boolean isColumnar;
+        private final boolean enforceSingleValue;
 
-        private IpSyntheticSourceSupport(boolean ignoreMalformed) {
+        private IpSyntheticSourceSupport(boolean ignoreMalformed, boolean isColumnar) {
             this.ignoreMalformed = ignoreMalformed;
+            this.isColumnar = isColumnar;
+            this.enforceSingleValue = isColumnar && randomBoolean();
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return isColumnar;
         }
 
         @Override
@@ -372,15 +384,24 @@ public class IpFieldMapperTests extends MapperTestCase {
             }
             List<Tuple<Object, Object>> values = randomList(1, maxValues, this::generateValue);
             List<Object> in = values.stream().map(Tuple::v1).toList();
-            List<Object> outList = values.stream()
-                .filter(v -> v.v2() instanceof InetAddress)
-                .map(v -> new BytesRef(InetAddressPoint.encode((InetAddress) v.v2())))
-                .collect(Collectors.toSet())
-                .stream()
-                .sorted(BytesRef::compareTo)
-                .map(v -> InetAddressPoint.decode(v.bytes))
-                .map(NetworkAddress::format)
-                .collect(Collectors.toCollection(ArrayList::new));
+            List<Object> outList;
+            if (isColumnar) {
+                // columnar mode preserves insertion order and duplicates
+                outList = values.stream()
+                    .filter(v -> v.v2() instanceof InetAddress)
+                    .map(v -> NetworkAddress.format((InetAddress) v.v2()))
+                    .collect(Collectors.toCollection(ArrayList::new));
+            } else {
+                outList = values.stream()
+                    .filter(v -> v.v2() instanceof InetAddress)
+                    .map(v -> new BytesRef(InetAddressPoint.encode((InetAddress) v.v2())))
+                    .collect(Collectors.toSet())
+                    .stream()
+                    .sorted(BytesRef::compareTo)
+                    .map(v -> InetAddressPoint.decode(v.bytes))
+                    .map(NetworkAddress::format)
+                    .collect(Collectors.toCollection(ArrayList::new));
+            }
             values.stream()
                 .filter(v -> false == v.v2() instanceof InetAddress)
                 .map(Tuple::v2)
@@ -423,7 +444,7 @@ public class IpFieldMapperTests extends MapperTestCase {
             if (ignoreMalformed) {
                 b.field("ignore_malformed", true);
             }
-            if (extendedDocValues && enforceSingleValue) {
+            if (isColumnar && enforceSingleValue) {
                 b.startObject("doc_values");
                 b.field("multi_value", false);
                 b.endObject();

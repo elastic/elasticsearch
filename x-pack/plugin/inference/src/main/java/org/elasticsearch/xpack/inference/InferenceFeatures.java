@@ -86,6 +86,7 @@ public class InferenceFeatures implements FeatureSpecification {
         "inference.elastic.reasoning_task_settings"
     );
     public static final NodeFeature SEMANTIC_TEXT_EMBEDDING_TASK = new NodeFeature("semantic_text.inference_using_embedding_task");
+    public static final NodeFeature INFERENCE_INFERENCE_INDEX_DOC_TYPE = new NodeFeature("inference.inference_index_doc_type");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -97,7 +98,8 @@ public class InferenceFeatures implements FeatureSpecification {
             INFERENCE_CCM_ENABLEMENT_SERVICE,
             EMBEDDING_TASK_TYPE,
             ENDPOINT_METADATA_FIELD,
-            INFERENCE_ELASTIC_REASONING_TASK_SETTINGS
+            INFERENCE_ELASTIC_REASONING_TASK_SETTINGS,
+            INFERENCE_INFERENCE_INDEX_DOC_TYPE
         );
     }
 
@@ -154,7 +156,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE,
                 SEMANTIC_TEXT_ELEMENT_TYPE_IN_INDEX_OPTIONS,
                 SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES,
-                SEMANTIC_TEXT_EMBEDDING_TASK
+                SEMANTIC_TEXT_EMBEDDING_TASK,
+                SemanticTextFieldMapper.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES
             )
         );
         if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {

@@ -13,8 +13,8 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
-import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
-import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporterBuilder;
+import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
+import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporterBuilder;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
@@ -32,7 +32,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_SYSTEM_PROPERTY;
 
 /**
- * {@link TraceSupplier} that exports spans via OTLP HTTP using its own {@link SdkTracerProvider},
+ * {@link TraceSupplier} that exports spans via OTLP/gRPC using its own {@link SdkTracerProvider},
  * used when {@code telemetry.otel.traces.enabled=true} is set as a JVM system property.
  */
 public class OtelSdkExportTracerSupplier implements TraceSupplier {
@@ -54,9 +54,8 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
         int maxExportBatchSize = OtelSdkSettings.TELEMETRY_TRACING_MAX_BATCH_SIZE.get(settings);
 
         // InternalTelemetryVersion is @Internal but is the only way to opt into stable SemConv names in 1.62.0.
-        OtlpHttpSpanExporterBuilder builder = OtlpHttpSpanExporter.builder()
-            // OTLP/HTTP requires the per-signal path; the shared telemetry.export.endpoint carries only the base URL.
-            .setEndpoint(endpoint + "/v1/traces")
+        OtlpGrpcSpanExporterBuilder builder = OtlpGrpcSpanExporter.builder()
+            .setEndpoint(endpoint)
             .setMeterProvider(meterProvider)
             .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
             .setTimeout(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings).toDuration())
@@ -66,7 +65,7 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);
         }
-        OtlpHttpSpanExporter exporter = builder.build();
+        OtlpGrpcSpanExporter exporter = builder.build();
 
         BatchSpanProcessor processor = BatchSpanProcessor.builder(exporter)
             .setMeterProvider(meterProvider)

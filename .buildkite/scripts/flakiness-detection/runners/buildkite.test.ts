@@ -97,6 +97,44 @@ describe("toBuildkitePipeline end-to-end", () => {
     expect(analyze.retry).toEqual({ automatic: false });
   });
 
+  test("batch steps write a status file; analyze step does not", () => {
+    const tests: ClassifiedTest[] = [
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.SomeTests" },
+    ];
+
+    const pipeline = pipelineFromTests(tests);
+    const [batch, analyze] = pipeline.steps[0].steps;
+
+    // Single-batch step captures the start epoch and writes a per-job status
+    // file tagged with the kind + step key, carrying the runtime rc + duration.
+    expect(batch.command).toContain("_fd_start=$(date +%s)");
+    expect(batch.command).toContain(
+      'printf \'{"jobId":"%s","stepKey":"%s","kind":"%s","rc":%s,"durationSec":%s}\' "$$BUILDKITE_JOB_ID" "flakiness-detection:unit" "test" "$$rc" "$(( _fd_end - _fd_start ))" > "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true'
+    );
+
+    // The analyze step is not a test batch and must not write a status file.
+    expect(analyze.key).toBe("flakiness-detection:analyze");
+    expect(analyze.command).not.toContain("flakiness-status/status-");
+    expect(analyze.command).not.toContain("_fd_start=");
+  });
+
+  test("each parallel batch writes a status file with the correct kind", () => {
+    const tests: ClassifiedTest[] = [];
+    for (let i = 0; i < 5; i++) {
+      tests.push({
+        gradleProject: `:mod:${i}`,
+        kind: "javaRestTest",
+        sourceSet: "javaRestTest",
+        fqcn: `org.elasticsearch.Rest${i}IT`,
+      });
+    }
+
+    const step = pipelineFromTests(tests).steps[0].steps[0];
+    expect(step.env!["BATCH_COMMAND_0"]).toContain('"flakiness-detection:java-rest" "javaRestTest"');
+    expect(step.env!["BATCH_COMMAND_0"]).toContain('> "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true');
+    expect(step.env!["BATCH_COMMAND_4"]).toContain('"flakiness-detection:java-rest" "javaRestTest"');
+  });
+
   test("dispatches default unit-test batches in parallel", () => {
     const tests: ClassifiedTest[] = [];
     for (let i = 0; i < 4; i++) {
@@ -195,31 +233,30 @@ describe("toBuildkitePipeline", () => {
     expect(step.command).toContain("only");
   });
 
-  test("batch steps upload JUnit XML artifacts; analyze step downloads them", () => {
+  test("batch steps upload JUnit XML + status artifacts; analyze step downloads statuses", () => {
     const cmds: RunnableCommand[] = [
       { kind: "test", label: "unit tests", key: "flakiness-detection:unit", command: "cmd" },
     ];
     const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG);
     const [batch, analyze] = pipeline.steps[0].steps;
 
-    // Batch step uploads — auto-uploaded by BK when artifact_paths is set.
-    expect(batch.artifact_paths).toBe("**/build/test-results/**/TEST-*.xml");
+    // Batch step uploads both the JUnit XML and the per-job status file —
+    // auto-uploaded by BK when artifact_paths is set.
+    expect(batch.artifact_paths).toEqual(["**/build/test-results/**/TEST-*.xml", "flakiness-status/*.json"]);
 
-    // Analyze step installs bun, downloads from earlier steps, then runs the analyzer.
+    // Analyze step downloads the status files, then runs the analyzer (which
+    // downloads each job's XML per `--step`). No agents override — analyze
+    // inherits the parent pipeline's default (the gradle-tuned image lacks node).
     expect(analyze.key).toBe("flakiness-detection:analyze");
-    expect(analyze.artifact_paths).toBeUndefined();
-    // No agents override — analyze inherits the parent pipeline's default
-    // (which has npm). The gradle-tuned cfg.agents image does not.
+    // Analyze step uploads the structured outcomes as an artifact (not an
+    // annotation) for the observability pipeline to read.
+    expect(analyze.artifact_paths).toBe("flakiness-outcomes.json");
     expect(analyze.agents).toBeUndefined();
-    expect(analyze.command).toContain(
-      'buildkite-agent artifact download "**/build/test-results/**/TEST-*.xml" .'
-    );
+    expect(analyze.command).toContain('buildkite-agent artifact download "flakiness-status/*.json" . || true');
     expect(analyze.command).toContain("node .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts");
-    // Order: bun install → download → analyzer.
-    const installIdx = analyze.command.indexOf("npm install");
+    // Order: download statuses → analyzer.
     const downloadIdx = analyze.command.indexOf("artifact download");
     const analyzerIdx = analyze.command.indexOf("entrypoints/analyze.ts");
-    expect(installIdx).toBeLessThan(downloadIdx);
     expect(downloadIdx).toBeLessThan(analyzerIdx);
     // Analyze step uses timeout_in_minutes: 10, so inner timeout is 8m.
     expect(analyze.command).toContain("timeout --foreground --signal=TERM --kill-after=30s 8m bash");

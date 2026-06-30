@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.esql;
 
+import org.elasticsearch.gradle.test.JavaRestTestPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
@@ -56,23 +57,23 @@ public class EsqlCsvSpecTestsPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        EsqlCsvSpecTestsExtension extension = project.getExtensions().create("esqlCsvSpecTests", EsqlCsvSpecTestsExtension.class);
-
-        project.getTasks().register("generateEsqlSpecTests", GenerateEsqlSpecTestsTask.class, task -> {
-            task.getSpecFilesDir().set(extension.getSpecFilesDir());
-            task.getPackageName().set(extension.getPackageName());
-            task.getVariantPrefixes().set(project.provider(extension::getVariantPrefixes));
-            task.getVariantBaseClasses().set(project.provider(extension::getVariantBaseClasses));
-            task.getOutputDirectory().set(project.getLayout().getBuildDirectory().dir("generated-csv-spec-test-sources/java"));
-            task.setDescription("Generates per-csv-spec-file IT classes for each declared variant.");
-            task.setGroup("verification");
-        });
+        var extension = project.getExtensions().create("esqlCsvSpecTests", EsqlCsvSpecTestsExtension.class);
+        var generateEsqlSpecTestsTaskTaskProvider = project.getTasks()
+            .register("generateEsqlSpecTests", GenerateEsqlSpecTestsTask.class, task -> {
+                task.getSpecFilesDir().set(extension.getSpecFilesDir());
+                task.getPackageName().set(extension.getPackageName());
+                task.getVariantPrefixes().set(project.provider(extension::getVariantPrefixes));
+                task.getVariantBaseClasses().set(project.provider(extension::getVariantBaseClasses));
+                task.getOutputDirectory().set(project.getLayout().getBuildDirectory().dir("generated-csv-spec-test-sources/java"));
+                task.setDescription("Generates per-csv-spec-file IT classes for each declared variant.");
+                task.setGroup("verification");
+            });
 
         project.getPlugins().withType(JavaBasePlugin.class, javaPlugin -> {
             SourceSetContainer sourceSets = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
 
             SourceSet csvSpecTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
-            csvSpecTestSourceSet.getJava().srcDir(project.getTasks().named("generateEsqlSpecTests"));
+            csvSpecTestSourceSet.getJava().srcDir(generateEsqlSpecTestsTaskTaskProvider);
 
             // Wire csvSpecTest against javaRestTest whenever javaRestTest is created. Using
             // sourceSets.all fires for both already-existing and future source sets, so this
@@ -82,8 +83,8 @@ public class EsqlCsvSpecTestsPlugin implements Plugin<Project> {
             // pattern used by yamlRestTest via GradleUtils.extendSourceSet. Test-class bleed
             // from javaRestTest into the csv runner is prevented by testClassesDirs being
             // scoped to csvSpecTest output only.
-            sourceSets.all(ss -> {
-                if ("javaRestTest".equals(ss.getName())) {
+            sourceSets.forEach(ss -> {
+                if (JavaRestTestPlugin.JAVA_REST_TEST.equals(ss.getName())) {
                     project.getDependencies().add(csvSpecTestSourceSet.getImplementationConfigurationName(), ss.getOutput());
                     project.getConfigurations()
                         .named(csvSpecTestSourceSet.getCompileClasspathConfigurationName())

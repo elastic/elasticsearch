@@ -19,38 +19,38 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Thrown when ES|QL detects views during cross-cluster search field resolution.
- * Views are not supported in CCS and the query must fail.
+ * Thrown when ES|QL detects datasets during cross-cluster search field resolution.
+ * Datasets are not supported in CCS and the query must fail.
  */
-public class RemoteViewNotSupportedException extends ElasticsearchException {
+public class RemoteDatasetNotSupportedException extends ElasticsearchException {
 
-    private static final String VIEW_NAMES_KEY = "es.esql.view.names";
+    private static final String DATASET_NAMES_KEY = "es.esql.dataset.names";
 
     @SuppressWarnings("this-escape")
-    public RemoteViewNotSupportedException(List<String> views) {
-        super(message(views));
-        addMetadata(VIEW_NAMES_KEY, views);
+    public RemoteDatasetNotSupportedException(List<String> datasets) {
+        super(message(datasets));
+        addMetadata(DATASET_NAMES_KEY, datasets);
     }
 
-    public RemoteViewNotSupportedException(StreamInput in) throws IOException {
+    public RemoteDatasetNotSupportedException(StreamInput in) throws IOException {
         super(in);
     }
 
     /**
-     * The qualified names of the remote views that triggered this exception.
+     * The qualified names of the remote datasets that triggered this exception.
      */
-    public List<String> views() {
-        List<String> views = getMetadata(VIEW_NAMES_KEY);
-        return views == null ? List.of() : views;
+    public List<String> datasets() {
+        List<String> datasets = getMetadata(DATASET_NAMES_KEY);
+        return datasets == null ? List.of() : datasets;
     }
 
-    private static String message(List<String> views) {
-        String exclusions = views.stream().map(v -> {
+    private static String message(List<String> datasets) {
+        String exclusions = datasets.stream().map(v -> {
             var clusterAndIndex = RemoteClusterAware.splitIndexName(v);
             return clusterAndIndex.clusterAlias() + ":-" + clusterAndIndex.indexExpression();
         }).collect(Collectors.joining(","));
-        return "ES|QL queries with remote views are not supported. Matched "
-            + views
+        return "ES|QL queries with remote datasets are not supported. Matched "
+            + datasets
             + ". Remove them from the query pattern or exclude them with ["
             + exclusions
             + "] if matched by a wildcard.";

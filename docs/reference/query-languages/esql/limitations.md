@@ -150,7 +150,7 @@ Note that if you return both the original `location` and the extracted `x` and `
 
 {{esql}} respects [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) defined in the index mapping and treats them like regular mapped fields. However, you cannot define new runtime fields at search time in {{esql}}. Use the [`EVAL`](/reference/query-languages/esql/commands/eval.md) command to create computed columns instead.
 
-Runtime fields are different from unmapped fields. An unmapped field is a field that does not exist in the mapping at all. By default, {{esql}} returns an error when you reference an unmapped field, but you can change this behavior using the [`SET unmapped_fields`](/reference/query-languages/esql/commands/set.md#esql-unmapped_fields) directive.
+Runtime fields are different from unmapped fields. An unmapped field is a field that does not exist in the mapping at all. By default, {{esql}} returns an error when you reference an unmapped field, but you can change this behavior using the [`SET unmapped_fields`](/reference/query-languages/esql/directives/set.md#esql-unmapped_fields) directive.
 
 ## _source availability [esql-_source-availability]
 

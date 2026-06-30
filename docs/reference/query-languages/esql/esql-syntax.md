@@ -11,7 +11,7 @@ mapped_pages:
 
 ## Query structure [esql-basic-syntax]
 
-An {{esql}} query can optionally start with [query directives](/reference/query-languages/esql/commands/directives.md) to define query settings and general behavior. After any directives, a query is composed of a [source command](/reference/query-languages/esql/esql-commands.md) followed by an optional series of [processing commands](/reference/query-languages/esql/esql-commands.md), separated by a pipe character: `|`. For example:
+An {{esql}} query can optionally start with [query directives](/reference/query-languages/esql/directives/directives.md) to define query settings and general behavior. After any directives, a query is composed of a [source command](/reference/query-languages/esql/esql-commands.md) followed by an optional series of [processing commands](/reference/query-languages/esql/esql-commands.md), separated by a pipe character: `|`. For example:
 
 ```esql
 query-directive

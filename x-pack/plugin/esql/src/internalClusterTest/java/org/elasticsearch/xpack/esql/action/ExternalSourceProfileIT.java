@@ -265,7 +265,7 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
         int files = 3;
         int rowsPerFile = 100;
         for (int i = 0; i < files; i++) {
-            writeParquetFileTo(dir.resolve("part_" + i + ".parquet"), rowsPerFile, 50);
+            writeParquet(dir.resolve("part_" + i + ".parquet"), rowsPerFile, 50);
         }
         String glob = StoragePath.fileUri(dir) + "/*.parquet";
         long totalRows = (long) files * rowsPerFile;

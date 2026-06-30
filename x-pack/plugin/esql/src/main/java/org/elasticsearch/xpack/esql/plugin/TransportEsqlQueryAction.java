@@ -220,7 +220,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         var dataSourceModule = planExecutor.dataSourceModule();
         OperatorFactoryRegistry operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(
             externalSourceExecutor(),
-            threadPool.executor(ThreadPool.Names.GENERIC)
+            threadPool.executor(fileReadExecutorName())
         );
         this.computeService = new ComputeService(
             services,
@@ -267,12 +267,25 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     /**
      * Returns the executor used for external source coordination (e.g. connector handshakes and registry wiring).
-     * File-based async reads and slice-queue drain use {@link ThreadPool.Names#GENERIC} via
-     * {@link OperatorFactoryRegistry#fileReadExecutor} so they do not share the same pool as compute drivers.
+     * File-based async reads and slice-queue drain use the dedicated {@code esql_external_blocking_io} pool
+     * ({@link EsqlPlugin#EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME}) via {@link OperatorFactoryRegistry#fileReadExecutor},
+     * so blocking external reads share neither the compute-driver pool nor the shared {@link ThreadPool.Names#GENERIC} pool.
      * Isolated from {@link ThreadPool.Names#SEARCH} to prevent heavy external queries from starving regular ES operations.
      */
     protected Executor externalSourceExecutor() {
         return threadPool.executor(ESQL_WORKER_THREAD_POOL_NAME);
+    }
+
+    /**
+     * Name of the thread pool that backs {@link OperatorFactoryRegistry#fileReadExecutor()} — the executor on which
+     * blocking external (GCS/local file) reads run. This must be the dedicated, bounded
+     * {@link EsqlPlugin#EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME} pool, never {@link ThreadPool.Names#GENERIC}: routing
+     * blocking external reads onto {@code generic} lets a single heavy external query starve the rest of the node.
+     * The production constructor resolves the read executor through this method, so the unit test that pins the
+     * returned name locks the real wiring.
+     */
+    static String fileReadExecutorName() {
+        return EsqlPlugin.EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME;
     }
 
     @Override
@@ -466,6 +479,17 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> versionedResult) {
         var result = versionedResult.inner();
+        // A lenient external read (e.g. a max_record_size truncation under a non-strict error_mode) returns fewer
+        // records than the source held. Surface that as is_partial on the response — the structured counterpart of
+        // the client Warning header — here at the single Result->response chokepoint, so every execution path
+        // (coordinator-only, distributed, subplan/fork) is covered uniformly. External-only queries carry no
+        // LOCAL_CLUSTER entry, hence the direct markPartial() rather than the per-cluster status path.
+        if (result.completionInfo().partial()) {
+            assert result.executionInfo() != null : "a partial completion must carry an executionInfo to surface is_partial";
+            if (result.executionInfo() != null) {
+                result.executionInfo().markPartial();
+            }
+        }
         List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
             List<String> originalTypes;
             if (c instanceof UnsupportedAttribute ua) {

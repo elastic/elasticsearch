@@ -528,6 +528,13 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
     }
 
     @Override
+    protected boolean supportsParsingObject() {
+        // semantic_text takes text input. This is only consulted under subobjects:false (columnar), which requires a new index, and
+        // new indices reject the legacy format - so the object-valued legacy format can never reach the flatten path here.
+        return false;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         final XContentParser parser = context.parser();
         final XContentLocation xContentLocation = parser.getTokenLocation();

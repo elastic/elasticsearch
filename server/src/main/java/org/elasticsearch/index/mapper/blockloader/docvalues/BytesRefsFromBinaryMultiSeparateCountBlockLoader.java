@@ -16,12 +16,10 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
-import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedDocValues;
 
 import java.io.IOException;
 
@@ -35,7 +33,6 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
      */
     public enum ArrayOrderSource {
         NONE,  // no ordering
-        FROM_OFFSETS,  // reconstructs order from a sidebar .offsets field
         INLINE  // order is already preserved in the binary blob, so reads the blob directly
     }
 
@@ -44,10 +41,6 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
 
     public BytesRefsFromBinaryMultiSeparateCountBlockLoader(String fieldName) {
         this(fieldName, ArrayOrderSource.NONE);
-    }
-
-    public BytesRefsFromBinaryMultiSeparateCountBlockLoader(String fieldName, boolean readInArrayOrder) {
-        this(fieldName, readInArrayOrder ? ArrayOrderSource.FROM_OFFSETS : ArrayOrderSource.NONE);
     }
 
     public BytesRefsFromBinaryMultiSeparateCountBlockLoader(String fieldName, ArrayOrderSource arrayOrderSource) {
@@ -102,20 +95,6 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
             // all-null or empty array writes a count but no binary blob.
             return new ArrayOrderInlineNull(bc.binary(), bc.counts());
         }
-        if (arrayOrderSource == ArrayOrderSource.FROM_OFFSETS) {
-            TrackingSortedDocValues offsets;
-            try {
-                offsets = TrackingSortedDocValues.get(breaker, context, FieldArrayContext.offsetsFieldName(fieldName));
-            } catch (Exception e) {
-                // We already reserved breaker space for the binary and counts doc values above. If acquiring the offsets companion fails
-                // (ex. circuit breaker) we must release that reservation here, otherwise it leaks.
-                Releasables.close(bc.binary(), bc.counts());
-                throw e;
-            }
-            if (offsets != null) {
-                return new ArrayOrder(bc.binary(), bc.counts(), offsets);
-            }
-        }
         return new BytesRefsFromBinarySeparateCount(bc.binary(), bc.counts());
     }
 
@@ -150,58 +129,6 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
         @Override
         public void close() {
             Releasables.close(super::close, counts);
-        }
-    }
-
-    static class ArrayOrder extends AbstractBytesRefsFromBinaryReader {
-
-        private final BytesRefsFromBinarySeparateCount separateCountFallback;
-        private final TrackingNumericDocValues counts;
-        private final TrackingSortedDocValues offsets;
-        private final ByteArrayStreamInput scratch = new ByteArrayStreamInput();
-        private final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
-
-        ArrayOrder(TrackingBinaryDocValues docValues, TrackingNumericDocValues counts, TrackingSortedDocValues offsets) {
-            super(docValues);
-            this.offsets = offsets;
-            this.counts = counts;
-            this.separateCountFallback = new BytesRefsFromBinarySeparateCount(docValues, counts);
-        }
-
-        @Override
-        public void read(int docId, BlockLoader.BytesRefBuilder builder) throws IOException {
-            int[] offsetToOrd = OffsetsAwareBlockLoaderHelper.readOffsets(offsets.docValues(), scratch, docId);
-
-            // if no offsets were recorded, delegate to the non-ordered per-doc emit inherited from the parent
-            if (offsetToOrd == null) {
-                separateCountFallback.read(docId, builder);
-                return;
-            }
-
-            // no values arrived (all slots null) — emit a single null position
-            if (docValues.docValues().advanceExact(docId) == false) {
-                assert OffsetsAwareBlockLoaderHelper.allNulls(offsetToOrd);
-                builder.appendNull();
-                return;
-            }
-
-            boolean advanced = counts.docValues().advanceExact(docId);
-            assert advanced;
-
-            // materialize the per-doc values once so we can index into them by ord
-            BytesRef[] materialized = reader.materialize(docValues.docValues().binaryValue(), counts.docValues().longValue());
-
-            OffsetsAwareBlockLoaderHelper.emit(offsetToOrd, builder, ord -> builder.appendBytesRef(materialized[ord]));
-        }
-
-        @Override
-        public String toString() {
-            return "BytesRefsFromBinarySeparateCount.ArrayOrder";
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(super::close, counts, offsets);
         }
     }
 

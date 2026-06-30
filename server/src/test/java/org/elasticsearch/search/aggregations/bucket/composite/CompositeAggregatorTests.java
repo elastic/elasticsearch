@@ -100,6 +100,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -733,6 +734,140 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals("{keyword=d}", result.getBuckets().get(1).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(1).getDocCount());
         });
+    }
+
+    /**
+     * Walks a keyword composite page by page with a {@code size} smaller than the number of distinct values, the way a
+     * transform grouping by a keyword does. Under a match_all query the leading source drives collection through a
+     * {@link TermsSortedDocsProducer}: each page seeks to the after key in the terms dictionary and early-terminates once
+     * the queue is full, instead of scanning every document. This exercises that producer path together with
+     * {@link SegmentOrdinalValuesSource}'s forced-lead-value collector, including a multi-valued document, and asserts
+     * every page is correct end to end.
+     */
+    public void testKeywordPaginationDrivenByTermsProducer() throws Exception {
+        final List<Map<String, List<Object>>> dataset = Arrays.asList(
+            createDocument("keyword", "a"),
+            createDocument("keyword", "c"),
+            createDocument("keyword", "a"),
+            createDocument("keyword", "e"),
+            createDocument("keyword", "c"),
+            createDocument("keyword", "d"),
+            createDocument("keyword", Arrays.asList("b", "f")) // multi-valued: counts towards both b and f
+        );
+        // Counts: a=2, b=1, c=2, d=1, e=1, f=1; distinct ascending order is a,b,c,d,e,f.
+
+        // Page 1: no after key.
+        testSearchCase(Collections.singletonList(Queries.ALL_DOCS_INSTANCE), dataset, () -> {
+            TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field("keyword");
+            return new CompositeAggregationBuilder("name", Collections.singletonList(terms)).size(2);
+        }, (InternalComposite result) -> {
+            assertEquals(2, result.getBuckets().size());
+            assertEquals("{keyword=b}", result.afterKey().toString());
+            assertEquals("{keyword=a}", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(0).getDocCount());
+            assertEquals("{keyword=b}", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(1).getDocCount());
+        });
+
+        // Page 2: after the previous page's last key.
+        testSearchCase(Collections.singletonList(Queries.ALL_DOCS_INSTANCE), dataset, () -> {
+            TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field("keyword");
+            return new CompositeAggregationBuilder("name", Collections.singletonList(terms)).size(2)
+                .aggregateAfter(Collections.singletonMap("keyword", "b"));
+        }, (InternalComposite result) -> {
+            assertEquals(2, result.getBuckets().size());
+            assertEquals("{keyword=d}", result.afterKey().toString());
+            assertEquals("{keyword=c}", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(0).getDocCount());
+            assertEquals("{keyword=d}", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(1).getDocCount());
+        });
+
+        // Final page: drains the remaining buckets.
+        testSearchCase(Collections.singletonList(Queries.ALL_DOCS_INSTANCE), dataset, () -> {
+            TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field("keyword");
+            return new CompositeAggregationBuilder("name", Collections.singletonList(terms)).size(2)
+                .aggregateAfter(Collections.singletonMap("keyword", "d"));
+        }, (InternalComposite result) -> {
+            assertEquals(2, result.getBuckets().size());
+            assertEquals("{keyword=f}", result.afterKey().toString());
+            assertEquals("{keyword=e}", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(0).getDocCount());
+            assertEquals("{keyword=f}", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(1).getDocCount());
+        });
+    }
+
+    /**
+     * Same producer-driven pagination as {@link #testKeywordPaginationDrivenByTermsProducer}, but with a <b>second</b>
+     * keyword source. The leading source ({@code keyword}) drives collection through the {@link TermsSortedDocsProducer},
+     * which re-scans the segment's documents once per leading-source term; for each of those terms the secondary source
+     * ({@code terms}) reads its own per-segment ordinals from a freshly resolved, forward-only doc values iterator. This
+     * pins that the secondary {@link SegmentOrdinalValuesSource} re-resolves its doc values per term (a cached iterator
+     * would already be advanced past the re-scanned documents) while only remapping its slots once per segment.
+     */
+    public void testMultiKeywordPaginationDrivenByTermsProducer() throws Exception {
+        final List<Map<String, List<Object>>> dataset = Arrays.asList(
+            createDocument("keyword", "a", "terms", "p"),
+            createDocument("keyword", "a", "terms", "q"),
+            createDocument("keyword", "b", "terms", "p"),
+            createDocument("keyword", "b", "terms", "q"),
+            createDocument("keyword", "c", "terms", "p")
+        );
+        // Combos ascending: {a,p},{a,q},{b,p},{b,q},{c,p}; each occurs once.
+
+        // Page 1: no after key.
+        testSearchCase(
+            Collections.singletonList(Queries.ALL_DOCS_INSTANCE),
+            dataset,
+            () -> compositeOfKeywordAndTerms(null),
+            (InternalComposite result) -> {
+                assertEquals(2, result.getBuckets().size());
+                assertEquals("{keyword=a, terms=q}", result.afterKey().toString());
+                assertEquals("{keyword=a, terms=p}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals("{keyword=a, terms=q}", result.getBuckets().get(1).getKeyAsString());
+            }
+        );
+
+        // Page 2: after {a,q} - the producer must re-scan terms a, b, ... for the secondary source.
+        testSearchCase(
+            Collections.singletonList(Queries.ALL_DOCS_INSTANCE),
+            dataset,
+            () -> compositeOfKeywordAndTerms(afterKey("a", "q")),
+            (InternalComposite result) -> {
+                assertEquals(2, result.getBuckets().size());
+                assertEquals("{keyword=b, terms=q}", result.afterKey().toString());
+                assertEquals("{keyword=b, terms=p}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals("{keyword=b, terms=q}", result.getBuckets().get(1).getKeyAsString());
+            }
+        );
+
+        // Final page: drains the remaining bucket.
+        testSearchCase(
+            Collections.singletonList(Queries.ALL_DOCS_INSTANCE),
+            dataset,
+            () -> compositeOfKeywordAndTerms(afterKey("b", "q")),
+            (InternalComposite result) -> {
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{keyword=c, terms=p}", result.afterKey().toString());
+                assertEquals("{keyword=c, terms=p}", result.getBuckets().get(0).getKeyAsString());
+            }
+        );
+    }
+
+    private static CompositeAggregationBuilder compositeOfKeywordAndTerms(Map<String, Object> after) {
+        CompositeAggregationBuilder builder = new CompositeAggregationBuilder(
+            "name",
+            Arrays.asList(new TermsValuesSourceBuilder("keyword").field("keyword"), new TermsValuesSourceBuilder("terms").field("terms"))
+        ).size(2);
+        return after == null ? builder : builder.aggregateAfter(after);
+    }
+
+    private static Map<String, Object> afterKey(String keyword, String terms) {
+        Map<String, Object> after = new LinkedHashMap<>();
+        after.put("keyword", keyword);
+        after.put("terms", terms);
+        return after;
     }
 
     /**

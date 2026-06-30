@@ -107,11 +107,6 @@ public record FormatReadContext(
         }
     }
 
-    /** Whether this read should attribute records to canonical stripes for stats capture. */
-    public boolean statsStripesEnabled() {
-        return statsStripeSize > 0;
-    }
-
     /**
      * Creates a minimal context for the common non-split case. Leaves {@code errorPolicy} as
      * {@code null} so the reader falls back to its own default — typically the policy resolved
@@ -141,26 +136,6 @@ public record FormatReadContext(
             statsBaseOffset,
             statsStripeSize,
             statsFileFinal,
-            statsColumnScope
-        );
-    }
-
-    /** Returns a copy carrying the canonical-stripe addressing parameters for this read, preserving the harvest scope. */
-    public FormatReadContext withStats(long baseOffset, long stripeSize, boolean fileFinal) {
-        return new FormatReadContext(
-            projectedColumns,
-            batchSize,
-            rowLimit,
-            errorPolicy,
-            firstSplit,
-            lastSplit,
-            recordAligned,
-            readSchema,
-            splitStartByte,
-            maxRecordBytes,
-            baseOffset,
-            stripeSize,
-            fileFinal,
             statsColumnScope
         );
     }

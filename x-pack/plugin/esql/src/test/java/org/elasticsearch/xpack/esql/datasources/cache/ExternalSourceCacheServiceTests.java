@@ -529,7 +529,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     public void testReconcilePoisonDiscardsAllContributionsForFile() throws Exception {
-        // CHUNK_HAD_ERRORS marker → entire file is dropped, even if WholeFile/PartialChunk
+        // CHUNK_HAD_ERRORS marker → entire file is dropped, even if WholeFile/StripeFragment
         // contributions ride alongside it. Locks the poison gate in
         // reconcileSourceStatsFromContributions: a SKIP_ROW chunk's stats can't be trusted to
         // represent the file accurately, so we throw away every contribution for this path.
@@ -1211,7 +1211,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     public void testReconcileWholeFileWinsOverConcurrentPartials() throws Exception {
-        // Mixed shape: WholeFile + PartialChunks for the same file. The whole-file read is
+        // Mixed shape: WholeFile + StripeFragments for the same file. The whole-file read is
         // authoritative — its row count already covers every row — and fragments must not be
         // summed on top. Locks the reconciler's whole-file-first routing.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {

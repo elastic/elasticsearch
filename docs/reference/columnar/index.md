@@ -81,7 +81,7 @@ An important configuration step when setting up columnar index mode is determini
 Good index sorting fields allow storing data more efficiently and improving query response times.
 Good index sorting fields are dependent on the use case and the data.
 
-The `logsdb_columnar` index mode, just like `logsdb` index mode, uses by default the `host.name` field in acendeing order and `@timestamp` field in descending order as the index sort fields.
+The `logsdb_columnar` index mode, just like `logsdb` index mode, uses by default the `host.name` field in ascending order and `@timestamp` field in descending order as the index sort fields.
 Hosts typically emit similar logs and therefor it makes sense logs from the host are adjacent on disk. This ensures that logs are compressed efficiently on disk.
 The `@timestamp` field is also used as the index sort field because then within a host logs are stored from newest to oldest, which aligns with most queries.
 

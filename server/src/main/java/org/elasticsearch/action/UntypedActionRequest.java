@@ -15,16 +15,17 @@ import java.io.IOException;
 
 /**
  * An action request with an unspecified response type.
- *
- * @deprecated Use {@link ActionRequest} with a specific {@link ActionResponse} type.
+ * <p>
+ * In due course we intend to make {@link ActionRequest} strongly-typed in its {@link ActionResponse} type, and then to migrate each
+ * {@link UntypedActionRequest} instances to the new typed world. Until the strongly-typed {@link ActionRequest} is available, please
+ * continue to use {@link UntypedActionRequest} for all new request types.
  */
-@Deprecated
-public abstract class LegacyActionRequest extends ActionRequest {
-    public LegacyActionRequest() {
+public abstract class UntypedActionRequest extends ActionRequest {
+    public UntypedActionRequest() {
         super();
     }
 
-    public LegacyActionRequest(StreamInput in) throws IOException {
+    public UntypedActionRequest(StreamInput in) throws IOException {
         super(in);
     }
 }

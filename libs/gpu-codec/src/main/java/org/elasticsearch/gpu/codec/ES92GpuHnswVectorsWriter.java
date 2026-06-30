@@ -17,6 +17,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
@@ -34,7 +35,9 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
+import org.apache.lucene.util.IORunnable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph.NodesIterator;
 import org.apache.lucene.util.hnsw.HnswGraphBuilder;
@@ -42,10 +45,12 @@ import org.apache.lucene.util.hnsw.NeighborArray;
 import org.apache.lucene.util.hnsw.OnHeapHnswGraph;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
+import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.IndexingKnnVectorsWriter;
 import org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -72,7 +77,7 @@ import static org.elasticsearch.index.codec.vectors.Lucene99ScalarQuantizedVecto
  * Writer that builds an Nvidia Carga Graph on GPU and then writes it into the Lucene99 HNSW format,
  * so that it can be searched on CPU with Lucene99HNSWVectorReader.
  */
-final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
+final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
     private static final Logger logger = LogManager.getLogger(ES92GpuHnswVectorsWriter.class);
     private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ES92GpuHnswVectorsWriter.class);
     private static final int LUCENE99_HNSW_DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
@@ -83,14 +88,11 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
     private final CuVSResourceManager cuVSResourceManager;
     private final long totalDeviceMemory;
-    private final SegmentWriteState segmentWriteState;
     private final IndexOutput meta, vectorIndex;
     private final int M;
     private final int beamWidth;
-    private final FlatVectorsWriter flatVectorWriter;
 
     private final List<FieldWriter> fields = new ArrayList<>();
-    private boolean finished;
     private final CuVSMatrix.DataType dataType;
 
     ES92GpuHnswVectorsWriter(
@@ -99,21 +101,21 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         SegmentWriteState state,
         int M,
         int beamWidth,
+        FlatVectorsFormat flatVectorsFormat,
         FlatVectorsWriter flatVectorWriter
     ) throws IOException {
+        super(state, flatVectorsFormat, flatVectorWriter);
         this.totalDeviceMemory = totalDeviceMemory;
         assert cuVSResourceManager != null : "CuVSResources must not be null";
         this.cuVSResourceManager = cuVSResourceManager;
         this.M = M;
         this.beamWidth = beamWidth;
-        this.flatVectorWriter = flatVectorWriter;
         if (flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) {
             dataType = CuVSMatrix.DataType.BYTE;
         } else {
             assert flatVectorWriter instanceof Lucene99FlatVectorsWriter;
             dataType = CuVSMatrix.DataType.FLOAT;
         }
-        this.segmentWriteState = state;
         String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, LUCENE99_HNSW_META_EXTENSION);
         String indexDataFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
@@ -239,12 +241,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public void finish() throws IOException {
-        if (finished) {
-            throw new IllegalStateException("already finished");
-        }
-        finished = true;
-        flatVectorWriter.finish();
-
+        super.finish();
         if (meta != null) {
             // write end of fields marker
             meta.writeInt(-1);
@@ -628,37 +625,49 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     }
 
     @Override
-    public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        // Note: Merged raw vectors are already in sorted order. The flatVectorWriter and MergedVectorValues utilities
-        // apply mergeState.docMaps internally, so vectors are returned in the final sorted document order.
-        // Unlike flush(), we don't need to explicitly handle sorting here.
-        try (var scorerSupplier = flatVectorWriter.mergeOneFieldToIndex(fieldInfo, mergeState)) {
+    public IORunnable mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        flatVectorWriter.mergeOneFlatVectorField(fieldInfo, mergeState);
+        return () -> {
             var started = System.nanoTime();
-            int numVectors = scorerSupplier.totalVectorCount();
-            if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
-                // we don't really need real value for vectors here,
-                // we just build a mock graph where every node is connected to every other node
-                generateMockGraphAndWriteMeta(fieldInfo, numVectors);
-            } else {
-                if (dataType == CuVSMatrix.DataType.FLOAT) {
-                    var randomScorerSupplier = VectorsFormatReflectionUtils.getFlatRandomVectorScorerInnerSupplier(scorerSupplier);
-                    mergeFloatVectorField(fieldInfo, mergeState, randomScorerSupplier, numVectors);
+            try {
+                // Lazily finish flat writer and open a reader for the written segment
+                ensureFlatReaderOpen();
+                // Note: Merged raw vectors are already in sorted order. The flatVectorWriter and MergedVectorValues utilities
+                // apply mergeState.docMaps internally, so vectors are returned in the final sorted document order.
+                // Unlike flush(), we don't need to explicitly handle sorting here.
+                assert fieldInfo.getVectorEncoding() == VectorEncoding.FLOAT32 : "GPU writer only supports FLOAT32 indexing";
+                FloatVectorValues vectorValues = flatVectorsReader.getFloatVectorValues(fieldInfo.name);
+                int numVectors = vectorValues.size();
+                if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
+                    // we don't really need real value for vectors here,
+                    // we just build a mock graph where every node is connected to every other node
+                    generateMockGraphAndWriteMeta(fieldInfo, numVectors);
+                } else if (dataType == CuVSMatrix.DataType.FLOAT) {
+                    RandomVectorScorerSupplier scorerSupplier = flatVectorsReader.getFlatVectorScorer(fieldInfo.getName())
+                        .getRandomVectorScorerSupplier(fieldInfo.getVectorSimilarityFunction(), vectorValues);
+                    mergeFloatVectorField(fieldInfo, mergeState, scorerSupplier, numVectors);
                 } else {
                     // During merging, we use quantized data, so we need to support byte[] too.
                     // That's how our current formats work: use floats during indexing, and quantized data to build a graph
                     // during merging.
                     assert dataType == CuVSMatrix.DataType.BYTE;
-                    var randomScorerSupplier = VectorsFormatReflectionUtils.getScalarQuantizedRandomVectorScorerInnerSupplier(
-                        scorerSupplier
-                    );
-                    mergeByteVectorField(fieldInfo, mergeState, randomScorerSupplier, numVectors);
+                    assert flatVectorsReader instanceof QuantizedVectorsReader;
+                    try (
+                        CloseableRandomVectorScorerSupplier scorerSupplier = ((QuantizedVectorsReader) flatVectorsReader)
+                            .getRandomVectorScorerSupplierForMerge(fieldInfo, segmentWriteState)
+                    ) {
+                        var randomScorerSupplier = VectorsFormatReflectionUtils.getScalarQuantizedRandomVectorScorerInnerSupplier(
+                            scorerSupplier
+                        );
+                        mergeByteVectorField(fieldInfo, mergeState, randomScorerSupplier, numVectors);
+                    }
                 }
+                var elapsed = System.nanoTime() - started;
+                logger.debug("Merged [{}] vectors in [{}ms]", numVectors, elapsed / 1_000_000.0);
+            } catch (Throwable t) {
+                throw new IOException("Failed to merge GPU index: ", t);
             }
-            var elapsed = System.nanoTime() - started;
-            logger.debug("Merged [{}] vectors in [{}ms]", numVectors, elapsed / 1_000_000.0);
-        } catch (Throwable t) {
-            throw new IOException("Failed to merge GPU index: ", t);
-        }
+        };
     }
 
     private void mergeByteVectorField(
@@ -932,7 +941,11 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(meta, vectorIndex, flatVectorWriter);
+        if (isFlatWriterClosed()) {
+            IOUtils.close(meta, vectorIndex, flatVectorsReader);
+        } else {
+            IOUtils.close(meta, vectorIndex, flatVectorWriter, flatVectorsReader);
+        }
     }
 
     static int distFuncToOrd(VectorSimilarityFunction func) {

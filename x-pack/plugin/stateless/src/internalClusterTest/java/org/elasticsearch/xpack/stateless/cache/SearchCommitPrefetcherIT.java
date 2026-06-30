@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
-import org.jspecify.annotations.NonNull;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -822,7 +821,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                 if (blobName.equals(bccBlobName)) {
                     return new FilterInputStream(originalSupplier.get()) {
                         @Override
-                        public int read(byte @NonNull [] b, int off, int len) throws IOException {
+                        public int read(byte[] b, int off, int len) throws IOException {
                             var bytesRead = super.read(b, off, len);
                             if (bytesRead > 0) {
                                 bytesReadFromBlobStore.addAndGet(bytesRead);
@@ -855,9 +854,9 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                 }
                 return new FilterInputStream(originalSupplier.get()) {
                     @Override
-                    public int read(byte @NonNull [] b, int off, int len) throws IOException {
+                    public int read(byte[] b, int off, int len) throws IOException {
                         var bytesRead = super.read(b, off, len);
-                        if (bytesRead > 0) {
+                        if (bytesRead > 0 && StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
                             prefetchedGenerations.add(StatelessCompoundCommit.parseGenerationFromBlobName(blobName));
                         }
                         return bytesRead;

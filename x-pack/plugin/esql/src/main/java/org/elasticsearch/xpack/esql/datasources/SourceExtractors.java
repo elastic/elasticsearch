@@ -114,11 +114,10 @@ public final class SourceExtractors implements Releasable {
     /**
      * Resources whose lifecycle must extend beyond the source operator's, because the deferred
      * extraction path keeps using them to satisfy point lookups long after the source finished
-     * producing pages. Typical example: the per-query concurrency budget that wraps the storage
-     * provider — extractors hold {@code QueryBudgetedStorageObject}s that must still be able to
-     * acquire permits when {@link #materialize} runs. These closeables are closed (LIFO) by
-     * {@link #close()} after the registered extractors, so any storage objects they own are torn
-     * down first.
+     * producing pages. Typical example: the storage objects that wrap the provider — extractors keep
+     * reading through them (bounded by the read thread pool / SDK connection pool, not a per-read acquire)
+     * when {@link #materialize} runs. These closeables are closed (LIFO) by {@link #close()} after the
+     * registered extractors, so any storage objects they own are torn down first.
      */
     private final List<Closeable> trailingCloseables = new ArrayList<>();
     private boolean closed = false;

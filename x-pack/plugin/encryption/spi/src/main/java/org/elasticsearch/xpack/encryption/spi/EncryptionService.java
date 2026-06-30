@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.encryption.spi;
 
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
+
 /**
  * Provides symmetric encrypt/decrypt operations.
  *
@@ -51,5 +54,46 @@ public interface EncryptionService {
      */
     default boolean isEncryptionRequired() {
         return true;
+    }
+
+    /**
+     * Process-wide registry for the single {@link EncryptionService} instance.
+     *
+     * <p>The encryption plugin populates this once from its {@code createComponents}. It exists for {@code createComponents}-time
+     * consumers in other plugins (e.g. ES|QL data sources, serverless security) that build their own components before Guice wiring
+     * is available and therefore cannot have the service injected. Plugin load ordering ({@code extendedPlugins = ['x-pack-encryption']})
+     * guarantees the encryption plugin's {@code createComponents} runs before any consumer's.
+     *
+     * <p>The instance is set exactly once: {@link #set} rejects a second set, and {@link #get} fails until it is set.
+     */
+    final class Holder {
+
+        private static final AtomicReference<EncryptionService> INSTANCE = new AtomicReference<>();
+
+        private Holder() {}
+
+        /**
+         * Returns the registered {@link EncryptionService}.
+         *
+         * @throws IllegalStateException if no instance has been set yet
+         */
+        public static EncryptionService get() {
+            EncryptionService service = INSTANCE.get();
+            if (service == null) {
+                throw new IllegalStateException("EncryptionService is not constructed yet");
+            }
+            return service;
+        }
+
+        /**
+         * Registers the single {@link EncryptionService} instance.
+         *
+         * @throws IllegalStateException if an instance has already been set
+         */
+        public static void set(EncryptionService service) {
+            if (INSTANCE.compareAndSet(null, Objects.requireNonNull(service, "encryptionService")) == false) {
+                throw new IllegalStateException("EncryptionService instance is already set");
+            }
+        }
     }
 }

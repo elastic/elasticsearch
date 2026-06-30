@@ -985,10 +985,10 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
 
             final var runningShard = newStartedShard(true);
             final var handler = service.ongoingRecoveries.addOrEnqueueNewRecovery(
-                    newStartRecoveryRequest(runningShard),
-                    task,
-                    runningShard,
-                    ActionListener.noop()
+                newStartRecoveryRequest(runningShard),
+                task,
+                runningShard,
+                ActionListener.noop()
             );
 
             for (int i = 0; i < queuedRecoveryCount; i++) {

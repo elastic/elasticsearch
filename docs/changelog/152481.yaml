@@ -1,46 +1,35 @@
 area: Mapping
 highlight:
+  body: "Two new index modes, `columnar` and `logsdb_columnar`, are now available\
+    \ as\na Tech Preview. With columnar mode enabled, Elasticsearch becomes a full\n\
+    analytical and search columnar store.\n\nFields are stored **once, as doc values\
+    \ only** — no inverted index or BKD\ntree is maintained by default, which eliminates\
+    \ redundant index structures\nand significantly reduces the storage footprint.\
+    \ Doc values skippers\n(compact skip lists with min/max metadata) are enabled\
+    \ by default for number based fields, \nallowing large blocks of documents to\
+    \ be skipped without scanning individual values.\nLater doc value skippers will\
+    \ be enabled for all fields where applicable.\n\nMappings are always flat: object\
+    \ and passthrough fields are auto-flattened\nto leaf fields at mapping time. The\
+    \ original document source is not stored;\nthe columnar source is generated on\
+    \ the fly from doc values at query time.\nOptionally, a pre-built columnar representation\
+    \ can be stored on disk using\nthe new `columnar_stored` source mode.\n\nNew multi-value\
+    \ semantics: the original ordering of multiple values per field \nper document\
+    \ (e.g., in arrays) is preserved by default. Optionally, fields in \nmappings\
+    \ can be configured to only allow one value per document.\n\n**Single-value enforcement**\
+    \ (`doc_values.multi_value: false`): reject\ndocuments that provide more than\
+    \ one value for a field, enabling tighter\ncolumnar encoding and stronger schema\
+    \ guarantees.\n\n**Required-value enforcement** (`doc_values.nullability: false`):\
+    \ reject\ndocuments that omit a field or supply an explicit `null`.\n\n`logsdb_columnar`\
+    \ adds logging-oriented defaults on top of the columnar\nfoundation: a default\
+    \ `@timestamp` mapping, and index sorting on `host.name`\nand `@timestamp` when\
+    \ those fields are present. `columnar` provides the same\ncolumn-oriented storage\
+    \ without use-case-specific defaults, suitable for\ngeneral-purpose indices and\
+    \ data streams.\n\nImproved columnar storage: An optimized doc values format is\
+    \ used by default, \nfurther reducing storage footprint, especially when combined\
+    \ with index sorting."
   notable: true
   title: Columnar index mode (Tech Preview)
-  body: |-
-    Two new index modes, `columnar` and `logsdb_columnar`, are now available as
-    a Tech Preview. With columnar mode enabled, Elasticsearch becomes a full
-    analytical and search columnar store.
-
-    Fields are stored **once, as doc values only** — no inverted index or BKD
-    tree is maintained by default, which eliminates redundant index structures
-    and significantly reduces the storage footprint. Doc values skippers
-    (compact skip lists with min/max metadata) are enabled by default for number based fields, 
-    allowing large blocks of documents to be skipped without scanning individual values.
-    Later doc value skippers will be enabled for all fields where applicable.
-
-    Mappings are always flat: object and passthrough fields are auto-flattened
-    to leaf fields at mapping time. The original document source is not stored;
-    the columnar source is generated on the fly from doc values at query time.
-    Optionally, a pre-built columnar representation can be stored on disk using
-    the new `columnar_stored` source mode.
-
-    New multi-value semantics: the original ordering of multiple values per field 
-    per document (e.g., in arrays) is preserved by default. Optionally, fields in 
-    mappings can be configured to only allow one value per document.
-
-    **Single-value enforcement** (`doc_values.multi_value: false`): reject
-    documents that provide more than one value for a field, enabling tighter
-    columnar encoding and stronger schema guarantees.
-
-    **Required-value enforcement** (`doc_values.nullability: false`): reject
-    documents that omit a field or supply an explicit `null`.
-
-    `logsdb_columnar` adds logging-oriented defaults on top of the columnar
-    foundation: a default `@timestamp` mapping, and index sorting on `host.name`
-    and `@timestamp` when those fields are present. `columnar` provides the same
-    column-oriented storage without use-case-specific defaults, suitable for
-    general-purpose indices and data streams.
-
-    Improved columnar storage: An optimized doc values format is used by default, 
-    further reducing storage footprint, especially when combined with index sorting.
-
 issues: []
 pr: 152481
 summary: Columnar index modes available as Tech Preview
-type: enhancement
+type: feature

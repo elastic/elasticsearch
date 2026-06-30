@@ -401,6 +401,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(heartbeatIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(heartbeatIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(heartbeatIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(heartbeatIndex), is(false));
     }
 
     public void testElasticServiceAccount() {

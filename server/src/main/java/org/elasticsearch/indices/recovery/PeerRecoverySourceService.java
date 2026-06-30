@@ -70,7 +70,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         Integer.MAX_VALUE,
         1,
         Property.NodeScope,
-        Property.Dynamic
+        Property.OperatorDynamic
     );
 
     public static class Actions {

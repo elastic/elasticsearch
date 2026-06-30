@@ -45,7 +45,7 @@ public final class ThrottlingRecoveryService implements Closeable {
         // Throttling handled by master allocation for now.
         Integer.MAX_VALUE,
         1,
-        Setting.Property.Dynamic,
+        Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
     );
 

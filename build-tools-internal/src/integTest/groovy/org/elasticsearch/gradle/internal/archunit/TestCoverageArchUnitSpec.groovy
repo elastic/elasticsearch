@@ -76,7 +76,6 @@ class TestCoverageArchUnitSpec extends Specification {
         "org.elasticsearch.gradle.internal.precommit.JavaModulePrecommitPlugin",
         "org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin",
         "org.elasticsearch.gradle.internal.test.rerun.InternalTestRerunPlugin",
-        "org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin",
         "org.elasticsearch.gradle.internal.EmbeddedProviderPlugin",
         "org.elasticsearch.gradle.internal.InternalAvailableTcpPortProviderPlugin",
         "org.elasticsearch.gradle.internal.InternalPluginBuildPlugin",

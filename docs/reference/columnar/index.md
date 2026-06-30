@@ -11,7 +11,7 @@ With columnar mode enabled, Elasticsearch becomes a full **analytical and search
 
 - Fields are stored **once, as doc values only**. All non-text fields are not indexed by default, eliminating the storage cost of maintaining redundant index structures.
 - For non-indexed fields, [doc values skippers](/reference/elasticsearch/mapping-reference/doc-values.md#doc-values-skippers) are enabled by default. Doc values skippers are compact skip lists with metadata (e.g. min and max values) to avoid scanning large blocks of data when executing a query.
-- Mappings are always flat, and object like fields in mappings are always auto-flattened.
+- Mappings are always flat, and object and passthrough fields in mappings are always auto-flattened. Nested fields are not auto flattened.
 - The original source is no longer stored. If source is requested at query time, then a flattened or columnar representation of the source is generated on the fly and returned. Optionally, the columnar source can also be generated at index time and stored to disk as doc values.
 - New multi-value semantics: the original ordering of multiple values per field per document (e.g., in arrays) is preserved by default. Optionally, fields in mappings can be configured to only allow one value per document.
 - Fields in mappings can be configured to reject documents that have no value for them.
@@ -134,7 +134,7 @@ Fields that are not explicitly mapped in the mappings are not stored and therefo
 
 ## Auto flattening [auto-flattening]
 
-Mappings are always flattened. When defining mappings, any object field mapper is removed and leaf field mappings are created for each field path.
+Mappings are always flattened. When defining mappings, object and passthrough field mappers are removed and leaf field mappings are created for each field path.
 The same applies to dynamic mapping updates during indexing.
 
 During `object` flattening, the `enabled` and `dynamic` settings are preserved and separately tracked.

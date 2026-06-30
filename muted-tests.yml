@@ -349,6 +349,10 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.highlight/30_max_analyzed_offset/Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL}
   issue: https://github.com/elastic/elasticsearch/issues/152367
+- class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
+  method: testFromStatsGroupingByDate
+  issue: https://github.com/elastic/elasticsearch/issues/152475
+
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

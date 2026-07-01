@@ -644,7 +644,7 @@ public abstract class DenseVectorQuery extends Query {
 
             @Override
             public float score() throws IOException {
-                VectorEncoderDecoder.decodeDenseVector(indexVersion, values.binaryValue(), decoded);
+                VectorEncoderDecoder.decodeDenseVector(values.binaryValue(), decoded);
                 if (isBit) {
                     int numBits = decoded.length * Byte.SIZE;
                     return (numBits - VectorUtil.xorBitCount(target, decoded)) / (float) numBits;

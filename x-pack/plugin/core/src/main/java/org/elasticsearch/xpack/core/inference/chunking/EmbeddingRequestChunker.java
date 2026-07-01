@@ -63,19 +63,9 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
 
         @Override
         public long ramBytesUsed() {
-            if (chunkContainsWholeInput()) {
-                return SHALLOW_SIZE;
-            }
-
-            // We calculate the size manually instead of measuring it directly
-            // using RamUsageEstimator.sizeOf(chunkText()) to not materialize potentially costly strings twice
-            int originalInputLength = input.value().length();
-            long originalInputRamBytesUsed = RamUsageEstimator.sizeOf(input.value());
-            long originalInputDataRamBytesUsed = originalInputRamBytesUsed - RamUsageEstimator.shallowSizeOfInstance(String.class)
-                - RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
-
             int chunkChars = chunk.end() - chunk.start();
-            return (long) ((double) originalInputDataRamBytesUsed * ((double) chunkChars / (double) originalInputLength));
+            double fraction = (double) chunkChars / (double) input.value().length();
+            return SHALLOW_SIZE + (long) (input.ramBytesUsed() * fraction);
         }
 
         private boolean chunkContainsWholeInput() {

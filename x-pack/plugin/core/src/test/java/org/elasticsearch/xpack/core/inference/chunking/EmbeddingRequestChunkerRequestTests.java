@@ -32,8 +32,9 @@ public class EmbeddingRequestChunkerRequestTests extends InferenceObjectRamBytes
 
     @Override
     public boolean checkDoNotUnderAccount() {
-        // RamUsageTester inside testRamBytesUsed_DoesNotUnderAccount measures the whole object disregarding, that we only need to account
-        // for the chunking overhead. Therefore, checking for do not under account doesn't make sense in this case.
+        // Proportional accounting intentionally attributes only a fraction of the shared InferenceString
+        // to each Request. A standalone Request therefore under-accounts relative to RamUsageTester,
+        // which traverses the full object graph including the entire InferenceString.
         return false;
     }
 }

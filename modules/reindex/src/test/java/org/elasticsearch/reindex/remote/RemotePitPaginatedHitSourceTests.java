@@ -27,7 +27,6 @@ import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.HeapBufferedAsyncResponseConsumer;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.ParsingException;
@@ -511,7 +510,8 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
                 any(FutureCallback.class)
             )
         ).then((Answer<Future<HttpResponse>>) invocationOnMock -> {
-            HeapBufferedAsyncResponseConsumer consumer = (HeapBufferedAsyncResponseConsumer) invocationOnMock.getArguments()[1];
+            BreakerAwareHeapBufferedAsyncResponseConsumer consumer = (BreakerAwareHeapBufferedAsyncResponseConsumer) invocationOnMock
+                .getArguments()[1];
             FutureCallback callback = (FutureCallback) invocationOnMock.getArguments()[3];
             assertEquals(ByteSizeValue.of(100, ByteSizeUnit.MB).bytesAsInt(), consumer.getBufferLimit());
             callback.failed(tooLong);

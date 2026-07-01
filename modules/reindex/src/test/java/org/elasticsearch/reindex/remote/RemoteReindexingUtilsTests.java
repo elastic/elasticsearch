@@ -35,6 +35,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
@@ -80,6 +81,23 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             t = t.getCause();
         }
         return sb.toString();
+    }
+
+    private static class ReleasableStringEntity extends StringEntity implements Releasable {
+        private final AtomicBoolean closed = new AtomicBoolean();
+
+        ReleasableStringEntity(String string, ContentType contentType) {
+            super(string, contentType);
+        }
+
+        @Override
+        public void close() {
+            closed.set(true);
+        }
+
+        boolean isClosed() {
+            return closed.get();
+        }
     }
 
     private ThreadPool threadPool;
@@ -837,6 +855,58 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             1024L
         );
         assertTrue("onFailure should have been called", failed.get());
+    }
+
+    public void testExecuteInstallsBreakerAwareConsumerFactoryAndClosesResponseEntityOnSuccess() {
+        ReleasableStringEntity entity = new ReleasableStringEntity("{\"version\":{\"number\":\"1.7.5\"}}", ContentType.APPLICATION_JSON);
+        Response response = mock(Response.class);
+        when(response.getEntity()).thenReturn(entity);
+        mockSuccess(response);
+
+        AtomicBoolean success = new AtomicBoolean(false);
+        RemoteReindexingUtils.lookupRemoteVersion(
+            RejectAwareActionListener.wrap(v -> success.set(true), e -> fail("unexpected failure"), e -> fail("unexpected rejection")),
+            threadPool,
+            client,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
+        );
+
+        assertTrue("listener should have received success", success.get());
+        assertTrue("response entity should have been closed after parsing", entity.isClosed());
+        ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+        verify(client).performRequestAsync(requestCaptor.capture(), any());
+        assertTrue(
+            requestCaptor.getValue()
+                .getOptions()
+                .getHttpAsyncResponseConsumerFactory()
+                .createHttpAsyncResponseConsumer() instanceof BreakerAwareHeapBufferedAsyncResponseConsumer
+        );
+    }
+
+    public void testExecuteClosesResponseEntityOnHttpError() throws Exception {
+        ReleasableStringEntity entity = new ReleasableStringEntity("bad request", ContentType.TEXT_PLAIN);
+        StatusLine statusLine = mock(StatusLine.class);
+        when(statusLine.getStatusCode()).thenReturn(RestStatus.BAD_REQUEST.getStatus());
+        Response response = mock(Response.class);
+        when(response.getStatusLine()).thenReturn(statusLine);
+        when(response.getEntity()).thenReturn(entity);
+        RequestLine requestLine = mock(RequestLine.class);
+        when(requestLine.getMethod()).thenReturn("GET");
+        when(response.getRequestLine()).thenReturn(requestLine);
+        mockFailure(new ResponseException(response));
+
+        AtomicBoolean failed = new AtomicBoolean(false);
+        RemoteReindexingUtils.lookupRemoteVersion(
+            RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> failed.set(true), e -> fail("unexpected rejection")),
+            threadPool,
+            client,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
+        );
+
+        assertTrue("listener should have received failure", failed.get());
+        assertTrue("response entity should have been closed after error extraction", entity.isClosed());
     }
 
     private Response successResponse(String resource) throws Exception {

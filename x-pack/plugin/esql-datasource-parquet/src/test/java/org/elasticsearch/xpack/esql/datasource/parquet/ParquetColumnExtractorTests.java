@@ -287,6 +287,34 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     }
 
     /**
+     * List-column variant of the null-leading concat coverage. Non-adjacent survivor positions
+     * whose leading run(s) are empty lists ({@code i % 5 == 0}) force {@code decodeList} to emit
+     * multiple run chunks with a null/empty-leading chunk first, then route them through
+     * {@link BlockChunks#concat}. Unlike the flat and gather paths the list decoder never emits a
+     * {@code ConstantNullBlock} (its runs are always typed multi-value blocks), so this guards the
+     * list concat path's correctness rather than the exact null-first-chunk crash shape.
+     */
+    public void testExtractListColumnNullLeadingRun() throws IOException {
+        byte[] data = writeIntListFile(60);
+        StorageObject so = createStorageObject(data);
+        try (ColumnExtractor extractor = newFullFileExtractor(so)) {
+            // Rows 0 and 5 are empty lists (listLen == 0); row 17 has listLen 2. Three
+            // non-adjacent positions => three separate runs => concat with two empty-leading chunks.
+            long[] positions = { 0, 5, 17 };
+            try (Block block = extractor.extract("vals", positions, blockFactory)) {
+                IntBlock ints = (IntBlock) block;
+                assertEquals(3, ints.getPositionCount());
+                assertEquals("row 0 empty list", 0, ints.getValueCount(0));
+                assertEquals("row 5 empty list", 0, ints.getValueCount(1));
+                assertEquals("row 17 valueCount", 2, ints.getValueCount(2));
+                int fv = ints.getFirstValueIndex(2);
+                assertEquals("row 17 element 0", 170, ints.getInt(fv));
+                assertEquals("row 17 element 1", 171, ints.getInt(fv + 1));
+            }
+        }
+    }
+
+    /**
      * Performance regression guard for the targeted-extraction path. The extractor must only
      * fetch bytes from row groups that actually own a surviving position; visiting all row
      * groups was the catastrophic forward-scan regression observed on S3 (see PR description).

@@ -67,8 +67,12 @@ final class BlockChunks {
         }
 
         if (type == ElementType.NULL) {
+            // Allocate before closing so a breaker trip inside newConstantNullBlock leaves the chunks
+            // untouched for the caller to release, honouring the "closes nothing on throw" contract
+            // (mirrors the typed path, which closes only after build()).
+            Block result = blockFactory.newConstantNullBlock(total);
             closeChunks(chunks);
-            return blockFactory.newConstantNullBlock(total);
+            return result;
         }
 
         try (Block.Builder builder = type.newBlockBuilder(total, blockFactory)) {

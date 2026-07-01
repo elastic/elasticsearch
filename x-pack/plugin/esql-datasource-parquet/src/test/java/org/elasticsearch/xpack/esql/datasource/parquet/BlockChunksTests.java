@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -107,6 +110,25 @@ public class BlockChunksTests extends ESTestCase {
         assertTrue(e.getMessage().contains("mixed element types"));
         assertFalse("chunk must be left open on throw", a.isReleased());
         assertFalse("chunk must be left open on throw", b.isReleased());
+        Releasables.closeExpectNoException(a, b);
+    }
+
+    /**
+     * All-null branch failure contract: if {@code newConstantNullBlock} trips the breaker, concat
+     * must not have closed any chunk (it allocates the result before closing). A zero-limit breaker
+     * forces the trip; the input chunks (built on an unbounded factory) must survive for the caller.
+     */
+    public void testAllNullBranchBreakerTripLeavesChunksForCaller() {
+        List<Object[]> ignored = new ArrayList<>();
+        Block a = nullChunk(2, ignored);
+        Block b = nullChunk(3, ignored);
+        List<Block> chunks = List.of(a, b);
+        BlockFactory tripping = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+            .breaker(new LimitedBreaker("test", ByteSizeValue.ofBytes(0)))
+            .build();
+        expectThrows(CircuitBreakingException.class, () -> BlockChunks.concat(chunks, tripping));
+        assertFalse("chunk must be left open when the all-null allocation trips", a.isReleased());
+        assertFalse("chunk must be left open when the all-null allocation trips", b.isReleased());
         Releasables.closeExpectNoException(a, b);
     }
 

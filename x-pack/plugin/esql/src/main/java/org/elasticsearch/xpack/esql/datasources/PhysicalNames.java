@@ -43,7 +43,7 @@ public final class PhysicalNames {
         }
         Object value = config.get(ExternalSourceResolver.CONFIG_DECLARED_RENAMES);
         if (value instanceof Map<?, ?> m && m.isEmpty() == false) {
-            Map<String, String> out = new java.util.HashMap<>(m.size());
+            Map<String, String> out = new HashMap<>(m.size());
             for (Map.Entry<?, ?> e : m.entrySet()) {
                 out.put(String.valueOf(e.getKey()), String.valueOf(e.getValue()));
             }
@@ -122,12 +122,12 @@ public final class PhysicalNames {
     }
 
     /**
-     * Invariant guard: assert that no <i>logical</i> rename-source name has survived into a reader-facing name set —
-     * i.e. every such surface was physicalized. A leaked logical name would make a reader look up a column the file
-     * does not have (wrong/null column, hard "missing" failure, or a silently mis-pushed predicate). Call at each mint
-     * boundary (read-context build, {@code pushFilters} input, extraction/stat column arrays) so a surface that forgets
-     * to translate trips loudly in tests rather than returning wrong rows in production. Cheap set-membership scan under
-     * {@code assert}; no cost when assertions are off.
+     * Invariant guard: {@code true} iff no <i>logical</i> rename-source name survives in a reader-facing name set — i.e.
+     * the surface was physicalized. A leaked logical name would make a reader look up a column the file does not have
+     * (a silently mis-pushed predicate on the pushdown path). Wired as an {@code assert} at the pushed-filter mint
+     * ({@code PushFiltersToSource}), the correctness-critical surface where a mistranslation is silent; the projection
+     * and aggregate surfaces are covered instead by the per-format rename ITs. Cheap set-membership scan; no cost with
+     * assertions off.
      */
     public static boolean noLogicalNamesRemain(Collection<String> readerFacingNames, Map<String, String> renames) {
         if (renames == null || renames.isEmpty() || readerFacingNames == null) {

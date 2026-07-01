@@ -53,26 +53,6 @@ public final class DeclaredSchemaResolver {
     }
 
     /**
-     * The declared columns as ES|QL attributes keyed by <b>physical</b> name (the {@code source} when a column
-     * renames, otherwise the logical name), same types and order as {@link #declaredAttributes}. This is the mapping
-     * the reader matches against the file (e.g. NDJSON field names); it pairs position-for-position with the logical
-     * attributes, so an identity column mapping relabels physical&rarr;logical downstream by position. Empty when there
-     * is no {@code mappings} block.
-     */
-    public static List<Attribute> physicalAttributes(DatasetMapping mapping) {
-        DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
-        if (mappings == null) {
-            return List.of();
-        }
-        List<Attribute> attributes = new ArrayList<>(mappings.properties().size());
-        for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
-            String physicalName = e.getValue().source() != null ? e.getValue().source() : e.getKey();
-            attributes.add(new ReferenceAttribute(Source.EMPTY, null, physicalName, resolveType(e.getKey(), e.getValue().type())));
-        }
-        return attributes;
-    }
-
-    /**
      * Logical&rarr;physical name map for the columns that declare a {@code source} rename. Empty when nothing renames.
      * The reader/{@code ColumnMapping} uses this to find a renamed column's physical column in the file; nothing above
      * the reader ever sees the physical name.
@@ -150,6 +130,19 @@ public final class DeclaredSchemaResolver {
         if (lenient == false && matched.size() < declaredTypeByPhysical.size()) {
             List<String> missing = declaredTypeByPhysical.keySet().stream().filter(p -> matched.contains(p) == false).toList();
             throw new IllegalArgumentException("declared columns not found in the source: " + missing);
+        }
+        // A declared rename whose logical name collides with a surviving (undeclared) inferred column would produce two
+        // output columns with the same name (e.g. declare logical `y` with source `x` when the file also has `y`).
+        // Reject against the authoritative unified schema (lenient == false); PUT cannot catch this — it needs the file.
+        if (lenient == false) {
+            Set<String> seen = new HashSet<>(output.size());
+            for (Attribute a : output) {
+                if (seen.add(a.name()) == false) {
+                    throw new IllegalArgumentException(
+                        "declared rename produces a duplicate column [" + a.name() + "]: it collides with an inferred column"
+                    );
+                }
+            }
         }
         return new Overlaid(output, fileSchema);
     }

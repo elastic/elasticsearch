@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -61,8 +62,21 @@ public final class DeclaredSchemaValidator {
         }
         DatasetMapping.Mappings mappings = mapping.mappings();
         if (mappings != null) {
+            // Physical-name uniqueness: a column's physical (file) name is its `source`, or its logical name when no
+            // rename. Two columns resolving to the same physical name break the 1:1 rename the whole read path assumes
+            // (PhysicalNames.inverse collapses, the non-strict overlay silently drops one, the reader emits it twice),
+            // so reject at PUT rather than corrupt results. Resolve-or-reject at create, like the type check.
+            Map<String, String> physicalToLogical = new HashMap<>();
             for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
                 validateType(e.getKey(), e.getValue().type());
+                String logical = e.getKey();
+                String physical = e.getValue().source() != null ? e.getValue().source() : logical;
+                String clash = physicalToLogical.putIfAbsent(physical, logical);
+                if (clash != null) {
+                    throw new IllegalArgumentException(
+                        "columns [" + clash + "] and [" + logical + "] both resolve to the physical column [" + physical + "]"
+                    );
+                }
             }
             boolean strict = mappings.dynamic() == DatasetMapping.Dynamic.FALSE;
             validateRole("timestamp_field", mapping.timestampField(), mappings, strict, true);

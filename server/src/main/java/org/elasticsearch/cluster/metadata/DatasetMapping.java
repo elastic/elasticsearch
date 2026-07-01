@@ -72,9 +72,11 @@ public final class DatasetMapping implements Writeable {
 
     /**
      * The {@code mappings} block: an undeclared-column policy and the per-column declarations keyed by logical name.
-     * {@code properties} is order-preserving and may be empty (e.g. {@code "mappings": { "dynamic": "false" }}).
-     */
-    /**
+     *
+     * @param dynamic       undeclared-column policy ({@code true} = infer + overlay, {@code false} = declaration is the
+     *                      whole schema).
+     * @param properties    per-column declarations keyed by logical name; order-preserving, may be empty (e.g.
+     *                      {@code "mappings": { "dynamic": "false" }}).
      * @param sourceEnabled {@code _source.enabled}: whether a synthetic {@code _source} is produced for the dataset's
      *                      rows. {@code null} means unset — the default ({@code true}, source available). Mirrors the
      *                      core {@code _source} mapping's {@code enabled}, restricted to the read-applicable knob.

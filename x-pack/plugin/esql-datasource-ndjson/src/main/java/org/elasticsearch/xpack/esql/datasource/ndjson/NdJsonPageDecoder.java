@@ -810,9 +810,10 @@ public class NdJsonPageDecoder implements Closeable {
         BlockDecoder root = new BlockDecoder();
         int idx = 0;
         for (var attribute : projected) {
-            // The JSON field name is the column's PHYSICAL (source) name; a declared `source` rename maps the logical
-            // column to its file field. setAttribute below keeps the logical attribute, so the block lands under the
-            // user-facing name. No rename declared -> logical name is used directly.
+            // attribute.name() is the file's PHYSICAL field name: a declared `source` rename is resolved centrally
+            // upstream (PhysicalNames), so the reader receives already-physical attributes and is rename-agnostic.
+            // setAttribute keeps this physical attribute at channel idx; the block is relabeled to the logical name by
+            // position downstream (ColumnMapping / queryDataSchema).
             String name = attribute.name();
             BlockDecoder decoder;
             if (hasDottedPrefixConflict(name, fullSchema)) {

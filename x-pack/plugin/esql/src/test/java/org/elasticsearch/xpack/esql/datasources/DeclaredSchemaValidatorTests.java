@@ -35,6 +35,35 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
         DeclaredSchemaValidator.validate(null); // no throw
     }
 
+    public void testDuplicatePhysicalSourceRejected() {
+        // Two columns resolving to the same physical name (via source, or a source colliding with another logical name)
+        // breaks the 1:1 rename the read path assumes — must be rejected at PUT.
+        Map<String, DatasetFieldMapping> sameSource = new LinkedHashMap<>();
+        sameSource.put("a", new DatasetFieldMapping("keyword", "x"));
+        sameSource.put("b", new DatasetFieldMapping("long", "x"));
+        IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.FALSE, sameSource), null, null))
+        );
+        assertTrue(e1.getMessage(), e1.getMessage().contains("physical column [x]"));
+
+        // source of one column collides with another column's (un-renamed) logical name
+        Map<String, DatasetFieldMapping> sourceHitsLogical = new LinkedHashMap<>();
+        sourceHitsLogical.put("a", new DatasetFieldMapping("keyword", "b"));
+        sourceHitsLogical.put("b", new DatasetFieldMapping("long", null));
+        IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.FALSE, sourceHitsLogical), null, null))
+        );
+        assertTrue(e2.getMessage(), e2.getMessage().contains("physical column [b]"));
+
+        // distinct sources are fine
+        Map<String, DatasetFieldMapping> distinct = new LinkedHashMap<>();
+        distinct.put("a", new DatasetFieldMapping("keyword", "x"));
+        distinct.put("b", new DatasetFieldMapping("long", "y"));
+        DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.FALSE, distinct), null, null)); // no throw
+    }
+
     public void testSourceRenameAcceptedAtPut() {
         // `source` rename is shape-valid at PUT — the read path honors it (logical file schema + a rename map for the
         // by-name readers). Only the type vocabulary is checked here.

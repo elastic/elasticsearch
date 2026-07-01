@@ -55,6 +55,19 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         assertEquals(DataType.LONG, o.fileSchema().get(0).dataType());
     }
 
+    public void testOverlayRejectsRenameCollidingWithInferredColumn() {
+        // File has both x and y; declaring logical `y` with source `x` would emit two `y` columns (renamed-from-x plus
+        // the pass-through inferred y). Reject against the unified schema (non-lenient).
+        List<Attribute> inferred = List.of(attr("x", DataType.KEYWORD), attr("y", DataType.KEYWORD));
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("y", new DatasetFieldMapping("keyword", "x"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DeclaredSchemaResolver.overlayNonStrict(inferred, mapping(props))
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("duplicate column [y]"));
+    }
+
     public void testOverlayNonStrictErrorsOnDeclaredColumnMissingFromSource() {
         List<Attribute> inferred = List.of(attr("a", DataType.KEYWORD));
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
@@ -93,22 +106,6 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         props.put("customer_id", new DatasetFieldMapping("keyword", "custID"));
         List<Attribute> attrs = DeclaredSchemaResolver.declaredAttributes(mapping(props));
         assertEquals(List.of("customer_id"), attrs.stream().map(Attribute::name).toList());
-    }
-
-    public void testPhysicalAttributesUseSourceNamePairedWithLogical() {
-        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
-        props.put("when", new DatasetFieldMapping("date", "ts"));        // renamed
-        props.put("status", new DatasetFieldMapping("integer", null));   // not renamed
-
-        List<Attribute> logical = DeclaredSchemaResolver.declaredAttributes(mapping(props));
-        List<Attribute> physical = DeclaredSchemaResolver.physicalAttributes(mapping(props));
-
-        // same arity, same types, paired position-for-position
-        assertEquals(logical.size(), physical.size());
-        assertEquals(List.of("when", "status"), logical.stream().map(Attribute::name).toList());
-        assertEquals(List.of("ts", "status"), physical.stream().map(Attribute::name).toList());
-        assertEquals(logical.get(0).dataType(), physical.get(0).dataType());
-        assertEquals(DataType.DATETIME, physical.get(0).dataType());
     }
 
     public void testRenameMapOnlyRenamedColumns() {

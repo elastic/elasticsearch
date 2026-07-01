@@ -296,11 +296,19 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         // and reconciliation stay logical. No-op when the dataset declares no rename.
         Map<String, String> renames = PhysicalNames.fromConfig(externalExec.config());
         Map<String, String> toLogical = PhysicalNames.inverse(renames);
+        List<Expression> mintInput = PhysicalNames.translateExpressionNames(pushableCandidates, renames);
+        // Invariant: no logical rename-source name may survive into the opaque predicate the reader receives. This is the
+        // correctness-critical surface (a mistranslated pushed predicate silently drops/keeps the wrong rows), so make it
+        // an explicit tripwire rather than trusting the translation blindly.
+        assert PhysicalNames.noLogicalNamesRemain(
+            mintInput.stream().flatMap(e -> e.references().stream()).map(Attribute::name).toList(),
+            renames
+        ) : "logical rename-source name leaked into the pushed filter: " + mintInput;
 
         // Use the SPI to push filters
         FilterPushdownSupport.PushdownResult result = pushableCandidates.isEmpty()
             ? FilterPushdownSupport.PushdownResult.none(List.of())
-            : pushdownSupport.pushFilters(PhysicalNames.translateExpressionNames(pushableCandidates, renames));
+            : pushdownSupport.pushFilters(mintInput);
 
         if (result.hasPushedFilter()) {
             // Create new ExternalSourceExec with the (physical) pushed filter and the pushed ESQL expressions in logical space

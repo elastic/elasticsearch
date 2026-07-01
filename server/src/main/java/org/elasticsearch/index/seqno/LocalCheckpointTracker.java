@@ -201,7 +201,7 @@ public class LocalCheckpointTracker {
      * Moves the checkpoint to the last consecutively processed sequence number. This method assumes that the sequence number
      * following the current checkpoint is processed.
      */
-    private void updateCheckpoint(AtomicLong checkPoint, Map<Long, CountedBitSet> bitSetMap) {
+    private void updateCheckpoint(final AtomicLong checkPoint, final Map<Long, CountedBitSet> bitSetMap) {
         assert Thread.holdsLock(this);
         assert getBitSetForSeqNo(bitSetMap, checkPoint.get() + 1).get(seqNoToBitSetOffset(checkPoint.get() + 1))
             : "updateCheckpoint is called but the bit following the checkpoint is not set";

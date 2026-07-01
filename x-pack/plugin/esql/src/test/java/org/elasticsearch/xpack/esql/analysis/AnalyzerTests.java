@@ -7769,6 +7769,122 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    /**
+     * Regression test for the {@code ResolveUnionTypesInUnionAll} rule crashing with
+     * {@code UnresolvedException: Invalid call to attribute on an unresolved object} (surfacing as an HTTP 500).
+     * <p>
+     * When a convert function (here {@code to_string(date_and_date_nanos)}) is pushed down into the {@link UnionAll}
+     * branches, {@code carryOverSyntheticAttributesThroughProjects} walks every {@link Project} in the plan. A
+     * {@code KEEP *} above a still-unresolved union-typed field reference ({@code date_and_date_nanos_and_long}, which
+     * is ambiguous and cannot be auto-resolved) is an unresolved {@link Project}, so computing its output threw. The
+     * fix skips such unresolved Projects; the query now fails with the proper ambiguity verification error instead of
+     * an internal exception.
+     */
+    public void testConvertPushDownWithUnresolvedWildcardProjectAboveUnionType() {
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> analyzeMaybeNullify(analyzer().addIndex(AnalyzerTestUtils.indexWithDateDateNanosUnionType()), """
+                FROM index*, (FROM index*)
+                | EVAL converted = to_string(date_and_date_nanos), ambiguous = date_and_date_nanos_and_long
+                | KEEP *
+                """)
+        );
+        assertThat(e.getMessage(), containsString("Cannot use field [date_and_date_nanos_and_long] due to ambiguities"));
+    }
+
+    /**
+     * Control / boundary case for {@link #testConvertPushDownWithUnresolvedWildcardProjectAboveUnionType()}: here the
+     * ambiguous union-typed field {@code date_and_date_nanos_and_long} is only <em>passed through</em> by
+     * {@code KEEP *} and never referenced in an expression, so it stays a tolerated {@link UnsupportedAttribute}
+     * rather than an unresolved reference. Because nothing below the wildcard is unresolved, {@code KEEP *} expands
+     * normally and the query analyzes cleanly — no ambiguity error and, critically, no internal exception. This pins
+     * down that the crash exercised by the sibling tests requires the ambiguous field to actually be <em>used</em>
+     * below an unexpanded wildcard, not merely present in the output.
+     */
+    public void testConvertPushDownWithUnusedAmbiguousFieldPassedThroughWildcard() {
+        LogicalPlan plan = analyzeMaybeNullify(analyzer().addIndex(AnalyzerTestUtils.indexWithDateDateNanosUnionType()), """
+            FROM index*, (FROM index*)
+            | EVAL converted = to_string(date_and_date_nanos)
+            | KEEP *
+            """);
+
+        Project project = as(plan, Project.class);
+        // the ambiguous field is tolerated as an UnsupportedAttribute because it is never used
+        Attribute ambiguous = project.output()
+            .stream()
+            .filter(a -> "date_and_date_nanos_and_long".equals(a.name()))
+            .findFirst()
+            .orElseThrow();
+        as(ambiguous, UnsupportedAttribute.class);
+        // the pushed-down conversion is present and resolved alongside it
+        assertTrue(project.output().stream().anyMatch(a -> "converted".equals(a.name())));
+    }
+
+    /**
+     * Variant where two convert functions push synthetic attributes into the {@link UnionAll} branches at once
+     * ({@code to_string} and {@code to_long} on the same union-typed field). The carry-over walk must thread both
+     * synthetics through the resolved Projects while still skipping the unresolved {@code KEEP *} above the ambiguous
+     * reference. Crashed before the fix.
+     */
+    public void testMultipleConvertPushDownWithUnresolvedWildcardProjectAboveUnionType() {
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> analyzeMaybeNullify(analyzer().addIndex(AnalyzerTestUtils.indexWithDateDateNanosUnionType()), """
+                FROM index*, (FROM index*)
+                | EVAL a = to_string(date_and_date_nanos), b = to_long(date_and_date_nanos), ambiguous = date_and_date_nanos_and_long
+                | KEEP *
+                """)
+        );
+        assertThat(e.getMessage(), containsString("Cannot use field [date_and_date_nanos_and_long] due to ambiguities"));
+    }
+
+    /**
+     * Variant with an intermediate {@code RENAME} (another {@link Project}) sitting between the conversion and the
+     * unresolved {@code KEEP *}. The carry-over walk must thread the synthetic through the resolved RENAME Project
+     * and skip the still-unresolved wildcard Project above it. Crashed before the fix.
+     */
+    public void testConvertPushDownWithRenameAndUnresolvedWildcardProjectAboveUnionType() {
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> analyzeMaybeNullify(analyzer().addIndex(AnalyzerTestUtils.indexWithDateDateNanosUnionType()), """
+                FROM index*, (FROM index*)
+                | EVAL converted = to_string(date_and_date_nanos), ambiguous = date_and_date_nanos_and_long
+                | RENAME converted AS c
+                | KEEP *
+                """)
+        );
+        assertThat(e.getMessage(), containsString("Cannot use field [date_and_date_nanos_and_long] due to ambiguities"));
+    }
+
+    /**
+     * Variant where the still-unresolved union-typed reference lives in a {@code WHERE} (not an {@code EVAL}) below
+     * the {@code KEEP *}. The unresolved filter keeps {@code KEEP *} from being expanded, so the wildcard Project is
+     * still unresolved when the convert-function carry-over walk reaches it. Crashed before the fix.
+     */
+    public void testConvertPushDownWithUnresolvedFilterBelowWildcardProjectAboveUnionType() {
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> analyzeMaybeNullify(analyzer().addIndex(AnalyzerTestUtils.indexWithDateDateNanosUnionType()), """
+                FROM index*, (FROM index*)
+                | EVAL converted = to_string(date_and_date_nanos)
+                | WHERE date_and_date_nanos_and_long IS NOT NULL
+                | KEEP *
+                """)
+        );
+        assertThat(e.getMessage(), containsString("Cannot use field [date_and_date_nanos_and_long] due to ambiguities"));
+    }
+
+    /**
+     * Runs {@code query} through {@code analyzer}, randomly prefixing {@code SET unmapped_fields="nullify";} (parsed via
+     * {@link TestAnalyzer#statement(String)}) so the union-type carry-over regression tests exercise the fix in both the
+     * default and the "nullify" unmapped-field modes. Nullify only rewrites fields that are entirely absent from the
+     * mappings; the union-typed fields these tests reference are present (just type-conflicting), so toggling nullify
+     * must not change the ambiguity behaviour being asserted — randomizing it here guards against that regressing.
+     */
+    private static LogicalPlan analyzeMaybeNullify(TestAnalyzer analyzer, String query) {
+        return randomBoolean() ? analyzer.statement("SET unmapped_fields=\"nullify\";\n" + query) : analyzer.query(query);
+    }
+
     public void testLookupJoinOnFieldNotAnywhereElse() {
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",

@@ -7,37 +7,29 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-configure(childProjects.values()) {
+subprojects {
 
   apply plugin: 'base'
 
   /*
    * Although these libs are local to Elasticsearch, they can conflict with other similarly
    * named libraries when downloaded into a single directory via maven. Here we set the
-   * name of all libs to begin with the "elasticsearch-" prefix. Additionally, subprojects
-   * of libs begin with their parents artifactId.
+   * name of all libs to begin with the "elasticsearch-" prefix, followed by all path
+   * segments below :libs joined with dashes.
+   * e.g. :libs:foreign-library          -> elasticsearch-foreign-library
+   *      :libs:entitlement:tools:common -> elasticsearch-entitlement-tools-common
    */
-  def baseProject = project
-  def baseArtifactId = "elasticsearch-${it.name}"
   base {
-    archivesName = baseArtifactId
-  }
-  subprojects {
-    apply plugin: 'base'
-
-    def subArtifactId = baseArtifactId
-    def currentProject = project
-    while (currentProject != baseProject) {
-      subArtifactId += "-${currentProject.name}"
-      currentProject = currentProject.parent
-    }
-    base {
-      archivesName = subArtifactId
-    }
+    archivesName = "elasticsearch-${project.path.substring(':libs:'.length()).replace(':', '-')}"
   }
 
-  // log4j is a hack, and not really a full elasticsearch built jar
-  if (project.name != 'log4j') {
+  // log4j is a hack, and not really a full elasticsearch built jar.
+  // native-libraries only repackages prebuilt native binaries (zstd/vec/parquet) and publishes
+  // them through a custom `default` directory artifact; applying elasticsearch.build (and thus the
+  // java plugin) replaces that artifact with java variants, so the distribution's `platform/` copy
+  // resolves an empty jar instead of the extracted .so/.dylib files. See libs/native/libraries.
+  def nonBuildLibs = ['log4j', 'native-libraries']
+  if (false == nonBuildLibs.contains(project.name)) {
 
     /*
      * All subprojects are java projects using Elasticsearch's standard build

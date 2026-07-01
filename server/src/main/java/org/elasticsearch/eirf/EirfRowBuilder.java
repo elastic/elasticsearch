@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -34,7 +35,7 @@ public final class EirfRowBuilder implements Releasable {
 
     private static final int INITIAL_CAPACITY = 16;
 
-    private final EirfSchema schema;
+    private final SourceSchema schema;
     private final EirfEncoder.ScratchBuffers scratch;
     private final RecyclerBytesStreamOutput rowOutput;
 
@@ -44,7 +45,7 @@ public final class EirfRowBuilder implements Releasable {
     private boolean inDocument;
 
     public EirfRowBuilder() {
-        this.schema = new EirfSchema();
+        this.schema = new SourceSchema();
         this.scratch = new EirfEncoder.ScratchBuffers(INITIAL_CAPACITY);
         this.rowOutput = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
         this.rowOffsets = new int[INITIAL_CAPACITY];

@@ -22,6 +22,10 @@ public class SoarAssignments implements OverspillAssignments {
         this.assignments = assignments;
     }
 
+    public int[] assignments() {
+        return assignments;
+    }
+
     @Override
     public int size() {
         return assignments.length;

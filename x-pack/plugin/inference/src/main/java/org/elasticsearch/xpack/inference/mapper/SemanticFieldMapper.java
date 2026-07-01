@@ -11,6 +11,7 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.Explicit;
@@ -20,8 +21,10 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -540,9 +543,13 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                     chunkingSettings.getValue(),
                     indexOptions.getValue(),
                     inferenceField,
+                    // the semantic field's columnar source support is added in a follow-up, so it does not store its input yet
+                    false,
                     meta.getValue()
                 ),
                 builderParams,
+                indexVersionCreated,
+                indexSettings.getMode(),
                 modelRegistry,
                 vectorsFormatProviders
             );
@@ -574,16 +581,22 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
     protected final ModelRegistry modelRegistry;
     protected final List<VectorsFormatProvider> vectorsFormatProviders;
+    protected final IndexVersion indexCreatedVersion;
+    protected final IndexMode indexMode;
 
     SemanticFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
+        IndexVersion indexCreatedVersion,
+        IndexMode indexMode,
         ModelRegistry modelRegistry,
         List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         super(simpleName, mappedFieldType, builderParams);
         ensureMultiFields(builderParams.multiFields().iterator());
+        this.indexCreatedVersion = indexCreatedVersion;
+        this.indexMode = indexMode;
         this.modelRegistry = modelRegistry;
         this.vectorsFormatProviders = vectorsFormatProviders;
     }
@@ -666,6 +679,15 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         // Value parsing is handled by parseCreateFieldFromContext
         context.parser().skipChildren();
+    }
+
+    /**
+     * Whether this field stores its original input value(s) in an internal binary doc values store rather than {@code _source}.
+     * The {@code semantic} field does not yet - its columnar source support is added in a follow-up; {@code semantic_text} overrides
+     * this to gate on the index version.
+     */
+    protected boolean storesOriginalValuesInDocValues() {
+        return false;
     }
 
     protected SemanticTextField.ParserContext getParserContext(DocumentParserContext context) {
@@ -823,6 +845,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         protected final ChunkingSettings chunkingSettings;
         protected final SemanticTextIndexOptions indexOptions;
         protected final ObjectMapper inferenceField;
+        protected final boolean storesOriginalValuesInDocValues;
 
         public SemanticFieldType(
             String name,
@@ -832,6 +855,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             ChunkingSettings chunkingSettings,
             SemanticTextIndexOptions indexOptions,
             ObjectMapper inferenceField,
+            boolean storesOriginalValuesInDocValues,
             Map<String, String> meta
         ) {
             super(name, IndexType.terms(true, false), false, meta);
@@ -841,6 +865,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             this.chunkingSettings = chunkingSettings;
             this.indexOptions = indexOptions;
             this.inferenceField = inferenceField;
+            this.storesOriginalValuesInDocValues = storesOriginalValuesInDocValues;
         }
 
         @Override
@@ -940,7 +965,19 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
 
         protected ValueFetcher valueFetcher(SearchExecutionContext context) {
+            // When _source is rebuilt from doc values, read the original value straight from the binary store so retrieval (the
+            // fields option, highlighting) does not have to rebuild _source.
+            if (storesOriginalValuesInDocValues && (context.isSourceSynthetic() || context.getMappingLookup().isSourceColumnarStored())) {
+                return new OriginalValuesDocValuesFetcher(SemanticTextField.getOriginalValuesFieldName(name()), inputDecoder());
+            }
             return new OriginalValuesSemanticFieldValueFetcher(name(), context);
+        }
+
+        /** Decodes a value stored in the binary doc-values store into its {@code _source} form; {@code semantic} uses the encoder. */
+        protected CheckedFunction<BytesRef, Object, IOException> inputDecoder() {
+            // semantic_text overrides this with its UTF-8 decoder; the semantic field does not store its input in doc values yet
+            // (its columnar source support, with the binary decoder, is added in a follow-up), so this must never be reached.
+            throw new UnsupportedOperationException("the semantic field does not store its original input in doc values yet");
         }
 
         protected ValueFetcher valueFetcher(MappedFieldType.BlockLoaderContext blContext) {

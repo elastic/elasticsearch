@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.optimizer.UnmappedGoldenTestCase;
 
@@ -686,21 +685,21 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | KEEP message
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
     }
 
     public void testMappedInOneIndexOnlyCast() throws Exception {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | EVAL x = message :: LONG
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
     }
 
     public void testMappedToNonKeywordInOneIndexOnly() throws Exception {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | KEEP event_duration
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
     }
 
     public void testTypeConflictMappedAndUnmappedWithCast() throws Exception {
@@ -724,7 +723,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             | WHERE message::keyword LIKE "Connected*"
             | KEEP message
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
     }
 
     // All fields are partially unmapped (no_mapping_sample_data has no mapped fields).
@@ -733,7 +732,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     public void testPartiallyMappedFieldsAutomaticallyFound() throws Exception {
         runTests("""
             FROM sample_data, no_mapping_sample_data
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
     }
 
     // Same as testPartiallyMappedFieldsAutomaticallyFound, but with an explicit KEEP * to verify wildcard expansion
@@ -742,14 +741,14 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | KEEP *
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
     }
 
     public void testPartiallyMappedNonKeywordFieldMarkedAsPotentiallyUnmapped() throws Exception {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | KEEP @timestamp, event_duration
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
     }
 
     // first_name and last_name are keyword, partially unmapped (missing in employees_no_names).
@@ -785,7 +784,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | DROP message
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
     }
 
     // DROP a single partially-mapped non-keyword field (event_duration), leaving message and the other non-keyword fields.
@@ -793,7 +792,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | DROP event_duration
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
     }
 
     // DROP with wildcards on partially-mapped non-keyword fields, leaving only the keyword field (message).
@@ -801,7 +800,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             FROM sample_data, no_mapping_sample_data
             | DROP *_ip, *_duration, @timestamp
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """, Analyzer.RESOLVE_TWO_LEGGED_PUNKS);
     }
 
     // DROP with wildcards on partially-mapped keyword fields, leaving only a few non-keyword fields.

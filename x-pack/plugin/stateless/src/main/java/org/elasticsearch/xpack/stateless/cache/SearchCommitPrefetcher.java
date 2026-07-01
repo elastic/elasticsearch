@@ -430,7 +430,14 @@ public class SearchCommitPrefetcher {
             timestampPerBlob.merge(blobFile, fileTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
         }
         timestampPerBlob.keySet().retainAll(bccRangesToPrefetch.keySet());
-        // substitute UNKNOWN_TIMESTAMP with the notification timestamp for any blob that has no known timestamp
+        // A prefetched blob whose files all resolved to UNKNOWN (e.g. it only references a CC the directory
+        // doesn't know yet) falls back to the new commit's timestamp, so prefetch never stamps a region UNKNOWN
+        // while the commit itself carries a timestamp.
+        timestampPerBlob.replaceAll(
+            (blobFile, timestampMillis) -> timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP
+                ? notificationCommitTimestamp
+                : timestampMillis
+        );
         return new PendingPrefetchDetails(bccRangesToPrefetch, timestampPerBlob);
     }
 

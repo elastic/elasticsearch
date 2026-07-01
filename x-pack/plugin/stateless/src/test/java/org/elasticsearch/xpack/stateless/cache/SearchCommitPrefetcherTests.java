@@ -220,7 +220,34 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
             timestampPerBlob.get(referencedBlobB),
             equalTo(2500L)
         );
-        assertThat("referenced blob C has UNKNOWN_TIMESTAMP", timestampPerBlob.get(referencedBlobC), equalTo(UNKNOWN_TIMESTAMP));
+        assertThat(
+            "referenced blob C has no known timestamp, so it falls back to the notification commit midpoint",
+            timestampPerBlob.get(referencedBlobC),
+            equalTo(notificationRange.midpointMillis())
+        );
+    }
+
+    public void testGetPendingRangesToPrefetchKeepsUnknownWhenNotificationTimestampUnknown() {
+        final BlobFile referencedBlob = blobFile(1);
+
+        final Map<String, BlobLocation> commitFiles = new HashMap<>();
+        // No internal files: the whole commit has no timestamp range, and the referenced file is unknown too.
+        commitFiles.put("referenced_unknown", new BlobLocation(referencedBlob, 0, 10));
+
+        final SearchCommitPrefetcher.PendingPrefetchDetails pending = getPendingRangesToPrefetch(
+            SearchCommitPrefetcher.BCCPreFetchedOffset.ZERO,
+            Long.MAX_VALUE,
+            commitFiles,
+            Set.of(),
+            UNKNOWN_TIMESTAMP,
+            fileName -> UNKNOWN_TIMESTAMP
+        );
+
+        assertThat(
+            "with no timestamp anywhere the blob stays UNKNOWN_TIMESTAMP",
+            pending.timestampPerBlob().get(referencedBlob),
+            equalTo(UNKNOWN_TIMESTAMP)
+        );
     }
 
     public void testPrefetchPropagatesPerCcTimestampWhenBoostEnabled() throws Exception {

@@ -17,6 +17,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -49,8 +50,29 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
             var indexMode = parserContext.getIndexSettings().getMode();
             if (indexMode == IndexMode.TIME_SERIES) {
                 throw new MapperParsingException(name + " is not configurable if index mode is time_series");
-            } else {
-                return super.parse(name, node, parserContext);
+            }
+            Builder builder = super.parse(name, node, parserContext);
+            requireColumnarIdInStrictColumnarMode(name, parserContext, builder);
+            return builder;
+        }
+
+        @Override
+        public Builder getDefaultBuilder(MappingParserContext parserContext) {
+            Builder builder = super.getDefaultBuilder(parserContext);
+            requireColumnarIdInStrictColumnarMode(NAME, parserContext, builder);
+            return builder;
+        }
+
+        private static void requireColumnarIdInStrictColumnarMode(String name, MappingParserContext parserContext, Builder builder) {
+            var indexSettings = parserContext.getIndexSettings();
+            // Columnar _id only became the strict-columnar default at MAPPING_ID_MODE_DEFAULT; indices created
+            // before that version may legitimately predate columnar _id support, so don't enforce it there.
+            if (indexSettings.getIndexVersionCreated().before(IndexVersions.MAPPING_ID_MODE_DEFAULT)) {
+                return;
+            }
+            var indexMode = indexSettings.getMode();
+            if (indexMode.isStrictColumnar() && ((IdFieldMapper) builder.build()).isColumnarMode() == false) {
+                throw new MapperParsingException(name + " mode [document] is not allowed in index using [" + indexMode + "] index mode");
             }
         }
     };

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
@@ -19,8 +18,16 @@ public class FormatNameResolverTests extends ESTestCase {
     }
 
     public void testReaderParquetRsOverridesExtension() {
-        assumeTrue("parquet-rs reader alias is only registered in snapshot builds", Build.current().isSnapshot());
+        assumeTrue("parquet-rs reader alias requires the parquet-rs feature flag", FormatNameResolver.parquetRsEnabled());
         assertEquals(FormatNameResolver.FORMAT_PARQUET_RS, FormatNameResolver.resolve(Map.of("reader", "parquet-rs"), "file.parquet"));
+    }
+
+    public void testReaderParquetRsUnreachableWhenDisabled() {
+        assumeFalse("only when the parquet-rs feature flag is off", FormatNameResolver.parquetRsEnabled());
+        // The public reader=parquet-rs selector is removed: the alias falls through to extension-based resolution.
+        assertEquals(FormatNameResolver.FORMAT_PARQUET, FormatNameResolver.resolve(Map.of("reader", "parquet-rs"), "file.parquet"));
+        assertNull(FormatNameResolver.readerAliasToFormat(FormatNameResolver.READER_PARQUET_RS));
+        assertFalse(FormatNameResolver.supportedReaderAliases().contains(FormatNameResolver.READER_PARQUET_RS));
     }
 
     public void testReaderOverridesFormat() {
@@ -71,7 +78,7 @@ public class FormatNameResolverTests extends ESTestCase {
     }
 
     public void testReaderAliasToFormat() {
-        assumeTrue("parquet-rs reader alias is only registered in snapshot builds", Build.current().isSnapshot());
+        assumeTrue("parquet-rs reader alias requires the parquet-rs feature flag", FormatNameResolver.parquetRsEnabled());
         assertEquals(FormatNameResolver.FORMAT_PARQUET, FormatNameResolver.readerAliasToFormat(FormatNameResolver.READER_JAVA));
         assertEquals(FormatNameResolver.FORMAT_PARQUET_RS, FormatNameResolver.readerAliasToFormat(FormatNameResolver.READER_PARQUET_RS));
         assertNull(FormatNameResolver.readerAliasToFormat("unknown"));

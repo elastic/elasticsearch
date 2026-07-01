@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.Build;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
 import java.util.Locale;
@@ -42,9 +43,22 @@ public final class FormatNameResolver {
     /** Format name registered by the parquet-rs native reader. */
     public static final String FORMAT_PARQUET_RS = "parquet-rs";
 
-    private static final Map<String, String> READER_ALIAS_TO_FORMAT = Build.current().isSnapshot()
+    /**
+     * Gates the prototype parquet-rs native reader and its public {@code reader=parquet-rs} selector.
+     * Snapshot-on, release-off; override in release with {@code -Des.esql_external_parquet_rs_feature_flag_enabled=true}.
+     * Lives here (and not in the parquet-rs plugin module) so this esql-core resolver can gate the alias while
+     * {@code ParquetRsPlugin} — which already depends on this class — reuses the same flag for format registration.
+     */
+    public static final FeatureFlag ESQL_EXTERNAL_PARQUET_RS_FEATURE_FLAG = new FeatureFlag("esql_external_parquet_rs");
+
+    private static final Map<String, String> READER_ALIAS_TO_FORMAT = parquetRsEnabled()
         ? Map.of(READER_PARQUET_RS, FORMAT_PARQUET_RS, READER_JAVA, FORMAT_PARQUET)
         : Map.of(READER_JAVA, FORMAT_PARQUET);
+
+    /** The parquet-rs reader is live iff the external-datasources umbrella and the parquet-rs sub-flag are both on. */
+    public static boolean parquetRsEnabled() {
+        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() && ESQL_EXTERNAL_PARQUET_RS_FEATURE_FLAG.isEnabled();
+    }
 
     private FormatNameResolver() {}
 

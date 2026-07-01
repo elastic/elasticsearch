@@ -52,6 +52,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
@@ -793,6 +794,16 @@ public abstract class AbstractStreamTests extends ESTestCase {
 
             assertEquals(-1, input.read());
             assertEquals(-1, input.read(new byte[2], 0, 2));
+        }
+    }
+
+    public void testReadAllToReleasableBytesReference() throws IOException {
+        final var randomBytes = randomBytesReference(scaledRandomIntBetween(0, PageCacheRecycler.BYTE_PAGE_SIZE * 2));
+        try (
+            var streamInput = getStreamInput(randomBytes);
+            var releasableBytesReference = streamInput.readAllToReleasableBytesReference()
+        ) {
+            assertThat(releasableBytesReference, equalBytes(randomBytes));
         }
     }
 

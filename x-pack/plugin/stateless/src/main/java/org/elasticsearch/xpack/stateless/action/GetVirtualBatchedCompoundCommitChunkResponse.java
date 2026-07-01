@@ -55,10 +55,6 @@ public class GetVirtualBatchedCompoundCommitChunkResponse extends ActionResponse
 
     public GetVirtualBatchedCompoundCommitChunkResponse(StreamInput in) throws IOException {
         if (in.getTransportVersion().supports(VBCC_CHUNK_RESPONSE_WITHOUT_LENGTH_PREFIX)) {
-            assert in.supportReadAllToReleasableBytesReference() : "StreamInput must support readAllToReleasableBytesReference";
-            if (in.supportReadAllToReleasableBytesReference() == false) {
-                throw new IllegalStateException("StreamInput does not support readAllToReleasableBytesReference");
-            }
             data = in.readAllToReleasableBytesReference();
         } else {
             data = in.readReleasableBytesReference();

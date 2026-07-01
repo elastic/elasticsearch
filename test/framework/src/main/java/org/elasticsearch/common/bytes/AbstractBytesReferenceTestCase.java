@@ -184,6 +184,13 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         assertEquals(si.available(), 0);
     }
 
+    public void testStreamInputReadAllToReleasableBytesReference() throws IOException {
+        final var randomBytes = randomBytesReference(scaledRandomIntBetween(0, PageCacheRecycler.BYTE_PAGE_SIZE * 2));
+        try (var streamInput = randomBytes.streamInput(); var releasableBytesReference = streamInput.readAllToReleasableBytesReference()) {
+            assertThat(releasableBytesReference, equalBytes(randomBytes));
+        }
+    }
+
     public void testRandomReads() throws IOException {
         int length = randomIntBetween(10, scaledRandomIntBetween(PAGE_SIZE * 2, PAGE_SIZE * 20));
         BytesReference pbr = newBytesReference(length);

@@ -53,13 +53,7 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
-    public boolean supportReadAllToReleasableBytesReference() {
-        return delegate.supportReadAllToReleasableBytesReference();
-    }
-
-    @Override
     public ReleasableBytesReference readAllToReleasableBytesReference() throws IOException {
-        assert supportReadAllToReleasableBytesReference() : "This InputStream doesn't support readAllToReleasableBytesReference";
         return delegate.readAllToReleasableBytesReference();
     }
 

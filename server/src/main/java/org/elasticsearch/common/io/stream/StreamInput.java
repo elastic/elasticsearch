@@ -29,6 +29,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -155,23 +156,19 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Checks if this {@link InputStream} supports {@link #readAllToReleasableBytesReference()}.
-     */
-    public boolean supportReadAllToReleasableBytesReference() {
-        return false;
-    }
-
-    /**
      * Reads all remaining bytes in the stream as a releasable bytes reference.
      * Similarly to {@link #readReleasableBytesReference} the returned bytes reference may reference bytes in a
      * pooled buffer and must be explicitly released via {@link ReleasableBytesReference#close()} once no longer used.
      * However, unlike {@link #readReleasableBytesReference()}, this method doesn't have the prefix size.
-     * <p>
-     * NOTE: Always check {@link #supportReadAllToReleasableBytesReference()} before calling this method.
      */
     public ReleasableBytesReference readAllToReleasableBytesReference() throws IOException {
-        assert false : "This InputStream doesn't support readAllToReleasableBytesReference";
-        throw new UnsupportedOperationException("This InputStream doesn't support readAllToReleasableBytesReference");
+        // The default implementation must copy to unpooled buffers because we cannot control the lifecycle of the underlying data.
+        // In practice in production we're always reading from another ReleasableBytesReference which has a more efficient zero-copy
+        // implementation.
+        try (var out = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+            out.writeAllBytesFrom(this);
+            return out.moveToBytesReference();
+        }
     }
 
     /**

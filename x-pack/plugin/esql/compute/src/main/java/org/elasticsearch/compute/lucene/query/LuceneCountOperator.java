@@ -279,7 +279,7 @@ public class LuceneCountOperator extends LuceneOperator {
      * <p>{@link MatchAllDocsQuery} and {@link MatchNoDocsQuery} stay on SHARD as explicit fast
      * paths (no Weight needed; the count is {@code maxDoc - deletedDocs} or {@code 0}).
      */
-    static LuceneSliceQueue.PartitioningStrategy partitioningStrategyForCount(Query q) {
+    static LuceneSliceQueue.PartitioningStrategy partitioningStrategyForCount(ShardContext ctx, Query q) {
         final Query unwrapped = LuceneSourceOperator.Factory.unwrapQuery(q);
         return switch (unwrapped) {
             case MatchAllDocsQuery unused -> LuceneSliceQueue.PartitioningStrategy.SHARD;

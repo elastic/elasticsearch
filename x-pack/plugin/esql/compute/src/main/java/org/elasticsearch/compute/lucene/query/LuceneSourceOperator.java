@@ -45,6 +45,7 @@ import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -93,7 +94,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 shardContexts,
                 queryFunction,
                 dataPartitioning,
-                dataPartitioning == DataPartitioning.AUTO ? autoStrategy.pickStrategy(limit) : q -> {
+                dataPartitioning == DataPartitioning.AUTO ? autoStrategy.pickStrategy(limit) : (ctx, q) -> {
                     throw new UnsupportedOperationException("locked in " + dataPartitioning);
                 },
                 docThresholdForAutoStrategy,
@@ -144,7 +145,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         /**
          * Pick a strategy for the {@link DataPartitioning#AUTO} partitioning.
          */
-        public static Function<Query, PartitioningStrategy> autoStrategy(int limit) {
+        public static BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy(int limit) {
             return limit == NO_LIMIT ? Factory::highSpeedAutoStrategy : Factory::lowOverheadAutoStrategy;
         }
 
@@ -156,7 +157,7 @@ public class LuceneSourceOperator extends LuceneOperator {
          * to Lucene. In those cases we're better off with the lowest overhead we can
          * manage - and that's {@link PartitioningStrategy#SHARD}.
          */
-        private static PartitioningStrategy lowOverheadAutoStrategy(Query query) {
+        private static PartitioningStrategy lowOverheadAutoStrategy(ShardContext ctx, Query query) {
             return SHARD;
         }
 
@@ -174,7 +175,7 @@ public class LuceneSourceOperator extends LuceneOperator {
          *     </li>
          * </ul>
          */
-        private static PartitioningStrategy highSpeedAutoStrategy(Query query) {
+        private static PartitioningStrategy highSpeedAutoStrategy(ShardContext ctx, Query query) {
             Query unwrapped = unwrapQuery(query);
             log.trace("highSpeedAutoStrategy {} {}", query, unwrapped);
             if (unwrapped instanceof MatchAllDocsQuery) {

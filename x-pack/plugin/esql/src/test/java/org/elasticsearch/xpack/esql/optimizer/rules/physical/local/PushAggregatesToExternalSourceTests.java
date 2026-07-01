@@ -565,19 +565,8 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         for (int i = 0; i < perSplitStats.length; i++) {
             splits.add(fileSplit(i, perSplitStats[i]));
         }
-        return new ExternalSourceExec(
-            Source.EMPTY,
-            "file:///test.parquet",
-            "parquet",
-            attrs,
-            Map.of(),
-            sourceMetadata,
-            null,
-            -1,
-            null,
-            null,
-            splits
-        );
+        return new ExternalSourceExec(Source.EMPTY, "file:///test.parquet", "parquet", attrs, Map.of(), sourceMetadata, null, null)
+            .withSplits(splits);
     }
 
     @SafeVarargs
@@ -592,19 +581,8 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
                 splits.add(fileSplit(i, perSplitStats[i]));
             }
         }
-        return new ExternalSourceExec(
-            Source.EMPTY,
-            "file:///test.parquet",
-            "parquet",
-            defaultAttrs(),
-            Map.of(),
-            sourceMetadata,
-            null,
-            -1,
-            null,
-            null,
-            splits
-        );
+        return new ExternalSourceExec(Source.EMPTY, "file:///test.parquet", "parquet", defaultAttrs(), Map.of(), sourceMetadata, null, null)
+            .withSplits(splits);
     }
 
     private static ExternalSourceExec externalSource(Map<String, Object> sourceMetadata) {

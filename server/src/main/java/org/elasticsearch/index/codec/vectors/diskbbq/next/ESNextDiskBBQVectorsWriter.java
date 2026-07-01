@@ -42,6 +42,7 @@ import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
+import org.elasticsearch.index.codec.vectors.cluster.KMeansWithOverspill;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidAssignments;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidInformation;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSlices;
@@ -680,7 +681,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 -1 // disable SOAR assignments
             );
         }
-        return hierarchicalKMeans.cluster(floatVectorValues, centroidsPerParentCluster);
+        var res = hierarchicalKMeans.cluster(floatVectorValues, centroidsPerParentCluster);
+        assert res.overspill() == null;
+        return res.result();
     }
 
     @Override
@@ -814,7 +817,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             } else {
                 hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
             }
-            KMeansResult<float[]> kMeansResult = action.execute(hierarchicalKMeans, floatVectorValues, vectorPerCluster);
+            KMeansWithOverspill<float[]> kMeansResult = action.execute(hierarchicalKMeans, floatVectorValues, vectorPerCluster);
             if (logger.isDebugEnabled()) {
                 int[] clusterSizes = new int[kMeansResult.centroids().length];
                 for (int a : kMeansResult.assignments()) {
@@ -864,7 +867,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         // slice field must be dense populated, but we might have documents without a vector.
         final int[] sliceOffsets = new int[numSlices];
         final int[] sliceLengths = new int[numSlices];
-        List<KMeansResult<float[]>> kmeansResults = new ArrayList<>();
+        List<KMeansWithOverspill<float[]>> kmeansResults = new ArrayList<>();
         for (int i = 0; i < numSlices; i++) {
             if (iterator.docID() == DocIdSetIterator.NO_MORE_DOCS) {
                 // no more vectors, we are done
@@ -899,12 +902,12 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 j -> vectorOrdStart + j,
                 sliceNumVectors
             );
-            final KMeansResult<float[]> kMeansResult = calculateCentroids(hierarchicalKMeans, slice);
+            final KMeansWithOverspill<float[]> kMeansResult = calculateCentroids(hierarchicalKMeans, slice);
             kmeansResults.add(kMeansResult);
             sliceLengths[i] = sliceNumVectors;
             sliceOffsets[i] = i == 0 ? kMeansResult.centroids().length : sliceOffsets[i - 1] + kMeansResult.centroids().length;
         }
-        final KMeansResult<float[]> merged = KMeansResult.merge(kmeansResults, CentroidOps.FLOAT);
+        final KMeansWithOverspill<float[]> merged = KMeansWithOverspill.merge(kmeansResults, CentroidOps.FLOAT);
         if (logger.isDebugEnabled()) {
             logger.debug("final centroid count: {}", merged.centroids().length);
         }
@@ -976,7 +979,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             return buildFlatCentroidAssignments(fieldInfo, floatVectorValues);
         }
         HierarchicalKMeans<float[]> hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
-        KMeansResult<float[]> kMeansResult = calculateCentroids(hierarchicalKMeans, floatVectorValues);
+        KMeansWithOverspill<float[]> kMeansResult = calculateCentroids(hierarchicalKMeans, floatVectorValues);
         if (logger.isDebugEnabled()) {
             logger.debug("final centroid count: {}", kMeansResult.centroids().length);
         }
@@ -990,7 +993,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         );
     }
 
-    private KMeansResult<float[]> calculateCentroids(
+    private KMeansWithOverspill<float[]> calculateCentroids(
         HierarchicalKMeans<float[]> hierarchicalKMeans,
         ClusteringFloatVectorValues floatVectorValues
     ) throws IOException {

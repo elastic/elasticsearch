@@ -782,9 +782,6 @@ tests:
 - class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
   method: testUpdatingFileBasedRoleAffectsAllProjects
   issue: https://github.com/elastic/elasticsearch/issues/152582
-- class: org.elasticsearch.xpack.inference.InferenceWithSecurityRestIT
-  method: test {p0=inference/80_region_policy_crud/Get region policy allowed with monitor_inference privilege}
-  issue: https://github.com/elastic/elasticsearch/issues/152587
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.afterWhere}
   issue: https://github.com/elastic/elasticsearch/issues/152591

@@ -641,7 +641,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
     sealed interface ResolvedVector permits ResolvedVector.Floats, ResolvedVector.Bytes {
         record Floats(float[] values, boolean denormalize) implements ResolvedVector {}
 
-        record Bytes(byte[] values) implements ResolvedVector {}
+        // isBit lets callers that must treat bit vectors differently (e.g. never raw-scoring them with a
+        // VectorSimilarityFunction) use a `when isBit` guard on this single case, instead of a separate sealed
+        // variant — callers that don't care (doc values, where BYTE and BIT behave identically) just ignore it.
+        record Bytes(byte[] values, boolean isBit) implements ResolvedVector {}
     }
 
     public abstract static class Element {
@@ -817,7 +820,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = ESVectorUtil.dotProduct(vector, vector);
                 checkVectorMagnitude(effectiveSimilarity, errorElementsAppender(vector), squaredMagnitude);
             }
-            return new ResolvedVector.Bytes(vector);
+            return new ResolvedVector.Bytes(vector, elementType() == ElementType.BIT);
         }
 
         @Override
@@ -3246,11 +3249,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     : DenseVectorQuery.Floats.rawScored(queryVector, name(), function, denormalize);
                 // BIT has no separate quantized representation — codec scorer is always raw Hamming distance,
                 // so it must never take the raw-VectorSimilarityFunction path that BYTE otherwise would.
-                case ResolvedVector.Bytes(byte[] queryVector) -> element.elementType() == ElementType.BIT
-                    ? createExactKnnBitQuery(queryVector, null)
-                    : (useQuantized
-                        ? DenseVectorQuery.Bytes.codecScored(queryVector, name())
-                        : DenseVectorQuery.Bytes.rawScored(queryVector, name(), function));
+                case ResolvedVector.Bytes(byte[] queryVector, boolean isBit) when isBit -> createExactKnnBitQuery(queryVector, null);
+                case ResolvedVector.Bytes(byte[] queryVector, boolean isBit) -> useQuantized
+                    ? DenseVectorQuery.Bytes.codecScored(queryVector, name())
+                    : DenseVectorQuery.Bytes.rawScored(queryVector, name(), function);
             };
         }
 
@@ -3274,7 +3276,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     element.elementType(),
                     indexVersionCreated
                 );
-                case ResolvedVector.Bytes(byte[] queryVector) -> new DenseVectorQuery.DocValuesBytes(
+                // isBit is unused here: BYTE and BIT share this arm, since DocValuesBytes's scorer already
+                // branches on element.elementType() internally to compute Hamming distance for bit vectors.
+                case ResolvedVector.Bytes(byte[] queryVector, boolean isBit) -> new DenseVectorQuery.DocValuesBytes(
                     queryVector,
                     name(),
                     effectiveSimilarity.rawVectorSimilarityFunction(),
@@ -3384,19 +3388,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             KnnSearchStrategy knnSearchStrategy = heuristic.getKnnSearchStrategy();
             hnswEarlyTermination &= canApplyPatienceQuery();
-            return switch (getElementType()) {
-                case BYTE -> createKnnByteQuery(
-                    resolvedQueryVector.asByteVector(),
-                    k,
-                    numCands,
-                    filter,
-                    similarityThreshold,
-                    parentFilter,
-                    knnSearchStrategy,
-                    hnswEarlyTermination
-                );
-                case FLOAT, BFLOAT16 -> createKnnFloatQuery(
-                    resolvedQueryVector.asFloatVector(),
+            // No similarity_function override exists on this path, so isOverridden is always false — matching
+            // today's unconditional "normalize when isNormalized() && !isUnitVector" behavior below.
+            ResolvedVector resolved = element.resolveAndValidate(resolvedQueryVector, dims, similarity, false, isNormalized());
+            return switch (resolved) {
+                case ResolvedVector.Floats(float[] vector, boolean denormalize) -> createKnnFloatQuery(
+                    vector,
                     k,
                     numCands,
                     visitPercentage,
@@ -3409,8 +3406,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     sliceEnabled,
                     sliceRouting
                 );
-                case BIT -> createKnnBitQuery(
-                    resolvedQueryVector.asByteVector(),
+                case ResolvedVector.Bytes(byte[] vector, boolean isBit) when isBit -> createKnnBitQuery(
+                    vector,
+                    k,
+                    numCands,
+                    filter,
+                    similarityThreshold,
+                    parentFilter,
+                    knnSearchStrategy,
+                    hnswEarlyTermination
+                );
+                case ResolvedVector.Bytes(byte[] vector, boolean isBit) -> createKnnByteQuery(
+                    vector,
                     k,
                     numCands,
                     filter,
@@ -3447,7 +3454,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             KnnSearchStrategy searchStrategy,
             boolean hnswEarlyTermination
         ) {
-            element.checkDimensions(dims, queryVector.length);
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
                 var exactKnnQuery = createExactKnnBitQuery(queryVector, filter);
@@ -3486,12 +3492,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             KnnSearchStrategy searchStrategy,
             boolean hnswEarlyTermination
         ) {
-            element.checkDimensions(dims, queryVector.length);
-
-            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
-                element.checkVectorMagnitude(similarity, ByteElement.errorElementsAppender(queryVector), squaredMagnitude);
-            }
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
                 Query exactKnnQuery = DenseVectorQuery.Bytes.codecScored(queryVector, name()).filteredBy(filter);
@@ -3534,16 +3534,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean sliceEnabled,
             @Nullable String sliceRouting
         ) {
-            element.checkDimensions(dims, queryVector.length);
-            element.checkVectorBounds(queryVector);
-            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
-                element.checkVectorMagnitude(similarity, FloatElement.errorElementsAppender(queryVector), squaredMagnitude);
-                if (isNormalized() && element.isUnitVector(squaredMagnitude) == false) {
-                    queryVector = normalizeQueryVector(queryVector, squaredMagnitude);
-                }
-            }
-
             int adjustedK = k;
             // By default utilize the quantized oversample is configured
             // allow the user provided at query time overwrite

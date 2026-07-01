@@ -91,7 +91,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
+import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
@@ -484,7 +484,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final ShardRouting routing,
         final GlobalCheckpointSyncer globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final CompositeRecoverySchedulingListener recoverySchedulingListeners
+        final RecoverySchedulingListener recoverySchedulingListener
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -610,7 +610,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 indexingStatsSettings,
                 searchStatsSettings,
                 mergeMetrics,
-                recoverySchedulingListeners
+                recoverySchedulingListener
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

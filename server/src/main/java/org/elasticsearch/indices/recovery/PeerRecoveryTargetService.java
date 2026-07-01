@@ -101,7 +101,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     private final RecoverySettings recoverySettings;
     private final ClusterService clusterService;
     private final SnapshotFilesProvider snapshotFilesProvider;
-    private final CompositeRecoverySchedulingListener recoverySchedulingListeners;
+    private final RecoverySchedulingListener recoverySchedulingListener;
 
     // visible for testing
     final RecoveriesCollection onGoingRecoveries;
@@ -113,7 +113,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         RecoverySettings recoverySettings,
         ClusterService clusterService,
         SnapshotFilesProvider snapshotFilesProvider,
-        CompositeRecoverySchedulingListener recoverySchedulingListeners
+        RecoverySchedulingListener recoverySchedulingListener
     ) {
         this.client = client;
         this.threadPool = threadPool;
@@ -121,7 +121,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         this.recoverySettings = recoverySettings;
         this.clusterService = clusterService;
         this.snapshotFilesProvider = snapshotFilesProvider;
-        this.recoverySchedulingListeners = recoverySchedulingListeners;
+        this.recoverySchedulingListener = recoverySchedulingListener;
         this.onGoingRecoveries = new RecoveriesCollection(logger);
 
         transportService.registerRequestHandler(
@@ -229,7 +229,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     /// Attempts to cancel and fail a specific recovery by allocation ID. The master will be notified.
     public void directCancelRecovery(ShardId shardId, String allocationId) {
         if (onGoingRecoveries.directCancelRecovery(shardId, allocationId, clusterService.localNode())) {
-            recoverySchedulingListeners.onStartedRecoveryCancelled(RecoverySource.Type.PEER, RecoveryRole.TARGET);
+            recoverySchedulingListener.onStartedRecoveryCancelled(RecoverySource.Type.PEER, RecoveryRole.TARGET);
         }
     }
 

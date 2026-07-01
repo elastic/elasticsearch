@@ -282,7 +282,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @Nullable
     private volatile RecoveryCancelledException recoveryCancellationRequest;
 
-    private final RecoverySchedulingListener recoverySchedulingListeners;
+    private final RecoverySchedulingListener recoverySchedulingListener;
     private final RecoveryStats recoveryStats = new RecoveryStats();
     private final MeanMetric refreshMetric = new MeanMetric();
     private final MeanMetric externalRefreshMetric = new MeanMetric();
@@ -367,7 +367,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
         final MergeMetrics mergeMetrics,
-        final RecoverySchedulingListener recoverySchedulingListeners
+        final RecoverySchedulingListener recoverySchedulingListener
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -464,7 +464,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
         this.mergeMetrics = mergeMetrics;
-        this.recoverySchedulingListeners = recoverySchedulingListeners;
+        this.recoverySchedulingListener = recoverySchedulingListener;
     }
 
     public ThreadPool getThreadPool() {
@@ -2052,14 +2052,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ///
     /// Must only be called from within the active recovery sequence [StoreRecovery] phase boundaries (non-PEER
     /// recoveries). On throw, invokes the [RecoverySchedulingListener] (which may increment the relevant cancellation
-    /// metrics). Callers must let the exception propagate rather than catching it, to avoid this method being called twice.
+    /// metrics). Callers must not call this method again after it has thrown, to avoid double-counting the
+    /// cancellation. They should instead let the exception propagate up the call stack, or to catch it solely to
+    /// forward it unchanged (e.g. via `onFailure`).
     public void ensureRecoveryNotCancelled() throws RecoveryCancelledException {
         final var recoveryState = recoveryState();
         assert recoveryState != null : "ensureRecoveryNotCancelled should only be called while recovery is active";
         assert recoveryState.getRecoverySource() != null : "recovery source should not be null";
         final RecoveryCancelledException cancellation = recoveryCancellationRequest;
         if (cancellation != null) {
-            recoverySchedulingListeners.onStartedRecoveryCancelled(recoveryState.getRecoverySource().getType(), RecoveryRole.TARGET);
+            recoverySchedulingListener.onStartedRecoveryCancelled(recoveryState.getRecoverySource().getType(), RecoveryRole.TARGET);
             throw cancellation;
         }
     }

@@ -179,7 +179,7 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     @Override
     public void onStartedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {
         // TODO: use type and role in metric attributes (https://github.com/elastic/elasticsearch-team/issues/2860)
-        shardRecoveryDirectCancellationsMetric.incrementBy(1);
+        shardRecoveryDirectCancellationsMetric.increment();
     }
 
     private void updateQueuedRecovery(RecoverySource.Type type, RecoveryRole role, int delta) {

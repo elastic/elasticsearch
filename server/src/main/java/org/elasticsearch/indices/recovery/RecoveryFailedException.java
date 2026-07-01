@@ -36,7 +36,7 @@ public class RecoveryFailedException extends ElasticsearchException {
         @Nullable DiscoveryNode sourceNode,
         DiscoveryNode targetNode,
         @Nullable String extraInfo,
-        Throwable cause
+        @Nullable Throwable cause
     ) {
         super(
             shardId

@@ -19,6 +19,9 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 /// they care about.
 public interface RecoverySchedulingListener {
 
+    /// Listener that ignores every lifecycle event.
+    RecoverySchedulingListener NOOP = new RecoverySchedulingListener() {};
+
     /// Called when a recovery is queued on this data node.
     default void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {}
 

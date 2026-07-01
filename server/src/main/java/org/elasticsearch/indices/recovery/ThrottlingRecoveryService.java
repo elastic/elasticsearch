@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -60,7 +61,7 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
     private final Executor executor;
     private final ThreadContext threadContext;
     private final ClusterService clusterService;
-    private final CompositeRecoverySchedulingListener schedulingListeners;
+    private final RecoverySchedulingListener schedulingListener;
 
     private int maxConcurrentRecoveries;
     private int runningRecoveries = 0;
@@ -74,14 +75,10 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
 
     private boolean closed;
 
-    public ThrottlingRecoveryService(
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        CompositeRecoverySchedulingListener schedulingListeners
-    ) {
+    public ThrottlingRecoveryService(ThreadPool threadPool, ClusterService clusterService, RecoverySchedulingListener schedulingListener) {
         this.executor = threadPool.generic();
         this.threadContext = threadPool.getThreadContext();
-        this.schedulingListeners = schedulingListeners;
+        this.schedulingListener = schedulingListener;
         this.clusterService = clusterService;
         clusterService.addListener(this);
         clusterService.getClusterSettings()
@@ -138,7 +135,7 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
         }
         logger.trace("enqueued recovery: {}", recoveryState);
 
-        schedulingListeners.onRecoveryQueued(recoveryState.getRecoverySource().getType(), RecoveryRole.TARGET);
+        schedulingListener.onRecoveryQueued(recoveryState.getRecoverySource().getType(), RecoveryRole.TARGET);
         fillSlots();
     }
 
@@ -173,7 +170,7 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
             logger.trace("cancelling recovery in queue: {}", state);
             pendingRecovery.listener()
                 .onRecoveryFailure(new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()), false);
-            schedulingListeners.onQueuedRecoveryDiscarded(state.getRecoverySource().getType(), RecoveryRole.TARGET);
+            schedulingListener.onQueuedRecoveryDiscarded(state.getRecoverySource().getType(), RecoveryRole.TARGET);
             cancelledInQueue.add(pendingRecovery.allocationId());
         }
         return cancelledInQueue;
@@ -189,17 +186,11 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
                 staleRecoveries.addAll(pendingRecoveries);
                 pendingRecoveries.clear();
             } else {
-                cancelledAllocationIds.entrySet().removeIf((cancellation) -> {
-                    final var routing = localNode.getByShardId(cancellation.getValue());
-                    return routing == null
-                        || routing.initializing() == false
-                        || routing.allocationId().getId().equals(cancellation.getKey()) == false;
-                });
+                cancelledAllocationIds.entrySet()
+                    .removeIf((cancellation) -> allocationIdIsOutdated(localNode, cancellation.getValue(), cancellation.getKey()));
                 pendingRecoveries.removeIf((pending) -> {
-                    final var routing = localNode.getByShardId(pending.recoveryState().getShardId());
-                    if (routing == null
-                        || routing.initializing() == false
-                        || routing.allocationId().getId().equals(pending.allocationId()) == false) {
+                    final RecoveryState recoveryState = pending.recoveryState();
+                    if (allocationIdIsOutdated(localNode, recoveryState.getShardId(), pending.allocationId())) {
                         staleRecoveries.add(pending);
                         pending.stats().targetQueuedRecoveryDiscarded(pending.recoveryState().getRecoverySource().getType());
                         return true;
@@ -214,8 +205,15 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
             logger.debug("cancelling stale queued recovery: {}", state);
             stale.listener()
                 .onRecoveryFailure(new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()), false);
-            schedulingListeners.onQueuedRecoveryDiscarded(state.getRecoverySource().getType(), RecoveryRole.TARGET);
+            schedulingListener.onQueuedRecoveryDiscarded(state.getRecoverySource().getType(), RecoveryRole.TARGET);
         }
+    }
+
+    /// Returns true if the given shard is not recorded under the provided `allocationId` on this node.
+    private static boolean allocationIdIsOutdated(RoutingNode node, ShardId shardId, String allocationId) {
+        assert node != null;
+        final ShardRouting routing = node.getByShardId(shardId);
+        return routing == null || routing.initializing() == false || routing.allocationId().getId().equals(allocationId) == false;
     }
 
     // visible for testing
@@ -242,7 +240,7 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
         for (PendingRecovery pending : recoveriesToAbort) {
             logger.trace("service closing, aborting recovery: {}", pending.recoveryState());
             pending.listener.onRecoveryAborted();
-            schedulingListeners.onQueuedRecoveryDiscarded(pending.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
+            schedulingListener.onQueuedRecoveryDiscarded(pending.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
         }
         clusterService.removeListener(this);
     }
@@ -276,7 +274,7 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
                 executor.execute(new RecoveryRunnable(recovery, () -> releaseSlot(recovery)));
             }
             logger.trace("dispatched recovery: {}", recovery.recoveryState());
-            schedulingListeners.onRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
+            schedulingListener.onRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
         }
     }
 
@@ -290,7 +288,7 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
             recovery.stats().targetRecoveryCompleted(source.getType());
         }
         logger.trace("recovery slot released: {}", recovery.recoveryState());
-        schedulingListeners.onRecoveryCompleted(source.getType(), RecoveryRole.TARGET);
+        schedulingListener.onRecoveryCompleted(source.getType(), RecoveryRole.TARGET);
         fillSlots();
     }
 

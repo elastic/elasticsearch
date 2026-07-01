@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
@@ -38,16 +37,18 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -715,56 +716,58 @@ public class SplitTargetService {
         }
 
         private static class MetricsRecorder {
-            private record StateEntry(@Nullable Class<? extends State> previousState, LongConsumer record) {}
+            private record TimestampEntry(Class<? extends State> state, long timestampMillis) {}
 
-            private final Map<Class<? extends State>, StateEntry> targetStates;
+            private final Map<Class<? extends State>, Runnable> targetStates;
             private final LongSupplier nowInMillis;
-            Map<Class<? extends State>, Long> timestamps;
+            private final List<TimestampEntry> timestamps;
 
             MetricsRecorder(ReshardMetrics reshardMetrics, LongSupplier nowInMillis, AtomicBoolean cancelled) {
+                this.nowInMillis = nowInMillis;
+                this.timestamps = new ArrayList<>();
                 this.targetStates = new HashMap<>() {
                     {
-                        put(State.Clone.class, new StateEntry(null, ignored -> {}));
-                        put(
-                            State.Handoff.class,
-                            new StateEntry(
-                                State.Clone.class,
-                                durationMillis -> reshardMetrics.targetCloneDurationHistogram().record(durationMillis / 1000.0)
-                            )
-                        );
-                        put(
-                            State.Split.class,
-                            new StateEntry(State.Handoff.class, reshardMetrics.targetHandoffDurationHistogram()::record)
-                        );
-                        put(State.Done.class, new StateEntry(State.Split.class, reshardMetrics.targetSplitDurationHistogram()::record));
-                        put(State.Failed.class, new StateEntry(null, ignored -> {
+                        put(State.Handoff.class, () -> {
+                            deltaFromState(State.Clone.class).ifPresent(
+                                delta -> reshardMetrics.targetCloneDurationHistogram().record(delta / 1000.0)
+                            );
+                        });
+                        put(State.Split.class, () -> {
+                            deltaFromState(State.Handoff.class).ifPresent(
+                                delta -> reshardMetrics.targetHandoffDurationHistogram().record(delta)
+                            );
+                        });
+                        put(State.Done.class, () -> {
+                            deltaFromState(State.Split.class).ifPresent(
+                                delta -> reshardMetrics.targetSplitDurationHistogram().record(delta)
+                            );
+                        });
+                        put(State.Failed.class, () -> {
                             if (cancelled.get() == false) {
                                 reshardMetrics.targetShardFailureCounter().increment();
                             }
-                        }));
-                        put(
-                            State.FailedInRecovery.class,
-                            new StateEntry(null, ignored -> reshardMetrics.targetShardRecoveryFailureCounter().increment())
-                        );
+                        });
+                        put(State.FailedInRecovery.class, reshardMetrics.targetShardRecoveryFailureCounter()::increment);
                     }
                 };
-                this.nowInMillis = nowInMillis;
-                this.timestamps = new HashMap<>();
+            }
+
+            private OptionalLong deltaFromState(Class<? extends State> lastState) {
+                long currentTimestamp = timestamps.getLast().timestampMillis();
+                for (int i = timestamps.size() - 2; i >= 0; i--) {
+                    TimestampEntry entry = timestamps.get(i);
+                    if (entry.state().equals(lastState)) {
+                        return OptionalLong.of(currentTimestamp - entry.timestampMillis());
+                    }
+                }
+                return OptionalLong.empty();
             }
 
             void advance(State newState) {
-                StateEntry stateEntry = targetStates.get(newState.getClass());
-                if (stateEntry != null) {
-                    long nowInMillis = this.nowInMillis.getAsLong();
-                    if (stateEntry.previousState == null) {
-                        stateEntry.record().accept(0);
-                    } else {
-                        Long previousStateStartMillis = timestamps.get(stateEntry.previousState);
-                        if (previousStateStartMillis != null) {
-                            stateEntry.record().accept(nowInMillis - previousStateStartMillis);
-                        }
-                    }
-                    timestamps.put(newState.getClass(), nowInMillis);
+                timestamps.add(new TimestampEntry(newState.getClass(), nowInMillis.getAsLong()));
+                Runnable action = targetStates.get(newState.getClass());
+                if (action != null) {
+                    action.run();
                 }
             }
         }

@@ -110,6 +110,46 @@ public final class PhysicalNames {
         return out;
     }
 
+    /**
+     * A read plan for N:1 copies. {@code base} is the projected columns deduped by physical column (first-per-physical,
+     * so its physical names are distinct and safe to hand a reader); {@code index} maps each original projected column
+     * to its position in {@code base}. A pure move/rename (every projected column has a distinct physical) yields an
+     * identity plan ({@code base} equals the projection, {@code index[i] == i}); a copy (two projected columns sharing
+     * one physical) points the later at the earlier's base position, so the read happens once and the block is fanned
+     * out (zero-copy) to both output columns.
+     */
+    public record FanOut(List<String> base, int[] index) {
+        public boolean isIdentity() {
+            if (base.size() != index.length) {
+                return false;
+            }
+            for (int i = 0; i < index.length; i++) {
+                if (index[i] != i) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    /** Build the {@link FanOut} plan for a projected column list under a rename map (see {@link FanOut}). */
+    public static FanOut fanOut(List<String> projected, Map<String, String> renames) {
+        List<String> base = new ArrayList<>(projected.size());
+        int[] index = new int[projected.size()];
+        Map<String, Integer> physicalToBase = new HashMap<>();
+        for (int i = 0; i < projected.size(); i++) {
+            String physical = translate(projected.get(i), renames);
+            Integer basePos = physicalToBase.get(physical);
+            if (basePos == null) {
+                basePos = base.size();
+                base.add(projected.get(i));
+                physicalToBase.put(physical, basePos);
+            }
+            index[i] = basePos;
+        }
+        return new FanOut(base, index);
+    }
+
     /** The physical&rarr;logical inverse of a logical&rarr;physical rename map (renames are 1:1, so the inverse is well-defined). */
     public static Map<String, String> inverse(Map<String, String> renames) {
         if (renames == null || renames.isEmpty()) {

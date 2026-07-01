@@ -83,6 +83,24 @@ public class PhysicalNamesTests extends ESTestCase {
         assertTrue(PhysicalNames.noLogicalNamesRemain(List.of("id"), Map.of())); // no renames -> always holds
     }
 
+    public void testFanOutMoveIsIdentity() {
+        // A move/rename: every projected column has a distinct physical, so the plan is identity (no fan-out).
+        PhysicalNames.FanOut f = PhysicalNames.fanOut(List.of("id", "ts", "dept"), RENAMES);
+        assertTrue(f.isIdentity());
+        assertEquals(List.of("id", "ts", "dept"), f.base());
+        assertArrayEquals(new int[] { 0, 1, 2 }, f.index());
+    }
+
+    public void testFanOutCopyDedupsAndFansOut() {
+        // ts kept and @timestamp copied from it: both physicalize to "ts" (via a copy rename), so the reader reads "ts"
+        // once (base position 0) and both output columns point at it.
+        Map<String, String> copyRenames = Map.of("@timestamp", "ts"); // ts -> ts (identity, kept), @timestamp -> ts
+        PhysicalNames.FanOut f = PhysicalNames.fanOut(List.of("ts", "other", "@timestamp"), copyRenames);
+        assertFalse(f.isIdentity());
+        assertEquals(List.of("ts", "other"), f.base()); // @timestamp deduped away — its physical (ts) is base 0
+        assertArrayEquals(new int[] { 0, 1, 0 }, f.index()); // @timestamp fans out from base 0 (ts)
+    }
+
     private static ReferenceAttribute ref(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, name, type);
     }

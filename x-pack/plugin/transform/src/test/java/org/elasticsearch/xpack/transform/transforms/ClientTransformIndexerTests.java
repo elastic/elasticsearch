@@ -719,6 +719,29 @@ public class ClientTransformIndexerTests extends ESTestCase {
         assertFalse(context.isWaitingForIndexToUnblock());
     }
 
+    public void testUpgradeModeBlocksNonDefaultProjectIndexer() {
+        // Verifies that the upgrade-mode guard in maybeTriggerAsyncJob correctly reads the project metadata
+        // for a non-default project ID (not just ProjectId.DEFAULT). The fix in PR 5 replaced the deprecated
+        // single-project isUpgradeMode(ClusterState) with isUpgradeMode(state.metadata().getProject(context.projectId())).
+        var projectId = ProjectId.fromId("test-project-upgrade-mode");
+        var projectMetadata = ProjectMetadata.builder(projectId)
+            .putCustom(TransformMetadata.TYPE, new TransformMetadata.Builder().upgradeMode(true).build())
+            .build();
+        var metadata = Metadata.builder().put(projectMetadata).build();
+        var clusterState = mock(ClusterState.class);
+        when(clusterState.metadata()).thenReturn(metadata);
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        var context = new TransformContext(TransformTaskState.STARTED, "", 0, null, mock(TransformContext.Listener.class), projectId);
+        var indexer = createTestIndexer(null, clusterService, resolver(), context);
+
+        assertFalse(
+            "indexer whose project is in upgrade mode must not trigger",
+            indexer.maybeTriggerAsyncJob(Instant.now().toEpochMilli())
+        );
+    }
+
     public void testProjectIdPropagatedToClientExecute() throws InterruptedException {
         String expectedProjectId = "test-project-for-search";
         TransformConfig config = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setSettings(

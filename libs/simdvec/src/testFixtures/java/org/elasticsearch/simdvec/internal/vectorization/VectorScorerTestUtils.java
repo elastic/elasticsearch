@@ -9,12 +9,13 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
+import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
+import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.VectorUtil;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
@@ -416,8 +417,8 @@ public class VectorScorerTestUtils {
         }
 
         @Override
-        public QuantizedByteVectorValues.ScalarEncoding getScalarEncoding() {
-            return QuantizedByteVectorValues.ScalarEncoding.PACKED_NIBBLE;
+        public Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding getScalarEncoding() {
+            return Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.PACKED_NIBBLE;
         }
 
         @Override

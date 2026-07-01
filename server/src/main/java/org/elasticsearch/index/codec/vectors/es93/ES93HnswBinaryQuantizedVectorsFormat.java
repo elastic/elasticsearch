@@ -140,7 +140,6 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
             state,
             maxConn,
             beamWidth,
-            flatVectorsFormat,
             flatVectorsFormat.fieldsWriter(state),
             numMergeWorkers,
             mergeExec,

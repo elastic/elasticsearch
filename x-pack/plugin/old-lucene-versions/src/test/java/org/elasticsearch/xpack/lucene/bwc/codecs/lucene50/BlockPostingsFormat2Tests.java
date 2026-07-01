@@ -67,7 +67,7 @@ public class BlockPostingsFormat2Tests extends ESTestCase {
     private Document newDocument() {
         Document doc = new Document();
         for (IndexOptions option : IndexOptions.values()) {
-            if (option == IndexOptions.NONE || option == IndexOptions.DOCS_AND_CUSTOM_FREQS) {
+            if (option == IndexOptions.NONE) {
                 continue;
             }
             FieldType ft = new FieldType(TextField.TYPE_NOT_STORED);

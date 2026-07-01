@@ -86,7 +86,6 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
             state,
             maxConn,
             beamWidth,
-            flatVectorsFormat,
             flatVectorsFormat.fieldsWriter(state),
             numMergeWorkers,
             mergeExec,

@@ -104,7 +104,6 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
             state,
             maxConn,
             beamWidth,
-            flatVectorsFormat,
             flatVectorsFormat.fieldsWriter(state)
         );
     }

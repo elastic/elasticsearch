@@ -1035,7 +1035,7 @@ public class MoreLikeThisQueryBuilder extends LeafQueryBuilder<MoreLikeThisQuery
             }
             likeFields.add(getResponse.getFields());
         }
-        return likeFields.toArray(Fields[]::new);
+        return likeFields.toArray(Fields.EMPTY_ARRAY);
     }
 
     private static void checkRoutingMissingException(MultiTermVectorsItemResponse response) {

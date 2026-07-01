@@ -1679,10 +1679,10 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 );
                 mockLog.addExpectation(
                     new MockLog.SeenEventExpectation(
-                        "should see segment message including Lucene SegmentCommitInfo",
+                        "should see segment message including timestamp",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.DEBUG,
-                        "loading cluster state from segment: *"
+                        "loading cluster state from segment: *timestamp=*"
                     )
                 );
 

@@ -284,16 +284,7 @@ public class ES92GpuHnswWriteGraphTests extends ESTestCase {
 
         @Override
         public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-            return new Lucene99HnswVectorsWriter(
-                state,
-                maxConn,
-                beamWidth,
-                flatVectorsFormat(),
-                flatVectorsFormat().fieldsWriter(state),
-                0,
-                null,
-                0
-            );
+            return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat().fieldsWriter(state), 0, null, 0);
         }
     }
 }

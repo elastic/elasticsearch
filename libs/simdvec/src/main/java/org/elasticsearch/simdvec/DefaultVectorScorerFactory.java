@@ -16,7 +16,6 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.simdvec.internal.ESDefaultFlatVectorScorer;
 import org.elasticsearch.simdvec.internal.vectorization.DefaultES93BinaryQuantizedVectorScorer;
@@ -117,7 +116,7 @@ final class DefaultVectorScorerFactory implements VectorScorerFactory {
     public Optional<RandomVectorScorerSupplier> getInt7SQVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
-        LegacyQuantizedByteVectorValues values,
+        QuantizedByteVectorValues values,
         float scoreCorrectionConstant
     ) {
         return Optional.empty();
@@ -126,7 +125,7 @@ final class DefaultVectorScorerFactory implements VectorScorerFactory {
     @Override
     public Optional<RandomVectorScorer> getInt7SQVectorScorer(
         VectorSimilarityFunction sim,
-        LegacyQuantizedByteVectorValues values,
+        QuantizedByteVectorValues values,
         float[] queryVector
     ) {
         return Optional.empty();
@@ -136,7 +135,7 @@ final class DefaultVectorScorerFactory implements VectorScorerFactory {
     public Optional<RandomVectorScorerSupplier> getInt7uOSQVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
-        QuantizedByteVectorValues values
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
     ) {
         return Optional.empty();
     }
@@ -144,7 +143,7 @@ final class DefaultVectorScorerFactory implements VectorScorerFactory {
     @Override
     public Optional<RandomVectorScorer> getInt7uOSQVectorScorer(
         VectorSimilarityFunction sim,
-        QuantizedByteVectorValues values,
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values,
         byte[] quantizedQuery,
         float lowerInterval,
         float upperInterval,
@@ -158,7 +157,7 @@ final class DefaultVectorScorerFactory implements VectorScorerFactory {
     public Optional<RandomVectorScorerSupplier> getInt4VectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
-        QuantizedByteVectorValues values
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
     ) {
         return Optional.empty();
     }
@@ -166,7 +165,7 @@ final class DefaultVectorScorerFactory implements VectorScorerFactory {
     @Override
     public Optional<RandomVectorScorer> getInt4VectorScorer(
         VectorSimilarityFunction sim,
-        QuantizedByteVectorValues values,
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values,
         byte[] unpackedQuery,
         float lowerInterval,
         float upperInterval,

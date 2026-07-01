@@ -23,7 +23,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 
 import java.io.IOException;
 
@@ -75,7 +75,7 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
             assert vectorValues instanceof ByteVectorValues;
             assert vectorSimilarityFunction == VectorSimilarityFunction.EUCLIDEAN;
             if (vectorValues instanceof ByteVectorValues byteVectorValues) {
-                assert byteVectorValues instanceof LegacyQuantizedByteVectorValues == false;
+                assert byteVectorValues instanceof QuantizedByteVectorValues == false;
                 return switch (vectorSimilarityFunction) {
                     case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT, COSINE, EUCLIDEAN -> new HammingScorerSupplier(byteVectorValues);
                 };

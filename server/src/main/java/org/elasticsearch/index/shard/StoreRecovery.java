@@ -499,6 +499,7 @@ public final class StoreRecovery {
             })
 
             .<Void>andThen(l -> {
+                indexShard.ensureRecoveryNotCancelled();
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
                 indexShard.postRecovery("post recovery from shard_store", l);
@@ -605,6 +606,7 @@ public final class StoreRecovery {
             })
 
             .<Void>andThen(l -> {
+                indexShard.ensureRecoveryNotCancelled();
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
                 indexShard.postRecovery("restore done", l);

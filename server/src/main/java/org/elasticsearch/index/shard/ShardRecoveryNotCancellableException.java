@@ -17,9 +17,4 @@ public class ShardRecoveryNotCancellableException extends Exception {
     public ShardRecoveryNotCancellableException(ShardId shardId, String reason) {
         super("unable to direct cancel recovery for shard " + shardId + " for reason: " + reason);
     }
-
-    @Override
-    public Throwable fillInStackTrace() {
-        return this;
-    }
 }

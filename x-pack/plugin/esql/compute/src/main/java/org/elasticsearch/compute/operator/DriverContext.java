@@ -16,6 +16,8 @@ import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -50,6 +52,8 @@ import java.util.function.BooleanSupplier;
  * await the completion of all async actions before finalizing the Driver.
  */
 public class DriverContext {
+
+    private static final Logger logger = LogManager.getLogger(DriverContext.class);
 
     // Working set. Only the thread executing the driver will update this set.
     Set<Releasable> workingSet = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -275,10 +279,12 @@ public class DriverContext {
         for (BooleanSupplier hook : stopHooks) {
             try {
                 anyCut |= hook.getAsBoolean();
-            } catch (Exception ignored) {
+            } catch (Exception e) {
                 // Hooks are best-effort signals; a faulty hook must not break the STOP response path
                 // or stop the rest of the chain from firing. The only consequence of swallowing here
-                // is a slightly weaker partial-marking signal — never lost results.
+                // is a slightly weaker partial-marking signal — never lost results. Log at debug so a
+                // misbehaving hook is diagnosable in a support bundle rather than silently invisible.
+                logger.debug("stop hook threw during runStopHooks; skipping hook", e);
             }
         }
         return anyCut;

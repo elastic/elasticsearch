@@ -390,21 +390,34 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
+     * Removes a previously-registered stop hook. Callers register per-phase hooks (e.g. one per driver
+     * in a {@code ComputeService.runCompute} invocation) and must invoke this on phase completion so
+     * the async task's stop-hook list doesn't retain references to closed drivers/contexts for the
+     * whole task lifetime — coordinator reductions and subplans invoke {@code runCompute} multiple
+     * times under the same task, and cleared hooks would otherwise no-op but keep the driver-graph
+     * reachable. Uses reference equality via {@link java.util.List#remove(Object)}, so callers must
+     * pass the exact same {@link BooleanSupplier} instance previously registered.
+     */
+    public void removeStopHook(BooleanSupplier hook) {
+        stopHooks.remove(hook);
+    }
+
+    /**
      * Fires all registered stop hooks and returns {@code true} if at least one hook reported that it cut a
      * live unit of work. Callers can use this to decide whether STOP truncated the query (and therefore
      * the response should be flagged {@code is_partial=true}) or whether STOP merely raced with natural
      * completion (in which case the response is honestly complete).
+     * <p>
+     * No wrapping try/catch here: today's hooks are {@code Driver::runStopHooks} which delegates to
+     * {@link org.elasticsearch.compute.operator.DriverContext#runStopHooks()}, and that already isolates
+     * per-hook failures so one misbehaving operator can't sink the STOP response. Any exception escaping
+     * this loop is a bug in a caller (added a hook that doesn't respect the contract) and should surface
+     * loudly.
      */
     public boolean runStopHooks() {
         boolean anyCut = false;
         for (BooleanSupplier hook : stopHooks) {
-            try {
-                anyCut |= hook.getAsBoolean();
-            } catch (Exception ignored) {
-                // Hooks are best-effort signals — a faulty hook must not prevent the rest from firing or
-                // break the STOP response path. Failures here only weaken the partial-marking signal,
-                // never the result delivery.
-            }
+            anyCut |= hook.getAsBoolean();
         }
         return anyCut;
     }

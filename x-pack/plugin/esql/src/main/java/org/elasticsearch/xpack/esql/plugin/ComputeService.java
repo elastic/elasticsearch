@@ -1330,13 +1330,25 @@ public class ComputeService {
             // Only async ES|QL tasks carry an {@link EsqlExecutionInfo} we own here — sync tasks have no STOP
             // semantics, and data-node tasks are not {@link EsqlQueryTask} instances, so no hooks register
             // there and STOP on the coordinator never reaches across nodes through this path.
-            if (task instanceof EsqlQueryTask asyncTask) {
-                EsqlExecutionInfo execInfo = asyncTask.executionInfo();
-                if (execInfo != null) {
-                    for (Driver d : drivers) {
-                        execInfo.addStopHook(d::runStopHooks);
-                    }
+            //
+            // {@code runCompute} fires multiple times per coordinator task (subplans, reductions, cluster
+            // fan-outs). Without cleanup, {@code execInfo.stopHooks} would keep references to every
+            // already-completed phase's drivers for the whole task lifetime. We register per-phase hooks
+            // here and remove them when {@code driverListener} fires (i.e. when this phase's drivers
+            // have all completed), so the list stays scoped to live drivers only.
+            final EsqlExecutionInfo hookExecInfo;
+            final List<BooleanSupplier> registeredStopHooks;
+            if (task instanceof EsqlQueryTask asyncTask && asyncTask.executionInfo() != null) {
+                hookExecInfo = asyncTask.executionInfo();
+                registeredStopHooks = new ArrayList<>(drivers.size());
+                for (Driver d : drivers) {
+                    BooleanSupplier hook = d::runStopHooks;
+                    hookExecInfo.addStopHook(hook);
+                    registeredStopHooks.add(hook);
                 }
+            } else {
+                hookExecInfo = null;
+                registeredStopHooks = null;
             }
             long planningBytesRead = planningBytesRead(directoryBytesRead, bytesBefore);
             // Pass the ORIGINAL plan (immutable, not transformed) for profiling
@@ -1353,7 +1365,14 @@ public class ComputeService {
                 task,
                 drivers,
                 transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
-                ActionListener.releaseAfter(driverListener, () -> Releasables.close(drivers))
+                ActionListener.releaseAfter(driverListener, () -> {
+                    if (hookExecInfo != null) {
+                        for (BooleanSupplier hook : registeredStopHooks) {
+                            hookExecInfo.removeStopHook(hook);
+                        }
+                    }
+                    Releasables.close(drivers);
+                })
             );
         } catch (Exception e) {
             if (context.description().equals(DATA_DESCRIPTION)) {

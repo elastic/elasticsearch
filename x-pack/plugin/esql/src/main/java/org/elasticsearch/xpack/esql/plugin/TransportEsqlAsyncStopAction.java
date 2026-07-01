@@ -122,6 +122,11 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
         // never double-cut a driver.
         final boolean stopHookCutSomething = esqlExecutionInfo != null && esqlExecutionInfo.runStopHooks();
         Runnable getResults = () -> getResultsAction.execute(task, getAsyncResultRequest, listener);
+        Runnable awaitAndGet = () -> {
+            if (asyncTask.addCompletionListener(() -> ActionListener.running(getResults)) == false) {
+                getResults.run();
+            }
+        };
         exchangeService.finishSessionEarly(sessionId, ActionListener.wrap(interrupted -> {
             // Mark the response partial when {@code STOP} provably interrupted execution: either {@code
             // finishSessionEarly} closed an active exchange source (distributed plans, CCS, ES-index reads), or a
@@ -133,12 +138,18 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
             if (cutLiveWork && esqlExecutionInfo != null) {
                 esqlExecutionInfo.markPartial();
             }
-            if (asyncTask.addCompletionListener(() -> ActionListener.running(getResults)) == false) {
-                getResults.run();
-            }
+            awaitAndGet.run();
         }, e -> {
+            // {@code finishSessionEarly} failing must not discard the user's buffered rows: the pre-refactor
+            // {@link ActionListener#running} continued to fetch the async result on both success and failure. Keep
+            // that behaviour — STOP already fired the local stop hooks a few lines above, so the pipeline is being
+            // cut regardless. Still surface partial when we know hooks cut a running driver, since the exchange-side
+            // signal is unknown.
             logger.debug(() -> "Async stop for task [" + asyncIdStr + "] failed during finishSessionEarly", e);
-            listener.onFailure(e);
+            if (stopHookCutSomething && esqlExecutionInfo != null) {
+                esqlExecutionInfo.markPartial();
+            }
+            awaitAndGet.run();
         }));
     }
 

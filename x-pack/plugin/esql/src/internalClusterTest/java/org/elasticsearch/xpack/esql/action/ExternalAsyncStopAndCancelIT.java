@@ -502,8 +502,9 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
                 Iterator<Iterator<Object>> values = response.values();
                 while (values.hasNext()) {
                     Iterator<Object> row = values.next();
-                    while (row.hasNext())
+                    while (row.hasNext()) {
                         row.next();
+                    }
                     rows++;
                 }
                 assertThat(

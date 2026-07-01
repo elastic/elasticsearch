@@ -709,17 +709,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // {@link DriverContext}, which calls this hook. {@code buffer.finish(false)} flips
             // {@code noMoreInputs} on the buffer — pages already accepted into the queue stay reachable
             // to the driver loop and flow through the pipeline, while producer threads observe the flag
-            // and exit instead of accepting more pages. Returning {@code true} only on the
-            // running→finishing transition gives the stop action an honest signal: if STOP raced with
-            // natural completion (producer already EOF'd, {@code noMoreInputs} already set), this hook
-            // is a no-op and the response is honestly complete, not partial.
-            driverContext.addStopHook(() -> {
-                if (buffer.noMoreInputs()) {
-                    return false;
-                }
-                buffer.finish(false);
-                return true;
-            });
+            // and exit instead of accepting more pages.
+            //
+            // {@code finish} performs a CAS on {@code noMoreInputs} and returns {@code true} only when
+            // it actually made the running→finishing transition; if the producer already EOF'd (natural
+            // completion) or another thread finished the buffer first, it returns {@code false}. That
+            // eliminates the check-then-act race between {@code buffer.noMoreInputs()} and
+            // {@code buffer.finish(false)}: STOP marking the response {@code is_partial=true} now
+            // requires a genuine live cut, not merely observing "already finished".
+            driverContext.addStopHook(() -> buffer.finish(false));
 
             if (sliceQueue != null) {
                 startSliceQueueRead(buffer, driverContext);

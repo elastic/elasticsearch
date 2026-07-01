@@ -175,9 +175,6 @@ public class NdJsonPageDecoder implements Closeable {
     private long totalRowCount;
     private long errorCount;
     private final DateFormatter datetimeFormatter;
-    // Logical->physical column renames: a projected column's JSON field name is its physical (source) name. Empty for
-    // datasets that declare no rename, in which case the logical name is used directly. Consumed by prepareSchema.
-    private final Map<String, String> renames;
 
     /** Number of malformed records observed during decoding (lenient policies swallow these). */
     long errorCount() {
@@ -215,33 +212,6 @@ public class NdJsonPageDecoder implements Closeable {
     ) throws IOException {
         this(
             input,
-            datetimeFormatter,
-            attributes,
-            projectedColumns,
-            batchSize,
-            blockFactory,
-            errorPolicy,
-            sourceLocation,
-            counters,
-            Map.of()
-        );
-    }
-
-    /** As above, with a logical-&gt;physical {@code renames} map for `source`-renamed columns (used by the reader). */
-    NdJsonPageDecoder(
-        InputStream input,
-        DateFormatter datetimeFormatter,
-        List<Attribute> attributes,
-        List<String> projectedColumns,
-        int batchSize,
-        BlockFactory blockFactory,
-        ErrorPolicy errorPolicy,
-        String sourceLocation,
-        NdJsonReaderCounters counters,
-        Map<String, String> renames
-    ) throws IOException {
-        this(
-            input,
             null,
             0,
             0,
@@ -253,8 +223,7 @@ public class NdJsonPageDecoder implements Closeable {
             sourceLocation,
             datetimeFormatter,
             counters,
-            NdJsonUtils.JSON_FACTORY,
-            renames
+            NdJsonUtils.JSON_FACTORY
         );
     }
 
@@ -278,37 +247,6 @@ public class NdJsonPageDecoder implements Closeable {
         NdJsonReaderCounters counters
     ) throws IOException {
         this(
-            data,
-            offset,
-            length,
-            datetimeFormatter,
-            attributes,
-            projectedColumns,
-            batchSize,
-            blockFactory,
-            errorPolicy,
-            sourceLocation,
-            counters,
-            Map.of()
-        );
-    }
-
-    /** As above, with a logical-&gt;physical {@code renames} map for `source`-renamed columns (used by the reader). */
-    NdJsonPageDecoder(
-        byte[] data,
-        int offset,
-        int length,
-        DateFormatter datetimeFormatter,
-        List<Attribute> attributes,
-        List<String> projectedColumns,
-        int batchSize,
-        BlockFactory blockFactory,
-        ErrorPolicy errorPolicy,
-        String sourceLocation,
-        NdJsonReaderCounters counters,
-        Map<String, String> renames
-    ) throws IOException {
-        this(
             null,
             data,
             offset,
@@ -321,8 +259,7 @@ public class NdJsonPageDecoder implements Closeable {
             sourceLocation,
             datetimeFormatter,
             counters,
-            NdJsonUtils.JSON_FACTORY,
-            renames
+            NdJsonUtils.JSON_FACTORY
         );
     }
 
@@ -354,8 +291,7 @@ public class NdJsonPageDecoder implements Closeable {
             sourceLocation,
             null,
             new NdJsonReaderCounters(),
-            factory,
-            Map.of()
+            factory
         );
     }
 
@@ -372,11 +308,9 @@ public class NdJsonPageDecoder implements Closeable {
         String sourceLocation,
         DateFormatter datetimeFormatter,
         NdJsonReaderCounters counters,
-        JsonFactory factory,
-        Map<String, String> renames
+        JsonFactory factory
     ) throws IOException {
         this.jsonFactory = factory;
-        this.renames = renames == null ? Map.of() : renames;
         this.input = input;
         this.sourceBytes = sourceBytes;
         if (sourceBytes != null) {
@@ -879,7 +813,7 @@ public class NdJsonPageDecoder implements Closeable {
             // The JSON field name is the column's PHYSICAL (source) name; a declared `source` rename maps the logical
             // column to its file field. setAttribute below keeps the logical attribute, so the block lands under the
             // user-facing name. No rename declared -> logical name is used directly.
-            String name = renames.getOrDefault(attribute.name(), attribute.name());
+            String name = attribute.name();
             BlockDecoder decoder;
             if (hasDottedPrefixConflict(name, fullSchema)) {
                 // CSV-style flat keys such as "languages.long" are single JSON field names; they cannot be reached

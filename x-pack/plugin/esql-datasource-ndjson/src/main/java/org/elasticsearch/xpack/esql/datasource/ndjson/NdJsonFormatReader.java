@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -18,7 +17,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
@@ -93,12 +91,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     static final String CONFIG_DATETIME_FORMAT = "datetime_format";
 
     /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
-    static final Set<String> RECOGNIZED_KEYS = Set.of(
-        CONFIG_SCHEMA_SAMPLE_SIZE,
-        CONFIG_SEGMENT_SIZE,
-        CONFIG_DATETIME_FORMAT,
-        ExternalSourceResolver.CONFIG_DECLARED_RENAMES
-    );
+    static final Set<String> RECOGNIZED_KEYS = Set.of(CONFIG_SCHEMA_SAMPLE_SIZE, CONFIG_SEGMENT_SIZE, CONFIG_DATETIME_FORMAT);
 
     private final BlockFactory blockFactory;
     private final Settings settings;
@@ -106,9 +99,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     private final int schemaSampleSize;
     private final long segmentSizeBytes;
     private final DateFormatter datetimeFormatter;
-    // Logical->physical column renames from the declared mapping. The reader resolves a column's JSON field name by its
-    // physical (source) name; empty when the dataset declares no rename.
-    private final Map<String, String> renames;
     /**
      * Node-stable identity of the row-interpretation-affecting {@code WITH} config, per
      * {@link SchemaCacheKey#buildFormatConfig} — the external-stats cache fingerprint. Derived from
@@ -121,7 +111,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     private final NdJsonReaderCounters counters = new NdJsonReaderCounters();
 
     public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
-        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings), null, "", Map.of());
+        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings), null, "");
     }
 
     NdJsonFormatReader(Settings settings, BlockFactory blockFactory) {
@@ -135,8 +125,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         int schemaSampleSize,
         long segmentSizeBytes,
         DateFormatter datetimeFormatter,
-        String canonicalConfig,
-        Map<String, String> renames
+        String canonicalConfig
     ) {
         this.blockFactory = blockFactory;
         this.settings = settings == null ? Settings.EMPTY : settings;
@@ -145,7 +134,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         this.segmentSizeBytes = segmentSizeBytes;
         this.datetimeFormatter = datetimeFormatter;
         this.canonicalConfig = canonicalConfig;
-        this.renames = renames == null ? Map.of() : renames;
     }
 
     @Override
@@ -157,8 +145,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             schemaSampleSize,
             segmentSizeBytes,
             datetimeFormatter,
-            canonicalConfig,
-            renames
+            canonicalConfig
         );
     }
 
@@ -182,22 +169,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             newSampleSize,
             newSegmentSize,
             newDatetimeFormatter,
-            canon,
-            parseRenames(config.get(ExternalSourceResolver.CONFIG_DECLARED_RENAMES))
+            canon
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
-    }
-
-    /** Coerce the declared logical-&gt;physical rename map carried in config into a {@code Map<String,String>}. */
-    private static Map<String, String> parseRenames(Object value) {
-        if (value instanceof Map<?, ?> m && m.isEmpty() == false) {
-            Map<String, String> result = Maps.newHashMapWithExpectedSize(m.size());
-            for (Map.Entry<?, ?> e : m.entrySet()) {
-                result.put(String.valueOf(e.getKey()), String.valueOf(e.getValue()));
-            }
-            return Map.copyOf(result);
-        }
-        return Map.of();
     }
 
     private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object, boolean skipFirstLine)
@@ -511,8 +485,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             counters,
             context.splitStartByte(),
             context.maxRecordBytes(),
-            datetimeFormatter,
-            renames
+            datetimeFormatter
         );
     }
 

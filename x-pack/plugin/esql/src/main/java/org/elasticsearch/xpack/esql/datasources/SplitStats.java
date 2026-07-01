@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -430,123 +429,6 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             return (selectMin ? da <= db : da >= db) ? da : db;
         }
         return null;
-    }
-
-    /**
-     * Merges multiple {@link SplitStats} instances into a single one. Row counts and column
-     * sizes are summed, null counts are summed, mins take the minimum, maxes take the maximum.
-     * Columns present in some splits but not others are included in the result with partial
-     * data from the splits where they appear.
-     * <p>
-     * When min/max values have different numeric Java types across splits (e.g. {@code Integer}
-     * from a Parquet INT32 file vs {@code Long} from an INT64 file after UNION_BY_NAME widening),
-     * both values are promoted to a common type via {@link #mergedMin}/{@link #mergedMax}.
-     * Incompatible types (e.g. Long + Double) cause the stat to be cleared to {@code null},
-     * preventing wrong-result pushdown. This should not happen when
-     * {@link SchemaReconciliation#schemaWiden} has correctly unified the schema and indicates
-     * a bug worth investigating.
-     *
-     * @return the merged stats, or {@code null} if the list is null or empty
-     */
-    @Nullable
-    public static SplitStats merge(List<SplitStats> statsList) {
-        if (statsList == null || statsList.isEmpty()) {
-            return null;
-        }
-        if (statsList.size() == 1) {
-            return statsList.getFirst();
-        }
-        Builder builder = new Builder();
-        long totalRows = 0;
-        long totalSize = 0;
-        boolean hasSize = false;
-        Map<String, Integer> columnOrdinals = new LinkedHashMap<>();
-        StringBuilder nameBuf = new StringBuilder();
-        BitSet poisonedMins = new BitSet();
-        BitSet poisonedMaxs = new BitSet();
-
-        for (SplitStats stats : statsList) {
-            totalRows += stats.rowCount;
-            if (stats.sizeInBytes >= 0) {
-                totalSize += stats.sizeInBytes;
-                hasSize = true;
-            }
-            for (int i = 0; i < stats.columnCount(); i++) {
-                String colName = stats.resolveColumnName(i, nameBuf);
-                Integer existingOrd = columnOrdinals.get(colName);
-                if (existingOrd == null) {
-                    int ord = builder.addColumn(colName);
-                    columnOrdinals.put(colName, ord);
-                    builder.nullCount(ord, stats.nullCounts[i]);
-                    builder.valueCount(ord, stats.valueCounts[i]);
-                    builder.min(ord, stats.mins[i]);
-                    builder.max(ord, stats.maxs[i]);
-                    builder.sizeBytes(ord, stats.sizesBytes[i]);
-                } else {
-                    int ord = existingOrd;
-                    // Sum null counts
-                    long existingNc = builder.nullCountsList.get(ord);
-                    long newNc = stats.nullCounts[i];
-                    if (existingNc >= 0 && newNc >= 0) {
-                        builder.nullCount(ord, existingNc + newNc);
-                    }
-                    // Sum value counts (non-null values; multivalue-aware)
-                    long existingVc = builder.valueCountsList.get(ord);
-                    long newVc = stats.valueCounts[i];
-                    if (existingVc >= 0 && newVc >= 0) {
-                        builder.valueCount(ord, existingVc + newVc);
-                    }
-                    // Min of mins (widen numeric types if needed; null on incompatible)
-                    if (poisonedMins.get(ord) == false) {
-                        Object existingMin = builder.minsList.get(ord);
-                        Object newMin = stats.mins[i];
-                        Object merged = mergedMin(existingMin, newMin);
-                        if (merged == null && existingMin != null && newMin != null) {
-                            poisonedMins.set(ord);
-                            if (existingMin.getClass() != newMin.getClass()) {
-                                logger.warn(
-                                    "clearing min stat for column [{}]: incompatible types [{}/{}]",
-                                    colName,
-                                    existingMin.getClass().getSimpleName(),
-                                    newMin.getClass().getSimpleName()
-                                );
-                            }
-                        }
-                        builder.min(ord, merged);
-                    }
-                    // Max of maxes (widen numeric types if needed; null on incompatible)
-                    if (poisonedMaxs.get(ord) == false) {
-                        Object existingMax = builder.maxsList.get(ord);
-                        Object newMax = stats.maxs[i];
-                        Object merged = mergedMax(existingMax, newMax);
-                        if (merged == null && existingMax != null && newMax != null) {
-                            poisonedMaxs.set(ord);
-                            if (existingMax.getClass() != newMax.getClass()) {
-                                logger.warn(
-                                    "clearing max stat for column [{}]: incompatible types [{}/{}]",
-                                    colName,
-                                    existingMax.getClass().getSimpleName(),
-                                    newMax.getClass().getSimpleName()
-                                );
-                            }
-                        }
-                        builder.max(ord, merged);
-                    }
-                    // Sum sizes
-                    long existingSb = builder.sizesBytesList.get(ord);
-                    long newSb = stats.sizesBytes[i];
-                    if (existingSb >= 0 && newSb >= 0) {
-                        builder.sizeBytes(ord, existingSb + newSb);
-                    }
-                }
-            }
-        }
-
-        builder.rowCount(totalRows);
-        if (hasSize) {
-            builder.sizeInBytes(totalSize);
-        }
-        return builder.build();
     }
 
     /**

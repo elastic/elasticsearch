@@ -738,7 +738,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         when(clock.instant()).thenReturn(now);
 
         var requestSender = mock(RetryingHttpSender.class);
-        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1), null);
+        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1));
         var service = new RequestExecutorService(
             threadPool,
             RequestExecutorService.DEFAULT_QUEUE_CREATOR,
@@ -792,7 +792,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         when(mockThreadPool.scheduleWithFixedDelay(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.Cancellable.class));
 
         var requestSender = mock(RetryingHttpSender.class);
-        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1), null);
+        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1));
         var service = new RequestExecutorService(
             mockThreadPool,
             RequestExecutorService.DEFAULT_QUEUE_CREATOR,
@@ -820,7 +820,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         when(mockThreadPool.executor(any())).thenReturn(mockExecutorService);
 
         var requestSender = mock(RetryingHttpSender.class);
-        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1), null);
+        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1));
         var service = new RequestExecutorService(
             mockThreadPool,
             RequestExecutorService.DEFAULT_QUEUE_CREATOR,
@@ -842,7 +842,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         // TestCircuitBreaker is a NoopCircuitBreaker allowing to specify when it should break
         var circuitBreaker = new TestCircuitBreaker();
         var requestSender = mock(RequestSender.class);
-        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1), null);
+        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1));
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(INFERENCE_ID);
 
         var service = new RequestExecutorService(
@@ -886,7 +886,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         // TestCircuitBreaker is a NoopCircuitBreaker allowing to specify when it should break
         var circuitBreaker = new TestCircuitBreaker();
         var requestSender = mock(RequestSender.class);
-        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1), null);
+        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1));
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(INFERENCE_ID);
 
         var service = new RequestExecutorService(

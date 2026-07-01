@@ -25,6 +25,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.CommitStats;
@@ -58,6 +59,8 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestShardsAction extends AbstractCatAction {
+
+    public static final NodeFeature SHARDS_IDLE_STATE = new NodeFeature("cat.shards.idle_state");
 
     @Override
     public List<Route> routes() {
@@ -238,6 +241,7 @@ public class RestShardsAction extends AbstractCatAction {
 
         table.addCell("path.data", "alias:pd,dataPath;default:false;text-align:right;desc:shard data path");
         table.addCell("path.state", "alias:ps,statsPath;default:false;text-align:right;desc:shard state path");
+        table.addCell("refresh.is_search_idle", "alias:rsi,refreshSearchIdle;default:false;text-align:right;desc:shard idle state");
 
         table.addCell(
             "bulk.total_operations",
@@ -421,6 +425,7 @@ public class RestShardsAction extends AbstractCatAction {
 
             table.addCell(getOrNull(shardStats, ShardStats::getDataPath, s -> s));
             table.addCell(getOrNull(shardStats, ShardStats::getStatePath, s -> s));
+            table.addCell(getOrNull(shardStats, ShardStats::isSearchIdle, s -> s));
 
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getTotalOperations));
             table.addCell(getOrNull(commonStats, CommonStats::getBulk, BulkStats::getTotalTime));

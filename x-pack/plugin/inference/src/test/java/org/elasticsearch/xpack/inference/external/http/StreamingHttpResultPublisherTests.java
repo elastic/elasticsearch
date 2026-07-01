@@ -646,7 +646,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     private static class TrackingTestCircuitBreaker extends TestCircuitBreaker {
         private long tracked;
 
-        TrackingTestCircuitBreaker(){
+        TrackingTestCircuitBreaker() {
             super();
             this.tracked = 0L;
         }
@@ -665,7 +665,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
             return tracked;
         }
 
-        public void reset(){
+        public void reset() {
             this.tracked = 0L;
         }
     }

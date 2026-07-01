@@ -270,6 +270,52 @@ public class RetryableStorageObjectTests extends ESTestCase {
     }
 
     /**
+     * Wiring test for the retry->node-telemetry bridge on the RECOVERY path: two transient failures that then
+     * succeed must move the registry {@code storage.retries.total} counter (tagged with the scheme), not just the
+     * profile-snapshot {@code retryCount()}. Complements {@link #testMetricsAddsRetryCountObservedByDecorator}
+     * (which asserts only the snapshot). Uses a real registry-backed holder attached to a real
+     * {@link RetryableStorageObject} so the production {@code addRetry()} -> {@code recordRetry()} -> registry path
+     * is exercised end to end on a successful read.
+     */
+    public void testRetriesBridgeToRegistryCounterOnRecovery() throws IOException {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+
+        RetryPolicy policy = new RetryPolicy(3, 1, 10);
+        // Two SocketTimeoutException failures classify as transient, triggering two retries before the third
+        // newStream() call returns a real ByteArrayInputStream. Delegate carries no SDK-internal retries.
+        FakeStorageObject delegate = new FakeStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            new StorageObjectMetrics(1, 100, 4096, 0),
+            new SocketTimeoutException("read timed out"),
+            new byte[] { 1, 2, 3 },
+            2
+        );
+
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        obj.attachMetrics(metrics, "s3");
+
+        try (InputStream returned = obj.newStream()) {
+            assertEquals(1, returned.read());
+            assertEquals(2, returned.read());
+            assertEquals(3, returned.read());
+            assertEquals(-1, returned.read());
+        }
+
+        // Profile snapshot accumulates the two decorator-observed retries...
+        assertEquals("profile snapshot must observe both retries", 2L, obj.metrics().retryCount());
+
+        // ...and the same two retries reach the registry counter, tagged with the scheme.
+        List<Measurement> retries = measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_RETRIES_TOTAL);
+        assertThat("each retry publishes one registry observation", retries, hasSize(2));
+        long total = retries.stream().mapToLong(Measurement::getLong).sum();
+        assertThat("registry storage.retries.total must move by the retry count", total, equalTo(2L));
+        for (Measurement m : retries) {
+            assertThat(m.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        }
+    }
+
+    /**
      * Wiring test for the retry->node-telemetry bridge: a terminal give-up on the sync open path must publish a
      * storage error AND the cumulative backoff as a read stall to the attached {@link ExternalSourceMetrics},
      * tagged with the storage scheme. Uses a real registry-backed metrics holder (no mock) so the production

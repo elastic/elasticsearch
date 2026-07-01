@@ -16,11 +16,14 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -64,6 +67,10 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         buffer.incSplitsProcessed();
         buffer.incSplitsProcessed();
         buffer.addPage(createTestPage(1, 5));
+        // Wire a format-reader status with a known readNanos (42 ms) so parse.duration is a deterministic
+        // non-zero value, not just present. recordParseAndSplits() scrapes formatReaderStatus().readNanos()
+        // at close and records it as the parse.duration observation.
+        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 0L, TimeUnit.MILLISECONDS.toNanos(42L)));
 
         AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, metrics, "s3a");
 
@@ -77,8 +84,11 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
 
         operator.close();
 
-        // time_to_first_row recorded exactly once (on the first page), tagged with the canonical scheme.
+        // time_to_first_row recorded exactly once (on the first page), tagged with the canonical scheme. The value is
+        // the wall gap from operator construction to the first page (sub-ms in-process, so >= 0 rather than a forced
+        // non-zero); the scheme and the presence-with-a-real-value are what the metric guarantees.
         Measurement ttfr = single(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.QUERY_TIME_TO_FIRST_ROW);
+        assertThat(ttfr.getLong(), greaterThanOrEqualTo(0L));
         assertThat(ttfr.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
 
         // parse.rows.total carries the 5 emitted rows plus the scheme.
@@ -86,8 +96,9 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         assertThat(rows.getLong(), equalTo(5L));
         assertThat(rows.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
 
-        // parse.duration recorded with the scheme (no format-reader status wired => a zero-duration observation).
+        // parse.duration carries the format reader's readNanos folded to ms (42), plus the canonical scheme.
         Measurement parseDuration = single(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_DURATION);
+        assertThat(parseDuration.getLong(), equalTo(42L));
         assertThat(parseDuration.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
 
         // parse.splits_scanned carries this operator's processed-split count (3), NOT the global total (10), plus scheme.

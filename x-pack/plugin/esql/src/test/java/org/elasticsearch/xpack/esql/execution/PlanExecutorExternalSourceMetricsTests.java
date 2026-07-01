@@ -58,6 +58,23 @@ public class PlanExecutorExternalSourceMetricsTests extends ESTestCase {
         assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.BREAKER_TRIPPED_TOTAL), hasSize(0));
     }
 
+    public void testPartialSuccessBumpsPartialCounter() {
+        // A successful external-source query that returned partial results: outcome stays success, and the
+        // partial flag drives queries.partial.total. This closes the coordinator-wiring gap for the partial
+        // counter (the other outcomes are covered above; the holder-level partial path is covered by
+        // ExternalSourceMetricsTests#testRecordQueryPartialAlsoBumpsPartialCounter).
+        PlanExecutor.recordExternalSourceQuery(metrics, true, 77L, true, null);
+
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        assertThat(total.getLong(), equalTo(1L));
+        assertThat(total.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE), equalTo(ExternalSourceMetrics.OUTCOME_SUCCESS));
+
+        assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_PARTIAL_TOTAL).getLong(), equalTo(1L));
+        // Partial is orthogonal to cancellation and breaker trips.
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_CANCELLED_TOTAL), hasSize(0));
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.BREAKER_TRIPPED_TOTAL), hasSize(0));
+    }
+
     public void testCancellationClassifiesAsCancelled() {
         // A TaskCancelledException anywhere in the cause chain classifies the query as cancelled.
         Throwable failure = new RuntimeException("wrapped", new TaskCancelledException("task cancelled"));

@@ -726,6 +726,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             } else {
                 List<String> projectedColumns = dataProjectedColumns();
                 StorageObject storageObject = storageProvider.newObject(path);
+                // Attach the telemetry sink BEFORE any read: the first read (newStream) records on the
+                // object's counters, so attaching after — as an earlier version did — loses the storage
+                // request/bytes metrics for whole-file providers that finish the read at open.
+                attachStorageMetrics(storageObject);
                 if (formatReader.supportsNativeAsync()) {
                     startNativeAsyncRead(storageObject, projectedColumns, buffer, driverContext);
                 } else {
@@ -1640,6 +1644,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 StorageObject fullObj = fileLengthStr != null
                     ? storageProvider.newObject(fileSplit.path(), Long.parseLong(fileLengthStr))
                     : storageProvider.newObject(fileSplit.path());
+                attachStorageMetrics(fullObj); // before any read — see note at the single-object dispatch above
                 long rangeEnd = fileSplit.offset() + fileSplit.length();
                 Object fileContext = fileSplit.path().equals(state.lastRangeFilePath) ? state.lastFileContext : null;
                 // Pass {@link #readerResolvedAttributes} — i.e. {@link #attributes} minus the
@@ -1661,9 +1666,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 state.lastFileContext = rangeCtx.fileContext();
                 state.currentObject = fullObj;
                 state.currentObjectBytesSnapshot = readBytesOrZero(fullObj);
-                attachStorageMetrics(fullObj);
             } else {
                 StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
+                attachStorageMetrics(obj); // before any read — see note at the single-object dispatch above
                 boolean recordAlignedMacro = FileSplitProvider.isRecordAlignedMacroSplit(fileSplit);
                 boolean firstSplit = fileSplit.offset() == 0 || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
                 if (cols.isEmpty() && recordAlignedMacro && firstSplit == false) {
@@ -1740,7 +1745,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
                 state.currentObject = obj;
                 state.currentObjectBytesSnapshot = readBytesOrZero(obj);
-                attachStorageMetrics(obj);
                 pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
             }
             // Resolve the file's read schema and the reader's projected column order so the
@@ -1810,6 +1814,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     StorageObject obj = fileLengthStr != null
                         ? storageProvider.newObject(fs.path(), Long.parseLong(fileLengthStr))
                         : storageProvider.newObject(fs.path());
+                    // Batch path reads several objects together — attach each before readAll() opens them.
+                    attachStorageMetrics(obj);
                     splitRefs.add(new RangeAwareFormatReader.SplitRef(obj, fs.offset(), fs.length()));
                 }
             }
@@ -1873,6 +1879,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         CloseableIterator<Page> pages = null;
         try {
             StorageObject obj = storageProvider.newObject(files.path(fileIndex));
+            attachStorageMetrics(obj); // before any read — see note at the single-object dispatch above
             FormatReader fileReader = readerWithDynamicThreshold(formatReader);
             // Pull this file's coordinator-inferred schema from schemaInfo when available, so the
             // reader is pinned to the same inference the per-file ColumnMapping was built against.
@@ -1919,7 +1926,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext, files.path(fileIndex));
             state.currentObject = obj;
             state.currentObjectBytesSnapshot = readBytesOrZero(obj);
-            attachStorageMetrics(obj);
             return true;
         } catch (Exception e) {
             closeQuietly(pages);

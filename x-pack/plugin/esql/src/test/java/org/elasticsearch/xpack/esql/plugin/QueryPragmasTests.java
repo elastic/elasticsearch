@@ -15,26 +15,26 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
 /**
- * Verifies that the time-series target-chunk-size pragma is read independently from the regular aggregation pragmas,
+ * Verifies that the time-series target-chunk-rows pragma is read independently from the regular aggregation pragmas,
  * keeping the time-series chunking knob fully decoupled.
  */
 public class QueryPragmasTests extends ESTestCase {
 
-    public void testTimeSeriesTargetChunkSizePragmaOverridesDefault() {
+    public void testTimeSeriesTargetChunkRowsPragmaOverridesDefault() {
         QueryPragmas pragmas = new QueryPragmas(
-            Settings.builder().put(PlannerSettings.TIME_SERIES_TARGET_CHUNK_SIZE.getKey(), 4_096).build()
+            Settings.builder().put(PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.getKey(), 4_096).build()
         );
-        assertThat(pragmas.timeSeriesTargetChunkSize(10_000), equalTo(4_096));
+        assertThat(pragmas.timeSeriesTargetChunkRows(10_000), equalTo(4_096));
     }
 
-    public void testTimeSeriesTargetChunkSizeIsValidPragmaName() {
-        assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem(PlannerSettings.TIME_SERIES_TARGET_CHUNK_SIZE.getKey()));
+    public void testTimeSeriesTargetChunkRowsIsValidPragmaName() {
+        assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem(PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.getKey()));
     }
 
-    public void testTimeSeriesTargetChunkSizePragmaFallsBackToProvidedDefault() {
+    public void testTimeSeriesTargetChunkRowsPragmaFallsBackToProvidedDefault() {
         QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
         int clusterDefault = between(1, 1_000_000);
-        assertThat(pragmas.timeSeriesTargetChunkSize(clusterDefault), equalTo(clusterDefault));
+        assertThat(pragmas.timeSeriesTargetChunkRows(clusterDefault), equalTo(clusterDefault));
     }
 
     public void testTimeSeriesPragmaIsDecoupledFromRegularAggregationPragmas() {
@@ -43,13 +43,13 @@ public class QueryPragmasTests extends ESTestCase {
             Settings.builder().put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), 333).build()
         );
         assertThat(regularOnly.partialAggregationEmitKeysThreshold(100_000), equalTo(333));
-        assertThat(regularOnly.timeSeriesTargetChunkSize(10_000), equalTo(10_000));
+        assertThat(regularOnly.timeSeriesTargetChunkRows(10_000), equalTo(10_000));
 
         // Only the time-series pragma is set: it reaches the time-series accessor and leaves the regular one at its default.
         QueryPragmas timeSeriesOnly = new QueryPragmas(
-            Settings.builder().put(PlannerSettings.TIME_SERIES_TARGET_CHUNK_SIZE.getKey(), 999).build()
+            Settings.builder().put(PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.getKey(), 999).build()
         );
-        assertThat(timeSeriesOnly.timeSeriesTargetChunkSize(10_000), equalTo(999));
+        assertThat(timeSeriesOnly.timeSeriesTargetChunkRows(10_000), equalTo(999));
         assertThat(timeSeriesOnly.partialAggregationEmitKeysThreshold(100_000), equalTo(100_000));
     }
 }

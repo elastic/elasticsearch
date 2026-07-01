@@ -155,9 +155,9 @@ public class PlannerSettings {
      * each page sent to the coordinator. Specific to the time-series operator and independent of the regular
      * aggregation emit settings.
      */
-    public static final Setting<Integer> TIME_SERIES_TARGET_CHUNK_SIZE = Setting.intSetting(
-        "esql.time_series.target_chunk_size",
-        TimeSeriesAggregationOperator.DEFAULT_TARGET_CHUNK_SIZE,
+    public static final Setting<Integer> TIME_SERIES_TARGET_CHUNK_ROWS = Setting.intSetting(
+        "esql.time_series.target_chunk_rows",
+        TimeSeriesAggregationOperator.DEFAULT_TARGET_CHUNK_ROWS,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -297,7 +297,7 @@ public class PlannerSettings {
             REDUCTION_LATE_MATERIALIZATION,
             PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD,
             PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD,
-            TIME_SERIES_TARGET_CHUNK_SIZE,
+            TIME_SERIES_TARGET_CHUNK_ROWS,
             REUSE_COLUMN_LOADERS_THRESHOLD,
             BLOCK_LOADER_SIZE_ORDINALS,
             BLOCK_LOADER_SIZE_SCRIPT,
@@ -337,8 +337,8 @@ public class PlannerSettings {
                 v -> settings.updateAndGet(s -> s.partialEmitUniquenessThreshold(v))
             );
             clusterSettings.initializeAndWatch(
-                TIME_SERIES_TARGET_CHUNK_SIZE,
-                v -> settings.updateAndGet(s -> s.timeSeriesTargetChunkSize(v))
+                TIME_SERIES_TARGET_CHUNK_ROWS,
+                v -> settings.updateAndGet(s -> s.timeSeriesTargetChunkRows(v))
             );
             clusterSettings.initializeAndWatch(
                 REUSE_COLUMN_LOADERS_THRESHOLD,
@@ -383,7 +383,7 @@ public class PlannerSettings {
     private final ByteSizeValue intermediateLocalRelationMaxSize;
     private final int partialEmitKeysThreshold;
     private final double partialEmitUniquenessThreshold;
-    private final int timeSeriesTargetChunkSize;
+    private final int timeSeriesTargetChunkRows;
     private final int reuseColumnLoadersThreshold;
     private final ByteSizeValue blockLoaderSizeOrdinals;
     private final ByteSizeValue blockLoaderSizeScript;
@@ -407,7 +407,7 @@ public class PlannerSettings {
         INTERMEDIATE_LOCAL_RELATION_MAX_SIZE.getDefault(Settings.EMPTY),
         PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getDefault(Settings.EMPTY),
         PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getDefault(Settings.EMPTY),
-        TIME_SERIES_TARGET_CHUNK_SIZE.getDefault(Settings.EMPTY),
+        TIME_SERIES_TARGET_CHUNK_ROWS.getDefault(Settings.EMPTY),
         REUSE_COLUMN_LOADERS_THRESHOLD.getDefault(Settings.EMPTY),
         BLOCK_LOADER_SIZE_ORDINALS.getDefault(Settings.EMPTY),
         BLOCK_LOADER_SIZE_SCRIPT.getDefault(Settings.EMPTY),
@@ -432,7 +432,7 @@ public class PlannerSettings {
         ByteSizeValue intermediateLocalRelationMaxSize,
         int partialEmitKeysThreshold,
         double partialEmitUniquenessThreshold,
-        int timeSeriesTargetChunkSize,
+        int timeSeriesTargetChunkRows,
         int reuseColumnLoadersThreshold,
         ByteSizeValue blockLoaderSizeOrdinals,
         ByteSizeValue blockLoaderSizeScript,
@@ -452,7 +452,7 @@ public class PlannerSettings {
         this.intermediateLocalRelationMaxSize = intermediateLocalRelationMaxSize;
         this.partialEmitKeysThreshold = partialEmitKeysThreshold;
         this.partialEmitUniquenessThreshold = partialEmitUniquenessThreshold;
-        this.timeSeriesTargetChunkSize = timeSeriesTargetChunkSize;
+        this.timeSeriesTargetChunkRows = timeSeriesTargetChunkRows;
         this.reuseColumnLoadersThreshold = reuseColumnLoadersThreshold;
         this.blockLoaderSizeOrdinals = blockLoaderSizeOrdinals;
         this.blockLoaderSizeScript = blockLoaderSizeScript;
@@ -475,7 +475,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
-            timeSeriesTargetChunkSize,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -503,7 +503,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
-            timeSeriesTargetChunkSize,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -531,7 +531,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
-            timeSeriesTargetChunkSize,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -573,7 +573,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
-            timeSeriesTargetChunkSize,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -601,7 +601,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
-            timeSeriesTargetChunkSize,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -629,7 +629,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
-            timeSeriesTargetChunkSize,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -648,7 +648,7 @@ public class PlannerSettings {
         return partialEmitUniquenessThreshold;
     }
 
-    public PlannerSettings timeSeriesTargetChunkSize(int timeSeriesTargetChunkSize) {
+    public PlannerSettings timeSeriesTargetChunkRows(int timeSeriesTargetChunkRows) {
         return new PlannerSettings(
             defaultDataPartitioning,
             docsThresholdForAutoPartitioning,
@@ -657,7 +657,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
-            timeSeriesTargetChunkSize,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -670,8 +670,8 @@ public class PlannerSettings {
         );
     }
 
-    public int timeSeriesTargetChunkSize() {
-        return timeSeriesTargetChunkSize;
+    public int timeSeriesTargetChunkRows() {
+        return timeSeriesTargetChunkRows;
     }
 
     public PlannerSettings reuseColumnLoadersThreshold(int reuseColumnLoadersThreshold) {
@@ -683,7 +683,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
-            timeSeriesTargetChunkSize,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -718,7 +718,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
-            timeSeriesTargetChunkSize,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -749,7 +749,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
-            timeSeriesTargetChunkSize,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -780,7 +780,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
-            timeSeriesTargetChunkSize,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -808,7 +808,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
-            timeSeriesTargetChunkSize,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -836,7 +836,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
-            timeSeriesTargetChunkSize,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -864,7 +864,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
-            timeSeriesTargetChunkSize,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -892,7 +892,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
-            timeSeriesTargetChunkSize,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -920,7 +920,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
-            timeSeriesTargetChunkSize,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -1002,7 +1002,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
-            timeSeriesTargetChunkSize,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,

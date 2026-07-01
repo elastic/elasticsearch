@@ -50,6 +50,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelay;
 import org.elasticsearch.indices.recovery.RecoveryRole;
@@ -121,7 +122,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final RecoverySchedulingListener recoverySchedulingListener;
+    private final RecoverySchedulingListener recoverySchedulingListeners;
     private final PeerRecoveryTargetService peerRecoveryTargetService;
     private final StatelessCommitService statelessCommitService;
     private final Executor recoveryExecutor;
@@ -138,7 +139,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         ClusterService clusterService,
         ActionFilters actionFilters,
         IndicesService indicesService,
-        RecoverySchedulingListener recoverySchedulingListener,
+        CompositeRecoverySchedulingListener recoverySchedulingListeners,
         PeerRecoveryTargetService peerRecoveryTargetService,
         StatelessCommitService statelessCommitService,
         IndexShardCacheWarmer indexShardCacheWarmer,
@@ -150,7 +151,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.recoverySchedulingListener = recoverySchedulingListener;
+        this.recoverySchedulingListeners = recoverySchedulingListeners;
         this.peerRecoveryTargetService = peerRecoveryTargetService;
         this.statelessCommitService = statelessCommitService;
         this.indexShardCacheWarmer = indexShardCacheWarmer;
@@ -351,7 +352,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         }
 
         indexShard.recoveryStats().sourceRecoveryStarted();
-        recoverySchedulingListener.onRecoveryStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+        recoverySchedulingListeners.onRecoveryStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
 
         // Flushing before blocking operations because we expect this to reduce the amount of work done by the flush that happens while
         // operations are blocked. NB the flush has force=false so may do nothing.
@@ -372,7 +373,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();
         preFlushStep.addListener(listener.delegateResponse((l, e) -> {
             indexShard.recoveryStats().sourceRecoveryCompleted();
-            recoverySchedulingListener.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+            recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
             l.onFailure(e);
         }).delegateFailureAndWrap((listener0, preFlushResult) -> {
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
@@ -524,7 +525,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         try {
                             handoffCompleteListener.onResponse(null);
                             indexShard.recoveryStats().sourceRecoveryCompleted();
-                            recoverySchedulingListener.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+                            recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
                         } finally {
                             handoffResultListener.onResponse(null);
                         }

@@ -419,6 +419,9 @@ public class SplitTargetService {
             State.Handoff, State.SearchShardsOnline, State.Split, State.SplitApplied, State.UnownedDataDeleted, State.Done,
             State.RecoveringInHandoff, State.RecoveringInSplit, State.FailedInRecovery, State.Failed {
             // Corresponds to CLONE state of a target shard.
+            // While the target remains in CLONE,
+            // the source shard suppresses background merges (see StatelessPlugin.ShouldSkipMerges)
+            // so fewer commits are created/copied and handoff preparation can complete sooner.
             record Clone(ActionListener<Void> recoveryListener) implements State {}
 
             record WaitingForHandoff() implements State {}

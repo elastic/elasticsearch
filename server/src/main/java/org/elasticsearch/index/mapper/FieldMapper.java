@@ -1521,14 +1521,18 @@ public abstract class FieldMapper extends Mapper {
         }
 
         public final Parameter<Boolean> multiValueParameter;
-        private final boolean supportsMultiValue;
+        private final boolean supportsExtendedDocValues;
 
         /**
          * Factory for field types whose default doc_values configuration is known eagerly at construction time (numerics, dates, booleans,
          * IP, keyword family, etc.).
          */
-        public static DocValuesParameter of(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsMultiValue) {
-            return new DocValuesParameter(defaultValue, initializer, supportsMultiValue);
+        public static DocValuesParameter of(
+            Values defaultValue,
+            Function<FieldMapper, Values> initializer,
+            boolean supportsExtendedDocValues
+        ) {
+            return new DocValuesParameter(defaultValue, initializer, supportsExtendedDocValues);
         }
 
         /**
@@ -1539,23 +1543,23 @@ public abstract class FieldMapper extends Mapper {
             Supplier<Values> defaultValueSupplier,
             Values subParameterDefaults,
             Function<FieldMapper, Values> initializer,
-            boolean supportsMultiValue
+            boolean supportsExtendedDocValues
         ) {
-            return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer, supportsMultiValue);
+            return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer, supportsExtendedDocValues);
         }
 
-        private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsMultiValue) {
-            this(() -> defaultValue, defaultValue, initializer, supportsMultiValue);
+        private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsExtendedDocValues) {
+            this(() -> defaultValue, defaultValue, initializer, supportsExtendedDocValues);
         }
 
         private DocValuesParameter(
             Supplier<Values> defaultValueSupplier,
             Values subParameterDefaults,
             Function<FieldMapper, Values> initializer,
-            boolean supportsMultiValue
+            boolean supportsExtendedDocValues
         ) {
             super(PARAMETER_NAME, false, defaultValueSupplier, null, initializer, null, Values::toString);
-            this.supportsMultiValue = supportsMultiValue;
+            this.supportsExtendedDocValues = supportsExtendedDocValues;
 
             multiValueParameter = Parameter.boolParam(
                 "multi_value",
@@ -1583,7 +1587,7 @@ public abstract class FieldMapper extends Mapper {
         @Override
         public void parse(String field, MappingParserContext context, Object value) {
             if (value instanceof Map<?, ?> valueMap && IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-                if (supportsMultiValue == false) {
+                if (supportsExtendedDocValues == false) {
                     throw new MapperParsingException(
                         "field ["
                             + field
@@ -1616,7 +1620,7 @@ public abstract class FieldMapper extends Mapper {
             if (includeDefaults || isConfigured()) {
                 if (value.enabled == false) {
                     builder.field(name, false);
-                } else if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false || supportsMultiValue == false) {
+                } else if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false || supportsExtendedDocValues == false) {
                     // the object form is only available in columnar index modes, so it must never be emitted here
                     builder.field(name, true);
                 } else {

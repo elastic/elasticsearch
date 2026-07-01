@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 152443
+summary: Gracefully handle nested sandboxes on MacOS
+type: bug

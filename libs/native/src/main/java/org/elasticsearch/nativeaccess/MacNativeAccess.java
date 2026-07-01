@@ -124,6 +124,10 @@ public class MacNativeAccess extends PosixNativeAccess {
                 MemorySegment errorPtr = errorBuf.get(ValueLayout.ADDRESS, 0);
                 String message = MemorySegmentAdapter.getString(errorPtr.reinterpret(Long.MAX_VALUE), 0);
                 macLibc.sandbox_free_error(errorPtr);
+                if ("Operation not permitted".equals(message)) {
+                    logger.warn("sandbox_init: Operation not permitted. Already running in a sandbox?");
+                    return;
+                }
                 throw new UnsupportedOperationException("sandbox_init(): " + message);
             }
             logger.debug("OS X seatbelt initialization successful");

@@ -213,7 +213,7 @@ public final class ErrorModel {
             }
 
             int[] order = new int[nDocs];
-            mergeSortIndicesByKeysDescending(simOsq, order, nDocs);
+            sortIndicesByKeysDescending(simOsq, order, nDocs);
 
             int topN = Math.min(5 * k, nDocs);
             for (int i = 0; i < topN; i++) {

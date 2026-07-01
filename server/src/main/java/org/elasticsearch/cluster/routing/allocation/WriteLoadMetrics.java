@@ -135,8 +135,8 @@ public class WriteLoadMetrics {
     }
 
     public void onNewInfo(ClusterInfo clusterInfo) {
-        // We need a cluster state to compute these metrics, don't recalculate if the last ones are yet to be collected
-        if (metricsEnabled == false || clusterService.lifecycleState() != Lifecycle.State.STARTED || lastMetricsCollected == false) {
+        // We need a cluster state to compute these metrics
+        if (metricsEnabled == false || clusterService.lifecycleState() != Lifecycle.State.STARTED) {
             return;
         }
 
@@ -149,9 +149,16 @@ public class WriteLoadMetrics {
 
         final var clusterState = clusterService.state();
         final int ingestNodeCount = (int) clusterState.nodes().stream().filter(this::isIndexingNode).count();
-        final var shardMetrics = calculateShardWriteLoadMetrics(shardWriteLoads, clusterState, ingestNodeCount);
-        final var nodeMetrics = calculateNodeAverageWriteLoadMetrics(nodeUsageStatsMap, clusterState, ingestNodeCount);
 
+        if (nodeUsageStatsMap.isEmpty() == false) {
+            lastNodeAverageWriteLoadMetrics.set(calculateNodeAverageWriteLoadMetrics(nodeUsageStatsMap, clusterState, ingestNodeCount));
+        }
+
+        // don't recalculate expensive shard histogram metrics if the last ones are yet to be collected
+        if (lastMetricsCollected == false || shardWriteLoads.isEmpty()) {
+            return;
+        }
+        final var shardMetrics = calculateShardWriteLoadMetrics(shardWriteLoads, clusterState, ingestNodeCount);
         lastMetricsCollected = false;
         if (shardMetrics != null) {
             for (int i = 0; i < trackedPercentiles.length; i++) {
@@ -161,7 +168,6 @@ public class WriteLoadMetrics {
             lastShardCountExceedingPrioritisationThresholdMetrics.set(shardMetrics.shardCountsExceedingPrioritisationThreshold());
             lastWriteLoadSumMetrics.set(shardMetrics.writeLoadSumMetrics());
         }
-        lastNodeAverageWriteLoadMetrics.set(nodeMetrics);
     }
 
     private record ShardWriteLoadMetrics(
@@ -341,9 +347,7 @@ public class WriteLoadMetrics {
 
     // visible for testing
     final Collection<DoubleWithAttributes> getNodeAverageWriteLoadMetrics() {
-        final var metrics = lastNodeAverageWriteLoadMetrics.getAndSet(List.of());
-        lastMetricsCollected = true;
-        return metrics;
+        return lastNodeAverageWriteLoadMetrics.getAndSet(List.of());
     }
 
     // visible for testing

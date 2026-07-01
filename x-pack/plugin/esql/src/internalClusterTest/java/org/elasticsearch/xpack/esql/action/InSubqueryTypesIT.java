@@ -124,7 +124,7 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
-            // Must precede the ESQL plugin: EsqlPlugin.createComponents reads EncryptionService.Holder, populated by this stub.
+            // Must precede the ESQL plugin: EsqlPlugin.createComponents reads EncryptionServiceRegistry, populated by this stub.
             TestEncryptionServicePlugin.class,
             EsqlPluginWithEnterpriseOrTrialLicense.class,
             MapperExtrasPlugin.class,

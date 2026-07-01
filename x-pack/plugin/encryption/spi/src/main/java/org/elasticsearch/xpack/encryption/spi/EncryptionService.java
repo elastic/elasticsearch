@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.encryption.spi;
 
-import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
-
 /**
  * Provides symmetric encrypt/decrypt operations.
  *
@@ -54,38 +51,5 @@ public interface EncryptionService {
      */
     default boolean isEncryptionRequired() {
         return true;
-    }
-
-    /**
-     * Process-wide holder for the node's {@link EncryptionService}, populated by the encryption plugin's {@code createComponents}.
-     * It exists only for usage by {@code createComponents} in other plugins (e.g. ES|QL data sources) that build their own
-     * components before Guice wiring is available and therefore cannot have the service injected. Plugin load ordering guarantees
-     * the encryption plugin's {@code createComponents} runs before any consumer's.
-     */
-    final class Holder {
-
-        private static final AtomicReference<EncryptionService> INSTANCE = new AtomicReference<>();
-
-        private Holder() {}
-
-        /**
-         * Returns the registered {@link EncryptionService}.
-         *
-         * @throws IllegalStateException if no instance has been set yet
-         */
-        public static EncryptionService get() {
-            EncryptionService service = INSTANCE.get();
-            if (service == null) {
-                throw new IllegalStateException("encryption service is not constructed yet");
-            }
-            return service;
-        }
-
-        /**
-         * Registers the single {@link EncryptionService} instance.
-         */
-        public static void set(EncryptionService service) {
-            INSTANCE.set(Objects.requireNonNull(service, "encryption service must not be null"));
-        }
     }
 }

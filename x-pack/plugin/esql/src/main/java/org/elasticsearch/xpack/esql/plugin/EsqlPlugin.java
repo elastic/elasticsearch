@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
 import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
@@ -346,7 +347,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Build capabilities from plugin declarations (cheap -- no I/O, no heavy deps)
         DataSourceCapabilities dataSourceCapabilities = DataSourceCapabilities.build(allDataSourcePlugins);
 
-        EncryptionService encryptionService = EncryptionService.Holder.get();
+        EncryptionService encryptionService = EncryptionServiceRegistry.getEncryptionService();
         DataSourceCredentials dataSourceCredentials = new DataSourceCredentials(encryptionService);
 
         boolean isStateless = DiscoveryNode.isStateless(settings);

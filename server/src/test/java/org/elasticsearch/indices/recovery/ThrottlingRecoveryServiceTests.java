@@ -589,15 +589,21 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testStaleRecordedEntryRemovedOnClusterStateChangeWithShardRelocated() {
         final var taskQueue = new DeterministicTaskQueue();
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            newClusterService(10),
-            RecoverySchedulingListener.NOOP
+        final var clusterService = newClusterService(10);
+        final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool(), clusterService, RecoverySchedulingListener.NOOP);
+        final var nodeId = randomIdentifier();
+        final var staleShardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
+        final var staleAllocationId = UUIDs.randomBase64UUID();
+        final var retainedShardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
+        final var retainedShardRouting = TestShardRouting.newShardRouting(
+            retainedShardId,
+            clusterService.localNode().getId(),
+            true,
+            ShardRoutingState.INITIALIZING
         );
-        final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
-        final var allocationId = UUIDs.randomBase64UUID();
+        final var retainedAllocationId = retainedShardRouting.allocationId().getId();
 
-        assertTrue(service.cancelRecoveries(Map.of(allocationId, shardId)).isEmpty());
+        assertTrue(service.cancelRecoveries(Map.of(staleAllocationId, staleShardId, retainedAllocationId, retainedShardId)).isEmpty());
 
         final var event = mock(ClusterChangedEvent.class);
         final var state = mock(ClusterState.class);
@@ -605,22 +611,34 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var routingNode = mock(RoutingNode.class);
         when(event.state()).thenReturn(state);
         when(state.getRoutingNodes()).thenReturn(routingNodes);
-        when(routingNodes.node(anyString())).thenReturn(routingNode);
-        when(routingNode.getByShardId(shardId)).thenReturn(null);
+        when(routingNodes.node(clusterService.localNode().getId())).thenReturn(routingNode);
+        // staleShardId relocated away from this node, retainedShardId is still here
+        when(routingNode.getByShardId(staleShardId)).thenReturn(null);
+        when(routingNode.getByShardId(retainedShardId)).thenReturn(retainedShardRouting);
         service.clusterChanged(event);
 
-        final var recoveryState = newRecoveryState(shardId);
-        final var listener = new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED);
+        final var staleRecoveryState = newRecoveryState(staleShardId);
+        final var staleListener = new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED);
         service.enqueue(
-            listener,
-            recoveryState,
-            allocationId,
+            staleListener,
+            staleRecoveryState,
+            staleAllocationId,
             stats,
-            l -> l.onRecoveryDone(recoveryState, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+            l -> l.onRecoveryDone(staleRecoveryState, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
         );
-        taskQueue.runAllRunnableTasks();
+
+        final var retainedListener = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
+        service.enqueue(
+            retainedListener,
+            newRecoveryState(retainedShardId),
+            retainedAllocationId,
+            stats,
+            ignored -> fail("task should have been cancelled")
+        );
+
+        taskQueue.runAllTasks();
         assertThat(service.currentQueueSize(), equalTo(0));
-        ensureListenersWereNotified(listener);
+        ensureListenersWereNotified(staleListener, retainedListener);
     }
 
     public void testCancelRecoveryReturnsEmptyWhenNoLongerInQueue() {

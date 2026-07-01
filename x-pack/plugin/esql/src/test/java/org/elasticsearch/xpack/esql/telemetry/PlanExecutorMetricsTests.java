@@ -42,6 +42,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -637,8 +638,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     }
 
     /**
-     * These tests register no datasets, so the resolver short-circuits before ever touching a client
-     * or executor — nulls are never dereferenced.
+     * These tests register no datasets, so the resolver short-circuits before ever touching a client,
+     * executor, or the cross-project remote leg — nulls are never dereferenced.
      */
     private static DatasetResolver noDatasetsResolver() {
         return new DatasetResolver(null, null, CrossProjectModeDecider.NOOP);
@@ -689,7 +690,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             TEST_FUNCTION_REGISTRY,
             PromqlFunctionRegistry.INSTANCE,
             TEST_PARSER,
-            null
+            null,
+            EsqlTestUtils.TEST_ANALYSIS_REGISTRY
         );
     }
 

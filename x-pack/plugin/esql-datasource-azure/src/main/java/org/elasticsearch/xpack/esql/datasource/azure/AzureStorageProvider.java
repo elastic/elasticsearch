@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
+import reactor.netty.resources.ConnectionProvider;
+
 import com.azure.core.credential.TokenCredential;
+import com.azure.core.http.netty.NettyAsyncHttpClientBuilder;
 import com.azure.identity.ClientAssertionCredentialBuilder;
 import com.azure.identity.ManagedIdentityCredentialBuilder;
 import com.azure.identity.WorkloadIdentityCredentialBuilder;
@@ -25,10 +28,12 @@ import com.azure.storage.common.StorageSharedKeyCredential;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -38,6 +43,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.List;
@@ -102,9 +108,22 @@ public final class AzureStorageProvider implements StorageProvider {
         System.getProperty("tests.azure.credentials.disable_instance_discovery", "false")
     );
 
+    /**
+     * Generous acquisition timeout so brief pool contention QUEUES rather than fails a read, mirroring the S3
+     * client's {@code connectionAcquisitionTimeout}.
+     */
+    private static final Duration CONNECTION_ACQUISITION_TIMEOUT = Duration.ofSeconds(60);
+
     private record Clients(BlobServiceClient sync, BlobServiceAsyncClient async) {}
 
     private volatile Clients clients;
+
+    /**
+     * The reactor-netty connection pool backing both clients' HTTP transport, sized by {@link #maxConnections}.
+     * Owned by this provider and disposed in {@link #close()}. Null on the pre-built-client test constructor and
+     * until the (eager or lazy) client build runs.
+     */
+    private volatile ConnectionProvider connectionProvider;
     private final AzureConfiguration config;
     private final Environment environment;
 
@@ -114,10 +133,30 @@ public final class AzureStorageProvider implements StorageProvider {
      */
     private final ExecutorService executor;
 
+    /**
+     * Sizes the reactor-netty connection pool shared by the sync and async clients (see {@link #buildSizedHttpClient}).
+     * The value of the {@code esql.external.max_connections} node setting.
+     */
+    private final int maxConnections;
+
+    /**
+     * Convenience constructor that sizes the connection pool at the {@code esql.external.max_connections} default.
+     * Used by tests; production uses the four-argument form with the node-setting value.
+     */
     public AzureStorageProvider(AzureConfiguration config, Environment environment, ExecutorService executor) {
+        this(config, environment, executor, ExternalSourceSettings.MAX_CONNECTIONS.get(Settings.EMPTY));
+    }
+
+    /**
+     * Production constructor. {@code maxConnections} sizes the reactor-netty connection pool and is the value of the
+     * {@code esql.external.max_connections} node setting, read at the plugin's construction path (which holds node
+     * {@link Settings}).
+     */
+    public AzureStorageProvider(AzureConfiguration config, Environment environment, ExecutorService executor, int maxConnections) {
         this.config = config;
         this.environment = environment;
         this.executor = executor;
+        this.maxConnections = maxConnections;
         if (config != null && (config.hasCredentials() || config.hasKeylessAuth() || config.isAnonymous())) {
             BlobServiceClientBuilder builder = configureBlobServiceClientBuilder(config, null);
             this.clients = new Clients(builder.buildClient(), builder.buildAsyncClient());
@@ -131,6 +170,7 @@ public final class AzureStorageProvider implements StorageProvider {
         this.config = null;
         this.environment = null;
         this.executor = null;
+        this.maxConnections = ExternalSourceSettings.MAX_CONNECTIONS.get(Settings.EMPTY);
         this.clients = new Clients(blobServiceClient, null);
     }
 
@@ -224,7 +264,7 @@ public final class AzureStorageProvider implements StorageProvider {
     }
 
     private BlobServiceClientBuilder configureBlobServiceClientBuilder(AzureConfiguration config, String accountFromPath) {
-        BlobServiceClientBuilder builder = new BlobServiceClientBuilder();
+        BlobServiceClientBuilder builder = new BlobServiceClientBuilder().httpClient(buildSizedHttpClient());
 
         if (config != null && config.isAnonymous()) {
             String account = accountFromPath;
@@ -327,6 +367,23 @@ public final class AzureStorageProvider implements StorageProvider {
         }
 
         return builder;
+    }
+
+    /**
+     * Builds the HTTP client shared by the sync and async Blob clients, backed by a reactor-netty connection pool
+     * sized to {@link #maxConnections}. Records the pool in {@link #connectionProvider} so {@link #close()} disposes
+     * it. The single {@code esql.external.max_connections} setting sizes this pool; the circuit breaker bounds memory
+     * and reactive 503 backoff handles throttling. The Azure SDK's reactor-netty default of 50 connections would cap
+     * read parallelism far below what Azure Blob serves, so we size it explicitly here.
+     */
+    private com.azure.core.http.HttpClient buildSizedHttpClient() {
+        ConnectionProvider provider = ConnectionProvider.builder("esql-datasource-azure")
+            .maxConnections(maxConnections)
+            .pendingAcquireMaxCount(-1)
+            .pendingAcquireTimeout(CONNECTION_ACQUISITION_TIMEOUT)
+            .build();
+        this.connectionProvider = provider;
+        return new NettyAsyncHttpClientBuilder(reactor.netty.http.client.HttpClient.create(provider)).build();
     }
 
     /**
@@ -475,8 +532,10 @@ public final class AzureStorageProvider implements StorageProvider {
     public void close() throws IOException {
         Clients c = clients;
         clients = null;
+        ConnectionProvider cp = connectionProvider;
+        connectionProvider = null;
+        IOException primaryException = null;
         if (c != null) {
-            IOException primaryException = null;
             try {
                 closeHttpClient(c.sync().getHttpPipeline().getHttpClient());
             } catch (Exception e) {
@@ -494,19 +553,30 @@ public final class AzureStorageProvider implements StorageProvider {
                     }
                 }
             }
-            if (primaryException != null) {
-                throw primaryException;
+        }
+        // Dispose the connection pool last, after both clients have released their borrowed connections.
+        if (cp != null) {
+            try {
+                cp.disposeLater().block(Duration.ofSeconds(5));
+            } catch (Exception e) {
+                IOException disposeException = new IOException("Failed to dispose Azure connection pool", e);
+                if (primaryException != null) {
+                    primaryException.addSuppressed(disposeException);
+                } else {
+                    primaryException = disposeException;
+                }
             }
+        }
+        if (primaryException != null) {
+            throw primaryException;
         }
     }
 
     /**
-     * Close the underlying HttpClient if it implements AutoCloseable.
-     * BlobServiceClient does not implement Closeable; the default NettyAsyncHttpClient
-     * does not either, so this is typically a no-op. We attempt close when possible so
-     * that custom HttpClient implementations or future SDK versions that support close
-     * will be properly cleaned up. For full resource cleanup (like repository-azure),
-     * the client would need to be built with a custom ConnectionProvider.
+     * Close the underlying HttpClient if it implements AutoCloseable. The {@code NettyAsyncHttpClient} the SDK
+     * builds is not {@code Closeable}, so this is typically a no-op — the pool it borrows from is the
+     * {@link #connectionProvider}, which {@link #close()} disposes explicitly. We still attempt close so a custom
+     * or future {@code AutoCloseable} HttpClient is cleaned up.
      */
     private static void closeHttpClient(com.azure.core.http.HttpClient httpClient) throws Exception {
         if (httpClient instanceof AutoCloseable closeable) {

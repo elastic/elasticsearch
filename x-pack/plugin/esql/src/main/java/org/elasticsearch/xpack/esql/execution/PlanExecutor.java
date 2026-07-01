@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -61,6 +62,7 @@ public class PlanExecutor {
     private final EsqlQueryLog queryLog;
     private final DataSourceModule dataSourceModule;
     private final ExternalSourceCacheService cacheService;
+    private final AnalysisRegistry analysisRegistry;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -73,7 +75,8 @@ public class PlanExecutor {
         EsqlFunctionRegistry functionRegistry,
         PromqlFunctionRegistry promqlFunctionRegistry,
         EsqlParser parser,
-        ExternalSourceCacheService cacheService
+        ExternalSourceCacheService cacheService,
+        AnalysisRegistry analysisRegistry
     ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
@@ -87,6 +90,7 @@ public class PlanExecutor {
         this.queryLog = queryLog;
         this.dataSourceModule = dataSourceModule;
         this.cacheService = cacheService;
+        this.analysisRegistry = analysisRegistry;
     }
 
     public void esql(
@@ -127,6 +131,7 @@ public class PlanExecutor {
             preAnalyzer,
             functionRegistry,
             promqlFunctionRegistry,
+            analysisRegistry,
             mapper,
             verifier,
             metrics,

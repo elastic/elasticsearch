@@ -208,9 +208,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/117591
 - class: org.elasticsearch.repositories.s3.RepositoryS3ClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/117596
-- class: org.elasticsearch.xpack.ml.integration.RegressionIT
-  method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
-  issue: https://github.com/elastic/elasticsearch/issues/117805
 - class: org.elasticsearch.repositories.s3.RepositoryS3EcsCredentialsRestIT
   method: testNonexistentBucketReadonlyFalse
   issue: https://github.com/elastic/elasticsearch/issues/118225

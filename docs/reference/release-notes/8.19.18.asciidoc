@@ -1,0 +1,28 @@
+[[release-notes-8.19.18]]
+== {es} version 8.19.18
+
+coming[8.19.18]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.18]]
+[float]
+=== Bug fixes
+
+Infra/Core::
+* Pass through `includeSourceInError` {es-pull}142335[#142335]
+
+Machine Learning::
+* Revert "[ML] Add extra validation in `trained_model` creation" {es-pull}152000[#152000]
+
+[[upgrade-8.19.18]]
+[float]
+=== Upgrades
+
+Inference::
+* [Inference] Add requires org.apache.commons.lang3 to module-info {es-pull}151794[#151794]
+
+Packaging::
+* Update bundled JDK to Java 26 {es-pull}146167[#146167]
+
+

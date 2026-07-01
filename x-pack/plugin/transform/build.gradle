@@ -20,10 +20,4 @@ dependencies {
   internalClusterTestImplementation project(":modules:reindex")
 }
 
-restResources {
-  restApi {
-    include '*'
-  }
-}
-
 addQaCheckDependencies(project)

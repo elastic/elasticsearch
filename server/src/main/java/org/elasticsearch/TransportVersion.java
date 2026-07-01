@@ -363,12 +363,14 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      *     <li>{@code 8_800_0_03.isPatchFrom(8_800_0_04)}: {@code false}</li>
      *     <li>{@code 8_800_0_04.isPatchFrom(8_800_0_04)}: {@code true}</li>
      *     <li>{@code 8_800_0_49.isPatchFrom(8_800_0_04)}: {@code true}</li>
-     *     <li>{@code 8_800_1_00.isPatchFrom(8_800_0_04)}: {@code false}</li>
+     *     <li>{@code 8_800_1_00.isPatchFrom(8_800_0_04)}: {@code true}</li>
+     *     <li>{@code 8_800_9_99.isPatchFrom(8_800_0_04)}: {@code true}</li>
      *     <li>{@code 8_801_0_00.isPatchFrom(8_800_0_04)}: {@code false}</li>
      * </ul>
      */
     public boolean isPatchFrom(TransportVersion version) {
-        return onOrAfter(version) && id < version.id + 100 - (version.id % 100);
+        // Two versions share the same patch space if they have the same base (id / 1000).
+        return id >= version.id && id / 1000 == version.id / 1000;
     }
 
     /**

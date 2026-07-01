@@ -9,10 +9,12 @@
 
 package org.elasticsearch.gradle.internal;
 
+import org.gradle.api.Named;
+
 /**
  * This class models the different Docker base images that are used to build Docker distributions of Elasticsearch.
  */
-public enum DockerBase {
+public enum DockerBase implements Named {
     DEFAULT("ubuntu:24.04", "", "apt-get", "dockerfiles/default/Dockerfile"),
 
     // "latest" here is intentional, since the image name specifies "9"
@@ -28,8 +30,6 @@ public enum DockerBase {
         "apk",
         "dockerfiles/wolfi/Dockerfile"
     ),
-    // spotless:on
-
     // Based on WOLFI above, with more extras. We don't set a base image because
     // we programmatically extend from the wolfi image.
     CLOUD_ESS(null, "-cloud-ess", "apk", "Dockerfile.ess"),
@@ -71,5 +71,10 @@ public enum DockerBase {
 
     public String getDockerfile() {
         return dockerfile;
+    }
+
+    @Override
+    public String getName() {
+        return name();
     }
 }

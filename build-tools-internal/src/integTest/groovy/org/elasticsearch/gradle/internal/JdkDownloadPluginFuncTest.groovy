@@ -13,7 +13,7 @@ package org.elasticsearch.gradle.internal
 import spock.lang.Unroll
 import com.github.tomakehurst.wiremock.WireMockServer
 
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.elasticsearch.gradle.fixtures.WiremockFixture
 import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform
 import org.elasticsearch.gradle.transform.UnzipTransform
@@ -27,8 +27,11 @@ import java.util.regex.Pattern
 import static org.elasticsearch.gradle.internal.JdkDownloadPlugin.VENDOR_ADOPTIUM
 import static org.elasticsearch.gradle.internal.JdkDownloadPlugin.VENDOR_OPENJDK
 
-class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
+class JdkDownloadPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
+    Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = JdkDownloadPlugin
+
+    
     private static final String OPENJDK_VERSION_OLD = "1+99"
     private static final String ADOPT_JDK_VERSION = "12.0.2+10"
     private static final String ADOPT_JDK_VERSION_11 = "11.0.10+9"

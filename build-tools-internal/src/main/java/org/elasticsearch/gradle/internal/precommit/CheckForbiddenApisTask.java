@@ -39,6 +39,7 @@ import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
@@ -49,6 +50,7 @@ import org.gradle.api.tasks.VerificationException;
 import org.gradle.api.tasks.VerificationTask;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
+import org.gradle.jvm.toolchain.JavaLauncher;
 import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkQueue;
@@ -262,6 +264,17 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     }
 
     /**
+     * Optional Java toolchain launcher. When set, the forbidden-apis checker runs in a
+     * forked process using this launcher's JVM, so signature resolution uses that JVM's
+     * bootclasspath. {@link ForbiddenApisPrecommitPlugin} sets this when the project's
+     * minimum runtime differs from the Gradle daemon JVM. When absent the checker falls
+     * back to running in the Gradle daemon ({@code noIsolation}).
+     */
+    @Nested
+    @Optional
+    public abstract Property<JavaLauncher> getJavaLauncher();
+
+    /**
      * The default compiler target version used to expand references to bundled JDK signatures.
      * E.g., if you use "jdk-deprecated", it will expand to this version.
      * This setting should be identical to the target version used in the compiler task.
@@ -379,7 +392,13 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     /** Executes the forbidden apis task. */
     @TaskAction
     public void checkForbidden() {
-        WorkQueue workQueue = getWorkerExecutor().noIsolation();
+        WorkQueue workQueue;
+        if (getJavaLauncher().isPresent()) {
+            File javaExecutable = getJavaLauncher().get().getExecutablePath().getAsFile();
+            workQueue = getWorkerExecutor().processIsolation(spec -> spec.forkOptions(opts -> opts.executable(javaExecutable)));
+        } else {
+            workQueue = getWorkerExecutor().noIsolation();
+        }
         workQueue.submit(ForbiddenApisCheckWorkAction.class, parameters -> {
             parameters.getClasspath().setFrom(getClasspath());
             parameters.getClassDirectories().setFrom(getClassesDirs());

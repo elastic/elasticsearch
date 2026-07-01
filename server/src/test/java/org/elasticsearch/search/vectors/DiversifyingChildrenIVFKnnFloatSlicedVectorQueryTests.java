@@ -50,7 +50,6 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomFloat;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.rarely;
 import static org.hamcrest.Matchers.equalTo;
 
 /** Tests for {@link DiversifyingChildrenIVFKnnFloatSlicedVectorQuery}. */

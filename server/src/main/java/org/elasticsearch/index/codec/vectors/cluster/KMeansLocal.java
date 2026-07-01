@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.vectors.cluster;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
+import org.elasticsearch.index.codec.vectors.diskbbq.SoarAssignments;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,7 +40,7 @@ abstract class KMeansLocal<V> {
     protected abstract int numWorkers();
 
     /** assign to each vector the soar assignment */
-    protected abstract void assignSpilled(
+    protected abstract int[] assignSpilled(
         ClusteringVectorValues<V> vectors,
         KMeansIntermediate<V> kmeansIntermediate,
         NeighborHood[] neighborhoods,
@@ -142,23 +143,34 @@ abstract class KMeansLocal<V> {
         return hasChanges.stream().anyMatch(Boolean::booleanValue);
     }
 
+    protected static <V> int[] assignSpilledSlice(
+        ClusteringVectorValues<V> vectors,
+        CentroidOps<V> ops,
+        KMeansResult<V> kmeans,
+        NeighborHood[] neighborhoods,
+        float soarLambda
+    ) throws IOException {
+        int[] assignments = new int[vectors.size()];
+        assignSpilledSlice(vectors, ops, kmeans, neighborhoods, soarLambda, 0, vectors.size(), assignments);
+        return assignments;
+    }
+
     /** Assign vectors from {@code startOrd} to {@code endOrd} to the SOAR centroid. */
     protected static <V> void assignSpilledSlice(
         ClusteringVectorValues<V> vectors,
         CentroidOps<V> ops,
-        KMeansIntermediate<V> kmeansIntermediate,
+        KMeansResult<V> kmeans,
         NeighborHood[] neighborhoods,
         float soarLambda,
         int startOrd,
-        int endOrd
+        int endOrd,
+        int[] spilledAssignments
     ) throws IOException {
-        int[] assignments = kmeansIntermediate.assignments();
+        int[] assignments = kmeans.assignments();
         assert assignments != null;
         assert assignments.length == vectors.size();
-        int[] spilledAssignments = kmeansIntermediate.soarAssignments();
-        assert spilledAssignments != null;
         assert spilledAssignments.length == vectors.size();
-        V[] centroids = kmeansIntermediate.centroids();
+        V[] centroids = kmeans.centroids();
         CentroidAssignment.assignSpilled(
             vectors,
             ops,
@@ -172,26 +184,28 @@ abstract class KMeansLocal<V> {
         );
     }
 
-    protected static <V> void assignSpilledConcurrent(
+    protected static <V> int[] assignSpilledConcurrent(
         TaskExecutor executor,
         int numWorkers,
         ClusteringVectorValues<V> vectors,
         CentroidOps<V> ops,
-        KMeansIntermediate<V> kmeansIntermediate,
+        KMeansResult<V> kmeansIntermediate,
         NeighborHood[] neighborhoods,
         float soarLambda
     ) throws IOException {
+        int[] assignments = new int[vectors.size()];
         final int len = vectors.size() / numWorkers;
         final List<Callable<Void>> runners = new ArrayList<>(numWorkers);
         for (int i = 0; i < numWorkers; i++) {
             final int start = i * len;
             final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
             runners.add(() -> {
-                assignSpilledSlice(vectors.copy(), ops, kmeansIntermediate, neighborhoods, soarLambda, start, end);
+                assignSpilledSlice(vectors.copy(), ops, kmeansIntermediate, neighborhoods, soarLambda, start, end, assignments);
                 return null;
             });
         }
         executor.invokeAll(runners);
+        return assignments;
     }
 
     /**
@@ -205,7 +219,8 @@ abstract class KMeansLocal<V> {
      * @throws IOException is thrown if vectors is inaccessible
      */
     final void cluster(ClusteringVectorValues<V> vectors, KMeansIntermediate<V> kMeansIntermediate) throws IOException {
-        doCluster(vectors, kMeansIntermediate, -1, -1);
+        var result = doCluster(vectors, kMeansIntermediate, -1, -1);
+        assert result.overspill() == null;
     }
 
     /**
@@ -224,7 +239,7 @@ abstract class KMeansLocal<V> {
      * @throws IOException is thrown if vectors is inaccessible or if the clustersPerNeighborhood is less than 2
      * This also is used to generate the neighborhood aware additional (SOAR) assignments.
      */
-    final void cluster(
+    final KMeansWithOverspill<V> cluster(
         ClusteringVectorValues<V> vectors,
         KMeansIntermediate<V> kMeansIntermediate,
         int clustersPerNeighborhood,
@@ -233,7 +248,7 @@ abstract class KMeansLocal<V> {
         if (clustersPerNeighborhood < 2) {
             throw new IllegalArgumentException("clustersPerNeighborhood must be at least 2, got [" + clustersPerNeighborhood + "]");
         }
-        doCluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+        return doCluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
     }
 
     /**
@@ -250,7 +265,7 @@ abstract class KMeansLocal<V> {
      *
      * @throws IOException is thrown if vectors is inaccessible or if the clustersPerNeighborhood is less than 2
      */
-    protected void doCluster(
+    protected KMeansWithOverspill<V> doCluster(
         ClusteringVectorValues<V> vectors,
         KMeansIntermediate<V> kMeansIntermediate,
         int clustersPerNeighborhood,
@@ -266,10 +281,10 @@ abstract class KMeansLocal<V> {
         innerCluster(vectors, kMeansIntermediate, neighborhoods);
         removeEmptyClusters(kMeansIntermediate, neighborhoods, ops);
         if (neighborAware && soarLambda >= 0 && kMeansIntermediate.centroids().length > 1) {
-            assert kMeansIntermediate.soarAssignments().length == 0;
-            kMeansIntermediate.setSoarAssignments(new int[vectors.size()]);
-            assignSpilled(vectors, kMeansIntermediate, neighborhoods, soarLambda);
+            int[] spilled = assignSpilled(vectors, kMeansIntermediate, neighborhoods, soarLambda);
+            return new KMeansWithOverspill<>(kMeansIntermediate, new SoarAssignments(spilled));
         }
+        return new KMeansWithOverspill<>(kMeansIntermediate, null);
     }
 
     protected abstract void innerCluster(

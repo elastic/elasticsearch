@@ -771,6 +771,21 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             assertThat(mapper.preserveLeafArrays(), equalTo(FlattenedFieldMapper.PreserveLeafArrays.EXACT));
         }
 
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            for (var mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+                DocumentMapper documentMapper = createMapperService(
+                    Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build(),
+                    fieldMapping(this::minimalMapping)
+                ).documentMapper();
+                var mapper = (FlattenedFieldMapper) documentMapper.mappers().getMapper("field");
+                assertThat(
+                    "preserve_leaf_arrays should default to exact in strict columnar mode [" + mode + "]",
+                    mapper.preserveLeafArrays(),
+                    equalTo(FlattenedFieldMapper.PreserveLeafArrays.EXACT)
+                );
+            }
+        }
+
     }
 
     public void testIgnoreAbove() throws IOException {

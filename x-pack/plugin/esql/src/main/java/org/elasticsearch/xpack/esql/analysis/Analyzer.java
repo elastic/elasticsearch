@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -139,6 +141,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -165,6 +168,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -201,6 +205,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -259,6 +264,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveTable(),
             new ResolveViewShadow(),
             new ViewCompactionPostIndexResolution(),
+            new ResolveDatasetShadow(),
+            new StripDatasetShadowRelations(),
             new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
@@ -565,11 +572,96 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
+     * Resolves {@link DatasetShadowRelation} nodes against {@link AnalyzerContext#linkedResolution()}.
+     * The dataset analog of {@link ResolveViewShadow}.
+     * <p>
+     * Each {@code DatasetShadowRelation} represents a "if a linked project has an index with this
+     * dataset's name, treat it as if the user wrote a remote index reference at this position" lookup.
+     * {@code EsqlSession.preAnalyzeLinkedIndices} populates {@code linkedResolution}, keyed by the shadow's
+     * {@link DatasetShadowRelation#linkedIndexPattern()} (dataset name + applicable exclusions). A linked
+     * dataset/view of the same name has already failed the query on the detect rail before this rule runs;
+     * a linked index of the same name produces a valid resolution here. This rule:
+     * <ul>
+     *   <li>If a valid {@link IndexResolution} is present for the shadow's
+     *       {@link DatasetShadowRelation#linkedIndexPattern()}, replaces the shadow with an
+     *       {@link EsRelation} built from the resolved {@link EsIndex} (same shape as
+     *       {@link ResolveTable}'s {@code resolveIndex} for a strict UR).</li>
+     *   <li>Otherwise leaves the shadow unresolved. {@link StripDatasetShadowRelations} (which runs
+     *       immediately after this rule) strips any unresolved shadow.</li>
+     * </ul>
+     */
+    private static class ResolveDatasetShadow extends ParameterizedAnalyzerRule<DatasetShadowRelation, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(DatasetShadowRelation shadow, AnalyzerContext context) {
+            IndexResolution resolution = context.linkedResolution().get(shadow.linkedIndexPattern());
+            if (resolution == null || resolution.isValid() == false) {
+                // No linked index found (or lookup didn't run yet) — leave the shadow alone for
+                // StripDatasetShadowRelations to remove.
+                return shadow;
+            }
+            EsIndex esIndex = resolution.get();
+            var attributes = mappingAsAttributes(shadow.source(), esIndex.mapping());
+            return new EsRelation(
+                shadow.source(),
+                esIndex.name(),
+                IndexMode.STANDARD,
+                esIndex.originalIndices(),
+                esIndex.concreteIndices(),
+                esIndex.indexNameWithModes(),
+                attributes.isEmpty() ? NO_FIELDS : attributes
+            );
+        }
+    }
+
+    /**
+     * Strips any {@link DatasetShadowRelation} that {@link ResolveDatasetShadow} did not fold into a
+     * sibling {@code EsRelation}. The dataset analog of {@code ViewCompaction.stripViewShadowRelations},
+     * but over the plain {@link UnionAll} the {@code DatasetRewriter} builds rather than a
+     * {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll}. Runs right after
+     * {@link ResolveDatasetShadow} in the Initialize batch.
+     * <p>
+     * Delegates to {@link UnionAll#pruneEmptyBranches(java.util.function.Predicate)} so a matched shadow
+     * (now an {@code EsRelation}) survives alongside the dataset's external relation as separate
+     * {@code UnionAll} branches (Strategy A — no merging into a single combined relation). A single-survivor
+     * union collapses to its lone child, so {@code FROM ds} with no remote match returns to exactly the bare
+     * {@code UnresolvedExternalRelation} shape the non-CPS path produces.
+     */
+    private static class StripDatasetShadowRelations extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            return plan.transformDown(UnionAll.class, unionAll -> {
+                // Plain UnionAll only — ViewUnionAll shadows are ViewCompaction's, and its single-child
+                // wrappers must not collapse.
+                if (unionAll instanceof ViewUnionAll) {
+                    return unionAll;
+                }
+                LogicalPlan pruned = unionAll.pruneEmptyBranches(child -> child instanceof DatasetShadowRelation);
+                if (pruned instanceof UnionAll prunedUnion
+                    && prunedUnion instanceof ViewUnionAll == false
+                    && prunedUnion.children().size() == 1) {
+                    return prunedUnion.children().getFirst();
+                }
+                return pruned;
+            });
+        }
+    }
+
+    /**
      * Resolves UnresolvedExternalRelation nodes using pre-resolved metadata from ExternalSourceResolver.
      * This rule mirrors the ResolveTable pattern but uses ExternalSourceResolution instead of IndexResolution.
      * <p>
      * This rule creates {@link ExternalRelation} nodes from any SourceMetadata,
      * avoiding the need for source-specific logical plan nodes in core ESQL code.
+     * <p>
+     * Binds the user's {@code METADATA ...} clause. Every name in
+     * {@link MetadataAttribute#ATTRIBUTES_MAP} (standard names like {@code _id}/{@code _index}/...)
+     * and every name in {@link org.elasticsearch.xpack.esql.datasources.FileMetadataColumns#COLUMNS}
+     * ({@code _file.path}, {@code _file.name}, ...) becomes an {@link ExternalMetadataAttribute} of
+     * the registered type. Unknown names propagate as-is for the verifier to flag with the existing
+     * "Unknown column" diagnostic. Names already present in the source's natural schema are skipped
+     * — the source's own column wins.
      */
     private static class ResolveExternalRelations extends ParameterizedAnalyzerRule<UnresolvedExternalRelation, AnalyzerContext> {
 
@@ -591,14 +683,81 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             var metadata = resolvedSource.metadata();
+            MetadataBindResult bindResult = bindMetadataFields(plan, metadata.schema());
             return new ExternalRelation(
                 plan.source(),
                 tablePath,
                 metadata,
-                metadata.schema(),
+                bindResult.schema(),
                 resolvedSource.fileList(),
-                resolvedSource.schemaMap()
+                resolvedSource.schemaMap(),
+                plan.datasetName(),
+                bindResult.unresolvedMetadata()
             );
+        }
+
+        /**
+         * Result of {@link #bindMetadataFields}: the enriched schema (resolved standard /
+         * {@code _file.*} names appended to the base schema) and the list of metadata expressions
+         * the bind could not resolve. The unresolved list is threaded through to
+         * {@link ExternalRelation#metadataFields()} so the verifier's
+         * {@code checkUnresolvedAttributes} walk fires the indexed-equivalent
+         * {@code "Unresolved metadata pattern [...]"} error.
+         */
+        private record MetadataBindResult(List<Attribute> schema, List<? extends NamedExpression> unresolvedMetadata) {}
+
+        /**
+         * Walks the user's METADATA clause. Names registered in
+         * {@link MetadataAttribute#ATTRIBUTES_MAP} or
+         * {@link org.elasticsearch.xpack.esql.datasources.FileMetadataColumns#COLUMNS} are bound
+         * to an {@link ExternalMetadataAttribute} appended to the source's natural schema. Names
+         * registered in neither stay as {@code UnresolvedMetadataAttributeExpression} in the
+         * returned {@code unresolvedMetadata} list — the verifier picks them up via the relation's
+         * expression walk and fires its native {@code "Unresolved metadata pattern [...]"} error,
+         * matching the diagnostic indexed {@code FROM x METADATA _typo} produces. Names already
+         * present in the source's natural schema are skipped (the source's own column takes
+         * precedence).
+         */
+        private static MetadataBindResult bindMetadataFields(UnresolvedExternalRelation plan, List<Attribute> baseSchema) {
+            if (plan.metadataFields().isEmpty()) {
+                return new MetadataBindResult(baseSchema, List.of());
+            }
+            Set<String> existing = new LinkedHashSet<>();
+            for (Attribute a : baseSchema) {
+                existing.add(a.name());
+            }
+            List<Attribute> enriched = null;
+            List<NamedExpression> unresolved = null;
+            for (NamedExpression requested : plan.metadataFields()) {
+                // FROM's parser threads non-standard names through UnresolvedMetadataAttributeExpression
+                // (whose name() throws); EXTERNAL's parser threads plain UnresolvedAttribute. Resolve
+                // the textual name from either shape without invoking the throwing accessor.
+                String name = requested instanceof UnresolvedMetadataAttributeExpression unr ? unr.pattern() : requested.name();
+                if (existing.contains(name)) {
+                    continue;
+                }
+                DataType type = MetadataAttribute.dataType(name);
+                if (type == null) {
+                    type = FileMetadataColumns.COLUMNS.get(name);
+                }
+                if (type == null) {
+                    // Unknown name — keep the unresolved expression so the verifier picks it up via
+                    // ExternalRelation#metadataFields() and fires its native unresolved-pattern error.
+                    if (unresolved == null) {
+                        unresolved = new ArrayList<>();
+                    }
+                    unresolved.add(requested);
+                    continue;
+                }
+                if (enriched == null) {
+                    enriched = new ArrayList<>(baseSchema);
+                }
+                enriched.add(new ExternalMetadataAttribute(plan.source(), name, type));
+                existing.add(name);
+            }
+            List<Attribute> resolvedSchema = enriched == null ? baseSchema : List.copyOf(enriched);
+            List<? extends NamedExpression> unresolvedList = unresolved == null ? List.of() : List.copyOf(unresolved);
+            return new MetadataBindResult(resolvedSchema, unresolvedList);
         }
 
         private String extractTablePath(Expression tablePath) {
@@ -1455,7 +1614,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         // empty output directly so the no-fields marker doesn't leak into the fork branch output.
                         logicalPlan = new Project(logicalPlan.source(), logicalPlan, List.of());
                     } else {
-                        logicalPlan = resolveKeep(new Keep(logicalPlan.source(), logicalPlan, newOutput), UnmappedResolution.DEFAULT);
+                        // FORK alignment is structural, not user-named: emit a Project directly rather than
+                        // routing through resolveKeep. A Keep on this path would falsely register every
+                        // virtual attribute in the alignment projection (e.g. EXTERNAL's shim-injected
+                        // _file.* family) as "the user explicitly KEEP'd it", which planWithoutSyntheticAttributes
+                        // then refuses to strip — leaking the columns to the output. The projections here are
+                        // already pre-resolved Attributes drawn from Fork.outputUnion, so keepResolver would
+                        // be a no-op anyway (no wildcards, no UnresolvedNamePattern). A user-named KEEP _file.path
+                        // upstream of the FORK still survives via its own Keep node in the branch's plan tree.
+                        logicalPlan = new Project(logicalPlan.source(), logicalPlan, new ArrayList<>(newOutput));
                     }
                 }
 
@@ -1760,9 +1927,32 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * row foo = 1, bar = 2 | keep bar*, foo, *   ->  bar, foo
          */
         private static LogicalPlan resolveKeep(Keep keep, UnmappedResolution unmappedResolution) {
-            return unmappedResolution == UnmappedResolution.DEFAULT
-                ? new Project(keep.source(), keep.child(), keepResolver(keep.projections(), keep.child().output()))
-                : new ResolvingProject(keep.source(), keep.child(), inputAttributes -> keepResolver(keep.projections(), inputAttributes));
+            if (unmappedResolution != UnmappedResolution.DEFAULT) {
+                return new ResolvingProject(
+                    keep.source(),
+                    keep.child(),
+                    inputAttributes -> keepResolver(keep.projections(), inputAttributes)
+                );
+            }
+            List<NamedExpression> resolved = keepResolver(keep.projections(), keep.child().output());
+            // Provenance for the external-metadata surfacing rule: when an explicit KEEP names an
+            // engine-synthesized virtual column (external metadata: _file.*, _index, ...), keep the
+            // result as a Keep node — NOT a bare Project — so planWithoutSyntheticAttributes can tell
+            // "the user kept this virtual column" apart from "a DROP carried it forward". A DROP
+            // resolves to a plain Project (resolveDrop) and a KEEP * routes through
+            // excludeExternalMetadata, so neither produces a Keep that lists a VirtualAttribute.
+            //
+            // This Keep node is emitted ONLY when a virtual column was explicitly kept; every other
+            // KEEP (the overwhelmingly common regular-index case) still resolves to a plain Project,
+            // so the regular-index plan shape — and its golden snapshots — are unchanged.
+            boolean keptVirtual = false;
+            for (NamedExpression ne : resolved) {
+                if (ne instanceof VirtualAttribute) {
+                    keptVirtual = true;
+                    break;
+                }
+            }
+            return keptVirtual ? new Keep(keep.source(), keep.child(), resolved) : new Project(keep.source(), keep.child(), resolved);
         }
 
         // Engine-synthesized columns (today: {@code _file.*}) are never expanded by {@code KEEP *}
@@ -2950,6 +3140,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
+            // Virtual columns (today: _file.* and the standard metadata names on external datasets)
+            // are kept out of default output, the same way the implicit `*` expansion drops them via
+            // excludeExternalMetadata. But once the user names one explicitly — KEEP _index,
+            // KEEP _file.path — it must reach the result, even when later commands (SORT, LIMIT, ...)
+            // sit above the KEEP and make the relation's output, not the projection, the plan's top
+            // node. We therefore strip a virtual attribute only when no explicit KEEP named it.
+            //
+            // Provenance matters: a DROP also resolves to a Project that carries surviving virtual
+            // columns forward via childOutput, but that is NOT the user keeping them — so we scan
+            // only Keep nodes (resolveKeep emits a Keep; resolveDrop emits a plain Project). A
+            // `KEEP *` runs its projections through excludeExternalMetadata, so its Keep node never
+            // lists a virtual column either. This is why we key off the Keep node identity rather
+            // than the namespace of the column name.
+            Set<String> explicitlyKept = explicitlyKeptVirtualNames(plan);
+            // External metadata is hidden from default output (and surfaced via KEEP) ONLY for the
+            // EXTERNAL command. Its shim auto-injects the whole _file.* family because EXTERNAL has
+            // no METADATA grammar to be selective, so KEEP is how the user picks what surfaces. On
+            // the FROM <dataset> path the user names metadata explicitly in a METADATA clause, so it
+            // must surface unconditionally — KEEP there is ordinary projection, not a metadata gate.
+            // The two are distinguishable on the relation: a FROM <dataset> leaf carries a
+            // datasetName; the EXTERNAL shim's leaf does not.
+            boolean hasExternalCommandRelation = plan.anyMatch(p -> p instanceof ExternalRelation er && er.datasetName() == null);
             List<Attribute> output = plan.output();
             List<Attribute> newOutput = new ArrayList<>(output.size());
             for (Attribute attr : output) {
@@ -2957,15 +3169,49 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (attr.synthetic() && attr != NO_FIELDS.getFirst()) {
                     continue;
                 }
-                // Virtual columns (today: _file.*) are hidden from default output.
-                // Users add them explicitly via KEEP _file.path, etc.
-                if (attr instanceof VirtualAttribute) {
-                    continue;
+                // EXTERNAL command only: hide its shim-injected metadata from default output unless
+                // KEEP'd. Strip by VirtualAttribute type OR by well-known _file.* name (a defense
+                // layer: downstream rules — notably FORK's output re-derivation through
+                // toReferenceAttributesPreservingIds — can drop the VirtualAttribute marker). On the
+                // FROM path nothing is stripped: every metadata column there was explicitly named in
+                // METADATA and must reach the output.
+                if (hasExternalCommandRelation) {
+                    boolean isVirtual = attr instanceof VirtualAttribute || FileMetadataColumns.NAMES.contains(attr.name());
+                    if (isVirtual && explicitlyKept.contains(attr.name()) == false) {
+                        continue;
+                    }
                 }
                 newOutput.add(attr);
             }
 
             return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);
+        }
+
+        /**
+         * Names of every {@link VirtualAttribute} that appears in the projections of some
+         * {@link Keep} node — i.e. the virtual columns the user pulled in by name
+         * (KEEP _index, KEEP _file.path). Used to decide which virtual columns survive into the
+         * final output instead of being hidden as default-output noise.
+         * <p>
+         * Scanning {@link Keep} specifically (not every {@link Project}) is the provenance gate: a
+         * DROP resolves to a plain {@link Project} that carries surviving virtual columns forward —
+         * that must not count as "the user kept it". {@code resolveKeep} emits {@link Keep};
+         * {@code resolveDrop} emits {@link Project}. A {@code KEEP *} expansion routes through
+         * {@code excludeExternalMetadata}, so its {@link Keep} lists no {@link VirtualAttribute}.
+         */
+        private static Set<String> explicitlyKeptVirtualNames(LogicalPlan plan) {
+            Set<String> names = new HashSet<>();
+            plan.forEachDown(Keep.class, keep -> {
+                for (NamedExpression projection : keep.projections()) {
+                    // Pair with the strip: type-marker OR well-known _file.* name. KEEP _file.path on a
+                    // projection whose VirtualAttribute marker was dropped downstream still counts as
+                    // an explicit keep.
+                    if (projection instanceof VirtualAttribute || FileMetadataColumns.NAMES.contains(projection.name())) {
+                        names.add(projection.name());
+                    }
+                }
+            });
+            return names;
         }
     }
 
@@ -3044,6 +3290,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // We're looking for partially unmapped fields with exactly one mapped type, i.e.: two-legged PUNKs
                     if (fa.field() instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
                         DataType mappedType = tcf.types().iterator().next();
+
+                        if (mappedType == DENSE_VECTOR) {
+                            // The KEYWORD->DENSE_VECTOR converter reads hexadecimal strings, but an unmapped dense_vector loads from
+                            // _source as an array of numbers, so implicitly casting it would produce garbage (#152184).
+                            return fa;
+                        }
 
                         var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
                         if (convertFactory == null) {
@@ -3958,6 +4210,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static LogicalPlan carryOverSyntheticAttributesThroughProjects(LogicalPlan plan) {
         return plan.transformUp(Project.class, p -> {
+            // Skip Projects whose projections are not yet resolved (e.g. an unexpanded KEEP wildcard sitting above a still-unresolved
+            // union-typed field reference). Their output cannot be computed yet — calling p.output() would throw UnresolvedException.
+            // Such Projects are revisited in a later analyzer iteration once they resolve.
+            if (p.expressionsResolved() == false) {
+                return p;
+            }
             List<Attribute> syntheticAttributesToCarryOver = new ArrayList<>();
             for (Attribute attr : p.inputSet()) {
                 if (attr.synthetic() && p.outputSet().contains(attr) == false) {

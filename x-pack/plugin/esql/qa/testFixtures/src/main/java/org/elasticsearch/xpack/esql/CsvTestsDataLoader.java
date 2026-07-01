@@ -34,6 +34,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.view.RestPutViewAction;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -259,6 +260,9 @@ public class CsvTestsDataLoader {
         new TestDataset("dense_vector_text"),
         new TestDataset("mv_text"),
         new TestDataset("dense_vector"),
+        new TestDataset("dense_vector").withIndex("dense_vector_unmapped")
+            .withDynamic("false")
+            .withTypeMapping(removeFields("float_vector")),
         new TestDataset("dense_vector_coalesce").withRequiredCapabilities(EsqlCapabilities.Cap.COALESCE_DENSE_VECTOR),
         new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT),
         new TestDataset("dense_vector_arithmetic"),
@@ -309,7 +313,8 @@ public class CsvTestsDataLoader {
             "metric_temporality-settings.json"
         ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V9),
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json"),
-        new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv")
+        new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
+        new TestDataset("trim_test")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:
@@ -711,7 +716,7 @@ public class CsvTestsDataLoader {
     }
 
     public static void loadViewsIntoEs(RestClient client, Predicate<EsqlCapabilities.Cap> capabilityCheck) throws IOException {
-        if (clusterHasViewSupport(client)) {
+        if (clusterSupportsViews(client)) {
             logger.info("Loading views");
             for (var view : VIEW_CONFIGS.values()) {
                 if (view.requiredCapabilities.stream().allMatch(capabilityCheck) == false) {
@@ -726,7 +731,7 @@ public class CsvTestsDataLoader {
     }
 
     public static void deleteViews(RestClient client) throws IOException {
-        if (clusterHasViewSupport(client)) {
+        if (clusterSupportsViews(client)) {
             logger.debug("Deleting views");
             for (var view : VIEW_CONFIGS.values()) {
                 deleteView(client, view.name);
@@ -832,52 +837,50 @@ public class CsvTestsDataLoader {
         client.performRequest(request);
     }
 
-    private static boolean clusterHasViewSupport(RestClient client) throws IOException {
-        // Step 1: check whether ALL nodes understand views via /_capabilities (allMatch semantics).
+    public static boolean clusterSupportsViews(RestClient client) throws IOException {
+        // Step 1: check whether ALL nodes have basic views support (allMatch semantics).
+        if (checkCapability(client, "POST", "/_query", "views_crud_as_index_actions") == false) {
+            return false;
+        }
+
+        // Step 2: check whether ALL nodes support PUT /_query/view in the current cluster mode.
+        // RestPutViewAction declares VIEWS_PUT_SERVERLESS_SCOPE in supportedCapabilities() only when
+        // @ServerlessScope(Scope.PUBLIC) is present. Old serverless nodes lack this annotation and
+        // therefore do not report this capability. /_capabilities with allMatch semantics returns
+        // supported=false for any mixed cluster that contains such a node, correctly preventing view
+        // loading from being attempted when it would fail on some nodes.
+        //
+        // In stateful mixed-cluster BWC tests where the old node has views but predates the
+        // views_put_serverless_scope capability (introduced 2026-06-19), this check also returns
+        // false and views tests are skipped rather than run. That is a conservative but safe
+        // outcome: tests skip instead of failing with "index not found".
+        return checkCapability(client, "PUT", "/_query/view/test", RestPutViewAction.VIEWS_PUT_SERVERLESS_SCOPE);
+    }
+
+    private static boolean checkCapability(RestClient client, String method, String path, String capability) throws IOException {
         Request capRequest = new Request("GET", "/_capabilities");
-        capRequest.addParameter("method", "POST");
-        capRequest.addParameter("path", "/_query");
-        capRequest.addParameter("capabilities", "views_crud_as_index_actions");
+        capRequest.addParameter("method", method);
+        capRequest.addParameter("path", path);
+        capRequest.addParameter("capabilities", capability);
         try {
             Response capResponse = client.performRequest(capRequest);
             ObjectMapper mapper = new ObjectMapper();
             JsonNode json = mapper.readTree(capResponse.getEntity().getContent());
             JsonNode supported = json.get("supported");
-            if (supported == null || supported.asBoolean() == false) {
-                return false;
-            }
+            return supported != null && supported.asBoolean();
         } catch (ResponseException e) {
             return false;
-        }
-
-        // Step 2: probe the REST endpoint directly. In non-serverless mode all nodes (old or new)
-        // return 200 because @ServerlessScope is not enforced. In serverless mode an old node
-        // without @ServerlessScope(Scope.PUBLIC) on RestPutViewAction returns 410. A single probe
-        // cannot cover every node in a mixed-serverless cluster, but any 410 is a definitive signal
-        // that view loading will fail on at least some nodes.
-        try {
-            client.performRequest(new Request("GET", "/_query/view"));
-            return true;
-        } catch (ResponseException e) {
-            int code = e.getResponse().getStatusLine().getStatusCode();
-            if (code == 410) {
-                return false; // serverless restriction — old node lacks @ServerlessScope
-            }
-            if (code == 400 || code == 500 || code == 405) {
-                return false; // older server that doesn't support the view API at all
-            }
-            throw e;
         }
     }
 
     private static void deleteView(RestClient client, String viewName) throws IOException {
+        final Set<Integer> ignoredDeleteStatusCodes = Set.of(400, 404, 405, 410, 500, 503);
         try {
             client.performRequest(new Request("DELETE", "/_query/view/" + viewName));
         } catch (ResponseException e) {
-            int code = e.getResponse().getStatusLine().getStatusCode();
             // On older servers the view listing succeeds when it should not, so we get here when we should not, hence the 400 and 500.
             // 503 (master_not_discovered_exception) is transient and can occur in BWC mixed-cluster tests after node restarts.
-            if (code != 404 && code != 400 && code != 410 && code != 500 && code != 503) {
+            if (ignoredDeleteStatusCodes.contains(e.getResponse().getStatusLine().getStatusCode()) == false) {
                 logger.info("View delete error: {}", e.getMessage());
                 throw e;
             }

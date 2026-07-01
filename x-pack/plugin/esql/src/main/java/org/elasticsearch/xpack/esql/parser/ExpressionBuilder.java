@@ -127,6 +127,19 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      */
     public static final int MAX_EXPRESSION_DEPTH = 300;
 
+    /**
+     * Sentinel returned by {@link #visitInputNamedOrPositionalParam} when a named or positional
+     * parameter reference in the query has no matching entry in the request's parameter list.
+     * The "Unknown query parameter" parsing error is recorded at the return site; callers that
+     * receive this value should skip the segment rather than treating it as a real null literal.
+     * <p>
+     * This is intentionally distinct from {@link Literal#NULL} so that the two cannot be confused
+     * by reference equality: {@code Literal.NULL} is a general-purpose null literal that may
+     * appear legitimately in the expression tree, whereas {@code MISSING_PARAMETER} only ever
+     * comes from an unresolved parameter reference.
+     */
+    static final Literal MISSING_PARAMETER = new Literal(Source.EMPTY, null, DataType.NULL);
+
     protected final ParsingContext context;
 
     public record ParsingContext(QueryParams params, InferenceSettings inferenceSettings, String viewName) {}
@@ -398,19 +411,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 unresolvedStar = true;
             }
             if (idCtx.parameter() != null || idCtx.doubleParameter() != null) {
-                ParseTree paramCtx = idCtx.parameter();
-                ParseTree doubleParamsCtx = idCtx.doubleParameter();
-                Expression exp = expression(paramCtx != null ? paramCtx : doubleParamsCtx);
-                if (exp instanceof Literal lit) {
-                    if (lit.value() != null) {
-                        throw new ParsingException(
-                            src,
-                            "Query parameter [{}] with value [{}] declared as a constant, cannot be used as an identifier or pattern",
-                            unqualifiedCtx.getText(),
-                            lit
-                        );
-                    }
-                } else if (exp instanceof UnresolvedNamePattern up) {
+                Expression exp = resolveParamInIdentifierPosition(idCtx, src, unqualifiedCtx.getText());
+                if (exp instanceof UnresolvedNamePattern up) {
                     if (up.name() != null && up.name().equals(WILDCARD)) {
                         unresolvedStar = true;
                     }
@@ -440,15 +442,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             if (pattern.ID_PATTERN() != null) {
                 patternContext = pattern.ID_PATTERN().getText();
             } else if (pattern.parameter() != null || pattern.doubleParameter() != null) {
-                ParseTree paramCtx = pattern.parameter();
-                ParseTree doubleParamsCtx = pattern.doubleParameter();
-                Expression exp = expression(paramCtx != null ? paramCtx : doubleParamsCtx);
-                if (exp instanceof Literal lit) {
-                    // only Literal.NULL can happen with missing params, params for constants are not allowed
-                    if (lit.value() != null) {
-                        throw new ParsingException(src, "Constant [{}] is unsupported for [{}]", pattern, unqualifiedCtx.getText());
-                    }
-                } else if (exp instanceof UnresolvedAttribute ua) { // identifier provided in QueryParam is treated as unquoted string
+                Expression exp = resolveParamInIdentifierPosition(pattern, src, unqualifiedCtx.getText());
+                if (exp instanceof UnresolvedAttribute ua) { // identifier provided in QueryParam is treated as unquoted string
                     String unquotedIdentifier = ua.name();
                     String quotedIdentifier = ParserUtils.quoteIdString(unquotedIdentifier);
                     patternString.append(quotedIdentifier);
@@ -1073,6 +1068,43 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         return new Alias(src, newName.name(), oldName);
     }
 
+    /**
+     * Resolves a parameter from an identifier-pattern segment to an {@link Expression}, enforcing
+     * that it is not a bare constant or a defined-but-null value.
+     * <p>
+     * Three outcomes are possible without throwing:
+     * <ul>
+     *   <li>{@link #MISSING_PARAMETER} — the parameter is missing; a "Unknown query parameter"
+     *       parsing error has already been recorded by {@link #paramByNameOrPosition} and the
+     *       caller should skip the segment.</li>
+     *   <li>{@link UnresolvedAttribute} or {@link UnresolvedNamePattern} — the happy path;
+     *       the caller uses the resolved name or pattern.</li>
+     *   <li>A regular null-literal for defined-but-null query params.
+     *       Allowing this is a bug, but fixing it would break e.g. {@code RENAME foo AS ?bar}
+     *       when {@code ?bar} is null.</li>
+     * </ul>
+     *
+     * @param ctx          the single identifier-pattern segment that contains a {@code ?param} or {@code ??param}
+     * @param src          source location used for error reporting
+     * @param paramDisplay the display text of the enclosing qualified name, used in error messages
+     */
+    private Expression resolveParamInIdentifierPosition(EsqlBaseParser.IdentifierPatternContext ctx, Source src, String paramDisplay) {
+        ParseTree paramCtx = ctx.parameter();
+        ParseTree doubleParamsCtx = ctx.doubleParameter();
+        Expression exp = expression(paramCtx != null ? paramCtx : doubleParamsCtx);
+        if (exp instanceof Literal lit) {
+            if (lit.value() != null) {
+                throw new ParsingException(
+                    src,
+                    "Query parameter [{}] with value [{}] declared as a constant, cannot be used as an identifier or pattern",
+                    paramDisplay,
+                    lit
+                );
+            }
+        }
+        return exp;
+    }
+
     @Override
     public NamedExpression visitEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx) {
         Source src = source(ctx);
@@ -1197,7 +1229,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public Expression visitInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx) {
         QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
         if (param == null) {
-            return Literal.NULL;
+            return MISSING_PARAMETER;
         }
         return visitParam(source(ctx), param);
     }

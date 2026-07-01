@@ -26,4 +26,9 @@ public interface TokenCache {
      * this should broadcast to all nodes.
      */
     void invalidate(InferenceIdAndProject key, ActionListener<Void> listener);
+
+    /**
+     * Removes any cached entry for {@code inferenceId} on this node only.
+     */
+    void invalidateOnlLocalNode(String inferenceId);
 }

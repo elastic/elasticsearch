@@ -444,37 +444,33 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * blocks instead of decoding inside the loop.
      */
     private Block stitchAndGather(Block[] perBucketBlocks, List<Bucket> buckets, int totalCount, BlockFactory blockFactory) {
-        Block.Builder builder = null;
         Block concatenated = null;
         try {
-            for (int b = 0; b < perBucketBlocks.length; b++) {
-                Block bucketBlock = perBucketBlocks[b];
-                if (bucketBlock == null) {
-                    throw new IllegalStateException("missing decoded block for bucket [" + buckets.get(b).rowGroupIndex + "]");
-                }
-                if (builder == null) {
-                    builder = bucketBlock.elementType().newBlockBuilder(totalCount, blockFactory);
-                }
-                builder.copyFrom(bucketBlock, 0, bucketBlock.getPositionCount());
-            }
-            if (builder == null) {
+            if (perBucketBlocks.length == 0) {
                 throw new IllegalStateException("no row groups visited for [" + storageObject.path() + "] (count=" + totalCount + ")");
             }
-            concatenated = builder.build();
+            for (int b = 0; b < perBucketBlocks.length; b++) {
+                if (perBucketBlocks[b] == null) {
+                    throw new IllegalStateException("missing decoded block for bucket [" + buckets.get(b).rowGroupIndex + "]");
+                }
+            }
+            // The shared helper resolves the element type from the first non-NULL bucket block, so
+            // an all-null leading bucket cannot poison a ConstantNullBlock builder. It closes the
+            // per-bucket blocks on success; null the slots so the finally below and the caller's
+            // defensive cleanup do not double-close. On a throw it leaves them for the finally.
+            concatenated = BlockChunks.concat(Arrays.asList(perBucketBlocks), blockFactory);
+            Arrays.fill(perBucketBlocks, null);
             int[] gather = buildGatherPermutation(buckets, totalCount);
             // mayContainDuplicates is true: the same bucket position may serve multiple caller
             // slots when localPositions repeats a row.
             return concatenated.filter(true, gather);
         } finally {
-            if (builder != null) {
-                Releasables.closeExpectNoException(builder);
-            }
             if (concatenated != null) {
                 Releasables.closeExpectNoException(concatenated);
             }
-            // Per-bucket blocks live until stitch completes; release them here so the caller
-            // doesn't have to track them. Null the slots out so the caller's defensive cleanup
-            // doesn't double-close.
+            // Per-bucket blocks live until stitch completes; release any still-present slot here so
+            // the caller doesn't have to track them. Null the slots out so the caller's defensive
+            // cleanup doesn't double-close.
             for (int i = 0; i < perBucketBlocks.length; i++) {
                 Block b = perBucketBlocks[i];
                 if (b != null) {
@@ -669,7 +665,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 chunks.clear();
                 return only;
             }
-            Block joined = concatBlocks(chunks, unique, blockFactory);
+            // BlockChunks.concat closes the run chunks on success; clear the list so the catch
+            // below does not double-close. On a throw it leaves them for the catch to release.
+            Block joined = BlockChunks.concat(chunks, blockFactory);
             chunks.clear();
             return joined;
         } catch (RuntimeException e) {
@@ -704,22 +702,6 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 }
                 cr.consume();
             }
-        }
-    }
-
-    /** Concatenate same-element-type blocks via a builder; closes the source chunks. */
-    private static Block concatBlocks(List<Block> chunks, int totalPositions, BlockFactory blockFactory) {
-        Block.Builder b = chunks.get(0).elementType().newBlockBuilder(totalPositions, blockFactory);
-        try {
-            for (Block c : chunks) {
-                b.copyFrom(c, 0, c.getPositionCount());
-            }
-            return b.build();
-        } finally {
-            for (Block c : chunks) {
-                Releasables.closeExpectNoException(c);
-            }
-            Releasables.closeExpectNoException(b);
         }
     }
 

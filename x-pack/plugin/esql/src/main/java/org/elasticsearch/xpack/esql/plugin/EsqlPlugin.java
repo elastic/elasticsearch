@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
@@ -41,6 +40,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
+import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperatorStatus;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.IOUtils;
@@ -58,6 +58,7 @@ import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -73,6 +74,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
@@ -166,14 +168,16 @@ import java.util.function.Supplier;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
 
-    // Data sources store credentials encrypted under the project encryption key, so the feature requires it
-    // (enforced in createComponents). The PEK flag lives in the encryption impl plugin, not the SPI we
-    // compile against, so we reference it by name — FeatureFlag resolves identically off the build flag.
-    private static final FeatureFlag PROJECT_ENCRYPTION_KEY_FEATURE_FLAG = new FeatureFlag("project_encryption_key");
-
     private static final Logger logger = LogManager.getLogger(EsqlPlugin.class);
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
+
+    /**
+     * Shared bounded thread pool for blocking external-storage reads (GCS today; any future offloading blocking
+     * backend). Sized by {@code esql.external.max_connections}. The truly-async backends (S3, Azure) bound their
+     * read concurrency through their SDK connection pools instead and do not use this pool.
+     */
+    public static final String EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME = "esql_external_blocking_io";
 
     public static final Setting<Integer> ESQL_WORKER_THREAD_POOL_SIZE = Setting.intSetting(
         "esql.worker.thread_pool_size",
@@ -197,6 +201,19 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
      */
     public static final Setting<Boolean> LOOKUP_JOIN_STREAMING = Setting.boolSetting(
         "esql.query.lookup_join_streaming",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Kill switch for the {@code flattened} data type in ES|QL. When {@code false}, {@code flattened} fields resolve as {@code unsupported}
+     * during index resolution (the exact pre-flattened-support behavior: {@code FROM} still works and the column is
+     * returned as {@code unsupported}, but any explicit use errors). Because {@code field_extract} only operates on
+     * {@code flattened} fields, disabling the type also disables that function transitively.
+     */
+    public static final Setting<Boolean> FLATTENED_ENABLED = Setting.boolSetting(
+        "esql.query.flattened.enabled",
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -283,15 +300,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        // Refuse to start with data sources on but encryption off — the CRUD layer could never store a
-        // secret. Coupling the flags here lets the feature rely on an EncryptionService always being bound.
-        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-            && PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalStateException(
-                "ES|QL external data sources require the project encryption key feature; enable the "
-                    + "[project_encryption_key] feature flag, or disable [esql_external_datasources]"
-            );
-        }
         Settings settings = services.clusterService().getSettings();
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         var blockFactoryProvider = blockFactoryProvider(
@@ -340,8 +348,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 v -> workloadIdentityEnabled.set(isStateless == false && v)
             );
 
-        // Create DataSourceModule with all discovered plugins
-        // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)
+        // Kill switch for the flattened data type. The IndexResolver is a node-level singleton, so the dynamic
+        // setting is tracked here in an AtomicBoolean and read (at field-caps resolution time) through a supplier.
+        AtomicBoolean flattenedDataTypeEnabled = new AtomicBoolean(FLATTENED_ENABLED.get(settings));
+        services.clusterService().getClusterSettings().addSettingsUpdateConsumer(FLATTENED_ENABLED, flattenedDataTypeEnabled::set);
+
+        // Create DataSourceModule with all discovered plugins.
+        // This executor backs SPI coordination, decompression, and async-I/O plugin callbacks (e.g. the HTTP
+        // client) — NOT the file-read path. Blocking external reads are routed onto the dedicated
+        // esql_external_blocking_io pool via OperatorFactoryRegistry#fileReadExecutor (wired in TransportEsqlQueryAction).
         dataSourceModule = new DataSourceModule(
             allDataSourcePlugins,
             dataSourceCapabilities,
@@ -439,7 +454,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         return List.of(
             new PlanExecutor(
-                new IndexResolver(services.client()),
+                new IndexResolver(services.client(), flattenedDataTypeEnabled::get),
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
                 new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
@@ -449,7 +464,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 functionRegistry,
                 PromqlFunctionRegistry.INSTANCE,
                 parser,
-                cacheService
+                cacheService,
+                services.indicesService().getAnalysis()
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -497,6 +513,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
                 QUERY_ALLOW_PARTIAL_RESULTS,
                 LOOKUP_JOIN_STREAMING,
+                FLATTENED_ENABLED,
                 ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
                 ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
                 ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
@@ -544,6 +561,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
                 new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
                 new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
+                // Unconditional like resolve_views: the FROM <dataset> rewrite is gated on datasets being present
+                // in cluster state, not on the feature flag, so its authorization gate must always be resolvable.
+                new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
                 new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
             )
         );
@@ -611,6 +631,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(ValuesSourceReaderOperatorStatus.ENTRY);
         entries.add(SingleValueQuery.ENTRY);
         entries.add(AsyncOperator.Status.ENTRY);
+        entries.add(EnrichQuerySourceOperator.Status.ENTRY);
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
         entries.add(StreamingLookupFromIndexOperator.StreamingLookupStatus.ENTRY);
@@ -672,6 +693,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 queueSize,
                 ESQL_WORKER_THREAD_POOL_NAME,
                 EsExecutors.TaskTrackingConfig.DEFAULT
+            ),
+            // Shared bounded pool for blocking external reads (GCS today; any future offloading blocking backend),
+            // sized by esql.external.max_connections. Scales from 0 so idle nodes pay nothing.
+            new ScalingExecutorBuilder(
+                EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME,
+                0,
+                ExternalSourceSettings.MAX_CONNECTIONS.get(settings),
+                TimeValue.timeValueSeconds(30),
+                false
             )
         );
     }

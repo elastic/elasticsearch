@@ -36,6 +36,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
@@ -403,14 +404,16 @@ public class CorruptionIT extends AbstractStatelessPluginIntegTestCase {
             Settings settings,
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
-            ClusterService clusterService
+            ClusterService clusterService,
+            IndicesService indicesService
         ) {
             TestSharedBlobCacheService testSharedBlobCacheService = new TestSharedBlobCacheService(
                 nodeEnvironment,
                 settings,
                 threadPool,
                 blobCacheMetrics,
-                clusterService
+                clusterService,
+                indicesService
             );
             testSharedBlobCacheService.assertInvariants();
             return testSharedBlobCacheService;
@@ -426,7 +429,8 @@ public class CorruptionIT extends AbstractStatelessPluginIntegTestCase {
             Settings settings,
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
-            ClusterService clusterService
+            ClusterService clusterService,
+            IndicesService indicesService
         ) {
             super(
                 environment,
@@ -434,6 +438,7 @@ public class CorruptionIT extends AbstractStatelessPluginIntegTestCase {
                 threadPool,
                 blobCacheMetrics,
                 clusterService,
+                indicesService,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
         }

@@ -367,7 +367,8 @@ public class MaxMindSupportTests extends ESTestCase {
         Database.AsnV2,
         Database.CityV2,
         Database.CountryV2,
-        Database.PrivacyDetection
+        Database.PrivacyDetection,
+        Database.IpinfoPlus
     );
 
     public void testMaxMindSupport() {

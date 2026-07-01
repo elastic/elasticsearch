@@ -16,7 +16,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -34,7 +37,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -52,7 +58,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -70,7 +79,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -88,7 +100,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -106,11 +121,35 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
       "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "flattened",
+          "optional" : false,
+          "description" : "The field to collect sample values for."
+        },
+        {
+          "name" : "limit",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "flattened"
     },
     {
       "params" : [
@@ -124,7 +163,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -142,7 +184,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -160,7 +205,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -178,7 +226,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -196,7 +247,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -214,7 +268,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -232,7 +289,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -250,7 +310,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -268,7 +331,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -286,7 +352,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -304,7 +373,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -322,7 +394,10 @@
           "name" : "limit",
           "type" : "integer",
           "optional" : false,
-          "description" : "The maximum number of values to collect."
+          "description" : "The maximum number of values to collect.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,

@@ -130,6 +130,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             // TODO: this probably shouldn't apply to groovy at all?
             compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
         });
+
     }
 
     /**

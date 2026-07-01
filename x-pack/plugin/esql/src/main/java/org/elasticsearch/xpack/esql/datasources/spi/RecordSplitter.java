@@ -39,7 +39,10 @@ public interface RecordSplitter {
      * that range.
      * <p>
      * When the range ends inside an open record, implementations must return the previous complete
-     * record boundary, not a byte inside the open tail.
+     * record boundary, not a byte inside the open tail. Implementations that enforce
+     * {@link #maxRecordBytes()} may return {@code (int)} {@link #RECORD_TOO_LARGE} when no boundary
+     * was found and the open record already exceeds the cap, so callers fail fast instead of
+     * growing the buffer further.
      */
     int findLastRecordBoundary(byte[] buf, int offset, int length) throws IOException;
 

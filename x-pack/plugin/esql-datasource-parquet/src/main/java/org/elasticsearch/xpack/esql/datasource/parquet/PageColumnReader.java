@@ -37,7 +37,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -91,9 +90,6 @@ import java.util.List;
 final class PageColumnReader implements Releasable {
 
     private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
-    private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
-    private static final long NANOS_PER_MILLI = 1_000_000L;
-    private static final int JULIAN_EPOCH_OFFSET = 2_440_588;
 
     private final PageReader pageReader;
     private final ColumnDescriptor descriptor;
@@ -325,7 +321,14 @@ final class PageColumnReader implements Releasable {
             if (chunks.size() == 1) {
                 return chunks.get(0);
             }
-            return combineBlocks(chunks, survivorCount, blockFactory);
+            // Exact-count guard: the sparse loop must have decoded exactly survivorCount rows across
+            // the chunks. This caught a real page-skip miscount and stays local to this path because
+            // the gather path in ParquetColumnExtractor has no such fixed 1:1 relationship.
+            assert sumPositions(chunks) == survivorCount : "chunk total " + sumPositions(chunks) + " != expected " + survivorCount;
+            // BlockChunks.concat resolves the element type from the first non-NULL chunk (so a
+            // null-leading run cannot poison a ConstantNullBlock builder) and closes the chunks on
+            // success; on a throw the catch below releases them.
+            return BlockChunks.concat(chunks, blockFactory);
         } catch (RuntimeException e) {
             for (Block chunk : chunks) {
                 Releasables.closeExpectNoException(chunk);
@@ -334,29 +337,12 @@ final class PageColumnReader implements Releasable {
         }
     }
 
-    /**
-     * Concatenates multiple blocks produced by the sparse-read loop into a single block
-     * by copying values from each chunk sequentially via a {@link Block.Builder}.
-     * Closes the source chunks after copying.
-     */
-    private static Block combineBlocks(List<Block> chunks, int totalPositions, BlockFactory blockFactory) {
-        int actualTotal = 0;
+    private static int sumPositions(List<Block> chunks) {
+        int total = 0;
         for (Block b : chunks) {
-            actualTotal += b.getPositionCount();
+            total += b.getPositionCount();
         }
-        assert actualTotal == totalPositions : "chunk total " + actualTotal + " != expected " + totalPositions;
-
-        Block first = chunks.get(0);
-        try (Block.Builder builder = first.elementType().newBlockBuilder(totalPositions, blockFactory)) {
-            for (Block chunk : chunks) {
-                builder.copyFrom(chunk, 0, chunk.getPositionCount());
-            }
-            Block result = builder.build();
-            for (Block chunk : chunks) {
-                Releasables.closeExpectNoException(chunk);
-            }
-            return result;
-        }
+        return total;
     }
 
     private void loadDictionaryIfNeeded() {
@@ -1489,25 +1475,14 @@ final class PageColumnReader implements Releasable {
             int[] intValues = buffers.ints(count);
             readIntsDispatch(intValues, 0, count);
             for (int i = 0; i < count; i++) {
-                values[offset + i] = intValues[i] * MILLIS_PER_DAY;
+                values[offset + i] = ParquetColumnDecoding.dateDaysToMillis(intValues[i]);
             }
         } else {
             readLongsDispatch(values, offset, count);
             LogicalTypeAnnotation logicalType = info.logicalType();
-            if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
-                switch (ts.getUnit()) {
-                    case MILLIS -> {
-                    }
-                    case MICROS -> {
-                        for (int i = 0; i < count; i++) {
-                            values[offset + i] = values[offset + i] / 1_000;
-                        }
-                    }
-                    case NANOS -> {
-                        for (int i = 0; i < count; i++) {
-                            values[offset + i] = values[offset + i] / 1_000_000;
-                        }
-                    }
+            if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
+                for (int i = 0; i < count; i++) {
+                    values[offset + i] = ParquetColumnDecoding.convertTimestampToMillis(values[offset + i], logicalType);
                 }
             }
         }
@@ -1577,11 +1552,7 @@ final class PageColumnReader implements Releasable {
             plainDecoder.readFixedBinaries(binaries, 0, count, 12);
         }
         for (int i = 0; i < count; i++) {
-            ByteBuffer buf = ByteBuffer.wrap(binaries[i].bytes, binaries[i].offset, binaries[i].length).order(ByteOrder.LITTLE_ENDIAN);
-            long nanosOfDay = buf.getLong();
-            int julianDay = buf.getInt();
-            long epochDay = julianDay - JULIAN_EPOCH_OFFSET;
-            values[offset + i] = epochDay * MILLIS_PER_DAY + nanosOfDay / NANOS_PER_MILLI;
+            values[offset + i] = ParquetColumnDecoding.int96ToEpochMillis(binaries[i].bytes, binaries[i].offset, binaries[i].length);
         }
     }
 

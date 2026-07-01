@@ -2156,46 +2156,25 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private void accumulateStripes(Page page) {
             int n = page.getPositionCount();
             // Attribute by the SURVIVING rows' offsets (page-aligned): a row dropped during convertRowsToPage is
-            // absent from both the page and this array, so a drop no longer misaligns and disables capture.
+            // absent from both the page and this array. The shared run-walk owns the offset/page alignment invariant
+            // (fail-loud assert + safe-miss); this consumer only folds the projected columns + row count per run.
+            // COUNT scope harvests rows only (no column accumulator). PROJECTED/ALL build one for the projected
+            // columns when there are any (a zero-projection COUNT(*) read has none). ALL's UNPROJECTED file columns
+            // are accumulated separately in harvestAllColumns (acc.allCols), fed from the raw record.
             long[] offsets = acceptedRowStartBytes;
-            // Invariant (fail loud): this method only runs when offset tracking is on (captureBlockStats gates on
-            // rowStartBytes != null), so EVERY page builder that produced this page must have rebuilt a survivor-
-            // offset array aligned 1:1 with the emitted page. A null/mismatched array here is a page-builder bug --
-            // the exact A1/F1 class where a builder forgot the rebuild on a row drop. Assert in dev/test builds so
-            // a desync throws in the suite; production still safe-misses below for robustness.
-            assert offsets != null && offsets.length == n
-                : "stripe page desynced from survivor offsets: acceptedRowStartBytes="
-                    + (offsets == null ? "null" : String.valueOf(offsets.length))
-                    + " pagePositions="
-                    + n;
-            if (offsets == null || offsets.length != n) {
-                stripeCaptureDisabled = true; // alignment lost — safe miss
-                return;
-            }
-            int i = 0;
-            while (i < n) {
-                long ordinal = Math.floorDiv(offsets[i], statsStripeSize);
-                int j = i + 1;
-                while (j < n && Math.floorDiv(offsets[j], statsStripeSize) == ordinal) {
-                    j++;
-                }
-                StripeStatsHarvester.StripeAccum acc = stripeHarvester.getOrCreate(ordinal);
-                // COUNT scope harvests rows only — never builds a column accumulator. PROJECTED/ALL build one
-                // for the projected columns when there are any (a zero-projection COUNT(*) read has none, so the
-                // accumulator stays null and only acc.rows advances). ALL's UNPROJECTED file columns are
-                // accumulated separately in harvestAllColumns (acc.allCols), fed from the raw record.
+            boolean aligned = stripeHarvester.forEachRun(offsets, offsets == null ? -1 : offsets.length, n, (ordinal, acc, from, to) -> {
                 if (acc.cols == null && statsColumnScope.harvestsColumns() && projectedAttrs.length > 0) {
                     acc.cols = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
                 }
                 if (acc.cols != null) {
-                    if (i == 0 && j == n) {
+                    if (from == 0 && to == n) {
                         for (int b = 0; b < columnCount; b++) {
                             acc.cols.acceptBlockAt(b, page.getBlock(b));
                         }
                     } else {
-                        int[] positions = new int[j - i];
+                        int[] positions = new int[to - from];
                         for (int p = 0; p < positions.length; p++) {
-                            positions[p] = i + p;
+                            positions[p] = from + p;
                         }
                         for (int b = 0; b < columnCount; b++) {
                             var filtered = page.getBlock(b).filter(false, positions);
@@ -2207,8 +2186,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         }
                     }
                 }
-                acc.rows += (j - i);
-                i = j;
+                acc.rows += (to - from);
+            });
+            if (aligned == false) {
+                stripeCaptureDisabled = true; // alignment lost — safe miss
             }
         }
 

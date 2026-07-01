@@ -93,6 +93,52 @@ public final class StripeStatsHarvester {
         return stripeAccums.computeIfAbsent(ordinal, k -> new StripeAccum());
     }
 
+    /** Receives one maximal run of consecutive same-stripe positions {@code [from, to)} in a page. */
+    @FunctionalInterface
+    public interface StripeRunConsumer {
+        void accept(long ordinal, StripeAccum acc, int from, int to);
+    }
+
+    /**
+     * Walks a page's positions, splits them into maximal runs of consecutive same-stripe rows (by each row's own
+     * start offset), and calls {@code consumer} once per run with the run's stripe accumulator. This is the ONE
+     * run-bucketing walk both row-format readers share -- CSV and NDJSON used to inline the identical loop, which
+     * is where the offset/page alignment invariant drifted between them (the A1/F1 class).
+     *
+     * <p>Fail loud: the caller only reaches here on a tracked page, so it MUST present exactly one record offset per
+     * emitted position. A missing array or a count mismatch is a page-builder/decoder bug -- assert in dev/test
+     * builds; in production return {@code false} so the caller safe-misses (disables capture) rather than
+     * mis-attributing. The consumer decides what to fold (rows and/or columns): the walk itself counts nothing, so
+     * a reader may run it twice over the same page (e.g. once for all-schema columns, once for projected + rows)
+     * without double-counting.
+     *
+     * @param offsets       per-record file-global start offsets, indexed 0..{@code recordCount}-1 (may be null)
+     * @param recordCount   the number of valid offsets (== the emitted record count)
+     * @param positionCount the page's position count
+     * @return {@code true} if the walk ran (offsets aligned); {@code false} if alignment was lost (caller safe-misses)
+     */
+    public boolean forEachRun(long[] offsets, int recordCount, int positionCount, StripeRunConsumer consumer) {
+        assert offsets != null && recordCount == positionCount
+            : "stripe page desynced from record offsets: recordCount="
+                + (offsets == null ? "null" : String.valueOf(recordCount))
+                + " pagePositions="
+                + positionCount;
+        if (offsets == null || recordCount != positionCount) {
+            return false;
+        }
+        int i = 0;
+        while (i < positionCount) {
+            long ordinal = ordinalOf(offsets[i]);
+            int j = i + 1;
+            while (j < positionCount && ordinalOf(offsets[j]) == ordinal) {
+                j++;
+            }
+            consumer.accept(ordinal, getOrCreate(ordinal), i, j);
+            i = j;
+        }
+        return true;
+    }
+
     /**
      * Folds the projected accumulator and the ALL-scope full-schema accumulator into one committed
      * column-stats map. The full-schema map (when present) is a superset of the projected one and the two

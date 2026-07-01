@@ -614,38 +614,25 @@ final class NdJsonPageIterator extends BufferingPageIterator {
     }
 
     /**
-     * Splits {@code page} into maximal runs of consecutive rows sharing a canonical stripe (by the decoder's
-     * per-record start offsets), advancing each run's stripe row count and invoking {@code consumer} once per
-     * run so the caller can fold that run's column stats. If the page's row count does not match the
-     * decoder's recorded offset count, stripe capture safe-misses for the whole file (a warm aggregate
-     * re-scans) rather than risk misattribution.
+     * Splits {@code page} into maximal runs of consecutive same-stripe rows and invokes {@code consumer} once per
+     * run so the caller can fold that run's column stats. NDJSON's per-record offsets come from the decoder (a
+     * dropped line advances neither the page nor the offset array); the shared run-walk in
+     * {@link StripeStatsHarvester#forEachRun} owns the offset/page alignment invariant (fail-loud assert +
+     * safe-miss). On a count mismatch stripe capture safe-misses for the whole file (a warm aggregate re-scans).
      */
     private void forEachStripeRun(Page page, StripeRunConsumer consumer) {
         if (stripeCaptureDisabled) {
             return;
         }
-        int n = page.getPositionCount();
         long[] offsets = pageDecoder.lastPageRecordOffsets();
-        // Invariant (fail loud): the decoder records a per-record offset only for lines it actually emits (a
-        // dropped line advances neither the page nor the offset array), so the recorded count must equal the page
-        // position count. A mismatch is a decoder bug -- the NDJSON analog of the CSV A1/F1 desync. Assert in
-        // dev/test builds; production still safe-misses below for robustness.
-        assert pageDecoder.lastPageRecordCount() == n
-            : "stripe page desynced from decoder offsets: lastPageRecordCount=" + pageDecoder.lastPageRecordCount() + " pagePositions=" + n;
-        if (pageDecoder.lastPageRecordCount() != n) {
+        boolean aligned = stripeHarvester.forEachRun(
+            offsets,
+            pageDecoder.lastPageRecordCount(),
+            page.getPositionCount(),
+            (ordinal, acc, from, to) -> consumer.accept(ordinal, acc, page, from, to)
+        );
+        if (aligned == false) {
             stripeCaptureDisabled = true; // alignment lost — safe miss
-            return;
-        }
-        int i = 0;
-        while (i < n) {
-            long ordinal = stripeHarvester.ordinalOf(offsets[i]);
-            int j = i + 1;
-            while (j < n && stripeHarvester.ordinalOf(offsets[j]) == ordinal) {
-                j++;
-            }
-            StripeStatsHarvester.StripeAccum acc = stripeHarvester.getOrCreate(ordinal);
-            consumer.accept(ordinal, acc, page, i, j);
-            i = j;
         }
     }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
@@ -200,17 +201,19 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         );
 
         // Drive the combined method with a fresh prefetch state so every blob ends up in `ranges` and contributes timestamps.
-        final SearchCommitPrefetcher.PendingPrefetchDetails pending = getPendingRangesToPrefetch(
+        final Map<BlobFile, SearchCommitPrefetcher.ByteRangeAndTimestamp> pending = getPendingRangesToPrefetch(
             SearchCommitPrefetcher.BCCPreFetchedOffset.ZERO,
             Long.MAX_VALUE,
             commitFiles,
             Set.of("internal_1", "internal_2"),
             notificationRange.midpointMillis(),
-            resolver,
-            true
+            resolver
         );
 
-        final Map<BlobFile, Long> timestampPerBlob = pending.timestampPerBlob();
+        final Map<BlobFile, Long> timestampPerBlob = Maps.transformValues(
+            pending,
+            SearchCommitPrefetcher.ByteRangeAndTimestamp::timestampMillis
+        );
 
         assertThat(
             "internal blob takes the notification commit midpoint",
@@ -372,15 +375,17 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         for (int i = 0; i < blobLocations.length; i++) {
             commitFiles.put("file_" + i, blobLocations[i]);
         }
-        return getPendingRangesToPrefetch(
-            bccPreFetchedOffset,
-            maxBCCGenerationToPrefetch,
-            commitFiles,
-            Set.of(),
-            randomLongBetween(1, Long.MAX_VALUE),
-            fileName -> randomLongBetween(1, Long.MAX_VALUE),
-            true
-        ).ranges();
+        return Maps.transformValues(
+            getPendingRangesToPrefetch(
+                bccPreFetchedOffset,
+                maxBCCGenerationToPrefetch,
+                commitFiles,
+                Set.of(),
+                randomLongBetween(1, Long.MAX_VALUE),
+                fileName -> randomLongBetween(1, Long.MAX_VALUE)
+            ),
+            SearchCommitPrefetcher.ByteRangeAndTimestamp::byteRange
+        );
     }
 
     private BlobLocation luceneFile(long generation, long offset, long length) {

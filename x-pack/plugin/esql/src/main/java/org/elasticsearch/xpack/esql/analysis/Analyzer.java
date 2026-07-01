@@ -728,9 +728,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     continue;
                 }
                 Attribute src = byName.get(e.getKey());
-                if (src != null) {
-                    aliases.add(new Alias(source, copyTo, src));
+                if (src == null) {
+                    // The source is always a declared/overlaid base output attribute; if it isn't, fail loud rather
+                    // than silently drop the copy.
+                    throw new IllegalArgumentException("copy_to source column [" + e.getKey() + "] is not present in the dataset schema");
                 }
+                if (byName.containsKey(copyTo)) {
+                    // The target collides with an existing (declared, inferred, or another copy) output column. An EVAL
+                    // would silently SHADOW/overwrite it — reject instead. PUT validation can't catch a collision with an
+                    // INFERRED column (no file I/O at PUT), so this is the place the base output is finally known.
+                    throw new IllegalArgumentException(
+                        "copy_to target [" + copyTo + "] on column [" + e.getKey() + "] collides with an existing column"
+                    );
+                }
+                aliases.add(new Alias(source, copyTo, src));
+                byName.put(copyTo, src); // reserve the target name so a later copy onto it is caught as a collision
             }
             return aliases;
         }

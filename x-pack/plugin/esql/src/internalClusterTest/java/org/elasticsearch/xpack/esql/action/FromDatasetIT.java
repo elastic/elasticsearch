@@ -183,7 +183,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         "employees_source_disabled",
         "employees_source_enabled",
         "employees_copy_nonstrict",
-        "employees_parquet_copy"
+        "employees_parquet_copy",
+        "employees_copy_collide"
     );
 
     /**
@@ -674,6 +675,36 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             assertThat(rows.get(0).get(1).toString(), equalTo("ENG"));   // read from nested dept.code
             assertThat(rows.get(2).get(1).toString(), equalTo("OPS"));
         }
+    }
+
+    public void testCopyToTargetCollidingWithInferredColumnRejected() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // Non-strict copy whose target collides with a REAL (inferred) file column. PUT can't see inferred columns, so
+        // it passes; the query must reject rather than let the EVAL silently overwrite first_name with a copy of emp_no.
+        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("emp_no", new DatasetFieldMapping("long", null, "first_name")); // target == an inferred column
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties), null);
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_copy_collide",
+                    "local_ds",
+                    csvFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+        Exception e = expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM employees_copy_collide | KEEP emp_no, first_name"), TIMEOUT)) {
+                // must not reach here — the copy target collides with the inferred first_name
+            }
+        });
+        assertThat(e.getMessage(), containsString("collides with an existing column"));
     }
 
     public void testParquetStrictCopyToAndFilterPushdown() throws Exception {

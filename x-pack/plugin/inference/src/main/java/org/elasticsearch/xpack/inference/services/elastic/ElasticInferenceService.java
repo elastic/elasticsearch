@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.EmbeddingRequest;
@@ -43,9 +42,7 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenceServiceActionCreator;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
-import org.elasticsearch.xpack.inference.services.elastic.compatibility.Compatibility;
 import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionsCompatibilityService;
-import org.elasticsearch.xpack.inference.services.elastic.compatibility.ReasoningTaskSettingsCompatibility;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelCreator;
@@ -99,8 +96,6 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         EMBEDDING
     );
     private static final String SERVICE_NAME = "Elastic";
-
-    private static final List<Compatibility> FEATURE_COMPATIBILITY_CHECKS = List.of(new ReasoningTaskSettingsCompatibility());
 
     // TODO: revisit this value once EIS supports dense models
     // The default maximum batch size for dense text embeddings is proactively set to 16.
@@ -272,23 +267,14 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     }
 
     @Override
-    public ClusterCompatibility checkClusterCompatibility(FeatureService featureService, ClusterState state, Model model) {
+    public ClusterCompatibility checkClusterCompatibility(ClusterState state, Model model) {
         if (model instanceof ElasticInferenceServiceModel == false) {
             return ClusterCompatibility.unsupported(
                 Strings.format("Invalid model type [%s] for service [%s]", model.getClass().getSimpleName(), NAME)
             );
         }
 
-        var elasticInferenceServiceModel = (ElasticInferenceServiceModel) model;
-
-        for (var compatibilityCheck : FEATURE_COMPATIBILITY_CHECKS) {
-            var compatibility = compatibilityCheck.clusterCompatibility(featureService, state, elasticInferenceServiceModel);
-            if (compatibility.isSupported() == false) {
-                return compatibility;
-            }
-        }
-
-        return ClusterCompatibility.supported();
+        return completionsCompatibilityService.clusterCompatibility(state, (ElasticInferenceServiceModel) model);
     }
 
     @Override

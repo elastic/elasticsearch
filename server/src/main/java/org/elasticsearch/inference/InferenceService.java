@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.rest.RestStatus;
 
@@ -370,12 +369,11 @@ public interface InferenceService extends Closeable {
      * Override this method to gate new features behind a
      * {@link org.elasticsearch.features.NodeFeature}.
      *
-     * @param featureService the feature service to check cluster-wide feature availability
-     * @param state          the current cluster state
-     * @param model          the parsed model
+     * @param state the current cluster state
+     * @param model the parsed model
      * @return a {@link ClusterCompatibility} result
      */
-    default ClusterCompatibility checkClusterCompatibility(FeatureService featureService, ClusterState state, Model model) {
+    default ClusterCompatibility checkClusterCompatibility(ClusterState state, Model model) {
         return ClusterCompatibility.supported();
     }
 }

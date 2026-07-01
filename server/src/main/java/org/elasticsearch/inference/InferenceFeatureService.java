@@ -9,6 +9,7 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
@@ -33,5 +34,12 @@ public class InferenceFeatureService {
      */
     public boolean hasFeature(NodeFeature nodeFeature) {
         return featureService.clusterHasFeature(clusterService.state(), nodeFeature);
+    }
+
+    /**
+     * Returns true if the provided cluster state indicates the feature is available cluster-wide.
+     */
+    public boolean hasFeature(ClusterState state, NodeFeature nodeFeature) {
+        return featureService.clusterHasFeature(state, nodeFeature);
     }
 }

@@ -140,9 +140,7 @@ public class TransportPutInferenceModelActionTests extends ESTestCase {
         var serviceRegistryMock = mock(InferenceServiceRegistry.class);
         var service = mock(InferenceService.class);
         when(service.getMinimalSupportedVersion()).thenReturn(TransportVersion.current());
-        when(service.checkClusterCompatibility(any(), any(), any())).thenReturn(
-            InferenceService.ClusterCompatibility.unsupported(errorMessage)
-        );
+        when(service.checkClusterCompatibility(any(), any())).thenReturn(InferenceService.ClusterCompatibility.unsupported(errorMessage));
         when(serviceRegistryMock.getService(serviceName)).thenReturn(Optional.of(service));
 
         var model = mock(Model.class);

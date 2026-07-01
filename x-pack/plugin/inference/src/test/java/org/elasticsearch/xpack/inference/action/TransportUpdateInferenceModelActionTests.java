@@ -22,7 +22,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -129,7 +128,6 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     private ModelRegistry mockModelRegistry;
     private InferenceServiceRegistry mockInferenceServiceRegistry;
     private InferenceService service;
-    private FeatureService featureService;
 
     @Before
     public void createAction() throws Exception {
@@ -146,10 +144,9 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             listener.onResponse(null);
             return null;
         }).when(service).onModelUpdated(any(), any(), any());
-        featureService = mock(FeatureService.class);
         // Mockito doesn't invoke interface default methods; stub checkClusterCompatibility to report
         // supported so the update path proceeds (mirrors the onModelUpdated stub above).
-        when(service.checkClusterCompatibility(any(), any(), any())).thenReturn(InferenceService.ClusterCompatibility.supported());
+        when(service.checkClusterCompatibility(any(), any())).thenReturn(InferenceService.ClusterCompatibility.supported());
         action = new TransportUpdateInferenceModelAction(
             mock(TransportService.class),
             mock(ClusterService.class),
@@ -159,8 +156,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             mockModelRegistry,
             mockInferenceServiceRegistry,
             mock(Client.class),
-            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
-            featureService
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
     }
 
@@ -661,7 +657,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockLicenseStateIsAllowed(true);
         mockParsePersistedConfigWithSecretsToReturnModel(createModel());
         mockBuildModelFromConfigAndSecretsToReturnNewModel();
-        when(service.checkClusterCompatibility(any(), any(), any())).thenReturn(
+        when(service.checkClusterCompatibility(any(), any())).thenReturn(
             InferenceService.ClusterCompatibility.unsupported(CLUSTER_INCOMPATIBLE_ERROR_MESSAGE)
         );
 
@@ -697,11 +693,9 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         assertThat(response.getModel(), is(existingModel.getConfigurations()));
         verifyModelRegistryUpdateInvoked();
 
-        var featureServiceCaptor = ArgumentCaptor.forClass(FeatureService.class);
         var stateCaptor = ArgumentCaptor.forClass(ClusterState.class);
         var modelCaptor = ArgumentCaptor.forClass(Model.class);
-        verify(service).checkClusterCompatibility(featureServiceCaptor.capture(), stateCaptor.capture(), modelCaptor.capture());
-        assertThat(featureServiceCaptor.getValue(), sameInstance(featureService));
+        verify(service).checkClusterCompatibility(stateCaptor.capture(), modelCaptor.capture());
         assertThat(stateCaptor.getValue(), sameInstance(ClusterState.EMPTY_STATE));
         assertThat(modelCaptor.getValue(), sameInstance(mergedModel));
     }
@@ -722,7 +716,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var response = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         assertThat(response.getModel(), is(model.getConfigurations()));
         verifyNoModelRegistryMutations();
-        verify(service, never()).checkClusterCompatibility(any(), any(), any());
+        verify(service, never()).checkClusterCompatibility(any(), any());
     }
 
     private static GoogleVertexAiEmbeddingsModel createModel() {

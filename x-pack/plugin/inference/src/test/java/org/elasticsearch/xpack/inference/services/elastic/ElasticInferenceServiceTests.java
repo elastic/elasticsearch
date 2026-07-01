@@ -126,7 +126,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createNoopApplierFactory;
-import static org.elasticsearch.xpack.inference.services.elastic.compatibility.ReasoningTaskSettingsCompatibility.REASONING_FIELD_UNSUPPORTED_MESSAGE;
+import static org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionsCompatibilityService.REASONING_FIELD_UNSUPPORTED_MESSAGE;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -1905,7 +1905,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         try (var service = createServiceWithMockSender()) {
             var invalidModel = getInvalidModel(INFERENCE_ENTITY_ID, ElasticInferenceService.NAME);
 
-            var result = service.checkClusterCompatibility(FEATURE_SERVICE, clusterState(randomBoolean()), invalidModel);
+            var result = service.checkClusterCompatibility(clusterState(randomBoolean()), invalidModel);
 
             assertFalse(result.isSupported());
             assertThat(result.errorMessage(), containsString("Invalid model type"));
@@ -1923,7 +1923,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 NON_EMPTY_TASK_SETTINGS
             );
 
-            var result = service.checkClusterCompatibility(FEATURE_SERVICE, clusterState(false), model);
+            var result = service.checkClusterCompatibility(clusterState(false), model);
 
             assertFalse(result.isSupported());
             assertThat(result.errorMessage(), is(REASONING_FIELD_UNSUPPORTED_MESSAGE));
@@ -1940,7 +1940,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 NON_EMPTY_TASK_SETTINGS
             );
 
-            var result = service.checkClusterCompatibility(FEATURE_SERVICE, clusterState(true), model);
+            var result = service.checkClusterCompatibility(clusterState(true), model);
 
             assertTrue(result.isSupported());
             assertNull(result.errorMessage());
@@ -1957,7 +1957,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
             );
 
-            var result = service.checkClusterCompatibility(FEATURE_SERVICE, clusterState(false), model);
+            var result = service.checkClusterCompatibility(clusterState(false), model);
 
             assertTrue(result.isSupported());
             assertNull(result.errorMessage());

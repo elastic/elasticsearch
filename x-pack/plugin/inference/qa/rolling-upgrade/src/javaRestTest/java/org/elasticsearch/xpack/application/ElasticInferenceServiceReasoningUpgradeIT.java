@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.is;
  * when the old cluster does not yet have that feature, the test verifies that:
  * <ul>
  *   <li>In old/mixed phases, a PUT with {@code task_settings.reasoning} is rejected (HTTP 400) by the
- *       cluster-feature gate ({@code ReasoningTaskSettingsCompatibility}) or by the transport-version guard
+ *       cluster-feature gate ({@code CompletionsCompatibilityService}) or by the transport-version guard
  *       in {@code ElasticInferenceServiceChatCompletionTaskSettings.writeTo}.</li>
  *   <li>Once the cluster is fully upgraded, the PUT is accepted, and {@code task_settings.reasoning}
  *       round-trips correctly on a subsequent GET.</li>
@@ -150,7 +150,7 @@ public class ElasticInferenceServiceReasoningUpgradeIT extends ParameterizedRoll
                 resetEndpoint(inferenceId);
             }
         } else {
-            // Old or mixed cluster: the feature gate (ReasoningTaskSettingsCompatibility) fires on a new
+            // Old or mixed cluster: the feature gate (CompletionsCompatibilityService) fires on a new
             // master, or the transport-version guard / unknown-settings check fires on an old master.
             // Both produce a 400; the exact message is version-dependent, hence the broad anyOf.
             var putRequest = buildPutRequest(inferenceId, config, TaskType.CHAT_COMPLETION);

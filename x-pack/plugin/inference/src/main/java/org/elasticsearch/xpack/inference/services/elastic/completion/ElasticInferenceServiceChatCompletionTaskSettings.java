@@ -33,7 +33,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_FIELD;
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
-import static org.elasticsearch.xpack.inference.services.elastic.compatibility.ReasoningTaskSettingsCompatibility.REASONING_FIELD_UNSUPPORTED_MESSAGE;
+import static org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionsCompatibilityService.REASONING_FIELD_UNSUPPORTED_MESSAGE;
 
 /**
  * Task settings for the Elastic Inference Service {@code chat_completion} task type, holding

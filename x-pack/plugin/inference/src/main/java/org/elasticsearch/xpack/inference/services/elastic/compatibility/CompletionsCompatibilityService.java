@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.elastic.compatibility;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.InferenceService;
@@ -29,7 +28,7 @@ import java.util.Objects;
 /**
  * Service that provides compatibility strategies for task settings based on the task type and feature availability.
  */
-public class CompletionsCompatibilityService implements Compatibility {
+public class CompletionsCompatibilityService {
 
     public static final String REASONING_FIELD_UNSUPPORTED_MESSAGE =
         "The reasoning field in task_settings is not supported by all nodes in the cluster; "
@@ -41,15 +40,13 @@ public class CompletionsCompatibilityService implements Compatibility {
         this.featureService = Objects.requireNonNull(featureService);
     }
 
-    @Override
-    public InferenceService.ClusterCompatibility clusterCompatibility(
-        FeatureService featureService,
-        ClusterState state,
-        ElasticInferenceServiceModel model
-    ) {
+    /**
+     * Checks whether the provided cluster state supports the model's task settings.
+     */
+    public InferenceService.ClusterCompatibility clusterCompatibility(ClusterState state, ElasticInferenceServiceModel model) {
         if (model.getTaskSettings() instanceof ElasticInferenceServiceChatCompletionTaskSettings ts
             && ts.isEmpty() == false
-            && featureService.clusterHasFeature(state, InferenceFeatures.INFERENCE_ELASTIC_REASONING_TASK_SETTINGS) == false) {
+            && featureService.hasFeature(state, InferenceFeatures.INFERENCE_ELASTIC_REASONING_TASK_SETTINGS) == false) {
             return InferenceService.ClusterCompatibility.unsupported(REASONING_FIELD_UNSUPPORTED_MESSAGE);
         }
 

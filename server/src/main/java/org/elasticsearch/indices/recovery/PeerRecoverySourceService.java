@@ -174,7 +174,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     }
 
     private void recover(StartRecoveryRequest request, Task task, ActionListener<RecoveryResponse> listener) {
-        PeerRecoverySourceClusterStateDelay.ensureClusterStateVersion(
+        RecoveryClusterStateDelay.ensureClusterStateVersion(
             request.clusterStateVersion(),
             clusterService,
             transportService.getThreadPool().generic(),

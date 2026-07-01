@@ -157,6 +157,7 @@ public final class StoreRecovery {
                         isSplit,
                         hasNested
                     );
+                    indexShard.ensureRecoveryNotCancelled();
                     internalRecoverFromStore(indexShard, recoveryListener.delegateFailure((delegate, v) -> {
                         ActionListener.completeWith(delegate, () -> {
                             // just trigger a merge to do housekeeping on the
@@ -282,7 +283,7 @@ public final class StoreRecovery {
                         }
 
                         @Override
-                        public byte readByte() throws IOException {
+                        public byte readByte() {
                             throw new UnsupportedOperationException("use a buffer if you wanna perform well");
                         }
 
@@ -332,6 +333,7 @@ public final class StoreRecovery {
             // got closed on us, just ignore this recovery
             return false;
         }
+        indexShard.ensureRecoveryNotCancelled();
         if (indexShard.routingEntry().primary() == false) {
             throw new IndexShardRecoveryException(shardId, "Trying to recover when the shard is in backup state", null);
         }
@@ -424,6 +426,7 @@ public final class StoreRecovery {
             .newForked(indexShard::preRecovery)
 
             .<Void>andThen(l -> {
+                indexShard.ensureRecoveryNotCancelled();
                 final RecoveryState recoveryState = indexShard.recoveryState();
                 final boolean indexShouldExists = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE;
                 indexShard.prepareForIndexRecovery();
@@ -491,10 +494,12 @@ public final class StoreRecovery {
                     writeEmptyRetentionLeasesFile(indexShard);
                     indexShard.recoveryState().getIndex().setFileDetailsComplete();
                 }
+                indexShard.ensureRecoveryNotCancelled();
                 indexShard.openEngineAndRecoverFromTranslog(l);
             })
 
             .<Void>andThen(l -> {
+                indexShard.ensureRecoveryNotCancelled();
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
                 indexShard.postRecovery("post recovery from shard_store", l);
@@ -542,6 +547,7 @@ public final class StoreRecovery {
             .newForked(indexShard::preRecovery)
 
             .<ShardAndIndexIds>andThen(shardAndIndexIdsListener -> {
+                indexShard.ensureRecoveryNotCancelled();
                 if (restoreSource == null) {
                     throw new IndexShardRestoreFailedException(shardId, "empty restore source");
                 }
@@ -578,6 +584,7 @@ public final class StoreRecovery {
             })
 
             .<Void>andThen((restoreListener, shardAndIndexId) -> {
+                indexShard.ensureRecoveryNotCancelled();
                 assert indexShard.getEngineOrNull() == null;
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC, ThreadPool.Names.SNAPSHOT);
                 repository.restoreShard(
@@ -591,6 +598,7 @@ public final class StoreRecovery {
             })
 
             .<Void>andThen(l -> {
+                indexShard.ensureRecoveryNotCancelled();
                 indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
                 bootstrap(indexShard);
                 writeEmptyRetentionLeasesFile(indexShard);
@@ -598,6 +606,7 @@ public final class StoreRecovery {
             })
 
             .<Void>andThen(l -> {
+                indexShard.ensureRecoveryNotCancelled();
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
                 indexShard.postRecovery("restore done", l);

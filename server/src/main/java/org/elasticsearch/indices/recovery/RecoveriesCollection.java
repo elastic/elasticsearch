@@ -200,7 +200,34 @@ public class RecoveriesCollection {
         }
     }
 
-    /** Marks the recovery with the given id as done (if found) */
+    /// Cancels and fails a specific ongoing recovery by shard ID and allocation ID, if exists. The master will be notified.
+    public boolean directCancelRecovery(ShardId shardId, String allocationId, DiscoveryNode localNode) {
+        RecoveryTarget removed = null;
+        synchronized (onGoingRecoveries) {
+            for (Iterator<RecoveryTarget> it = onGoingRecoveries.values().iterator(); it.hasNext();) {
+                RecoveryTarget recoveryTarget = it.next();
+                if (recoveryTarget.shardId().equals(shardId)
+                    && recoveryTarget.indexShard().routingEntry().allocationId().getId().equals(allocationId)) {
+                    removed = recoveryTarget;
+                    it.remove();
+                    break;
+                }
+            }
+        }
+        if (removed != null) {
+            logger.trace(
+                "{} cancelled and failed recovery from {}, id [{}].",
+                removed.shardId(),
+                removed.sourceNode(),
+                removed.recoveryId()
+            );
+            removed.fail(new RecoveryCancelledException(removed.shardId(), removed.sourceNode(), localNode), true);
+            return true;
+        }
+        return false;
+    }
+
+    /// Marks the recovery with the given id as done (if found)
     public void markRecoveryAsDone(long id) {
         RecoveryTarget removed = onGoingRecoveries.remove(id);
         if (removed != null) {
@@ -209,7 +236,7 @@ public class RecoveriesCollection {
         }
     }
 
-    /** the number of ongoing recoveries */
+    /// Returns the number of ongoing recoveries
     public int size() {
         return onGoingRecoveries.size();
     }

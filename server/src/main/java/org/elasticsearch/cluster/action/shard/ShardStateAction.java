@@ -510,6 +510,10 @@ public class ShardStateAction {
             return allocationId;
         }
 
+        public Exception getFailure() {
+            return failure;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);

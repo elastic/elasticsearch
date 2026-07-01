@@ -31,7 +31,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.IntStream;
 
@@ -381,52 +380,6 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             Map.of(RecoveryMetricsCollector.CURRENT_STORE_RECOVERIES, 0L, RecoveryMetricsCollector.QUEUED_STORE_RECOVERIES, 0L)
 
         );
-    }
-
-    private void awaitRecoveryCountMetrics(String nodeName, TestTelemetryPlugin nodeTelemetry, Map<String, Long> expectedMetrics) {
-        awaitRecoveryCountMetrics(Map.of(nodeName, nodeTelemetry), Map.of(nodeName, expectedMetrics));
-    }
-
-    /// Waits until `expectedMetrics` matches the provided telemetries' values, re-checking on every recovery
-    /// scheduling event on the given nodes. Unlike `assertBusy`, this is event-driven. It is triggered
-    /// by [RecoverySchedulingListener] callbacks fired after [RecoveryMetricsCollector] has already applied
-    /// the metric update, so the check always sees a consistent post-update state.
-    private void awaitRecoveryCountMetrics(Map<String, TestTelemetryPlugin> telemetries, Map<String, Map<String, Long>> expectedMetrics) {
-        final var conditionLatch = new CountDownLatch(1);
-        final Map<String, CompositeRecoverySchedulingListener> schedulingListeners = new ConcurrentHashMap<>();
-        for (String nodeName : expectedMetrics.keySet()) {
-            schedulingListeners.put(nodeName, internalCluster().getInstance(CompositeRecoverySchedulingListener.class, nodeName));
-        }
-
-        final var listener = new TestRecoverySchedulingListener() {
-            @Override
-            public void onRecoverySchedulingChange() {
-                if (conditionLatch.getCount() == 0) {
-                    return;
-                }
-                for (var entry : expectedMetrics.entrySet()) {
-                    final var telemetry = telemetries.get(entry.getKey());
-                    final var nodeExpectedMetrics = entry.getValue();
-                    for (var expectedMetric : nodeExpectedMetrics.entrySet()) {
-                        if (telemetry.getLongUpDownCounterMeasurement(expectedMetric.getKey())
-                            .stream()
-                            .mapToLong(Measurement::getLong)
-                            .sum() != expectedMetric.getValue()) {
-                            return;
-                        }
-                    }
-                }
-                conditionLatch.countDown();
-            }
-        };
-
-        schedulingListeners.values().forEach(s -> s.addListener(listener));
-        try {
-            listener.onRecoverySchedulingChange();
-            safeAwait(conditionLatch);
-        } finally {
-            schedulingListeners.values().forEach(s -> s.removeListener(listener));
-        }
     }
 
     private TestTelemetryPlugin resetAndGetTelemetryPlugin(String node) {

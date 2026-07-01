@@ -47,6 +47,7 @@ import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
+import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.SnapshotMetrics;
@@ -564,7 +565,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             transportService,
             null,
             clusterService,
-            mock(SnapshotFilesProvider.class)
+            mock(SnapshotFilesProvider.class),
+            RecoverySchedulingListener.NOOP
         );
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         final PrimaryReplicaSyncer primaryReplicaSyncer = mock(PrimaryReplicaSyncer.class);

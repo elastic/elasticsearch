@@ -67,10 +67,9 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
     private int runningRecoveries = 0;
     private final Deque<PendingRecovery> pendingRecoveries = new ArrayDeque<>();
 
-    /// Records allocation IDs that have been directly cancelled by the master, including those for recoveries
-    /// that have already started (i.e. are not in [#pendingRecoveries]).
-    /// Entries are pruned by [#clusterChanged] once the corresponding shard stops initializing or its
-    /// allocation ID changes.
+    /// Records allocation IDs that have been directly cancelled by the master, including those for recoveries that have
+    /// already started (i.e. are not in [#pendingRecoveries]).
+    /// Entries are pruned by [#clusterChanged] once the corresponding shard stops initializing or its allocationId changes.
     private final Map<String, ShardId> cancelledAllocationIds = new HashMap<>();
 
     private boolean closed;
@@ -111,25 +110,18 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
                 recoveryListener.onRecoveryAborted();
             } else {
                 logger.debug("recovery cancelled at enqueue time: {}", recoveryState);
-                // Get off the cluster applier thread.
-                executor.execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error("error notifying pre-enqueue cancellation of {}", recoveryState, e);
-                    }
-
-                    @Override
-                    protected void doRun() {
-                        recoveryListener.onRecoveryFailure(
-                            new RecoveryCancelledException(
-                                recoveryState.getShardId(),
-                                recoveryState.getSourceNode(),
-                                recoveryState.getTargetNode()
-                            ),
-                            true
-                        );
-                    }
-                });
+                // Get off the cluster applier thread. Generic executor has unbounded queue and thread shutdown happens
+                // after service close so this runnable should never get rejected.
+                executor.execute(
+                    () -> recoveryListener.onRecoveryFailure(
+                        new RecoveryCancelledException(
+                            recoveryState.getShardId(),
+                            recoveryState.getSourceNode(),
+                            recoveryState.getTargetNode()
+                        ),
+                        true
+                    )
+                );
             }
             return;
         }
@@ -149,6 +141,9 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
     public Set<String> cancelRecoveries(Map<String, ShardId> cancellations) {
         final List<PendingRecovery> recoveriesToCancel = new ArrayList<>();
         synchronized (this) {
+            if (closed) {
+                return Set.of();
+            }
             // Record every cancellation, even for recoveries that have already started (i.e. are not in the pending queue).
             // Pruned by clusterChanged once the shard stops initializing or its allocation ID changes.
             cancelledAllocationIds.putAll(cancellations);
@@ -181,6 +176,9 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
         final RoutingNode localNode = event.state().getRoutingNodes().node(clusterService.localNode().getId());
         final List<PendingRecovery> staleRecoveries = new ArrayList<>();
         synchronized (this) {
+            if (closed) {
+                return;
+            }
             if (localNode == null) {
                 cancelledAllocationIds.clear();
                 staleRecoveries.addAll(pendingRecoveries);
@@ -201,11 +199,17 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
         }
         for (PendingRecovery stale : staleRecoveries) {
             final RecoveryState state = stale.recoveryState();
-
-            logger.debug("cancelling stale queued recovery: {}", state);
-            stale.listener()
-                .onRecoveryFailure(new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()), false);
-            schedulingListener.onQueuedRecoveryDiscarded(state.getRecoverySource().getType(), RecoveryRole.TARGET);
+            // Get off the cluster applier thread. Generic executor has unbounded queue and thread shutdown happens
+            // after service close so this runnable should never get rejected.
+            logger.debug("cancelling stale queued recovery {}", state);
+            executor.execute(() -> {
+                stale.listener()
+                    .onRecoveryFailure(
+                        new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()),
+                        false
+                    );
+                schedulingListener.onQueuedRecoveryDiscarded(state.getRecoverySource().getType(), RecoveryRole.TARGET);
+            });
         }
     }
 

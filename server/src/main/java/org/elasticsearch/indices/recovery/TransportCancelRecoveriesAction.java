@@ -94,6 +94,9 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
             toCancel.put(cancellation.allocationId(), cancellation.shardId());
         }
         final Set<String> cancelledInQueue = throttlingRecoveryService.cancelRecoveries(toCancel);
+
+        // TODO: consider batching started recovery cancellation. For PEER recoveries, each call below independently
+        // re-scans RecoveriesCollection#onGoingRecoveries under lock instead of doing a single combined pass.
         for (CancelRecoveriesAction.ShardRecoveryCancellation cancellation : request.cancellations()) {
             if (cancelledInQueue.contains(cancellation.allocationId()) == false && cancellation.cancelIfStarted()) {
                 tryCancelStartedRecovery(cancellation.shardId(), cancellation.allocationId());
@@ -107,9 +110,8 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
             tryDirectCancelStartedRecovery(shardId, allocationId);
         } catch (IndexNotFoundException | ShardNotFoundException | IndexShardNotRecoveringException e) {
             logger.debug(
-                "unable to directly cancel recovery of shard {} with allocation {}, "
-                    + "cancellation recorded in ThrottlingRecoveryService in case the shard is still being created "
-                    + "and reaches the queue afterwards: {}",
+                "unable to directly cancel recovery of shard {} with allocation {}, cancellation was recorded "
+                    + "in ThrottlingRecoveryService in case the shard is being created and has not yet reached the queue: {}",
                 shardId,
                 allocationId,
                 e
@@ -132,8 +134,8 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
             );
             return;
         }
-        final IndexShardState state = indexShard.state();
 
+        final IndexShardState state = indexShard.state();
         if (state != IndexShardState.RECOVERING && state != IndexShardState.CREATED) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }

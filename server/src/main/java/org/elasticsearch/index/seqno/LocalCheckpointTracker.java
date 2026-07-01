@@ -216,7 +216,7 @@ public class LocalCheckpointTracker {
         do {
             checkPoint.incrementAndGet();
             /*
-             * The checkpoint always falls in the current bit set or we have already cleaned it; if it falls on the last bit of the
+             * The checkpoint always falls in the current bit set, or we have already cleaned it; if it falls on the last bit of the
              * current bit set, we can clean it.
              */
             if (checkPoint.get() == lastSeqNoInBitSet(bitSetKey)) {

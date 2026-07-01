@@ -77,6 +77,11 @@ Two function implementations under `src/main/java/org/elasticsearch/xpack/transf
 
 Both support source query filtering, runtime fields, and retention policies.
 
+## Gotchas
+
+- **Persistent-task allocation is subject to node churn.** Like other `PersistentTaskPlugin`s in this codebase, a `TransformTask` can be reassigned when its node is drained or relocated (routine in stateless/serverless autoscaling). Treat allocation failures and reassignments during drain as expected steady state — log at DEBUG/INFO — and reserve WARN/ERROR for retries actually exhausting `NUM_FAILURE_RETRIES_SETTING` or a checkpoint that cannot make progress at all.
+- **`TransformContext` is the single source of mutable runtime state shared between the task and indexer.** Reaching around it (e.g. caching failure counts or "stop at next checkpoint" elsewhere) reintroduces the kind of bookkeeping split that has caused hard-to-reproduce races in sibling persistent-task systems in this codebase (see `x-pack/plugin/ml/AGENTS.md` Gotchas for the ML analogue). Keep task/indexer coordination state in one place.
+
 ## Testing conventions specific to transform
 
 - Unit-test base classes: `ESTestCase`, `AbstractChunkedSerializingTestCase` (for x-content round-trip of serializable types).

@@ -67,7 +67,7 @@ Configs are immutable with a nested `Builder`; validation runs at `build()` time
 
 `MlConfigVersion` is a **config-format version, distinct from `TransportVersion`**: it is human-readable and persisted inside documents and cluster state, so it tracks the schema of stored ML configs rather than the wire protocol. Post-8.10 it uses detached incrementing integer ids (the latest is `MlConfigVersion.CURRENT`), and each constant carries a unique id string to avoid duplicate-id git merge collisions; `MlConfigVersionComponent` surfaces it in node info.
 
-For wire-format changes across mixed-version clusters, follow the root `AGENTS.md` "Backwards compatibility" section and `.claude/rules/elasticsearch-transport-version.md` — do not restate that workflow here. Any change to a `Writeable`'s `writeTo`/`StreamInput` constructor needs a new named `TransportVersion` gate and a BWC round-trip test.
+For wire-format changes across mixed-version clusters, follow the root `AGENTS.md` "Backwards compatibility" section — do not restate that workflow here. Any change to a `Writeable`'s `writeTo`/`StreamInput` constructor needs a new named `TransportVersion` gate and a BWC round-trip test. Referable transport-version ids are global (`server/src/main/resources/transport/definitions/referable/*.csv`); after merging `main`, re-check the highest allocated id before keeping a pre-merge id on your branch (`./gradlew :server:generateClusterFeaturesMetadata` fails fast on a duplicate id at class-init).
 
 ## Cluster-state, tasks, system indices
 

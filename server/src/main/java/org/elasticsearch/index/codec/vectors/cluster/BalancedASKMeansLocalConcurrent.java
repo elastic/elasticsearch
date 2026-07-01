@@ -73,23 +73,13 @@ class BalancedASKMeansLocalConcurrent<V> extends BalancedASKMeansLocal<V> {
     }
 
     @Override
-    protected void assignSpilled(
+    protected int[] assignSpilled(
         ClusteringVectorValues<V> vectors,
         KMeansIntermediate<V> kmeansIntermediate,
         NeighborHood[] neighborhoods,
         float soarLambda
     ) throws IOException {
-        final int len = vectors.size() / numWorkers;
-        final List<Callable<Void>> runners = new ArrayList<>(numWorkers);
-        for (int i = 0; i < numWorkers; i++) {
-            final int start = i * len;
-            final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
-            runners.add(() -> {
-                assignSpilledSlice(vectors.copy(), ops, kmeansIntermediate, neighborhoods, soarLambda, start, end);
-                return null;
-            });
-        }
-        executor.invokeAll(runners);
+        return assignSpilledConcurrent(executor, numWorkers, vectors, ops, kmeansIntermediate, neighborhoods, soarLambda);
     }
 
     @Override

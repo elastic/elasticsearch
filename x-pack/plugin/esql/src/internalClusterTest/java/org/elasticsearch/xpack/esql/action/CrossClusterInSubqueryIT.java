@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Integration tests for {@code WHERE x IN (subquery)} and {@code WHERE x NOT IN (subquery)}
@@ -556,6 +557,189 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
+    public void testMissingOnLocalCluster() {
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
+        populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+                FROM logs-*
+                | WHERE v IN (
+                    FROM (FROM cluster-a:logs-*), (FROM remote-b:logs-*)
+                    | LOOKUP JOIN values_lookup ON v == lookup_key
+                    | KEEP v
+                )
+                | KEEP v
+                """, false));
+            assertThat(ex.getMessage(), containsString("Unknown index [values_lookup]"));
+        } finally {
+            clearSkipUnavailable(3);
+        }
+    }
+
+    public void testLookupJoinScope0() {
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM (FROM cluster-a:logs-*), (FROM remote-b:logs-*)
+                | LOOKUP JOIN values_lookup ON v == lookup_key
+                | KEEP v
+                | SORT v
+                | WHERE v < 5
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(0L), List.of(0L), List.of(1L), List.of(1L), List.of(4L), List.of(4L))));
+            }
+        } finally {
+            clearSkipUnavailable(3);
+        }
+    }
+
+    public void testLookupJoinScope1() {
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
+        populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM cluster-a:logs-*, remote-b:logs-*
+                | LOOKUP JOIN values_lookup ON v == lookup_key
+                | KEEP v
+                | SORT v
+                | WHERE v < 5
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(0L), List.of(0L), List.of(1L), List.of(1L), List.of(4L), List.of(4L))));
+            }
+        } finally {
+            clearSkipUnavailable(3);
+        }
+    }
+
+    public void testLookupJoinScope2() {
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM cluster-a:logs-*
+                | LOOKUP JOIN values_lookup ON v == lookup_key
+                | KEEP v
+                | SORT v
+                | WHERE v < 5
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(0L), List.of(1L), List.of(4L))));
+            }
+        } finally {
+            clearSkipUnavailable(3);
+        }
+    }
+
+    public void testLookupJoinScope3() {
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM (FROM cluster-a:logs-*)
+                | LOOKUP JOIN values_lookup ON v == lookup_key
+                | KEEP v
+                | SORT v
+                | WHERE v < 5
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(0L), List.of(1L), List.of(4L))));
+            }
+        } finally {
+            clearSkipUnavailable(3);
+        }
+    }
+
+    public void testLookupJoinScope4() {
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM logs-*
+                | WHERE v IN (
+                    FROM (FROM cluster-a:logs-*), (FROM remote-b:logs-*)
+                    | LOOKUP JOIN values_lookup ON v == lookup_key
+                    | KEEP v
+                )
+                | SORT v
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(0L), List.of(1L), List.of(4L), List.of(9L))));
+            }
+        } finally {
+            clearSkipUnavailable(3);
+        }
+    }
+
+    public void testLookupJoinScope5() {
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM cluster-a:logs-*
+                | WHERE v IN (
+                    FROM (FROM cluster-a:logs-*), (FROM remote-b:logs-*)
+                    | LOOKUP JOIN values_lookup ON v == lookup_key
+                    | KEEP v
+                )
+                | SORT v
+                | KEEP v
+                | WHERE v <= 16
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(0L), List.of(1L), List.of(4L), List.of(9L),  List.of(16L))));
+            }
+        } finally {
+            clearSkipUnavailable(3);
+        }
+    }
+
+    public void testLookupJoinScope6() {
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM cluster-a:logs-*
+                | WHERE v IN (ROW v = 0::long)
+                | LOOKUP JOIN values_lookup ON v == lookup_key
+                | SORT v
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(0L))));
+            }
+        } finally {
+            clearSkipUnavailable(3);
+        }
+    }
+
+    public void testLookupJoinScope7() {
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM cluster-a:logs-*
+                | FORK (WHERE v IN (ROW v = 0::long))
+                       (WHERE v IN (ROW v = 0::long))
+                | LOOKUP JOIN values_lookup ON v == lookup_key
+                | SORT v
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(0L), List.of(0L))));
+            }
+        } finally {
+            clearSkipUnavailable(3);
+        }
+    }
+
+
     /**
      * A WHERE IN subquery whose body contains a LOOKUP JOIN referencing a remote lookup index,
      * with {@code skipUnavailable=true}. The subquery filters {@code remote-b:logs-2} to
@@ -792,8 +976,9 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
         assertThat(ex.getMessage(), containsString("Unknown index [remote-b:missing_lookup]"));
 
         // (7) Everything at once: a FROM-union whose first branch carries a LOOKUP JOIN (local), a WHERE IN subquery carrying
-        // another LOOKUP JOIN (remote-b), and a top-level LOOKUP JOIN after the WHERE that reads the whole FROM-union
-        // (local + cluster-a). The combined field-caps request reports the missing index on all three clusters.
+        // another LOOKUP JOIN (remote-b), and a top-level LOOKUP JOIN after the WHERE. The top-level lookup sits above the
+        // FROM-union, which merges on the coordinator, so it is local too - cluster-a (the union's other branch) does not
+        // feed it. The combined field-caps request reports the missing index on the local cluster and remote-b only.
         ex = expectThrows(VerificationException.class, () -> runQuery("""
             FROM (FROM logs-* | LOOKUP JOIN missing_lookup ON v == lookup_key | KEEP v),
                  (FROM cluster-a:logs-* | KEEP v)
@@ -804,7 +989,7 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
         assertThat(
             ex.getMessage(),
             allOf(
-                containsString("cluster-a:missing_lookup"),
+                not(containsString("cluster-a:missing_lookup")),
                 containsString("remote-b:missing_lookup"),
                 // the local cluster contributes the unqualified name; its position in the comma-joined list is not guaranteed
                 anyOf(containsString("[missing_lookup,"), containsString(",missing_lookup"))

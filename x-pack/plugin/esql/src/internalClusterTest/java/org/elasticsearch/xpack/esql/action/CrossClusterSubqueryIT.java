@@ -511,20 +511,25 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
             "Requires subquery in FROM command with implicit LIMIT removed",
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
         );
+        // The LOOKUP JOIN sits after the FROM-union: the union's branches are merged on the coordinator before the join
+        // runs, so the join executes locally and only the local cluster's lookup index is needed.
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
-        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
-        populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
 
-        // lookup join in main query after subqueries is not supported yet, as UnionAll is executed on the coordinating node
-        // TODO lookup join cannot be executed after UnionAll, either rewrite the query or wait until this limitation is lifted
-        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
-            FROM logs-*,(FROM c*:logs-*), (FROM r*:logs-*)
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM logs-*,(FROM c*:logs-*), (FROM r*:logs-*) metadata _index
             |  LOOKUP JOIN values_lookup on v == lookup_key
-            """, randomBoolean()));
-        assertThat(
-            ex.getMessage(),
-            containsString("LOOKUP JOIN with remote indices can't be executed after [logs-*,(FROM c*:logs-*), (FROM r*:logs-*)]")
-        );
+            | KEEP tag, v, _index, lookup_tag
+            | SORT _index, v
+            """, randomBoolean())) {
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("tag", "v", "_index", "lookup_tag"));
+
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(30));
+
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertCCSExecutionInfoDetails(executionInfo);
+        }
     }
 
     public void testSubqueryWithLookupJoinIndicesExistOnAllClustersReferencedBySubqueries() {
@@ -878,28 +883,36 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    // Same limitation as testSubqueryWithLookupJoinInMainQuery
     public void testSubqueryWithRowAndLookupJoinInMainQuery() {
         checkSubqueryWithRowSupport();
-        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 1);
-        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 1);
-        populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 1);
+        // The LOOKUP JOIN sits after the FROM-union: the union's branches are merged on the coordinator before the join
+        // runs, so the join executes locally and only the local cluster's lookup index is needed.
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
 
-        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+        try (EsqlQueryResponse resp = runQuery("""
             FROM
                 (FROM logs-* | where v == 6),
                 (FROM *:logs-* | where v == 4),
                 (ROW v = TO_LONG(4), tag = "row")
             |  LOOKUP JOIN values_lookup on v == lookup_key
-            """, randomBoolean()));
-        assertThat(
-            ex.getMessage(),
-            allOf(
-                containsString("LOOKUP JOIN with remote indices can't be executed after [(FROM logs-* | where v == 6),"),
-                containsString("(FROM *:logs-* | where v == 4),"),
-                containsString("(ROW v = TO_LONG(4), tag = \"row\")]")
-            )
-        );
+            | KEEP tag, v, lookup_tag
+            | SORT tag, v, lookup_tag
+            """, randomBoolean())) {
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("tag", "v", "lookup_tag"));
+
+            List<List<Object>> values = getValuesList(resp);
+            List<List<Object>> expected = List.of(
+                List.of("local", 6L, "local"),
+                List.of("remote", 4L, "local"),
+                List.of("remote", 4L, "local"),
+                List.of("row", 4L, "local")
+            );
+            assertEquals(expected, values);
+
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertCCSExecutionInfoDetails(executionInfo);
+        }
     }
 
     public void testSubqueryWithRowAndLookupIndicesExistOnClustersReferencedBySubquery() {
@@ -942,9 +955,10 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
                 (ROW v = TO_LONG(4))
             | LOOKUP JOIN missing_lookup ON v == lookup_key
             """, randomBoolean()));
-        // The main-query LOOKUP JOIN reads from both cluster-a (logs-*) and the local cluster (the ROW branch), so the
-        // lookup index is resolved against both and the single combined field-caps request reports both as missing.
-        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:missing_lookup,missing_lookup]"));
+        // The main-query LOOKUP JOIN sits after the FROM-union: the union's branches (cluster-a and the ROW) are merged
+        // on the coordinator before the join runs, so the join executes locally and the lookup index is resolved against
+        // the local cluster only.
+        assertThat(ex.getMessage(), containsString("Unknown index [missing_lookup]"));
 
         ex = expectThrows(VerificationException.class, () -> runQuery("""
             FROM
@@ -1039,15 +1053,15 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    // Same limitation as testSubqueryWithLookupJoinInMainQuery
     public void testSubqueryWithTSAndLookupJoinInMainQuery() {
         checkSubqueryWithTSSupport();
         populateTimeSeriesIndex(REMOTE_CLUSTER_1, "metrics");
         populateTimeSeriesIndex(REMOTE_CLUSTER_2, "metrics");
-        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 1);
-        populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 1);
+        // The LOOKUP JOIN sits after the FROM-union: the union's branches are merged on the coordinator before the join
+        // runs, so the join executes locally and only the local cluster's lookup index is needed.
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
 
-        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+        try (EsqlQueryResponse resp = runQuery("""
             FROM
                 (TS cluster-a:metrics
                  | WHERE host == "h1"
@@ -1058,8 +1072,26 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
                  | EVAL key = TO_LONG(cpu)
                  | KEEP cluster_tag, key)
             | LOOKUP JOIN values_lookup ON key == lookup_key
-            """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("LOOKUP JOIN with remote indices can't be executed after [(TS cluster-a:metrics"));
+            | KEEP cluster_tag, key, lookup_tag
+            | SORT cluster_tag, key
+            """, randomBoolean())) {
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("cluster_tag", "key", "lookup_tag"));
+
+            List<List<Object>> values = getValuesList(resp);
+            List<List<Object>> expected = List.of(
+                List.of(REMOTE_CLUSTER_1, 1L, "local"),
+                List.of(REMOTE_CLUSTER_1, 2L, "local"),
+                List.of(REMOTE_CLUSTER_1, 3L, "local"),
+                List.of(REMOTE_CLUSTER_2, 1L, "local"),
+                List.of(REMOTE_CLUSTER_2, 2L, "local"),
+                List.of(REMOTE_CLUSTER_2, 3L, "local")
+            );
+            assertEquals(expected, values);
+
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertCCSExecutionInfoDetails(executionInfo);
+        }
     }
 
     public void testSubqueryWithTSAndLookupIndicesExistOnClustersReferencedBySubquery() {

@@ -103,6 +103,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
@@ -1481,14 +1482,19 @@ public class EsqlSession {
      * For any {@link AbstractSubqueryJoin} (SEMI/ANTI/MARK) that {@code InSubqueryResolver} produces for {@code field IN (subquery)}, only
      * the left child carries rows into the subsequent plan; the right child does not contribute source clusters to this join.
      * So {@code ... | WHERE x IN (FROM remote:idx) | LOOKUP JOIN ...} scopes the lookup to the outer source only, not to {@code remote}.
-     * A {@code FROM a, b} union ({@code Fork}/{@code UnionAll}) instead reads from every branch, so all of its children are followed.
      * The behavior is validated by {@code CrossClusterInSubqueryIT.testMissingLookupIndexAfterWhereInSubquery}
+     * <p>
+     * A {@code FROM a, b} union ({@link Fork}/{@code UnionAll}) merges its branches on the coordinator, so a LOOKUP JOIN sitting above it
+     * runs on the coordinator too: the union contributes only the local cluster and its branches are not followed (mirrors the
+     * {@link Row} case below). A union nested inside one of the join's own branches is unaffected - it is reached again, on its own,
+     * once the recursion walks into that branch.
      * <p>
      * Each index source contributes the clusters its pattern resolved to; a {@link Row} - a coordinator-only source carrying no index
      * relation - contributes the local cluster. The behavior is validated by
      * {@code CrossClusterInSubqueryIT.testMissingLookupIndexInsideWhereInSubquery} and
      * {@code CrossClusterSubqueryIT.testSubqueryWithRowAndLookupIndicesMissingOnClustersReferencedBySubquery}.
      */
+
     private static void collectLookupJoinLeftScope(
         LogicalPlan plan,
         Set<String> scope,
@@ -1502,6 +1508,8 @@ public class EsqlSession {
                 }
             }
             case Row row -> scope.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            case Fork fork ->
+                scope.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             case AbstractSubqueryJoin subqueryJoin -> collectLookupJoinLeftScope(subqueryJoin.left(), scope, indexResolution);
             default -> {
                 for (LogicalPlan child : plan.children()) {

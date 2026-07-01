@@ -157,7 +157,7 @@ public class EsqlSessionTests extends ESTestCase {
             var resolution = createIndexResolution("remote:index");
             assertThat(
                 EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution),
-                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "remote"))
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
             );
         }
         {
@@ -208,9 +208,10 @@ public class EsqlSessionTests extends ESTestCase {
             );
             assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup-1", resolution), equalTo(Set.of("remote-1")));
             assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup-2", resolution), equalTo(Set.of("remote-2")));
+            // lookup-3 joins on the merged output of the FROM-union: the union runs on the coordinator, so the join is local
             assertThat(
                 EsqlSession.computeLookupJoinIndexScope(plan, "lookup-3", resolution),
-                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "remote-1", "remote-2"))
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
             );
         }
         {
@@ -223,6 +224,16 @@ public class EsqlSessionTests extends ESTestCase {
                 """);
             var resolution = createIndexResolution("remote-1:data", "remote-2:data");
             assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution), equalTo(Set.of("remote-1", "remote-2")));
+        }
+        {
+            // LOOKUP JOIN sits AFTER a FROM-union: the union's branches are merged on the coordinator, so the join is local
+            // even though both branches read from remote clusters.
+            var plan = TEST_PARSER.parseQuery("FROM (FROM remote-1:a), (FROM remote-2:a) | LOOKUP JOIN lookup ON key");
+            var resolution = createIndexResolution("remote-1:a", "remote-2:a");
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
         }
     }
 
@@ -352,8 +363,9 @@ public class EsqlSessionTests extends ESTestCase {
         }
         {
             // Everything at once: a FROM-union whose first branch carries a LOOKUP JOIN (local), a WHERE IN subquery carrying
-            // another LOOKUP JOIN (remote-2), and a top-level LOOKUP JOIN after the WHERE. The top-level lookup reads from the
-            // whole FROM-union (local + remote-1). The scope is the union of all three lookups' data sources.
+            // another LOOKUP JOIN (remote-2), and a top-level LOOKUP JOIN after the WHERE. The top-level lookup sits above the
+            // FROM-union, which merges on the coordinator, so it is local too - remote-1 (the union's other branch) does not
+            // feed it. The scope is the union of all three lookups' data sources: local, local, remote-2.
             var plan = InSubqueryResolver.resolve(TEST_PARSER.parseQuery("""
                 FROM (FROM local-main | LOOKUP JOIN lookup ON x),
                      (FROM remote-1:b)
@@ -363,7 +375,57 @@ public class EsqlSessionTests extends ESTestCase {
             var resolution = createIndexResolution("local-main", "remote-1:b", "remote-2:c");
             assertThat(
                 EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution),
-                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "remote-1", "remote-2"))
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "remote-2"))
+            );
+        }
+        {
+            var plan = InSubqueryResolver.resolve(TEST_PARSER.parseQuery("FROM local-main | WHERE x IN (FROM (FROM remote-1:a), (FROM remote-2:a) | LOOKUP JOIN lookup ON key)"));
+            var resolution = createIndexResolution("remote-1:a", "remote-2:a");
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
+        }
+        {
+            var plan = InSubqueryResolver.resolve(
+                TEST_PARSER.parseQuery(
+                    "FROM remote-0:a | WHERE x IN (FROM (FROM remote-1:a), (FROM remote-2:a) | LOOKUP JOIN lookup ON key)"
+                )
+            );
+            var resolution = createIndexResolution("remote-0:a", "remote-1:a", "remote-2:a");
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
+        }
+    }
+
+    public void testScope() {
+        {
+            var plan = InSubqueryResolver.resolve(
+                TEST_PARSER.parseQuery(
+                    "FROM remote-0:a | WHERE x IN (FROM (FROM remote-1:a), (FROM remote-2:a) | LOOKUP JOIN lookup ON key)"
+                )
+            );
+            var resolution = createIndexResolution("remote-0:a", "remote-1:a", "remote-2:a");
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
+        }
+    }
+
+    public void testScope2() {
+        {
+            var plan = InSubqueryResolver.resolve(
+                TEST_PARSER.parseQuery(
+                    "FROM (FROM remote-1:a), (FROM remote-2:a) | LOOKUP JOIN lookup ON key)"
+                )
+            );
+            var resolution = createIndexResolution("remote-0:a", "remote-1:a", "remote-2:a");
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
             );
         }
     }

@@ -1441,9 +1441,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Only {@link EsRelation} needs to be considered: this runs from {@link #resolveLookupJoin} inside
          * {@link ResolveRefs}, which is guarded by {@code childrenResolved()}, so by the time we get here the left
          * subtree is fully resolved and cannot contain an {@link UnresolvedRelation}.
+         * <p>
+         * Stops descending at a {@link Fork} (covers {@code UnionAll}): its branches are merged on the coordinator before
+         * any plan above it runs, so a LOOKUP JOIN sitting above a {@code Fork} executes locally regardless of whether the
+         * branches themselves read remote indices. This mirrors {@code EsqlSession#collectLookupJoinLeftScope}, which scopes
+         * such a join to the local cluster only.
          */
         private static boolean leftSideReadsFromIndices(LogicalPlan plan) {
-            return plan.anyMatch(p -> p instanceof EsRelation relation && relation.indexMode() != IndexMode.LOOKUP);
+            if (plan instanceof Fork) {
+                return false;
+            }
+            if (plan instanceof EsRelation relation && relation.indexMode() != IndexMode.LOOKUP) {
+                return true;
+            }
+            for (LogicalPlan child : plan.children()) {
+                if (leftSideReadsFromIndices(child)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /**

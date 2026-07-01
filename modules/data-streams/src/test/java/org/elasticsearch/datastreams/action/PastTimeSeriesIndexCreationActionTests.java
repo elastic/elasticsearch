@@ -87,7 +87,7 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
         {
             ClusterState state = stateWithNoTsdbIndices();
             DataStream ds = state.projectState(projectId).metadata().dataStreams().get(DATA_STREAM);
-            var result = PastTimeSeriesIndexCreationExecutor.sortAndRetrieveCoveredTimeWindows(
+            var result = PastTimeSeriesIndexCreationExecutor.retrieveSortedTimeWindows(
                 ds,
                 state.projectState(projectId).metadata()
             );
@@ -114,7 +114,7 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
             DataStream mixedDs = project.dataStreams().get(DATA_STREAM).unsafeAddBackingIndex(nonTsdb.getIndex());
             project = ProjectMetadata.builder(project).put(nonTsdb, false).put(mixedDs).build();
 
-            var result = PastTimeSeriesIndexCreationExecutor.sortAndRetrieveCoveredTimeWindows(
+            var result = PastTimeSeriesIndexCreationExecutor.retrieveSortedTimeWindows(
                 project.dataStreams().get(DATA_STREAM),
                 project
             );
@@ -151,7 +151,7 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
                 now
             ).projectState(projectId).metadata();
 
-            var result = PastTimeSeriesIndexCreationExecutor.sortAndRetrieveCoveredTimeWindows(
+            var result = PastTimeSeriesIndexCreationExecutor.retrieveSortedTimeWindows(
                 project.dataStreams().get(DATA_STREAM),
                 project
             );

@@ -371,7 +371,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             ClusterState updatedClusterState = clusterState;
 
             // From the oldest to the newest
-            Deque<CoveredTimeWindow> stack = sortAndRetrieveCoveredTimeWindows(dataStream, currentProject);
+            Deque<CoveredTimeWindow> stack = retrieveSortedTimeWindows(dataStream, currentProject);
             if (stack.isEmpty()) {
                 throw new IllegalStateException(
                     "Cannot create past TSDB backing index for data stream ["
@@ -464,8 +464,10 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             return updatedClusterState;
         }
 
-        // Package-visible for testing
-        static Deque<CoveredTimeWindow> sortAndRetrieveCoveredTimeWindows(DataStream dataStream, ProjectMetadata currentProject) {
+        /**
+         * Iterates over the backing index time boundaries and consolidates them into continuous time windows sorted in a queue.
+         */
+        static Deque<CoveredTimeWindow> retrieveSortedTimeWindows(DataStream dataStream, ProjectMetadata currentProject) {
             List<CoveredTimeWindow> coveredTimeWindows = new ArrayList<>();
             for (Index existingIndex : dataStream.getIndices()) {
                 IndexMetadata im = currentProject.index(existingIndex);

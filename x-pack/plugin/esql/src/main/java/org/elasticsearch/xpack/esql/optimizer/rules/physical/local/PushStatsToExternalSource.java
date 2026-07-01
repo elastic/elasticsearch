@@ -64,9 +64,10 @@ import java.util.Set;
  * those predicates narrow the scanned rows; footer split stats do not reflect them after
  * {@link PushFiltersToSource} removes the enclosing {@code FilterExec}.
  * <p>
- * Note: MIN/MAX pushdown uses raw values from file metadata. For DATE/TIMESTAMP columns,
- * the raw values may not match ESQL's millisecond representation. A future enhancement
- * should convert these values using the column's data type.
+ * Note: MIN/MAX pushdown uses values from file metadata. Temporal columns (DATE/TIMESTAMP/INT96)
+ * are decoded to ESQL's epoch-millisecond representation at stat-publication time by the format
+ * reader (see {@code ParquetColumnDecoding#decodeTemporalStat}), so the pushed values already match
+ * the scan path.
  */
 public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerRule<AggregateExec> {
 

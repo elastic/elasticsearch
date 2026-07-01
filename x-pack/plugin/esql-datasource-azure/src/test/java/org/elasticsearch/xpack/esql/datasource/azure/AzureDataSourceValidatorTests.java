@@ -127,7 +127,8 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
     }
 
     public void testValidateDatasourceWithSasToken() {
-        assertTrue(validator.validateDatasource(Map.of("sas_token", "?sv=2020")).get("sas_token").secret());
+        // account + sas_token is the complete SAS form (sas_token alone is rejected as incomplete).
+        assertTrue(validator.validateDatasource(Map.of("account", "acc", "sas_token", "?sv=2020")).get("sas_token").secret());
     }
 
     public void testValidateDatasourceWithConnectionString() {
@@ -209,6 +210,8 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
 
     public void testValidateDatasourceSkipsNullValues() {
         var settings = new java.util.HashMap<String, Object>();
+        // auth=anonymous makes the credential-less config resolvable; the null-skipping behavior is what's under test.
+        settings.put("auth", "anonymous");
         settings.put("account", "myaccount");
         settings.put("endpoint", null);
         var result = validator.validateDatasource(settings);

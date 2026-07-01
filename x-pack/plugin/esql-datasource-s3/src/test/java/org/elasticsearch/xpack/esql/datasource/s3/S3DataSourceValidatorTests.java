@@ -187,15 +187,18 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasourceAccumulatesMultipleErrors() {
+        // Complete credentials keep auto resolvable, so the only accumulated errors are the two distinct unknown fields.
         var e = expectThrows(
             ValidationException.class,
-            () -> validator.validateDatasource(Map.of("unknown_field", "x", "also_unknown", "y"))
+            () -> validator.validateDatasource(Map.of("unknown_field", "x", "also_unknown", "y", "access_key", "ak", "secret_key", "sk"))
         );
         assertEquals(2, e.validationErrors().size());
     }
 
     public void testValidateDatasourceSkipsNullValues() {
         var settings = new HashMap<String, Object>();
+        // auth=anonymous makes the credential-less config resolvable; the null-skipping behavior is what's under test.
+        settings.put("auth", "anonymous");
         settings.put("region", "us-east-1");
         settings.put("endpoint", null);
         var result = validator.validateDatasource(settings);

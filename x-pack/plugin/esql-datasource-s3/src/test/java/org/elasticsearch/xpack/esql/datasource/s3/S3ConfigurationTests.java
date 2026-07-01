@@ -219,8 +219,9 @@ public class S3ConfigurationTests extends ESTestCase {
     }
 
     public void testNotEqualsWithDifferentAuth() {
+        // Two resolvable configs differing only in auth: anonymous vs managed_identity (neither needs a secret).
         S3Configuration config1 = S3Configuration.fromFields(null, null, "ep", null, "anonymous");
-        S3Configuration config2 = S3Configuration.fromFields(null, null, "ep", null, null);
+        S3Configuration config2 = S3Configuration.fromFields(null, null, "ep", null, "managed_identity");
         assertNotEquals(config1, config2);
     }
 

@@ -127,28 +127,34 @@ public class S3StorageProvider implements StorageProvider {
         int maxConnections
     ) {
         this.config = config;
-        // Set first so that workloadIdentityProviders() (called via credentialsProvider() ->
-        // buildWorkloadIdentityCredentialsProvider() on the auth=managed_identity path) can read it.
+        // Set first so that workloadIdentityProviders() (called from buildWorkloadIdentityCredentialsProvider() on
+        // the MANAGED_IDENTITY path) can read it.
         this.webIdentityTokenCredentialsProvider = webIdentityTokenCredentialsProvider;
-        final IdentityProvider<? extends AwsCredentialsIdentity> credentials;
         StsAsyncClient sts = null;
         S3Client s3 = null;
         boolean success = false;
         try {
-            if (config != null && config.hasKeylessAuth()) {
-                // Resolve the issuer client (and assert it is enabled) before allocating the STS client, so a
-                // disabled-feature misconfiguration fails fast without leaking the STS client's Netty resources.
-                WorkloadIdentityIssuerClient issuerClient = enabledWorkloadIdentityIssuerClient();
-                // One STS async client and one credentials provider, shared by both S3 clients so a single token
-                // cache and a single single-flight refresh back every request.
-                sts = buildStsAsyncClient(config);
-                credentials = buildWorkloadIdentityCredentialsProvider(config, issuerClient, sts);
-            } else {
-                // auth=anonymous / auth=managed_identity (IMDS / IRSA / Pod Identity / EC2) / static creds all flow
-                // through credentialsProvider(); its return type AwsCredentialsProvider is a subtype of
-                // IdentityProvider<AwsCredentialsIdentity>.
-                credentials = credentialsProvider(config);
+            if (config == null) {
+                // The datasource layer always builds a provider from a validated configuration.
+                throw new IllegalArgumentException("S3 data source requires a configuration");
             }
+            // Select the credential mechanism from the resolved auth mode. Field inference happens only inside
+            // resolveAuthMode()'s auto branch; every explicit mode maps straight to its case here.
+            final IdentityProvider<? extends AwsCredentialsIdentity> credentials = switch (config.resolveAuthMode()) {
+                case ANONYMOUS -> AnonymousCredentialsProvider.create();
+                case STATIC_CREDENTIALS -> buildStaticCredentials(config);
+                case FEDERATED_IDENTITY -> {
+                    // Resolve the issuer client (and assert it is enabled) before allocating the STS client, so a
+                    // disabled-feature misconfiguration fails fast without leaking the STS client's Netty resources.
+                    WorkloadIdentityIssuerClient issuerClient = enabledWorkloadIdentityIssuerClient();
+                    // One STS async client and one credentials provider, shared by both S3 clients so a single token
+                    // cache and a single single-flight refresh back every request.
+                    sts = buildStsAsyncClient(config);
+                    yield buildWorkloadIdentityCredentialsProvider(config, issuerClient, sts);
+                }
+                // IMDS / IRSA / Pod Identity / EC2 chain; populates ownedWorkloadIdentityProviders (closed in the finally).
+                case MANAGED_IDENTITY -> buildWorkloadIdentityCredentialsProvider();
+            };
             s3 = buildS3Client(config, credentials);
             this.stsAsyncClient = sts;
             this.s3Client = s3;
@@ -288,48 +294,17 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     /**
-     * Builds the AWS credentials provider for the given configuration:
-     * <ul>
-     *   <li>{@code auth=anonymous} — anonymous (unsigned) requests</li>
-     *   <li>{@code auth=managed_identity} — chain in order: EKS IRSA via the entitled
-     *       web-identity token symlink (when the node provides
-     *       {@link CustomWebIdentityTokenCredentialsProvider}), then ECS task role / EKS Pod
-     *       Identity via {@link ContainerCredentialsProvider} (with the auth-token file path
-     *       redirected to {@code ${ES_PATH_CONF}/esql-datasource-s3/eks-pod-identity-token} via
-     *       JVM sysprop in {@code S3DataSourcePlugin}), then EC2 instance profile. Env-var and
-     *       system-property providers are excluded (dev/CI convention, not the unattended-server
-     *       posture).</li>
-     *   <li>access_key + secret_key + session_token — STS temporary credentials</li>
-     *   <li>access_key + secret_key — static credentials</li>
-     * </ul>
+     * Builds the static-credential provider for the {@code STATIC_CREDENTIALS} mode: access_key + secret_key, plus a
+     * session_token for STS temporary credentials when present. Validation guarantees access_key and secret_key are
+     * both set for this mode, so this is only reached with a complete static credential.
      */
-    AwsCredentialsProvider credentialsProvider(S3Configuration config) {
-        if (config != null && config.isAnonymous()) {
-            return AnonymousCredentialsProvider.create();
+    static AwsCredentialsProvider buildStaticCredentials(S3Configuration config) {
+        if (Strings.hasText(config.sessionToken())) {
+            return StaticCredentialsProvider.create(
+                AwsSessionCredentials.create(config.accessKey(), config.secretKey(), config.sessionToken())
+            );
         }
-        if (config != null && config.isManagedIdentity()) {
-            return buildWorkloadIdentityCredentialsProvider();
-        }
-        if (config != null && config.hasCredentials()) {
-            if (Strings.hasText(config.sessionToken())) {
-                return StaticCredentialsProvider.create(
-                    AwsSessionCredentials.create(config.accessKey(), config.secretKey(), config.sessionToken())
-                );
-            }
-            return StaticCredentialsProvider.create(AwsBasicCredentials.create(config.accessKey(), config.secretKey()));
-        }
-        if (config != null && Strings.hasText(config.sessionToken())) {
-            // A session token alone cannot authenticate without its access key and secret key.
-            throw new IllegalArgumentException("S3 session_token requires access_key and secret_key");
-        }
-        throw new IllegalArgumentException(
-            "S3 data source requires credentials: provide WITH {\"access_key\": \"...\", \"secret_key\": \"...\"}, "
-                + "optionally WITH {\"session_token\": \"...\"} for STS temporary credentials, "
-                + "WITH {\"auth\": \"anonymous\"} for public buckets, "
-                + "WITH {\"auth\": \"managed_identity\"} to use the node's instance role "
-                + "(requires the esql.datasource.managed_identity.enabled cluster setting), "
-                + "or configure keyless authentication settings (role_arn, jwt_audience)"
-        );
+        return StaticCredentialsProvider.create(AwsBasicCredentials.create(config.accessKey(), config.secretKey()));
     }
 
     /**
@@ -523,14 +498,10 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     private String credentialHint() {
-        if (config == null
-            || (config.isAnonymous() == false
-                && config.hasCredentials() == false
-                && config.hasKeylessAuth() == false
-                && config.isManagedIdentity() == false)) {
-            return ". If accessing a public bucket, use WITH {\"auth\": \"anonymous\"}. "
-                + "Otherwise, provide credentials via WITH {\"access_key\": \"...\", \"secret_key\": \"...\"} "
-                + "or configure keyless authentication settings (role_arn, jwt_audience)";
+        if (config == null || config.resolveAuthModeOrNull() == null) {
+            return ". If accessing a public bucket, set auth=anonymous. "
+                + "Otherwise, provide credentials via access_key and secret_key, "
+                + "or configure keyless authentication with role_arn and jwt_audience";
         }
         return "";
     }

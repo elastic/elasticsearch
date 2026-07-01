@@ -111,16 +111,40 @@ public class AzureConfigurationTests extends ESTestCase {
         assertTrue(config.hasCredentials());
     }
 
-    public void testHasCredentialsWithoutCredentials() {
-        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://endpoint");
-        assertFalse(config.hasCredentials());
+    public void testSasTokenWithoutAccountRejectedAtCreate() {
+        // sas_token alone is not a complete static credential — the provider needs account+sas. Requiring account
+        // means auto has nothing to resolve, so it is rejected at create rather than resolving to static and failing
+        // at query time. (Explicit auth=static_credentials with sas-alone is rejected the same way.)
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> AzureConfiguration.fromFields(null, null, null, "?sv=2020-01-01", null)
+        );
+        assertTrue(e.getMessage().contains("requires credentials"));
+
+        ValidationException explicit = expectThrows(
+            ValidationException.class,
+            () -> AzureConfiguration.fromFields(null, null, null, "?sv=2020-01-01", null, "static_credentials")
+        );
+        assertTrue(explicit.getMessage().contains("requires complete explicit credentials"));
     }
 
-    public void testHasCredentialsWithWhitespaceSasTokenIsAbsent() {
-        // A whitespace-only SAS token is treated as absent (consistent with S3/GCS short-lived tokens),
-        // so it does not count as credentials.
-        AzureConfiguration config = AzureConfiguration.fromFields(null, "account", null, "   ", null);
-        assertFalse(config.hasCredentials());
+    public void testWithoutCredentialsRejectedAtCreate() {
+        // Only an endpoint, no credential — auto has nothing to resolve, so construction is rejected at create.
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> AzureConfiguration.fromFields(null, null, null, null, "https://endpoint")
+        );
+        assertTrue(e.getMessage().contains("requires credentials"));
+    }
+
+    public void testWhitespaceSasTokenIsAbsentRejectedAtCreate() {
+        // A whitespace-only SAS token is treated as absent (consistent with S3/GCS short-lived tokens), so it does
+        // not count as credentials — leaving auto unresolvable, which is rejected at create.
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> AzureConfiguration.fromFields(null, "account", null, "   ", null)
+        );
+        assertTrue(e.getMessage().contains("requires credentials"));
     }
 
     public void testEqualsAndHashCodeSameValues() {

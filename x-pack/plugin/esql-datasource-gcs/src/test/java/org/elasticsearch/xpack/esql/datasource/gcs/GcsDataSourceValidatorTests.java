@@ -166,6 +166,8 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
 
     public void testValidateDatasourceSkipsNullValues() {
         var settings = new HashMap<String, Object>();
+        // auth=anonymous makes the credential-less config resolvable; the null-skipping behavior is what's under test.
+        settings.put("auth", "anonymous");
         settings.put("project_id", "my-project");
         settings.put("endpoint", null);
         var result = validator.validateDatasource(settings);

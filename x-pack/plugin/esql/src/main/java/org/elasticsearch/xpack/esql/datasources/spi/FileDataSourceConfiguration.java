@@ -174,8 +174,18 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
                 errors.addValidationError("auth=federated_identity cannot be combined with explicit credentials");
             }
         }
-        if (secrets && keyless) {
-            errors.addValidationError("explicit credentials cannot be combined with keyless authentication settings");
+        // auto (or omitted) resolves the mode from the fields present; reject a config that resolves to nothing here
+        // rather than deferring the failure to query time. Uses the same predicates resolveAuthMode() infers on
+        // (a complete credential or keyless settings), so a config that passes validation is always resolvable.
+        if (isAuto()) {
+            if (hasCredentials() == false && keyless == false) {
+                errors.addValidationError(unresolvedAuthMessage());
+            }
+            // The per-mode branches above already forbid secret+keyless for every explicit mode; auto is the only
+            // path where the two can arrive together, so the conflict check is scoped here.
+            if (secrets && keyless) {
+                errors.addValidationError("explicit credentials cannot be combined with keyless authentication settings");
+            }
         }
         validateCredentials(errors);
     }
@@ -213,6 +223,68 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
     public boolean isManagedIdentity() {
         return isManagedIdentityAuth(auth());
     }
+
+    /** Returns true when the mode is unspecified — {@code auth=auto} or omitted — so it is resolved from the fields present. */
+    private boolean isAuto() {
+        String auth = auth();
+        return auth == null || AUTH_AUTO.equals(auth);
+    }
+
+    /** The resolved credential-selection mode a provider builds a mechanism for. */
+    public enum AuthMode {
+        ANONYMOUS,
+        STATIC_CREDENTIALS,
+        FEDERATED_IDENTITY,
+        MANAGED_IDENTITY
+    }
+
+    /**
+     * Resolves the credential-selection mode. An explicit {@code auth} value maps straight to its mode — no field
+     * inference. Only {@code auto}/omitted infers the mode from the fields present, which is the single inference
+     * site in the datasource stack. Returns {@code null} only for an unresolvable {@code auto} config (no complete
+     * credential and no keyless settings); {@link #validate} rejects that at create time, so any validated config
+     * always resolves to a non-null mode.
+     */
+    public AuthMode resolveAuthModeOrNull() {
+        if (isAnonymous()) {
+            return AuthMode.ANONYMOUS;
+        }
+        if (isStaticCredentials()) {
+            return AuthMode.STATIC_CREDENTIALS;
+        }
+        if (isFederatedIdentity()) {
+            return AuthMode.FEDERATED_IDENTITY;
+        }
+        if (isManagedIdentity()) {
+            return AuthMode.MANAGED_IDENTITY;
+        }
+        // auto or omitted — the only place field inference happens
+        if (hasKeylessAuth()) {
+            return AuthMode.FEDERATED_IDENTITY;
+        }
+        if (hasCredentials()) {
+            return AuthMode.STATIC_CREDENTIALS;
+        }
+        return null;
+    }
+
+    /**
+     * The resolved mode, for providers to switch on. Throws for the unresolvable-{@code auto} case, which is
+     * unreachable for a config that passed {@link #validate} (defense-in-depth).
+     */
+    public AuthMode resolveAuthMode() {
+        AuthMode mode = resolveAuthModeOrNull();
+        if (mode == null) {
+            throw new IllegalArgumentException(unresolvedAuthMessage());
+        }
+        return mode;
+    }
+
+    /**
+     * Per-CSP message naming the credential fields that would make an {@code auto} config resolvable. Used by
+     * {@link #validate} for the create-time rejection and by {@link #resolveAuthMode}'s defensive throw.
+     */
+    public abstract String unresolvedAuthMessage();
 
     /**
      * Returns true when the raw {@code auth} value selects managed-identity. Shared so the inline-WITH gate in

@@ -53,24 +53,19 @@ public class GcsConfigurationTests extends ESTestCase {
         assertTrue(config.hasCredentials());
     }
 
-    public void testFromMapWithProjectIdOnly() {
-        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("project_id", "my-project"));
-
-        assertNotNull(config);
-        assertNull(config.serviceAccountCredentials());
-        assertEquals("my-project", config.projectId());
-        assertNull(config.endpoint());
-        assertFalse(config.hasCredentials());
+    public void testProjectIdOnlyRejectedAtCreate() {
+        // project_id carries no credential, so auto (omitted auth) resolves to nothing and is rejected at create.
+        ValidationException e = expectThrows(ValidationException.class, () -> GcsConfiguration.fromMap(Map.of("project_id", "my-project")));
+        assertTrue(e.getMessage().contains("requires credentials"));
     }
 
-    public void testFromMapWithEndpointOnly() {
-        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("endpoint", "http://localhost:4443"));
-
-        assertNotNull(config);
-        assertNull(config.serviceAccountCredentials());
-        assertNull(config.projectId());
-        assertEquals("http://localhost:4443", config.endpoint());
-        assertFalse(config.hasCredentials());
+    public void testEndpointOnlyRejectedAtCreate() {
+        // endpoint carries no credential, so auto (omitted auth) resolves to nothing and is rejected at create.
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> GcsConfiguration.fromMap(Map.of("endpoint", "http://localhost:4443"))
+        );
+        assertTrue(e.getMessage().contains("requires credentials"));
     }
 
     public void testFromMapWithNullMapReturnsNull() {
@@ -105,13 +100,13 @@ public class GcsConfigurationTests extends ESTestCase {
         assertTrue(config.hasCredentials());
     }
 
-    public void testFromFieldsWithNullCredentials() {
-        GcsConfiguration config = GcsConfiguration.fromFields(null, "my-project", "http://localhost:4443");
-
-        assertNotNull(config);
-        assertNull(config.serviceAccountCredentials());
-        assertEquals("my-project", config.projectId());
-        assertFalse(config.hasCredentials());
+    public void testNullCredentialsRejectedAtCreate() {
+        // Null credentials with only project_id/endpoint leaves auto with nothing to resolve — rejected at create.
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> GcsConfiguration.fromFields(null, "my-project", "http://localhost:4443")
+        );
+        assertTrue(e.getMessage().contains("requires credentials"));
     }
 
     public void testFromFieldsWithAllNullReturnsNull() {
@@ -123,9 +118,10 @@ public class GcsConfigurationTests extends ESTestCase {
         assertTrue(config.hasCredentials());
     }
 
-    public void testHasCredentialsWithoutCredentials() {
-        GcsConfiguration config = GcsConfiguration.fromFields(null, "my-project", null);
-        assertFalse(config.hasCredentials());
+    public void testWithoutCredentialsRejectedAtCreate() {
+        // No credential field set — auto has nothing to resolve, so construction is rejected at create.
+        ValidationException e = expectThrows(ValidationException.class, () -> GcsConfiguration.fromFields(null, "my-project", null));
+        assertTrue(e.getMessage().contains("requires credentials"));
     }
 
     public void testEqualsAndHashCodeSameValues() {
@@ -173,8 +169,9 @@ public class GcsConfigurationTests extends ESTestCase {
     }
 
     public void testEqualsWithNullFields() {
-        GcsConfiguration config1 = GcsConfiguration.fromFields(null, null, "endpoint");
-        GcsConfiguration config2 = GcsConfiguration.fromFields(null, null, "endpoint");
+        // anonymous makes the no-credential config resolvable; equality still exercises the null credentials/project_id fields.
+        GcsConfiguration config1 = GcsConfiguration.fromFields(null, null, "endpoint", null, "anonymous");
+        GcsConfiguration config2 = GcsConfiguration.fromFields(null, null, "endpoint", null, "anonymous");
 
         assertEquals(config1, config2);
         assertEquals(config1.hashCode(), config2.hashCode());

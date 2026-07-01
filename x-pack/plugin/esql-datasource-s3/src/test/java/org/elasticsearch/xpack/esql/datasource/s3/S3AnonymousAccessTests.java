@@ -155,9 +155,12 @@ public class S3AnonymousAccessTests extends ESTestCase {
         assertFalse(credentials.isAnonymous());
         assertTrue(credentials.hasCredentials());
 
-        S3Configuration defaultChain = S3Configuration.fromFields(null, null, "http://endpoint", null);
-        assertFalse(defaultChain.isAnonymous());
-        assertFalse(defaultChain.hasCredentials());
+        // A credential-less, non-anonymous config no longer parses: auto with nothing to resolve is rejected at create.
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> S3Configuration.fromFields(null, null, "http://endpoint", null)
+        );
+        assertTrue(e.getMessage().contains("requires credentials"));
     }
 
     /**
@@ -179,16 +182,21 @@ public class S3AnonymousAccessTests extends ESTestCase {
         S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "managed_identity");
         assertNotNull(config);
         assertTrue(config.isManagedIdentity());
-        var provider = S3StorageProvider.forTesting(null, null).credentialsProvider(config);
+        assertEquals(
+            org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration.AuthMode.MANAGED_IDENTITY,
+            config.resolveAuthMode()
+        );
+        // The MANAGED_IDENTITY switch arm builds this chain.
+        var provider = S3StorageProvider.forTesting(null, null).buildWorkloadIdentityCredentialsProvider();
         assertThat(provider, instanceOf(software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain.class));
     }
 
     /**
      * Verifies that overriding {@code buildWorkloadIdentityCredentialsProvider()} allows injecting
-     * a test credential — the unit-test seam for wrong-credential counter-proofs.
+     * a test credential — the unit-test seam for wrong-credential counter-proofs. The MANAGED_IDENTITY
+     * switch arm in the constructor selects exactly this provider.
      */
     public void testWorkloadIdentityCredentialOverrideSeam() {
-        S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "managed_identity");
         var injected = software.amazon.awssdk.auth.credentials.StaticCredentialsProvider.create(
             software.amazon.awssdk.auth.credentials.AwsBasicCredentials.create("test-key", "test-secret")
         );
@@ -197,8 +205,12 @@ public class S3AnonymousAccessTests extends ESTestCase {
             protected software.amazon.awssdk.auth.credentials.AwsCredentialsProvider buildWorkloadIdentityCredentialsProvider() {
                 return injected;
             }
-        }.credentialsProvider(config);
-        assertSame("credentialsProvider() must delegate to buildWorkloadIdentityCredentialsProvider()", injected, provider);
+        };
+        assertSame(
+            "overriding buildWorkloadIdentityCredentialsProvider() (the seam the MANAGED_IDENTITY arm calls) returns the injected provider",
+            injected,
+            provider.buildWorkloadIdentityCredentialsProvider()
+        );
     }
 
     /**

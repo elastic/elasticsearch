@@ -303,6 +303,14 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    public void testRateOnHistogramField() {
+        tsdb.error(
+            "PROMQL index=test step=5m histogram_count(rate(request_duration[5m]))",
+            ParsingException.class,
+            containsString("rate() is not supported yet on native histograms; if possible, use increase() instead")
+        );
+    }
+
     public void testHistogramCountOnCounter() {
         tsdb.error(
             "PROMQL index=test step=5m histogram_count(network.bytes_in)",

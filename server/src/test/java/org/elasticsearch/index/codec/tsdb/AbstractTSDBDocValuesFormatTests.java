@@ -26,6 +26,8 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
@@ -2472,6 +2474,61 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 }
             }
         }
+    }
+
+    /**
+     * A conjunction of two doc-values range filters must return exactly the brute-force result. This drives the
+     * two-phase range iterators together through a conjunction scorer (where {@code docIDRunEnd()} is used without
+     * a per-doc match confirmation) over randomized data and ranges.
+     */
+    public void testConjunctionOfRangeFiltersMatchesBruteForce() throws IOException {
+        final String field1 = "dense_value";
+        final String field2 = "dense_value2";
+        int numDocs = randomIntBetween(1024, 4096 * 4);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
+            long ts = BASE_TIMESTAMP;
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, ts));
+                d.add(new SortedNumericDocValuesField(field1, randomLongBetween(0, 16)));
+                d.add(new SortedNumericDocValuesField(field2, randomLongBetween(0, 16)));
+                ts += 1000L;
+                iw.addDocument(d);
+            }
+            iw.forceMerge(1);
+            try (var reader = DirectoryReader.open(iw)) {
+                var leafReader = reader.leaves().getFirst().reader();
+                int maxDoc = leafReader.maxDoc();
+                long[] v1 = readSingleValued(leafReader, field1, maxDoc);
+                long[] v2 = readSingleValued(leafReader, field2, maxDoc);
+                var searcher = new IndexSearcher(reader);
+                for (int iter = 0; iter < 20; iter++) {
+                    long lo1 = randomLongBetween(0, 16), hi1 = randomLongBetween(lo1, 16);
+                    long lo2 = randomLongBetween(0, 16), hi2 = randomLongBetween(lo2, 16);
+                    var query = new BooleanQuery.Builder().add(
+                        SortedNumericDocValuesRangeQuery.newRangeQuery(field1, lo1, hi1),
+                        BooleanClause.Occur.FILTER
+                    ).add(SortedNumericDocValuesRangeQuery.newRangeQuery(field2, lo2, hi2), BooleanClause.Occur.FILTER).build();
+
+                    int expected = 0;
+                    for (int doc = 0; doc < maxDoc; doc++) {
+                        if (lo1 <= v1[doc] && v1[doc] <= hi1 && lo2 <= v2[doc] && v2[doc] <= hi2) {
+                            expected++;
+                        }
+                    }
+                    assertEquals("[" + lo1 + "," + hi1 + "] AND [" + lo2 + "," + hi2 + "]", expected, searcher.count(query));
+                }
+            }
+        }
+    }
+
+    private static long[] readSingleValued(LeafReader reader, String field, int maxDoc) throws IOException {
+        long[] values = new long[maxDoc];
+        var singleton = DocValues.unwrapSingleton(DocValues.getSortedNumeric(reader, field));
+        for (int doc = 0; doc < maxDoc; doc++) {
+            values[doc] = singleton.advanceExact(doc) ? singleton.longValue() : Long.MIN_VALUE;
+        }
+        return values;
     }
 
     /**

@@ -2620,15 +2620,20 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                             @Override
                             public int docIDRunEnd() throws IOException {
                                 final int doc = approximation.docID();
-                                int blockId = doc >>> numericBlockShift;
-                                if (currentBlockIndex == blockId) {
-                                    // We already have a decoded bitmask, find the first non-matching position after doc
-                                    int firstClearBit = nextClearBit((doc & numericBlockMask) + 1, matches);
-                                    return Math.min((blockId << numericBlockShift) + firstClearBit, maxDoc);
+                                if (skipper.maxDocID(0) < doc) {
+                                    skipper.advance(doc);
                                 }
-                                // No decoded block: if the whole skipper block is in range, claim the run extends to its end.
+                                // Whole skipper block in range: every doc matches, so the run extends to the block end.
                                 if (lowerValue <= skipper.minValue(0) && skipper.maxValue(0) <= upperValue) {
                                     return skipper.maxDocID(0) + 1;
+                                }
+                                // Partial block: only extend a run from a confirmed match. docIDRunEnd() may be called
+                                // on an unconfirmed candidate (e.g. DenseConjunctionBulkScorer), so never claim a run
+                                // from a non-matching doc.
+                                int blockId = doc >>> numericBlockShift;
+                                if (currentBlockIndex == blockId && matches.get(doc & numericBlockMask)) {
+                                    int firstClearBit = nextClearBit((doc & numericBlockMask) + 1, matches);
+                                    return Math.min((blockId << numericBlockShift) + firstClearBit, maxDoc);
                                 }
                                 return doc + 1;
                             }
@@ -2672,9 +2677,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                             @Override
                             public int docIDRunEnd() throws IOException {
                                 final int doc = approximation.docID();
+                                // Only extend a run from a confirmed match. docIDRunEnd() may be called on an
+                                // unconfirmed candidate (e.g. DenseConjunctionBulkScorer), so never claim a run
+                                // from a non-matching doc.
                                 int blockId = doc >>> numericBlockShift;
-                                if (currentBlockIndex == blockId) {
-                                    // We already have a decoded bitmask, find the first non-matching position after doc
+                                if (currentBlockIndex == blockId && matches.get(doc & numericBlockMask)) {
                                     int firstClearBit = nextClearBit((doc & numericBlockMask) + 1, matches);
                                     return Math.min((blockId << numericBlockShift) + firstClearBit, maxDoc);
                                 }

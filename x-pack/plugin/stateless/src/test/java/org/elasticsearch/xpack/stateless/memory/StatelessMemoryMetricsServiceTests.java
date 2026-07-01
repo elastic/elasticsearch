@@ -129,24 +129,27 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
     }
 
     public void testShardHeapUsageIncludesPointsMemory() {
-        final var metrics = new StatelessMemoryMetricsService.ShardMemoryMetrics(
-            randomLongBetween(80_000, 120_000),
-            randomIntBetween(2, 6),
-            randomIntBetween(8, 20),
-            randomLongBetween(5_000, 15_000),
-            randomLongBetween(100, 500),
-            randomLongBetween(5_000, 15_000),
-            UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
-            randomNonNegativeLong(),
-            MetricQuality.EXACT,
-            randomIdentifier(),
-            System.nanoTime()
+        // these settings force us to use the adaptive memory calculation which will count the points memory in the heap usage
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(StatelessMemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), "-1b")
+                .put(StatelessMemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING.getKey(), "0%")
+                .build()
         );
+        final ClusterState clusterState = randomInitialTwoNodeClusterState(4);
+        final DiscoveryNode node0 = clusterState.nodes().get("node_0");
+        service.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
 
-        assertThat(
-            service.computeShardHeapUsage(metrics),
-            equalTo(service.estimateShardMemoryUsageInBytes(metrics) + metrics.getPostingsInMemoryBytes())
-        );
+        final Map<ShardId, ShardMappingSize> metricsWithoutPoints = createShardMappingMetricsWithPointsInMemory(randomMemoryMetrics(node0, clusterState), 0L);
+        service.updateShardsMappingSize(new HeapMemoryUsage(1, metricsWithoutPoints));
+        final long node0EstimateWithoutPoints = service.getPerNodeMemoryMetrics(clusterState).get(node0.getId());
+
+        final long pointsInMemoryBytes = randomLongBetween(1, 100);
+        final Map<ShardId, ShardMappingSize> metricsWithPoints = createShardMappingMetricsWithPointsInMemory(metricsWithoutPoints, pointsInMemoryBytes);
+        service.updateShardsMappingSize(new HeapMemoryUsage(2, metricsWithPoints));
+        final long node0EstimateWithPoints = service.getPerNodeMemoryMetrics(clusterState).get(node0.getId());
+
+        assertThat(node0EstimateWithPoints - node0EstimateWithoutPoints, equalTo(pointsInMemoryBytes * metricsWithPoints.size()));
     }
 
     /**
@@ -494,6 +497,29 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
                 )
             );
         });
+        return result;
+    }
+
+    private static Map<ShardId, ShardMappingSize> createShardMappingMetricsWithPointsInMemory(
+        Map<ShardId, ShardMappingSize> metrics,
+        long pointsInMemoryBytes
+    ) {
+        final Map<ShardId, ShardMappingSize> result = new HashMap<>();
+        metrics.forEach(
+            (shardId, shardMappingSize) -> result.put(
+                shardId,
+                new ShardMappingSize(
+                    shardMappingSize.mappingSizeInBytes(),
+                    shardMappingSize.numSegments(),
+                    shardMappingSize.totalFields(),
+                    shardMappingSize.postingsInMemoryBytes(),
+                    shardMappingSize.liveDocsBytes(),
+                    pointsInMemoryBytes,
+                    shardMappingSize.shardMemoryOverheadBytes(),
+                    shardMappingSize.nodeId()
+                )
+            )
+        );
         return result;
     }
 

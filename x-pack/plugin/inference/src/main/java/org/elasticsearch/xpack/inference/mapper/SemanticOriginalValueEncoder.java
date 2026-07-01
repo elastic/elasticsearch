@@ -93,7 +93,7 @@ final class SemanticOriginalValueEncoder {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Invalid base64 payload in the [" + value.dataType() + "] data URI value", e);
         }
-        try (BytesStreamOutput out = new BytesStreamOutput(2 + prefix.length + data.length)) {
+        try (BytesStreamOutput out = new BytesStreamOutput(3 + prefix.length + data.length)) {
             out.writeByte(BASE64_ENCODED_BINARY);
             // The ordinal is persisted, so DataType must stay append-only (as for its writeEnum transport serialization).
             out.writeByte((byte) value.dataType().ordinal());

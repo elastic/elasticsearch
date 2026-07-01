@@ -30,7 +30,6 @@ import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -190,16 +189,9 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
                 canonicalDataUri
             );
         }
-        // Booleans and numbers are stored as their text form; reproduce parser.text() exactly via the same builder/parser round-trip.
-        XContentBuilder b = JsonXContent.contentBuilder().startObject().field("f");
-        b.value(input);
-        b.endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(b))) {
-            parser.nextToken();
-            parser.nextToken();
-            parser.nextToken();
-            return parser.text();
-        }
+        // Booleans and numbers are stored via parser.text(); assert against Object.toString() so this also verifies the two agree
+        // (the value fetcher reading from _source uses toString()).
+        return input.toString();
     }
 
     /**

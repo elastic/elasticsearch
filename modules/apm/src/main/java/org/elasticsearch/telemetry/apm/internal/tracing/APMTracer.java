@@ -16,6 +16,7 @@ import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.ContextKey;
@@ -507,6 +508,14 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
         if (span != null) {
             span.setAttribute(key, value);
+        }
+    }
+
+    @Override
+    public void setStatusToError(Traceable traceable, String description) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+        if (span != null) {
+            span.setStatus(StatusCode.ERROR, description);
         }
     }
 

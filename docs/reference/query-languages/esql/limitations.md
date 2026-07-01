@@ -164,7 +164,7 @@ in a [`WHERE`](/reference/query-languages/esql/commands/where.md) command direct
 [`FROM`](/reference/query-languages/esql/commands/from.md) source command, or close enough to it.
 Otherwise, the query will fail with a validation error.
 
-{applies_to}`stack: preview 9.5`
+{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
 This restriction does not apply when `MATCH` targets an expression rather
 than an indexed field (for example, a column produced by `EVAL` or `STATS`).
 In that case, `MATCH` evaluates by scanning values row by row instead of

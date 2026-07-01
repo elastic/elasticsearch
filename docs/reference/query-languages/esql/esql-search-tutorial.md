@@ -271,6 +271,7 @@ This query searches the title field to match at least 2 of the 3 terms: "fluffy"
 
 ```{applies_to}
 stack: preview 9.5
+serverless: preview
 ```
 
 `MATCH` can search expressions that are not backed by an index. For example,

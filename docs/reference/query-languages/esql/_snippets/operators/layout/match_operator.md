@@ -16,7 +16,7 @@ The match operator performs a [match query](/reference/query-languages/query-dsl
 
 The match operator is equivalent to the [match function](../../../functions-operators/search-functions/match.md), which is the standard function for performing full-text search in ES|QL.
 
-{applies_to}`stack: preview 9.5`
+{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
 The match operator can also search expressions that are not backed by an index,
 such as computed columns produced by `EVAL` or `STATS`.
 When the target is not an indexed field, the search evaluates by scanning values

@@ -277,7 +277,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
                     fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", multiValue).endObject())
                 )
             );
-            assertThat(e.getMessage(), containsString("cannot configure [doc_values.multi_value]"));
+            assertThat(e.getMessage(), containsString("cannot configure [doc_values] as an object"));
             assertThat(e.getMessage(), containsString("only available in columnar index modes"));
         }
     }

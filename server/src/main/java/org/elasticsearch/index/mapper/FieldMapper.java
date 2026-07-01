@@ -1577,20 +1577,21 @@ public abstract class FieldMapper extends Mapper {
          * </ul>
          * <p>
          * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying
-         * the multi_value setting. Cardinality is decided internally and is not user-configurable.
+         * the multi_value setting. Cardinality is decided internally and is not user-configurable. The object form itself is only
+         * available in columnar index modes, so any sub-parameter it may carry (e.g. {@code multi_value}) is rejected together with it.
          */
         @Override
         public void parse(String field, MappingParserContext context, Object value) {
             if (value instanceof Map<?, ?> valueMap && IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+                if (supportsMultiValue == false) {
+                    throw new MapperParsingException(
+                        "field ["
+                            + field
+                            + "] cannot configure [doc_values] as an object: "
+                            + "this is only available in columnar index modes (columnar, logsdb_columnar)"
+                    );
+                }
                 if (valueMap.containsKey(multiValueParameter.name)) {
-                    if (supportsMultiValue == false) {
-                        throw new MapperParsingException(
-                            "field ["
-                                + field
-                                + "] cannot configure [doc_values.multi_value]: "
-                                + "this parameter is only available in columnar index modes (columnar, logsdb_columnar)"
-                        );
-                    }
                     multiValueParameter.parse(field, context, valueMap.get(multiValueParameter.name));
                 }
 
@@ -1615,7 +1616,8 @@ public abstract class FieldMapper extends Mapper {
             if (includeDefaults || isConfigured()) {
                 if (value.enabled == false) {
                     builder.field(name, false);
-                } else if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
+                } else if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false || supportsMultiValue == false) {
+                    // the object form is only available in columnar index modes, so it must never be emitted here
                     builder.field(name, true);
                 } else {
                     boolean multiValueConfigured = multiValueParameter.isConfigured();
@@ -1624,9 +1626,7 @@ public abstract class FieldMapper extends Mapper {
                         builder.field(name, true);
                     } else {
                         builder.startObject(name);
-                        if (supportsMultiValue && (includeDefaults || multiValueConfigured)) {
-                            builder.field(multiValueParameter.name, value.multiValue);
-                        }
+                        builder.field(multiValueParameter.name, value.multiValue);
                         builder.endObject();
                     }
                 }

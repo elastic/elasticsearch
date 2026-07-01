@@ -1745,6 +1745,53 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testFromMixedIndexAndDatasetMetadataBindsOnBothHalves() throws Exception {
+        // METADATA on a heterogeneous FROM must bind on BOTH branches and strip neither. The plan-global metadata
+        // strip in Analyzer.planWithoutSyntheticAttributes fires only on the legacy EXTERNAL command's nameless leaf
+        // (an ExternalRelation whose datasetName() == null — the gate added in #149796); a FROM <dataset> leaf always
+        // carries a dataset name and the index leaf is a regular relation, so neither half matches the gate. This
+        // asserts the dataset's _index survives the union (resolving to the dataset name) alongside the index's own.
+        assertAcked(
+            client().admin().indices().prepareCreate("metadata_idx").setMapping("emp_no", "type=integer", "first_name", "type=keyword")
+        );
+        prepareIndex("metadata_idx").setSource(Map.of("emp_no", 100, "first_name", "Zoe")).get();
+        client().admin().indices().prepareRefresh("metadata_idx").get();
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        // 3 dataset rows (emp_no 1,2,3) + 1 index row (emp_no 100); SORT makes the per-row _index assertion deterministic.
+        // No explicit KEEP _index: METADATA surfaces unconditionally on the FROM path, so a regression that broadened the
+        // strip gate to fire when a FROM <dataset> leaf is present would drop _index from the union output entirely and
+        // fail hasItem("_index"). An explicit KEEP _index would mask exactly that regression — it lands in Analyzer's
+        // explicitlyKept set and is never stripped.
+        try (var response = run(syncEsqlQueryRequest("FROM metadata_idx, employees METADATA _index | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat("_index must bind on the heterogeneous union; got " + names, names, hasItem("_index"));
+            int indexCol = names.indexOf("_index");
+            int empNoCol = names.indexOf("emp_no");
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(4));
+            // Dataset rows (emp_no 1,2,3) sort ahead of the index row (100). The dataset half is not stripped: its rows
+            // carry _index = the dataset name; the index row carries its own _index. emp_no is asserted per row so the
+            // ordering this relies on stays self-evident if the fixtures ever change.
+            assertThat(((Number) rows.get(0).get(empNoCol)).intValue(), equalTo(1));
+            assertThat(rows.get(0).get(indexCol).toString(), equalTo("employees"));
+            assertThat(((Number) rows.get(1).get(empNoCol)).intValue(), equalTo(2));
+            assertThat(rows.get(1).get(indexCol).toString(), equalTo("employees"));
+            assertThat(((Number) rows.get(2).get(empNoCol)).intValue(), equalTo(3));
+            assertThat(rows.get(2).get(indexCol).toString(), equalTo("employees"));
+            assertThat(((Number) rows.get(3).get(empNoCol)).intValue(), equalTo(100));
+            assertThat(rows.get(3).get(indexCol).toString(), equalTo("metadata_idx"));
+        }
+    }
+
     /** Walks the cause chain and asserts a message fragment appears somewhere in it. */
     private static void assertCauseMessageContains(Throwable throwable, String fragment) {
         Throwable cause = throwable;

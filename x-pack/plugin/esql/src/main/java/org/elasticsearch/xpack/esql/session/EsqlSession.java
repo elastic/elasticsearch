@@ -152,6 +152,7 @@ import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
 
 /**
@@ -439,7 +440,10 @@ public class EsqlSession {
                     assert ThreadPool.assertCurrentThreadPool(
                         ThreadPool.Names.SEARCH,
                         ThreadPool.Names.SEARCH_COORDINATION,
-                        ThreadPool.Names.SYSTEM_READ
+                        ThreadPool.Names.SYSTEM_READ,
+                        // External source resolution ({@link ExternalSourceResolver}) dispatches through esql_worker
+                        // and this callback is reached on that thread.
+                        ESQL_WORKER_THREAD_POOL_NAME
                     );
 
                     LogicalPlan plan = analyzedPlan.inner();
@@ -529,7 +533,9 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION,
-            ThreadPool.Names.SYSTEM_READ
+            ThreadPool.Names.SYSTEM_READ,
+            // Downstream of the analyzed-plan callback, which may complete on esql_worker after external source resolution.
+            ESQL_WORKER_THREAD_POOL_NAME
         );
         var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion));
 
@@ -1415,7 +1421,11 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION,
-            ThreadPool.Names.SYSTEM_READ
+            ThreadPool.Names.SYSTEM_READ,
+            // Typically entered from a field-caps completion on SEARCH_COORDINATION, but on analyzer retry
+            // (analyzeWithRetry -> resolveIndicesAndAnalyze) with a synchronous main-index forAll (e.g. no FROM
+            // indices) the resolver's continuation reaches this on esql_worker.
+            ESQL_WORKER_THREAD_POOL_NAME
         );
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.
@@ -1749,7 +1759,10 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION,
-            ThreadPool.Names.SYSTEM_READ
+            ThreadPool.Names.SYSTEM_READ,
+            // On analyzer retry (analyzeWithRetry -> resolveIndicesAndAnalyze) this may be re-entered on esql_worker,
+            // the thread the external source resolver continued on.
+            ESQL_WORKER_THREAD_POOL_NAME
         );
         if (crossProjectModeDecider.crossProjectEnabled() == false) {
             EsqlCCSUtils.initCrossClusterState(

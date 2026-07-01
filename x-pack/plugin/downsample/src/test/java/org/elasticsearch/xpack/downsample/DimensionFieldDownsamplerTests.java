@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 
-import static org.elasticsearch.xpack.downsample.LastValueFieldDownsamplerTests.createValuesInstance;
+import static org.elasticsearch.xpack.downsample.FormattedDocValuesTestUtils.createValuesInstance;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;

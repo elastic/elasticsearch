@@ -344,7 +344,27 @@ public enum FieldData {
      * NOTE: this is slow!
      */
     public static BinaryDocValues toString(final SortedDocValues values) {
-        return new AbstractBinaryDocValues() {
+        return new BinaryDocValues() {
+
+            @Override
+            public int docID() {
+                return values.docID();
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                return values.nextDoc();
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                return values.advance(target);
+            }
+
+            @Override
+            public long cost() {
+                return values.cost();
+            }
 
             @Override
             public BytesRef binaryValue() throws IOException {

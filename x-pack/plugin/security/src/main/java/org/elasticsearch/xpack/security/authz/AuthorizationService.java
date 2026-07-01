@@ -763,8 +763,8 @@ public class AuthorizationService {
             || (request instanceof PastTimeSeriesIndexCreationAction.Request);
         if (request instanceof CreateDataStreamAction.Request
             || (request instanceof MigrateToDataStreamAction.Request)
-            || ((CreateIndexRequest) request).aliases().isEmpty()
-            || (request instanceof PastTimeSeriesIndexCreationAction.Request)) {
+            || (request instanceof PastTimeSeriesIndexCreationAction.Request)
+            || ((CreateIndexRequest) request).aliases().isEmpty()) {
             runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
             return;
         }

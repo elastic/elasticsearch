@@ -603,4 +603,13 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     public int hashCode() {
         return Objects.hash(super.hashCode(), configuration);
     }
+
+    @Override
+    public boolean contributesToScore() {
+        if (isRuntimeSearch()) {
+            return false;
+        }
+
+        return super.contributesToScore();
+    }
 }

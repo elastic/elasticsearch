@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.BulkByScrollTask;

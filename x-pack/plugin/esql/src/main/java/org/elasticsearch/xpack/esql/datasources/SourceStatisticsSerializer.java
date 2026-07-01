@@ -12,13 +12,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
-import java.util.Set;
 
 /**
  * Serializes and deserializes {@link SourceStatistics} to/from a flat {@code Map<String, Object>}
@@ -207,20 +204,6 @@ public final class SourceStatisticsSerializer {
         return STATS_COL_PREFIX + columnName + MAX_UNSERVABLE_SUFFIX;
     }
 
-    /** The column name of a {@code min}/{@code max} extremum key, or {@code null} if {@code key} is not one. */
-    private static String extremumColumnName(String key) {
-        if (key.startsWith(STATS_COL_PREFIX) == false) {
-            return null;
-        }
-        if (key.endsWith(MIN_SUFFIX)) {
-            return key.substring(STATS_COL_PREFIX.length(), key.length() - MIN_SUFFIX.length());
-        }
-        if (key.endsWith(MAX_SUFFIX)) {
-            return key.substring(STATS_COL_PREFIX.length(), key.length() - MAX_SUFFIX.length());
-        }
-        return null;
-    }
-
     /**
      * Extracts the size in bytes for a specific column directly from the sourceMetadata map.
      * Returns {@code null} if the metadata is null or the size is absent/non-numeric.
@@ -274,144 +257,24 @@ public final class SourceStatisticsSerializer {
             return single != null && single.get(STATS_ROW_COUNT) instanceof Number ? single : null;
         }
 
-        // One accumulator over the foldable statistics, combined by each key's StatFold law (selected by
-        // StatFolds.foldFor) instead of four per-stat maps and inline merge lambdas. A key whose fold
-        // yields POISON (incompatible inputs, e.g. a cross-type extremum) is dropped and pinned, so a
-        // later compatible file cannot resurrect a subset value.
-        Map<String, Object> acc = new HashMap<>();
-        Set<String> poisoned = new HashSet<>();
-        // Columns physically present in a file but lacking a null_count there: their merged null_count
-        // is unreconstructable, so it is dropped to signal "unknown" downstream.
-        Set<String> poisonedNullCounts = new HashSet<>();
-        // Per-file row count and the set of columns physically present, so absent-column rows can fold
-        // into implicit nulls (footer) or partial columns can be dropped (text) in a second pass.
-        long[] perFileRowCounts = new long[splitStats.size()];
-        List<Set<String>> perFileColumns = new ArrayList<>(splitStats.size());
-        Set<String> allColumns = new LinkedHashSet<>();
-
-        int fileIndex = 0;
+        // Fold via the compact model: deserialize each input, fold with the one canonical engine, re-serialize.
+        // Proven key-equal to the former in-place flat-map fold by
+        // SplitStatsTests#testFoldMatchesMergeStatisticsDifferential. The per-field law lives once in
+        // SplitStats.mergedMin/mergedMax and the fold's SUM/AND; there is no longer a parallel StatFold law table.
+        List<SplitStats> splits = new ArrayList<>(splitStats.size());
         for (Map<String, Object> stats : splitStats) {
-            Object rc = stats == null ? null : stats.get(STATS_ROW_COUNT);
-            if (rc instanceof Number == false) {
+            if (stats == null || stats.get(STATS_ROW_COUNT) instanceof Number == false) {
                 return null;
             }
-            // The column is "present" iff any _stats.columns.<col>.* key is in the map (matches
-            // SplitStats.of's logic); nullCountSeen tracks which present columns emitted a null_count.
-            Set<String> columnsInThisFile = new HashSet<>();
-            Set<String> nullCountSeenInThisFile = new HashSet<>();
-            for (Map.Entry<String, Object> entry : stats.entrySet()) {
-                String key = entry.getKey();
-                StatFold fold = StatFolds.foldFor(key);
-                if (fold == null) {
-                    continue;
-                }
-                if (key.startsWith(STATS_COL_PREFIX)) {
-                    String rest = key.substring(STATS_COL_PREFIX.length());
-                    int dotIdx = rest.lastIndexOf('.');
-                    if (dotIdx > 0) {
-                        String colName = rest.substring(0, dotIdx);
-                        columnsInThisFile.add(colName);
-                        if (key.endsWith(NULL_COUNT_SUFFIX) && entry.getValue() instanceof Number) {
-                            nullCountSeenInThisFile.add(colName);
-                        }
-                    }
-                }
-                if (poisoned.contains(key)) {
-                    continue;
-                }
-                Object existing = acc.get(key);
-                Object folded = existing == null ? fold.first(entry.getValue()) : fold.apply(existing, entry.getValue());
-                if (folded == StatFold.POISON) {
-                    poisoned.add(key);
-                    acc.remove(key);
-                } else {
-                    acc.put(key, folded);
-                }
+            SplitStats s = SplitStats.of(stats);
+            if (s == null) {
+                return null;
             }
-            for (String present : columnsInThisFile) {
-                if (nullCountSeenInThisFile.contains(present) == false) {
-                    poisonedNullCounts.add(present);
-                }
-            }
-            perFileRowCounts[fileIndex++] = ((Number) rc).longValue();
-            perFileColumns.add(columnsInThisFile);
-            allColumns.addAll(columnsInThisFile);
+            splits.add(s);
         }
-
-        if (implicitNullsForAbsentColumn) {
-            // Footer (UNION_BY_NAME) pass: fold the row count of files that do not physically contain a
-            // column into that column's null_count, so COUNT(col) = rowCount - mergedNullCount is correct.
-            for (String colName : allColumns) {
-                String key = columnNullCountKey(colName);
-                if (poisoned.contains(key)) {
-                    continue;
-                }
-                for (int i = 0; i < perFileColumns.size(); i++) {
-                    if (perFileColumns.get(i).contains(colName) == false) {
-                        Object cur = acc.get(key);
-                        long base = cur instanceof Number n ? n.longValue() : 0L;
-                        acc.put(key, base + perFileRowCounts[i]);
-                    }
-                }
-            }
-        } else {
-            // Text partial-harvest pass: a column absent from a NON-EMPTY contribution is "not harvested"
-            // (the contribution had rows but didn't observe it), not "all null". The merge cannot serve a
-            // correct COUNT/MIN/MAX for it, so drop it entirely -- downstream safe-misses (re-scans) rather
-            // than undercounting (COUNT) or serving a subset extremum (MIN/MAX). An EMPTY (0-row)
-            // contribution is exempt: it legitimately carries no column stats (e.g. a record-empty edge
-            // stripe in the byte-range cover), so a column's absence there is not "unharvested".
-            for (String colName : allColumns) {
-                boolean observedInEveryNonEmptyFile = true;
-                for (int i = 0; i < perFileColumns.size(); i++) {
-                    if (perFileRowCounts[i] == 0) {
-                        continue; // empty contribution: no rows, so it doesn't count against column presence
-                    }
-                    if (perFileColumns.get(i).contains(colName) == false) {
-                        observedInEveryNonEmptyFile = false;
-                        break;
-                    }
-                }
-                if (observedInEveryNonEmptyFile == false) {
-                    acc.remove(columnNullCountKey(colName));
-                    acc.remove(columnValueCountKey(colName));
-                    acc.remove(columnMinKey(colName));
-                    acc.remove(columnMaxKey(colName));
-                    acc.remove(columnSizeBytesKey(colName));
-                }
-            }
-        }
-
-        for (String colName : poisonedNullCounts) {
-            acc.remove(columnNullCountKey(colName));
-        }
-        // Per-statistic extremum taint. A poisoned MIN or MAX (incompatible/NaN merge) marks ONLY that extremum
-        // unservable, via a PRESENT marker key. The marker OR-folds, so it survives to the next fold level and a
-        // sibling's finite extremum cannot refill the dropped value there (the bug a bare key-removal caused --
-        // an absent key is indistinguishable from "never observed"). COUNT-family (null_count/value_count) is left
-        // intact: an incompatible or NaN extremum does not invalidate a count, so COUNT(col) still serves.
-        for (String key : poisoned) {
-            String colName = extremumColumnName(key);
-            if (colName == null) {
-                continue;
-            }
-            acc.put(key.endsWith(MIN_SUFFIX) ? columnMinUnservableKey(colName) : columnMaxUnservableKey(colName), Boolean.TRUE);
-        }
-        // A set marker -- placed here, or OR-folded in from a prior fold level (possibly alongside a sibling's
-        // finite extremum this level just put back) -- forces the extremum value absent so serve safe-misses it.
-        for (String key : new ArrayList<>(acc.keySet())) {
-            if (key.endsWith(MIN_UNSERVABLE_SUFFIX)) {
-                acc.remove(columnMinKey(key.substring(STATS_COL_PREFIX.length(), key.length() - MIN_UNSERVABLE_SUFFIX.length())));
-            } else if (key.endsWith(MAX_UNSERVABLE_SUFFIX)) {
-                acc.remove(columnMaxKey(key.substring(STATS_COL_PREFIX.length(), key.length() - MAX_UNSERVABLE_SUFFIX.length())));
-            }
-        }
-        // Match the prior contract: a zero total size is not emitted (no file reported size bytes).
-        Object size = acc.get(STATS_SIZE_BYTES);
-        if (size instanceof Number n && n.longValue() == 0) {
-            acc.remove(STATS_SIZE_BYTES);
-        }
-        return acc;
+        SplitStats folded = SplitStats.fold(splits, implicitNullsForAbsentColumn);
+        // Mutable copy: callers (e.g. ExternalSourceCacheService.foldFragments) re-attach the keying fields.
+        return folded == null ? null : new HashMap<>(folded.toMap());
     }
 
     @Nullable

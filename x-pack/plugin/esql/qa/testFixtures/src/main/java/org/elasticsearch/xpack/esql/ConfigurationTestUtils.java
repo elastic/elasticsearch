@@ -45,7 +45,6 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInstantBetween;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomLong;
-import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfLength;
 import static org.elasticsearch.test.ESTestCase.randomZone;
@@ -77,26 +76,24 @@ public class ConfigurationTestUtils {
         var defaultTsTruncation = defaultTruncation + randomNonNegativeInt();
         boolean profile = randomBoolean();
 
-        return new ConfigurationBuilder(
-            new Configuration(
-                now,
-                locale,
-                username,
-                clusterName,
-                randomQueryPragmas(),
-                truncation,
-                defaultTruncation,
-                query,
-                profile,
-                tables,
-                System.nanoTime(),
-                false,
-                tsTruncation,
-                defaultTsTruncation,
-                ResolvedSettings.EMPTY.withOverride(QuerySettings.TIME_ZONE, zoneId.normalized()),
-                Map.of()
-            )
-        ).grokMatcherWatchdogMs(randomLongBetween(0, 5000)).build();
+        return new Configuration(
+            now,
+            locale,
+            username,
+            clusterName,
+            randomQueryPragmas(),
+            truncation,
+            defaultTruncation,
+            query,
+            profile,
+            tables,
+            System.nanoTime(),
+            false,
+            tsTruncation,
+            defaultTsTruncation,
+            ResolvedSettings.EMPTY.withOverride(QuerySettings.TIME_ZONE, zoneId.normalized()),
+            Map.of()
+        );
     }
 
     public static ConfigurationBuilder randomConfigurationBuilder() {

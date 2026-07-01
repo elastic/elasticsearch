@@ -244,6 +244,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     groupIndicesByCluster,
                     runPhase,
                     MOCK_TRANSPORT_ACTION_SERVICES,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     () -> false,
                     new ActionListener<>() {
                         @Override
@@ -283,6 +284,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     groupIndicesByCluster,
                     runPhase,
                     MOCK_TRANSPORT_ACTION_SERVICES,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     () -> false,
                     new ActionListener<>() {
                         @Override
@@ -631,6 +633,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 groupIndicesByCluster,
                 runPhase,
                 MOCK_TRANSPORT_ACTION_SERVICES,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 () -> false,
                 listener
             );
@@ -638,8 +641,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     }
 
     /**
-     * These tests register no datasets, so the resolver short-circuits before ever touching a client
-     * or executor — nulls are never dereferenced.
+     * These tests register no datasets, so the resolver short-circuits before ever touching a client,
+     * executor, or the cross-project remote leg — nulls are never dereferenced.
      */
     private static DatasetResolver noDatasetsResolver() {
         return new DatasetResolver(null, null, CrossProjectModeDecider.NOOP);

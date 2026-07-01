@@ -39,7 +39,6 @@ public class ConfigurationBuilder {
     private Map<String, Map<String, Column>> tables;
     private long queryStartTimeNanos;
     private Map<String, String> viewQueries;
-    private long grokMatcherWatchdogMs;
 
     public ConfigurationBuilder(Configuration configuration) {
         now = configuration.now();
@@ -59,7 +58,6 @@ public class ConfigurationBuilder {
         tables = configuration.tables();
         queryStartTimeNanos = configuration.queryStartTimeNanos();
         viewQueries = configuration.viewQueries();
-        grokMatcherWatchdogMs = configuration.grokMatcherWatchdogMs();
     }
 
     public ConfigurationBuilder now(Instant now) {
@@ -153,11 +151,6 @@ public class ConfigurationBuilder {
         return this;
     }
 
-    public ConfigurationBuilder grokMatcherWatchdogMs(long grokMatcherWatchdogMs) {
-        this.grokMatcherWatchdogMs = grokMatcherWatchdogMs;
-        return this;
-    }
-
     public Configuration build() {
         return new Configuration(
             now,
@@ -176,8 +169,7 @@ public class ConfigurationBuilder {
             resultTruncationDefaultSizeTimeseries,
             resolvedSettings,
             viewQueries,
-            explainOnly,
-            grokMatcherWatchdogMs
+            explainOnly
         );
     }
 }

@@ -25,7 +25,6 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -97,12 +96,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
 
     public Configuration configuration() throws IOException {
         return configuration;
-    }
-
-    public MatcherWatchdog grokMatcherWatchdog() {
-        return MatcherWatchdog.newInstance(
-            configuration != null ? configuration.grokMatcherWatchdogMs() : Configuration.DEFAULT_GROK_MATCHER_WATCHDOG_MS
-        );
     }
 
     /**

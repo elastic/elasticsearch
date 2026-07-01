@@ -56,7 +56,7 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
     @Override
     protected Configuration mutateInstance(Configuration in) {
         ConfigurationBuilder builder = new ConfigurationBuilder(in);
-        switch (between(0, 11)) {
+        switch (between(0, 10)) {
             case 0 -> builder.setting(
                 QuerySettings.TIME_ZONE,
                 randomValueOtherThan(QuerySettings.TIME_ZONE.get(in.resolvedSettings()), () -> randomZone().normalized())
@@ -98,16 +98,8 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
                     }
                 }
             }
-            case 11 -> builder.grokMatcherWatchdogMs(randomValueOtherThan(in.grokMatcherWatchdogMs(), () -> randomLongBetween(0, 5000)));
         }
         return builder.build();
-    }
-
-    public void testOldNodeFallsBackToDefaultWatchdogMs() throws IOException {
-        Configuration original = new ConfigurationBuilder(randomConfiguration()).grokMatcherWatchdogMs(500).build();
-        TransportVersion preWatchdog = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_grok_watchdog"));
-        Configuration roundTripped = copyInstance(original, preWatchdog);
-        assertThat(roundTripped.grokMatcherWatchdogMs(), equalTo(1000L));
     }
 
     private static Configuration configWithTimeZoneAndApproximation() {

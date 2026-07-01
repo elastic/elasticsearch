@@ -37,9 +37,6 @@ public class Configuration implements Writeable {
 
     public static final int QUERY_COMPRESS_THRESHOLD_CHARS = KB.toIntBytes(5);
 
-    /** Default grok watchdog timeout, in ms, used when a Configuration is built without an explicit value. */
-    public static final long DEFAULT_GROK_MATCHER_WATCHDOG_MS = 1000;
-
     private static final TransportVersion TIMESERIES_DEFAULT_LIMIT = TransportVersion.fromName("timeseries_default_limit");
 
     private static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS = TransportVersion.fromName("esql_support_partial_results");
@@ -57,6 +54,13 @@ public class Configuration implements Writeable {
 
     private static final TransportVersion ESQL_RESOLVED_SETTINGS = TransportVersion.fromName("esql_resolved_settings");
 
+    /**
+     * Reserved transport version id from the GROK watchdog work (#152170), which was reverted before release.
+     * Intentionally unused: the id is boxed in between released version markers, so it cannot be removed without
+     * breaking transport-version id density. This reference keeps the definition from becoming orphaned. Do not
+     * serialize anything against it — the feature was reverted and mixed clusters must not exchange a grok field.
+     */
+    @SuppressWarnings("unused")
     private static final TransportVersion ESQL_GROK_WATCHDOG = TransportVersion.fromName("esql_grok_watchdog");
 
     private final String clusterName;
@@ -95,8 +99,6 @@ public class Configuration implements Writeable {
      */
     private final Map<String, String> viewQueries;
 
-    private final long grokMatcherWatchdogMs;
-
     public Configuration(
         Instant now,
         Locale locale,
@@ -132,13 +134,15 @@ public class Configuration implements Writeable {
             resultTruncationDefaultSizeTimeseries,
             resolvedSettings,
             viewQueries,
-            false,
-            DEFAULT_GROK_MATCHER_WATCHDOG_MS
+            false
         );
     }
 
-    // Full constructor with explainOnly parameter (used by serialization tests and builders).
-    // The 'explainOnly' parameter is the only difference from the public 16-arg constructor above.
+    /**
+     * Canonical constructor — every field is a parameter (the {@code explainOnly} flag is the only difference
+     * from the 16-arg constructor above). {@link ConfigurationBuilder#build()} calls this directly, so any new
+     * field added here must also be added to {@link ConfigurationBuilder}.
+     */
     public Configuration(
         Instant now,
         Locale locale,
@@ -157,52 +161,6 @@ public class Configuration implements Writeable {
         ResolvedSettings resolvedSettings,
         Map<String, String> viewQueries,
         boolean explainOnly
-    ) {
-        this(
-            now,
-            locale,
-            username,
-            clusterName,
-            pragmas,
-            resultTruncationMaxSizeRegular,
-            resultTruncationDefaultSizeRegular,
-            query,
-            profile,
-            tables,
-            queryStartTimeNanos,
-            allowPartialResults,
-            resultTruncationMaxSizeTimeseries,
-            resultTruncationDefaultSizeTimeseries,
-            resolvedSettings,
-            viewQueries,
-            explainOnly,
-            DEFAULT_GROK_MATCHER_WATCHDOG_MS
-        );
-    }
-
-    /**
-     * Canonical constructor — every field is a parameter. {@link ConfigurationBuilder#build()} calls this
-     * directly, so any new field added here must also be added to {@link ConfigurationBuilder}.
-     */
-    Configuration(
-        Instant now,
-        Locale locale,
-        String username,
-        String clusterName,
-        QueryPragmas pragmas,
-        int resultTruncationMaxSizeRegular,
-        int resultTruncationDefaultSizeRegular,
-        @Nullable String query,
-        boolean profile,
-        Map<String, Map<String, Column>> tables,
-        long queryStartTimeNanos,
-        boolean allowPartialResults,
-        int resultTruncationMaxSizeTimeseries,
-        int resultTruncationDefaultSizeTimeseries,
-        ResolvedSettings resolvedSettings,
-        Map<String, String> viewQueries,
-        boolean explainOnly,
-        long grokMatcherWatchdogMs
     ) {
         this.now = now;
         this.username = username;
@@ -223,7 +181,6 @@ public class Configuration implements Writeable {
         this.viewQueries = viewQueries;
         assert viewQueries != null;
         this.explainOnly = explainOnly;
-        this.grokMatcherWatchdogMs = grokMatcherWatchdogMs;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -278,11 +235,6 @@ public class Configuration implements Writeable {
         } else {
             this.resolvedSettings = new ResolvedSettings(in);
         }
-        if (in.getTransportVersion().supports(ESQL_GROK_WATCHDOG)) {
-            this.grokMatcherWatchdogMs = in.readVLong();
-        } else {
-            this.grokMatcherWatchdogMs = DEFAULT_GROK_MATCHER_WATCHDOG_MS;
-        }
     }
 
     private static ResolvedSettings synthesizeResolvedFromLegacy(ZoneId zoneId, @Nullable ApproximationSettings approximation) {
@@ -336,9 +288,6 @@ public class Configuration implements Writeable {
         }
         if (writeLegacySettings == false) {
             resolvedSettings.writeTo(out);
-        }
-        if (out.getTransportVersion().supports(ESQL_GROK_WATCHDOG)) {
-            out.writeVLong(grokMatcherWatchdogMs);
         }
     }
 
@@ -462,13 +411,6 @@ public class Configuration implements Writeable {
     }
 
     /**
-     * Returns the grok MatcherWatchdog timeout in milliseconds.
-     */
-    public long grokMatcherWatchdogMs() {
-        return grokMatcherWatchdogMs;
-    }
-
-    /**
      * Returns a new Configuration with one {@link QuerySettingDef} value overridden. Generic — caller
      * names the setting via the {@link QuerySettingDef} constant.
      */
@@ -526,8 +468,7 @@ public class Configuration implements Writeable {
             && allowPartialResults == that.allowPartialResults
             && Objects.equals(resolvedSettings, that.resolvedSettings)
             && viewQueries.equals(that.viewQueries)
-            && explainOnly == that.explainOnly
-            && grokMatcherWatchdogMs == that.grokMatcherWatchdogMs;
+            && explainOnly == that.explainOnly;
     }
 
     @Override
@@ -548,8 +489,7 @@ public class Configuration implements Writeable {
             resultTruncationDefaultSizeTimeseries,
             resolvedSettings,
             viewQueries,
-            explainOnly,
-            grokMatcherWatchdogMs
+            explainOnly
         );
     }
 

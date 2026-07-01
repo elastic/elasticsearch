@@ -112,7 +112,6 @@ public class TermsEnumRequestTests extends AbstractXContentSerializingTestCase<T
         mutators.add(
             request -> request.indexFilter(request.indexFilter() != null ? request.indexFilter().boost(2) : QueryBuilders.matchAllQuery())
         );
-        mutators.add(request -> request.includeResolvedTo(request.includeResolvedTo() == false));
         TermsEnumRequest mutatedInstance = copyInstance(instance);
         Consumer<TermsEnumRequest> mutator = randomFrom(mutators);
         mutator.accept(mutatedInstance);

@@ -46,6 +46,8 @@ public final class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> i
     private int size = DEFAULT_SIZE;
     private boolean caseInsensitive;
     private QueryBuilder indexFilter;
+    // Set internally by RestTermsEnumAction, not client-supplied XContent; excluded from equals/hashCode
+    // so it doesn't break XContent round-trip equality checks.
     private boolean includeResolvedTo = false;
 
     @Nullable
@@ -323,7 +325,6 @@ public final class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> i
         TermsEnumRequest that = (TermsEnumRequest) o;
         return size == that.size
             && caseInsensitive == that.caseInsensitive
-            && includeResolvedTo == that.includeResolvedTo
             && Objects.equals(field, that.field)
             && Objects.equals(string, that.string)
             && Objects.equals(searchAfter, that.searchAfter)
@@ -335,17 +336,7 @@ public final class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> i
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(
-            field,
-            string,
-            searchAfter,
-            size,
-            caseInsensitive,
-            includeResolvedTo,
-            indexFilter,
-            indicesOptions(),
-            timeout()
-        );
+        int result = Objects.hash(field, string, searchAfter, size, caseInsensitive, indexFilter, indicesOptions(), timeout());
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

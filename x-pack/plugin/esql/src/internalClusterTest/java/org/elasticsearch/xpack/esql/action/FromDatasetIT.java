@@ -1661,6 +1661,89 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * A dataset that declares {@code mappings._id.path = first_name} stamps each row's {@code _id} from the
+     * {@code first_name} column's value. Asserted three ways against the same dataset: (1) {@code _id} equals the
+     * column's value when the id column IS projected via {@code KEEP}; (2) {@code _id} still equals the column's value
+     * when the id column is NOT projected (the reader pins it into its projection, then the top-level Project drops it
+     * from the user's output); (3) a query WITHOUT {@code METADATA _id} returns the plain rows unchanged (the synthetic
+     * path is untouched).
+     */
+    public void testIdFromColumn() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        // Non-strict declaration whose only knob is _id.path = first_name (a keyword column). The columns keep their
+        // inferred names/types; _id is stamped from first_name's value.
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new java.util.LinkedHashMap<>(), null, "first_name")
+        );
+
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_id_from_col",
+                    "local_ds",
+                    csvFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        // (1) _id equals first_name when the id column IS projected.
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees_id_from_col METADATA _id | KEEP _id, first_name | SORT first_name | LIMIT 10"),
+                TIMEOUT
+            )
+        ) {
+            List<? extends ColumnInfo> columns = response.columns();
+            int idIdx = columns.stream().map(ColumnInfo::name).toList().indexOf("_id");
+            int nameIdx = columns.stream().map(ColumnInfo::name).toList().indexOf("first_name");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat("_id is stamped from the first_name column", row.get(idIdx), equalTo(row.get(nameIdx)));
+            }
+            assertThat(rows.get(0).get(nameIdx).toString(), equalTo("Alice"));
+        }
+
+        // (2) _id STILL equals first_name when the id column is NOT projected — the reader pins first_name into its
+        // read projection, and the top-level Project drops it from the user's output.
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees_id_from_col METADATA _id | KEEP _id, emp_no | SORT emp_no | LIMIT 10"),
+                TIMEOUT
+            )
+        ) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns.stream().map(ColumnInfo::name).toList(), equalTo(List.of("_id", "emp_no")));
+            int idIdx = columns.stream().map(ColumnInfo::name).toList().indexOf("_id");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            // emp_no 1,2,3 map to Alice,Bob,Carol per the fixture.
+            assertThat(rows.get(0).get(idIdx).toString(), equalTo("Alice"));
+            assertThat(rows.get(1).get(idIdx).toString(), equalTo("Bob"));
+            assertThat(rows.get(2).get(idIdx).toString(), equalTo("Carol"));
+        }
+
+        // (3) WITHOUT METADATA _id the plain rows come back unchanged — the synthetic-_id machinery never runs.
+        try (var response = run(syncEsqlQueryRequest("FROM employees_id_from_col | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns.stream().map(ColumnInfo::name).toList(), equalTo(List.of("emp_no", "first_name")));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            assertThat(rows.get(2).get(0), equalTo(3));
+            assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
     /** Walks the cause chain and asserts a message fragment appears somewhere in it. */
     private static void assertCauseMessageContains(Throwable throwable, String fragment) {
         Throwable cause = throwable;

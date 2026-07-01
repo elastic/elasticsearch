@@ -135,4 +135,30 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         );
         assertTrue(e.getMessage(), e.getMessage().contains("not_a_type"));
     }
+
+    public void testMoveConsumesPhysicalInPlace() {
+        // @timestamp with source ts: ts is consumed and @timestamp takes its position (shipped move order preserved).
+        List<Attribute> inferred = List.of(attr("ts", DataType.DATETIME), attr("other", DataType.KEYWORD));
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("@timestamp", new DatasetFieldMapping("date", "ts"));
+        DatasetMapping m = mapping(props);
+        List<String> names = DeclaredSchemaResolver.overlayNonStrict(inferred, m).output().stream().map(Attribute::name).toList();
+        assertEquals(List.of("@timestamp", "other"), names);
+        assertEquals(Map.of("@timestamp", "ts"), DeclaredSchemaResolver.renameMap(m));
+    }
+
+    public void testCopyToKeepsSourceAndAppendsTarget() {
+        // ts copy_to @timestamp: ts is kept in place, @timestamp is an added copy reading the same physical.
+        List<Attribute> inferred = List.of(attr("ts", DataType.DATETIME), attr("other", DataType.KEYWORD));
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("ts", new DatasetFieldMapping("date", null, "@timestamp"));
+        DatasetMapping m = mapping(props);
+        List<String> names = DeclaredSchemaResolver.overlayNonStrict(inferred, m).output().stream().map(Attribute::name).toList();
+        assertEquals(List.of("ts", "other", "@timestamp"), names);
+        // copy target -> the source's physical; the kept source (ts == physical ts) contributes no rename.
+        assertEquals(Map.of("@timestamp", "ts"), DeclaredSchemaResolver.renameMap(m));
+        // strict: declaredAttributes emits the source column then its copy target.
+        List<String> declared = DeclaredSchemaResolver.declaredAttributes(m).stream().map(Attribute::name).toList();
+        assertEquals(List.of("ts", "@timestamp"), declared);
+    }
 }

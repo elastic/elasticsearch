@@ -35,33 +35,29 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
         DeclaredSchemaValidator.validate(null); // no throw
     }
 
-    public void testDuplicatePhysicalSourceRejected() {
-        // Two columns resolving to the same physical name (via source, or a source colliding with another logical name)
-        // breaks the 1:1 rename the read path assumes — must be rejected at PUT.
+    public void testNToOnePhysicalIsAllowedAsCopy() {
+        // Several logical columns reading one physical column is a COPY now (the read path dedups + fans out), not an
+        // error. Both the explicit copy_to form and two sources onto one physical are accepted.
+        Map<String, DatasetFieldMapping> copyTo = new LinkedHashMap<>();
+        copyTo.put("ts", new DatasetFieldMapping("date", null, "@timestamp"));
+        DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, copyTo), null)); // no throw
+
         Map<String, DatasetFieldMapping> sameSource = new LinkedHashMap<>();
         sameSource.put("a", new DatasetFieldMapping("keyword", "x"));
-        sameSource.put("b", new DatasetFieldMapping("long", "x"));
-        IllegalArgumentException e1 = expectThrows(
-            IllegalArgumentException.class,
-            () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.FALSE, sameSource), null))
-        );
-        assertTrue(e1.getMessage(), e1.getMessage().contains("physical column [x]"));
+        sameSource.put("b", new DatasetFieldMapping("keyword", "x"));
+        DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.FALSE, sameSource), null)); // no throw
+    }
 
-        // source of one column collides with another column's (un-renamed) logical name
-        Map<String, DatasetFieldMapping> sourceHitsLogical = new LinkedHashMap<>();
-        sourceHitsLogical.put("a", new DatasetFieldMapping("keyword", "b"));
-        sourceHitsLogical.put("b", new DatasetFieldMapping("long", null));
-        IllegalArgumentException e2 = expectThrows(
+    public void testCopyToTargetCollisionRejected() {
+        // A copy_to target must not collide with another declared output column (two columns with the same name).
+        Map<String, DatasetFieldMapping> clash = new LinkedHashMap<>();
+        clash.put("ts", new DatasetFieldMapping("date", null, "status"));
+        clash.put("status", new DatasetFieldMapping("integer", null));
+        IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.FALSE, sourceHitsLogical), null))
+            () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, clash), null))
         );
-        assertTrue(e2.getMessage(), e2.getMessage().contains("physical column [b]"));
-
-        // distinct sources are fine
-        Map<String, DatasetFieldMapping> distinct = new LinkedHashMap<>();
-        distinct.put("a", new DatasetFieldMapping("keyword", "x"));
-        distinct.put("b", new DatasetFieldMapping("long", "y"));
-        DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.FALSE, distinct), null)); // no throw
+        assertTrue(e.getMessage(), e.getMessage().contains("copy_to target [status]"));
     }
 
     public void testSourceRenameAcceptedAtPut() {

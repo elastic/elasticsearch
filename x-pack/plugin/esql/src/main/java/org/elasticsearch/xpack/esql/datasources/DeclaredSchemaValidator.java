@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -57,19 +57,20 @@ public final class DeclaredSchemaValidator {
         }
         DatasetMapping.Mappings mappings = mapping.mappings();
         if (mappings != null) {
-            // Physical-name uniqueness: a column's physical (file) name is its `source`, or its logical name when no
-            // rename. Two columns resolving to the same physical name break the 1:1 rename the whole read path assumes
-            // (PhysicalNames.inverse collapses, the non-strict overlay silently drops one, the reader emits it twice),
-            // so reject at PUT rather than corrupt results. Resolve-or-reject at create, like the type check.
-            Map<String, String> physicalToLogical = new HashMap<>();
+            // Output-name uniqueness. Several logical columns MAY read one physical column (a copy — `copy_to`, or two
+            // `source`s onto one physical): the read path dedups the physical read and fans the block out, so N:1 is
+            // fine. What breaks is two columns with the same OUTPUT name — the source column's key and every `copy_to`
+            // target must be distinct. Reject at PUT (resolve-or-reject at create, like the type check).
+            Set<String> outputNames = new HashSet<>();
             for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
                 validateType(e.getKey(), e.getValue().type());
-                String logical = e.getKey();
-                String physical = e.getValue().source() != null ? e.getValue().source() : logical;
-                String clash = physicalToLogical.putIfAbsent(physical, logical);
-                if (clash != null) {
+                outputNames.add(e.getKey()); // property keys are unique by JSON-object semantics
+            }
+            for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
+                String copyTo = e.getValue().copyTo();
+                if (copyTo != null && outputNames.add(copyTo) == false) {
                     throw new IllegalArgumentException(
-                        "columns [" + clash + "] and [" + logical + "] both resolve to the physical column [" + physical + "]"
+                        "copy_to target [" + copyTo + "] on column [" + e.getKey() + "] collides with another declared column"
                     );
                 }
             }

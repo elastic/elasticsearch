@@ -30,7 +30,6 @@ ignoreOrder:true
 2024-10-23T12:15:03.360Z     | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | no_mapping_sample_data
 ;
 
-
 typeConflictWithUnmappedJustKeepWildcard
 required_capability: optional_fields_v5
 required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
@@ -57,7 +56,6 @@ ignoreOrder:true
 2024-10-23T12:27:28.948Z     | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | no_mapping_sample_data
 2024-10-23T12:15:03.360Z     | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | no_mapping_sample_data
 ;
-
 
 typeConflictWithUnmappedJustKeepWildcardPrefix
 required_capability: optional_fields_v5
@@ -2981,6 +2979,238 @@ null               | null
 null               | null
 null               | null
 null               | null
+;
+
+########################################################################################################################
+# This section contains tests whose expectations have changed back in the auto-casting PR (#148800). Here, we bring 
+# these tests back with the old expectations. However, we restrict them to the following scenario:
+# - Multi-cluster setting
+# - Both nodes have "optional_fields_v5"
+# - The gating mechanism in "optional_fields_unmapped_load_auto_cast_two_legged_punks_v2" is present in the coordinator
+#   node, but missing from the data node.
+# 
+# The expectation is that when old nodes are detected, auto-casting of two-legged PUNKs doesn't occur. 
+########################################################################################################################
+
+typeConflictLongUnmappedSortWithCastToLong - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| SORT event_duration::long, _index
+| KEEP _index, event_duration
+;
+
+_index:keyword                        | event_duration:long
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 725448
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 1232382
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 1756467
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 2764889
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 3450233
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 5033755
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 8268153
+;
+
+typeConflictLongUnmappedSortWithCastToKeyword - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| SORT event_duration::keyword, _index
+| KEEP _index, event_duration
+;
+
+_index:keyword                        | event_duration:long
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 1232382
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 1756467
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 2764889
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 3450233
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 5033755
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 725448
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 8268153
+;
+
+typeConflictLongUnmappedTimeseriesSortWithCast - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_unmapped METADATA _index
+| SORT network.bytes_in::long DESC, _index
+| KEEP _index, network.bytes_in
+| LIMIT 10
+;
+
+_index:keyword              | network.bytes_in:long
+remote_cluster:k8s          | 1021
+remote_cluster:k8s_unmapped | null
+remote_cluster:k8s          | 1018
+remote_cluster:k8s_unmapped | null
+remote_cluster:k8s          | 1009
+remote_cluster:k8s_unmapped | null
+remote_cluster:k8s          | 1007
+remote_cluster:k8s_unmapped | null
+remote_cluster:k8s          | 1006
+remote_cluster:k8s_unmapped | null
+;
+
+typeConflictPartiallyUnmappedKeywordFieldKept - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| KEEP event_duration
+;
+ignoreOrder:true
+
+event_duration:long
+1756467
+5033755
+8268153
+725448
+1232382
+2764889
+3450233
+null
+null
+null
+null
+null
+null
+null
+;
+
+typeConflictPartiallyUnmappedNonKeywordFieldsNotLoadedWithoutExplicitMention - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| SORT _index, message DESC
+| LIMIT 6
+;
+ignoreOrder:true
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
+null                     | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                     | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                     | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                     | null         | null                | Connected to 10.1.0.3! | remote_cluster:no_mapping_sample_data
+null                     | null         | null                | Connected to 10.1.0.2! | remote_cluster:no_mapping_sample_data
+null                     | null         | null                | Connected to 10.1.0.1! | remote_cluster:no_mapping_sample_data
+;
+
+typeConflictWithUnmappedJustKeepWildcardPrefix - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| KEEP @t*, cli*, ev*, me*, _in*
+;
+ignoreOrder:true
+
+@timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
+2023-10-23T13:55:01.543Z     | 172.21.3.15  | 1756467             | Connected to 10.1.0.1  | remote_cluster:sample_data
+2023-10-23T13:53:55.832Z     | 172.21.3.15  | 5033755             | Connection error       | remote_cluster:sample_data
+2023-10-23T13:52:55.015Z     | 172.21.3.15  | 8268153             | Connection error       | remote_cluster:sample_data
+2023-10-23T13:51:54.732Z     | 172.21.3.15  | 725448              | Connection error       | remote_cluster:sample_data
+2023-10-23T13:33:34.937Z     | 172.21.0.5   | 1232382             | Disconnected           | remote_cluster:sample_data
+2023-10-23T12:27:28.948Z     | 172.21.2.113 | 2764889             | Connected to 10.1.0.2  | remote_cluster:sample_data
+2023-10-23T12:15:03.360Z     | 172.21.2.162 | 3450233             | Connected to 10.1.0.3  | remote_cluster:sample_data
+null                         | null         | null                | Connected to 10.1.0.1! | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | 42                     | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connected to 10.1.0.2! | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connected to 10.1.0.3! | remote_cluster:no_mapping_sample_data
+;
+
+typeConflictWithUnmappedJustKeepWildcard - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| KEEP *
+;
+ignoreOrder:true
+
+@timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
+2023-10-23T13:55:01.543Z     | 172.21.3.15  | 1756467             | Connected to 10.1.0.1  | remote_cluster:sample_data
+2023-10-23T13:53:55.832Z     | 172.21.3.15  | 5033755             | Connection error       | remote_cluster:sample_data
+2023-10-23T13:52:55.015Z     | 172.21.3.15  | 8268153             | Connection error       | remote_cluster:sample_data
+2023-10-23T13:51:54.732Z     | 172.21.3.15  | 725448              | Connection error       | remote_cluster:sample_data
+2023-10-23T13:33:34.937Z     | 172.21.0.5   | 1232382             | Disconnected           | remote_cluster:sample_data
+2023-10-23T12:27:28.948Z     | 172.21.2.113 | 2764889             | Connected to 10.1.0.2  | remote_cluster:sample_data
+2023-10-23T12:15:03.360Z     | 172.21.2.162 | 3450233             | Connected to 10.1.0.3  | remote_cluster:sample_data
+null                         | null         | null                | Connected to 10.1.0.1! | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | 42                     | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connected to 10.1.0.2! | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connected to 10.1.0.3! | remote_cluster:no_mapping_sample_data
+;
+
+typeConflictWithUnmappedJustFrom - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+;
+ignoreOrder:true
+
+@timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
+2023-10-23T13:55:01.543Z     | 172.21.3.15  | 1756467             | Connected to 10.1.0.1  | remote_cluster:sample_data
+2023-10-23T13:53:55.832Z     | 172.21.3.15  | 5033755             | Connection error       | remote_cluster:sample_data
+2023-10-23T13:52:55.015Z     | 172.21.3.15  | 8268153             | Connection error       | remote_cluster:sample_data
+2023-10-23T13:51:54.732Z     | 172.21.3.15  | 725448              | Connection error       | remote_cluster:sample_data
+2023-10-23T13:33:34.937Z     | 172.21.0.5   | 1232382             | Disconnected           | remote_cluster:sample_data
+2023-10-23T12:27:28.948Z     | 172.21.2.113 | 2764889             | Connected to 10.1.0.2  | remote_cluster:sample_data
+2023-10-23T12:15:03.360Z     | 172.21.2.162 | 3450233             | Connected to 10.1.0.3  | remote_cluster:sample_data
+null                         | null         | null                | Connected to 10.1.0.1! | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | 42                     | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connected to 10.1.0.2! | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connected to 10.1.0.3! | remote_cluster:no_mapping_sample_data
 ;
 
 #####################################

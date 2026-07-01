@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -393,6 +395,83 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             var handle = ExternalStatsCapture.bind(sink);
             CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
                 Map.of(CsvFormatReader.CONFIG_HEADER_ROW, headerRow)
+            ).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
+    }
+
+    /**
+     * F1 regression: the FUSED BRACKET path ({@code multi_value_syntax:brackets}) is a SECOND CSV page-builder
+     * ({@code convertLinesToPage}) alongside {@code convertRowsToPage}. When {@code _rowPosition} is projected it
+     * tracks per-record byte offsets, so on a row drop its emitted stripe stats must stay byte-aligned. Stripe
+     * attribution reads {@code acceptedRowStartBytes}, which BOTH page builders must rebuild from the surviving
+     * rows; if the fused path forgets to (the bug), it emits NO stripe fragment (capture disabled) or attributes
+     * rows by stale offsets. Here a provided schema means no schema-inference prefetch, so the very first batch is
+     * the fused path -- the strongest trigger. Reconciling must fold to the exact survivor count + correct min/max.
+     */
+    public void testFusedBracketPathWithRowDropStaysStripeAligned() throws Exception {
+        int total = 30;
+        int badRow = total / 2;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < total; i++) {
+            // brackets column `tags`; the mid-file row has a non-integer id -> dropped under skip_row.
+            sb.append(i == badRow ? "notanint" : Integer.toString(i)).append(",[a,b]\n");
+        }
+        byte[] data = sb.toString().getBytes(StandardCharsets.UTF_8);
+        long stripe = 8; // small grid -> many stripes across the file
+        List<Attribute> schema = List.of(
+            intCol("id"),
+            new ReferenceAttribute(Source.EMPTY, null, "tags", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+        ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 100, 1.0, false);
+
+        List<Map<String, Object>> frags = captureFusedBracket(data, 0, true, true, 3, stripe, schema, skipRow);
+        assertFalse("fused bracket + _rowPosition stripe capture must emit fragments (not disable on a row drop)", frags.isEmpty());
+
+        Map<String, Object> meta = reconcileToMetadata(frags, schema);
+        assertEquals(
+            "row count over survivors",
+            (long) (total - 1),
+            ((Number) meta.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
+        );
+        assertEquals(0, ((Number) meta.get(SourceStatisticsSerializer.columnMinKey("id"))).intValue());
+        assertEquals(total - 1, ((Number) meta.get(SourceStatisticsSerializer.columnMaxKey("id"))).intValue());
+    }
+
+    /** Drives the fused bracket path with {@code _rowPosition} projected (byte tracking on) and a provided schema. */
+    private List<Map<String, Object>> captureFusedBracket(
+        byte[] bytes,
+        long baseOffset,
+        boolean firstSplit,
+        boolean fileFinal,
+        int batchSize,
+        long stripeSize,
+        List<Attribute> readSchema,
+        ErrorPolicy policy
+    ) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(List.of(ColumnExtractor.ROW_POSITION_COLUMN, "id"))
+            .batchSize(batchSize)
+            .recordAligned(true)
+            .firstSplit(firstSplit)
+            .lastSplit(fileFinal)
+            .readSchema(readSchema)
+            .splitStartByte(baseOffset)
+            .stats(baseOffset, stripeSize, fileFinal)
+            .errorPolicy(policy)
+            .statsColumnScope(StripeColumnScope.PROJECTED)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false, CsvFormatReader.CONFIG_MULTI_VALUE_SYNTAX, "brackets")
             ).read(o, ctx)
         ) {
             while (it.hasNext()) {

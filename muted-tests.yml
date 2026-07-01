@@ -164,12 +164,6 @@ tests:
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   method: testExchangeSourceContinueOnFailure
   issue: https://github.com/elastic/elasticsearch/issues/150552
-- class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
-  method: testGetReindexFollowsRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/150754
-- class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
-  method: testGetWaitForCompletionDuringRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/150755
 - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
   method: testRandomDirectoryIOExceptions
   issue: https://github.com/elastic/elasticsearch/issues/150756
@@ -182,9 +176,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.shared.NodesCachesStatsIntegTests
   method: testNodesCachesStats
   issue: https://github.com/elastic/elasticsearch/issues/150770
-- class: org.elasticsearch.reindex.management.ReindexListRelocationIT
-  method: testListReindexShowsOriginalIdentityAfterRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/150773
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148619

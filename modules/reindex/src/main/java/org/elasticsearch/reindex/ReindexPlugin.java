@@ -56,12 +56,12 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
     /**
      * Whether the feature flag to guard the work to make reindex more resilient while it is under development.
      */
-    public static final boolean REINDEX_RESILIENCE_ENABLED = new FeatureFlag("reindex_resilience").isEnabled();
+    public static final boolean REINDEX_RESILIENCE_ENABLED = false; // This feature is incomplete and will not be released in 9.4
 
     /**
      * Guards the development work to change reindexing to use point in time (PIT) searching
      */
-    public static final boolean REINDEX_PIT_SEARCH_ENABLED = new FeatureFlag("reindex_pit_search").isEnabled();
+    public static final boolean REINDEX_PIT_SEARCH_ENABLED = false; // This feature is incomplete and will not be released in 9.4
 
     public static ReindexRelocationNodePicker getReindexRelocationNodePicker(final Environment environment) {
         return DiscoveryNode.isStateless(environment.settings())

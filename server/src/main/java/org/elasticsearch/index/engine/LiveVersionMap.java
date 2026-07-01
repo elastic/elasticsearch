@@ -228,6 +228,40 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         }
     }
 
+    /**
+     * Sentinel returned by {@link #getUnderLockOrUnsafe(BytesRef)} when the version map (or its archive) is unsafe and a
+     * lookup could otherwise serve a stale value. It is a unique instance that must only ever be compared by identity
+     * ({@code ==}); it must never be treated as a real {@link VersionValue}, leak outside the engine, or take part in value
+     * comparisons.
+     */
+    static final VersionValue VERSION_MAP_UNSAFE = new UnsafeMarkerVersionValue();
+
+    private static final class UnsafeMarkerVersionValue extends VersionValue {
+        private UnsafeMarkerVersionValue() {
+            super(Long.MIN_VALUE, Long.MIN_VALUE, Long.MIN_VALUE);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return this == o;
+        }
+
+        @Override
+        public int hashCode() {
+            return System.identityHashCode(this);
+        }
+
+        @Override
+        public boolean isDelete() {
+            throw new UnsupportedOperationException("VERSION_MAP_UNSAFE is a marker and has no document state");
+        }
+
+        @Override
+        public String toString() {
+            return "VERSION_MAP_UNSAFE";
+        }
+    }
+
     // All deletes also go here, and delete "tombstones" are retained after refresh:
     private final Map<BytesRef, DeleteVersionValue> tombstones = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
@@ -306,10 +340,20 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
      * Returns the live version (add or delete) for this uid.
      */
     VersionValue getUnderLock(final BytesRef uid) {
-        return getUnderLock(uid, maps);
+        return getUnderLock(uid, maps, false);
     }
 
-    private VersionValue getUnderLock(final BytesRef uid, Maps currentMaps) {
+    /**
+     * Like {@link #getUnderLock(BytesRef)} but, while the version map or its archive is unsafe, returns the
+     * {@link #VERSION_MAP_UNSAFE} sentinel instead of consulting the archive (which may hold a stale version). Callers must
+     * compare the result against {@link #VERSION_MAP_UNSAFE} by identity and recover (refresh + resolve from Lucene) rather
+     * than trusting it. Used by the engine version-resolution path.
+     */
+    VersionValue getUnderLockOrUnsafe(final BytesRef uid) {
+        return getUnderLock(uid, maps, true);
+    }
+
+    private VersionValue getUnderLock(final BytesRef uid, Maps currentMaps, boolean gateOnUnsafe) {
         assert assertKeyedLockHeldByCurrentThread(uid);
         // First try to get the "live" value:
         VersionValue value = currentMaps.current.get(uid);
@@ -329,13 +373,18 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
             return value;
         }
 
+        // Due to race between beforeRefresh() and enforceSafeAccess(), we sometimes cannot trust the archive.
+        if (gateOnUnsafe && (currentMaps.current.isUnsafe() || currentMaps.old.isUnsafe() || archive.isUnsafe())) {
+            return VERSION_MAP_UNSAFE;
+        }
+
         return archive.get(uid);
     }
 
     VersionValue getVersionForAssert(final BytesRef uid) {
-        VersionValue value = getUnderLock(uid, maps);
+        VersionValue value = getUnderLock(uid, maps, false);
         if (value == null) {
-            value = getUnderLock(uid, unsafeKeysMap);
+            value = getUnderLock(uid, unsafeKeysMap, false);
         }
         return value;
     }

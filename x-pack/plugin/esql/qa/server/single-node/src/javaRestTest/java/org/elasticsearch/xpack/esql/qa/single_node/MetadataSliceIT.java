@@ -269,12 +269,12 @@ public class MetadataSliceIT extends ESRestTestCase {
             {
               "settings": {
                 "index.slice.enabled": true,
-                "index.number_of_shards": 1,
-                "index.number_of_replicas": 0
+                "index.number_of_shards": 1
               }
             }
             """);
         assertOK(client().performRequest(createIndex));
+        ensureYellowAndNoInitializingShards(index, null);
     }
 
     private void indexDocWithSlice(String index, String id, String slice) throws IOException {

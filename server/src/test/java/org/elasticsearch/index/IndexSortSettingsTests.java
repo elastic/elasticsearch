@@ -63,9 +63,7 @@ public class IndexSortSettingsTests extends ESTestCase {
 
     public void testSliceEnabledAddsRoutingPrimarySort() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        IndexSettings indexSettings = indexSettings(
-            Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).put(IndexSettings.SLICE_VALIDATED.getKey(), true).build()
-        );
+        IndexSettings indexSettings = indexSettings(Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build());
         IndexSortConfig config = indexSettings.getIndexSortConfig();
         assertTrue(config.hasIndexSort());
         assertThat(config.sortSpecs.length, equalTo(1));
@@ -78,9 +76,7 @@ public class IndexSortSettingsTests extends ESTestCase {
 
     public void testSliceEnabledBuildIndexSortWithImplicitRoutingPrimarySort() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        IndexSettings indexSettings = indexSettings(
-            Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).put(IndexSettings.SLICE_VALIDATED.getKey(), true).build()
-        );
+        IndexSettings indexSettings = indexSettings(Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build());
 
         Sort sort = buildIndexSort(indexSettings, Map.of(RoutingFieldMapper.NAME, RoutingFieldMapper.DOC_VALUES_FIELD_TYPE));
         assertThat(sort.getSort(), arrayWithSize(1));
@@ -89,9 +85,7 @@ public class IndexSortSettingsTests extends ESTestCase {
 
     public void testSliceEnabledBuildIndexSortWithoutRoutingFieldLookup() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        IndexSettings indexSettings = indexSettings(
-            Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).put(IndexSettings.SLICE_VALIDATED.getKey(), true).build()
-        );
+        IndexSettings indexSettings = indexSettings(Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build());
 
         Sort sort = buildIndexSort(indexSettings, Map.of());
         assertThat(sort.getSort(), arrayWithSize(1));
@@ -102,7 +96,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
-            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
+
             .put("index.sort.field", "field1")
             .put("index.sort.order", "desc")
             .put("index.sort.mode", "max")
@@ -127,7 +121,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
-            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
+
             .putList("index.sort.field", RoutingFieldMapper.NAME, "field1")
             .putList("index.sort.order", "desc", "asc")
             .putList("index.sort.mode", "max", "min")
@@ -141,7 +135,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
-            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
+
             .putList("index.sort.field", SliceIndexing.PARAM_NAME, "field1")
             .putList("index.sort.order", "desc", "asc")
             .putList("index.sort.mode", "max", "min")
@@ -157,7 +151,7 @@ public class IndexSortSettingsTests extends ESTestCase {
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName())
             .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true)
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
-            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
+
             .build();
         IndexSettings indexSettings = indexSettings(settings);
         IndexSortConfig config = indexSettings.getIndexSortConfig();

@@ -1786,14 +1786,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             return getWriteIndex();
         }
 
-        Instant timestamp;
-        Object rawTimestamp = request.getRawTimestamp();
-        if (rawTimestamp != null) {
-            timestamp = getTimeStampFromRaw(rawTimestamp);
-        } else {
-            timestamp = getTimestampFromParser(request.source(), request.getContentType());
-        }
-        timestamp = getCanonicalTimestampBound(timestamp);
+        Instant timestamp = getTimeSeriesTimestamp(request);
         Index result = selectTimeSeriesWriteIndex(timestamp, project);
         if (result == null) {
             String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);
@@ -1808,6 +1801,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                         + "]"
                 )
                 .collect(Collectors.joining());
+            // PRTODO: consider if we want to re-write this message to account for backfill
             throw new TimestampError(
                 "the document timestamp ["
                     + timestampAsString
@@ -1817,6 +1811,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
         return result;
+    }
+
+    /**
+     * Parses and caches on the index request the timestamp when possible. Throws {@link TimestampError}
+     * if there is any issue retrieving the timestamp.
+     */
+    public static Instant getTimeSeriesTimestamp(IndexRequest request) {
+        if (request.getTimeSeriesTimestamp() != null) {
+            return request.getTimeSeriesTimestamp();
+        }
+        Object rawTimestamp = request.getRawTimestamp();
+        Instant timestamp = rawTimestamp != null
+            ? getTimeStampFromRaw(rawTimestamp)
+            : getTimestampFromParser(request.source(), request.getContentType());
+        timestamp = getCanonicalTimestampBound(timestamp);
+        request.setTimeSeriesTimestamp(timestamp);
+        return timestamp;
     }
 
     @Override

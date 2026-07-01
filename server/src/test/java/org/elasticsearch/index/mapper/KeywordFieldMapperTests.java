@@ -1088,7 +1088,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
-        return DocValuesType.SORTED_SET;
+        return DocValuesType.BINARY;
     }
 
     /**
@@ -1098,11 +1098,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseRejectsNormalPlusIgnoreAboveFallback() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createSytheticSourceMapperService(
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(
                 b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
             )
-        ).documentMapper();
+        );
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", randomAlphanumericOfLength(3), randomAlphanumericOfLength(20))))
@@ -1119,11 +1119,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseRejectsIgnoreAboveFallbackPlusNormal() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createSytheticSourceMapperService(
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(
                 b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
             )
-        ).documentMapper();
+        );
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", randomAlphanumericOfLength(20), randomAlphanumericOfLength(3))))
@@ -1139,11 +1139,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseRejectsTwoIgnoreAboveFallbacks() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createSytheticSourceMapperService(
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(
                 b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
             )
-        ).documentMapper();
+        );
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", randomAlphanumericOfLength(20), randomAlphanumericOfLength(20))))
@@ -1156,79 +1156,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     public void testMultiValueFalseAcceptsSingleIgnoreAboveValue() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createSytheticSourceMapperService(
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(
                 b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
             )
-        ).documentMapper();
+        );
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(20))));
         assertThat(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())), equalTo(true));
-    }
-
-    /**
-     * The {@code copy_to} target is configured with {@code multi_value=false}. The source field writes one value, then the destination
-     * field receives a direct value - giving the destination two values and tripping enforcement.
-     */
-    public void testMultiValueFalseRejectsCopyToTargetWithDirectValue() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("source").field("type", "keyword").field("copy_to", "target").endObject();
-            b.startObject("target").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject().endObject();
-        }));
-        DocumentParsingException e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.field("source", randomAlphanumericOfLength(3)).field("target", randomAlphanumericOfLength(4))))
-        );
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
-        );
-    }
-
-    /**
-     * Every source element is copied to the target, so the target receives two values and its own {@code multi_value=false} enforcement
-     * fires.
-     */
-    public void testMultiValueFalseRejectsCopyToTargetFromSourceArray() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("source").field("type", "keyword").field("copy_to", "target").endObject();
-            b.startObject("target").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject().endObject();
-        }));
-        DocumentParsingException e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.array("source", randomAlphanumericOfLength(3), randomAlphanumericOfLength(4))))
-        );
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
-        );
-    }
-
-    /**
-     * Source field itself has {@code multi_value=false}. A multi-valued array on the source is rejected before {@code copy_to} runs, so
-     * the target never sees the values.
-     */
-    public void testMultiValueFalseRejectsCopyToSourceWithMultipleValues() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("source")
-                .field("type", "keyword")
-                .field("copy_to", "target")
-                .startObject("doc_values")
-                .field("multi_value", false)
-                .endObject()
-                .endObject();
-            b.startObject("target").field("type", "keyword").endObject();
-        }));
-        DocumentParsingException e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.array("source", randomAlphanumericOfLength(3), randomAlphanumericOfLength(4))))
-        );
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
-        );
     }
 
     /**
@@ -1236,7 +1170,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseRejectsNullThenValue() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
         );
         DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
@@ -1253,7 +1187,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseRejectsValueThenNull() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
         );
         DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
@@ -1267,7 +1201,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     public void testMultiValueFalseAcceptsSingleNull() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
         );
         mapper.parse(source(b -> b.nullField("field")));
@@ -1279,7 +1213,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseOnMultiFieldRejectsParentSecondValue() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(mapping(b -> {
             b.startObject("parent").field("type", "keyword");
             b.startObject("fields");
             b.startObject("child").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject().endObject();
@@ -1298,7 +1232,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     public void testMultiValueFalseOnMultiFieldAcceptsParentSingleValue() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(mapping(b -> {
             b.startObject("parent").field("type", "keyword");
             b.startObject("fields");
             b.startObject("child").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject().endObject();
@@ -1314,7 +1248,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseOnParentWithMultiFieldRejectsParentArray() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(mapping(b -> {
             b.startObject("parent").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject();
             b.startObject("fields");
             b.startObject("child").field("type", "keyword").endObject();

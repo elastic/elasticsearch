@@ -1521,37 +1521,41 @@ public abstract class FieldMapper extends Mapper {
         }
 
         public final Parameter<Boolean> multiValueParameter;
+        private final boolean supportsMultiValue;
 
         /**
          * Factory for field types whose default doc_values configuration is known eagerly at construction time (numerics, dates, booleans,
          * IP, keyword family, etc.).
          */
-        public static DocValuesParameter of(Values defaultValue, Function<FieldMapper, Values> initializer) {
-            return new DocValuesParameter(defaultValue, initializer);
+        public static DocValuesParameter of(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsMultiValue) {
+            return new DocValuesParameter(defaultValue, initializer, supportsMultiValue);
         }
 
         /**
-         * Variant of {@link #of(Values, Function)} that computes the default value lazily so it can depend on sibling multi-fields, which
-         * are only known after this parameter is constructed. The {@code subParameterDefaults} provides the {@code multi_value} default.
+         * Variant of {@link #of(Values, Function, boolean)} that computes the default value lazily so it can depend on sibling multi-fields,
+         * which are only known after this parameter is constructed. The {@code subParameterDefaults} provides the {@code multi_value} default.
          */
         public static DocValuesParameter of(
             Supplier<Values> defaultValueSupplier,
             Values subParameterDefaults,
-            Function<FieldMapper, Values> initializer
+            Function<FieldMapper, Values> initializer,
+            boolean supportsMultiValue
         ) {
-            return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer);
+            return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer, supportsMultiValue);
         }
 
-        private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer) {
-            this(() -> defaultValue, defaultValue, initializer);
+        private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsMultiValue) {
+            this(() -> defaultValue, defaultValue, initializer, supportsMultiValue);
         }
 
         private DocValuesParameter(
             Supplier<Values> defaultValueSupplier,
             Values subParameterDefaults,
-            Function<FieldMapper, Values> initializer
+            Function<FieldMapper, Values> initializer,
+            boolean supportsMultiValue
         ) {
             super(PARAMETER_NAME, false, defaultValueSupplier, null, initializer, null, Values::toString);
+            this.supportsMultiValue = supportsMultiValue;
 
             multiValueParameter = Parameter.boolParam(
                 "multi_value",
@@ -1573,11 +1577,20 @@ public abstract class FieldMapper extends Mapper {
          * </ul>
          * <p>
          * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying
-         * the multi_value setting. Cardinality is decided internally and is not user-configurable.
+         * the multi_value setting. Cardinality is decided internally and is not user-configurable. The object form itself is only
+         * available in columnar index modes, so any sub-parameter it may carry (e.g. {@code multi_value}) is rejected together with it.
          */
         @Override
         public void parse(String field, MappingParserContext context, Object value) {
             if (value instanceof Map<?, ?> valueMap && IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+                if (supportsMultiValue == false) {
+                    throw new MapperParsingException(
+                        "field ["
+                            + field
+                            + "] cannot configure [doc_values] as an object: "
+                            + "this is only available in columnar index modes (columnar, logsdb_columnar)"
+                    );
+                }
                 if (valueMap.containsKey(multiValueParameter.name)) {
                     multiValueParameter.parse(field, context, valueMap.get(multiValueParameter.name));
                 }
@@ -1603,7 +1616,8 @@ public abstract class FieldMapper extends Mapper {
             if (includeDefaults || isConfigured()) {
                 if (value.enabled == false) {
                     builder.field(name, false);
-                } else if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
+                } else if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false || supportsMultiValue == false) {
+                    // the object form is only available in columnar index modes, so it must never be emitted here
                     builder.field(name, true);
                 } else {
                     boolean multiValueConfigured = multiValueParameter.isConfigured();

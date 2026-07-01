@@ -544,7 +544,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseRejectsTwoIgnoreMalformedFallbacks() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -565,7 +565,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseRejectsRegularPlusMalformed() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -586,7 +586,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      */
     public void testMultiValueFalseRejectsMalformedPlusRegular() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("ignore_malformed", true);
             b.startObject("doc_values").field("multi_value", false).endObject();

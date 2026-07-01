@@ -65,10 +65,10 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
             return new FieldMapper.DocValuesParameter.Values(true, randomFrom(LOW, HIGH), randomBoolean());
         }
 
-        // multi_value: false enforces single-value semantics and is only meaningful when doc_values is enabled.
+        // multi_value: false is only valid in strict-columnar mode; this branch runs in non-columnar mode.
         return switch (randomInt(2)) {
-            case 0 -> new FieldMapper.DocValuesParameter.Values(true, LOW, randomBoolean());
-            case 1 -> new FieldMapper.DocValuesParameter.Values(true, HIGH, randomBoolean());
+            case 0 -> new FieldMapper.DocValuesParameter.Values(true, LOW, true);
+            case 1 -> new FieldMapper.DocValuesParameter.Values(true, HIGH, true);
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();
         };

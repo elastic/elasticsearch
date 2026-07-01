@@ -328,7 +328,8 @@ public final class TextFieldMapper extends FieldMapper {
             this.docValuesParameters = DocValuesParameter.of(
                 () -> defaultDocValuesParameters(indexSettings),
                 defaultDocValuesParameters(indexSettings),
-                m -> ((TextFieldMapper) m).docValuesParameters
+                m -> ((TextFieldMapper) m).docValuesParameters,
+                indexSettings.getMode().isStrictColumnar()
             );
             this.index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
             this.analyzers = new TextParams.Analyzers(

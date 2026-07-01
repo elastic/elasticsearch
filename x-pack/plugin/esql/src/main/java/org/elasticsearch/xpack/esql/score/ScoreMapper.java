@@ -24,7 +24,7 @@ public class ScoreMapper {
         Expression expression,
         IndexedByShardId<? extends ShardContext> shardContexts
     ) {
-        if (expression instanceof ExpressionScoreMapper mapper) {
+        if (expression instanceof ExpressionScoreMapper mapper && mapper.contributesToScore()) {
             return mapper.toScorer(new ExpressionScoreMapper.ToScorer() {
                 @Override
                 public ScoreOperator.ExpressionScorer.Factory toScorer(Expression expression) {

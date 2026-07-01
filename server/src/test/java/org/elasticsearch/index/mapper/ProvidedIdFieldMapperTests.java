@@ -208,10 +208,7 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
                 .put(IndexSettings.MODE.getKey(), indexMode.getName())
                 .put("index.mapping.use_columnar_id_mode_by_default", false)
                 .build();
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
-                () -> createMapperService(settings, mapping(b -> {}))
-            );
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {})));
             assertThat(e.getMessage(), containsString("_id mode [document] is not allowed in index using [" + indexMode + "]"));
         }
     }

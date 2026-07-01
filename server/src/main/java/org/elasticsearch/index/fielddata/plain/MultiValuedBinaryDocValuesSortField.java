@@ -11,6 +11,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FilterBinaryDocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
@@ -67,12 +68,46 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
     @Override
     protected BinaryDocValues getSortKeyDocValues(LeafReader reader) throws IOException {
         BinaryDocValues values = DocValues.getBinary(reader, getField());
-        NumericDocValues counts = reader.getNumericDocValues(getField() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
+        String countsFieldName = getField() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        NumericDocValues counts = reader.getNumericDocValues(countsFieldName);
         if (counts == null) {
             // PlainBinary (single-valued field): raw bytes are the sort key.
             return values;
         }
+        // Whole segment single-valued (no document holds more than one value): the raw payload is already the
+        // sort key in both encodings, so the MinMaxBinaryDocValues wrapper - and its per-doc counts advance and
+        // decode branch - can be skipped entirely. The skipper is null while a segment is still buffered at flush
+        // time, where we correctly fall back to the wrapper (which reads counts with nextDoc()). Lucene's
+        // IndexingChain also calls getSortKeyDocValues() with a synthetic DocValuesLeafReader purely to validate
+        // the index sort field's doc values type at index time; that reader throws UnsupportedOperationException
+        // from getDocValuesSkipper(), so treat that the same as "no skipper available".
+        DocValuesSkipper countsSkipper;
+        try {
+            countsSkipper = reader.getDocValuesSkipper(countsFieldName);
+        } catch (UnsupportedOperationException e) {
+            countsSkipper = null;
+        }
+        if (countsSkipper != null && countsSkipper.maxValue() <= 1) {
+            return values;
+        }
         return new MinMaxBinaryDocValues(values, counts, maxMode, arrayOrder);
+    }
+
+    /**
+     * Decodes the minimum ({@code maxMode=false}) or maximum ({@code maxMode=true}) sort key from a document's raw
+     * binary doc values payload with the given value {@code count}, dispatching to whichever decoder matches this
+     * field's encoding ({@code arrayOrder}). Shared by {@link MinMaxBinaryDocValues#binaryValue()} and
+     * {@code LongValuesComparatorSource}'s host.name singleton check.
+     */
+    public static BytesRef decodeExtreme(BytesRef raw, long count, boolean maxMode, boolean arrayOrder) {
+        if (count <= 1) {
+            // count=1 (or a lone slot): raw bytes are the sort key in either encoding, no decoding needed.
+            return raw;
+        }
+        if (arrayOrder) {
+            return MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.decodeExtreme(raw, (int) count, maxMode);
+        }
+        return MultiValuedBinaryDocValuesField.SeparateCount.decodeExtreme(raw, maxMode);
     }
 
     /**
@@ -124,16 +159,7 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
 
         @Override
         public BytesRef binaryValue() throws IOException {
-            BytesRef raw = in.binaryValue();
-            long count = counts.longValue();
-            if (count <= 1) {
-                // count=1 (or a lone slot): raw bytes are the sort key in either encoding, no decoding needed.
-                return raw;
-            }
-            if (arrayOrder) {
-                return MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.decodeExtreme(raw, (int) count, maxMode);
-            }
-            return MultiValuedBinaryDocValuesField.SeparateCount.decodeExtreme(raw, maxMode);
+            return decodeExtreme(in.binaryValue(), counts.longValue(), maxMode, arrayOrder);
         }
     }
 

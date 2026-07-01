@@ -308,9 +308,9 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
     /**
      * Decodes the minimum ({@code maxMode=false}) or maximum ({@code maxMode=true}) {@code host.name} value stored at
-     * {@code doc}, reusing the same decoders {@code MultiValuedBinaryDocValuesSortField} uses to extract sort keys
-     * from the {@code SeparateCount}/{@code ArrayOrderInlineNull} binary formats. Returns {@code null} if {@code doc}
-     * has no value (e.g. all-null or empty array).
+     * {@code doc}, reusing {@link MultiValuedBinaryDocValuesSortField#decodeExtreme} to extract sort keys from the
+     * {@code SeparateCount}/{@code ArrayOrderInlineNull} binary formats. Returns {@code null} if {@code doc} has no
+     * value (e.g. all-null or empty array).
      */
     @Nullable
     private static BytesRef decodeHostNameValueAt(LeafReader reader, int doc, boolean maxMode, boolean arrayOrder) throws IOException {
@@ -325,13 +325,6 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         if (counts != null && counts.advanceExact(doc)) {
             count = counts.longValue();
         }
-        BytesRef raw = bdv.binaryValue();
-        if (count <= 1) {
-            return raw;
-        }
-        if (arrayOrder) {
-            return MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.decodeExtreme(raw, (int) count, maxMode);
-        }
-        return MultiValuedBinaryDocValuesField.SeparateCount.decodeExtreme(raw, maxMode);
+        return MultiValuedBinaryDocValuesSortField.decodeExtreme(bdv.binaryValue(), count, maxMode, arrayOrder);
     }
 }

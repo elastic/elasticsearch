@@ -23,7 +23,6 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.TreeSet;
-import java.util.function.Predicate;
 
 /**
  * A custom implementation of {@link org.apache.lucene.index.BinaryDocValues} that stores a collection of
@@ -550,36 +549,6 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
                 throw new UncheckedIOException("Failed to decode ArrayOrderInlineNull extreme value", e);
             }
             return extreme;
-        }
-
-        /**
-         * Returns {@code true} if any non-null slot in a multi-slot ({@code slotCount > 1}) {@code ArrayOrderInlineNull}
-         * blob satisfies {@code predicate}. Null slots are skipped. Callers must handle the {@code slotCount <= 1}
-         * raw-passthrough case themselves.
-         */
-        public static boolean matchAny(BytesRef raw, int slotCount, Predicate<BytesRef> predicate) {
-            ByteArrayStreamInput stream = new ByteArrayStreamInput();
-            stream.reset(raw.bytes, raw.offset, raw.length);
-            BytesRef scratch = new BytesRef();
-            scratch.bytes = raw.bytes;
-            try {
-                for (int i = 0; i < slotCount; i++) {
-                    int encodedLength = stream.readVInt();
-                    if (encodedLength == 0) {
-                        // Null slot: no bytes follow.
-                        continue;
-                    }
-                    scratch.length = encodedLength - 1;
-                    scratch.offset = stream.getPosition();
-                    stream.setPosition(scratch.offset + scratch.length);
-                    if (predicate.test(scratch)) {
-                        return true;
-                    }
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException("Failed to match ArrayOrderInlineNull value", e);
-            }
-            return false;
         }
     }
 }

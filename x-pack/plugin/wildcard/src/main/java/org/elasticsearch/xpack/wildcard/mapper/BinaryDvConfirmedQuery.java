@@ -279,12 +279,12 @@ abstract class BinaryDvConfirmedQuery extends Query {
             return false;
         }
         BinaryDvConfirmedQuery other = (BinaryDvConfirmedQuery) obj;
-        return Objects.equals(field, other.field) && Objects.equals(approxQuery, other.approxQuery);
+        return arrayOrder == other.arrayOrder && Objects.equals(field, other.field) && Objects.equals(approxQuery, other.approxQuery);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), field, approxQuery);
+        return Objects.hash(classHash(), field, approxQuery, arrayOrder);
     }
 
     Query getApproximationQuery() {

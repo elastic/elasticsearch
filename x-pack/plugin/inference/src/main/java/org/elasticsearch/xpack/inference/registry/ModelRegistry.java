@@ -636,7 +636,8 @@ public class ModelRegistry implements ClusterStateListener {
             preventDeletionLock.add(inferenceEntityId);
         }
 
-        boolean includeDocType = InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state(), featureService);
+        boolean includeDocType = InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()
+            && InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state(), featureService);
         SubscribableListener.<BulkResponse>newForked((subListener) -> {
             // in this block, we try to update the stored model configurations
             var configRequestBuilder = createIndexRequestBuilder(
@@ -827,7 +828,8 @@ public class ModelRegistry implements ClusterStateListener {
         }
 
         var bulkRequestBuilder = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        boolean includeDocType = InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state(), featureService);
+        boolean includeDocType = InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()
+            && InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state(), featureService);
 
         for (var model : models) {
             bulkRequestBuilder.add(

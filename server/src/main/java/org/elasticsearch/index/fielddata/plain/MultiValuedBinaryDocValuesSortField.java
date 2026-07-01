@@ -20,35 +20,48 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 
 import java.io.IOException;
 
 /**
- * A {@link BinarySortField} for keyword fields stored in the
- * {@link MultiValuedBinaryDocValuesField.SeparateCount} binary format.
+ * A {@link BinarySortField} for keyword/IP fields stored as high-cardinality binary doc values, in either the
+ * {@link MultiValuedBinaryDocValuesField.SeparateCount} format (values deduplicated and stored sorted) or the
+ * {@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull} format (values stored in document order, with inline
+ * nulls) — see {@link #isArrayOrder()}.
  *
- * <p>For single-valued documents the binary payload is the raw term bytes and no decoding is
- * needed. For multi-valued documents the payload is a VInt-length-prefixed concatenation of the
- * sorted values; this class extracts either the first (minimum) or last (maximum) value as the
- * sort key, consistent with how {@code SortedSetSortField} behaves with a {@code MIN} or
- * {@code MAX} selector.
+ * <p>For single-valued documents the binary payload is the raw term bytes and no decoding is needed in either
+ * format. For multi-valued documents this class extracts either the minimum or maximum value as the sort key,
+ * consistent with how {@code SortedSetSortField} behaves with a {@code MIN} or {@code MAX} selector.
  */
 public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
 
     public static final String PROVIDER_NAME = "MultiValuedBinaryDocValuesSortField";
 
     private final boolean maxMode;
+    private final boolean arrayOrder;
 
     /** Returns {@code true} when this field uses the maximum (last) value for multi-valued documents. */
     boolean isMaxMode() {
         return maxMode;
     }
 
+    /**
+     * Returns {@code true} when this field's binary doc values use the {@code ArrayOrderInlineNull} encoding
+     * (document order, inline nulls) rather than {@code SeparateCount} (deduplicated, sorted).
+     */
+    public boolean isArrayOrder() {
+        return arrayOrder;
+    }
+
     public MultiValuedBinaryDocValuesSortField(String field, boolean reverse, Object missingValue, boolean maxMode) {
+        this(field, reverse, missingValue, maxMode, false);
+    }
+
+    public MultiValuedBinaryDocValuesSortField(String field, boolean reverse, Object missingValue, boolean maxMode, boolean arrayOrder) {
         super(field, reverse, missingValue, PROVIDER_NAME);
         this.maxMode = maxMode;
+        this.arrayOrder = arrayOrder;
     }
 
     @Override
@@ -59,23 +72,23 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
             // PlainBinary (single-valued field): raw bytes are the sort key.
             return values;
         }
-        return new MinMaxBinaryDocValues(values, counts, maxMode);
+        return new MinMaxBinaryDocValues(values, counts, maxMode, arrayOrder);
     }
 
     /**
-     * Wraps binary doc values in the {@code SeparateCounts} format, returning either the first
-     * (minimum) or last (maximum) value — since values are stored sorted — as the sort key.
+     * Wraps binary doc values, returning either the minimum or maximum value as the sort key — decoded according to
+     * whichever encoding ({@code SeparateCount} or {@code ArrayOrderInlineNull}) this field actually uses.
      */
     private static final class MinMaxBinaryDocValues extends FilterBinaryDocValues {
         private final NumericDocValues counts;
         private final boolean maxMode;
-        private final ByteArrayStreamInput stream = new ByteArrayStreamInput();
-        private final BytesRef selectedValue = new BytesRef();
+        private final boolean arrayOrder;
 
-        MinMaxBinaryDocValues(BinaryDocValues values, NumericDocValues counts, boolean maxMode) {
+        MinMaxBinaryDocValues(BinaryDocValues values, NumericDocValues counts, boolean maxMode, boolean arrayOrder) {
             super(values);
             this.counts = counts;
             this.maxMode = maxMode;
+            this.arrayOrder = arrayOrder;
         }
 
         @Override
@@ -112,28 +125,15 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
         @Override
         public BytesRef binaryValue() throws IOException {
             BytesRef raw = in.binaryValue();
-            if (counts.longValue() <= 1) {
-                // count=1: raw bytes are the sort key, no decoding needed.
+            long count = counts.longValue();
+            if (count <= 1) {
+                // count=1 (or a lone slot): raw bytes are the sort key in either encoding, no decoding needed.
                 return raw;
             }
-            // count>1: VInt(len_1)+bytes_1+VInt(len_2)+bytes_2+... (values stored sorted)
-            stream.reset(raw.bytes, raw.offset, raw.length);
-            if (maxMode == false) {
-                // First value = minimum.
-                selectedValue.length = stream.readVInt();
-                selectedValue.bytes = raw.bytes;
-                selectedValue.offset = stream.getPosition();
-            } else {
-                // Last value = maximum: iterate through all entries.
-                int endPos = raw.offset + raw.length;
-                selectedValue.bytes = raw.bytes;
-                while (stream.getPosition() < endPos) {
-                    selectedValue.length = stream.readVInt();
-                    selectedValue.offset = stream.getPosition();
-                    stream.setPosition(selectedValue.offset + selectedValue.length);
-                }
+            if (arrayOrder) {
+                return MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.decodeExtreme(raw, (int) count, maxMode);
             }
-            return selectedValue;
+            return MultiValuedBinaryDocValuesField.SeparateCount.decodeExtreme(raw, maxMode);
         }
     }
 
@@ -158,7 +158,8 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
                 default -> null;
             };
             boolean maxMode = in.readInt() == 1;
-            return new MultiValuedBinaryDocValuesSortField(field, reverse, missingValue, maxMode);
+            boolean arrayOrder = in.readInt() == 1;
+            return new MultiValuedBinaryDocValuesSortField(field, reverse, missingValue, maxMode, arrayOrder);
         }
 
         @Override
@@ -176,6 +177,7 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
                 out.writeInt(0);
             }
             out.writeInt(msf.maxMode ? 1 : 0);
+            out.writeInt(msf.arrayOrder ? 1 : 0);
         }
     }
 }

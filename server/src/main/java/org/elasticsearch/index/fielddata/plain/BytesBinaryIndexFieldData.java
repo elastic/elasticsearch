@@ -74,7 +74,7 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
             ? SortField.STRING_LAST
             : SortField.STRING_FIRST;
         boolean maxMode = sortMode == MultiValueMode.MAX;
-        return new MultiValuedBinaryDocValuesSortField(getFieldName(), reverse, luceneMissingValue, maxMode);
+        return new MultiValuedBinaryDocValuesSortField(getFieldName(), reverse, luceneMissingValue, maxMode, arrayOrder);
     }
 
     @Override

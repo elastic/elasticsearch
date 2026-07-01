@@ -149,6 +149,90 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
     }
 
     // =========================================================================
+    // getSortKeyDocValues — ArrayOrderInlineNull format (document order, inline nulls)
+    // =========================================================================
+
+    /** A single value is stored raw in ArrayOrderInlineNull too; returned as-is regardless of mode. */
+    public void testArrayOrder_singleValue_returnsRawBytes() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
+            LuceneDocument doc = new LuceneDocument();
+            MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordSingleValue(doc, "name", new BytesRef("alice"));
+            w.addDocument(doc);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                LeafReader leaf = getOnlyLeafReader(reader);
+                for (boolean maxMode : new boolean[] { false, true }) {
+                    BinaryDocValues dvs = new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, maxMode, true)
+                        .getSortKeyDocValues(leaf);
+                    assertTrue(dvs.advanceExact(0));
+                    assertEquals("maxMode=" + maxMode, new BytesRef("alice"), dvs.binaryValue());
+                }
+            }
+        }
+    }
+
+    /**
+     * Two values stored in document order ["zebra","bob"] (not sorted, unlike SeparateCount); MIN mode must scan
+     * both slots and return the smallest, "bob".
+     */
+    public void testArrayOrder_twoValues_minMode_returnsSmallest() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
+            LuceneDocument doc = new LuceneDocument();
+            MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(doc, "name", new BytesRef("zebra"));
+            MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(doc, "name", new BytesRef("bob"));
+            w.addDocument(doc);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                LeafReader leaf = getOnlyLeafReader(reader);
+                BinaryDocValues dvs = new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, false, true)
+                    .getSortKeyDocValues(leaf);
+                assertTrue(dvs.advanceExact(0));
+                assertEquals(new BytesRef("bob"), dvs.binaryValue());
+            }
+        }
+    }
+
+    /** Same document-order values as above; MAX mode returns the largest, "zebra". */
+    public void testArrayOrder_twoValues_maxMode_returnsLargest() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
+            LuceneDocument doc = new LuceneDocument();
+            MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(doc, "name", new BytesRef("zebra"));
+            MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(doc, "name", new BytesRef("bob"));
+            w.addDocument(doc);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                LeafReader leaf = getOnlyLeafReader(reader);
+                BinaryDocValues dvs = new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, true, true)
+                    .getSortKeyDocValues(leaf);
+                assertTrue(dvs.advanceExact(0));
+                assertEquals(new BytesRef("zebra"), dvs.binaryValue());
+            }
+        }
+    }
+
+    /**
+     * A null slot in between two real values ({@code [null, "bob", "zebra"]}) must be skipped for both MIN and MAX.
+     */
+    public void testArrayOrder_withInlineNull_skipsNullSlot() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
+            LuceneDocument doc = new LuceneDocument();
+            MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(doc, "name");
+            MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(doc, "name", new BytesRef("zebra"));
+            MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(doc, "name", new BytesRef("bob"));
+            w.addDocument(doc);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                LeafReader leaf = getOnlyLeafReader(reader);
+                BinaryDocValues minDvs = new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, false, true)
+                    .getSortKeyDocValues(leaf);
+                assertTrue(minDvs.advanceExact(0));
+                assertEquals(new BytesRef("bob"), minDvs.binaryValue());
+
+                BinaryDocValues maxDvs = new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, true, true)
+                    .getSortKeyDocValues(leaf);
+                assertTrue(maxDvs.advanceExact(0));
+                assertEquals(new BytesRef("zebra"), maxDvs.binaryValue());
+            }
+        }
+    }
+
+    // =========================================================================
     // Provider round-trip serialization
     // =========================================================================
 
@@ -172,6 +256,10 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
         assertRoundTrip(new MultiValuedBinaryDocValuesSortField("host.name", true, SortField.STRING_LAST, false));
     }
 
+    public void testProviderRoundTrip_arrayOrderTrue() throws IOException {
+        assertRoundTrip(new MultiValuedBinaryDocValuesSortField("host.name", false, SortField.STRING_LAST, true, true));
+    }
+
     private static void assertRoundTrip(MultiValuedBinaryDocValuesSortField original) throws IOException {
         var provider = new MultiValuedBinaryDocValuesSortField.Provider();
         var buf = new ByteBuffersDataOutput();
@@ -181,5 +269,6 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
         assertEquals(original.getReverse(), restored.getReverse());
         assertEquals(original.getMissingValue(), restored.getMissingValue());
         assertEquals(original.isMaxMode(), restored.isMaxMode());
+        assertEquals(original.isArrayOrder(), restored.isArrayOrder());
     }
 }

@@ -185,7 +185,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         "employees_copy_nonstrict",
         "employees_parquet_copy",
         "employees_copy_collide",
-        "employees_copy_multi"
+        "employees_copy_multi",
+        "employees_swap"
     );
 
     /**
@@ -675,6 +676,44 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             assertThat(rows, hasSize(3));
             assertThat(rows.get(0).get(1).toString(), equalTo("ENG"));   // read from nested dept.code
             assertThat(rows.get(2).get(1).toString(), equalTo("OPS"));
+        }
+    }
+
+    public void testRenameSwapsTwoColumns() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // Swap: emp_no reads first_name, first_name reads emp_no. Each output name is unique and each physical is used
+        // once (a bijection), so it should be allowed and the values should cross over.
+        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("emp_no", new DatasetFieldMapping("keyword", "first_name")); // emp_no <- physical first_name (text)
+        properties.put("first_name", new DatasetFieldMapping("long", "emp_no"));     // first_name <- physical emp_no (num)
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties), null);
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_swap",
+                    "local_ds",
+                    csvFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees_swap | SORT first_name | KEEP emp_no, first_name | LIMIT 10"),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0).toString(), equalTo("Alice")); // emp_no now holds the text
+            assertThat(rows.get(0).get(1), equalTo(1L));                 // first_name now holds the number
+            assertThat(rows.get(2).get(0).toString(), equalTo("Carol"));
+            assertThat(rows.get(2).get(1), equalTo(3L));
         }
     }
 

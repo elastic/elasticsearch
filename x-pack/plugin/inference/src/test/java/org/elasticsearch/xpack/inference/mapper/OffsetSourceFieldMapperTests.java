@@ -214,8 +214,6 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
     }
 
     public void testInputIndex() throws Exception {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
         ParsedDocument doc1 = mapper.parse(source(b -> b.startObject("field").field("field", "foo").field("input_index", 0).endObject()));
@@ -238,19 +236,6 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
             () -> mapper.parse(source(b -> b.startObject("field").field("field", "foo").field("input_index", -1).endObject()))
         );
         assertThat(rootCause(exc).getMessage(), containsString("Illegal input index"));
-    }
-
-    public void testInputIndexWithNoFeatureFlag() throws Exception {
-        assumeFalse("Semantic field feature flag is not enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        DocumentParsingException exc = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.startObject("field").field("field", "foo").field("input_index", 7).endObject()))
-        );
-        Throwable rootCause = rootCause(exc);
-        assertThat(rootCause, instanceOf(UnsupportedOperationException.class));
-        assertThat(rootCause.getMessage(), containsString("Input index is not supported yet"));
     }
 
     public void testRejectBothOffsetsAndInputIndex() throws Exception {
@@ -283,14 +268,12 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
                 new OffsetSourceFieldMapper.OffsetSource("foo", 0, 0)
             );
 
-            if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
-                // Post-sentinel mapper: (0, 0) is read back as the inputIndex sentinel with inputIndex == 0
-                // (the default PositionIncrementAttribute of 1 lands the token at absolute position 0).
-                assertOffsetSentinelFetch(
-                    IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE),
-                    new OffsetSourceFieldMapper.OffsetSource("foo", 0)
-                );
-            }
+            // Post-sentinel mapper: (0, 0) is read back as the inputIndex sentinel with inputIndex == 0
+            // (the default PositionIncrementAttribute of 1 lands the token at absolute position 0).
+            assertOffsetSentinelFetch(
+                IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE),
+                new OffsetSourceFieldMapper.OffsetSource("foo", 0)
+            );
         }
     }
 

@@ -17,7 +17,8 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.util.Map;
@@ -47,7 +48,7 @@ public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServ
             ignoreUnknownFields,
             () -> new Builder(context)
         );
-        JinaAICommonServiceSettings.declareCommonFields(parser);
+        JinaAIServiceSettings.declareCommonFields(parser);
         BaseJinaAIEmbeddingsServiceSettings.declareEmbeddingFields(parser, context);
         // text_embedding is always non-multimodal, so multimodal_model is not a valid field: the strict REQUEST parser rejects it, and
         // the lenient PERSISTENT parser ignores it (a persisted text embedding config never carries this field).
@@ -56,18 +57,28 @@ public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServ
 
     public static JinaAITextEmbeddingServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
-        return JinaAICommonServiceSettings.fromMap(map, context, parser);
+        return JinaAIServiceSettings.fromMap(map, context, parser);
     }
 
     public JinaAITextEmbeddingServiceSettings(
-        JinaAICommonServiceSettings commonServiceSettings,
+        String modelId,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
         @Nullable JinaAIEmbeddingType embeddingType,
-        boolean dimensionsSetByUser
+        boolean dimensionsSetByUser,
+        @Nullable RateLimitSettings rateLimitSettings
     ) {
-        super(commonServiceSettings, similarity, dimensions, maxInputTokens, embeddingType, dimensionsSetByUser, DEFAULT_MULTIMODAL_MODEL);
+        super(
+            modelId,
+            similarity,
+            dimensions,
+            maxInputTokens,
+            embeddingType,
+            dimensionsSetByUser,
+            DEFAULT_MULTIMODAL_MODEL,
+            rateLimitSettings
+        );
     }
 
     public JinaAITextEmbeddingServiceSettings(StreamInput in) throws IOException {
@@ -77,12 +88,13 @@ public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServ
     @Override
     public BaseJinaAIEmbeddingsServiceSettings update(SimilarityMeasure similarity, Integer dimensions) {
         return new JinaAITextEmbeddingServiceSettings(
-            getCommonSettings(),
+            modelId(),
             similarity,
             dimensions,
             maxInputTokens(),
             getEmbeddingType(),
-            dimensionsSetByUser()
+            dimensionsSetByUser(),
+            rateLimitSettings()
         );
     }
 
@@ -116,20 +128,22 @@ public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServ
 
         @Override
         protected JinaAITextEmbeddingServiceSettings construct(
-            JinaAICommonServiceSettings commonSettings,
+            String modelId,
             SimilarityMeasure similarity,
             Integer dimensions,
             Integer maxInputTokens,
             JinaAIEmbeddingType embeddingType,
-            boolean dimensionsSetByUser
+            boolean dimensionsSetByUser,
+            RateLimitSettings rateLimitSettings
         ) {
             return new JinaAITextEmbeddingServiceSettings(
-                commonSettings,
+                modelId,
                 similarity,
                 dimensions,
                 maxInputTokens,
                 embeddingType,
-                dimensionsSetByUser
+                dimensionsSetByUser,
+                rateLimitSettings
             );
         }
     }
@@ -148,12 +162,13 @@ public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServ
 
         public JinaAITextEmbeddingServiceSettings mergeInto(JinaAITextEmbeddingServiceSettings existing) {
             return new JinaAITextEmbeddingServiceSettings(
-                existing.getCommonSettings().update(this),
+                existing.modelId(),
                 existing.similarity(),
                 existing.dimensions(),
                 applyUpdate(maxInputTokens, existing.maxInputTokens()),
                 existing.getEmbeddingType(),
-                existing.dimensionsSetByUser()
+                existing.dimensionsSetByUser(),
+                mergedRateLimitSettings(existing)
             );
         }
     }

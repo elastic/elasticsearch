@@ -50,6 +50,20 @@ public abstract class AbstractJinaAIServiceSettingsTests<T extends ServiceSettin
     protected abstract Map<String, Object> buildCommonServiceSettingsMap(@Nullable String modelId, @Nullable Integer rateLimit);
 
     /**
+     * Builds a settings map containing only the common JinaAI fields (model_id and rate_limit), omitting any that are {@code null}.
+     */
+    public static Map<String, Object> buildServiceSettingsMap(@Nullable String modelId, @Nullable Integer rateLimit) {
+        var map = new HashMap<String, Object>();
+        if (modelId != null) {
+            map.put(ServiceFields.MODEL_ID, modelId);
+        }
+        if (rateLimit != null) {
+            map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
+        }
+        return map;
+    }
+
+    /**
      * Creates a settings instance with the given common fields and defaults for any task-specific fields.
      */
     protected abstract T createServiceSettings(String modelId, RateLimitSettings rateLimitSettings);

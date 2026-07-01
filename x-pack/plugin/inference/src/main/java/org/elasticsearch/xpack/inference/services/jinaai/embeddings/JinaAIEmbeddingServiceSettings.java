@@ -18,7 +18,8 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.util.Map;
@@ -45,7 +46,7 @@ public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceS
             ignoreUnknownFields,
             () -> new Builder(context)
         );
-        JinaAICommonServiceSettings.declareCommonFields(parser);
+        JinaAIServiceSettings.declareCommonFields(parser);
         BaseJinaAIEmbeddingsServiceSettings.declareEmbeddingFields(parser, context);
         parser.declareBoolean(Builder::setMultimodalModel, new ParseField(MULTIMODAL_MODEL));
         return parser;
@@ -53,19 +54,20 @@ public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceS
 
     public static JinaAIEmbeddingServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
-        return JinaAICommonServiceSettings.fromMap(map, context, parser);
+        return JinaAIServiceSettings.fromMap(map, context, parser);
     }
 
     public JinaAIEmbeddingServiceSettings(
-        JinaAICommonServiceSettings commonSettings,
+        String modelId,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
         @Nullable JinaAIEmbeddingType embeddingType,
         boolean dimensionsSetByUser,
-        boolean multimodalModel
+        boolean multimodalModel,
+        @Nullable RateLimitSettings rateLimitSettings
     ) {
-        super(commonSettings, similarity, dimensions, maxInputTokens, embeddingType, dimensionsSetByUser, multimodalModel);
+        super(modelId, similarity, dimensions, maxInputTokens, embeddingType, dimensionsSetByUser, multimodalModel, rateLimitSettings);
     }
 
     public JinaAIEmbeddingServiceSettings(StreamInput in) throws IOException {
@@ -75,13 +77,14 @@ public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceS
     @Override
     public BaseJinaAIEmbeddingsServiceSettings update(SimilarityMeasure similarity, Integer dimensions) {
         return new JinaAIEmbeddingServiceSettings(
-            getCommonSettings(),
+            modelId(),
             similarity,
             dimensions,
             maxInputTokens(),
             getEmbeddingType(),
             dimensionsSetByUser(),
-            isMultimodal()
+            isMultimodal(),
+            rateLimitSettings()
         );
     }
 
@@ -117,21 +120,23 @@ public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceS
 
         @Override
         protected JinaAIEmbeddingServiceSettings construct(
-            JinaAICommonServiceSettings commonSettings,
+            String modelId,
             SimilarityMeasure similarity,
             Integer dimensions,
             Integer maxInputTokens,
             JinaAIEmbeddingType embeddingType,
-            boolean dimensionsSetByUser
+            boolean dimensionsSetByUser,
+            RateLimitSettings rateLimitSettings
         ) {
             return new JinaAIEmbeddingServiceSettings(
-                commonSettings,
+                modelId,
                 similarity,
                 dimensions,
                 maxInputTokens,
                 embeddingType,
                 dimensionsSetByUser,
-                multimodalModel
+                multimodalModel,
+                rateLimitSettings
             );
         }
     }
@@ -150,13 +155,14 @@ public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceS
 
         public JinaAIEmbeddingServiceSettings mergeInto(JinaAIEmbeddingServiceSettings existing) {
             return new JinaAIEmbeddingServiceSettings(
-                existing.getCommonSettings().update(this),
+                existing.modelId(),
                 existing.similarity(),
                 existing.dimensions(),
                 applyUpdate(maxInputTokens, existing.maxInputTokens()),
                 existing.getEmbeddingType(),
                 existing.dimensionsSetByUser(),
-                existing.isMultimodal()
+                existing.isMultimodal(),
+                mergedRateLimitSettings(existing)
             );
         }
     }

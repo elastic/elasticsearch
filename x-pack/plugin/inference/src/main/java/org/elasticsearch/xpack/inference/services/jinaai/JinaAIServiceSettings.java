@@ -8,22 +8,21 @@
 package org.elasticsearch.xpack.inference.services.jinaai;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -34,21 +33,15 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIService.JINA_AI_EMBEDDING_REFACTOR;
 
 /**
- * Common service settings shared across all JinaAI inference tasks (model identity and rate limiting), together with the parsing,
- * serialization, and update machinery that would otherwise be duplicated. Task-specific settings classes embed this value object
- * as a member ({@code commonSettings}) rather than extending it.
- * <p>
- * This class is not a {@link org.elasticsearch.inference.ServiceSettings} and not a named writeable: it is only ever serialized as
- * an embedded component inside the task-specific settings classes.
+ * Abstract base for all JinaAI task-specific service settings. Holds the fields shared across every JinaAI task (model identity and
+ * rate limiting) together with the parsing, serialization, and update machinery that would otherwise be duplicated. Task-specific
+ * subclasses contribute only their own additional fields.
  */
-public class JinaAICommonServiceSettings extends FilteredXContentObject
-    implements
-        JinaAIRateLimitServiceSettings,
-        ToXContentFragment,
-        Writeable {
+public abstract class JinaAIServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
     // See https://jina.ai/contact-sales/#rate-limit
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(2_000);
@@ -56,8 +49,10 @@ public class JinaAICommonServiceSettings extends FilteredXContentObject
     /**
      * Registers the common JinaAI service-settings fields (model_id, rate_limit) onto the given parser.
      */
-    public static <B extends Builder<?>> void declareCommonFields(AbstractObjectParser<B, ConfigurationParseContext> parser) {
-        parser.declareString(Builder::setModelId, new ParseField(ServiceFields.MODEL_ID));
+    public static <B extends Builder<? extends JinaAIServiceSettings>> void declareCommonFields(
+        AbstractObjectParser<B, ConfigurationParseContext> parser
+    ) {
+        parser.declareString(Builder::setModelId, new ParseField(MODEL_ID));
         parser.declareObject(
             Builder::setRateLimitSettings,
             // An explicitly empty rate_limit object ({}) resolves to the default rate limit rather than null, so the setter is never
@@ -73,12 +68,12 @@ public class JinaAICommonServiceSettings extends FilteredXContentObject
     private final String modelId;
     private final RateLimitSettings rateLimitSettings;
 
-    public JinaAICommonServiceSettings(String modelId, @Nullable RateLimitSettings rateLimitSettings) {
+    protected JinaAIServiceSettings(String modelId, @Nullable RateLimitSettings rateLimitSettings) {
         this.modelId = Objects.requireNonNull(modelId);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
-    public JinaAICommonServiceSettings(StreamInput in) throws IOException {
+    protected JinaAIServiceSettings(StreamInput in) throws IOException {
         if (in.getTransportVersion().supports(JINA_AI_EMBEDDING_REFACTOR) == false) {
             // URI is no longer part of service settings since it's only used for testing
             in.readOptionalString();
@@ -91,22 +86,30 @@ public class JinaAICommonServiceSettings extends FilteredXContentObject
     }
 
     @Override
-    public RateLimitSettings rateLimitSettings() {
-        return rateLimitSettings;
-    }
-
     public String modelId() {
         return modelId;
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContentFragmentOfExposedFields(builder, params);
+    public RateLimitSettings rateLimitSettings() {
+        return rateLimitSettings;
     }
 
     @Override
-    public XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        builder.field(ServiceFields.MODEL_ID, modelId);
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.minimumCompatible();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        toXContentFragmentOfExposedFields(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
+    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
+        builder.field(MODEL_ID, modelId);
         rateLimitSettings.toXContent(builder, params);
         return builder;
     }
@@ -133,7 +136,7 @@ public class JinaAICommonServiceSettings extends FilteredXContentObject
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        JinaAICommonServiceSettings that = (JinaAICommonServiceSettings) o;
+        JinaAIServiceSettings that = (JinaAIServiceSettings) o;
         return Objects.equals(modelId, that.modelId) && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
@@ -143,13 +146,13 @@ public class JinaAICommonServiceSettings extends FilteredXContentObject
     }
 
     /**
-     * Accumulates the parsed common fields and assembles a {@link JinaAICommonServiceSettings}, enforcing that the required
-     * {@code model_id} field is present. Task-specific builders extend this and contribute their own fields. The {@link
-     * ConfigurationParseContext} is captured so subclasses can resolve context-dependent fields at build time.
+     * Accumulates the parsed common fields and assembles a {@link JinaAIServiceSettings}, enforcing that the required {@code model_id}
+     * field is present. Task-specific builders extend this and contribute their own fields. The {@link ConfigurationParseContext} is
+     * captured so subclasses can resolve context-dependent fields at build time.
      *
-     * @param <T> the task-specific settings type produced by {@link #build(JinaAICommonServiceSettings)}
+     * @param <T> the task-specific settings type produced by {@link #build(String, RateLimitSettings)}
      */
-    public abstract static class Builder<T> {
+    public abstract static class Builder<T extends JinaAIServiceSettings> {
 
         protected final ConfigurationParseContext context;
 
@@ -168,15 +171,11 @@ public class JinaAICommonServiceSettings extends FilteredXContentObject
             this.rateLimitSettings = rateLimitSettings;
         }
 
-        protected JinaAICommonServiceSettings buildCommonSettings() {
-            validateStringIsNotNullOrEmpty(modelId, ServiceFields.MODEL_ID);
-            return new JinaAICommonServiceSettings(modelId, rateLimitSettings);
-        }
-
-        protected abstract T build(JinaAICommonServiceSettings commonSettings);
+        protected abstract T build(String modelId, RateLimitSettings rateLimitSettings);
 
         public final T build() {
-            return build(buildCommonSettings());
+            validateStringIsNotNullOrEmpty(modelId, MODEL_ID);
+            return build(modelId, rateLimitSettings);
         }
     }
 
@@ -188,7 +187,7 @@ public class JinaAICommonServiceSettings extends FilteredXContentObject
      * @param parser  the parser to use for parsing the settings
      * @return the created settings instance
      */
-    public static <T> T fromMap(
+    public static <T extends JinaAIServiceSettings> T fromMap(
         Map<String, Object> map,
         ConfigurationParseContext context,
         ObjectParser<? extends Builder<T>, ConfigurationParseContext> parser
@@ -201,9 +200,8 @@ public class JinaAICommonServiceSettings extends FilteredXContentObject
     }
 
     /**
-     * Registers the common JinaAI fields that may be changed by an update request. Only {@code rate_limit} is mutable; the
-     * immutable fields (such as {@code model_id}) are intentionally not declared so that a strict update parser rejects attempts
-     * to change them.
+     * Registers the common JinaAI fields that may be changed by an update request. Only {@code rate_limit} is mutable; the immutable
+     * fields (such as {@code model_id}) are intentionally not declared so that a strict update parser rejects attempts to change them.
      */
     public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
         StatefulValue.declareNullable(
@@ -217,21 +215,18 @@ public class JinaAICommonServiceSettings extends FilteredXContentObject
 
     /**
      * Common fields parsed from an update request. Because settings are immutable, each subclass builds the new instance itself,
-     * calling {@link #update(CommonUpdate)} to resolve the shared fields.
+     * calling {@link #mergedRateLimitSettings(JinaAIServiceSettings)} to resolve the shared fields.
      */
     public static class CommonUpdate {
 
         protected StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
-    }
 
-    /**
-     * Resolves the rate limit settings to use after applying the update following the tri-state convention: an omitted field keeps
-     * the current value, an explicit null resets the field to the default rate limit, and a present value replaces the current one.
-     */
-    public JinaAICommonServiceSettings update(CommonUpdate update) {
-        return new JinaAICommonServiceSettings(
-            modelId,
-            applyUpdate(update.rateLimitSettings, rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS)
-        );
+        /**
+         * Resolves the rate limit settings to use after applying the update following the tri-state convention: an omitted field keeps
+         * the current value, an explicit null resets the field to the default rate limit, and a present value replaces the current one.
+         */
+        protected RateLimitSettings mergedRateLimitSettings(JinaAIServiceSettings existing) {
+            return applyUpdate(rateLimitSettings, existing.rateLimitSettings(), DEFAULT_RATE_LIMIT_SETTINGS);
+        }
     }
 }

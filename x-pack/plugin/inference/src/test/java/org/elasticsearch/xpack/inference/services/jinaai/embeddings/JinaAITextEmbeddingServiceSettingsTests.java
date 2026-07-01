@@ -24,9 +24,8 @@ import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.jinaai.AbstractJinaAIServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -71,37 +70,29 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractJinaAIServi
         SimilarityMeasure similarityMeasure = randomBoolean() ? null : randomSimilarityMeasure();
         Integer dimensions = randomBoolean() ? null : randomIntBetween(32, 256);
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
-
-        var commonSettings = JinaAICommonServiceSettingsTests.createRandom();
         var embeddingType = randomBoolean() ? null : randomFrom(JinaAIEmbeddingType.values());
         var dimensionsSetByUser = randomBoolean();
 
         return new JinaAITextEmbeddingServiceSettings(
-            commonSettings,
+            randomAlphaOfLength(15),
             similarityMeasure,
             dimensions,
             maxInputTokens,
             embeddingType,
-            dimensionsSetByUser
+            dimensionsSetByUser,
+            RateLimitSettingsTests.createRandom()
         );
     }
 
     public static JinaAITextEmbeddingServiceSettings createRandomWithNoNullValues() {
-        SimilarityMeasure similarityMeasure = randomSimilarityMeasure();
-        Integer dimensions = randomIntBetween(32, 256);
-        Integer maxInputTokens = randomIntBetween(128, 256);
-
-        var commonSettings = JinaAICommonServiceSettingsTests.createRandom();
-        var embeddingType = randomFrom(JinaAIEmbeddingType.values());
-        var dimensionsSetByUser = randomBoolean();
-
         return new JinaAITextEmbeddingServiceSettings(
-            commonSettings,
-            similarityMeasure,
-            dimensions,
-            maxInputTokens,
-            embeddingType,
-            dimensionsSetByUser
+            randomAlphaOfLength(15),
+            randomSimilarityMeasure(),
+            randomIntBetween(32, 256),
+            randomIntBetween(128, 256),
+            randomFrom(JinaAIEmbeddingType.values()),
+            randomBoolean(),
+            RateLimitSettingsTests.createRandom()
         );
     }
 
@@ -117,14 +108,7 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractJinaAIServi
 
     @Override
     protected JinaAITextEmbeddingServiceSettings createServiceSettings(String modelId, RateLimitSettings rateLimitSettings) {
-        return new JinaAITextEmbeddingServiceSettings(
-            new JinaAICommonServiceSettings(modelId, rateLimitSettings),
-            null,
-            null,
-            null,
-            null,
-            false
-        );
+        return new JinaAITextEmbeddingServiceSettings(modelId, null, null, null, null, false, rateLimitSettings);
     }
 
     @Override
@@ -166,12 +150,13 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractJinaAIServi
             serviceSettings,
             is(
                 new JinaAITextEmbeddingServiceSettings(
-                    new JinaAICommonServiceSettings(model, new RateLimitSettings(requestsPerMinute)),
+                    model,
                     similarity,
                     dimensions,
                     maxInputTokens,
                     embeddingType,
-                    dimensionsSetByUser
+                    dimensionsSetByUser,
+                    new RateLimitSettings(requestsPerMinute)
                 )
             )
         );
@@ -270,12 +255,13 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractJinaAIServi
         settingsMap.put(MAX_INPUT_TOKENS, TEST_MAX_INPUT_TOKENS);
         settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT)));
         var originalServiceSettings = new JinaAITextEmbeddingServiceSettings(
-            new JinaAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)),
+            INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_SIMILARITY,
             INITIAL_TEST_DIMENSIONS,
             INITIAL_TEST_MAX_INPUT_TOKENS,
             INITIAL_TEST_EMBEDDING_TYPE,
-            INITIAL_TEST_DIMENSIONS_SET_BY_USER
+            INITIAL_TEST_DIMENSIONS_SET_BY_USER,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(settingsMap);
 
@@ -283,12 +269,13 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractJinaAIServi
             updatedServiceSettings,
             is(
                 new JinaAITextEmbeddingServiceSettings(
-                    new JinaAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
+                    INITIAL_TEST_MODEL_ID,
                     INITIAL_TEST_SIMILARITY,
                     INITIAL_TEST_DIMENSIONS,
                     TEST_MAX_INPUT_TOKENS,
                     INITIAL_TEST_EMBEDDING_TYPE,
-                    INITIAL_TEST_DIMENSIONS_SET_BY_USER
+                    INITIAL_TEST_DIMENSIONS_SET_BY_USER,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
                 )
             )
         );
@@ -298,24 +285,26 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractJinaAIServi
         var settingsMap = new HashMap<String, Object>();
         settingsMap.put(MAX_INPUT_TOKENS, TEST_MAX_INPUT_TOKENS);
         var originalServiceSettings = new JinaAITextEmbeddingServiceSettings(
-            new JinaAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)),
+            INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_SIMILARITY,
             INITIAL_TEST_DIMENSIONS,
             INITIAL_TEST_MAX_INPUT_TOKENS,
             INITIAL_TEST_EMBEDDING_TYPE,
-            INITIAL_TEST_DIMENSIONS_SET_BY_USER
+            INITIAL_TEST_DIMENSIONS_SET_BY_USER,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
 
         assertThat(
             originalServiceSettings.updateServiceSettings(settingsMap),
             is(
                 new JinaAITextEmbeddingServiceSettings(
-                    new JinaAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)),
+                    INITIAL_TEST_MODEL_ID,
                     INITIAL_TEST_SIMILARITY,
                     INITIAL_TEST_DIMENSIONS,
                     TEST_MAX_INPUT_TOKENS,
                     INITIAL_TEST_EMBEDDING_TYPE,
-                    INITIAL_TEST_DIMENSIONS_SET_BY_USER
+                    INITIAL_TEST_DIMENSIONS_SET_BY_USER,
+                    new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
                 )
             )
         );
@@ -325,24 +314,26 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractJinaAIServi
         var settingsMap = new HashMap<String, Object>();
         settingsMap.put(MAX_INPUT_TOKENS, null);
         var originalServiceSettings = new JinaAITextEmbeddingServiceSettings(
-            new JinaAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)),
+            INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_SIMILARITY,
             INITIAL_TEST_DIMENSIONS,
             INITIAL_TEST_MAX_INPUT_TOKENS,
             INITIAL_TEST_EMBEDDING_TYPE,
-            INITIAL_TEST_DIMENSIONS_SET_BY_USER
+            INITIAL_TEST_DIMENSIONS_SET_BY_USER,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
 
         assertThat(
             originalServiceSettings.updateServiceSettings(settingsMap),
             is(
                 new JinaAITextEmbeddingServiceSettings(
-                    new JinaAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)),
+                    INITIAL_TEST_MODEL_ID,
                     INITIAL_TEST_SIMILARITY,
                     INITIAL_TEST_DIMENSIONS,
                     null,
                     INITIAL_TEST_EMBEDDING_TYPE,
-                    INITIAL_TEST_DIMENSIONS_SET_BY_USER
+                    INITIAL_TEST_DIMENSIONS_SET_BY_USER,
+                    new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
                 )
             )
         );
@@ -351,12 +342,13 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractJinaAIServi
     public void testUpdateServiceSettings_NonPositiveMaxInputTokens_ThrowsException() {
         var nonPositiveMaxInputTokens = randomIntBetween(-5, 0);
         var serviceSettings = new JinaAITextEmbeddingServiceSettings(
-            new JinaAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)),
+            INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_SIMILARITY,
             INITIAL_TEST_DIMENSIONS,
             INITIAL_TEST_MAX_INPUT_TOKENS,
             INITIAL_TEST_EMBEDDING_TYPE,
-            INITIAL_TEST_DIMENSIONS_SET_BY_USER
+            INITIAL_TEST_DIMENSIONS_SET_BY_USER,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
 
         var e = expectThrows(
@@ -382,12 +374,13 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractJinaAIServi
 
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = new JinaAITextEmbeddingServiceSettings(
-            new JinaAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
+            TEST_MODEL_ID,
             TEST_SIMILARITY,
             TEST_DIMENSIONS,
             TEST_MAX_INPUT_TOKENS,
             TEST_EMBEDDING_TYPE,
-            TEST_DIMENSIONS_SET_BY_USER
+            TEST_DIMENSIONS_SET_BY_USER,
+            new RateLimitSettings(TEST_RATE_LIMIT)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -424,12 +417,13 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractJinaAIServi
 
     public void testToXContentFragmentOfExposedFields_WritesAllValues() throws IOException {
         var serviceSettings = new JinaAITextEmbeddingServiceSettings(
-            new JinaAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
+            TEST_MODEL_ID,
             TEST_SIMILARITY,
             TEST_DIMENSIONS,
             TEST_MAX_INPUT_TOKENS,
             TEST_EMBEDDING_TYPE,
-            TEST_DIMENSIONS_SET_BY_USER
+            TEST_DIMENSIONS_SET_BY_USER,
+            new RateLimitSettings(TEST_RATE_LIMIT)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -459,12 +453,13 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractJinaAIServi
         var newSettings = settings.update(similarity, dimensions);
 
         var expectedSettings = new JinaAITextEmbeddingServiceSettings(
-            settings.getCommonSettings(),
+            settings.modelId(),
             similarity,
             dimensions,
             settings.maxInputTokens(),
             settings.getEmbeddingType(),
-            settings.dimensionsSetByUser()
+            settings.dimensionsSetByUser(),
+            settings.rateLimitSettings()
         );
 
         assertThat(newSettings, is(expectedSettings));
@@ -482,29 +477,32 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractJinaAIServi
 
     @Override
     protected JinaAITextEmbeddingServiceSettings mutateInstance(JinaAITextEmbeddingServiceSettings instance) throws IOException {
-        var commonSettings = instance.getCommonSettings();
+        var modelId = instance.modelId();
+        var rateLimitSettings = instance.rateLimitSettings();
         var similarity = instance.similarity();
         var dimensions = instance.dimensions();
         var maxInputTokens = instance.maxInputTokens();
         var embeddingType = instance.getEmbeddingType();
         var dimensionsSetByUser = instance.dimensionsSetByUser();
-        switch (randomInt(5)) {
-            case 0 -> commonSettings = randomValueOtherThan(commonSettings, JinaAICommonServiceSettingsTests::createRandom);
-            case 1 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
-            case 2 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
-            case 3 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
-            case 4 -> embeddingType = randomValueOtherThan(embeddingType, () -> randomFrom(JinaAIEmbeddingType.values()));
-            case 5 -> dimensionsSetByUser = dimensionsSetByUser == false;
+        switch (randomInt(6)) {
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(15));
+            case 1 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            case 2 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
+            case 3 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
+            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
+            case 5 -> embeddingType = randomValueOtherThan(embeddingType, () -> randomFrom(JinaAIEmbeddingType.values()));
+            case 6 -> dimensionsSetByUser = dimensionsSetByUser == false;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new JinaAITextEmbeddingServiceSettings(
-            commonSettings,
+            modelId,
             similarity,
             dimensions,
             maxInputTokens,
             embeddingType,
-            dimensionsSetByUser
+            dimensionsSetByUser,
+            rateLimitSettings
         );
     }
 
@@ -526,12 +524,13 @@ public class JinaAITextEmbeddingServiceSettingsTests extends AbstractJinaAIServi
         }
 
         return new JinaAITextEmbeddingServiceSettings(
-            instance.getCommonSettings(),
+            instance.modelId(),
             instance.similarity(),
             instance.dimensions(),
             instance.maxInputTokens(),
             embeddingType,
-            false
+            false,
+            instance.rateLimitSettings()
         );
     }
 

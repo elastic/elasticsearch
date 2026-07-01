@@ -26,14 +26,14 @@ import java.util.Objects;
 
 public abstract class JinaAIModel extends RateLimitGroupingModel {
     private final SecureString apiKey;
-    private final JinaAIRateLimitServiceSettings rateLimitServiceSettings;
+    private final JinaAIServiceSettings rateLimitServiceSettings;
     private final URI uri;
 
     public JinaAIModel(
         ModelConfigurations configurations,
         ModelSecrets secrets,
         @Nullable ApiKeySecrets apiKeySecrets,
-        JinaAIRateLimitServiceSettings rateLimitServiceSettings,
+        JinaAIServiceSettings rateLimitServiceSettings,
         URI uri
     ) {
         super(configurations, secrets);
@@ -63,7 +63,7 @@ public abstract class JinaAIModel extends RateLimitGroupingModel {
         return apiKey;
     }
 
-    public JinaAIRateLimitServiceSettings rateLimitServiceSettings() {
+    public JinaAIServiceSettings rateLimitServiceSettings() {
         return rateLimitServiceSettings;
     }
 

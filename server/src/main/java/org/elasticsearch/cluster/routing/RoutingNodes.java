@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetr
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -1477,6 +1478,31 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 queue.add(Iterators.forArray(shards));
             }
         }
+        return interleavedIterator(queue);
+    }
+
+    /**
+     * Returns an iterator that interleaves shards across the given subset of nodes, visiting one shard per node
+     * in round-robin order. Only nodes present in {@code nodeIds} are included; specified node IDs should all be
+     * present in {@link #nodesToShards}.
+     */
+    public Iterator<ShardRouting> nodeInterleavedShardIterator(Set<String> nodeIds) {
+        assert nodesToShards.keySet().containsAll(nodeIds) : "Unknown node IDs: " + Sets.difference(nodeIds, nodesToShards.keySet());
+        final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>(nodeIds.size());
+        for (final var nodeId : nodeIds) {
+            final var routingNode = nodesToShards.get(nodeId);
+            // defensive: assertions may be disabled
+            if (routingNode != null) {
+                final var shards = routingNode.copyShards();
+                if (shards.length > 0) {
+                    queue.add(Iterators.forArray(shards));
+                }
+            }
+        }
+        return interleavedIterator(queue);
+    }
+
+    private static Iterator<ShardRouting> interleavedIterator(Queue<Iterator<ShardRouting>> queue) {
         return new Iterator<>() {
             public boolean hasNext() {
                 return queue.isEmpty() == false;

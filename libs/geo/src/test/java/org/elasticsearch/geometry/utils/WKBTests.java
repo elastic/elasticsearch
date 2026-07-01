@@ -24,6 +24,7 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.ByteOrder;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -136,6 +137,107 @@ public class WKBTests extends ESTestCase {
 
     private ByteOrder randomByteOrder() {
         return randomBoolean() ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN;
+    }
+
+    public void testFromWKTPoint() throws Exception {
+        assertFromWKT(GeometryTestUtils.randomPoint(randomBoolean()));
+    }
+
+    public void testFromWKTMultiPoint() throws Exception {
+        assertFromWKT(GeometryTestUtils.randomMultiPoint(randomBoolean()));
+    }
+
+    public void testFromWKTEmptyMultiPoint() throws Exception {
+        assertFromWKT(MultiPoint.EMPTY);
+    }
+
+    public void testFromWKTLine() throws Exception {
+        assertFromWKT(GeometryTestUtils.randomLine(randomBoolean()));
+    }
+
+    public void testFromWKTEmptyLine() throws Exception {
+        assertFromWKT(Line.EMPTY);
+    }
+
+    public void testFromWKTMultiLine() throws Exception {
+        assertFromWKT(GeometryTestUtils.randomMultiLine(randomBoolean()));
+    }
+
+    public void testFromWKTEmptyMultiLine() throws Exception {
+        assertFromWKT(MultiLine.EMPTY);
+    }
+
+    public void testFromWKTPolygon() throws Exception {
+        assertFromWKT(GeometryTestUtils.randomPolygon(randomBoolean()));
+    }
+
+    public void testFromWKTEmptyPolygon() throws Exception {
+        assertFromWKT(Polygon.EMPTY);
+    }
+
+    public void testFromWKTMultiPolygon() throws Exception {
+        assertFromWKT(GeometryTestUtils.randomMultiPolygon(randomBoolean()));
+    }
+
+    public void testFromWKTEmptyMultiPolygon() throws Exception {
+        assertFromWKT(MultiPolygon.EMPTY);
+    }
+
+    public void testFromWKTGeometryCollection() throws Exception {
+        assertFromWKT(GeometryTestUtils.randomGeometryCollection(randomBoolean()));
+    }
+
+    public void testFromWKTEmptyGeometryCollection() throws Exception {
+        assertFromWKT(GeometryCollection.EMPTY);
+    }
+
+    public void testFromWKTCircle() throws Exception {
+        assertFromWKT(GeometryTestUtils.randomCircle(randomBoolean()));
+    }
+
+    public void testFromWKTRectangle() throws Exception {
+        assertFromWKT(GeometryTestUtils.randomRectangle());
+    }
+
+    public void testFromWKTLineStringZWithOnly2D() {
+        assertFromWKTRejectsLikeGeometryPath("LINESTRING Z (0 0, 1 1)");
+    }
+
+    public void testFromWKTPolygonMixedShellAndHoleDimension() {
+        assertFromWKTRejectsLikeGeometryPath("POLYGON ((0 0, 0 3, 3 3, 3 0, 0 0), (1 1 1, 1 2 1, 2 2 1, 2 1 1, 1 1 1))");
+    }
+
+    public void testFromWKTMultiLineStringMixedDimension() {
+        assertFromWKTRejectsLikeGeometryPath("MULTILINESTRING ((0 0, 1 1), (2 2 2, 3 3 3))");
+    }
+
+    public void testFromWKTMultiPolygonMixedDimension() {
+        assertFromWKTRejectsLikeGeometryPath("MULTIPOLYGON (((0 0, 0 1, 1 1, 1 0, 0 0)), ((2 2 2, 2 3 2, 3 3 2, 3 2 2, 2 2 2)))");
+    }
+
+    public void testFromWKTGeometryCollectionMixedDimension() {
+        assertFromWKTRejectsLikeGeometryPath("GEOMETRYCOLLECTION (POINT (0 0), POINT (1 1 1))");
+    }
+
+    /**
+     * Verifies that WellKnownBinary.fromWKT rejects a malformed WKT string with the same behavior
+     * (an exception) as the Geometry-based WellKnownText.fromWKT path.
+     */
+    private void assertFromWKTRejectsLikeGeometryPath(String wkt) {
+        expectThrows(IllegalArgumentException.class, () -> WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt));
+        expectThrowsAnyOf(
+            List.of(IllegalArgumentException.class, ParseException.class),
+            () -> WellKnownBinary.fromWKT(wkt, randomByteOrder(), false)
+        );
+    }
+
+    /** Verifies that WellKnownBinary.fromWKT produces the same WKB as the Geometry-based path. */
+    private void assertFromWKT(Geometry geometry) throws Exception {
+        final ByteOrder byteOrder = randomByteOrder();
+        final String wkt = WellKnownText.toWKT(geometry);
+        final byte[] expected = WellKnownBinary.toWKB(geometry, byteOrder);
+        final byte[] actual = WellKnownBinary.fromWKT(wkt, byteOrder, false);
+        assertArrayEquals("fromWKT result mismatch for: " + wkt, expected, actual);
     }
 
     private void assertWKB(Geometry geometry) {

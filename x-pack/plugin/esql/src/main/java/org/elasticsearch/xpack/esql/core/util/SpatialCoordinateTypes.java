@@ -145,11 +145,8 @@ public enum SpatialCoordinateTypes {
     }
 
     public BytesRef wktToWkb(String wkt) {
-        // TODO: we should be able to transform WKT to WKB without building the geometry
-        // we should as well use different validator for cartesian and geo?
         try {
-            Geometry geometry = WellKnownText.fromWKT(validator(), false, wkt);
-            return new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
+            return new BytesRef(WellKnownBinary.fromWKT(wkt, ByteOrder.LITTLE_ENDIAN, false, validator()));
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to parse WKT: " + e.getMessage(), e);
         }

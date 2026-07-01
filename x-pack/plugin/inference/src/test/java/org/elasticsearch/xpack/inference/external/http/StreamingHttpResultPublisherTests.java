@@ -678,7 +678,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
             return tracked;
         }
 
-        public void reset(){
+        public void reset() {
             this.tracked = 0L;
         }
     }

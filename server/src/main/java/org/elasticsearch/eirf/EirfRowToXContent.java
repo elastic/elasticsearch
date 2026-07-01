@@ -10,12 +10,14 @@
 package org.elasticsearch.eirf;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.sourcebatch.SourceRow;
+import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 /**
- * Converts an EIRF row to XContent output via {@link XContentBuilder}.
+ * Converts a {@link SourceRow} to XContent output via {@link XContentBuilder}.
  */
 public final class EirfRowToXContent {
 
@@ -25,26 +27,25 @@ public final class EirfRowToXContent {
      * Writes a single row as a nested JSON object to the given builder.
      * The builder should not have startObject called yet - this method handles it.
      */
-    public static void writeRow(EirfRowReader row, EirfSchema schema, XContentBuilder builder) throws IOException {
+    public static void writeRow(SourceRow row, SourceSchema schema, XContentBuilder builder) throws IOException {
         // Walk the schema tree depth-first so children of the same non-leaf are emitted contiguously, even when
         // heterogeneous documents caused their leaves to be interleaved in schema leaf order.
         EirfRowXContentParser.SchemaNode root = EirfRowXContentParser.buildSchemaTree(schema);
         writeRowFromSchema(row, root, builder);
     }
 
-    public static void writeRowFromSchema(EirfRowReader row, EirfRowXContentParser.SchemaNode schemaTree, XContentBuilder builder)
+    public static void writeRowFromSchema(SourceRow row, EirfRowXContentParser.SchemaNode schemaTree, XContentBuilder builder)
         throws IOException {
         builder.startObject();
         writeChildren(schemaTree, row, builder);
         builder.endObject();
     }
 
-    private static void writeChildren(EirfRowXContentParser.SchemaNode node, EirfRowReader row, XContentBuilder builder)
-        throws IOException {
+    private static void writeChildren(EirfRowXContentParser.SchemaNode node, SourceRow row, XContentBuilder builder) throws IOException {
         for (EirfRowXContentParser.SchemaNode child : node.children()) {
             if (child.isLeaf()) {
                 int leafIdx = child.leafColumnIndex();
-                if (leafIdx >= row.columnCount() || row.isAbsent(leafIdx)) {
+                if (row.isAbsent(leafIdx)) {
                     continue;
                 }
                 writeLeafValue(row, leafIdx, row.getTypeByte(leafIdx), child.name(), builder);
@@ -57,11 +58,11 @@ public final class EirfRowToXContent {
         }
     }
 
-    private static boolean isNotEmpty(EirfRowXContentParser.SchemaNode node, EirfRowReader row) {
+    private static boolean isNotEmpty(EirfRowXContentParser.SchemaNode node, SourceRow row) {
         for (EirfRowXContentParser.SchemaNode child : node.children()) {
             if (child.isLeaf()) {
                 int leafIdx = child.leafColumnIndex();
-                if (leafIdx < row.columnCount() && row.isAbsent(leafIdx) == false) {
+                if (row.isAbsent(leafIdx) == false) {
                     return true;
                 }
             } else if (isNotEmpty(child, row)) {
@@ -71,8 +72,7 @@ public final class EirfRowToXContent {
         return false;
     }
 
-    private static void writeLeafValue(EirfRowReader row, int leafIdx, byte type, String leafName, XContentBuilder builder)
-        throws IOException {
+    private static void writeLeafValue(SourceRow row, int leafIdx, byte type, String leafName, XContentBuilder builder) throws IOException {
         switch (type) {
             case EirfType.INT -> builder.field(leafName, row.getIntValue(leafIdx));
             // Emit as double so the textual form preserves enough precision for downstream double re-parsers

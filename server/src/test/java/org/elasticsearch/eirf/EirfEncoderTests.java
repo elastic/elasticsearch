@@ -12,6 +12,7 @@ package org.elasticsearch.eirf;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -34,7 +35,7 @@ public class EirfEncoderTests extends ESTestCase {
         assertEquals(2, batch.docCount());
         assertEquals(2, batch.columnCount());
 
-        EirfSchema schema = batch.schema();
+        SourceSchema schema = batch.schema();
         assertEquals("name", schema.getFullPath(0));
         assertEquals("age", schema.getFullPath(1));
 
@@ -106,7 +107,7 @@ public class EirfEncoderTests extends ESTestCase {
         EirfBatch batch = EirfEncoder.encode(sources, XContentType.JSON);
 
         assertEquals(2, batch.docCount());
-        EirfSchema schema = batch.schema();
+        SourceSchema schema = batch.schema();
         assertEquals(2, schema.nonLeafCount());
         assertEquals("user.name", schema.getFullPath(0));
         assertEquals("user.age", schema.getFullPath(1));
@@ -121,7 +122,7 @@ public class EirfEncoderTests extends ESTestCase {
 
         EirfBatch batch = EirfEncoder.encode(sources, XContentType.JSON);
 
-        EirfSchema schema = batch.schema();
+        SourceSchema schema = batch.schema();
         assertEquals(3, schema.nonLeafCount());
         assertEquals("a.b.c", schema.getFullPath(0));
         assertEquals(42, batch.getRowReader(0).getIntValue(0));
@@ -332,7 +333,7 @@ public class EirfEncoderTests extends ESTestCase {
         assertEquals(3, batch.columnCount());
 
         EirfRowReader row0 = batch.getRowReader(0);
-        assertEquals(2, row0.columnCount());
+        assertEquals(2, row0.recordedColumnCount());
         assertTrue(row0.isAbsent(2));
 
         batch.close();

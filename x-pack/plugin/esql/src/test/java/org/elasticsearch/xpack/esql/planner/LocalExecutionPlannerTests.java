@@ -68,7 +68,6 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -329,11 +328,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             Map.of(),
             Map.of(),
             null,
-            FormatReader.NO_LIMIT,
-            10,
-            null,
-            List.of(coalesced)
-        );
+            10
+        ).withSplits(List.of(coalesced));
 
         planner(operatorFactoryRegistry).plan(
             "test",
@@ -415,11 +411,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             Map.of(),
             Map.of(),
             null,
-            FormatReader.NO_LIMIT,
-            10,
-            resolved,
-            List.of(coalesced)
-        );
+            10
+        ).withFileList(resolved).withSplits(List.of(coalesced));
 
         planner(operatorFactoryRegistry).plan(
             "test",
@@ -518,11 +511,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             Map.of(),
             Map.of(),
             null,
-            FormatReader.NO_LIMIT,
-            10,
-            null,
-            List.of(coalesced)
-        );
+            10
+        ).withSplits(List.of(coalesced));
 
         planner(operatorFactoryRegistry).plan(
             "test",
@@ -587,10 +577,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             Map.of(),
             Map.of(),
             null,
-            FormatReader.NO_LIMIT,
-            10,
-            null,
-            List.of()
+            10
         );
 
         planner(operatorFactoryRegistry).plan(

@@ -346,6 +346,9 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskFailsWhenDataNodeIsShuttingDownAndTaskDoesNotFinishInTime
   issue: https://github.com/elastic/elasticsearch/issues/150295
+- class: org.elasticsearch.index.reindex.ReindexRequestTests
+  method: testDestSliceRejectedWhenFeatureFlagDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/152507
 - class: org.elasticsearch.gradle.internal.transport.GenerateInitialTransportVersionFuncTest
   method: cannot create upper bound file for patch
   issue: https://github.com/elastic/elasticsearch/issues/150296
@@ -389,9 +392,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.DatafeedCcsIT
   method: testDatafeedWithCcsRemoteUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/150541
-- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
-  method: testStress
-  issue: https://github.com/elastic/elasticsearch/issues/147850
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
   method: testTypeConflictMappedTimesTwoAndUnmapped
   issue: https://github.com/elastic/elasticsearch/issues/150567
@@ -611,9 +611,6 @@ tests:
 - class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceIT
   method: testCreateIndexBatching
   issue: https://github.com/elastic/elasticsearch/issues/152041
-- class: org.elasticsearch.ingest.iplocation.IngestEnterpriseGeoIpDownloaderIT
-  method: testEnterpriseDownloaderWithIngestPipeline
-  issue: https://github.com/elastic/elasticsearch/issues/152042
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerStressTestIT
   method: testMergingFallsBehindAndThenCatchesUp
   issue: https://github.com/elastic/elasticsearch/issues/152045
@@ -689,9 +686,6 @@ tests:
 - class: org.elasticsearch.reindex.management.CancelTasksRelocationIT
   method: testCancelAllReindexTasksByActionWithMixedRelocationState
   issue: https://github.com/elastic/elasticsearch/issues/152291
-- class: org.elasticsearch.xpack.encryption.spi.test.EncryptedDataHandlerProviderSpiIT
-  method: testProviderIsDiscoveredAndHandlerIsInvoked
-  issue: https://github.com/elastic/elasticsearch/issues/152303
 - class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
   method: testThreadSafety
   issue: https://github.com/elastic/elasticsearch/issues/152305
@@ -713,9 +707,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:folding.dateNanos_GreaterThan_MultiValueConstant}
   issue: https://github.com/elastic/elasticsearch/issues/152314
-- class: org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldMapperTests
-  method: testExponentialHistogramValuesReader
-  issue: https://github.com/elastic/elasticsearch/issues/152318
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StUnionTests
   method: testFold {TestCase=geo_shape and geo_shape}
   issue: https://github.com/elastic/elasticsearch/issues/152323
@@ -728,9 +719,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/152355
-- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
-  method: testExplicitMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/152356
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.create/21_synthetic_source_stored/index param - field ordering}
   issue: https://github.com/elastic/elasticsearch/issues/152364
@@ -743,9 +731,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OtelMetricsIT
   method: testExplicitMetrics
   issue: https://github.com/elastic/elasticsearch/issues/152379
-- class: org.elasticsearch.xpack.security.authz.microsoft.MicrosoftGraphAuthzPluginIT
-  method: testAuthenticationSuccessful
-  issue: https://github.com/elastic/elasticsearch/issues/152375
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationCycleWithNoHandlers
   issue: https://github.com/elastic/elasticsearch/issues/152412
@@ -758,3 +743,57 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/152440
+- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
+  method: testStoredIgnoredSource
+  issue: https://github.com/elastic/elasticsearch/issues/152448
+- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
+  method: testDocValuesIgnoredSource
+  issue: https://github.com/elastic/elasticsearch/issues/152469
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testRelocationWithConcurrentIndexing {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/152471
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testConsecutiveRotations
+  issue: https://github.com/elastic/elasticsearch/issues/152472
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testRelocationWithConcurrentIndexing {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/152486
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testRelocationWithConcurrentIndexing {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/152494
+- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
+  method: testSeqNoPartiallyRetainedByCcrLease
+  issue: https://github.com/elastic/elasticsearch/issues/152498
+- class: org.elasticsearch.reindex.RestReindexActionTests
+  method: testDestSliceRejectedWhenFeatureFlagDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/152548
+- class: org.elasticsearch.reindex.ReindexScriptTests
+  method: testSetSliceRejectedWhenFeatureFlagDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/152547
+- class: org.elasticsearch.xpack.diskbbq.DiskBBQClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/47_knn_search_bbq_disk_slice/KNN search with a different _slice returns that slice's nearest neighbor}
+  issue: https://github.com/elastic/elasticsearch/issues/152520
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SumSerializationTests
+  method: testSerializeSumWithOverflowingLongSupplier
+  issue: https://github.com/elastic/elasticsearch/issues/152506
+- class: org.elasticsearch.transport.RemoteClusterClientTests
+  method: testConnectAndExecuteRequest
+  issue: https://github.com/elastic/elasticsearch/issues/152518
+- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
+  method: testRelocatingIndexShardFetchesFirstRegionOnly
+  issue: https://github.com/elastic/elasticsearch/issues/152526
+- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
+  method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexIsDeleted
+  issue: https://github.com/elastic/elasticsearch/issues/152539
+- class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
+  method: testUpdatingFileBasedRoleAffectsAllProjects
+  issue: https://github.com/elastic/elasticsearch/issues/152582
+- class: org.elasticsearch.xpack.inference.InferenceWithSecurityRestIT
+  method: test {p0=inference/80_region_policy_crud/Get region policy allowed with monitor_inference privilege}
+  issue: https://github.com/elastic/elasticsearch/issues/152587
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:inlinestats.afterWhere}
+  issue: https://github.com/elastic/elasticsearch/issues/152591
+- class: org.elasticsearch.xpack.stateless.cluster.coordination.StatelessCoordinationTests
+  method: testAckListenerReceivesNacksIfPublicationTimesOut
+  issue: https://github.com/elastic/elasticsearch/issues/152605

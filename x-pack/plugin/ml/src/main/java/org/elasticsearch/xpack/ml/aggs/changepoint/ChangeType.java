@@ -54,12 +54,12 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
     abstract class AbstractChangePoint implements ChangeType {
         private final double logPValue;
         private final int changePoint;
-        private final double magnitudePercent;
+        private final String description;
 
-        protected AbstractChangePoint(double logPValue, double magnitudePercent, int changePoint) {
+        protected AbstractChangePoint(double logPValue, int changePoint, String description) {
             this.logPValue = logPValue;
-            this.magnitudePercent = magnitudePercent;
             this.changePoint = changePoint;
+            this.description = description;
         }
 
         @Override
@@ -72,8 +72,8 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
             return Math.min(logPValue, 0.0);
         }
 
-        public double magnitudePercent() {
-            return magnitudePercent;
+        public String description() {
+            return description;
         }
 
         @Override
@@ -84,12 +84,12 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         public AbstractChangePoint(StreamInput in) throws IOException {
             if (in.getTransportVersion().supports(MULTI_CHANGE_POINT)) {
                 logPValue = in.readDouble();
-                magnitudePercent = in.readDouble();
                 changePoint = in.readVInt();
+                description = in.readString();
             } else {
                 logPValue = Math.log(in.readDouble());
-                magnitudePercent = Double.NaN;
                 changePoint = in.readVInt();
+                description = "";
             }
         }
 
@@ -107,8 +107,8 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().supports(MULTI_CHANGE_POINT)) {
                 out.writeDouble(logPValue);
-                out.writeDouble(magnitudePercent);
                 out.writeVInt(changePoint);
+                out.writeString(description);
             } else {
                 out.writeDouble(pValue());
                 out.writeVInt(changePoint);
@@ -121,13 +121,13 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
             if (o == null || getClass() != o.getClass()) return false;
             AbstractChangePoint that = (AbstractChangePoint) o;
             return Double.compare(that.logPValue, logPValue) == 0
-                && Double.compare(that.magnitudePercent, magnitudePercent) == 0
-                && changePoint == that.changePoint;
+                && changePoint == that.changePoint
+                && Objects.equals(that.description, description);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(logPValue, magnitudePercent, changePoint);
+            return Objects.hash(logPValue, changePoint, description);
         }
     }
 
@@ -226,6 +226,64 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
     }
 
     /**
+     * Indicates a step change occurred
+     */
+    class StepChange extends AbstractChangePoint {
+        public static final String NAME = "step_change";
+
+        public StepChange(double logPValue, double magnitudePercent, int changePoint) {
+            super(logPValue, changePoint, "");
+        }
+
+        public StepChange(double logPValue, int changePoint, String description) {
+            super(logPValue, changePoint, description);
+        }
+
+        public StepChange(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public ChangeType remapChangePoint(int changePoint) {
+            return new StepChange(logPValue(), changePoint, description());
+        }
+
+        @Override
+        public String getName() {
+            return NAME;
+        }
+    }
+
+    /**
+     * Indicates a distribution change occurred
+     */
+    class DistributionChange extends AbstractChangePoint {
+        public static final String NAME = "distribution_change";
+
+        public DistributionChange(double logPValue, int changePoint) {
+            super(logPValue, changePoint, "");
+        }
+
+        public DistributionChange(double logPValue, int changePoint, String description) {
+            super(logPValue, changePoint, description);
+        }
+
+        public DistributionChange(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public ChangeType remapChangePoint(int changePoint) {
+            return new DistributionChange(logPValue(), changePoint, description());
+        }
+
+        @Override
+        public String getName() {
+            return NAME;
+        }
+    }
+
+    /**
      * Indicates the data has a trend
      */
     class NonStationary implements ChangeType {
@@ -311,83 +369,37 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
     }
 
     /**
-     * Indicates a distribution change occurred
-     */
-    class DistributionChange extends AbstractChangePoint {
-        public static final String NAME = "distribution_change";
-
-        public DistributionChange(double logPValue, double magnitudePercent, int changePoint) {
-            super(logPValue, magnitudePercent, changePoint);
-        }
-
-        public DistributionChange(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        public ChangeType remapChangePoint(int changePoint) {
-            return new DistributionChange(logPValue(), magnitudePercent(), changePoint);
-        }
-
-        @Override
-        public String getName() {
-            return NAME;
-        }
-    }
-
-    /**
-     * Indicates a step change occurred
-     */
-    class StepChange extends AbstractChangePoint {
-        public static final String NAME = "step_change";
-
-        public StepChange(double logPValue, double magnitudePercent, int changePoint) {
-            super(logPValue, magnitudePercent, changePoint);
-        }
-
-        public StepChange(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        public ChangeType remapChangePoint(int changePoint) {
-            return new StepChange(logPValue(), magnitudePercent(), changePoint);
-        }
-
-        @Override
-        public String getName() {
-            return NAME;
-        }
-    }
-
-    /**
      * Indicates a trend change occurred
      */
     class TrendChange implements ChangeType {
         public static final String NAME = "trend_change";
         private final double logPValue;
-        private final double magnitudePercent;
         private final double rValue;
         private final int changePoint;
+        private final String description;
 
-        public TrendChange(double logPValue, double magnitudePercent, double rValue, int changePoint) {
+        public TrendChange(double logPValue, double rValue, int changePoint) {
+            this(logPValue, rValue, changePoint, "");
+        }
+
+        public TrendChange(double logPValue, double rValue, int changePoint, String description) {
             this.logPValue = logPValue;
-            this.magnitudePercent = magnitudePercent;
             this.rValue = rValue;
             this.changePoint = changePoint;
+            this.description = description;
         }
 
         public TrendChange(StreamInput in) throws IOException {
             if (in.getTransportVersion().supports(MULTI_CHANGE_POINT)) {
                 logPValue = in.readDouble();
-                magnitudePercent = in.readDouble();
                 rValue = in.readDouble();
                 changePoint = in.readVInt();
+                description = in.readString();
             } else {
                 logPValue = Math.log(in.readDouble());
-                magnitudePercent = Double.NaN;
                 rValue = in.readDouble();
                 changePoint = in.readVInt();
+                description = "";
             }
         }
 
@@ -401,12 +413,8 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
             return Math.min(logPValue, 0.0);
         }
 
-        public double rValue() {
-            return rValue;
-        }
-
-        public double magnitudePercent() {
-            return magnitudePercent;
+        public String description() {
+            return description;
         }
 
         @Override
@@ -416,7 +424,7 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public ChangeType remapChangePoint(int changePoint) {
-            return new TrendChange(logPValue, magnitudePercent, rValue, changePoint);
+            return new TrendChange(logPValue, rValue, changePoint, description);
         }
 
         @Override
@@ -433,9 +441,9 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().supports(MULTI_CHANGE_POINT)) {
                 out.writeDouble(logPValue);
-                out.writeDouble(magnitudePercent);
                 out.writeDouble(rValue);
                 out.writeVInt(changePoint);
+                out.writeString(description);
             } else {
                 out.writeDouble(Math.exp(logPValue));
                 out.writeDouble(rValue);
@@ -454,14 +462,14 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
             if (o == null || getClass() != o.getClass()) return false;
             TrendChange that = (TrendChange) o;
             return Double.compare(that.logPValue, logPValue) == 0
-                && Double.compare(that.magnitudePercent, magnitudePercent) == 0
                 && Double.compare(that.rValue, rValue) == 0
-                && changePoint == that.changePoint;
+                && changePoint == that.changePoint
+                && Objects.equals(that.description, description);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(logPValue, magnitudePercent, rValue, changePoint);
+            return Objects.hash(logPValue, rValue, changePoint, description);
         }
     }
 
@@ -471,8 +479,12 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
     class Spike extends AbstractChangePoint {
         public static final String NAME = "spike";
 
-        public Spike(double logPValue, double magnitudePercent, int changePoint) {
-            super(logPValue, magnitudePercent, changePoint);
+        public Spike(double logPValue, int changePoint) {
+            super(logPValue, changePoint, "");
+        }
+
+        public Spike(double logPValue, int changePoint, String description) {
+            super(logPValue, changePoint, description);
         }
 
         public Spike(StreamInput in) throws IOException {
@@ -486,7 +498,7 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public ChangeType remapChangePoint(int changePoint) {
-            return new Spike(logPValue(), magnitudePercent(), changePoint);
+            return new Spike(logPValue(), changePoint, description());
         }
 
         @Override
@@ -501,8 +513,12 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
     class Dip extends AbstractChangePoint {
         public static final String NAME = "dip";
 
-        public Dip(double logPValue, double magnitudePercent, int changePoint) {
-            super(logPValue, magnitudePercent, changePoint);
+        public Dip(double logPValue, int changePoint) {
+            super(logPValue, changePoint, "");
+        }
+
+        public Dip(double logPValue, int changePoint, String description) {
+            super(logPValue, changePoint, description);
         }
 
         public Dip(StreamInput in) throws IOException {
@@ -516,7 +532,7 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
 
         @Override
         public ChangeType remapChangePoint(int changePoint) {
-            return new Dip(logPValue(), magnitudePercent(), changePoint);
+            return new Dip(logPValue(), changePoint, description());
         }
 
         @Override

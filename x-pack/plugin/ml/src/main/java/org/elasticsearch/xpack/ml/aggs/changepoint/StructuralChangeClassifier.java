@@ -331,13 +331,15 @@ public class StructuralChangeClassifier {
             double levelAfter = right[0] + offset;
             if (change.degree() == 0) {
                 double stepPercent = 100.0 * (levelAfter - levelBefore) / Math.max(Math.abs(levelBefore), floor);
-                return new ChangeType.StepChange(logPValue, stepPercent, cp);
+                String description = String.format("%+.2f%% change in level", stepPercent);
+                return new ChangeType.StepChange(logPValue, cp, description);
             }
             double noChangeRss = Math.max(noChange.rss(), VAR_FLOOR * windowLength);
             double r2 = Math.max(0.0, Math.min(1.0, 1.0 - (change.rss() / noChangeRss)));
             double levelAtChange = 0.5 * (levelBefore + levelAfter);
             double gradientPercent = 100.0 * (right[1] - left[1]) / Math.max(Math.abs(levelAtChange), floor);
-            return new ChangeType.TrendChange(logPValue, gradientPercent, r2, cp);
+            String description = String.format("%+.2f%% change in slope", gradientPercent);
+            return new ChangeType.TrendChange(logPValue, r2, cp, description);
         }
 
         if (detectVarianceShifts) {
@@ -382,7 +384,8 @@ public class StructuralChangeClassifier {
                 double scaleAfter = Math.sqrt(varRight);
                 double scaleFloor = Math.max(Math.sqrt(Math.max(localNoiseVariance, 0.0)), SCALE_FLOOR);
                 double magnitudePercent = 100.0 * (scaleAfter - scaleBefore) / Math.max(scaleBefore, scaleFloor);
-                return new ChangeType.DistributionChange(logPValue, magnitudePercent, cp);
+                String description = String.format("%+.2f%% change in error scale", magnitudePercent);
+                return new ChangeType.DistributionChange(logPValue, cp, description);
             }
         }
 

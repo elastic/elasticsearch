@@ -81,18 +81,19 @@ public class EventDetector {
         int dispersionMinRegime = Math.max(2 * DISPERSION_WINDOW, minSegmentLength);
         this.dispersionMinSegment = Math.max(3, dispersionMinRegime / DISPERSION_STRIDE);
         this.pulseDetector = new PulseDetector(minSegmentLength, pValueThreshold);
-        // Value channel runs at full sample independence (1.0) and reports a variance-driven boundary as a
-        // distribution change (the full-resolution backstop for a short, strong variance change the coarser
-        // dispersion channel misses).
-        this.detectorForValues = new StructuralChangeDetector(minSegmentLength, VALUE_MAX_DEGREE, pValueThreshold, 1.0, true);
-        // The sliding dispersion window overlaps, so the verifier must discount the BIC evidence or it over-
-        // detects on the correlated channel (see DISPERSION_SAMPLE_INDEPENDENCE).
+        this.detectorForValues = new StructuralChangeDetector(
+            minSegmentLength,
+            VALUE_MAX_DEGREE,
+            pValueThreshold,
+            1.0, // Samples are independent.
+            true // Reports variance-driven boundaries as distribution changes
+        );
         this.detectorForDispersions = new StructuralChangeDetector(
             dispersionMinSegment,
             DISPERSION_MAX_DEGREE,
             pValueThreshold,
-            DISPERSION_SAMPLE_INDEPENDENCE,
-            false
+            DISPERSION_SAMPLE_INDEPENDENCE, // Samples are correlated because of window overlap.
+            false // Dispersion channel: do not report variance-driven boundaries as distribution changes
         );
     }
 
@@ -139,7 +140,8 @@ public class EventDetector {
                 double scaleAfter = Math.expm1(Stats.meanRange(dispersion, k, k + magnitudeWindow));
                 double floor = Math.max(0.1 * typicalScale, 1e-10);
                 double magnitudePercent = 100.0 * (scaleAfter - scaleBefore) / Math.max(scaleBefore, floor);
-                events.add(new ChangeType.DistributionChange(e.logPValue(), magnitudePercent, valueIndex));
+                String description = String.format("%+.2f%% change in error scale", magnitudePercent);
+                events.add(new ChangeType.DistributionChange(e.logPValue(), valueIndex, description));
             }
         }
 
@@ -150,8 +152,8 @@ public class EventDetector {
         // pulses are a separate stream and are added afterwards so they are never suppressed by a coincident break.
         events = deduplicate(events);
 
-        // Anomalies (spikes/dips): point excursions from a local baseline, judged against a KDE of the background
-        // values with the detected excursions removed.
+        // Point excursions from a local baseline, judged against a KDE of the background values with the detected
+        // excursions removed.
         events.addAll(pulseDetector.detect(values));
 
         // If any changes spikes or dips exist remove the stationary/non-stationary classification.

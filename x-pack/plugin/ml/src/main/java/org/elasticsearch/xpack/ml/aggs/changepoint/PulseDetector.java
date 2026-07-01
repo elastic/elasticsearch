@@ -166,10 +166,12 @@ public class PulseDetector {
                 double deviation = residuals[e.peak()];
                 double baseline = values[e.peak()] - deviation;
                 double magnitudePercent = 100.0 * deviation / Math.max(Math.abs(baseline), scale);
+                // Short description of the size of the peak.
+                String description = String.format("%+.2f%% change from rolling median", magnitudePercent);
                 pulses.add(
                     e.sign() > 0
-                        ? new ChangeType.Spike(logPValue, magnitudePercent, e.peak())
-                        : new ChangeType.Dip(logPValue, magnitudePercent, e.peak())
+                        ? new ChangeType.Spike(logPValue, e.peak(), description)
+                        : new ChangeType.Dip(logPValue, e.peak(), description)
                 );
             }
         }

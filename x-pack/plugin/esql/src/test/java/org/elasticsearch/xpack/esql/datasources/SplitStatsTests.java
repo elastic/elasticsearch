@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -210,6 +211,75 @@ public class SplitStatsTests extends ESTestCase {
 
         assertEquals("marker not sent to old peer -> min defaults servable", 10, back.columnMin("c"));
         assertEquals("non-gated fields still round-trip at the older version", 90, back.columnMax("c"));
+    }
+
+    /**
+     * EQUIVALENCE PROOF for the compact fold: over a randomized corpus (multiple files, absent columns,
+     * cross-type / NaN poison, pre-seeded unservable markers, both footer and text modes), the compact
+     * {@code SplitStats.fold(...).toMap()} must be key-equal to the flat {@code mergeStatistics(...)}. This is the
+     * signal that lets {@code mergeStatistics} be rewritten to delegate to {@code fold} without behavior change.
+     */
+    public void testFoldMatchesMergeStatisticsDifferential() {
+        for (int trial = 0; trial < 500; trial++) {
+            int nFiles = randomIntBetween(2, 5);
+            int nCols = randomIntBetween(0, 4);
+            List<Map<String, Object>> maps = new ArrayList<>();
+            for (int f = 0; f < nFiles; f++) {
+                Map<String, Object> m = new HashMap<>();
+                m.put(SourceStatisticsSerializer.STATS_ROW_COUNT, (long) randomIntBetween(0, 1000));
+                if (randomBoolean()) {
+                    m.put(SourceStatisticsSerializer.STATS_SIZE_BYTES, (long) randomIntBetween(0, 10000));
+                }
+                for (int c = 0; c < nCols; c++) {
+                    String col = "c" + c;
+                    if (randomBoolean()) {
+                        continue; // absent in this file
+                    }
+                    if (randomBoolean()) {
+                        m.put(SourceStatisticsSerializer.columnNullCountKey(col), (long) randomIntBetween(0, 100));
+                    }
+                    if (randomBoolean()) {
+                        m.put(SourceStatisticsSerializer.columnValueCountKey(col), (long) randomIntBetween(0, 100));
+                    }
+                    if (randomBoolean()) {
+                        m.put(SourceStatisticsSerializer.columnMinKey(col), randomExtremum());
+                        m.put(SourceStatisticsSerializer.columnMaxKey(col), randomExtremum());
+                    }
+                    if (randomBoolean()) {
+                        m.put(SourceStatisticsSerializer.columnSizeBytesKey(col), (long) randomIntBetween(0, 5000));
+                    }
+                    if (rarely()) { // an already-poisoned input: marker present, value absent
+                        m.remove(SourceStatisticsSerializer.columnMinKey(col));
+                        m.put(SourceStatisticsSerializer.columnMinUnservableKey(col), Boolean.TRUE);
+                    }
+                    if (rarely()) {
+                        m.remove(SourceStatisticsSerializer.columnMaxKey(col));
+                        m.put(SourceStatisticsSerializer.columnMaxUnservableKey(col), Boolean.TRUE);
+                    }
+                }
+                maps.add(m);
+            }
+            for (boolean implicitNulls : new boolean[] { true, false }) {
+                Map<String, Object> viaMerge = SourceStatisticsSerializer.mergeStatistics(maps, implicitNulls);
+                List<SplitStats> splits = new ArrayList<>();
+                for (Map<String, Object> m : maps) {
+                    splits.add(SplitStats.of(m));
+                }
+                SplitStats folded = SplitStats.fold(splits, implicitNulls);
+                Map<String, Object> viaFold = folded == null ? null : folded.toMap();
+                assertEquals("fold != mergeStatistics (implicitNulls=" + implicitNulls + ") for " + maps, viaMerge, viaFold);
+            }
+        }
+    }
+
+    /** A random extremum value spanning the fold-relevant types: int / long / double / NaN. */
+    private Object randomExtremum() {
+        return switch (randomIntBetween(0, 3)) {
+            case 0 -> randomIntBetween(-100, 100);
+            case 1 -> (long) randomIntBetween(-100, 100);
+            case 2 -> (double) randomIntBetween(-100, 100);
+            default -> Double.NaN;
+        };
     }
 
     public void testBulkAddColumn() {

@@ -20,10 +20,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Compact representation of per-split (row-group/stripe) statistics with path-segment
@@ -499,6 +501,200 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             }
         }
         return Map.copyOf(map);
+    }
+
+    /**
+     * Folds multiple {@link SplitStats} into one, using the SAME law and policy as
+     * {@link SourceStatisticsSerializer#mergeStatistics}: SUM for row/size/null/value/size-bytes, the MIN/MAX
+     * law ({@link #mergedMin}/{@link #mergedMax}) for extrema with per-extremum POISON becoming an unservable
+     * bit, and the implicit-nulls (footer) or partial-column-drop (text) policy for a column absent from some
+     * splits. This is the compact-model twin of that flat-map fold: {@code fold(splits, m).toMap()} is
+     * key-equivalent to {@code mergeStatistics(splits.map(SplitStats::toMap), m)} -- asserted by the differential
+     * test. The servability MARKER of the flat form becomes the servable BIT here, folded by AND (unservable is
+     * sticky across levels), so a poisoned extremum cannot be refilled by a sibling.
+     *
+     * @param implicitNullsForAbsentColumn footer (true): a split lacking a column folds its rows into that
+     *        column's null_count. Text (false): a column absent from a NON-EMPTY split is dropped entirely.
+     * @return folded stats, or {@code null} if null/empty; the single element unchanged when size 1.
+     */
+    static SplitStats fold(List<SplitStats> splits, boolean implicitNullsForAbsentColumn) {
+        if (splits == null || splits.isEmpty()) {
+            return null;
+        }
+        if (splits.size() == 1) {
+            return splits.get(0);
+        }
+        long totalRows = 0;
+        long totalSize = 0;
+        boolean anySize = false;
+        Map<String, ColumnFold> byName = new LinkedHashMap<>();
+        long[] perSplitRows = new long[splits.size()];
+        List<Set<String>> perSplitPresent = new ArrayList<>(splits.size());
+
+        StringBuilder nameBuf = new StringBuilder();
+        for (int s = 0; s < splits.size(); s++) {
+            SplitStats sp = splits.get(s);
+            totalRows += sp.rowCount;
+            if (sp.sizeInBytes >= 0) {
+                totalSize += sp.sizeInBytes;
+                anySize = true;
+            }
+            perSplitRows[s] = sp.rowCount;
+            Set<String> present = new HashSet<>();
+            for (int i = 0; i < sp.columnCount(); i++) {
+                String name = sp.resolveColumnName(i, nameBuf);
+                present.add(name);
+                byName.computeIfAbsent(name, k -> new ColumnFold()).accept(sp, i);
+            }
+            perSplitPresent.add(present);
+        }
+
+        // Absent-column policy: footer folds each absent split's rows into null_count; text drops a column not
+        // observed in every NON-EMPTY split (a 0-row split's absence does not count against presence).
+        for (Map.Entry<String, ColumnFold> e : byName.entrySet()) {
+            for (int s = 0; s < splits.size(); s++) {
+                if (perSplitPresent.get(s).contains(e.getKey())) {
+                    continue;
+                }
+                if (implicitNullsForAbsentColumn) {
+                    e.getValue().absentFooter(perSplitRows[s]);
+                } else if (perSplitRows[s] > 0) {
+                    e.getValue().dropped = true;
+                }
+            }
+        }
+
+        Builder b = new Builder().rowCount(totalRows);
+        if (anySize && totalSize != 0) { // a zero total size is not emitted (the "no file reported a size" contract)
+            b.sizeInBytes(totalSize);
+        }
+        for (Map.Entry<String, ColumnFold> e : byName.entrySet()) {
+            ColumnFold cf = e.getValue();
+            if (cf.dropped) {
+                // Text partial-harvest drops the column's VALUES. mergeStatistics emits its poison marker AFTER
+                // the drop, so a poisoned extremum leaves an orphaned .min/.max_unservable behind (harmless -- the
+                // column is otherwise absent, so serve safe-misses it regardless). Replicated here for exact
+                // behavior-identity; a candidate for a separate cleanup increment (drop the orphan in both).
+                if (cf.minServable == false || cf.maxServable == false) {
+                    int dropOrd = b.addColumn(e.getKey());
+                    if (cf.minServable == false) {
+                        b.minUnservable(dropOrd);
+                    }
+                    if (cf.maxServable == false) {
+                        b.maxUnservable(dropOrd);
+                    }
+                }
+                continue;
+            }
+            int ord = b.addColumn(e.getKey());
+            if (cf.nullCountPoisoned == false && cf.nullCountContributed) {
+                b.nullCount(ord, cf.nullCountSum);
+            }
+            if (cf.valueCountKnown) {
+                b.valueCount(ord, cf.valueCountSum);
+            }
+            if (cf.sizeKnown) {
+                b.sizeBytes(ord, cf.sizeSum);
+            }
+            if (cf.minServable) {
+                if (cf.min != null) {
+                    b.min(ord, cf.min);
+                }
+            } else {
+                b.minUnservable(ord);
+            }
+            if (cf.maxServable) {
+                if (cf.max != null) {
+                    b.max(ord, cf.max);
+                }
+            } else {
+                b.maxUnservable(ord);
+            }
+        }
+        return b.build();
+    }
+
+    /**
+     * Per-column running fold state for {@link #fold}. Mirrors {@code mergeStatistics}: SUM the counts/size,
+     * apply the MIN/MAX law to extrema (POISON -> unservable), and track presence for the absent-column policy.
+     * An input extremum already unservable (its bit false) keeps the result unservable (AND of bits).
+     */
+    private static final class ColumnFold {
+        long nullCountSum = 0;
+        boolean nullCountContributed = false; // any present null_count OR a footer add
+        boolean nullCountPoisoned = false;    // a split had the column but no null_count -> unknown
+        long valueCountSum = 0;
+        boolean valueCountKnown = false;
+        long sizeSum = 0;
+        boolean sizeKnown = false;
+        Object min = null;
+        boolean minServable = true;
+        boolean minSeen = false;
+        Object max = null;
+        boolean maxServable = true;
+        boolean maxSeen = false;
+        boolean dropped = false;
+
+        void accept(SplitStats sp, int i) {
+            if (sp.nullCounts[i] >= 0) {
+                nullCountSum += sp.nullCounts[i];
+                nullCountContributed = true;
+            } else {
+                nullCountPoisoned = true;
+            }
+            if (sp.valueCounts[i] >= 0) {
+                valueCountSum += sp.valueCounts[i];
+                valueCountKnown = true;
+            }
+            if (sp.sizesBytes[i] >= 0) {
+                sizeSum += sp.sizesBytes[i];
+                sizeKnown = true;
+            }
+            // MIN: an already-unservable input, a non-Comparable first value, or an incompatible merge all poison.
+            if (sp.minServable[i] == false) {
+                minServable = false;
+            } else if (sp.mins[i] != null) {
+                if (minSeen == false) {
+                    if (sp.mins[i] instanceof Comparable) {
+                        min = sp.mins[i];
+                        minSeen = true;
+                    } else {
+                        minServable = false;
+                    }
+                } else {
+                    Object merged = mergedMin(min, sp.mins[i]);
+                    if (merged == null) {
+                        minServable = false;
+                    } else {
+                        min = merged;
+                    }
+                }
+            }
+            if (sp.maxServable[i] == false) {
+                maxServable = false;
+            } else if (sp.maxs[i] != null) {
+                if (maxSeen == false) {
+                    if (sp.maxs[i] instanceof Comparable) {
+                        max = sp.maxs[i];
+                        maxSeen = true;
+                    } else {
+                        maxServable = false;
+                    }
+                } else {
+                    Object merged = mergedMax(max, sp.maxs[i]);
+                    if (merged == null) {
+                        maxServable = false;
+                    } else {
+                        max = merged;
+                    }
+                }
+            }
+        }
+
+        void absentFooter(long rows) {
+            nullCountSum += rows;
+            nullCountContributed = true;
+        }
     }
 
     /**

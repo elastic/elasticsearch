@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -34,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -42,6 +44,9 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     private static final Logger LOGGER = LogManager.getLogger(DefaultLocalClusterHandle.class);
     private static final Duration CLUSTER_UP_TIMEOUT = Duration.ofMinutes(5);
+    private static final int HEALTH_CHECK_CONNECT_TIMEOUT_MS = 5000;
+    private static final int HEALTH_CHECK_READ_TIMEOUT_MS = 5000;
+    private static final long HEALTH_CHECK_CACHE_TTL_NANOS = Duration.ofSeconds(1).toNanos();
 
     public final ForkJoinPool executor = new ForkJoinPool(
         Math.max(Runtime.getRuntime().availableProcessors(), 4),
@@ -61,6 +66,14 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final String name;
     private final List<Node> nodes;
+    private final AtomicReference<Long> lastHealthCheckNanos = new AtomicReference<>();
+    private volatile List<WaitForHttpResource> cachedHealthChecks;
+    /**
+     * Suppresses {@link #checkNodesAlive()} probes during deliberate node lifecycle transitions
+     * (rolling upgrades). Set and cleared by {@link #upgradeToVersion(Version, Runnable)} so that
+     * transient connection failures while a node restarts do not produce false-positive failures.
+     */
+    private volatile boolean suppressHealthChecks = false;
 
     public DefaultLocalClusterHandle(String name, List<Node> nodes) {
         this.name = name;
@@ -90,6 +103,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
             // Make sure the process is stopped, otherwise wait
             execute(() -> nodes.parallelStream().forEach(Node::waitForExit));
         }
+        invalidateHealthCheckCache();
     }
 
     @Override
@@ -118,6 +132,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     @Override
     public String getHttpAddresses() {
+        checkNodesAlive();
         if (started.get()) {
             return execute(() -> nodes.parallelStream().map(Node::getHttpAddress).collect(Collectors.joining(",")));
         } else {
@@ -132,6 +147,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     @Override
     public String getTransportEndpoints() {
+        checkNodesAlive();
         if (started.get()) {
             return execute(() -> nodes.parallelStream().map(Node::getTransportEndpoint).collect(Collectors.joining(",")));
         } else {
@@ -160,6 +176,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     @Override
     public String getRemoteClusterServerEndpoints() {
+        checkNodesAlive();
         if (started.get()) {
             return execute(() -> nodes.parallelStream().map(Node::getRemoteClusterServerEndpoint).collect(Collectors.joining(",")));
         } else {
@@ -178,6 +195,9 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         node.stop(false);
         LOGGER.info("Upgrading node '{}' to version {}", node.getName(), version);
         node.start(version);
+        // Per-node addresses may change across restarts; drop cached health-check resources and probe timestamp
+        // so subsequent checkNodesAlive() calls re-probe the upgraded node's current address.
+        invalidateHealthCheckCache();
         waitUntilReady();
     }
 
@@ -191,12 +211,48 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         waitUntilReady();
     }
 
+    /**
+     * Executes {@code action} with health-check probes suppressed on this cluster handle.
+     * <p>
+     * Health-check probes fire whenever {@link #getHttpAddresses()} (and similar methods) are
+     * called.  During a rolling upgrade a node that was just restarted may momentarily refuse
+     * direct HTTP connections even though the cluster is healthy, producing a false-positive
+     * "Cluster may be in a bad state" failure.  Wrapping both the per-node restart <em>and</em>
+     * the post-upgrade callback with this method prevents those false positives.
+     * </p>
+     * <p>
+     * Subclasses that override {@link #upgradeToVersion(Version, Runnable)} <strong>must</strong>
+     * wrap every invocation of {@code onNodeUpgradeComplete} with this method so that health checks
+     * are suppressed for the entire upgrade+callback window.
+     * </p>
+     */
+    protected final void withSuppressedHealthChecks(Runnable action) {
+        suppressHealthChecks = true;
+        try {
+            action.run();
+        } finally {
+            suppressHealthChecks = false;
+        }
+    }
+
+    /**
+     * Performs a rolling upgrade, upgrading one node at a time and invoking {@code onNodeUpgradeComplete}
+     * after each node is restarted.
+     * <p>
+     * Health-check probes are suppressed for the duration of each node-upgrade+callback window via
+     * {@link #withSuppressedHealthChecks(Runnable)}.  Subclasses that override this method
+     * <strong>must</strong> apply the same suppression; see {@link #withSuppressedHealthChecks}.
+     * </p>
+     */
     @Override
     public void upgradeToVersion(Version version, Runnable onNodeUpgradeComplete) {
         int numNodes = getNumNodes();
         for (int index = 0; index < numNodes; index++) {
-            upgradeNodeToVersion(index, version);
-            onNodeUpgradeComplete.run();
+            final int nodeIndex = index;
+            withSuppressedHealthChecks(() -> {
+                upgradeNodeToVersion(nodeIndex, version);
+                onNodeUpgradeComplete.run();
+            });
         }
     }
 
@@ -228,6 +284,11 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         execute(() -> nodes.parallelStream().forEach(Node::updateStoredSecureSettings));
     }
 
+    @Override
+    public boolean areAllNodesAlive() {
+        return started.get() && nodes.stream().allMatch(Node::isAlive);
+    }
+
     protected void waitUntilReady() {
         writeUnicastHostsFile();
         try {
@@ -240,21 +301,47 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     private WaitForHttpResource configureWaitForReady() throws MalformedURLException {
         Node node = nodes.get(0);
+        String scheme = resolveScheme(node);
+        WaitForHttpResource wait = new WaitForHttpResource(scheme, node.getHttpAddress(), nodes.size());
+        configureAuthentication(wait, node);
+        return wait;
+    }
+
+    private WaitForHttpResource configureNodeHealthCheck(Node node) throws MalformedURLException {
+        String scheme = resolveScheme(node);
+        WaitForHttpResource check = new WaitForHttpResource(new URL(scheme + "://" + node.getHttpAddress() + "/_cluster/health"));
+        configureAuthentication(check, node);
+        check.setConnectTimeout(HEALTH_CHECK_CONNECT_TIMEOUT_MS);
+        check.setReadTimeout(HEALTH_CHECK_READ_TIMEOUT_MS);
+        return check;
+    }
+
+    protected List<WaitForHttpResource> createHealthChecks() throws MalformedURLException {
+        List<WaitForHttpResource> checks = new ArrayList<>(nodes.size());
+        for (Node node : nodes) {
+            checks.add(configureNodeHealthCheck(node));
+        }
+        return checks;
+    }
+
+    private String resolveScheme(Node node) {
         boolean securityEnabled = Boolean.parseBoolean(node.getSpec().getSetting("xpack.security.enabled", "true"));
         boolean sslEnabled = Boolean.parseBoolean(node.getSpec().getSetting("xpack.security.http.ssl.enabled", "false"));
         boolean securityAutoConfigured = isSecurityAutoConfigured(node);
-        String scheme = securityEnabled && (sslEnabled || securityAutoConfigured) ? "https" : "http";
-        WaitForHttpResource wait = new WaitForHttpResource(scheme, node.getHttpAddress(), nodes.size());
-        User credentials = node.getSpec().getUsers().get(0);
-        wait.setUsername(credentials.getUsername());
-        wait.setPassword(credentials.getPassword());
-        if (sslEnabled) {
-            configureWaitSecurity(wait, node);
-        } else if (securityAutoConfigured) {
-            wait.setCertificateAuthorities(node.getWorkingDir().resolve("config/certs/http_ca.crt").toFile());
-        }
+        return securityEnabled && (sslEnabled || securityAutoConfigured) ? "https" : "http";
+    }
 
-        return wait;
+    private void configureAuthentication(WaitForHttpResource resource, Node node) {
+        boolean sslEnabled = Boolean.parseBoolean(node.getSpec().getSetting("xpack.security.http.ssl.enabled", "false"));
+        boolean securityAutoConfigured = isSecurityAutoConfigured(node);
+        User credentials = node.getSpec().getUsers().get(0);
+        resource.setUsername(credentials.getUsername());
+        resource.setPassword(credentials.getPassword());
+        if (sslEnabled) {
+            configureWaitSecurity(resource, node);
+        } else if (securityAutoConfigured) {
+            resource.setCertificateAuthorities(node.getWorkingDir().resolve("config/certs/http_ca.crt").toFile());
+        }
     }
 
     private void configureWaitSecurity(WaitForHttpResource wait, Node node) {
@@ -303,6 +390,67 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
                 throw new UncheckedIOException("Failed to write unicast_hosts for: " + node, e);
             }
         }));
+    }
+
+    protected boolean isStartedForChecks() {
+        return started.get() && suppressHealthChecks == false;
+    }
+
+    protected long healthCheckCacheTtlNanos() {
+        return HEALTH_CHECK_CACHE_TTL_NANOS;
+    }
+
+    protected void checkNodesAlive() {
+        if (isStartedForChecks() == false) {
+            return;
+        }
+        if (nodes.isEmpty()) {
+            return;
+        }
+        if (areAllNodesAlive() == false) {
+            throw new IllegalStateException(
+                "Elasticsearch cluster [" + name + "] node process(es) have died. Cluster is no longer available."
+            );
+        }
+        long now = System.nanoTime();
+        Long last = lastHealthCheckNanos.get();
+        if (last != null && now - last < healthCheckCacheTtlNanos()) {
+            return;
+        }
+        // Single-flight: only the thread that wins the CAS performs the probe. The timestamp is set BEFORE
+        // the probe so that a failure does not cause a stampede - the failing caller surfaces the exception
+        // while concurrent / subsequent callers within the TTL window simply skip re-probing.
+        if (lastHealthCheckNanos.compareAndSet(last, now) == false) {
+            return;
+        }
+        try {
+            for (WaitForHttpResource healthCheck : getOrBuildHealthChecks()) {
+                healthCheck.check();
+            }
+        } catch (Exception e) {
+            if (areAllNodesAlive() == false) {
+                throw new IllegalStateException("Elasticsearch cluster [" + name + "] node process(es) died during health checks.");
+            }
+            // Nodes are still alive, but the cluster is unresponsive; fail to surface the unhealthy state.
+            throw new IllegalStateException(
+                "Elasticsearch cluster [" + name + "] is not responding to health checks. Cluster may be in a bad state.",
+                e
+            );
+        }
+    }
+
+    private List<WaitForHttpResource> getOrBuildHealthChecks() throws MalformedURLException {
+        List<WaitForHttpResource> checks = cachedHealthChecks;
+        if (checks == null) {
+            checks = createHealthChecks();
+            cachedHealthChecks = checks;
+        }
+        return checks;
+    }
+
+    private void invalidateHealthCheckCache() {
+        cachedHealthChecks = null;
+        lastHealthCheckNanos.set(null);
     }
 
     private <T> T execute(Callable<T> task) {

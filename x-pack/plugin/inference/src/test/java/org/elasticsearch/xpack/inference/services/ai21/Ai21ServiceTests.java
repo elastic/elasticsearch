@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionExcep
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModelTests;
 
@@ -79,10 +80,16 @@ public class Ai21ServiceTests extends InferenceServiceTestCase {
                 assertThat(chatCompletionModel.getSecretSettings().apiKey().toString(), is("secret"));
 
             }, exception -> {
-                assertThat(exception, instanceOf(ValidationException.class));
+                assertThat(exception, instanceOf(IllegalArgumentException.class));
                 assertThat(
                     exception.getMessage(),
-                    is("Validation Failed: 1: [service_settings] does not contain the required setting [model_id];")
+                    is(
+                        Strings.format(
+                            "[%s] does not contain the required setting [%s]",
+                            ModelConfigurations.SERVICE_SETTINGS,
+                            ServiceFields.MODEL_ID
+                        )
+                    )
                 );
             });
 

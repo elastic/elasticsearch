@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
@@ -23,9 +22,6 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
-import org.junit.rules.ExternalResource;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TestRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,19 +31,8 @@ public class LogsdbTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final String USER = "x_pack_rest_user";
     private static final String PASS = "x-pack-test-password";
 
-    private static boolean columnarEnabled;
-
-    private static final ExternalResource randomizeColumnarRule = new ExternalResource() {
-        @Override
-        protected void before() {
-            columnarEnabled = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
-        }
-    };
-
-    private static final ElasticsearchCluster cluster = createCluster();
-
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(randomizeColumnarRule).around(cluster);
+    public static final ElasticsearchCluster cluster = createCluster();
 
     private static ElasticsearchCluster createCluster() {
         LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
@@ -56,7 +41,6 @@ public class LogsdbTestSuiteIT extends ESClientYamlSuiteTestCase {
             .user(USER, PASS)
             .keystore("bootstrap.password", "x-pack-test-password")
             .setting("xpack.license.self_generated.type", "trial")
-            .setting("cluster.logsdb_columnar.enabled", () -> Boolean.toString(columnarEnabled))
             .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
             .feature(FeatureFlag.IGNORED_SOURCE_AS_DOC_VALUES_FF);
         boolean setNodes = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));

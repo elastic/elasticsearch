@@ -893,6 +893,46 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertThat(result.size(), equalTo(0));
     }
 
+    public void testColumnarNeverAutoSelected() throws IOException {
+        // logsdb_columnar must never be auto-selected for logs-*-* data streams, even when
+        // cluster.logsdb_columnar.enabled is set. It can only be requested explicitly via a
+        // mapping/template's index.mode setting.
+        final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
+            logsdbLicenseService,
+            Settings.builder().put("cluster.logsdb.enabled", true).put("cluster.logsdb_columnar.enabled", true).build()
+        );
+        provider.init(
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
+            IndexVersion::current,
+            () -> Version.CURRENT,
+            true,
+            true
+        );
+
+        String dataStreamName = "logs-app1-0";
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(Tuple.tuple(dataStreamName, 1)),
+            List.of(),
+            Instant.now().toEpochMilli(),
+            builder().build(),
+            1
+        );
+        Settings.Builder settingsBuilder = builder();
+        provider.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            null,
+            project,
+            Instant.ofEpochMilli(1L),
+            Settings.EMPTY,
+            List.of(),
+            IndexVersion.current(),
+            settingsBuilder
+        );
+        Settings result = settingsBuilder.build();
+        assertEquals(IndexMode.LOGSDB, IndexSettings.MODE.get(result));
+    }
+
     public void testRoutingPathOnSortFields() throws Exception {
         var settings = Settings.builder()
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message")

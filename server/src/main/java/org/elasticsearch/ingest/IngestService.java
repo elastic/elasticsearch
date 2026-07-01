@@ -1683,7 +1683,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return processors;
     }
 
-    public <P extends Processor> Collection<String> getPipelineWithProcessorType(
+    /**
+     * Finds the ids of the pipelines in the given project that contain at least one processor of {@code clazz}
+     * matching {@code predicate}.
+     * This is {@code synchronized} on the same monitor as {@link #innerUpdatePipelines} and {@link #reloadPipeline}
+     * so that callers always observe a fully published view of {@link #pipelines}.
+     */
+    public synchronized <P extends Processor> Collection<String> getPipelineWithProcessorType(
         ProjectId projectId,
         Class<P> clazz,
         Predicate<P> predicate

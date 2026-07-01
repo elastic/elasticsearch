@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
 
@@ -85,8 +86,22 @@ public final class SplitDiscoveryPhase {
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes
     ) {
+        return resolveExternalSplitsWithStats(plan, sourceFactories, maxRecordBytes, () -> false);
+    }
+
+    /**
+     * Like {@link #resolveExternalSplitsWithStats(PhysicalPlan, Map, int)}, but threads a cancellation
+     * signal into each {@link SplitDiscoveryContext} so a long-running discovery (thousands of footer
+     * reads) aborts promptly when the originating query is cancelled.
+     */
+    public static Result resolveExternalSplitsWithStats(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled
+    ) {
         ScanStats stats = new ScanStats();
-        PhysicalPlan resolved = resolveRecursive(plan, List.of(), sourceFactories, maxRecordBytes, stats);
+        PhysicalPlan resolved = resolveRecursive(plan, List.of(), sourceFactories, maxRecordBytes, stats, isCancelled);
         return new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned);
     }
 
@@ -95,10 +110,11 @@ public final class SplitDiscoveryPhase {
         List<Expression> ancestorFilters,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
-        ScanStats stats
+        ScanStats stats,
+        BooleanSupplier isCancelled
     ) {
         if (plan instanceof ExternalSourceExec exec) {
-            return resolveExternalSource(exec, ancestorFilters, sourceFactories, maxRecordBytes, stats);
+            return resolveExternalSource(exec, ancestorFilters, sourceFactories, maxRecordBytes, stats, isCancelled);
         }
 
         List<Expression> filtersForChildren = ancestorFilters;
@@ -118,7 +134,7 @@ public final class SplitDiscoveryPhase {
         boolean changed = false;
         List<PhysicalPlan> newChildren = new ArrayList<>(children.size());
         for (PhysicalPlan child : children) {
-            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, sourceFactories, maxRecordBytes, stats);
+            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, sourceFactories, maxRecordBytes, stats, isCancelled);
             if (resolved != child) {
                 changed = true;
             }
@@ -140,7 +156,8 @@ public final class SplitDiscoveryPhase {
         List<Expression> ancestorFilters,
         Map<String, ExternalSourceFactory> sourceFactories,
         int maxRecordBytes,
-        ScanStats stats
+        ScanStats stats,
+        BooleanSupplier isCancelled
     ) {
         ExternalSourceFactory factory = sourceFactories.get(exec.sourceType());
         SplitProvider splitProvider = factory != null ? factory.splitProvider() : SplitProvider.SINGLE;
@@ -165,7 +182,8 @@ public final class SplitDiscoveryPhase {
             ancestorFilters,
             querySchema,
             exec.unifiedSchema(),
-            maxRecordBytes
+            maxRecordBytes,
+            isCancelled
         );
 
         SplitDiscoveryResult result;

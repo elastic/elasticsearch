@@ -176,9 +176,7 @@ public class SparseFileTracker {
             );
         }
 
-        if (subRange.isEmpty() || subRange.end() <= complete) {
-            // Short-circuit without fetching more data when subRange is empty or the data is already available
-            // regardless of whether range could be asking for more.
+        if (subRange.end() <= complete) {
             listener.onResponse(null);
             return Optional.empty();
         }
@@ -186,7 +184,6 @@ public class SparseFileTracker {
     }
 
     private Optional<Gaps> doWaitForRange(ByteRange range, ByteRange subRange, ActionListener<Void> listener) {
-        assert range.isEmpty() == false : "should have short-circuited for empty range";
         final ActionListener<Void> wrappedListener = wrapWithAssertions(listener);
 
         final List<Range> pendingRanges = new ArrayList<>();

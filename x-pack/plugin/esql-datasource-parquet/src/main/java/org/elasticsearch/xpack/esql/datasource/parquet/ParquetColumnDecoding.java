@@ -21,6 +21,10 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.time.Duration;
+
 /**
  * Shared Parquet decode helpers used by both the baseline {@code ParquetColumnIterator}
  * and {@link OptimizedParquetColumnIterator}. Centralises list-column decoding,
@@ -33,7 +37,14 @@ final class ParquetColumnDecoding {
 
     private static final char[] HEX = "0123456789abcdef".toCharArray();
 
-    // ---- Timestamp helpers ----
+    // ---- Temporal constants ----
+
+    static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
+    static final long NANOS_PER_MILLI = 1_000_000L;
+    /** Julian day number for Unix epoch (1970-01-01). */
+    static final int JULIAN_EPOCH_OFFSET = 2_440_588;
+
+    // ---- Temporal helpers ----
 
     static long convertTimestampToMillis(long raw, LogicalTypeAnnotation logicalType) {
         if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
@@ -44,6 +55,58 @@ final class ParquetColumnDecoding {
             };
         }
         return raw;
+    }
+
+    /** Converts a date32 value (days since epoch) to epoch milliseconds. */
+    static long dateDaysToMillis(long days) {
+        return days * MILLIS_PER_DAY;
+    }
+
+    /**
+     * Converts a Parquet INT96 value (12 bytes LE: 8 bytes nanos-of-day + 4 bytes Julian day)
+     * to epoch milliseconds. The bytes are read starting at {@code offset} for {@code length}
+     * bytes (must be 12).
+     */
+    static long int96ToEpochMillis(byte[] bytes, int offset, int length) {
+        if (length != 12) {
+            throw new IllegalArgumentException("INT96 requires exactly 12 bytes, got " + length);
+        }
+        ByteBuffer buf = ByteBuffer.wrap(bytes, offset, length).order(ByteOrder.LITTLE_ENDIAN);
+        long nanosOfDay = buf.getLong();
+        int julianDay = buf.getInt();
+        long epochDay = julianDay - JULIAN_EPOCH_OFFSET;
+        return epochDay * MILLIS_PER_DAY + nanosOfDay / NANOS_PER_MILLI;
+    }
+
+    /**
+     * Decodes a Parquet footer stat value into the same representation the scan path produces, so
+     * pushed-down MIN/MAX match a scan:
+     * <ul>
+     *   <li>date32 -&gt; epoch-millis</li>
+     *   <li>timestamp -&gt; epoch-millis (unit-scaled)</li>
+     *   <li>time -&gt; raw milliseconds for TIME_MILLIS (physical INT32), nanoseconds otherwise</li>
+     * </ul>
+     * Returns {@code null} when the type is not one of the above (caller falls through to other
+     * normalization). INT96 is deliberately excluded: its footer min/max are compared by parquet-mr
+     * as unsigned little-endian bytes (nanos-of-day in the low bytes), so they are not chronological
+     * and cannot be trusted for MIN/MAX pushdown — returning {@code null} forces a scan instead.
+     */
+    static Long decodeTemporalStat(Object value, PrimitiveType type) {
+        LogicalTypeAnnotation logical = type.getLogicalTypeAnnotation();
+        if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
+            return dateDaysToMillis(((Number) value).longValue());
+        }
+        if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
+            return convertTimestampToMillis(((Number) value).longValue(), logical);
+        }
+        if (logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+            long raw = ((Number) value).longValue();
+            // Mirror the scan path: TIME_MILLIS (physical INT32) stays raw ms; TIME_MICROS/NANOS
+            // scale to nanoseconds via timeNanoMultiplier. Signed comparison of these physical
+            // values is chronological, so footer min/max ordering is preserved.
+            return type.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32 ? raw : raw * timeNanoMultiplier(time);
+        }
+        return null;
     }
 
     /**

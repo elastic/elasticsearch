@@ -40,6 +40,8 @@ import org.apache.lucene.util.LiveDocs;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.SparseLiveDocs;
+import org.apache.lucene.util.bkd.BKDConfig;
+import org.apache.lucene.util.bkd.BKDReader;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -149,6 +151,8 @@ public abstract class Engine implements Closeable {
     protected static final String FIELD_HAS_VALUE_SOURCE = "field_has_value";
     public static final long UNKNOWN_PRIMARY_TERM = -1L;
     public static final String ROOT_DOC_FIELD_NAME = "__root_doc_for_nested";
+    private static final long BKD_READER_BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BKDReader.class);
+    private static final long BKD_CONFIG_BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BKDConfig.class);
 
     protected final ShardId shardId;
     protected final Logger logger;
@@ -298,6 +302,8 @@ public abstract class Engine implements Closeable {
         long usages = 0;
         long totalPostingBytes = 0;
         long totalLiveDocsBytes = 0;
+        long totalPointsBytes = 0;
+
         for (LeafReaderContext leaf : leaves) {
             numSegments++;
             var fieldInfos = leaf.reader().getFieldInfos();
@@ -324,10 +330,33 @@ public abstract class Engine implements Closeable {
                         long liveDocsBytes = getLiveDocsBytes(liveDocs);
                         totalLiveDocsBytes += liveDocsBytes;
                     }
+                    totalPointsBytes += getPointsBytes(fieldInfos);
                 }
             }
         }
-        return new ShardFieldStats(numSegments, totalFields, usages, totalPostingBytes, totalLiveDocsBytes);
+        return new ShardFieldStats(numSegments, totalFields, usages, totalPostingBytes, totalLiveDocsBytes, totalPointsBytes);
+    }
+
+    private static long getPointsBytes(FieldInfos fieldInfos) {
+        long totalPointsBytes = 0;
+        for (FieldInfo fieldInfo : fieldInfos) {
+            if (fieldInfo.getPointDimensionCount() > 0) {
+                totalPointsBytes += getBKDReaderBytes(fieldInfo);
+            }
+        }
+        return totalPointsBytes;
+    }
+
+    private static long getBKDReaderBytes(FieldInfo fieldInfo) {
+        // On construction, the BKDReader constructs two byte arrays each of size packedIndexBytesLength. We add that to
+        // the base shallow size of the BKDReader and BKDConfig to get an estimate of the total memory used by the BKDReader.
+        // The IndexInputs in the BKDReader are an abstract class so we don't estimate their size due to differing concrete implementations.
+        int packedIndexBytesLength = fieldInfo.getPointIndexDimensionCount() * fieldInfo.getPointNumBytes();
+        return BKD_READER_BASE_RAM_BYTES_USED + BKD_CONFIG_BASE_RAM_BYTES_USED + 2 * byteArrayRamBytesUsed(packedIndexBytesLength);
+    }
+
+    private static long byteArrayRamBytesUsed(int length) {
+        return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Byte.BYTES * length);
     }
 
     // Would prefer to use FixedBitSet#ramBytesUsed() however FixedBits / Bits interface don't expose that.

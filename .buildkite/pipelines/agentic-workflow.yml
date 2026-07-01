@@ -38,6 +38,7 @@ steps:
     timeout_in_minutes: 60
     env:
       USE_PI_AGENT: "true"
+      PI_AGENT_SESSION_DIR: "/tmp/pi-agent-sessions"
     agents:
       provider:       gcp
       image:          family/elasticsearch-ubuntu-2404
@@ -52,6 +53,9 @@ steps:
       set -euo pipefail
 
       # ── Validate inputs ────────────────────────────────────────────────────
+      # ${WORKFLOW}, ${ISSUE_URL}, ${PR_URL} are Buildkite env vars — expanded
+      # at parse time.  Bash-local variables use $$ to survive Buildkite's
+      # interpolation pass (e.g. $$PI_EXIT → $PI_EXIT in the actual script).
       case "${WORKFLOW}" in
         test-analysis)
           [[ -n "${ISSUE_URL:-}" ]] || { echo "ISSUE_URL is required for test-analysis" >&2; exit 1; }
@@ -72,61 +76,52 @@ steps:
           ;;
       esac
 
-      # ── Session persistence (spot-instance preemption recovery) ───────────────────
-      # pi-agent writes a JSONL session file while it runs.  We upload it as a
-      # Buildkite artifact on every exit (clean finish, failure, or SIGTERM from
-      # GCP preemption).  On an automatic retry the file is downloaded first so
-      # pi-agent can resume exactly where it was interrupted.
-      SESSION_DIR="/tmp/pi-agent-sessions"
-      export PI_AGENT_SESSION_DIR="${SESSION_DIR}"
-      mkdir -p "${SESSION_DIR}"
+      # ── Session persistence (spot-instance preemption recovery) ──────────────
+      # PI_AGENT_SESSION_DIR is a step-level env var (see env: block above) so
+      # ${PI_AGENT_SESSION_DIR} is safely expanded by Buildkite at parse time.
+      mkdir -p "${PI_AGENT_SESSION_DIR}"
 
       _upload_session() {
         local latest
-        latest=$(ls -t "${SESSION_DIR}"/*.jsonl 2>/dev/null | head -1) || true
-        if [[ -n "${latest}" ]]; then
-          cp "${latest}" "${SESSION_DIR}/pi-agent-session.jsonl"
-          buildkite-agent artifact upload "${SESSION_DIR}/pi-agent-session.jsonl" 2>/dev/null || true
-          echo "Session artifact uploaded ($(wc -c < "${SESSION_DIR}/pi-agent-session.jsonl") bytes)"
+        latest=$$(ls -t "${PI_AGENT_SESSION_DIR}"/*.jsonl 2>/dev/null | head -1) || true
+        if [[ -n "$$latest" ]]; then
+          cp "$$latest" "${PI_AGENT_SESSION_DIR}/pi-agent-session.jsonl"
+          buildkite-agent artifact upload "${PI_AGENT_SESSION_DIR}/pi-agent-session.jsonl" 2>/dev/null || true
+          echo "Session artifact uploaded ($$(wc -c < "${PI_AGENT_SESSION_DIR}/pi-agent-session.jsonl") bytes)"
         fi
       }
-      # Upload on clean exit AND on SIGTERM (GCP preemption gives us ~10 s).
       trap '_upload_session' EXIT
       trap 'echo "SIGTERM received — uploading session before exit"; _upload_session; exit 47' SIGTERM
 
       if [[ "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
         echo "--- Retry #${BUILDKITE_RETRY_COUNT} — downloading previous session"
-        buildkite-agent artifact download "pi-agent-session.jsonl" "${SESSION_DIR}/" 2>/dev/null \
-          && echo "Session downloaded ($(wc -c < "${SESSION_DIR}/pi-agent-session.jsonl") bytes) — will resume" \
+        buildkite-agent artifact download "pi-agent-session.jsonl" "${PI_AGENT_SESSION_DIR}/" 2>/dev/null \
+          && echo "Session downloaded ($$(wc -c < "${PI_AGENT_SESSION_DIR}/pi-agent-session.jsonl") bytes) — will resume" \
           || echo "No previous session artifact found — starting fresh"
       fi
 
-      # ── Opening annotation (visible immediately in the Buildkite UI) ───────
-      REF="${ISSUE_URL:-${PR_URL:-}}"
-      RESUME_NOTE=""
-      [[ "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]] && \
-        RESUME_NOTE="  \n🔄 **Resumed from retry ${BUILDKITE_RETRY_COUNT}**"
+      # ── Opening annotation ─────────────────────────────────────────────────
       buildkite-agent annotate \
-        "### 🤖 pi-agent starting\n\n**Workflow:** \`${WORKFLOW}\`  \n**Ref:** ${REF}${RESUME_NOTE}  \nSession is initialising…" \
+        "### 🤖 pi-agent starting\n\n**Workflow:** \`${WORKFLOW}\`  \n**Ref:** ${ISSUE_URL:-${PR_URL:-}}  \nSession is initialising…" \
         --context "pi-agent-progress" --style "info"
 
       # ── Run pi-agent ───────────────────────────────────────────────────────
       PI_EXIT=0
       case "${WORKFLOW}" in
-        test-analysis)       pi-agent analyze --issue-url "${ISSUE_URL}" || PI_EXIT=$? ;;
-        pull-request-fix)    pi-agent fix-pr  --pr-url    "${PR_URL}"    || PI_EXIT=$? ;;
-        pull-request-creation) pi-agent create --issue-url "${ISSUE_URL}" || PI_EXIT=$? ;;
+        test-analysis)         pi-agent analyze --issue-url "${ISSUE_URL}" || PI_EXIT=$$? ;;
+        pull-request-fix)      pi-agent fix-pr  --pr-url    "${PR_URL}"    || PI_EXIT=$$? ;;
+        pull-request-creation) pi-agent create  --issue-url "${ISSUE_URL}" || PI_EXIT=$$? ;;
       esac
 
       # ── Final annotation ───────────────────────────────────────────────────
-      if [[ $PI_EXIT -eq 0 ]]; then
+      if [[ $$PI_EXIT -eq 0 ]]; then
         buildkite-agent annotate \
-          "### ✅ pi-agent completed\n\n**Workflow:** \`${WORKFLOW}\`  \n**Ref:** ${REF}" \
+          "### ✅ pi-agent completed\n\n**Workflow:** \`${WORKFLOW}\`  \n**Ref:** ${ISSUE_URL:-${PR_URL:-}}" \
           --context "pi-agent-progress" --style "success"
       else
         buildkite-agent annotate \
-          "### ❌ pi-agent failed (exit ${PI_EXIT})\n\n**Workflow:** \`${WORKFLOW}\`  \n**Ref:** ${REF}  \nSee the job log for details." \
+          "### ❌ pi-agent failed (exit $$PI_EXIT)\n\n**Workflow:** \`${WORKFLOW}\`  \n**Ref:** ${ISSUE_URL:-${PR_URL:-}}  \nSee the job log for details." \
           --context "pi-agent-progress" --style "error"
       fi
 
-      exit $PI_EXIT
+      exit $$PI_EXIT

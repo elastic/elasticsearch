@@ -122,12 +122,15 @@ if [[ "${USE_PI_AGENT:-}" == "true" ]]; then
   PI_AGENT_TAG="${PI_AGENT_TAG:-pi-agent-v1.0.16}"
   PI_AGENT_DIR="${HOME}/.local/pi-agent"
 
+  # Always fetch the admin token — used for bootstrap AND to give pi-agent
+  # write access to elastic/elasticsearch issues and labels.  The pipeline's
+  # VAULT_GITHUB_TOKEN is a GitHub App token scoped to this pipeline repo only;
+  # it cannot write issues/labels on elastic/elasticsearch.
+  GH_ADMIN_TOKEN=$(vault_with_retry read -field=gh_token secret/ci/elastic-elasticsearch/agentic-workflows)
+
   if [[ ! -x "${PI_AGENT_DIR}/bin/pi-agent.js" ]]; then
     echo "--- Bootstrapping pi-agent (${PI_AGENT_TAG})"
 
-    # The release lives on the breskeby fork (a personal repo with no elastic
-    # SAML enforcement) — use the gh_token from Vault, which can read it.
-    GH_ADMIN_TOKEN=$(vault_with_retry read -field=gh_token secret/ci/elastic-elasticsearch/agentic-workflows)
     PI_AGENT_REPO="${PI_AGENT_REPO:-breskeby/rene-bk-experiments}"
 
     TMPDIR_DL="$(mktemp -d)"
@@ -172,8 +175,13 @@ if [[ "${USE_PI_AGENT:-}" == "true" ]]; then
     ln -sf "${PI_AGENT_DIR}/bin/pi-agent.js" "${HOME}/.local/bin/pi-agent"
     chmod +x "${PI_AGENT_DIR}/bin/pi-agent.js"
     rm -rf "${TMPDIR_DL}"
-    unset GH_ADMIN_TOKEN
   fi
+
+  # Override GH_TOKEN with the admin token so pi-agent can post comments and
+  # apply labels on elastic/elasticsearch issues via `gh issue comment` and
+  # `gh issue edit`.
+  export GH_TOKEN="${GH_ADMIN_TOKEN}"
+  unset GH_ADMIN_TOKEN
 fi
 # ── end pi-agent ──────────────────────────────────────────────────────────────
 

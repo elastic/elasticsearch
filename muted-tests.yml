@@ -146,6 +146,7 @@ tests:
 
 # Examples:
 #
+#
 #  Mute a single test case in a YAML test suite:
 #  - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
 #    method: test {yaml=analysis-common/30_tokenizers/letter}

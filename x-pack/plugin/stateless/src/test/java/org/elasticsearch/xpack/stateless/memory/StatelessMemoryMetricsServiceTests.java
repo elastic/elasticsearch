@@ -140,12 +140,18 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         final DiscoveryNode node0 = clusterState.nodes().get("node_0");
         service.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
 
-        final Map<ShardId, ShardMappingSize> metricsWithoutPoints = createShardMappingMetricsWithPointsInMemory(randomMemoryMetrics(node0, clusterState), 0L);
+        final Map<ShardId, ShardMappingSize> metricsWithoutPoints = createShardMappingMetricsWithPointsInMemory(
+            randomMemoryMetrics(node0, clusterState),
+            0L
+        );
         service.updateShardsMappingSize(new HeapMemoryUsage(1, metricsWithoutPoints));
         final long node0EstimateWithoutPoints = service.getPerNodeMemoryMetrics(clusterState).get(node0.getId());
 
         final long pointsInMemoryBytes = randomLongBetween(1, 100);
-        final Map<ShardId, ShardMappingSize> metricsWithPoints = createShardMappingMetricsWithPointsInMemory(metricsWithoutPoints, pointsInMemoryBytes);
+        final Map<ShardId, ShardMappingSize> metricsWithPoints = createShardMappingMetricsWithPointsInMemory(
+            metricsWithoutPoints,
+            pointsInMemoryBytes
+        );
         service.updateShardsMappingSize(new HeapMemoryUsage(2, metricsWithPoints));
         final long node0EstimateWithPoints = service.getPerNodeMemoryMetrics(clusterState).get(node0.getId());
 

@@ -311,6 +311,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // came from inline EXTERNAL (no dataset mapping), populated when it came from
                 // FROM <dataset>.
                 .datasetName(context.datasetName())
+                // Declared source renames, applied to reader-facing names (projection + read schema) at the last mile.
+                .renames(PhysicalNames.fromConfig(config))
                 // Single-file producer paths (sync-wrapper, native-async) carry no per-file mtime
                 // carrier; without this wire-up _version would silently render as SQL NULL even
                 // on resolved single-file plans. The slice-queue / multi-file paths still source

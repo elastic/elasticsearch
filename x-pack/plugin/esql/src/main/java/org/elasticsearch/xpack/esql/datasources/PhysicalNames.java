@@ -30,6 +30,26 @@ public final class PhysicalNames {
 
     private PhysicalNames() {}
 
+    /**
+     * Extract the logical&rarr;physical rename map a resolver injected into the read config under
+     * {@link ExternalSourceResolver#CONFIG_DECLARED_RENAMES}, coerced to {@code Map<String,String>}. Empty when the
+     * dataset declares no rename.
+     */
+    public static Map<String, String> fromConfig(Map<String, Object> config) {
+        if (config == null) {
+            return Map.of();
+        }
+        Object value = config.get(ExternalSourceResolver.CONFIG_DECLARED_RENAMES);
+        if (value instanceof Map<?, ?> m && m.isEmpty() == false) {
+            Map<String, String> out = new java.util.HashMap<>(m.size());
+            for (Map.Entry<?, ?> e : m.entrySet()) {
+                out.put(String.valueOf(e.getKey()), String.valueOf(e.getValue()));
+            }
+            return Map.copyOf(out);
+        }
+        return Map.of();
+    }
+
     /** The physical (file) name for a logical column, or the name unchanged when it is not renamed / no renames apply. */
     public static String translate(String logicalName, Map<String, String> renames) {
         if (renames == null || renames.isEmpty() || logicalName == null) {

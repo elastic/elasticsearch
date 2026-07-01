@@ -166,6 +166,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      */
     @Nullable
     private final String datasetName;
+    // Declared logical->physical column renames (source). Applied to reader-facing names (projection + read schema)
+    // at the last mile via PhysicalNames, so readers stay rename-agnostic. Empty when the dataset declares no rename.
+    private final Map<String, String> renames;
     /**
      * File last-modified epoch-millis used to materialise {@code _version} on the single-file
      * producer paths ({@link #startSyncWrapperRead} / {@link #startNativeAsyncRead} /
@@ -274,6 +277,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
         @Nullable String datasetName,
+        Map<String, String> renames,
         @Nullable Long lastModifiedMillis,
         @Nullable BlockFactory producerBlockFactory,
         ExternalSliceQueue sliceQueue,
@@ -369,6 +373,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.queryDataSchema = ExternalSchema.dataAttributesOf(attributes, this.partitionColumnNames);
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
         this.datasetName = datasetName;
+        this.renames = renames == null ? Map.of() : renames;
         this.lastModifiedMillis = lastModifiedMillis;
         this.producerBlockFactory = producerBlockFactory;
         this.sliceQueue = sliceQueue;
@@ -447,6 +452,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private Map<String, Object> partitionValues;
         @Nullable
         private String datasetName;
+        private Map<String, String> renames = Map.of();
         @Nullable
         private Long lastModifiedMillis;
         @Nullable
@@ -516,6 +522,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
          */
         public Builder datasetName(@Nullable String datasetName) {
             this.datasetName = datasetName;
+            return this;
+        }
+
+        /** Declared logical-&gt;physical column renames; applied to reader-facing names at the last mile. */
+        public Builder renames(Map<String, String> renames) {
+            this.renames = renames == null ? Map.of() : renames;
             return this;
         }
 
@@ -629,6 +641,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 partitionColumnNames,
                 partitionValues,
                 datasetName,
+                renames,
                 lastModifiedMillis,
                 producerBlockFactory,
                 sliceQueue,
@@ -1632,11 +1645,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // deferred-extraction synthetic — so the reader's view of "the file's resolved
                 // schema" stays free of optimizer-injected channels.
                 RangeReadContext rangeCtx = new RangeReadContext(
-                    cols,
+                    PhysicalNames.translateNames(cols, renames),
                     batchSize,
                     fileSplit.offset(),
                     rangeEnd,
-                    readerResolvedAttributes,
+                    PhysicalNames.translateSchema(readerResolvedAttributes, renames),
                     errorPolicy
                 );
                 if (fileContext != null) {
@@ -1690,25 +1703,25 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 pages = openWithParallelism(
                     fileReader,
                     obj,
-                    perFileCols,
+                    PhysicalNames.translateNames(perFileCols, renames),
                     errorPolicy,
                     recordAlignedMacro,
                     firstSplit,
-                    perFileReadSchema,
+                    PhysicalNames.translateSchema(perFileReadSchema, renames),
                     fileSplit.offset(),
                     state.buffer.capturedSourceMetadataSink()
                 );
                 if (pages == null) {
                     boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
                     FormatReadContext ctx = FormatReadContext.builder()
-                        .projectedColumns(perFileCols)
+                        .projectedColumns(PhysicalNames.translateNames(perFileCols, renames))
                         .batchSize(batchSize)
                         .rowLimit(FormatReader.NO_LIMIT)
                         .errorPolicy(errorPolicy)
                         .firstSplit(firstSplit)
                         .lastSplit(lastSplit)
                         .recordAligned(recordAlignedMacro)
-                        .readSchema(perFileReadSchema)
+                        .readSchema(PhysicalNames.translateSchema(perFileReadSchema, renames))
                         .splitStartByte(fileSplit.offset())
                         .maxRecordBytes(maxRecordBytes)
                         .build();
@@ -1872,22 +1885,22 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             pages = openWithParallelism(
                 fileReader,
                 obj,
-                perFileCols,
+                PhysicalNames.translateNames(perFileCols, renames),
                 errorPolicy,
                 false,
                 true,
-                perFileReadSchema,
+                PhysicalNames.translateSchema(perFileReadSchema, renames),
                 0L,
                 state.buffer.capturedSourceMetadataSink()
             );
             if (pages == null) {
                 int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
                 FormatReadContext ctx = FormatReadContext.builder()
-                    .projectedColumns(perFileCols)
+                    .projectedColumns(PhysicalNames.translateNames(perFileCols, renames))
                     .batchSize(batchSize)
                     .rowLimit(fileBudget)
                     .errorPolicy(errorPolicy)
-                    .readSchema(perFileReadSchema)
+                    .readSchema(PhysicalNames.translateSchema(perFileReadSchema, renames))
                     .maxRecordBytes(maxRecordBytes)
                     .build();
                 pages = fileReader.read(obj, ctx);
@@ -1936,7 +1949,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         buffer.setSplitsTotal(1);
         buffer.setCurrentSplit(1);
         FormatReadContext ctx = FormatReadContext.builder()
-            .projectedColumns(projectedColumns)
+            .projectedColumns(PhysicalNames.translateNames(projectedColumns, renames))
             .batchSize(batchSize)
             .rowLimit(rowLimit)
             .errorPolicy(errorPolicy)
@@ -1973,7 +1986,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> pages = openWithParallelism(
                 reader,
                 storageObject,
-                projectedColumns,
+                PhysicalNames.translateNames(projectedColumns, renames),
                 errorPolicy,
                 false,
                 true,
@@ -1983,7 +1996,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             );
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
-                    .projectedColumns(projectedColumns)
+                    .projectedColumns(PhysicalNames.translateNames(projectedColumns, renames))
                     .batchSize(batchSize)
                     .rowLimit(rowLimit)
                     .errorPolicy(errorPolicy)

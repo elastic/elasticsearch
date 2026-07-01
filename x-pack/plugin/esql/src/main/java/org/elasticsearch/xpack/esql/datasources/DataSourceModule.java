@@ -72,7 +72,19 @@ public final class DataSourceModule implements Closeable {
         DataSourceCredentials credentials,
         BooleanSupplier workloadIdentityEnabled
     ) {
-        this(dataSourcePlugins, capabilities, settings, blockFactory, executor, credentials, workloadIdentityEnabled, null, null, null);
+        this(
+            dataSourcePlugins,
+            capabilities,
+            settings,
+            blockFactory,
+            executor,
+            credentials,
+            workloadIdentityEnabled,
+            null,
+            null,
+            null,
+            LocalFileAccess.UNRESTRICTED
+        );
     }
 
     public DataSourceModule(
@@ -87,13 +99,48 @@ public final class DataSourceModule implements Closeable {
         @Nullable Environment environment,
         @Nullable ResourceWatcherService resourceWatcherService
     ) {
+        this(
+            dataSourcePlugins,
+            capabilities,
+            settings,
+            blockFactory,
+            executor,
+            credentials,
+            workloadIdentityEnabled,
+            threadPool,
+            environment,
+            resourceWatcherService,
+            LocalFileAccess.UNRESTRICTED
+        );
+    }
+
+    public DataSourceModule(
+        List<DataSourcePlugin> dataSourcePlugins,
+        DataSourceCapabilities capabilities,
+        Settings settings,
+        BlockFactory blockFactory,
+        ExecutorService executor,
+        DataSourceCredentials credentials,
+        BooleanSupplier workloadIdentityEnabled,
+        @Nullable ThreadPool threadPool,
+        @Nullable Environment environment,
+        @Nullable ResourceWatcherService resourceWatcherService,
+        LocalFileAccess localFileAccess
+    ) {
         this.capabilities = capabilities;
+        LocalFileAccess effectiveLocalFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
         // Off-timer scheduler for the async read-retry backoff, so a retry does not park a GENERIC-pool thread on
         // Thread.sleep while it waits; DIRECT (run promptly on the executor) when no ThreadPool is supplied (tests).
         RetryScheduler retryScheduler = threadPool == null
             ? RetryScheduler.DIRECT
             : (command, delayMillis, exec) -> threadPool.schedule(command, TimeValue.timeValueMillis(Math.max(0L, delayMillis)), exec);
-        this.storageProviderRegistry = new StorageProviderRegistry(settings, credentials, workloadIdentityEnabled, retryScheduler);
+        this.storageProviderRegistry = new StorageProviderRegistry(
+            settings,
+            credentials,
+            workloadIdentityEnabled,
+            retryScheduler,
+            effectiveLocalFileAccess
+        );
 
         DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
         for (DataSourcePlugin plugin : dataSourcePlugins) {
@@ -231,7 +278,8 @@ public final class DataSourceModule implements Closeable {
             codecRegistry,
             settings,
             executor,
-            blockFactory
+            blockFactory,
+            effectiveLocalFileAccess
         );
         sourceFactoryMap.put("file", fileFallback);
         // Also register under each format name so OperatorFactoryRegistry can look up

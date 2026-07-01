@@ -97,6 +97,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
      */
     @Nullable
     private final BlockFactory blockFactory;
+    /**
+     * Gate for {@code file://} local-disk reads. Defaults to {@link LocalFileAccess#UNRESTRICTED} in
+     * test-only constructors; production always goes through the full-arg constructor via {@link DataSourceModule}.
+     */
+    private final LocalFileAccess localFileAccess;
 
     FileSourceFactory(
         StorageProviderRegistry storageRegistry,
@@ -104,7 +109,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         DecompressionCodecRegistry codecRegistry,
         Settings settings
     ) {
-        this(storageRegistry, formatRegistry, codecRegistry, settings, null, null);
+        this(storageRegistry, formatRegistry, codecRegistry, settings, null, null, LocalFileAccess.UNRESTRICTED);
     }
 
     FileSourceFactory(
@@ -114,7 +119,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         Settings settings,
         @Nullable ExecutorService splitDiscoveryExecutor
     ) {
-        this(storageRegistry, formatRegistry, codecRegistry, settings, splitDiscoveryExecutor, null);
+        this(storageRegistry, formatRegistry, codecRegistry, settings, splitDiscoveryExecutor, null, LocalFileAccess.UNRESTRICTED);
     }
 
     FileSourceFactory(
@@ -125,6 +130,18 @@ final class FileSourceFactory implements ExternalSourceFactory {
         @Nullable ExecutorService splitDiscoveryExecutor,
         @Nullable BlockFactory blockFactory
     ) {
+        this(storageRegistry, formatRegistry, codecRegistry, settings, splitDiscoveryExecutor, blockFactory, LocalFileAccess.UNRESTRICTED);
+    }
+
+    FileSourceFactory(
+        StorageProviderRegistry storageRegistry,
+        FormatReaderRegistry formatRegistry,
+        DecompressionCodecRegistry codecRegistry,
+        Settings settings,
+        @Nullable ExecutorService splitDiscoveryExecutor,
+        @Nullable BlockFactory blockFactory,
+        LocalFileAccess localFileAccess
+    ) {
         Check.notNull(storageRegistry, "storageRegistry cannot be null");
         Check.notNull(formatRegistry, "formatRegistry cannot be null");
         this.storageRegistry = storageRegistry;
@@ -133,6 +150,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.splitDiscoveryExecutor = splitDiscoveryExecutor;
         this.blockFactory = blockFactory;
+        this.localFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
     }
 
     @Override
@@ -174,6 +192,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     @Override
     public void validateConfig(String location, Map<String, Object> config) {
+        // Gate file:// reads at planning time so the failure is clean and pre-execution.
+        // This check runs before the empty-config early-return so bare file:// reads (no WITH clause)
+        // are also validated — resolveMetadata calls validateConfig first, covering both paths.
+        localFileAccess.check(location);
         if (config == null || config.isEmpty()) {
             return;
         }
@@ -240,6 +262,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
         return context -> {
             StoragePath path = context.path();
             Map<String, Object> config = context.config();
+
+            // Enforce the file:// allowlist confinement at execution time on the data node, before either branch.
+            // The bare-read branch (provider(path)) checks this internally, but the WITH-config branch goes through
+            // createProvider, which only enforces the scheme-level on/off gate; checking here keeps both paths uniform.
+            localFileAccess.check(path);
 
             StorageProvider storage;
             if (config != null && config.isEmpty() == false) {

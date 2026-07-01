@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.PastTimeSeriesIndexCreationAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
@@ -148,7 +149,8 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton CREATE_INDEX_AUTOMATON = patterns(
         TransportCreateIndexAction.TYPE.name(),
         AutoCreateAction.NAME,
-        CreateDataStreamAction.NAME
+        CreateDataStreamAction.NAME,
+        PastTimeSeriesIndexCreationAction.NAME
     );
     private static final Automaton DELETE_INDEX_AUTOMATON = patterns(TransportDeleteIndexAction.TYPE.name(), DeleteDataStreamAction.NAME);
     private static final Automaton VIEW_METADATA_AUTOMATON = patterns(
@@ -188,7 +190,11 @@ public final class IndexPrivilege extends Privilege {
         "indices:admin/synced_flush",
         "indices:admin/forcemerge*"
     );
-    private static final Automaton AUTO_CONFIGURE_AUTOMATON = patterns(TransportAutoPutMappingAction.TYPE.name(), AutoCreateAction.NAME);
+    private static final Automaton AUTO_CONFIGURE_AUTOMATON = patterns(
+        TransportAutoPutMappingAction.TYPE.name(),
+        AutoCreateAction.NAME,
+        PastTimeSeriesIndexCreationAction.NAME
+    );
 
     private static final Automaton CROSS_CLUSTER_REPLICATION_AUTOMATON = patterns(
         "indices:data/read/xpack/ccr/shard_changes*",

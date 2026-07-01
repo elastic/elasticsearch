@@ -81,6 +81,22 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Pin our {@code timestamp_field} date-type set to the core {@code @timestamp} mapper's allowed types
+     * ({@code DateFieldMapper.CONTENT_TYPE} + {@code DATE_NANOS_CONTENT_TYPE}). If core changes what a data-stream
+     * timestamp may be, this fails and forces us to re-decide rather than silently diverging.
+     */
+    public void testTimestampDateTypesStayInSyncWithCoreTimestampMapper() {
+        java.util.Set<String> coreAllowed = java.util.Set.of(
+            org.elasticsearch.index.mapper.DateFieldMapper.CONTENT_TYPE,
+            org.elasticsearch.index.mapper.DateFieldMapper.DATE_NANOS_CONTENT_TYPE
+        );
+        java.util.Set<String> ourAllowed = DeclaredSchemaValidator.DATE_TYPES.stream()
+            .map(DataType::esType)
+            .collect(java.util.stream.Collectors.toSet());
+        assertEquals(coreAllowed, ourAllowed);
+    }
+
     public void testTimestampFieldMustBeDateWhenDeclared() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

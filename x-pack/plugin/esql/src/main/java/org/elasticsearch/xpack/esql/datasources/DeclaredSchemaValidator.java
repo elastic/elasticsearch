@@ -52,7 +52,8 @@ public final class DeclaredSchemaValidator {
         DataType.UNSIGNED_LONG
     );
 
-    private static final Set<DataType> DATE_TYPES = Set.of(DataType.DATETIME, DataType.DATE_NANOS);
+    /** Types accepted for a {@code timestamp_field}. Pinned to the core {@code @timestamp} mapper's allowed set by test. */
+    static final Set<DataType> DATE_TYPES = Set.of(DataType.DATETIME, DataType.DATE_NANOS);
 
     public static void validate(DatasetMapping mapping) {
         if (mapping == null) {

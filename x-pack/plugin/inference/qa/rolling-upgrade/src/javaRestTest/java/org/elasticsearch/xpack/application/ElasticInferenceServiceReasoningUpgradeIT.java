@@ -18,6 +18,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.completion.UnifiedCompletionUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.Version;
+import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.upgrades.ParameterizedRollingUpgradeTestCase;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.MockElasticInferenceServiceAuthorizationServer;
@@ -52,6 +54,10 @@ import static org.hamcrest.Matchers.*;
  * fully disabled. In the upgraded phase, {@code xpack.inference.skip_validate_and_start} is applied as a
  * transient cluster setting (all nodes support it once fully upgraded) so the PUT makes no outgoing call
  * to the mock.
+ *
+ * <p>The whole class is skipped (before the cluster is ever started) unless the old cluster version is
+ * {@code >= 9.3.1}, since the {@link ElasticInferenceServiceSettings#AUTHORIZATION_ENABLED} node setting
+ * applied below was only added in 9.3.0 and older nodes reject it as unknown at startup.
  */
 public class ElasticInferenceServiceReasoningUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
@@ -60,12 +66,22 @@ public class ElasticInferenceServiceReasoningUpgradeIT extends ParameterizedRoll
     private static final String EFFORT_MEDIUM = "medium";
     private static final String SUMMARY_DETAILED = "detailed";
     // AUTHORIZATION_ENABLED setting was added in 9.3.0
-    private static final String AFTER_AUTHORIZATION_ENABLED_SETTING_ADDED_VERSION = "gte_v9.3.1";
+    private static final Version AUTHORIZATION_ENABLED_MIN_VERSION = Version.fromString("9.3.1");
 
     // URL provider only — no init() / enqueueAuthorizeAllModelsResponse() calls because
     // AUTHORIZATION_ENABLED=false suppresses all bootup auth traffic.
     private static final MockElasticInferenceServiceAuthorizationServer mockEISServer =
         new MockElasticInferenceServiceAuthorizationServer();
+
+    // The AUTHORIZATION_ENABLED setting applied below is unknown to nodes older than 9.3.1, which would
+    // otherwise fail settings validation and die at startup. Skip the whole class before the cluster
+    // (and mock server) rules ever run when the old cluster predates that setting.
+    private static final RunnableTestRuleAdapter versionLimit = new RunnableTestRuleAdapter(
+        () -> assumeTrue(
+            "Only run when upgrading from a version that has the AUTHORIZATION_ENABLED setting",
+            Version.tryParse(getOldClusterVersion()).map(v -> v.onOrAfter(AUTHORIZATION_ENABLED_MIN_VERSION)).orElse(false)
+        )
+    );
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -79,8 +95,10 @@ public class ElasticInferenceServiceReasoningUpgradeIT extends ParameterizedRoll
         .build();
 
     // The mock server must start before the cluster so its URL is bound when the cluster reads the setting.
+    // versionLimit is outermost so the version assumption is checked before either the mock server or the
+    // cluster is started.
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(mockEISServer).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(versionLimit).around(mockEISServer).around(cluster);
 
     public ElasticInferenceServiceReasoningUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -107,11 +125,6 @@ public class ElasticInferenceServiceReasoningUpgradeIT extends ParameterizedRoll
         assumeTrue(
             "Old cluster already supports reasoning task settings; skipping gate test",
             oldClusterHasFeature(InferenceFeatures.INFERENCE_ELASTIC_REASONING_TASK_SETTINGS) == false
-        );
-
-        assumeTrue(
-            "Only test versions greater than v9.3.1 to ensure that they have the AUTHORIZATION_ENABLED setting",
-            oldClusterHasFeature(AFTER_AUTHORIZATION_ENABLED_SETTING_ADDED_VERSION)
         );
 
         var inferenceId = "test-reasoning-gated";

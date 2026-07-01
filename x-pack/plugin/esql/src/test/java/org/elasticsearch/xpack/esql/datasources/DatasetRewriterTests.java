@@ -780,7 +780,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
         VerificationException ex = expectThrows(
             VerificationException.class,
-            () -> rewriteWithAuthorized(relationOf("some_idx,secret_ds"), project, Set.of())
+            () -> rewriteWithAuthorized(relationOf("some_idx,secret_ds"), project, Set.of("some_idx"))
         );
         assertThat(ex.getMessage(), containsString("Unknown index [secret_ds]"));
     }
@@ -842,7 +842,7 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset secret = new Dataset("secret_ds", new DataSourceReference("s3_parent"), "s3://secret/", null, Map.of());
         ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("secret_ds", secret), Set.of("some_idx"));
 
-        DatasetRewriter.DatasetResolution r = resolve("some_idx,secret_ds", project, Set.of());
+        DatasetRewriter.DatasetResolution r = resolve("some_idx,secret_ds", project, Set.of("some_idx"));
         assertThat(r.nonDatasetNames(), containsInAnyOrder("some_idx"));
         assertThat(r.explicitUnauthorized(), containsInAnyOrder("secret_ds"));
     }

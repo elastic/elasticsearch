@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152642
+summary: Fix Parquet duplicate gather
+type: bug

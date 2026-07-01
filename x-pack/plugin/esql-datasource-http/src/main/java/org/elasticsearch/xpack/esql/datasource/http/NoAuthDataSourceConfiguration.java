@@ -44,12 +44,15 @@ public final class NoAuthDataSourceConfiguration extends DataSourceConfiguration
 
     @Override
     protected void normalize(Map<String, Object> parsed) {
-        // Canonicalize the deprecated alias and warn, keeping the wording identical to the file-based sources.
+        // Canonicalize the deprecated alias and warn, reusing the shared message + logger-key constants so the
+        // emitted string stays byte-identical to the file-based sources (a serverless test filters on it).
         if (AUTH_DEPRECATED_NONE.equals(parsed.get(AUTH.name()))) {
             deprecationLogger.warn(
                 DeprecationCategory.API,
-                "esql_datasource_auth_none",
-                "auth value [none] is deprecated; the canonical value is [anonymous]"
+                DataSourceConfiguration.DEPRECATED_AUTH_LOG_KEY_PREFIX + AUTH_DEPRECATED_NONE,
+                DataSourceConfiguration.DEPRECATED_AUTH_MESSAGE,
+                AUTH_DEPRECATED_NONE,
+                AUTH_ANONYMOUS
             );
             parsed.put(AUTH.name(), AUTH_ANONYMOUS);
         }

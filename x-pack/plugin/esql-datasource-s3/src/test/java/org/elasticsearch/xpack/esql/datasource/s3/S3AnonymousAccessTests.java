@@ -174,7 +174,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * auth=managed_identity delegates to {@code buildWorkloadIdentityCredentialsProvider()}, which
+     * auth=managed_identity delegates to {@code buildManagedIdentityCredentialsProvider()}, which
      * by default returns an {@code AwsCredentialsProviderChain}. Tests may subclass and override
      * that method to inject a static provider — the same seam used by GcsStorageProvider.
      */
@@ -187,12 +187,12 @@ public class S3AnonymousAccessTests extends ESTestCase {
             config.resolveAuthMode()
         );
         // The MANAGED_IDENTITY switch arm builds this chain.
-        var provider = S3StorageProvider.forTesting(null, null).buildWorkloadIdentityCredentialsProvider();
+        var provider = S3StorageProvider.forTesting(null, null).buildManagedIdentityCredentialsProvider();
         assertThat(provider, instanceOf(software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain.class));
     }
 
     /**
-     * Verifies that overriding {@code buildWorkloadIdentityCredentialsProvider()} allows injecting
+     * Verifies that overriding {@code buildManagedIdentityCredentialsProvider()} allows injecting
      * a test credential — the unit-test seam for wrong-credential counter-proofs. The MANAGED_IDENTITY
      * switch arm in the constructor selects exactly this provider.
      */
@@ -202,14 +202,14 @@ public class S3AnonymousAccessTests extends ESTestCase {
         );
         var provider = new S3StorageProvider(null, null, null) {
             @Override
-            protected software.amazon.awssdk.auth.credentials.AwsCredentialsProvider buildWorkloadIdentityCredentialsProvider() {
+            protected software.amazon.awssdk.auth.credentials.AwsCredentialsProvider buildManagedIdentityCredentialsProvider() {
                 return injected;
             }
         };
         assertSame(
-            "overriding buildWorkloadIdentityCredentialsProvider() (the seam the MANAGED_IDENTITY arm calls) returns the injected provider",
+            "overriding buildManagedIdentityCredentialsProvider() (the seam the MANAGED_IDENTITY arm calls) returns the injected provider",
             injected,
-            provider.buildWorkloadIdentityCredentialsProvider()
+            provider.buildManagedIdentityCredentialsProvider()
         );
     }
 

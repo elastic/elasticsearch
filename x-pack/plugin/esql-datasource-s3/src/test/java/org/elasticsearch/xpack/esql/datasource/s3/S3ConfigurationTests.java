@@ -39,14 +39,14 @@ public class S3ConfigurationTests extends ESTestCase {
         assertFalse(config.isAnonymous());
     }
 
-    public void testAuthNone() {
+    public void testAuthAnonymous() {
         S3Configuration config = S3Configuration.fromFields(null, null, "http://endpoint", "us-east-1", "anonymous");
         assertNotNull(config);
         assertTrue(config.isAnonymous());
         assertFalse(config.hasCredentials());
     }
 
-    public void testAuthNoneCaseInsensitive() {
+    public void testAuthAnonymousCaseInsensitive() {
         S3Configuration config = S3Configuration.fromFields(null, null, "http://e", null, "ANONYMOUS");
         assertNotNull(config);
         assertTrue(config.isAnonymous());
@@ -62,7 +62,7 @@ public class S3ConfigurationTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unsupported auth value"));
     }
 
-    public void testAuthWorkloadIdentity() {
+    public void testAuthManagedIdentity() {
         S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "managed_identity");
         assertNotNull(config);
         assertTrue(config.isManagedIdentity());
@@ -70,14 +70,14 @@ public class S3ConfigurationTests extends ESTestCase {
         assertFalse(config.hasCredentials());
     }
 
-    public void testAuthWorkloadIdentityCaseInsensitive() {
+    public void testAuthManagedIdentityCaseInsensitive() {
         S3Configuration config = S3Configuration.fromFields(null, null, null, null, "MANAGED_IDENTITY");
         assertNotNull(config);
         assertTrue(config.isManagedIdentity());
         assertEquals("managed_identity", config.auth());
     }
 
-    public void testAuthWorkloadIdentityAllowsRegionAndEndpoint() {
+    public void testAuthManagedIdentityAllowsRegionAndEndpoint() {
         S3Configuration config = S3Configuration.fromFields(null, null, "http://localhost:9000", "eu-west-1", "managed_identity");
         assertNotNull(config);
         assertTrue(config.isManagedIdentity());
@@ -85,7 +85,7 @@ public class S3ConfigurationTests extends ESTestCase {
         assertEquals("eu-west-1", config.region());
     }
 
-    public void testAuthWorkloadIdentityConflictsWithAccessKey() {
+    public void testAuthManagedIdentityConflictsWithAccessKey() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> S3Configuration.fromFields("ak", null, null, null, "managed_identity")
@@ -93,7 +93,7 @@ public class S3ConfigurationTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("auth=managed_identity cannot be combined with explicit credentials"));
     }
 
-    public void testAuthWorkloadIdentityConflictsWithSecretKey() {
+    public void testAuthManagedIdentityConflictsWithSecretKey() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> S3Configuration.fromFields(null, "sk", null, null, "managed_identity")
@@ -101,7 +101,7 @@ public class S3ConfigurationTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("auth=managed_identity cannot be combined with explicit credentials"));
     }
 
-    public void testAuthWorkloadIdentityConflictsWithSessionToken() {
+    public void testAuthManagedIdentityConflictsWithSessionToken() {
         var raw = new java.util.HashMap<String, Object>();
         raw.put("auth", "managed_identity");
         raw.put("session_token", "tok");
@@ -109,7 +109,7 @@ public class S3ConfigurationTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("auth=managed_identity cannot be combined with explicit credentials"));
     }
 
-    public void testAuthNoneConflictsWithAccessKey() {
+    public void testAuthAnonymousConflictsWithAccessKey() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> S3Configuration.fromFields("ak", null, null, null, "anonymous")
@@ -117,7 +117,7 @@ public class S3ConfigurationTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("auth=anonymous cannot be combined with explicit credentials"));
     }
 
-    public void testAuthNoneConflictsWithSecretKey() {
+    public void testAuthAnonymousConflictsWithSecretKey() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> S3Configuration.fromFields(null, "sk", null, null, "anonymous")
@@ -125,7 +125,7 @@ public class S3ConfigurationTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("auth=anonymous cannot be combined with explicit credentials"));
     }
 
-    public void testAuthNoneConflictsWithBothKeys() {
+    public void testAuthAnonymousConflictsWithBothKeys() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> S3Configuration.fromFields("ak", "sk", null, null, "anonymous")
@@ -133,7 +133,7 @@ public class S3ConfigurationTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("auth=anonymous cannot be combined with explicit credentials"));
     }
 
-    public void testAuthNoneAllowsEndpointAndRegion() {
+    public void testAuthAnonymousAllowsEndpointAndRegion() {
         S3Configuration config = S3Configuration.fromFields(null, null, "http://localhost:9000", "eu-west-1", "anonymous");
         assertNotNull(config);
         assertTrue(config.isAnonymous());
@@ -248,7 +248,7 @@ public class S3ConfigurationTests extends ESTestCase {
         assertNull(config.sessionToken());
     }
 
-    public void testSessionTokenConflictsWithAuthNone() {
+    public void testSessionTokenConflictsWithAuthAnonymous() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> S3Configuration.fromFields(null, null, "tok", null, null, "anonymous")
@@ -352,7 +352,7 @@ public class S3ConfigurationTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("explicit credentials cannot be combined with keyless authentication settings"));
     }
 
-    public void testKeylessAuthConflictsWithAuthNone() {
+    public void testKeylessAuthConflictsWithAuthAnonymous() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> S3Configuration.fromMap(Map.of("auth", "anonymous", "role_arn", "role-arn", "jwt_audience", "audience"))

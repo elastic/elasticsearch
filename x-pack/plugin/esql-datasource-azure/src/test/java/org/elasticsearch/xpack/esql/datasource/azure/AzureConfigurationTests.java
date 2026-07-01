@@ -174,32 +174,32 @@ public class AzureConfigurationTests extends ESTestCase {
         assertNull(config.sasToken());
     }
 
-    public void testAuthNone() {
+    public void testAuthAnonymous() {
         AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://endpoint", "anonymous");
         assertNotNull(config);
         assertTrue(config.isAnonymous());
         assertFalse(config.hasCredentials());
     }
 
-    public void testAuthNoneCaseInsensitive() {
+    public void testAuthAnonymousCaseInsensitive() {
         AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://endpoint", "ANONYMOUS");
         assertTrue(config.isAnonymous());
         assertEquals("anonymous", config.auth());
     }
 
-    public void testAuthNoneConflictsWithConnectionString() {
+    public void testAuthAnonymousConflictsWithConnectionString() {
         expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields("connstr", null, null, null, null, "anonymous"));
     }
 
-    public void testAuthNoneConflictsWithAccountKey() {
+    public void testAuthAnonymousConflictsWithAccountKey() {
         expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields(null, "acc", "key", null, null, "anonymous"));
     }
 
-    public void testAuthNoneConflictsWithSasToken() {
+    public void testAuthAnonymousConflictsWithSasToken() {
         expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields(null, null, null, "sas", null, "anonymous"));
     }
 
-    public void testAuthNoneAllowsEndpoint() {
+    public void testAuthAnonymousAllowsEndpoint() {
         AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://ep", "anonymous");
         assertTrue(config.isAnonymous());
         assertEquals("https://ep", config.endpoint());
@@ -301,7 +301,7 @@ public class AzureConfigurationTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("explicit credentials cannot be combined with keyless authentication settings"));
     }
 
-    public void testKeylessAuthConflictsWithAuthNone() {
+    public void testKeylessAuthConflictsWithAuthAnonymous() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> AzureConfiguration.fromMap(

@@ -113,13 +113,7 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
         if (value instanceof String s) {
             String canonical = DEPRECATED_AUTH_ALIASES.get(s);
             if (canonical != null) {
-                deprecationLogger.warn(
-                    DeprecationCategory.API,
-                    "esql_datasource_auth_" + s,
-                    "auth value [{}] is deprecated; the canonical value is [{}]",
-                    s,
-                    canonical
-                );
+                deprecationLogger.warn(DeprecationCategory.API, DEPRECATED_AUTH_LOG_KEY_PREFIX + s, DEPRECATED_AUTH_MESSAGE, s, canonical);
                 parsed.put(AUTH.name(), canonical);
             }
         }
@@ -258,12 +252,16 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
         if (isManagedIdentity()) {
             return AuthMode.MANAGED_IDENTITY;
         }
-        // auto or omitted — the only place field inference happens
-        if (hasKeylessAuth()) {
-            return AuthMode.FEDERATED_IDENTITY;
-        }
-        if (hasCredentials()) {
-            return AuthMode.STATIC_CREDENTIALS;
+        // auto or omitted — the only place field inference happens. Guarding on isAuto() means a bogus/unsupported
+        // auth value (already rejected by validate()) falls through to null rather than silently inferring a mode from
+        // the fields present; defense-in-depth.
+        if (isAuto()) {
+            if (hasKeylessAuth()) {
+                return AuthMode.FEDERATED_IDENTITY;
+            }
+            if (hasCredentials()) {
+                return AuthMode.STATIC_CREDENTIALS;
+            }
         }
         return null;
     }

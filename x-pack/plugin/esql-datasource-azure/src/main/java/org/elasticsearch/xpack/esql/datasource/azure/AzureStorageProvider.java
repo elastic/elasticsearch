@@ -85,11 +85,11 @@ import java.util.function.Function;
  * <p>
  * Authentication (selected by the {@code auth} mode; {@code auto} infers it from the fields present):
  * {@code auth=static_credentials} (connection string, account+key, or account+SAS token),
- * {@code auth=anonymous} for public containers, {@code auth=managed_identity} (AKS Workload Identity via the
+ * {@code auth=federated_identity} ({@code tenant_id} + {@code client_id} + {@code jwt_audience}) which mints a JWT
+ * via the node's workload-identity issuer and exchanges it through Azure AD as a client assertion,
+ * {@code auth=anonymous} for public containers, or {@code auth=managed_identity} (AKS Workload Identity via the
  * entitled federated-token symlink under {@code ${ES_PATH_CONF}} when configured, falling back to
- * {@code ManagedIdentityCredential} via Azure IMDS), or {@code auth=federated_identity}
- * ({@code tenant_id} + {@code client_id} + {@code jwt_audience}) which mints a JWT via the
- * node's workload-identity issuer and exchanges it through Azure AD as a client assertion.
+ * {@code ManagedIdentityCredential} via Azure IMDS).
  * {@code DefaultAzureCredential} is excluded entirely: it bundles file-reading and process-spawning
  * credential sources blocked by entitlements.
  */
@@ -530,8 +530,8 @@ public final class AzureStorageProvider implements StorageProvider {
     private String credentialHint() {
         if (config == null || config.resolveAuthModeOrNull() == null) {
             return ". If accessing a public container, set auth=anonymous. "
-                + "Otherwise, provide credentials via account and key, configure keyless "
-                + "authentication settings, or set Azure environment variables";
+                + "Otherwise, provide credentials via account and key, "
+                + "or configure keyless authentication with tenant_id, client_id, and jwt_audience";
         }
         return "";
     }

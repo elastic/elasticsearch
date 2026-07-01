@@ -200,12 +200,12 @@ public class GcsStorageProviderTests extends ESTestCase {
     public void testWorkloadIdentityCredentialsReturnsComputeEngine() throws Exception {
         GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "managed_identity"));
         assertEquals(AuthMode.MANAGED_IDENTITY, config.resolveAuthMode());
-        Credentials creds = new GcsStorageProvider(mockStorage).buildWorkloadIdentityCredentials();
+        Credentials creds = new GcsStorageProvider(mockStorage).buildManagedIdentityCredentials();
         assertThat(creds, instanceOf(ComputeEngineCredentials.class));
     }
 
     /**
-     * {@link GcsStorageProvider#buildWorkloadIdentityCredentials()} — the seam the MANAGED_IDENTITY switch arm calls —
+     * {@link GcsStorageProvider#buildManagedIdentityCredentials()} — the seam the MANAGED_IDENTITY switch arm calls —
      * is overridable, so tests can inject a credential backed by a mock HTTP transport instead of the GCE metadata
      * server. Verifies the override is honored; the arm→seam routing is exercised end-to-end by the ITs.
      */
@@ -213,10 +213,10 @@ public class GcsStorageProviderTests extends ESTestCase {
         GoogleCredentials injected = GoogleCredentials.create(new com.google.auth.oauth2.AccessToken("seam-token", null));
         GcsStorageProvider provider = new GcsStorageProvider(mockStorage) {
             @Override
-            protected Credentials buildWorkloadIdentityCredentials() {
+            protected Credentials buildManagedIdentityCredentials() {
                 return injected;
             }
         };
-        assertSame(injected, provider.buildWorkloadIdentityCredentials());
+        assertSame(injected, provider.buildManagedIdentityCredentials());
     }
 }

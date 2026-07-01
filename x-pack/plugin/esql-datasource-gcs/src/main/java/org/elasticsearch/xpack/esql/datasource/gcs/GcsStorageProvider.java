@@ -50,13 +50,14 @@ import java.util.NoSuchElementException;
  *   <li>{@code auth=static_credentials} — a service account JSON key or a short-lived OAuth2 access token</li>
  *   <li>{@code auth=federated_identity} — workload identity federation via {@code jwt_audience}, {@code sts_audience},
  *       and {@code service_account_impersonation_url}</li>
- *   <li>{@code auth=anonymous} for anonymous access to public buckets</li>
+ *   <li>{@code auth=anonymous} — anonymous access to public buckets</li>
+ *   <li>{@code auth=managed_identity} — the node's GCE/GKE metadata-server credentials
+ *       ({@link ComputeEngineCredentials}); requires the {@code esql.datasource.managed_identity.enabled}
+ *       cluster setting</li>
  * </ul>
- * {@code auth=managed_identity} uses the GCE/GKE metadata server ({@link ComputeEngineCredentials}).
  * File-based ADC sources ({@code GOOGLE_APPLICATION_CREDENTIALS}, the well-known gcloud credential
  * file) are excluded because file reads are blocked by entitlements. GKE Workload Identity
- * Federation is handled separately via {@code auth=federated_identity}. Requires the
- * {@code esql.datasource.managed_identity.enabled} cluster setting.
+ * Federation is handled separately via {@code auth=federated_identity}.
  * <p>
  * {@link GcsStorageObject} provides optimized I/O via GCS {@link com.google.cloud.ReadChannel}:
  * <ul>
@@ -127,7 +128,7 @@ public class GcsStorageProvider implements StorageProvider {
                 case ANONYMOUS -> StorageOptions.getUnauthenticatedInstance().toBuilder();
                 case STATIC_CREDENTIALS -> StorageOptions.newBuilder().setCredentials(buildStaticCredentials(config));
                 case FEDERATED_IDENTITY -> StorageOptions.newBuilder().setCredentials(buildIdentityPoolCredentials(config));
-                case MANAGED_IDENTITY -> StorageOptions.newBuilder().setCredentials(buildWorkloadIdentityCredentials());
+                case MANAGED_IDENTITY -> StorageOptions.newBuilder().setCredentials(buildManagedIdentityCredentials());
             };
             if (config.projectId() != null) {
                 builder.setProjectId(config.projectId());
@@ -180,7 +181,7 @@ public class GcsStorageProvider implements StorageProvider {
      * mock {@link com.google.api.client.http.HttpTransport} — the same pattern used by
      * {@code GoogleCloudStorageAdcTests} in {@code repository-gcs}.
      */
-    protected Credentials buildWorkloadIdentityCredentials() {
+    protected Credentials buildManagedIdentityCredentials() {
         return ComputeEngineCredentials.create();
     }
 
@@ -278,8 +279,8 @@ public class GcsStorageProvider implements StorageProvider {
     private String credentialHint() {
         if (config == null || config.resolveAuthModeOrNull() == null) {
             return ". If accessing a public bucket, set auth=anonymous. "
-                + "Otherwise, provide credentials, configure keyless authentication settings, "
-                + "or set GOOGLE_APPLICATION_CREDENTIALS";
+                + "Otherwise, provide credentials via credentials or access_token, "
+                + "or configure keyless authentication with jwt_audience and sts_audience";
         }
         return "";
     }

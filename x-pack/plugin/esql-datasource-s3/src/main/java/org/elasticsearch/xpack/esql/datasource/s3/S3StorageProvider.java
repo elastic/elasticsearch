@@ -131,7 +131,7 @@ public class S3StorageProvider implements StorageProvider {
         int maxConnections
     ) {
         this.config = config;
-        // Set first so that workloadIdentityProviders() (called from buildWorkloadIdentityCredentialsProvider() on
+        // Set first so that workloadIdentityProviders() (called from buildManagedIdentityCredentialsProvider() on
         // the MANAGED_IDENTITY path) can read it.
         this.webIdentityTokenCredentialsProvider = webIdentityTokenCredentialsProvider;
         StsAsyncClient sts = null;
@@ -157,7 +157,7 @@ public class S3StorageProvider implements StorageProvider {
                     yield buildWorkloadIdentityCredentialsProvider(config, issuerClient, sts);
                 }
                 // IMDS / IRSA / Pod Identity / EC2 chain; populates ownedWorkloadIdentityProviders (closed in the finally).
-                case MANAGED_IDENTITY -> buildWorkloadIdentityCredentialsProvider();
+                case MANAGED_IDENTITY -> buildManagedIdentityCredentialsProvider();
             };
             s3 = buildS3Client(config, credentials);
             this.stsAsyncClient = sts;
@@ -330,7 +330,7 @@ public class S3StorageProvider implements StorageProvider {
      * <p>Tests may subclass and override to inject a {@code StaticCredentialsProvider} backed by
      * a local fixture — the same seam pattern used by {@code GcsStorageProvider}.
      */
-    protected AwsCredentialsProvider buildWorkloadIdentityCredentialsProvider() {
+    protected AwsCredentialsProvider buildManagedIdentityCredentialsProvider() {
         return AwsCredentialsProviderChain.builder()
             // Re-resolve through every link on each request instead of pinning the chain to the
             // first provider that ever succeeded. This matches repository-s3 and is needed so that
@@ -343,7 +343,7 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     /**
-     * The ordered providers that {@link #buildWorkloadIdentityCredentialsProvider()} wraps in an
+     * The ordered providers that {@link #buildManagedIdentityCredentialsProvider()} wraps in an
      * {@link AwsCredentialsProviderChain}. Exposed package-private so unit tests can assert on
      * chain composition by inspecting the list directly rather than parsing
      * {@link AwsCredentialsProviderChain#toString()}.
@@ -354,10 +354,12 @@ public class S3StorageProvider implements StorageProvider {
             // Node-level singleton owned by S3DataSourcePlugin; do NOT close it from this instance.
             providers.add(new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER));
         }
-        // Created per S3StorageProvider, so this instance owns them and must close them in close().
+        // Created per S3StorageProvider, so this instance owns them and must close them in close(). Track each in
+        // ownedWorkloadIdentityProviders the instant it is created, before the next create() runs — if the second
+        // create() throws, the first is still tracked for cleanup by the constructor's finally block.
         ContainerCredentialsProvider containerCredentialsProvider = ContainerCredentialsProvider.create();
-        InstanceProfileCredentialsProvider instanceProfileCredentialsProvider = InstanceProfileCredentialsProvider.create();
         ownedWorkloadIdentityProviders.add(containerCredentialsProvider);
+        InstanceProfileCredentialsProvider instanceProfileCredentialsProvider = InstanceProfileCredentialsProvider.create();
         ownedWorkloadIdentityProviders.add(instanceProfileCredentialsProvider);
         providers.add(containerCredentialsProvider);
         providers.add(instanceProfileCredentialsProvider);

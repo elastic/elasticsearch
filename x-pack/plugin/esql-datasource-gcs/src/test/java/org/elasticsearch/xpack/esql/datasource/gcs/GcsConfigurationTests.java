@@ -177,27 +177,27 @@ public class GcsConfigurationTests extends ESTestCase {
         assertEquals(config1.hashCode(), config2.hashCode());
     }
 
-    public void testAuthNone() {
+    public void testAuthAnonymous() {
         GcsConfiguration config = GcsConfiguration.fromFields(null, null, "http://endpoint", null, "anonymous");
         assertNotNull(config);
         assertTrue(config.isAnonymous());
         assertFalse(config.hasCredentials());
     }
 
-    public void testAuthNoneCaseInsensitive() {
+    public void testAuthAnonymousCaseInsensitive() {
         GcsConfiguration config = GcsConfiguration.fromFields(null, null, "http://endpoint", null, "ANONYMOUS");
         assertTrue(config.isAnonymous());
         assertEquals("anonymous", config.auth());
     }
 
-    public void testAuthNoneConflictsWithCredentials() {
+    public void testAuthAnonymousConflictsWithCredentials() {
         expectThrows(
             ValidationException.class,
             () -> GcsConfiguration.fromFields("{\"type\":\"service_account\"}", null, null, null, "anonymous")
         );
     }
 
-    public void testAuthNoneConflictsWithKeylessAuth() {
+    public void testAuthAnonymousConflictsWithKeylessAuth() {
         expectThrows(
             ValidationException.class,
             () -> GcsConfiguration.fromFields(null, null, "http://endpoint", null, "anonymous", "jwt-audience", null, null)
@@ -243,7 +243,7 @@ public class GcsConfigurationTests extends ESTestCase {
         assertNull(config.serviceAccountImpersonationUrl());
     }
 
-    public void testAuthNoneAllowsProjectIdAndEndpoint() {
+    public void testAuthAnonymousAllowsProjectIdAndEndpoint() {
         GcsConfiguration config = GcsConfiguration.fromFields(null, "my-project", "http://ep", null, "anonymous");
         assertTrue(config.isAnonymous());
         assertEquals("my-project", config.projectId());
@@ -317,7 +317,7 @@ public class GcsConfigurationTests extends ESTestCase {
         assertNull(config.accessToken());
     }
 
-    public void testAccessTokenConflictsWithAuthNone() {
+    public void testAccessTokenConflictsWithAuthAnonymous() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> GcsConfiguration.fromMap(Map.of("access_token", "ya29.token", "auth", "anonymous"))

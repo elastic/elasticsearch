@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
@@ -206,7 +207,7 @@ public class S3Configuration extends FileDataSourceConfiguration {
 
     @Override
     public boolean hasCredentials() {
-        return accessKey() != null && secretKey() != null;
+        return Strings.hasText(accessKey()) && Strings.hasText(secretKey());
     }
 
     @Override

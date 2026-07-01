@@ -26,10 +26,8 @@ import java.util.TreeSet;
  *   <li>every declared {@code type} resolves to a type the external readers can actually produce
  *       (the {@link #DECLARABLE_TYPES} whitelist — declaring {@code ip}/{@code geo_point}/etc. is rejected
  *       until the readers grow them);</li>
- *   <li>a declared {@code timestamp_field} that points at a <i>declared</i> column requires that column to be
- *       a date type;</li>
- *   <li>under strict mode ({@code dynamic: false}) the {@code timestamp_field}/{@code id_field} must point at a
- *       declared column — nothing is inferred to satisfy them.</li>
+ *   <li>under strict mode ({@code dynamic: false}) the {@code id_field} must point at a declared column —
+ *       nothing is inferred to satisfy it.</li>
  * </ul>
  *
  * <p>What is deliberately <b>not</b> checked here (deferred to first-query mapping resolution, because PUT does no
@@ -52,9 +50,6 @@ public final class DeclaredSchemaValidator {
         DataType.DATETIME,
         DataType.UNSIGNED_LONG
     );
-
-    /** Types accepted for a {@code timestamp_field}. Pinned to the core {@code @timestamp} mapper's allowed set by test. */
-    static final Set<DataType> DATE_TYPES = Set.of(DataType.DATETIME, DataType.DATE_NANOS);
 
     public static void validate(DatasetMapping mapping) {
         if (mapping == null) {
@@ -79,8 +74,7 @@ public final class DeclaredSchemaValidator {
                 }
             }
             boolean strict = mappings.dynamic() == DatasetMapping.Dynamic.FALSE;
-            validateRole("timestamp_field", mapping.timestampField(), mappings, strict, true);
-            validateRole("id_field", mapping.idField(), mappings, strict, false);
+            validateRole("id_field", mapping.idField(), mappings, strict);
         }
     }
 
@@ -93,28 +87,17 @@ public final class DeclaredSchemaValidator {
         }
     }
 
-    private static void validateRole(String role, String column, DatasetMapping.Mappings mappings, boolean strict, boolean mustBeDate) {
+    private static void validateRole(String role, String column, DatasetMapping.Mappings mappings, boolean strict) {
         if (column == null) {
             return;
         }
         DatasetFieldMapping declared = mappings.properties().get(column);
-        if (declared == null) {
+        if (declared == null && strict) {
             // Not declared: under strict mode there is nothing to infer it from, so it must be declared.
             // Under non-strict mode it may come from inference — defer the existence check to first query.
-            if (strict) {
-                throw new IllegalArgumentException(
-                    "[" + role + "] references column [" + column + "] which is not declared, and dynamic is [false]"
-                );
-            }
-            return;
-        }
-        if (mustBeDate) {
-            DataType resolved = DataType.fromNameOrAlias(declared.type());
-            if (DATE_TYPES.contains(resolved) == false) {
-                throw new IllegalArgumentException(
-                    "[" + role + "] references column [" + column + "] of type [" + declared.type() + "]; it must be a date type"
-                );
-            }
+            throw new IllegalArgumentException(
+                "[" + role + "] references column [" + column + "] which is not declared, and dynamic is [false]"
+            );
         }
     }
 

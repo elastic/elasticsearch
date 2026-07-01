@@ -54,7 +54,6 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         private static final ParseField DESCRIPTION = new ParseField("description");
         private static final ParseField SETTINGS = new ParseField("settings");
         private static final ParseField MAPPINGS = new ParseField("mappings");
-        private static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp_field");
         private static final ParseField ID_FIELD = new ParseField("id_field");
 
         /** Gates the optional {@link DatasetMapping} on the request wire (mixed-version upgrade). */
@@ -74,7 +73,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
                 (String) args[1],
                 (String) args[2],
                 (Map<String, Object>) args[3],
-                DatasetMapping.assemble((DatasetMapping.Mappings) args[4], (String) args[5], (String) args[6])
+                DatasetMapping.assemble((DatasetMapping.Mappings) args[4], (String) args[5])
             )
         );
 
@@ -84,7 +83,6 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DatasetMapping.parseMappings(p), MAPPINGS);
-            PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), TIMESTAMP_FIELD);
             PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), ID_FIELD);
         }
 

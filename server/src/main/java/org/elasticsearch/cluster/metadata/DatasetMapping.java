@@ -29,23 +29,24 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * A user-declared mapping attached to a {@link Dataset}. Entirely optional — a dataset with no
  * {@code DatasetMapping} resolves its schema by inference, exactly as before.
  *
- * <p>Groups the three declaration surfaces of the dataset PUT body:
+ * <p>Groups the declaration surfaces of the dataset PUT body:
  * <ul>
  *   <li>the {@code mappings} block ({@link Mappings}: a {@code dynamic} mode + per-column {@code properties}),
- *       which may be absent (role-only declarations);</li>
- *   <li>{@code timestamp_field} — names the column that is the time axis;</li>
- *   <li>{@code id_field} — names the column that backs {@code _id}.</li>
+ *       which may be absent (a role-only declaration);</li>
+ *   <li>{@code id_field} — names the column whose value is copied into {@code _id}.</li>
  * </ul>
  *
- * <p>The role designations are <b>orthogonal to the mappings</b>: any of them may be present without the
- * others, and they point at a column in the <i>resolved</i> schema (declared or inferred), so they work
- * under full inference too. They are stored as plain Strings; validation that they reference a real column
- * (and that a {@code timestamp_field} resolves to a date type) happens in the ES|QL layer — at put time when
- * the column is declared, otherwise at first query.
+ * <p>There is <b>no timestamp role</b>: a time axis is just a column named {@code @timestamp}, declared as an
+ * ordinary rename (e.g. {@code "@timestamp": {"type":"date","source":"ts"}}) and recognized by the stack by
+ * name — a rename ("move"), not a designation. {@code id_field} stays a role because {@code _id} is a metadata
+ * slot, not a nameable column: it <i>copies</i> a column's value (the column remains). {@code id_field} is
+ * orthogonal to the mappings — it may be present without them, points at a column in the <i>resolved</i> schema
+ * (declared or inferred), and is stored as a plain String; validation that it references a real column happens
+ * in the ES|QL layer — at put time when the column is declared, otherwise at first query.
  *
  * <p>Like {@link DataSourceReference}, this has no standalone XContent: {@link Dataset#toXContent} emits the
- * flat {@code mappings}/{@code timestamp_field}/{@code id_field} keys and {@link Dataset#PARSER} reads them
- * back, assembling this object via {@link #assemble}. That keeps a single on-disk JSON shape.
+ * flat {@code mappings}/{@code id_field} keys and {@link Dataset#PARSER} reads them back, assembling this
+ * object via {@link #assemble}. That keeps a single on-disk JSON shape.
  */
 public final class DatasetMapping implements Writeable {
 
@@ -126,39 +127,36 @@ public final class DatasetMapping implements Writeable {
     @Nullable
     private final Mappings mappings;
     @Nullable
-    private final String timestampField;
-    @Nullable
     private final String idField;
 
-    public DatasetMapping(@Nullable Mappings mappings, @Nullable String timestampField, @Nullable String idField) {
+    public DatasetMapping(@Nullable Mappings mappings, @Nullable String idField) {
         this.mappings = mappings;
-        this.timestampField = timestampField;
         this.idField = idField;
     }
 
     public DatasetMapping(StreamInput in) throws IOException {
         this.mappings = in.readOptionalWriteable(Mappings::new);
-        this.timestampField = in.readOptionalString();
         this.idField = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(mappings);
-        out.writeOptionalString(timestampField);
         out.writeOptionalString(idField);
     }
 
     /**
-     * Builds a {@link DatasetMapping} from the three parsed top-level pieces, or {@code null} when none are present
-     * (a dataset with no declared schema). Used by {@link Dataset#PARSER}.
+     * Builds a {@link DatasetMapping} from the parsed top-level pieces, or {@code null} when none are present (a
+     * dataset with no declared schema). Used by {@link Dataset#PARSER}. The timestamp is <b>not</b> a role here: a
+     * time axis is declared as an ordinary rename to {@code @timestamp} (e.g.
+     * {@code "@timestamp": {"type":"date","source":"ts"}}), which the stack recognizes by name — no designation.
      */
     @Nullable
-    public static DatasetMapping assemble(@Nullable Mappings mappings, @Nullable String timestampField, @Nullable String idField) {
-        if (mappings == null && timestampField == null && idField == null) {
+    public static DatasetMapping assemble(@Nullable Mappings mappings, @Nullable String idField) {
+        if (mappings == null && idField == null) {
             return null;
         }
-        return new DatasetMapping(mappings, timestampField, idField);
+        return new DatasetMapping(mappings, idField);
     }
 
     /** Parses the {@code mappings} object ({@code dynamic} + {@code properties}) into a {@link Mappings}. */
@@ -206,7 +204,7 @@ public final class DatasetMapping implements Writeable {
         return new Mappings(dynamic, properties, sourceEnabled);
     }
 
-    /** Emits the flat {@code mappings}/{@code timestamp_field}/{@code id_field} keys into an already-open dataset object. */
+    /** Emits the flat {@code mappings}/{@code id_field} keys into an already-open dataset object. */
     public void toXContentFragment(XContentBuilder builder) throws IOException {
         if (mappings != null) {
             builder.startObject("mappings");
@@ -224,9 +222,6 @@ public final class DatasetMapping implements Writeable {
             }
             builder.endObject();
         }
-        if (timestampField != null) {
-            builder.field("timestamp_field", timestampField);
-        }
         if (idField != null) {
             builder.field("id_field", idField);
         }
@@ -235,11 +230,6 @@ public final class DatasetMapping implements Writeable {
     @Nullable
     public Mappings mappings() {
         return mappings;
-    }
-
-    @Nullable
-    public String timestampField() {
-        return timestampField;
     }
 
     @Nullable
@@ -252,18 +242,16 @@ public final class DatasetMapping implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DatasetMapping that = (DatasetMapping) o;
-        return Objects.equals(mappings, that.mappings)
-            && Objects.equals(timestampField, that.timestampField)
-            && Objects.equals(idField, that.idField);
+        return Objects.equals(mappings, that.mappings) && Objects.equals(idField, that.idField);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(mappings, timestampField, idField);
+        return Objects.hash(mappings, idField);
     }
 
     @Override
     public String toString() {
-        return "DatasetMapping[mappings=" + mappings + ", timestampField=" + timestampField + ", idField=" + idField + "]";
+        return "DatasetMapping[mappings=" + mappings + ", idField=" + idField + "]";
     }
 }

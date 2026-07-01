@@ -110,14 +110,14 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
     }
 
     public void testAssembleReturnsNullWhenAllAbsent() {
-        assertNull(DatasetMapping.assemble(null, null, null));
+        assertNull(DatasetMapping.assemble(null, null));
     }
 
-    public void testAssembleNonNullWithOnlyTimestamp() {
-        DatasetMapping mapping = DatasetMapping.assemble(null, "@timestamp", null);
+    public void testAssembleNonNullWithOnlyIdField() {
+        DatasetMapping mapping = DatasetMapping.assemble(null, "request_id");
         assertNotNull(mapping);
         assertNull(mapping.mappings());
-        assertEquals("@timestamp", mapping.timestampField());
+        assertEquals("request_id", mapping.idField());
     }
 
     public void testDynamicRejectsUnknownValue() {
@@ -130,7 +130,7 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
         props.put("when", new DatasetFieldMapping("date", "ts"));
         props.put("amount", new DatasetFieldMapping("double", null));
         DatasetMapping.Mappings mappings = new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props);
-        DatasetMapping mapping = new DatasetMapping(mappings, null, null);
+        DatasetMapping mapping = new DatasetMapping(mappings, null);
         DatasetMapping copy = copyInstance(mapping);
         assertEquals(mapping, copy);
         assertEquals("ts", copy.mappings().properties().get("when").source());

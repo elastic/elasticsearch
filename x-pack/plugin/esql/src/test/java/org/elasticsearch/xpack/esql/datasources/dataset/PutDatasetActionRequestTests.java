@@ -196,12 +196,11 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
             }
             mappings = new DatasetMapping.Mappings(randomFrom(DatasetMapping.Dynamic.values()), props);
         }
-        String ts = randomBoolean() ? null : randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         String id = randomBoolean() ? null : randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        if (mappings == null && ts == null && id == null) {
-            ts = "@timestamp";
+        if (mappings == null && id == null) {
+            id = "row_id";
         }
-        return DatasetMapping.assemble(mappings, ts, id);
+        return DatasetMapping.assemble(mappings, id);
     }
 
     private static Map<String, Object> randomSettings() {

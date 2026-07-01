@@ -24,7 +24,7 @@ import java.util.Map;
 public class DeclaredSchemaResolverTests extends ESTestCase {
 
     private static DatasetMapping mapping(Map<String, DatasetFieldMapping> props) {
-        return new DatasetMapping(new Mappings(Dynamic.TRUE, props), null, null);
+        return new DatasetMapping(new Mappings(Dynamic.TRUE, props), null);
     }
 
     private static ReferenceAttribute attr(String name, DataType type) {
@@ -81,7 +81,7 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
 
     public void testOverlayNonStrictNoMappingsPassesThrough() {
         List<Attribute> inferred = List.of(attr("a", DataType.KEYWORD));
-        DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(inferred, new DatasetMapping(null, "@timestamp", null));
+        DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(inferred, new DatasetMapping(null, "row_id"));
         assertSame(inferred, o.output());
         assertSame(inferred, o.fileSchema());
     }
@@ -119,7 +119,7 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
     }
 
     public void testNoMappingsYieldsEmpty() {
-        DatasetMapping roleOnly = new DatasetMapping(null, "@timestamp", "row_id");
+        DatasetMapping roleOnly = new DatasetMapping(null, "row_id");
         assertTrue(DeclaredSchemaResolver.declaredAttributes(roleOnly).isEmpty());
         assertTrue(DeclaredSchemaResolver.renameMap(roleOnly).isEmpty());
         assertTrue(DeclaredSchemaResolver.declaredAttributes(null).isEmpty());

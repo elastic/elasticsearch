@@ -111,13 +111,12 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
 
     static DatasetMapping randomMapping() {
         DatasetMapping.Mappings mappings = randomBoolean() ? null : randomMappings();
-        String timestampField = randomBoolean() ? null : randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         String idField = randomBoolean() ? null : randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         // assemble() returns null when everything is absent; force at least one piece so we always get a mapping
-        if (mappings == null && timestampField == null && idField == null) {
+        if (mappings == null && idField == null) {
             mappings = randomMappings();
         }
-        return DatasetMapping.assemble(mappings, timestampField, idField);
+        return DatasetMapping.assemble(mappings, idField);
     }
 
     private static DatasetMapping.Mappings randomMappings() {
@@ -276,7 +275,6 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
         dataset.toXContent(builder, null);
         String json = org.elasticsearch.common.bytes.BytesReference.bytes(builder).utf8ToString();
         assertFalse(json.contains("mappings"));
-        assertFalse(json.contains("timestamp_field"));
         assertFalse(json.contains("id_field"));
     }
 
@@ -284,7 +282,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
         Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("when", new DatasetFieldMapping("date", "ts"));
         properties.put("status", new DatasetFieldMapping("integer", null));
-        var mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), "when", "request_id");
+        var mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), "request_id");
         var dataset = new Dataset(
             "access_logs",
             new DataSourceReference("my-s3"),
@@ -302,17 +300,16 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
         assertEquals(dataset, deserialized);
         assertEquals(DatasetMapping.Dynamic.FALSE, deserialized.mapping().mappings().dynamic());
         assertEquals("ts", deserialized.mapping().mappings().properties().get("when").source());
-        assertEquals("when", deserialized.mapping().timestampField());
         assertEquals("request_id", deserialized.mapping().idField());
     }
 
     public void testXContentRoundTripRoleOnlyNoMappings() throws IOException {
-        // timestamp_field with no mappings block — the orthogonality case (works under inference)
-        var mapping = new DatasetMapping(null, "@timestamp", null);
+        // id_field with no mappings block — the orthogonality case (works under inference)
+        var mapping = new DatasetMapping(null, "request_id");
         var dataset = new Dataset("events", new DataSourceReference("s3"), "s3://b/*.ndjson", null, Map.of(), mapping);
         assertExplicitXContentRoundTrip(dataset);
         assertNull(dataset.mapping().mappings());
-        assertEquals("@timestamp", dataset.mapping().timestampField());
+        assertEquals("request_id", dataset.mapping().idField());
     }
 
     private void assertExplicitXContentRoundTrip(Dataset dataset) throws IOException {

@@ -96,15 +96,15 @@ public class FlattenedFieldKeyedBlockLoaderTests extends BinaryDVBlockLoaderTest
 
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
-        var nullValue = (String) fieldMapping.get("null_value");
-        if (value == null) {
-            return convert(null, nullValue, Integer.MAX_VALUE);
-        }
-
         boolean hasDocValues = hasDocValues(fieldMapping, true);
         int ignoreAbove = fieldMapping.get("ignore_above") != null && hasDocValues
             ? ((Number) fieldMapping.get("ignore_above")).intValue()
             : Integer.MAX_VALUE;
+
+        var nullValue = (String) fieldMapping.get("null_value");
+        if (value == null) {
+            return convert(null, nullValue, ignoreAbove);
+        }
 
         if (value instanceof List<?> valueList) {
             var valueStream = valueList.stream().map(v -> convert(v, nullValue, ignoreAbove)).filter(Objects::nonNull);

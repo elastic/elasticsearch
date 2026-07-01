@@ -29,6 +29,30 @@ import static org.elasticsearch.lucene.queries.BinaryDocValuesContainsTermQuery.
 
 public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
 
+    public void testArrayOrderInlineNull() throws Exception {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = ArrayOrderInlineNullTestUtils.newWriter(dir)) {
+                ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "alpha", null, "beta"); // multi-value; "beta" contains "et"
+                ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, (String) null);          // all-null, immediately before a match
+                ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "beta");                  // single value; contains "et"
+                ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "xa", "bz");              // boundary bait, see below
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    // A multi-valued doc is present, so the maxValue<=1 gate disables the whole-blob tryContainsIterator and the per-value
+                    // decode fallback runs. "et" is contained by "beta" in the multi-value and single-value docs; the all-null doc that
+                    // immediately precedes the single-value "beta" doc must not be matched.
+                    assertEquals(2, searcher.count(new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("et"), true)));
+                    // The bytes {'a', 0x03, 'b'} appear contiguously in the raw multi-value blob of ["xa","bz"] (the 0x03 is the length
+                    // prefix of "bz"), so a whole-blob scan would falsely match. Per-value decoding tests "xa" and "bz" individually and
+                    // correctly finds no match — guarding that the gate routes multi-value contains away from the raw-blob fast path.
+                    var framingTerm = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef(new byte[] { 'a', 0x03, 'b' }), true);
+                    assertEquals(0, searcher.count(framingTerm));
+                }
+            }
+        }
+    }
+
     public void testContainsExactMatch() {
         BytesRef value = new BytesRef("foobar");
         BytesRef term = new BytesRef("foobar");
@@ -139,7 +163,7 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("search"));
+                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("search"), false);
                     assertEquals(3, searcher.count(query));
                 }
             }
@@ -161,7 +185,7 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("ell"));
+                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("ell"), false);
                     assertEquals(2, searcher.count(query));
                 }
             }
@@ -177,7 +201,7 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("test"));
+                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("test"), false);
                     assertEquals(0, searcher.count(query));
                 }
             }
@@ -191,7 +215,7 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("test"));
+                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("test"), false);
                     assertEquals(1, searcher.count(query));
                 }
             }
@@ -208,7 +232,7 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("xyz"));
+                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("xyz"), false);
                     assertEquals(0, searcher.count(query));
                 }
             }
@@ -216,10 +240,10 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
     }
 
     public void testEqualsAndHashCode() {
-        BinaryDocValuesContainsTermQuery q1 = new BinaryDocValuesContainsTermQuery("field", new BytesRef("term"));
-        BinaryDocValuesContainsTermQuery q2 = new BinaryDocValuesContainsTermQuery("field", new BytesRef("term"));
-        BinaryDocValuesContainsTermQuery q3 = new BinaryDocValuesContainsTermQuery("other", new BytesRef("term"));
-        BinaryDocValuesContainsTermQuery q4 = new BinaryDocValuesContainsTermQuery("field", new BytesRef("other"));
+        BinaryDocValuesContainsTermQuery q1 = new BinaryDocValuesContainsTermQuery("field", new BytesRef("term"), false);
+        BinaryDocValuesContainsTermQuery q2 = new BinaryDocValuesContainsTermQuery("field", new BytesRef("term"), false);
+        BinaryDocValuesContainsTermQuery q3 = new BinaryDocValuesContainsTermQuery("other", new BytesRef("term"), false);
+        BinaryDocValuesContainsTermQuery q4 = new BinaryDocValuesContainsTermQuery("field", new BytesRef("other"), false);
 
         assertEquals(q1, q2);
         assertEquals(q1.hashCode(), q2.hashCode());

@@ -2158,6 +2158,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // Attribute by the SURVIVING rows' offsets (page-aligned): a row dropped during convertRowsToPage is
             // absent from both the page and this array, so a drop no longer misaligns and disables capture.
             long[] offsets = acceptedRowStartBytes;
+            // Invariant (fail loud): this method only runs when offset tracking is on (captureBlockStats gates on
+            // rowStartBytes != null), so EVERY page builder that produced this page must have rebuilt a survivor-
+            // offset array aligned 1:1 with the emitted page. A null/mismatched array here is a page-builder bug --
+            // the exact A1/F1 class where a builder forgot the rebuild on a row drop. Assert in dev/test builds so
+            // a desync throws in the suite; production still safe-misses below for robustness.
+            assert offsets != null && offsets.length == n
+                : "stripe page desynced from survivor offsets: acceptedRowStartBytes="
+                    + (offsets == null ? "null" : String.valueOf(offsets.length))
+                    + " pagePositions="
+                    + n;
             if (offsets == null || offsets.length != n) {
                 stripeCaptureDisabled = true; // alignment lost — safe miss
                 return;
@@ -2729,7 +2739,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // regular path uses so structural errors are routed through the policy consistently.
             if (columnCount == 0) {
                 int acceptedRows = 0;
-                long[] accepted = rowStartBytes != null ? new long[rows.size()] : null;
+                SurvivorOffsets survivors = SurvivorOffsets.of(rowStartBytes, rows.size());
                 for (int rowIdx = 0; rowIdx < rows.size(); rowIdx++) {
                     String[] row = rows.get(rowIdx);
                     totalRowCount++;
@@ -2746,12 +2756,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // every file column's min/max/null straight from the raw record here. rowIdx indexes
                     // rowStartBytes (built parallel to rows) so the stripe attribution is exact.
                     harvestAllColumns(row, rowIdx);
-                    if (accepted != null) {
-                        accepted[acceptedRows] = rowStartBytes[rowIdx];
-                    }
+                    survivors.accept(rowIdx);
                     acceptedRows++;
                 }
-                acceptedRowStartBytes = accepted == null ? null : Arrays.copyOf(accepted, acceptedRows);
+                acceptedRowStartBytes = survivors.finish();
                 return acceptedRows == 0 ? null : new Page(acceptedRows);
             }
             BlockUtils.BuilderWrapper[] builders = new BlockUtils.BuilderWrapper[columnCount];
@@ -2782,7 +2790,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     );
                 }
                 int acceptedRows = 0;
-                long[] accepted = rowStartBytes != null ? new long[rows.size()] : null;
+                SurvivorOffsets survivors = SurvivorOffsets.of(rowStartBytes, rows.size());
                 for (int rowIdx = 0; rowIdx < rows.size(); rowIdx++) {
                     String[] row = rows.get(rowIdx);
                     totalRowCount++;
@@ -2801,13 +2809,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         }
                         // ALL scope: harvest every file column (incl. unprojected) from the raw record.
                         harvestAllColumns(row, rowIdx);
-                        if (accepted != null) {
-                            accepted[acceptedRows] = rowStartBytes[rowIdx];
-                        }
+                        survivors.accept(rowIdx);
                         acceptedRows++;
                     }
                 }
-                acceptedRowStartBytes = accepted == null ? null : Arrays.copyOf(accepted, acceptedRows);
+                acceptedRowStartBytes = survivors.finish();
                 if (acceptedRows == 0) {
                     return null;
                 }
@@ -2936,10 +2942,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     );
                 }
                 int acceptedRows = 0;
-                // Survivor-aligned offsets, exactly as convertRowsToPage does: a dropped line must not desync
-                // rowStartBytes from the emitted page, or accumulateStripes (fed acceptedRowStartBytes) safe-misses
-                // or mis-attributes. This bracket-aware path drops rows too, so it owns the same rebuild.
-                long[] accepted = rowStartBytes != null ? new long[lines.size()] : null;
+                // Same survivor-offset rebuild as convertRowsToPage (via the shared SurvivorOffsets): a dropped
+                // line must not desync rowStartBytes from the emitted page, or accumulateStripes safe-misses or
+                // mis-attributes. This bracket-aware path drops rows too, so it feeds the same primitive.
+                SurvivorOffsets survivors = SurvivorOffsets.of(rowStartBytes, lines.size());
                 for (int lineIdx = 0; lineIdx < lines.size(); lineIdx++) {
                     String line = lines.get(lineIdx);
                     totalRowCount++;
@@ -2948,16 +2954,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                             for (int i = 0; i < columnCount; i++) {
                                 builders[i].append().accept(rowBuffer[i]);
                             }
-                            if (accepted != null) {
-                                accepted[acceptedRows] = rowStartBytes[lineIdx];
-                            }
+                            survivors.accept(lineIdx);
                             acceptedRows++;
                         }
                     } catch (MalformedRowException e) {
                         onRowError(e.getMessage(), e, line, true);
                     }
                 }
-                acceptedRowStartBytes = accepted == null ? null : Arrays.copyOf(accepted, acceptedRows);
+                acceptedRowStartBytes = survivors.finish();
                 if (acceptedRows == 0) {
                     return null;
                 }

@@ -626,6 +626,12 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         }
         int n = page.getPositionCount();
         long[] offsets = pageDecoder.lastPageRecordOffsets();
+        // Invariant (fail loud): the decoder records a per-record offset only for lines it actually emits (a
+        // dropped line advances neither the page nor the offset array), so the recorded count must equal the page
+        // position count. A mismatch is a decoder bug -- the NDJSON analog of the CSV A1/F1 desync. Assert in
+        // dev/test builds; production still safe-misses below for robustness.
+        assert pageDecoder.lastPageRecordCount() == n
+            : "stripe page desynced from decoder offsets: lastPageRecordCount=" + pageDecoder.lastPageRecordCount() + " pagePositions=" + n;
         if (pageDecoder.lastPageRecordCount() != n) {
             stripeCaptureDisabled = true; // alignment lost — safe miss
             return;

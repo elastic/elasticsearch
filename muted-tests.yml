@@ -800,3 +800,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingStandardSource
   issue: https://github.com/elastic/elasticsearch/issues/152643
+- class: org.elasticsearch.xpack.logsdb.WildcardRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/152644

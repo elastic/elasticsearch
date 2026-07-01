@@ -43,6 +43,7 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -299,6 +300,16 @@ public class Lucene {
             }
         }
         return false;
+    }
+
+    /**
+     * Runs {@link IndexSearcher#search(Query, int)} while bypassing specialized bulk scorers,
+     * forcing the use of the default doc-by-doc scoring path instead. Prefer this over
+     * {@link IndexSearcher#search(Query, int)} when searching small indexes (e.g.
+     * a {@code MemoryIndex}) where the overhead of bulk scorer initialization dominates.
+     */
+    public static TopDocs searchWithoutBulkScorer(IndexSearcher searcher, Query query, int n) throws IOException {
+        return searcher.search(new NoBulkScoringQuery(query), n);
     }
 
     public static TotalHits readTotalHits(StreamInput in) throws IOException {
@@ -1043,5 +1054,90 @@ public class Lucene {
     @SuppressForbidden(reason = "NoMergePolicy#INSTANCE is safe to use since we also set NoMergeScheduler#INSTANCE")
     public static IndexWriterConfig indexWriterConfigWithNoMerging(Analyzer analyzer) {
         return new IndexWriterConfig(analyzer).setMergePolicy(NoMergePolicy.INSTANCE).setMergeScheduler(NoMergeScheduler.INSTANCE);
+    }
+
+    /**
+     * Query wrapper that forces the use of the default doc-by-doc bulk scorer, bypassing
+     * specialized bulk scorers that allocate large buffers on the assumption that many
+     * docs will match. The wrapped weight does not override
+     * {@link Weight#bulkScorer}, causing Lucene to fall back to building a simple
+     * {@code DefaultBulkScorer} from the scorer rather than a specialized implementation.
+     */
+    private static final class NoBulkScoringQuery extends Query {
+
+        private final Query inner;
+
+        NoBulkScoringQuery(Query inner) {
+            this.inner = inner;
+        }
+
+        @Override
+        public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+            Query rewritten = inner.rewrite(indexSearcher);
+            if (rewritten != inner) return new NoBulkScoringQuery(rewritten);
+            return super.rewrite(indexSearcher);
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            inner.visit(visitor);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            NoBulkScoringQuery that = (NoBulkScoringQuery) o;
+            return Objects.equals(inner, that.inner);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(inner);
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            final Weight innerWeight = inner.createWeight(searcher, scoreMode, boost);
+            return new Weight(this) {
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return innerWeight.isCacheable(ctx);
+                }
+
+                @Override
+                public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+                    return innerWeight.explain(context, doc);
+                }
+
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    final ScorerSupplier innerSupplier = innerWeight.scorerSupplier(context);
+                    if (innerSupplier == null) {
+                        return null;
+                    }
+                    // Wrap the inner ScorerSupplier but do NOT override bulkScorer(). The default
+                    // ScorerSupplier.bulkScorer() calls get(Long.MAX_VALUE) and wraps the result in
+                    // DefaultBulkScorer, bypassing any specialized implementation that the inner
+                    // supplier would provide.
+                    return new ScorerSupplier() {
+                        @Override
+                        public Scorer get(long leadCost) throws IOException {
+                            return innerSupplier.get(leadCost);
+                        }
+
+                        @Override
+                        public long cost() {
+                            return innerSupplier.cost();
+                        }
+                    };
+                }
+            };
+        }
+
+        @Override
+        public String toString(String field) {
+            return "NoBulkScoring(" + inner.toString(field) + ")";
+        }
     }
 }

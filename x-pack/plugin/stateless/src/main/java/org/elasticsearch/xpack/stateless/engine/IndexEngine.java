@@ -14,6 +14,9 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.MergeScheduler;
+import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.StandardDirectoryReader;
@@ -49,6 +52,7 @@ import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -81,6 +85,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -939,8 +944,96 @@ public class IndexEngine extends InternalEngine {
                 this::estimateMergeBytes,
                 mergeMetrics
             );
-        } else {
-            return super.createMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService, mergeMetrics);
+        }
+        return new AbortOnCloseElasticsearchMergeScheduler(
+            super.createMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService, mergeMetrics),
+            this::signalAbortMergeReads
+        );
+    }
+
+    /**
+     * Signal the abort before the IndexWriter rollback starts. Lucene 10 calls {@code abortMerges()}
+     * before {@code mergeScheduler.close()}, so without this early signal the abort would only fire
+     * after all running merges finish — defeating the purpose of the interrupt.
+     */
+    @Override
+    public void close() throws IOException {
+        signalAbortMergeReads();
+        super.close();
+    }
+
+    private void signalAbortMergeReads() {
+        IndexDirectory.tryUnwrapDirectory(store.directory()).ifPresent(IndexDirectory::abortMergeReads);
+    }
+
+    /**
+     * Wraps the Lucene {@link MergeScheduler} returned by {@link #getMergeScheduler()} so that
+     * {@link IndexDirectory#abortMergeReads()} is signalled before the delegate closes.
+     */
+    private static final class AbortOnCloseElasticsearchMergeScheduler implements ElasticsearchMergeScheduler {
+
+        private final ElasticsearchMergeScheduler delegate;
+        private final Runnable abortAction;
+        private MergeScheduler mergeSchedulerWrapper;
+
+        private AbortOnCloseElasticsearchMergeScheduler(ElasticsearchMergeScheduler delegate, Runnable abortAction) {
+            this.delegate = delegate;
+            this.abortAction = abortAction;
+        }
+
+        @Override
+        public Set<OnGoingMerge> onGoingMerges() {
+            return delegate.onGoingMerges();
+        }
+
+        @Override
+        public MergeStats stats() {
+            return delegate.stats();
+        }
+
+        @Override
+        public void refreshConfig() {
+            delegate.refreshConfig();
+        }
+
+        @Override
+        public MergeScheduler getMergeScheduler() {
+            if (mergeSchedulerWrapper == null) {
+                mergeSchedulerWrapper = new AbortOnCloseMergeScheduler(delegate.getMergeScheduler(), abortAction);
+            }
+            return mergeSchedulerWrapper;
+        }
+    }
+
+    private static final class AbortOnCloseMergeScheduler extends MergeScheduler {
+
+        private final MergeScheduler delegate;
+        private final Runnable abortAction;
+
+        private AbortOnCloseMergeScheduler(MergeScheduler delegate, Runnable abortAction) {
+            this.delegate = delegate;
+            this.abortAction = abortAction;
+        }
+
+        @Override
+        public void merge(MergeSource mergeSource, MergeTrigger trigger) throws IOException {
+            delegate.merge(mergeSource, trigger);
+        }
+
+        @Override
+        public Directory wrapForMerge(MergePolicy.OneMerge merge, Directory in) {
+            return delegate.wrapForMerge(merge, in);
+        }
+
+        @Override
+        public Executor getIntraMergeExecutor(MergePolicy.OneMerge merge) {
+            return delegate.getIntraMergeExecutor(merge);
+        }
+
+        @Override
+        public void close() throws IOException {
+            abortAction.run();
+            delegate.close();
         }
     }
 
@@ -1039,6 +1132,12 @@ public class IndexEngine extends InternalEngine {
         @Override
         public void refreshConfig() {
             // no-op
+        }
+
+        @Override
+        public void close() throws IOException {
+            signalAbortMergeReads();
+            super.close();
         }
 
         @Override

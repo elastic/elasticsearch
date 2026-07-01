@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.stateless.lucene;
 
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.MergeInfo;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.HandleTrackingFS;
 import org.elasticsearch.action.ActionListener;
@@ -44,6 +46,7 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 
+import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -313,6 +316,117 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
         } finally {
             PathUtilsForTesting.teardown();
         }
+    }
+
+    public void testAbortMergeReadsBeforeRead() throws IOException {
+        try (LocalReopeningIndexDirectory fixture = newLocalReopeningIndexDirectory("testAbortMergeReadsBeforeRead")) {
+            final byte[] bytes = writeLocalFile(fixture.indexDirectory);
+            final String fileName = fixture.indexDirectory.listAll()[0];
+            try (IndexInput input = fixture.indexDirectory.openInput(fileName, IOContext.DEFAULT)) {
+                assertThat(input, instanceOf(IndexDirectory.ReopeningIndexInput.class));
+                assertFalse(fixture.indexDirectory.shouldAbortMergeReads());
+                readNBytes(input, bytes, 0L, 16);
+            }
+        }
+    }
+
+    public void testAbortMergeReadsThrowsOnRead() throws IOException {
+        try (LocalReopeningIndexDirectory fixture = newLocalReopeningIndexDirectory("testAbortMergeReadsThrowsOnRead")) {
+            final byte[] bytes = writeLocalFile(fixture.indexDirectory);
+            final String fileName = fixture.indexDirectory.listAll()[0];
+            try (IndexInput input = fixture.indexDirectory.openInput(fileName, IOContext.DEFAULT)) {
+                assertThat(input, instanceOf(IndexDirectory.ReopeningIndexInput.class));
+                readNBytes(input, bytes, 0L, 16);
+            }
+            fixture.indexDirectory.abortMergeReads();
+            expectThrows(MergePolicy.MergeAbortedException.class, () -> {
+                try (IndexInput input = fixture.indexDirectory.openInput(fileName, IOContext.merge(new MergeInfo(100, 1024L, false, -1)))) {
+                    input.readByte();
+                }
+            });
+        }
+    }
+
+    public void testAbortMergeReadsIgnoresNonMergeReadAfterAbort() throws IOException {
+        try (LocalReopeningIndexDirectory fixture = newLocalReopeningIndexDirectory("testAbortMergeReadsIgnoresNonMergeReadAfterAbort")) {
+            final byte[] bytes = writeLocalFile(fixture.indexDirectory);
+            final String fileName = fixture.indexDirectory.listAll()[0];
+            fixture.indexDirectory.abortMergeReads();
+            try (IndexInput input = fixture.indexDirectory.openInput(fileName, IOContext.DEFAULT)) {
+                assertThat(input, instanceOf(IndexDirectory.ReopeningIndexInput.class));
+                readNBytes(input, bytes, 0L, 16);
+            }
+        }
+    }
+
+    private LocalReopeningIndexDirectory newLocalReopeningIndexDirectory(String threadPoolName) throws IOException {
+        final Path dataPath = createTempDir();
+        final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
+        final ThreadPool threadPool = getThreadPool(threadPoolName);
+        final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(randomLongBetween(0, 10_000_000));
+        final var settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
+            .put(
+                SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
+                pageAligned(ByteSizeValue.of(randomIntBetween(4, 1024), ByteSizeUnit.KB))
+            )
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), dataPath.toAbsolutePath().toString())
+            .build();
+        final Path indexDataPath = dataPath.resolve("index");
+        final Path blobStorePath = createTempDir();
+        final NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+        final StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
+        final IndexDirectory indexDirectory = new IndexDirectory(
+            newFSDirectory(indexDataPath),
+            new IndexBlobStoreCacheDirectory(sharedBlobCacheService, shardId),
+            null,
+            true
+        );
+        final FsBlobContainer blobContainer = new FsBlobContainer(
+            new FsBlobStore(1024, blobStorePath, false),
+            BlobPath.EMPTY,
+            blobStorePath
+        );
+        indexDirectory.getBlobStoreCacheDirectory().setBlobContainer(value -> blobContainer);
+        return new LocalReopeningIndexDirectory(nodeEnvironment, sharedBlobCacheService, indexDirectory, threadPool);
+    }
+
+    private static final class LocalReopeningIndexDirectory implements Closeable {
+        private final NodeEnvironment nodeEnvironment;
+        private final StatelessSharedBlobCacheService sharedBlobCacheService;
+        private final IndexDirectory indexDirectory;
+        private final ThreadPool threadPool;
+
+        private LocalReopeningIndexDirectory(
+            NodeEnvironment nodeEnvironment,
+            StatelessSharedBlobCacheService sharedBlobCacheService,
+            IndexDirectory indexDirectory,
+            ThreadPool threadPool
+        ) {
+            this.nodeEnvironment = nodeEnvironment;
+            this.sharedBlobCacheService = sharedBlobCacheService;
+            this.indexDirectory = indexDirectory;
+            this.threadPool = threadPool;
+        }
+
+        @Override
+        public void close() throws IOException {
+            indexDirectory.close();
+            sharedBlobCacheService.close();
+            nodeEnvironment.close();
+            assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
+        }
+    }
+
+    private byte[] writeLocalFile(IndexDirectory indexDirectory) throws IOException {
+        final int fileLength = randomIntBetween(1024, 10240);
+        final byte[] bytes = randomByteArrayOfLength(fileLength);
+        final String fileName = "file." + randomFrom(LuceneFilesExtensions.values()).getExtension();
+        try (IndexOutput output = indexDirectory.createOutput(fileName, IOContext.DEFAULT)) {
+            output.writeBytes(bytes, fileLength);
+        }
+        return bytes;
     }
 
     /**

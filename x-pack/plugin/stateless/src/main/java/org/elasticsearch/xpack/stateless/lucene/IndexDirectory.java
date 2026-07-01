@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.lucene;
 
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDirectory;
@@ -108,6 +109,9 @@ public class IndexDirectory extends ByteSizeDirectory {
      */
     private final AtomicLong estimatedSize = new AtomicLong();
 
+    private final AtomicBoolean abortMergeReads = new AtomicBoolean(false);
+    private volatile Runnable mergeReadCallback;
+
     private final SetOnce<String> recoveryCommitMetadataNodeEphemeralId = new SetOnce<>();
     private final SetOnce<Long> recoveryCommitTranslogRecoveryStartFile = new SetOnce<>();
 
@@ -121,6 +125,7 @@ public class IndexDirectory extends ByteSizeDirectory {
     ) {
         super(in);
         this.cacheDirectory = Objects.requireNonNull(cacheDirectory);
+        this.cacheDirectory.setMergeReadAbortSupplier(abortMergeReads::get);
         this.onGenerationalFileDeletion = onGenerationalFileDeletion;
         this.readSiFromMemoryIfPossible = readSiFromMemoryIfPossible;
     }
@@ -483,20 +488,59 @@ public class IndexDirectory extends ByteSizeDirectory {
         return translogRecoveryStartFile != null ? translogRecoveryStartFile : 0;
     }
 
+    /**
+     * One-way latch set when the shard is closing. Merge reads on {@link BlobCacheIndexInput} and
+     * {@link ReopeningIndexInput} wired through this directory check the flag and throw
+     * {@link org.apache.lucene.index.MergePolicy.MergeAbortedException} once set.
+     */
+    public void abortMergeReads() {
+        abortMergeReads.set(true);
+    }
+
+    private void checkMergeReadAborted(IOContext context) throws IOException {
+        if (context.context() == IOContext.Context.MERGE) {
+            Runnable callback = mergeReadCallback;
+            if (callback != null) {
+                callback.run();
+            }
+            if (shouldAbortMergeReads()) {
+                throw new MergePolicy.MergeAbortedException("shard is closing");
+            }
+        }
+    }
+
+    /** Package-private for tests only — fires {@code callback} at the start of every merge read. */
+    void setMergeReadCallback(Runnable callback) {
+        this.mergeReadCallback = callback;
+    }
+
+    /**
+     * Package-private for tests and merge-scheduler close wiring only.
+     */
+    boolean shouldAbortMergeReads() {
+        return abortMergeReads.get();
+    }
+
     public static IndexDirectory unwrapDirectory(final Directory directory) {
+        return tryUnwrapDirectory(directory).orElseThrow(() -> {
+            var e = new IllegalStateException(directory.getClass() + " cannot be unwrapped as " + IndexDirectory.class);
+            assert false : e;
+            return e;
+        });
+    }
+
+    public static Optional<IndexDirectory> tryUnwrapDirectory(final Directory directory) {
         Directory dir = directory;
         while (dir != null) {
             if (dir instanceof IndexDirectory indexDirectory) {
-                return indexDirectory;
+                return Optional.of(indexDirectory);
             } else if (dir instanceof FilterDirectory) {
                 dir = ((FilterDirectory) dir).getDelegate();
             } else {
                 dir = null;
             }
         }
-        var e = new IllegalStateException(directory.getClass() + " cannot be unwrapped as " + IndexDirectory.class);
-        assert false : e;
-        throw e;
+        return Optional.empty();
     }
 
     class LocalFileRef extends AbstractRefCounted {
@@ -1073,6 +1117,7 @@ public class IndexDirectory extends ByteSizeDirectory {
 
         @Override
         protected void readInternal(ByteBuffer b) throws IOException {
+            IndexDirectory.this.checkMergeReadAborted(context);
             executeLocallyOrReopen(current -> {
                 assert assertPositionMatchesFilePointer(current);
                 var len = b.remaining();

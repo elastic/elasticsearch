@@ -11,6 +11,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
@@ -18,14 +19,17 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.MergeInfo;
 import org.apache.lucene.tests.mockfile.FilterFileChannel;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
@@ -54,6 +58,7 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.FileSystem;
 import java.nio.file.NoSuchFileException;
@@ -77,6 +82,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -454,6 +460,123 @@ public class IndexDirectoryTests extends ESTestCase {
 
             assertThat(directory.getTranslogRecoveryStartFile(), is(equalTo(recoveryCommit.translogRecoveryStartFile())));
             assertEquals(files, Set.of(indexBlobStoreCacheDirectory.listAll()));
+        }
+    }
+
+    public void testAbortMergeReadsOnCacheBackedOpenInput() throws Exception {
+        final Path dataPath = createTempDir();
+        final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
+        final ThreadPool threadPool = getThreadPool("testAbortMergeReadsOnCacheBackedOpenInput");
+        final var settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4L))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4L))
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), dataPath.toAbsolutePath().toString())
+            .build();
+        final Path indexDataPath = dataPath.resolve("index");
+        final Path blobStorePath = PathUtils.get(createTempDir().toString());
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
+            FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
+            IndexDirectory directory = new IndexDirectory(
+                newFSDirectory(indexDataPath),
+                new IndexBlobStoreCacheDirectory(sharedBlobCacheService, shardId),
+                null,
+                true
+            )
+        ) {
+            final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
+            directory.getBlobStoreCacheDirectory().setBlobContainer(value -> blobContainer);
+
+            final int fileLength = randomIntBetween(1024, 10240);
+            final byte[] bytes = randomByteArrayOfLength(fileLength);
+            final String fileName = "file." + randomFrom(LuceneFilesExtensions.values()).getExtension();
+            final long primaryTerm = 1L;
+            try (IndexOutput output = directory.createOutput(fileName, IOContext.DEFAULT)) {
+                output.writeBytes(bytes, fileLength);
+            }
+            blobContainer.writeBlob(
+                OperationPurpose.INDICES,
+                StatelessCompoundCommit.PREFIX + primaryTerm,
+                BytesReference.fromByteBuffer(ByteBuffer.wrap(bytes)),
+                true
+            );
+            directory.updateCommit(
+                primaryTerm,
+                fileLength,
+                Set.of(fileName),
+                Map.of(fileName, createBlobFileRanges(primaryTerm, primaryTerm, 0L, fileLength))
+            );
+
+            try (IndexInput input = directory.openInput(fileName, IOContext.DEFAULT)) {
+                assertThat(input, instanceOf(BlobCacheIndexInput.class));
+                input.readBytes(new byte[16], 0, 16);
+            }
+            directory.abortMergeReads();
+            expectThrows(MergePolicy.MergeAbortedException.class, () -> {
+                try (IndexInput input = directory.openInput(fileName, IOContext.merge(new MergeInfo(100, 1024L, false, -1)))) {
+                    input.readByte();
+                }
+            });
+        } finally {
+            assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testAbortMergeReadsIgnoresNonMergeReadAfterAbort() throws Exception {
+        final Path dataPath = createTempDir();
+        final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
+        final ThreadPool threadPool = getThreadPool("testAbortMergeReadsIgnoresNonMergeReadAfterAbort");
+        final var settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4L))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4L))
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), dataPath.toAbsolutePath().toString())
+            .build();
+        final Path indexDataPath = dataPath.resolve("index");
+        final Path blobStorePath = PathUtils.get(createTempDir().toString());
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
+            FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
+            IndexDirectory directory = new IndexDirectory(
+                newFSDirectory(indexDataPath),
+                new IndexBlobStoreCacheDirectory(sharedBlobCacheService, shardId),
+                null,
+                true
+            )
+        ) {
+            final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
+            directory.getBlobStoreCacheDirectory().setBlobContainer(value -> blobContainer);
+
+            final int fileLength = randomIntBetween(1024, 10240);
+            final byte[] bytes = randomByteArrayOfLength(fileLength);
+            final String fileName = "file." + randomFrom(LuceneFilesExtensions.values()).getExtension();
+            final long primaryTerm = 1L;
+            try (IndexOutput output = directory.createOutput(fileName, IOContext.DEFAULT)) {
+                output.writeBytes(bytes, fileLength);
+            }
+            blobContainer.writeBlob(
+                OperationPurpose.INDICES,
+                StatelessCompoundCommit.PREFIX + primaryTerm,
+                BytesReference.fromByteBuffer(ByteBuffer.wrap(bytes)),
+                true
+            );
+            directory.updateCommit(
+                primaryTerm,
+                fileLength,
+                Set.of(fileName),
+                Map.of(fileName, createBlobFileRanges(primaryTerm, primaryTerm, 0L, fileLength))
+            );
+
+            directory.abortMergeReads();
+            try (IndexInput input = directory.openInput(fileName, IOContext.DEFAULT)) {
+                assertThat(input, instanceOf(BlobCacheIndexInput.class));
+                input.readBytes(new byte[16], 0, 16);
+            }
+        } finally {
+            assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
         }
     }
 

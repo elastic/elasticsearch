@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -43,7 +42,13 @@ import java.util.Objects;
  * in principle carry a dangling reference; query-time resolution is responsible for surfacing a
  * clear error in that case.
  */
-public final class Dataset implements Writeable, ToXContentObject, IndexAbstraction {
+public record Dataset(
+    String name,
+    DataSourceReference dataSource,
+    String resource,
+    @Nullable String description,
+    Map<String, Object> settings
+) implements Writeable, ToXContentObject, IndexAbstraction {
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField DATASOURCE = new ParseField("data_source");
@@ -75,33 +80,21 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
     }
 
-    private final String name;
-    private final DataSourceReference dataSource;
-    private final String resource;
-    private final String description;
-    private final Map<String, Object> settings;
-
-    public Dataset(
-        String name,
-        DataSourceReference dataSource,
-        String resource,
-        @Nullable String description,
-        Map<String, Object> settings
-    ) {
-        this.name = Objects.requireNonNull(name, "name must not be null");
-        this.dataSource = Objects.requireNonNull(dataSource, "data source must not be null");
-        this.resource = Objects.requireNonNull(resource, "resource must not be null");
-        this.description = description;
-        this.settings = settings != null ? Collections.unmodifiableMap(settings) : Map.of();
+    public Dataset {
+        Objects.requireNonNull(name, "name must not be null");
+        Objects.requireNonNull(dataSource, "data source must not be null");
+        Objects.requireNonNull(resource, "resource must not be null");
+        settings = settings != null ? Collections.unmodifiableMap(settings) : Map.of();
     }
 
     public Dataset(StreamInput in) throws IOException {
-        this.name = in.readString();
-        this.dataSource = new DataSourceReference(in);
-        this.resource = in.readString();
-        this.description = in.readOptionalString();
-        // readMap returns a mutable HashMap when non-empty; wrap to preserve the class invariant that settings is unmodifiable
-        this.settings = Collections.unmodifiableMap(in.readMap(StreamInput::readGenericValue));
+        this(
+            in.readString(),
+            new DataSourceReference(in),
+            in.readString(),
+            in.readOptionalString(),
+            in.readMap(StreamInput::readGenericValue)
+        );
     }
 
     @Override
@@ -111,26 +104,6 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         out.writeString(resource);
         out.writeOptionalString(description);
         out.writeMap(settings, StreamOutput::writeGenericValue);
-    }
-
-    public String name() {
-        return name;
-    }
-
-    public DataSourceReference dataSource() {
-        return dataSource;
-    }
-
-    public String resource() {
-        return resource;
-    }
-
-    public String description() {
-        return description;
-    }
-
-    public Map<String, Object> settings() {
-        return settings;
     }
 
     public static Dataset fromXContent(XContentParser parser) throws IOException {
@@ -186,27 +159,5 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
     @Override
     public boolean isSystem() {
         return false;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Dataset that = (Dataset) o;
-        return Objects.equals(name, that.name)
-            && Objects.equals(dataSource, that.dataSource)
-            && Objects.equals(resource, that.resource)
-            && Objects.equals(description, that.description)
-            && Objects.equals(settings, that.settings);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(name, dataSource, resource, description, settings);
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this);
     }
 }

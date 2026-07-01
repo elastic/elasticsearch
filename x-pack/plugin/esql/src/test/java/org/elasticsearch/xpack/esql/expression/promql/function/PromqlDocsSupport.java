@@ -455,7 +455,7 @@ public final class PromqlDocsSupport {
         }
         return switch (def.functionType()) {
             case WITHIN_SERIES_AGGREGATION -> FunctionDocCategory.RANGE_VECTOR;
-            case ACROSS_SERIES_AGGREGATION -> FunctionDocCategory.AGGREGATION;
+            case ACROSS_SERIES_AGGREGATION, ACROSS_SERIES_REDUCTION -> FunctionDocCategory.AGGREGATION;
             case HISTOGRAM -> FunctionDocCategory.HISTOGRAM;
             case VALUE_TRANSFORMATION -> FunctionDocCategory.MATH;
             case TIME_EXTRACTION -> FunctionDocCategory.DATE_TIME;
@@ -539,6 +539,7 @@ public final class PromqlDocsSupport {
         return switch (type) {
             case WITHIN_SERIES_AGGREGATION -> "within_series";
             case ACROSS_SERIES_AGGREGATION -> "across_series";
+            case ACROSS_SERIES_REDUCTION -> "across_series_reduction";
             case SCALAR -> "scalar";
             case METADATA_MANIPULATION -> "metadata";
             case TIME_EXTRACTION -> "time";

@@ -264,6 +264,7 @@ public final class PromqlFunctionDefinition {
     );
     public static final PromqlParamInfo SCALAR = PromqlParamInfo.child("s", PromqlDataType.SCALAR, "Scalar value.");
     public static final PromqlParamInfo QUANTILE = PromqlParamInfo.of("φ", PromqlDataType.SCALAR, "Quantile value (0 ≤ φ ≤ 1).");
+    public static final PromqlParamInfo K = PromqlParamInfo.of("k", PromqlDataType.SCALAR, "Number of series to keep.");
     public static final PromqlParamInfo TO_NEAREST = PromqlParamInfo.optional(
         "to_nearest",
         PromqlDataType.SCALAR,
@@ -568,6 +569,29 @@ public final class PromqlFunctionDefinition {
             FunctionDefinition.QuaternaryBuilder<? extends Expression> ctorRef
         ) {
             this.functionType = FunctionType.ACROSS_SERIES_AGGREGATION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = (source, target, ctx, extraParams) -> ctorRef.build(
+                source,
+                target,
+                Literal.TRUE,
+                ctx.window(),
+                extraParams.getFirst()
+            );
+            this.params = List.of(paramInfo, INSTANT_VECTOR);
+            return this;
+        }
+
+        /**
+         * Like {@link #acrossSeriesBinary}, but for order-statistic functions ({@code topk}) that rank and select
+         * series instead of reducing them to one value: {@code ctorRef} has nothing to reduce to, so it typically
+         * just returns {@code target} unchanged, and the PromQL-to-ESQL translator appends the ranking/limiting
+         * step itself once it sees {@link FunctionType#ACROSS_SERIES_REDUCTION}.
+         */
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryWithReduction(
+            PromqlParamInfo paramInfo,
+            FunctionDefinition.QuaternaryBuilder<? extends Expression> ctorRef
+        ) {
+            this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;
             this.arity = PromqlFunctionArity.TWO;
             this.builder = (source, target, ctx, extraParams) -> ctorRef.build(
                 source,

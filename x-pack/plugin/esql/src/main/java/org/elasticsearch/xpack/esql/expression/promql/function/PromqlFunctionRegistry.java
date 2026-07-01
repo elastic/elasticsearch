@@ -114,6 +114,8 @@ public class PromqlFunctionRegistry {
         Percentile.PROMQL_DEFINITION,
         PromqlHistogramQuantile.PROMQL_DEFINITION,
         //
+        PromqlBuiltinFunctionDefinitions.TOPK,
+        //
         ExtractHistogramComponent.PROMQL_HISTOGRAM_AVG,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_COUNT,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_SUM,
@@ -181,7 +183,6 @@ public class PromqlFunctionRegistry {
     private static final Set<String> NOT_IMPLEMENTED = Set.of(
         // Across-series aggregations (not yet available in ESQL)
         "bottomk",
-        "topk",
         "group",
         "count_values",
 

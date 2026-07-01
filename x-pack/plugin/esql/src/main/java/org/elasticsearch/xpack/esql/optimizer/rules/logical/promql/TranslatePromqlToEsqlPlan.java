@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
@@ -457,6 +458,8 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
      */
     private TranslationResult translateNode(LogicalPlan node, LogicalPlan currentPlan, TranslationContext ctx) {
         return switch (node) {
+            case AcrossSeriesAggregate agg when agg.definition().functionType().isOrderStatisticSelection() ->
+                translateOrderStatisticAggregate(agg, currentPlan, ctx);
             case AcrossSeriesAggregate agg -> translateAcrossSeriesAggregate(agg, currentPlan, ctx);
             case HistogramQuantile histogramQuantile -> translateHistogramQuantile(histogramQuantile, currentPlan, ctx);
             case ScalarConversionFunction scalar -> translateScalarConversion(scalar, currentPlan, ctx);
@@ -519,7 +522,60 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         return new TranslationResult(resultPlan, getValueOutput(resultPlan), childResult.pendingFilter(), synthesizedAttributes);
     }
 
+    /**
+     * Translates an order-statistic PromQL aggregate ({@code topk}) to an ESQL {@code TopNBy}.
+     * <p>
+     * Unlike {@code sum}/{@code avg}/..., {@code topk} does not reduce a group to one row: it ranks and keeps the
+     * top {@code k} rows per partition. That is exactly the ESQL {@code SORT ... | LIMIT N BY ...} shape, so this
+     * first delegates to the ordinary {@link #translateAcrossSeriesAggregate} - whose {@code none} grouping folds
+     * to the full identity here (see {@link #getSynthesizedAttributes}), producing one row per surviving series per
+     * step - then wraps the result in a {@link TopNBy} that ranks and limits within the query's step. The two steps
+     * are independent: nothing here bypasses or duplicates {@link #translateAcrossSeriesAggregate}'s own logic.
+     * <p>
+     * {@code by}/{@code without} are rejected for now: partitioning the ranking by a label requires that label to
+     * also be a concrete output column of the innermost aggregate, but preserving full identity there (required so
+     * {@code topk} has individual series left to rank) routes every label through the opaque {@code _timeseries}
+     * key instead - {@link PromqlAttributesTranslationContext.ResolvedAttributes#passthrough} carries exactly the
+     * labels needed here, but {@link #createInnermostAggregatePlan} does not consume it yet. Wiring that up is
+     * separate follow-up work on the shared label algebra, not a topk-local fix.
+     */
+    private TranslationResult translateOrderStatisticAggregate(AcrossSeriesAggregate agg, LogicalPlan currentPlan, TranslationContext ctx) {
+        if (agg.grouping() != AcrossSeriesAggregate.Grouping.NONE) {
+            throw new VerificationException(
+                "PromQL function [{}] does not yet support [{}]",
+                agg.functionName(),
+                agg.grouping() == AcrossSeriesAggregate.Grouping.BY ? "by" : "without"
+            );
+        }
+        TranslationResult aggregated = translateAcrossSeriesAggregate(agg, currentPlan, ctx);
+        if (aggregated.constFolded()) {
+            return aggregated;
+        }
+        LogicalPlan wrapped = wrapWithTopNBy(agg, aggregated.plan(), ctx);
+        return new TranslationResult(wrapped, getValueOutput(wrapped), aggregated.pendingFilter(), aggregated.synthesizedAttributes());
+    }
+
+    /** Ranks the already-collapsed per-series rows and keeps the top {@code k} within the query's step. */
+    private static LogicalPlan wrapWithTopNBy(AcrossSeriesAggregate agg, LogicalPlan resultPlan, TranslationContext ctx) {
+        Expression value = getValueOutput(resultPlan);
+        var groupings = List.<Expression>of(ctx.stepAttr());
+        var order = List.of(new Order(agg.source(), value, Order.OrderDirection.DESC, Order.NullsPosition.LAST));
+        Expression k = new ToInteger(agg.source(), agg.parameters().getFirst());
+        return new TopNBy(agg.source(), resultPlan, order, k, groupings);
+    }
+
+    /**
+     * Order-statistic functions ({@code topk}) rank and select whole series rather than reducing them, so - unlike
+     * every other {@code AcrossSeriesAggregate} - their {@code none} grouping must NOT fold down to a single
+     * scalar: doing so would collapse the very rows {@code topk} needs to rank among before {@link
+     * #wrapWithTopNBy} ever gets a chance to run. They therefore always synthesize the full identity, exactly as an
+     * empty {@code without ()} would (only {@code none} reaches here - {@link #translateOrderStatisticAggregate}
+     * rejects {@code by}/{@code without} before this runs).
+     */
     private static SynthesizedAttributes getSynthesizedAttributes(AcrossSeriesAggregate agg, TranslationResult childResult) {
+        if (agg.definition().functionType().isOrderStatisticSelection()) {
+            return SynthesizedAttributes.foldExcluding(List.of(), childResult.synthesizedAttributes());
+        }
         return switch (agg.grouping()) {
             case BY -> SynthesizedAttributes.foldIncluding(agg.output(), childResult.synthesizedAttributes());
             case WITHOUT -> SynthesizedAttributes.foldExcluding(agg.groupings(), childResult.synthesizedAttributes());
@@ -527,7 +583,11 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         };
     }
 
+    /** See {@link #getSynthesizedAttributes}: order-statistic functions never narrow what the child must produce. */
     private static InheritedAttributes getInheritedAttributes(AcrossSeriesAggregate agg, TranslationContext ctx) {
+        if (agg.definition().functionType().isOrderStatisticSelection()) {
+            return InheritedAttributes.unconstrained();
+        }
         return switch (agg.grouping()) {
             case BY -> ctx.inheritedAttributes().limitedTo(agg.groupings());
             case WITHOUT -> ctx.inheritedAttributes().excluding(agg.groupings());

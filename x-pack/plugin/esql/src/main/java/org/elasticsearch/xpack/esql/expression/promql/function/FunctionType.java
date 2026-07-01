@@ -47,11 +47,27 @@ public enum FunctionType {
      * <ul>
      * <li>Basic: sum(), avg(), max(), min(), count()</li>
      * <li>Statistical: stddev(), stdvar(), quantile()</li>
-     * <li>Top-k: topk(), bottomk()</li>
      * <li>Grouping: group(), count_values()</li>
      * </ul>
      */
     ACROSS_SERIES_AGGREGATION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
+
+    /**
+     * Ranks multiple time series at a single point in time and keeps a subset of them, rather than reducing
+     * them to one value.
+     * <p>
+     * Input: Instant vector (one sample per series at evaluation time)
+     * <br>
+     * Output: Instant vector (a ranked subset of the input series, each keeping its full label identity)
+     * <br>
+     * Grouping: Explicit by labels (by/without), partitioning the ranking rather than reducing the label set
+     * <p>
+     * Examples:
+     * <ul>
+     * <li>topk(), bottomk()</li>
+     * </ul>
+     */
+    ACROSS_SERIES_REDUCTION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
 
     /**
      * Transforms each sample in a vector independently (element-wise operations).
@@ -167,7 +183,16 @@ public enum FunctionType {
      * Returns whether this function performs aggregation.
      */
     public boolean isAggregation() {
-        return this == WITHIN_SERIES_AGGREGATION || this == ACROSS_SERIES_AGGREGATION;
+        return this == WITHIN_SERIES_AGGREGATION || this == ACROSS_SERIES_AGGREGATION || this == ACROSS_SERIES_REDUCTION;
+    }
+
+    /**
+     * Returns whether this function ranks and selects a subset of series ({@code topk}) rather than reducing
+     * them to a single value. Its {@code by}/{@code without}/{@code none} clause partitions the ranking; unlike
+     * {@link #ACROSS_SERIES_AGGREGATION}, it never drops labels from the surviving series.
+     */
+    public boolean isOrderStatisticSelection() {
+        return this == ACROSS_SERIES_REDUCTION;
     }
 
     /**

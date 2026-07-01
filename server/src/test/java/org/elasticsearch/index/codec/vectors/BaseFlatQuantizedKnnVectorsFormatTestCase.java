@@ -79,7 +79,7 @@ public abstract class BaseFlatQuantizedKnnVectorsFormatTestCase extends BaseQuan
                         assertEquals(TotalHits.Relation.EQUAL_TO, collectedDocs.totalHits.relation());
                     }
                     {
-                        Query q = new DenseVectorQuery.Floats(queryVector, fieldName, null);
+                        Query q = DenseVectorQuery.Floats.codecScored(queryVector, fieldName);
                         TopDocs collectedDocs = searcher.search(q, k);
                         assertEquals(numVectors, collectedDocs.totalHits.value());
                         assertEquals(k, collectedDocs.scoreDocs.length);
@@ -115,7 +115,7 @@ public abstract class BaseFlatQuantizedKnnVectorsFormatTestCase extends BaseQuan
                     IndexSearcher searcher = new IndexSearcher(reader);
                     float[] queryVector = randomVector(dims);
                     Query filter = new TermQuery(new Term("category", "filtered"));
-                    Query q = new DenseVectorQuery.Floats(queryVector, fieldName, filter);
+                    Query q = DenseVectorQuery.Floats.codecScored(queryVector, fieldName).filteredBy(filter);
                     TopDocs collectedDocs = searcher.search(q, numFiltered);
                     assertEquals(numFiltered, collectedDocs.totalHits.value());
                     assertEquals(numFiltered, collectedDocs.scoreDocs.length);

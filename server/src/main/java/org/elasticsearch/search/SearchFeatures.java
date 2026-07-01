@@ -61,6 +61,7 @@ public final class SearchFeatures implements FeatureSpecification {
     );
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE = new NodeFeature("search.exponential_histogram_querydsl_range");
     public static final NodeFeature DEFAULT_DISK_BBQ = new NodeFeature("search.default_disk_bbq");
+    public static final NodeFeature DENSE_VECTOR_QUERY = new NodeFeature("search.vectors.dense_vector_query");
     /**
      * Test-only gate for REST tests that assert coordinator {@code profile.request} metadata; that response shape
      * depends on {@code TransportVersion} {@code include_original_query_indices_in_search_profile_results}, which
@@ -109,6 +110,7 @@ public final class SearchFeatures implements FeatureSpecification {
             EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE,
             EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED,
             DEFAULT_DISK_BBQ,
+            DENSE_VECTOR_QUERY,
             PROFILE_COORDINATOR_REQUEST_METADATA,
             SCROLL_EMPTY_CONTEXT_RETURNS_200,
             DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX,

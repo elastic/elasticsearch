@@ -469,6 +469,64 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         }
     }
 
+    public void testExactKnnQueryOnNonIndexedField() {
+        int dims = randomIntBetween(BBQ_MIN_DIMS, 2048);
+        if (dims % 2 != 0) {
+            dims++;
+        }
+        // A non-indexed field has no configured similarity, mirroring real mappings (similarity cannot be set
+        // when index:false).
+        DenseVectorFieldType field = new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            FLOAT,
+            dims,
+            false,
+            null,
+            null,
+            Collections.emptyMap(),
+            false
+        );
+        float[] queryVector = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            queryVector[i] = randomFloat();
+        }
+
+        // A non-indexed field has no mapped similarity; without an override it defaults to cosine and produces a
+        // doc-values-backed query (no codec/KNN values for a non-indexed field).
+        Query defaulted = field.createExactKnnQuery(VectorData.fromFloats(queryVector), null, null, false);
+        assertTrue(defaulted instanceof DenseVectorQuery.DocValuesFloats);
+
+        // An explicit similarity_function override is also honored.
+        Query overridden = field.createExactKnnQuery(VectorData.fromFloats(queryVector), null, VectorSimilarity.COSINE, false);
+        assertTrue(overridden instanceof DenseVectorQuery.DocValuesFloats);
+
+        // The exact-knn entry point used by ExactKnnQueryBuilder/inner-hits still requires an indexed field.
+        IllegalArgumentException requiresIndexed = expectThrows(
+            IllegalArgumentException.class,
+            () -> field.createExactKnnQuery(VectorData.fromFloats(queryVector), null)
+        );
+        assertThat(requiresIndexed.getMessage(), containsString("its mapping must have [index] set to [true]"));
+
+        // A non-indexed bit field is scored by Hamming distance from doc values (it defaults to l2_norm).
+        int bitDims = dims - (dims % Byte.SIZE);
+        DenseVectorFieldType bitField = new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            BIT,
+            bitDims,
+            false,
+            null,
+            null,
+            Collections.emptyMap(),
+            false
+        );
+        byte[] bitQuery = new byte[bitDims / Byte.SIZE];
+        random().nextBytes(bitQuery);
+        Query bitQueryResult = bitField.createExactKnnQuery(VectorData.fromBytes(bitQuery), null, null, false);
+        assertTrue(bitQueryResult instanceof DenseVectorQuery.DocValuesBytes);
+    }
+
     public void testFloatCreateKnnQuery() {
         DenseVectorFieldType unindexedField = new DenseVectorFieldType(
             "f",

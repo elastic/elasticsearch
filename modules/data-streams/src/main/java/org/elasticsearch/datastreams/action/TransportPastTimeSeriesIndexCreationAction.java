@@ -67,7 +67,7 @@ import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationA
  * Internal action that creates one or more historical TSDB backing indices to cover past timestamps.
  * It submits a cluster update per data stream and creates backing indices anchored to the start time of
  * the next existing backing index, tiling backward in {@link #PAST_TSDB_INDEX_INTERVAL}-sized slots.
- * When the gap between two neighbouring indices is small enough (≤ {@link #GAP_FILL_THRESHOLD} × duration),
+ * When the gap between two neighbouring indices is small enough (≤ {@link #GAP_FILL_THRESHOLD} × interval),
  * a single index is created that fills the entire gap.
  */
 public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterNodeAction<
@@ -357,7 +357,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             List<String> createdIndexNames,
             Set<Instant> coveredTimestamps,
             Map<Instant, String> rejectedTimestamps,
-            long indexDurationMillis,
+            long indexIntervalMillis,
             long eligibleWriteWindowStart,
             long requestStartTime
         ) throws Exception {
@@ -419,15 +419,15 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                 long indexStart;
                 long indexEnd;
                 if (previousIndex != null
-                    && (nextIndex.start() - previousIndex.end()) <= (long) (indexDurationMillis * GAP_FILL_THRESHOLD)) {
+                    && (nextIndex.start() - previousIndex.end()) <= (long) (indexIntervalMillis * GAP_FILL_THRESHOLD)) {
                     indexStart = previousIndex.end();
                     indexEnd = nextIndex.start();
                 } else {
-                    // Tile backward in duration-sized slots anchored to nextIndex.start().
+                    // Jump backward in interval-sized windows anchored to nextIndex.start().
                     // k is the zero-based slot index counting back from nextIndex: slot 0 = [next-D, next), slot 1 = [next-2D, next-D), …
-                    long k = Math.floorDiv(nextIndex.start() - ts - 1, indexDurationMillis);
-                    indexEnd = nextIndex.start() - k * indexDurationMillis;
-                    indexStart = indexEnd - indexDurationMillis;
+                    long k = Math.floorDiv(nextIndex.start() - ts - 1, indexIntervalMillis);
+                    indexEnd = nextIndex.start() - k * indexIntervalMillis;
+                    indexStart = indexEnd - indexIntervalMillis;
                     if (previousIndex != null) {
                         indexStart = Math.max(indexStart, previousIndex.end());
                     }

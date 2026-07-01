@@ -193,12 +193,12 @@ public class SplitStatsTests extends ESTestCase {
     }
 
     public void testUnservableMarkerWireGatedByTransportVersion() throws IOException {
-        // Like valueCount, the servability markers ship under the warm-aggregate TV. An older peer (that still
-        // serializes SplitStats under ESQL_SPLIT_STATS_COMPACT) must not see them; the extremum then defaults to
-        // servable. This is safe: the coordinator fold drops a poisoned value BEFORE building SplitStats, so in
-        // production a poisoned extremum reaches an old peer as an absent value (already a safe-miss) regardless.
+        // The servability markers ship under the warm-aggregate TV. An older peer (that still serializes SplitStats
+        // under ESQL_SPLIT_STATS_COMPACT) does not see them and defaults to servable -- SAFE only because a poisoned
+        // extremum carries NO value (the enforced invariant minServable||min==null), so it reaches the old peer as
+        // an absent value and the old peer safe-misses, never serving a poisoned value as real.
         SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
-        int c = b.addColumn("c", 0L, 10, 90, 400);
+        int c = b.addColumn("c", 0L, null, 90, 400); // min poisoned (no value); max servable
         b.minUnservable(c);
         SplitStats stats = b.build();
 
@@ -209,8 +209,23 @@ public class SplitStatsTests extends ESTestCase {
         in.setTransportVersion(FileSplit.ESQL_SPLIT_STATS_COMPACT);
         SplitStats back = new SplitStats(in);
 
-        assertEquals("marker not sent to old peer -> min defaults servable", 10, back.columnMin("c"));
-        assertEquals("non-gated fields still round-trip at the older version", 90, back.columnMax("c"));
+        assertNull("a poisoned min reaches an old peer as an absent value -> safe-miss, never a wrong value", back.columnMin("c"));
+        assertEquals("a servable max still round-trips at the older version", 90, back.columnMax("c"));
+    }
+
+    public void testOfDropsValueWhenUnservableMarkerPresent() {
+        // A malformed flat map carrying BOTH .min and .min_unservable must normalize to min=null (marker wins),
+        // enforcing minServable||min==null so a wire round-trip can never ship a poisoned value to an old peer.
+        Map<String, Object> input = new HashMap<>();
+        input.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        input.put(SourceStatisticsSerializer.columnMinKey("c"), 42);              // stray value...
+        input.put(SourceStatisticsSerializer.columnMinUnservableKey("c"), Boolean.TRUE); // ...alongside the marker
+
+        SplitStats stats = SplitStats.of(input); // must not trip the servability assert
+        assertNotNull(stats);
+        assertNull("marker wins: the stray min value is dropped", stats.columnMin("c"));
+        assertNull("and it re-emits no value", stats.toMap().get(SourceStatisticsSerializer.columnMinKey("c")));
+        assertEquals(Boolean.TRUE, stats.toMap().get(SourceStatisticsSerializer.columnMinUnservableKey("c")));
     }
 
     /**

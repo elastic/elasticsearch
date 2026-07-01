@@ -110,6 +110,25 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         this.sizesBytes = sizesBytes;
         this.minServable = minServable;
         this.maxServable = maxServable;
+        assert servabilityConsistent() : "an unservable extremum must carry no value (minServable||min==null)";
+    }
+
+    /**
+     * Invariant: a poisoned (unservable) extremum carries NO value. Load-bearing for BWC -- {@code writeTo} ships
+     * the value whenever it is non-null, and an old peer strips the servability marker (defaults servable), so a
+     * value present alongside an unservable bit would be served as real on the old peer. Enforced here so the
+     * "poison ⟹ absent value" guarantee is fail-loud, not convention-only.
+     */
+    private boolean servabilityConsistent() {
+        for (int i = 0; i < mins.length; i++) {
+            if (minServable[i] == false && mins[i] != null) {
+                return false;
+            }
+            if (maxServable[i] == false && maxs[i] != null) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public SplitStats(StreamInput in) throws IOException {
@@ -156,6 +175,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             }
             sizesBytes[i] = in.readZLong();
         }
+        assert servabilityConsistent() : "wire produced an unservable extremum carrying a value";
     }
 
     @Override
@@ -740,19 +760,24 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             if (vc instanceof Number) {
                 builder.valueCount(ordinal, ((Number) vc).longValue());
             }
-            Object min = stats.get(".min");
-            if (min != null) {
-                builder.min(ordinal, min);
-            }
+            // Marker WINS over a value: a poisoned extremum carries no servable value. A well-formed map never
+            // has both, but normalizing here (drop the value when the marker is present) enforces the
+            // minServable||min==null invariant so a malformed map can never round-trip a poisoned value.
             if (Boolean.TRUE.equals(stats.get(SourceStatisticsSerializer.MIN_UNSERVABLE_SUFFIX))) {
                 builder.minUnservable(ordinal);
-            }
-            Object max = stats.get(".max");
-            if (max != null) {
-                builder.max(ordinal, max);
+            } else {
+                Object min = stats.get(".min");
+                if (min != null) {
+                    builder.min(ordinal, min);
+                }
             }
             if (Boolean.TRUE.equals(stats.get(SourceStatisticsSerializer.MAX_UNSERVABLE_SUFFIX))) {
                 builder.maxUnservable(ordinal);
+            } else {
+                Object max = stats.get(".max");
+                if (max != null) {
+                    builder.max(ordinal, max);
+                }
             }
             Object csb = stats.get(".size_bytes");
             if (csb instanceof Number) {

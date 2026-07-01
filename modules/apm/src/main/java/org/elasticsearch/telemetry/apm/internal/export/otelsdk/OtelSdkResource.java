@@ -53,9 +53,9 @@ final class OtelSdkResource {
                                                                // telemetry.resource.service.name
             .put("service.type", "elasticsearch")
             .put("service.version", Build.current().version())
-            .put("service.language.name", "Java")
-            .put("service.runtime.name", "Java")
-            .put("service.runtime.version", Runtime.version().toString())
+            .put("service.language.name", "java")
+            .put("process.runtime.name", "Java")
+            .put("process.runtime.version", Runtime.version().toString())
             .put("service.agent.name", "elasticsearch-otel-sdk")
             .put("service.agent.version", Build.current().version())
             .put("telemetry.distro.name", "elasticsearch-otel-sdk")

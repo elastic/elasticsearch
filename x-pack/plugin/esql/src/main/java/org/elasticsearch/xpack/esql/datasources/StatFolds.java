@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import static org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.MAX_SUFFIX;
+import static org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.MAX_UNSERVABLE_SUFFIX;
 import static org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.MIN_SUFFIX;
+import static org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.MIN_UNSERVABLE_SUFFIX;
 import static org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.NULL_COUNT_SUFFIX;
 import static org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.SIZE_BYTES_SUFFIX;
 import static org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.STATS_ROW_COUNT;
@@ -30,6 +32,10 @@ final class StatFolds {
 
     /** The fold law for a flat statistic key, or {@code null} if the key is not a foldable statistic. */
     static StatFold foldFor(String key) {
+        // Unservability markers OR-fold (checked before .min/.max so ".min_unservable" isn't mis-read as MIN).
+        if (key.endsWith(MIN_UNSERVABLE_SUFFIX) || key.endsWith(MAX_UNSERVABLE_SUFFIX)) {
+            return StatFold.OR;
+        }
         if (key.endsWith(MIN_SUFFIX)) {
             return StatFold.MIN;
         }

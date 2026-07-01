@@ -99,11 +99,19 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
         assertEquals(3L, SplitStats.of(c).rowCount());
     }
 
-    /** SKIP_ROW drops a malformed line → whole-file write suppressed (count is policy-dependent). */
-    public void testSkipRowWithDroppedRowsPublishesNothing() throws Exception {
+    /** SKIP_ROW drops a malformed line, but the stats over the surviving lines are exact (fingerprint pins error_mode), so they commit. */
+    public void testSkipRowWithDroppedRowsCommitsStatsOverSurvivors() throws Exception {
         ErrorPolicy skipRowQuiet = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
         StorageObject o = obj("{\"a\":1}\nnot-a-json-object\n{\"a\":3}\n");
-        assertNull(capture(o, FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).build()));
+        Map<String, Object> published = capture(o, FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).build());
+        assertNotNull("a dropped line now commits the stats over surviving lines instead of publishing nothing", published);
+        SplitStats stats = SplitStats.of(published);
+        assertNotNull(stats);
+        // The cache fingerprint pins error_mode, so a full scan drops the SAME line -- every statistic over the
+        // survivors (a in {1,3}, 2 lines) is exact vs that scan, so all commit and serve.
+        assertEquals("row count over survivors", 2L, stats.rowCount());
+        assertEquals(1, ((Number) stats.columnMin("a")).intValue());
+        assertEquals(3, ((Number) stats.columnMax("a")).intValue());
     }
 
     /** rowLimit-cut iteration ends without natural EOF → write suppressed. */

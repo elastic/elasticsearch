@@ -190,15 +190,14 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
     }
 
     /**
-     * A poisoned MIN/MAX must taint the WHOLE column, not just drop the min/max keys, so a later fold
-     * level cannot resurrect a finite extremum from a sibling. POISON is encoded as key removal, which
-     * is indistinguishable from "column absent here" at the next fold; left as-is, the column stays
-     * "observed" via its surviving null_count/value_count (which the real harvest always emits), so a
-     * sibling stripe's finite min refills the key and is served instead of the intended safe-miss. This
-     * is the two-level fold (stripe fragments -&gt; per-stripe, then per-stripe -&gt; whole-file): a NaN in
-     * one fragment of a stripe must not let another stripe's finite value become the served file MIN.
+     * A poisoned MIN/MAX taints ONLY that extremum (per-statistic), not the whole column: a sibling cannot
+     * resurrect it (the marker is a PRESENT key that OR-folds, unlike a bare key removal which the next fold
+     * level can't tell from "never observed"), AND the column's COUNT-family (null_count/value_count) survives
+     * -- an incompatible/NaN extremum does not invalidate a count. This is the two-level fold (stripe fragments
+     * -&gt; per-stripe, then per-stripe -&gt; whole-file): a NaN in one fragment must not let another stripe's finite
+     * value become the served file MIN, but COUNT(v) must still short-circuit.
      */
-    public void testMergeStatisticsPoisonedExtremumTaintsWholeColumnAcrossFoldLevels() {
+    public void testMergeStatisticsPoisonedExtremumTaintsOnlyExtremumNotCount() {
         // Level 1 (text path, implicitNullsForAbsentColumn=false): two fragments of ONE stripe; the NaN
         // fragment poisons the finite fragment's MIN/MAX. null_count/value_count are present, as the real
         // harvest always emits them.
@@ -219,13 +218,20 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         Map<String, Object> poisonedStripe = SourceStatisticsSerializer.mergeStatistics(List.of(finiteFragment, nanFragment), false);
         assertNotNull(poisonedStripe);
         assertEquals(20L, poisonedStripe.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
-        assertNull("poisoned min must be cleared", poisonedStripe.get(SourceStatisticsSerializer.columnMinKey("v")));
-        assertNull("poisoned max must be cleared", poisonedStripe.get(SourceStatisticsSerializer.columnMaxKey("v")));
-        // The whole column must be gone -- otherwise it reads as "observed" and resurrects at the next level.
-        assertNull("poisoned column null_count must be dropped", poisonedStripe.get(SourceStatisticsSerializer.columnNullCountKey("v")));
-        assertNull("poisoned column value_count must be dropped", poisonedStripe.get(SourceStatisticsSerializer.columnValueCountKey("v")));
+        // The extremum value is cleared and a PRESENT unservable marker is set.
+        assertNull("poisoned min value must be cleared", poisonedStripe.get(SourceStatisticsSerializer.columnMinKey("v")));
+        assertNull("poisoned max value must be cleared", poisonedStripe.get(SourceStatisticsSerializer.columnMaxKey("v")));
+        assertEquals(Boolean.TRUE, poisonedStripe.get(SourceStatisticsSerializer.columnMinUnservableKey("v")));
+        assertEquals(Boolean.TRUE, poisonedStripe.get(SourceStatisticsSerializer.columnMaxUnservableKey("v")));
+        // COUNT-family SURVIVES -- an extremum taint does not invalidate a count.
+        assertEquals("null_count survives an extremum taint", 0L, poisonedStripe.get(SourceStatisticsSerializer.columnNullCountKey("v")));
+        assertEquals(
+            "value_count survives an extremum taint",
+            20L,
+            poisonedStripe.get(SourceStatisticsSerializer.columnValueCountKey("v"))
+        );
 
-        // Level 2: fold the poisoned stripe with a finite sibling stripe; MIN/MAX must NOT resurrect.
+        // Level 2: fold the poisoned stripe with a finite sibling stripe; MIN/MAX must NOT resurrect, COUNT holds.
         Map<String, Object> finiteStripe = new HashMap<>();
         finiteStripe.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
         finiteStripe.put(SourceStatisticsSerializer.columnNullCountKey("v"), 0L);
@@ -242,6 +248,13 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertNull(
             "a finite sibling stripe must not resurrect a NaN-poisoned MAX",
             wholeFile.get(SourceStatisticsSerializer.columnMaxKey("v"))
+        );
+        assertEquals(Boolean.TRUE, wholeFile.get(SourceStatisticsSerializer.columnMinUnservableKey("v")));
+        // COUNT-family folds through both levels: value_count = 20 (poisoned stripe) + 10 (sibling) = 30.
+        assertEquals(
+            "value_count still folds and serves through an extremum taint",
+            30L,
+            wholeFile.get(SourceStatisticsSerializer.columnValueCountKey("v"))
         );
     }
 

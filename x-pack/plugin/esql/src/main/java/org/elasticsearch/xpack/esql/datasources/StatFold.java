@@ -69,6 +69,26 @@ enum StatFold {
             }
             return value instanceof Number n ? n.longValue() : POISON;
         }
+    },
+    /**
+     * Boolean OR: an unservability marker set by ANY contribution stays set through the fold. Markers ride the
+     * coordinator-local, in-heap schema-stats cache as real {@link Boolean#TRUE} values and never cross a codec,
+     * so {@link #first}/{@link #apply} can compare identity/type directly; a stringified {@code "true"} would
+     * (correctly, if that path is ever added) POISON rather than silently drop the marker.
+     */
+    OR {
+        @Override
+        Object apply(Object a, Object b) {
+            if (a == POISON || b == POISON) {
+                return POISON;
+            }
+            return Boolean.TRUE.equals(a) || Boolean.TRUE.equals(b);
+        }
+
+        @Override
+        Object first(Object value) {
+            return Boolean.TRUE.equals(value) ? Boolean.TRUE : POISON;
+        }
     };
 
     /** Sentinel for a value that cannot be served (incompatible/ill-typed); forces a safe-miss downstream. */

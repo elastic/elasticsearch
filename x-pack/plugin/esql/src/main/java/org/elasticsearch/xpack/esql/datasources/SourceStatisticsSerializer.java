@@ -53,6 +53,12 @@ public final class SourceStatisticsSerializer {
     static final String MIN_SUFFIX = ".min";
     static final String MAX_SUFFIX = ".max";
     static final String SIZE_BYTES_SUFFIX = ".size_bytes";
+    // Per-statistic unservability markers. A marker is a PRESENT key (not an absent one): it forces the
+    // matching extremum to safe-miss at serve AND, because it is present and OR-folds across contributions,
+    // a sibling's finite extremum cannot refill a dropped one at the next fold level. This replaces the
+    // blunt "drop the whole column" taint -- COUNT-family (null_count/value_count) survives an extremum taint.
+    static final String MIN_UNSERVABLE_SUFFIX = ".min_unservable";
+    static final String MAX_UNSERVABLE_SUFFIX = ".max_unservable";
 
     private SourceStatisticsSerializer() {}
 
@@ -189,6 +195,16 @@ public final class SourceStatisticsSerializer {
     /** Returns the flat key used for a column's size in bytes statistic. */
     public static String columnSizeBytesKey(String columnName) {
         return STATS_COL_PREFIX + columnName + SIZE_BYTES_SUFFIX;
+    }
+
+    /** Returns the flat key that marks a column's {@code min} statistic unservable. */
+    public static String columnMinUnservableKey(String columnName) {
+        return STATS_COL_PREFIX + columnName + MIN_UNSERVABLE_SUFFIX;
+    }
+
+    /** Returns the flat key that marks a column's {@code max} statistic unservable. */
+    public static String columnMaxUnservableKey(String columnName) {
+        return STATS_COL_PREFIX + columnName + MAX_UNSERVABLE_SUFFIX;
     }
 
     /** The column name of a {@code min}/{@code max} extremum key, or {@code null} if {@code key} is not one. */
@@ -369,22 +385,25 @@ public final class SourceStatisticsSerializer {
         for (String colName : poisonedNullCounts) {
             acc.remove(columnNullCountKey(colName));
         }
-        // A poisoned MIN/MAX is encoded above as a key removal, which the NEXT fold level cannot
-        // distinguish from "this contribution never observed the column" -- the column's surviving
-        // null_count/value_count still mark it observed, so a sibling contribution's finite extremum
-        // refills the dropped min/max key and is served instead of the safe-miss the poison intends
-        // (e.g. a NaN in one fragment of a stripe drops that stripe's min, then another stripe's finite
-        // min is served as the whole-file MIN). Taint the WHOLE column so it is genuinely absent here:
-        // the next level's drop pass (text) or hasColumn==false (serve) then safe-misses every aggregate
-        // over it, and COUNT(col) re-scans rather than under/over-counting.
+        // Per-statistic extremum taint. A poisoned MIN or MAX (incompatible/NaN merge) marks ONLY that extremum
+        // unservable, via a PRESENT marker key. The marker OR-folds, so it survives to the next fold level and a
+        // sibling's finite extremum cannot refill the dropped value there (the bug a bare key-removal caused --
+        // an absent key is indistinguishable from "never observed"). COUNT-family (null_count/value_count) is left
+        // intact: an incompatible or NaN extremum does not invalidate a count, so COUNT(col) still serves.
         for (String key : poisoned) {
             String colName = extremumColumnName(key);
-            if (colName != null) {
-                acc.remove(columnNullCountKey(colName));
-                acc.remove(columnValueCountKey(colName));
-                acc.remove(columnMinKey(colName));
-                acc.remove(columnMaxKey(colName));
-                acc.remove(columnSizeBytesKey(colName));
+            if (colName == null) {
+                continue;
+            }
+            acc.put(key.endsWith(MIN_SUFFIX) ? columnMinUnservableKey(colName) : columnMaxUnservableKey(colName), Boolean.TRUE);
+        }
+        // A set marker -- placed here, or OR-folded in from a prior fold level (possibly alongside a sibling's
+        // finite extremum this level just put back) -- forces the extremum value absent so serve safe-misses it.
+        for (String key : new ArrayList<>(acc.keySet())) {
+            if (key.endsWith(MIN_UNSERVABLE_SUFFIX)) {
+                acc.remove(columnMinKey(key.substring(STATS_COL_PREFIX.length(), key.length() - MIN_UNSERVABLE_SUFFIX.length())));
+            } else if (key.endsWith(MAX_UNSERVABLE_SUFFIX)) {
+                acc.remove(columnMaxKey(key.substring(STATS_COL_PREFIX.length(), key.length() - MAX_UNSERVABLE_SUFFIX.length())));
             }
         }
         // Match the prior contract: a zero total size is not emitted (no file reported size bytes).

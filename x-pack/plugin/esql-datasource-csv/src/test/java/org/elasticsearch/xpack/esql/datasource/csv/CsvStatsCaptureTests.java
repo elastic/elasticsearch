@@ -103,14 +103,19 @@ public class CsvStatsCaptureTests extends ESTestCase {
         assertEquals(3L, SplitStats.of(c).rowCount());
     }
 
-    /** SKIP_ROW drops a malformed row → rowsSkipped > 0 → whole-file write suppressed (count is policy-dependent). */
-    public void testSkipRowWithDroppedRowsPublishesNothing() throws Exception {
+    /** SKIP_ROW drops a malformed row, but the stats over the surviving rows are exact (fingerprint pins error_mode), so they commit. */
+    public void testSkipRowWithDroppedRowsCommitsStatsOverSurvivors() throws Exception {
         ErrorPolicy skipRowQuiet = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
         StorageObject o = obj("id:integer,n:integer\n1,10\nnot-an-integer,20\n3,30\n");
-        assertNull(
-            "SKIP_ROW with dropped rows must not publish (count is policy-dependent)",
-            capture(o, FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).build())
-        );
+        Map<String, Object> published = capture(o, FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).build());
+        assertNotNull("SKIP_ROW now commits the stats over surviving rows instead of publishing nothing", published);
+        SplitStats stats = SplitStats.of(published);
+        assertNotNull(stats);
+        // The cache fingerprint pins error_mode, so a full scan drops the SAME row -- every statistic over the
+        // survivors (id in {1,3}, 2 rows) is exact vs that scan, so all commit and serve.
+        assertEquals("row count over survivors", 2L, stats.rowCount());
+        assertEquals(1, ((Number) stats.columnMin("id")).intValue());
+        assertEquals(3, ((Number) stats.columnMax("id")).intValue());
     }
 
     public void testWholeFileCleanDrainPublishesColumnStats() throws Exception {
@@ -157,7 +162,8 @@ public class CsvStatsCaptureTests extends ESTestCase {
     /**
      * NULL_FIELD null-fills a malformed field but PRESERVES the row, so a parallel chunk's row count
      * stays accurate. The chunk must still publish its partial (so the file's COUNT(*) sum stays
-     * complete) and must NOT poison the file — poison is reserved for SKIP_ROW, which drops rows.
+     * complete). Poison is reserved for a scan cut short (LIMIT / error / truncation), not for a
+     * row drop -- a dropped row still commits exact stats over the survivors.
      */
     public void testNullFieldChunkPublishesFullCountWithoutPoison() throws Exception {
         ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 10, 1.0, false);

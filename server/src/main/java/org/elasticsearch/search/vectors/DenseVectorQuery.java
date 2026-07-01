@@ -11,6 +11,7 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
@@ -121,6 +122,20 @@ public abstract class DenseVectorQuery extends Query {
      */
     abstract VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException;
 
+    /**
+     * Whether this query's results for {@code leafReaderContext} are safe to cache across search requests.
+     * Per {@link org.apache.lucene.search.SegmentCacheable}, queries that depend only on segment-immutable
+     * structures (points, postings, codec-native KNN vector values) can unconditionally return {@code true};
+     * queries that read doc values must defer to {@link DocValues#isCacheable} instead, since doc values —
+     * unlike vector values — can be updated in place on an existing segment (e.g. via
+     * {@code IndexWriter#updateBinaryDocValue}) without changing the {@link LeafReaderContext} identity that
+     * the cache keys on. The default here covers {@link Floats#codecScored}/{@link Bytes#codecScored} and
+     * {@link Bytes#rawScored}, none of which read doc values.
+     */
+    boolean isCacheable(LeafReaderContext leafReaderContext) {
+        return true;
+    }
+
     static class DenseVectorWeight extends Weight {
         private final DenseVectorQuery query;
         private final String field;
@@ -195,7 +210,7 @@ public abstract class DenseVectorQuery extends Query {
 
         @Override
         public boolean isCacheable(LeafReaderContext leafReaderContext) {
-            return true; // todo fix for doc values dependencies
+            return query.isCacheable(leafReaderContext) && (filterWeight == null || filterWeight.isCacheable(leafReaderContext));
         }
     }
 
@@ -265,6 +280,12 @@ public abstract class DenseVectorQuery extends Query {
                 return vectorValues.rescorer(query);
             }
             return new RawFloatVectorScorer(vectorValues, query, function);
+        }
+
+        @Override
+        boolean isCacheable(LeafReaderContext leafReaderContext) {
+            return denormalize == false
+                || DocValues.isCacheable(leafReaderContext, field + DenseVectorFieldMapper.COSINE_MAGNITUDE_FIELD_SUFFIX);
         }
 
         @Override
@@ -452,6 +473,11 @@ public abstract class DenseVectorQuery extends Query {
         }
 
         @Override
+        boolean isCacheable(LeafReaderContext leafReaderContext) {
+            return DocValues.isCacheable(leafReaderContext, field);
+        }
+
+        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -564,6 +590,11 @@ public abstract class DenseVectorQuery extends Query {
                 return null;
             }
             return new DocValuesByteVectorScorer(docValues, query, function, isBit, indexVersion);
+        }
+
+        @Override
+        boolean isCacheable(LeafReaderContext leafReaderContext) {
+            return DocValues.isCacheable(leafReaderContext, field);
         }
 
         @Override

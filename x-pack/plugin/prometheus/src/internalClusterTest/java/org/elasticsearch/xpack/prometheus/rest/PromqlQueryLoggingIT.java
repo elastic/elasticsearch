@@ -23,6 +23,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
@@ -32,6 +33,7 @@ import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageField;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Integration test verifying that PromQL queries submitted via {@link PromqlQueryRequest}
@@ -107,8 +109,30 @@ public class PromqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             assertMessageSuccess(message, PROMQL_TYPE, promqlExpr);
             var params = (Map<String, Object>) getMessageField(event, QUERY_FIELD_PARAMS);
             assertNotNull(params);
+            assertThat(params.values(), hasSize(2));
             assertThat(params.get("metric_name"), equalTo("http_requests"));
             assertThat(params.get("limit"), equalTo("100"));
+        }
+
+        var request2 = new PromqlQueryRequest(
+            TEST_INDEX,
+            result.esqlStatement(),
+            promqlExpr,
+            "metric_name",
+            "http_requests",
+            "limit",
+            null,
+            "emptyList",
+            List.of()
+        );
+        try (var ignored = run(request2)) {
+            var event = appender.getLastEventAndReset();
+            var message = getMessageData(event);
+            assertMessageSuccess(message, PROMQL_TYPE, promqlExpr);
+            var params = (Map<String, Object>) getMessageField(event, QUERY_FIELD_PARAMS);
+            assertNotNull(params);
+            assertThat(params.values(), hasSize(1));
+            assertThat(params.get("metric_name"), equalTo("http_requests"));
         }
     }
 

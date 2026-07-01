@@ -200,7 +200,8 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
                 usesBinaryDocValues,
                 mappedSubFieldLoaders,
                 storeIgnoredFieldsInBinaryDocValues,
-                preserveLeafArrays
+                preserveLeafArrays,
+                false
             );
         }
 

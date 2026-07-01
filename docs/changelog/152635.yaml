@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152635
+summary: Fix NDJSON NPE on null nested objects
+type: bug

@@ -32,6 +32,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * <p>Carries the declared {@code type} and an optional {@code source} (the physical column name in the
  * file, when the logical name differs — a rename at the reader boundary).
  *
+ * <p><b>Binding caveat for text (CSV/TSV) sources:</b> non-strict resolution binds a declared column to the
+ * file column of the same physical name (from the header), but strict resolution ({@code dynamic: false})
+ * reads no file and binds <em>positionally</em> — declared order must match the file's column order, and a
+ * {@code source} name is not cross-checked against a header. So the same declaration can bind to different
+ * data under strict vs non-strict for a text file; columnar formats (parquet/orc) bind by name in both modes.
+ *
  * <p><b>Type is a plain String here on purpose.</b> {@link Dataset} lives in {@code server} and must not
  * depend on the ES|QL {@code DataType} enum (an x-pack type). The String is validated against the set of
  * types the relevant format reader can produce, and resolved to a {@code DataType}, in the ES|QL layer at

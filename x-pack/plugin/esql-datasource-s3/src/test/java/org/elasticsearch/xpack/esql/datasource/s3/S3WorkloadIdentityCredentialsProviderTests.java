@@ -83,6 +83,27 @@ public class S3WorkloadIdentityCredentialsProviderTests extends ESTestCase {
         assertEquals("custom-session", captured.get().roleSessionName());
     }
 
+    public void testUsesDefaultJwtAudienceWhenOmitted() throws Exception {
+        AtomicReference<String> requestedAudience = new AtomicReference<>();
+        WorkloadIdentityIssuerClient issuerClient = (request, listener) -> {
+            requestedAudience.set(request.audience());
+            listener.onResponse(new WorkloadIdentityIssuerClient.IssueTokenResponse("signed.jwt", Instant.now().plusSeconds(300)));
+        };
+        AtomicReference<AssumeRoleWithWebIdentityRequest> captured = new AtomicReference<>();
+        StubStsAsyncClient sts = new StubStsAsyncClient(captured, "AK-1");
+
+        S3Configuration config = S3Configuration.fromKeylessFields(ROLE_ARN, null, null, null, null, null, null);
+        AsyncWebIdentityCredentialsProvider provider = S3StorageProvider.buildWorkloadIdentityCredentialsProvider(
+            config,
+            issuerClient,
+            sts
+        );
+
+        provider.resolveIdentity(ResolveIdentityRequest.builder().build()).get();
+        assertEquals("sts.amazonaws.com", requestedAudience.get());
+        assertEquals("signed.jwt", captured.get().webIdentityToken());
+    }
+
     public void testConstructionFailsWhenWorkloadIdentityDisabled() {
         WorkloadIdentityRegistry.setIssuerClient(new WorkloadIdentityIssuerClient() {
             @Override

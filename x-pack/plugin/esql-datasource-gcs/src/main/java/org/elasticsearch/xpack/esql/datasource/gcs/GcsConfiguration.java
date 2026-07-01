@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  * <ul>
  *   <li>Service account JSON credentials (inline)</li>
  *   <li>Short-lived OAuth2 access token</li>
- *   <li>Workload identity federation via {@code jwt_audience}, {@code sts_audience}, and
+ *   <li>Workload identity federation via {@code sts_audience}, optionally {@code jwt_audience}, and
  *       {@code service_account_impersonation_url}</li>
  *   <li>{@code auth=none} for anonymous access to public buckets</li>
  *   <li>{@code auth=workload_identity} to use the node's own GCE/GKE metadata-server credentials,
@@ -68,9 +68,6 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
         // service_account_impersonation_url is optional: direct workload-identity federation maps the
         // federated identity straight to a principal without impersonating a service account.
         if (hasKeylessAuth()) {
-            if (jwtAudience() == null) {
-                errors.addValidationError("jwt_audience is required when keyless authentication settings are configured");
-            }
             if (stsAudience() == null) {
                 errors.addValidationError("sts_audience is required when keyless authentication settings are configured");
             }
@@ -160,7 +157,8 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
     }
 
     /**
-     * Audience passed to the workload-identity issuer {@code IssueTokenRequest} when minting a JWT.
+     * Audience override passed to the workload-identity issuer {@code IssueTokenRequest} when minting a JWT.
+     * By default, it mirrors the value of {@link #stsAudience()}.
      */
     public String jwtAudience() {
         return get(JWT_AUDIENCE.name());

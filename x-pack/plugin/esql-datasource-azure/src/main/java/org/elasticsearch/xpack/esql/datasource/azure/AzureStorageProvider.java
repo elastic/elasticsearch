@@ -95,6 +95,7 @@ public final class AzureStorageProvider implements StorageProvider {
 
     /** Operator-managed AKS Workload Identity token symlink, relative to {@code ${ES_PATH_CONF}}. */
     public static final String AKS_FEDERATED_TOKEN_FILE_LOCATION = "esql-datasource-azure/azure-federated-token";
+    private static final String DEFAULT_JWT_AUDIENCE = "api://AzureADTokenExchange";
 
     /**
      * Test-only system property that disables Microsoft Entra instance discovery on the Azure SDK
@@ -362,7 +363,7 @@ public final class AzureStorageProvider implements StorageProvider {
                     + "WITH {\"account\": \"...\", \"key\": \"...\"}, WITH {\"account\": \"...\", \"sas_token\": \"...\"}, "
                     + "WITH {\"auth\": \"none\"} for public containers, "
                     + "WITH {\"auth\": \"workload_identity\"} to use the node's managed identity (requires cluster setting), "
-                    + "or configure keyless authentication settings (tenant_id, client_id, jwt_audience)"
+                    + "or configure keyless authentication settings (tenant_id, client_id)"
             );
         }
 
@@ -407,7 +408,7 @@ public final class AzureStorageProvider implements StorageProvider {
             // back to ForkJoinPool.commonPool, which we deliberately keep token acquisition off of.
             throw new IllegalStateException("Azure keyless authentication requires a non-null executor for token acquisition");
         }
-        String jwtAudience = config.jwtAudience();
+        String jwtAudience = Strings.hasText(config.jwtAudience()) ? config.jwtAudience() : DEFAULT_JWT_AUDIENCE;
         // The synchronous clientAssertion supplier the delegate reads is wired by FederatedAssertionCredential itself;
         // we only configure the identity and the MSAL executor here.
         ClientAssertionCredentialBuilder delegateBuilder = new ClientAssertionCredentialBuilder().tenantId(config.tenantId())

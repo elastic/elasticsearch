@@ -28,7 +28,7 @@ public interface RecoveryListener {
         ) {}
 
         @Override
-        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {}
+        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {}
 
         @Override
         public void onRecoveryAborted() {}
@@ -42,10 +42,33 @@ public interface RecoveryListener {
     );
 
     /// Called when recovery fails with an exception.
-    void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
+    void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy);
 
     /// Called when recovery has been internally aborted, usually due to shard closure or shard relocation
     void onRecoveryAborted();
+
+    enum FailureStrategy {
+        RETRY(false, true),
+        RETRY_BACKOFF(false, true),
+        FAIL_SILENT(false, false),
+        FAIL_NOTIFY(true, false);
+
+        private final boolean sendShardFailure;
+        private final boolean retry;
+
+        FailureStrategy(boolean sendShardFailure, boolean retry) {
+            this.sendShardFailure = sendShardFailure;
+            this.retry = retry;
+        }
+
+        public boolean sendShardFailure() {
+            return sendShardFailure;
+        }
+
+        public boolean retry() {
+            return retry;
+        }
+    }
 
     static RecoveryListener wrapPreservingContext(RecoveryListener listener, Supplier<ThreadContext.StoredContext> context) {
         return new RecoveryListener() {
@@ -61,9 +84,9 @@ public interface RecoveryListener {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 try (ThreadContext.StoredContext ignore = context.get()) {
-                    listener.onRecoveryFailure(e, sendShardFailure);
+                    listener.onRecoveryFailure(e, failureStrategy);
                 }
             }
 
@@ -92,9 +115,9 @@ public interface RecoveryListener {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 try {
-                    listener.onRecoveryFailure(e, sendShardFailure);
+                    listener.onRecoveryFailure(e, failureStrategy);
                 } finally {
                     runAfter.run();
                 }
@@ -170,10 +193,10 @@ public interface RecoveryListener {
                 }
 
                 @Override
-                public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                     assertFirstRun();
                     try {
-                        delegate.onRecoveryFailure(e, sendShardFailure);
+                        delegate.onRecoveryFailure(e, failureStrategy);
                     } catch (RuntimeException ex) {
                         if (e != null && ex != e) {
                             ex.addSuppressed(e);

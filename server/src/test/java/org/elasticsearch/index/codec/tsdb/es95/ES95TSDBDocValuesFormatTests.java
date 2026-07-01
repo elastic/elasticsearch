@@ -874,10 +874,10 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
     public void testPerFieldBlockSizeWithMixedDensity() throws IOException {
         // Three numeric fields at three block sizes in one segment, with three densities: CUSTOM_BS_FIELD
         // dense, DEMOTED_BS_FIELD (128) one third missing, DEFAULT_BS_FIELD (512) half missing. Locks the
-        // interaction of per-field block-size resolution with the sparse presence path.
-        final int numDocs = ESTestCase.randomIntBetween(1024, 4096);
+        // interaction of per-field block-size resolution with the sparse presence path across multiple blocks.
         // NOTE: random promoted block size (1024-4096), distinct from the 512 default and 128 demoted.
         final int promotedBlockSize = 1 << ESTestCase.randomIntBetween(10, 12);
+        final int numDocs = promotedBlockSize * 2 + ESTestCase.randomIntBetween(0, promotedBlockSize);
         try (Directory dir = newDirectory()) {
             try (
                 IndexWriter writer = new IndexWriter(
@@ -910,10 +910,10 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
     public void testPerFieldBlockSizeSortedNumericWithMixedDensity() throws IOException {
         // Three sorted numeric fields at three block sizes in one segment, with three densities:
         // CUSTOM_BS_SORTED_FIELD dense, DEMOTED_BS_SORTED_FIELD (128) one third missing,
-        // DEFAULT_BS_SORTED_FIELD (512) half missing.
-        final int numDocs = ESTestCase.randomIntBetween(1024, 4096);
+        // DEFAULT_BS_SORTED_FIELD (512) half missing, each spanning multiple blocks.
         // NOTE: random promoted block size (1024-4096), distinct from the 512 default and 128 demoted.
         final int promotedBlockSize = 1 << ESTestCase.randomIntBetween(10, 12);
+        final int numDocs = promotedBlockSize * 2 + ESTestCase.randomIntBetween(0, promotedBlockSize);
         final int valuesPerDoc = 3;
         try (Directory dir = newDirectory()) {
             try (

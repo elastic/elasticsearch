@@ -99,7 +99,7 @@ public final class DatasetMapping implements Writeable {
             // The whole DatasetMapping is gated by the dataset_declared_schema transport version (see Dataset), which is
             // unreleased — so every field, including _source.enabled, ships in that one version; no separate gate needed.
             this(
-                Dynamic.values()[in.readVInt()],
+                in.readEnum(Dynamic.class),
                 in.readOrderedMap(StreamInput::readString, DatasetFieldMapping::new),
                 in.readOptionalBoolean()
             );
@@ -107,7 +107,7 @@ public final class DatasetMapping implements Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(dynamic.ordinal());
+            out.writeEnum(dynamic);
             out.writeMap(properties, (o, v) -> v.writeTo(o));
             out.writeOptionalBoolean(sourceEnabled);
         }

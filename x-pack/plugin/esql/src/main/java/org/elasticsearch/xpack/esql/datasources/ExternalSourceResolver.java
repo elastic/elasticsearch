@@ -89,9 +89,11 @@ public class ExternalSourceResolver {
     public static final String DATASOURCE_CONFIG_KEY = "_datasource";
 
     /**
-     * Config key carrying a declared mapping's logical&rarr;physical column renames ({@code Map<String,String>}) to the
-     * by-name readers (NDJSON/Parquet/ORC), which resolve a column's physical name (file field) from its logical name.
-     * Text readers read positionally and ignore it. Injected by {@code resolve} only when the mapping renames a column.
+     * Config key carrying a declared mapping's logical&rarr;physical column renames ({@code Map<String,String>}). Consumed
+     * on the data node by the centralized last-mile physicalization ({@link PhysicalNames#fromConfig}, at
+     * {@code FileSourceFactory} / the operator factory) and by the pushdown planner rules ({@code PushFiltersToSource},
+     * {@code PushAggregatesToExternalSource}). Readers receive already-physical names and stay rename-agnostic; text
+     * readers read positionally. Injected by {@code resolve} only when the mapping renames a column.
      */
     public static final String CONFIG_DECLARED_RENAMES = "_declared_renames";
 
@@ -425,9 +427,9 @@ public class ExternalSourceResolver {
     /**
      * Strict single-file resolution: the declared mapping is the entire schema, so no inference and no schema-cache
      * lookup happen — the declaration is content-independent. Only the file's size/mtime is read (for split planning,
-     * the same data-read requirement the inferred path has). The user-facing output carries the declared <b>logical</b>
-     * names; the per-file schema the reader matches against the file carries the <b>physical</b> names (the {@code source}
-     * rename), paired position-for-position via an identity column mapping so rename is a positional relabel.
+     * the same data-read requirement the inferred path has). Both the user-facing output and the per-file schema carry
+     * the declared <b>logical</b> names (identity column mapping); a {@code source} rename is applied to physical only at
+     * the reader boundary via {@link PhysicalNames}, so the operator and reconciliation stay in logical space.
      */
     private ExternalSourceResolution.ResolvedSource resolveStrictSingleFile(
         String path,

@@ -29,8 +29,9 @@ import java.util.Set;
  *
  * <p>Used by the resolver for both supply modes: in strict mode ({@code dynamic: false}) {@link #declaredAttributes}
  * is the entire resolved schema (no file is read); in non-strict mode the declared attributes overlay (and beat) the
- * inferred ones of the same column. The {@link #renameMap} is consumed where physical columns are located in the
- * file (the per-file {@code ColumnMapping}); it carries only the columns that actually rename.
+ * inferred ones of the same column. The {@link #renameMap} is injected into the read config
+ * ({@link ExternalSourceResolver#CONFIG_DECLARED_RENAMES}) and consumed at the reader-facing boundaries via
+ * {@link PhysicalNames}; {@code ColumnMapping}/reconciliation stay in logical space. It carries only renamed columns.
  */
 public final class DeclaredSchemaResolver {
 
@@ -54,8 +55,8 @@ public final class DeclaredSchemaResolver {
 
     /**
      * Logical&rarr;physical name map for the columns that declare a {@code source} rename. Empty when nothing renames.
-     * The reader/{@code ColumnMapping} uses this to find a renamed column's physical column in the file; nothing above
-     * the reader ever sees the physical name.
+     * {@link PhysicalNames} uses this at the last-mile reader-facing boundaries to physicalize names; the reader and
+     * {@code ColumnMapping} stay rename-agnostic. Nothing above the reader boundary ever sees the physical name.
      */
     public static Map<String, String> renameMap(DatasetMapping mapping) {
         DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
@@ -75,8 +76,9 @@ public final class DeclaredSchemaResolver {
      * Result of a non-strict overlay: the user-facing {@code output} (declared columns renamed to their logical
      * name and retyped, undeclared columns untouched) and the per-file {@code fileSchema} the reader resolves against
      * the file. Both carry <b>logical</b> names — the operator's projection/column-mapping code stays in logical names
-     * and never sees the physical names; a {@code source} rename is applied only at the by-name reader via the rename
-     * map ({@link #renameMap}), while text readers read positionally. The two lists pair position-for-position.
+     * and never sees the physical names; a {@code source} rename is applied at the reader-facing boundary via
+     * {@link PhysicalNames} (physical names then reach by-name readers; text readers read positionally). The two lists
+     * pair position-for-position.
      */
     public record Overlaid(List<Attribute> output, List<Attribute> fileSchema) {}
 

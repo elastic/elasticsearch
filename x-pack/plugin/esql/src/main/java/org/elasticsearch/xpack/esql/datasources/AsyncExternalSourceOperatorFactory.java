@@ -1181,9 +1181,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     } else {
                         // adapted is logical (mapFilters + queryDataSchema); physicalize it so the re-minted opaque
                         // predicate references the file's physical columns, matching the plan-time mint.
-                        FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(
-                            PhysicalNames.translateExpressionNames(adapted, renames)
-                        );
+                        List<Expression> physicalAdapted = PhysicalNames.translateExpressionNames(adapted, renames);
+                        // Same invariant as the plan-time mint: no logical rename-source name may reach the reader's filter.
+                        assert PhysicalNames.noLogicalNamesRemain(
+                            physicalAdapted.stream().flatMap(e -> e.references().stream()).map(Attribute::name).toList(),
+                            renames
+                        ) : "logical rename-source name leaked into the re-minted pushed filter: " + physicalAdapted;
+                        FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(physicalAdapted);
                         reader = result.hasPushedFilter()
                             ? formatReader.withPushedFilter(result.pushedFilter())
                             : formatReader.withPushedFilter(null);

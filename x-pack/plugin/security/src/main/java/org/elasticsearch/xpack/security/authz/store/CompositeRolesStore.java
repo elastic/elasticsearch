@@ -423,12 +423,12 @@ public class CompositeRolesStore {
             listener.delegateFailureAndWrap((delegate, role) -> {
                 if (role != null && tryCache) {
                     try (ReleasableLock ignored = cacheUpdateLock.acquire()) {
-                        /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
-                         * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
-                         * stuff in an async fashion we need to make sure that if the cache got invalidated since we
-                         * started the request we don't put a potential stale result in the cache, hence the
-                         * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
-                         * be on the safe side and don't cache potentially stale results.
+                        /* The role was built asynchronously, so an invalidation may have completed since this resolution
+                         * captured the invalidation counters. Holding the read side of the shared cache lock makes this
+                         * check-then-write atomic with respect to invalidations, which clear both caches and bump the
+                         * counters under the write side (see invalidateCachesThenBumpCounter): if an invalidation
+                         * completed after the counters were captured, the check below fails and we skip caching rather
+                         * than cache a potentially stale role.
                          *
                          * Per-project invalidation counter and the global invalidation counter must be unchanged before we cache
                          */

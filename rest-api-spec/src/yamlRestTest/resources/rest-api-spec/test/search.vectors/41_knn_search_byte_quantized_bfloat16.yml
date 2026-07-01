@@ -62,7 +62,7 @@ setup:
         id: "3"
         body:
           name: rabbit.jpg
-          vector: [1.0, 222.6, -26.0, 29.6, -312.0]
+          vector: [ 0.25, 55.65, -6.5, 7.4, -78.0 ]
           another_vector: [-0.5, 11.0, 0, 12, 111.0]
   # Flush in order to provoke a merge later
   - do:

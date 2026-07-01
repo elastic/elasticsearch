@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.vectors.cluster;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
+import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 import org.elasticsearch.index.codec.vectors.diskbbq.SoarAssignments;
 
 import java.io.IOException;
@@ -219,8 +220,7 @@ abstract class KMeansLocal<V> {
      * @throws IOException is thrown if vectors is inaccessible
      */
     final void cluster(ClusteringVectorValues<V> vectors, KMeansIntermediate<V> kMeansIntermediate) throws IOException {
-        var result = doCluster(vectors, kMeansIntermediate, -1, -1);
-        assert result.overspill() == null;
+        doCluster(vectors, kMeansIntermediate, null);
     }
 
     /**
@@ -232,12 +232,12 @@ abstract class KMeansLocal<V> {
      * @param kMeansIntermediate the output object to populate which minimally includes centroids,
      *                     the prior assignments of the given vectors; care should be taken in
      *                     passing in a valid output object with a centroids array that is the size of centroids expected
-     *                     and assignments that are the same size as the vectors.  The SOAR assignments are overwritten by this operation.
+     *                     and assignments that are the same size as the vectors.
      * @param clustersPerNeighborhood number of nearby neighboring centroids to be used to update the centroid positions.
      * @param soarLambda   lambda used for SOAR assignments
      *
+     * @return the clustering result with the SOAR assignments
      * @throws IOException is thrown if vectors is inaccessible or if the clustersPerNeighborhood is less than 2
-     * This also is used to generate the neighborhood aware additional (SOAR) assignments.
      */
     final KMeansWithOverspill<V> cluster(
         ClusteringVectorValues<V> vectors,
@@ -248,43 +248,23 @@ abstract class KMeansLocal<V> {
         if (clustersPerNeighborhood < 2) {
             throw new IllegalArgumentException("clustersPerNeighborhood must be at least 2, got [" + clustersPerNeighborhood + "]");
         }
-        return doCluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
-    }
-
-    /**
-     * cluster using a Lloyd kmeans algorithm that also considers prior clustered neighborhoods when adjusting centroids
-     * this also is used to generate the neighborhood aware additional (SOAR) assignments
-     *
-     * @param vectors the vectors to cluster
-     * @param kMeansIntermediate the output object to populate which minimally includes centroids, the prior assignments of the given
-     *                           vectors; care should be taken in passing in a valid output object with a centroids array that is the size
-     *                           of centroids expected and assignments that are the same size as the vectors.
-     *                           The SOAR assignments are overwritten by this operation.
-     * @param clustersPerNeighborhood number of nearby neighboring centroids to be used to update the centroid positions.
-     * @param soarLambda   lambda used for SOAR assignments
-     *
-     * @throws IOException is thrown if vectors is inaccessible or if the clustersPerNeighborhood is less than 2
-     */
-    protected KMeansWithOverspill<V> doCluster(
-        ClusteringVectorValues<V> vectors,
-        KMeansIntermediate<V> kMeansIntermediate,
-        int clustersPerNeighborhood,
-        float soarLambda
-    ) throws IOException {
-        V[] centroids = kMeansIntermediate.centroids();
-        boolean neighborAware = clustersPerNeighborhood != -1 && centroids.length > 1;
         NeighborHood[] neighborhoods = null;
         // if there are very few centroids, don't bother with neighborhoods or neighbor aware clustering
-        if (neighborAware && centroids.length > clustersPerNeighborhood) {
-            neighborhoods = computeNeighborhoods(centroids, clustersPerNeighborhood);
+        if (kMeansIntermediate.centroids().length > clustersPerNeighborhood) {
+            neighborhoods = computeNeighborhoods(kMeansIntermediate.centroids(), clustersPerNeighborhood);
         }
+        doCluster(vectors, kMeansIntermediate, neighborhoods);
+        OverspillAssignments overspill = null;
+        if (soarLambda >= 0 && kMeansIntermediate.centroids().length > 1) {
+            overspill = new SoarAssignments(assignSpilled(vectors, kMeansIntermediate, neighborhoods, soarLambda));
+        }
+        return new KMeansWithOverspill<>(kMeansIntermediate, overspill);
+    }
+
+    private void doCluster(ClusteringVectorValues<V> vectors, KMeansIntermediate<V> kMeansIntermediate, NeighborHood[] neighborhoods)
+        throws IOException {
         innerCluster(vectors, kMeansIntermediate, neighborhoods);
         removeEmptyClusters(kMeansIntermediate, neighborhoods, ops);
-        if (neighborAware && soarLambda >= 0 && kMeansIntermediate.centroids().length > 1) {
-            int[] spilled = assignSpilled(vectors, kMeansIntermediate, neighborhoods, soarLambda);
-            return new KMeansWithOverspill<>(kMeansIntermediate, new SoarAssignments(spilled));
-        }
-        return new KMeansWithOverspill<>(kMeansIntermediate, null);
     }
 
     protected abstract void innerCluster(

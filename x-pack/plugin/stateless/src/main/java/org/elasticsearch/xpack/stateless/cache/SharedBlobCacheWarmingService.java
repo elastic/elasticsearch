@@ -52,6 +52,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.TimestampResolver.BlobFileTimestampResolver;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.LazyRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
@@ -790,31 +791,6 @@ public class SharedBlobCacheWarmingService {
             } finally {
                 store.decRef();
             }
-        }
-    }
-
-    /**
-     * Resolves a single representative timestamp (millis) for a given {@link BlobFile}, used to stamp cache regions populated during
-     * warming so the eviction policy can use it.
-     */
-    @FunctionalInterface
-    public interface BlobFileTimestampResolver {
-
-        /**
-         * Resolver that returns {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} for every blob.
-         */
-        BlobFileTimestampResolver ALL_UNKNOWN = blobFile -> SharedBlobCacheService.UNKNOWN_TIMESTAMP;
-
-        long getTimestampMillis(BlobFile blobFile);
-
-        /**
-         * Adapts a {@code Map<BlobFile, Long>} into a resolver. Missing entries resolve to {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP}
-         */
-        static BlobFileTimestampResolver fromMap(@Nullable Map<BlobFile, Long> map) {
-            if (map == null || map.isEmpty()) {
-                return ALL_UNKNOWN;
-            }
-            return blobFile -> map.getOrDefault(blobFile, SharedBlobCacheService.UNKNOWN_TIMESTAMP);
         }
     }
 

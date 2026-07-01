@@ -41,6 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.TimestampResolver.BlobFileTimestampResolver;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -533,8 +534,8 @@ class StatelessIndexEventListener implements IndexEventListener {
                         searchDirectory,
                         warmingInputs != null ? warmingInputs.offsetsToWarm() : null,
                         warmingInputs != null
-                            ? SharedBlobCacheWarmingService.BlobFileTimestampResolver.fromMap(warmingInputs.timestampsPerBlob())
-                            : SharedBlobCacheWarmingService.BlobFileTimestampResolver.ALL_UNKNOWN,
+                            ? BlobFileTimestampResolver.fromMap(warmingInputs.timestampsPerBlob())
+                            : BlobFileTimestampResolver.ALL_UNKNOWN,
                         resumeRecovery
                     );
                 }));

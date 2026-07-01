@@ -42,6 +42,7 @@ import org.elasticsearch.threadpool.FakeTimeThreadPool;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.TimestampResolver.BlobFileTimestampResolver;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -133,7 +134,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 StatelessCompoundCommit commit,
                 BlobStoreCacheDirectory directory,
                 @Nullable Map<BlobFile, Long> endOffsetsToWarm,
-                SharedBlobCacheWarmingService.BlobFileTimestampResolver timestampResolver,
+                BlobFileTimestampResolver timestampResolver,
                 boolean preWarmForIdLookup,
                 ActionListener<Void> listener
             ) {
@@ -503,7 +504,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 null,
                 null,
-                SharedBlobCacheWarmingService.BlobFileTimestampResolver.ALL_UNKNOWN,
+                BlobFileTimestampResolver.ALL_UNKNOWN,
                 resume
             );
             assertTrue(resume.isDone());
@@ -536,7 +537,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 null,
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), 1L),
-                SharedBlobCacheWarmingService.BlobFileTimestampResolver.ALL_UNKNOWN,
+                BlobFileTimestampResolver.ALL_UNKNOWN,
                 resumeFuture
             );
             safeGet(resumeFuture);
@@ -564,7 +565,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 null,
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), 1L),
-                SharedBlobCacheWarmingService.BlobFileTimestampResolver.ALL_UNKNOWN,
+                BlobFileTimestampResolver.ALL_UNKNOWN,
                 resume
             );
             assertTrue(resume.isDone());

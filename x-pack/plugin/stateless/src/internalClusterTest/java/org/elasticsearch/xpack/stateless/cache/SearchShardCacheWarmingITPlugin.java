@@ -18,6 +18,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.TimestampResolver.BlobFileTimestampResolver;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;

@@ -26,6 +26,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.cache.TimestampResolver.FileTimestampResolver;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -195,10 +196,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
 
         final var notificationRange = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 3000L); // midpoint 2000
         final Map<String, Long> resolvedTimestamps = Map.of("referenced_a", 500L, "referenced_b1", 1500L, "referenced_b2", 2500L);
-        final SearchCommitPrefetcher.FileTimestampResolver resolver = fileName -> resolvedTimestamps.getOrDefault(
-            fileName,
-            UNKNOWN_TIMESTAMP
-        );
+        final FileTimestampResolver resolver = fileName -> resolvedTimestamps.getOrDefault(fileName, UNKNOWN_TIMESTAMP);
 
         // Drive the combined method with a fresh prefetch state so every blob ends up in `ranges` and contributes timestamps.
         final Map<BlobFile, SearchCommitPrefetcher.ByteRangeAndTimestamp> pending = getPendingRangesToPrefetch(

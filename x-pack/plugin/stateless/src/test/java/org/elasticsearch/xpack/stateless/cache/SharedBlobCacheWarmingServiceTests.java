@@ -51,6 +51,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
+import org.elasticsearch.xpack.stateless.cache.TimestampResolver.BlobFileTimestampResolver;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.IndexingShardCacheBlobReader;
@@ -735,7 +736,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     indexShard,
                     fakeNode.searchDirectory,
                     Map.of(new BlobFile(vbcc.getBlobName(), vbcc.getPrimaryTermAndGeneration()), endOffset),
-                    SharedBlobCacheWarmingService.BlobFileTimestampResolver.ALL_UNKNOWN,
+                    BlobFileTimestampResolver.ALL_UNKNOWN,
                     warmListener
                 );
                 safeGet(warmListener);
@@ -923,7 +924,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 indexShard,
                 fakeNode.searchDirectory,
                 Map.of(blobFile, vbcc.getTotalSizeInBytes()),
-                SharedBlobCacheWarmingService.BlobFileTimestampResolver.ALL_UNKNOWN,
+                BlobFileTimestampResolver.ALL_UNKNOWN,
                 warmListener
             );
             safeGet(warmListener);
@@ -1056,7 +1057,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 indexShard,
                 fakeNode.searchDirectory,
                 Map.of(blobFileA, blobSize, blobFileB, blobSize),
-                SharedBlobCacheWarmingService.BlobFileTimestampResolver.ALL_UNKNOWN,
+                BlobFileTimestampResolver.ALL_UNKNOWN,
                 warmFuture
             );
             safeGet(warmFuture);
@@ -1808,9 +1809,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 indexShard,
                 fakeNode.searchDirectory,
                 Map.of(blobFile, vbcc.getTotalSizeInBytes()),
-                boostEnabled
-                    ? SharedBlobCacheWarmingService.BlobFileTimestampResolver.fromMap(Map.of(blobFile, knownTimestamp))
-                    : SharedBlobCacheWarmingService.BlobFileTimestampResolver.ALL_UNKNOWN,
+                boostEnabled ? BlobFileTimestampResolver.fromMap(Map.of(blobFile, knownTimestamp)) : BlobFileTimestampResolver.ALL_UNKNOWN,
                 warmListener
             );
             safeGet(warmListener);
@@ -1882,7 +1881,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 lastCommit,
                 fakeNode.searchDirectory,
                 null,
-                SharedBlobCacheWarmingService.BlobFileTimestampResolver.ALL_UNKNOWN,
+                BlobFileTimestampResolver.ALL_UNKNOWN,
                 false,
                 warmListener
             );

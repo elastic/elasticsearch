@@ -797,3 +797,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.StatelessCoordinationTests
   method: testAckListenerReceivesNacksIfPublicationTimesOut
   issue: https://github.com/elastic/elasticsearch/issues/152605
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingStandardSource
+  issue: https://github.com/elastic/elasticsearch/issues/152643

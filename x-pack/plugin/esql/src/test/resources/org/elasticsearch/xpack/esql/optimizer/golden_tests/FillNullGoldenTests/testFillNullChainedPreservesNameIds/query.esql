@@ -1,0 +1,4 @@
+FROM employees
+| KEEP emp_no, gender, hire_date
+| FILLNULL WITH "Unknown" gender
+| FILLNULL WITH 0 emp_no

@@ -10,6 +10,7 @@ lexer grammar Expression;
 // Expression - used by many commands
 //
 COMPLETION : 'completion'               -> pushMode(EXPRESSION_MODE);
+DEV_FILLNULL :      {this.isDevVersion()}? 'fillnull'          -> pushMode(EXPRESSION_MODE);
 DISSECT : 'dissect'                     -> pushMode(EXPRESSION_MODE);
 EVAL : 'eval'                           -> pushMode(EXPRESSION_MODE);
 GROK : 'grok'                           -> pushMode(EXPRESSION_MODE);

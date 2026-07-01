@@ -134,6 +134,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -10198,6 +10199,75 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         EsRelation relation = as(limit.child(), EsRelation.class);
         assertThat(relation.children(), hasSize(0));
         assertThat(relation.indexPattern(), equalTo("base_conversion"));
+    }
+
+    /*
+     * Regression: chained FILLNULL inside a FORK branch once threw "missing references" because the fill aliases were
+     * cached outside NodeInfo and recomputed on replaceChild. They are NodeInfo state now, so NameIds stay stable. See #148232.
+     */
+    public void testFillNullChainedWithFork() {
+        assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // Without the fix, the post-optimization verifier throws "optimized incorrectly due to missing references".
+        var plan = plan("""
+            ROW a = null, b = null
+            | EVAL a = a::keyword, b = b::integer
+            | FILLNULL WITH "unknown" a
+            | FILLNULL WITH 0 b
+            | FORK (WHERE true | LIMIT 300) (WHERE true)
+            | LIMIT 300
+            | WHERE _fork == "fork1"
+            | DROP _fork
+            """);
+        assertThat(plan, instanceOf(Project.class));
+    }
+
+    /*
+     * Plain chained FILLNULL: substitution rewrites the inner one, then replaceChild re-parents the outer onto the
+     * substituted subtree; the materialized aliases must survive so the verifier flags no missing references.
+     */
+    public void testFillNullChained() {
+        assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        var plan = plan("""
+            ROW a = null, b = null
+            | EVAL a = a::keyword, b = b::integer
+            | FILLNULL WITH "unknown" a
+            | FILLNULL WITH 0 b
+            """);
+        assertFalse("FILLNULL must be substituted away", plan.anyMatch(p -> p instanceof FillNull));
+        assertThat(Expressions.names(plan.output()), containsInAnyOrder("a", "b"));
+    }
+
+    /*
+     * EVAL | FILLNULL | EVAL: CombineEvals merges the user Evals across the surrogate's Eval; the merged Eval must not
+     * collide alias NameIds, else Layout.Builder.build() fails with "Duplicate name ids are not allowed".
+     */
+    public void testFillNullBetweenEvalsIsCombined() {
+        assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        var plan = plan("""
+            ROW a = null, x = 1
+            | EVAL a = a::integer
+            | FILLNULL WITH 0 a
+            | EVAL sum = a + x
+            """);
+        assertFalse("FILLNULL must be substituted away", plan.anyMatch(p -> p instanceof FillNull));
+        assertThat(Expressions.names(plan.output()), containsInAnyOrder("a", "x", "sum"));
+    }
+
+    /*
+     * WHERE <field> IS NULL feeding FILLNULL: the surrogate's Coalesce sits below a downstream IS NOT NULL filter,
+     * exercising PropagateNullable/FoldNull over the materialized fill alias.
+     */
+    public void testFillNullUnderNullnessFiltersIsAccepted() {
+        assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        var plan = plan("""
+            ROW a = null, b = 1
+            | EVAL a = a::integer
+            | WHERE a IS NULL
+            | FILLNULL WITH 0 a
+            | WHERE a IS NOT NULL
+            """);
+        assertFalse("FILLNULL must be substituted away", plan.anyMatch(p -> p instanceof FillNull));
+        assertThat(Expressions.names(plan.output()), containsInAnyOrder("a", "b"));
     }
 
     /*

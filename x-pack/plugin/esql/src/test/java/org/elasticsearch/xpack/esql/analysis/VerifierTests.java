@@ -3396,6 +3396,96 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testFillNullIncompatibleType() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        defaultAnalyzer().error(
+            "FROM test | FILLNULL WITH 0 first_name",
+            containsString("[FILLNULL] fill value type [integer] is incompatible with field [first_name] type [keyword]")
+        );
+    }
+
+    public void testFillNullIncompatibleTypeReportedPerField() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // Mixed: emp_no (integer) is compatible with the integer fill, first_name (keyword) and gender (keyword)
+        // are not. The verifier must report each incompatible field separately.
+        defaultAnalyzer().error(
+            "FROM test | FILLNULL WITH 0 emp_no, first_name, gender",
+            allOf(
+                containsString("[FILLNULL] fill value type [integer] is incompatible with field [first_name] type [keyword]"),
+                containsString("[FILLNULL] fill value type [integer] is incompatible with field [gender] type [keyword]")
+            )
+        );
+    }
+
+    public void testFillNullTargetedOutOfRangeValueRejected() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // emp_no is INTEGER and the LONG fill value is type-compatible, but its value overflows the
+        // INTEGER range. An explicitly targeted field must report a clear error instead of being
+        // silently skipped (all-fields mode skips such columns on purpose).
+        defaultAnalyzer().error(
+            "FROM test | FILLNULL WITH 9999999999999 emp_no",
+            containsString("[FILLNULL] fill value [9999999999999] does not fit field [emp_no] of type [integer]")
+        );
+    }
+
+    public void testFillNullAllFieldsModeSkipsIncompatibleSilently() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // All-fields mode (no explicit targets) silently skips columns whose type is incompatible
+        // with the fill value, so this query must analyze cleanly. We assert success by parsing
+        // and analyzing the query through the standard analyzer.
+        defaultAnalyzer().query("FROM test | FILLNULL WITH 0");
+    }
+
+    public void testFillNullAllFieldsModeSkipsOutOfRangeValueSilently() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // All-fields mode: the LONG fill value is type-compatible with the INTEGER columns (emp_no, salary, ...)
+        // but its value overflows the INTEGER range. Such columns must be silently skipped at plan time rather
+        // than failing the query with an "out of [integer] range" conversion error.
+        defaultAnalyzer().query("FROM test | FILLNULL WITH 9999999999999");
+    }
+
+    public void testFillNullDuplicateField() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        defaultAnalyzer().error("FROM test | FILLNULL emp_no, emp_no", containsString("[FILLNULL] duplicate field [emp_no]"));
+    }
+
+    public void testFillNullDuplicateFieldReportedPerField() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // Each distinct field that is repeated must be flagged independently.
+        // Failures are deduplicated per attribute node (so listing the same field three times only
+        // produces one report), but two different repeated fields must still surface two reports.
+        defaultAnalyzer().error(
+            "FROM test | FILLNULL emp_no, salary, emp_no, salary",
+            allOf(containsString("[FILLNULL] duplicate field [emp_no]"), containsString("[FILLNULL] duplicate field [salary]"))
+        );
+    }
+
+    public void testFillNullOnNullTypedColumnPassesVerification() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // A NULL-typed column accepts a KEYWORD fill via the NULL escape clause in areCompatible, so the verifier
+        // passes; the surrogate separately skips NULL columns (see fillNullOnNullTypedColumnIsSkipped csv-spec).
+        defaultAnalyzer().query("ROW a = null, b = 1 | FILLNULL WITH \"x\" a");
+    }
+
+    public void testFillNullThenFullTextOnFilledFieldRejected() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // A filled field becomes a Coalesce reference attribute, not an index field, so full-text functions on it
+        // must be rejected - exactly as for EVAL col = COALESCE(...) | WHERE MATCH(col, ...).
+        fullText().error(
+            "from test | FILLNULL WITH \"\" title | where match(title, \"data\")",
+            containsString("[MATCH] function cannot operate on [title], which is not a field from an index mapping")
+        );
+    }
+
     public void testFullTextFunctionsInStats() {
         checkFullTextFunctionsInStats("match(title, \"Meditation\")");
         checkFullTextFunctionsInStats("title : \"Meditation\"");

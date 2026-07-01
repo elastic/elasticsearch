@@ -105,6 +105,14 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames("FROM employees | fork (eval x = 1 | keep x) (eval y = 2 | keep y) (eval z = 3 | keep z)", Set.of("_index"));
     }
 
+    public void testFillNullExplicitFieldThenStats() {
+        assumeTrue("FILLNULL required", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // The target field is referenced only by FILLNULL; the trailing STATS narrows columns and forces
+        // explicit field collection. FILLNULL must report its (not-yet-materialized) target as a reference,
+        // otherwise field-caps never requests it and the source relation resolves to no fields.
+        assertFieldNames("from employees | fillnull with 0 salary | stats c = count(*)", Set.of("_index", "salary", "salary.*"));
+    }
+
     public void testSort1() {
         assertFieldNames(
             "from employees | sort still_hired, emp_no | keep emp_no, still_hired | limit 3",

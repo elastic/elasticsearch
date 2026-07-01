@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -484,6 +485,31 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             input,
             fields.stream().map(ne -> (Attribute) new UnresolvedAttribute(ne.source(), ne.name())).toList()
         );
+    }
+
+    @Override
+    public PlanFactory visitFillnullCommand(EsqlBaseParser.FillnullCommandContext ctx) {
+        var source = source(ctx);
+        // The fillnullValue grammar rule lists `NULL` as a bare-token alternative without a
+        // labeled sub-rule, so the default ANTLR visitor walks into a TerminalNode and returns
+        // null. Translate the NULL token to an explicit NULL-typed Literal here; all other
+        // alternatives (integerValue / decimalValue / booleanValue / string / parameter) have
+        // ExpressionBuilder visitors that produce a Literal directly.
+        EsqlBaseParser.FillnullValueContext valueCtx = ctx.fillnullValue();
+        final Expression fillValue;
+        if (valueCtx == null) {
+            fillValue = null;
+        } else if (valueCtx.NULL() != null) {
+            fillValue = new Literal(source(valueCtx), null, DataType.NULL);
+        } else {
+            fillValue = expression(valueCtx);
+        }
+        List<Attribute> targetFields = new ArrayList<>();
+        for (EsqlBaseParser.QualifiedNameContext nameCtx : ctx.qualifiedName()) {
+            UnresolvedAttribute attr = visitQualifiedName(nameCtx);
+            targetFields.add(attr);
+        }
+        return input -> new FillNull(source, input, fillValue, targetFields);
     }
 
     @Override

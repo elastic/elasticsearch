@@ -3271,6 +3271,11 @@ public class EsqlCapabilities {
          */
         EMPTY_LIST_PARAM_AS_NULL,
 
+        /**
+         * Support for the FILLNULL command that replaces null values with defaults.
+         */
+        FILLNULL(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

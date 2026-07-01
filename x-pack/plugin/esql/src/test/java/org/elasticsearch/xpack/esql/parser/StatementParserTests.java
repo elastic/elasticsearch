@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -3658,6 +3659,119 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM text | EVAL x = 4 | INSIST_🐔 foo*", "INSIST doesn't support wildcards, found [foo*]");
     }
 
+    public void testFillNullAllFields() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = processingCommand("fillnull");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertNull(fillNull.fillValue());
+        assertTrue(fillNull.targetFields().isEmpty());
+    }
+
+    public void testFillNullWithValue() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = processingCommand("fillnull WITH 0");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertNotNull(fillNull.fillValue());
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        assertEquals(0, ((Literal) fillNull.fillValue()).value());
+        assertTrue(fillNull.targetFields().isEmpty());
+    }
+
+    public void testFillNullNamedFields() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = processingCommand("fillnull a, b");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertNull(fillNull.fillValue());
+        assertEquals(2, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+        assertThat(fillNull.targetFields().get(1), equalToIgnoringIds(attribute("b")));
+    }
+
+    public void testFillNullWithValueAndFields() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = processingCommand("fillnull WITH \"N/A\" status, category");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        Literal lit = (Literal) fillNull.fillValue();
+        assertEquals(BytesRefs.toBytesRef("N/A"), lit.value());
+        assertEquals(KEYWORD, lit.dataType());
+        assertEquals(2, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("status")));
+        assertThat(fillNull.targetFields().get(1), equalToIgnoringIds(attribute("category")));
+    }
+
+    public void testFillNullWithNullValue() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = processingCommand("fillnull WITH null a");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        Literal lit = (Literal) fillNull.fillValue();
+        assertNull(lit.value());
+        assertEquals(DataType.NULL, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWithDecimalValue() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = processingCommand("fillnull WITH 1.5 a");
+        assertEquals(FillNull.class, plan.getClass());
+        FillNull fillNull = (FillNull) plan;
+        assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+        Literal lit = (Literal) fillNull.fillValue();
+        assertEquals(1.5, lit.value());
+        assertEquals(DataType.DOUBLE, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWithBooleanValue() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        for (boolean expected : new boolean[] { true, false }) {
+            LogicalPlan plan = processingCommand("fillnull WITH " + expected + " a");
+            assertEquals(FillNull.class, plan.getClass());
+            FillNull fillNull = (FillNull) plan;
+            assertThat(fillNull.fillValue(), instanceOf(Literal.class));
+            Literal lit = (Literal) fillNull.fillValue();
+            assertEquals(expected, lit.value());
+            assertEquals(DataType.BOOLEAN, lit.dataType());
+            assertEquals(1, fillNull.targetFields().size());
+            assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+        }
+    }
+
+    public void testFillNullWithPositionalParameter() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query("row a = 1 | fillnull WITH ? a", new QueryParams(List.of(paramAsConstant(null, "missing"))));
+        FillNull fillNull = as(plan, FillNull.class);
+        Literal lit = as(fillNull.fillValue(), Literal.class);
+        assertEquals(BytesRefs.toBytesRef("missing"), lit.value());
+        assertEquals(KEYWORD, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullWithNamedParameter() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query("row a = 1 | fillnull WITH ?fill a", new QueryParams(List.of(paramAsConstant("fill", 42))));
+        FillNull fillNull = as(plan, FillNull.class);
+        Literal lit = as(fillNull.fillValue(), Literal.class);
+        assertEquals(42, lit.value());
+        assertEquals(DataType.INTEGER, lit.dataType());
+        assertEquals(1, fillNull.targetFields().size());
+        assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
+    }
+
+    public void testFillNullNotInReleaseBuild() {
+        assumeFalse("only runs on release build", Build.current().isSnapshot());
+        expectThrows(ParsingException.class, containsString("mismatched input 'FILLNULL'"), () -> query("FROM foo | FILLNULL"));
+    }
+
     public void testValidFork() {
         var plan = query("""
             FROM foo*
@@ -3828,6 +3942,30 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """;
         plan = query(query);
         assertThat(plan, instanceOf(Keep.class));
+    }
+
+    public void testForkWithBareFillNull() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        // bare FILLNULL as the (non-first) branch's last token, directly adjacent to ')'
+        assertThat(query("FROM foo* | FORK (WHERE a < 1) (WHERE a < 1 | FILLNULL) | KEEP a"), instanceOf(Keep.class));
+        // FILLNULL as the only command in a branch, directly adjacent to ')'
+        assertThat(query("FROM foo* | FORK (SORT a) (FILLNULL) | KEEP a"), instanceOf(Keep.class));
+        // FILLNULL with WITH / fields still works (was never affected since it is not adjacent to ')')
+        assertThat(query("FROM foo* | FORK (WHERE a < 1 | FILLNULL WITH 0) (FILLNULL a) | KEEP a"), instanceOf(Keep.class));
+    }
+
+    public void testForkBareArgumentRequiringCommandBeforeRp() {
+        // each command needs an argument; the error must point at the standalone ')' (the keyword was
+        // recognized), not at a swallowed 'cmd)' token. The exact wording varies (mismatched/extraneous input).
+        expectError("FROM foo* | FORK (MV_EXPAND) (WHERE true) | KEEP a", "input ')'");
+        expectError("FROM foo* | FORK (LIMIT) (WHERE true) | KEEP a", "input ')'");
+        expectError("FROM foo* | FORK (KEEP) (WHERE true) | KEEP a", "input ')'");
+        expectError("FROM foo* | FORK (SORT) (WHERE true) | KEEP a", "input ')'");
+        expectError("FROM foo* | FORK (DROP) (WHERE true) | KEEP a", "input ')'");
+    }
+
+    public void testUnknownCommandAdjacentToParen() {
+        expectError("FROM foo* | foobar(x)", "mismatched input 'foobar'");
     }
 
     public void testInvalidFork() {

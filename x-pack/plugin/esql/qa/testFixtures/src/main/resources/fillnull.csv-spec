@@ -1,0 +1,824 @@
+fillNullAllFieldsWithTypeDefaults
+required_capability: fillnull
+
+ROW a = null, b = 1, c = null
+| EVAL a = a::keyword, c = c::integer
+| FILLNULL
+;
+
+b:integer | a:keyword | c:integer
+1          |           | 0
+;
+
+fillNullSpecificFieldsWithTypeDefaults
+required_capability: fillnull
+
+ROW a = null, b = 1, c = null
+| EVAL a = a::keyword, c = c::integer
+| FILLNULL a, c
+;
+
+b:integer | a:keyword | c:integer
+1          |           | 0
+;
+
+fillNullWithIntegerValue
+required_capability: fillnull
+
+ROW a = null, b = 1, c = null
+| EVAL a = a::integer, c = c::integer
+| FILLNULL WITH 0 a, c
+;
+
+b:integer | a:integer | c:integer
+1          | 0         | 0
+;
+
+fillNullWithStringValue
+required_capability: fillnull
+
+ROW a = null, b = "hello", c = null
+| EVAL a = a::keyword, c = c::keyword
+| FILLNULL WITH "N/A" a, c
+;
+
+b:keyword | a:keyword | c:keyword
+hello      | N/A       | N/A
+;
+
+fillNullPreservesNonNullValues
+required_capability: fillnull
+
+ROW a = "existing", b = null
+| EVAL b = b::keyword
+| FILLNULL WITH "default" a, b
+;
+
+a:keyword | b:keyword
+existing   | default
+;
+
+fillNullWithBooleanDefault
+required_capability: fillnull
+
+ROW a = null, b = true
+| EVAL a = a::boolean
+| FILLNULL a
+;
+
+b:boolean | a:boolean
+true       | false
+;
+
+fillNullWithBooleanValue
+required_capability: fillnull
+
+ROW a = null, b = false
+| EVAL a = a::boolean
+| FILLNULL WITH true a
+;
+
+b:boolean | a:boolean
+false      | true
+;
+
+fillNullWithNullLiteral
+required_capability: fillnull
+
+ROW a = null, b = 1
+| EVAL a = a::keyword
+| FILLNULL WITH null a
+;
+
+b:integer | a:keyword
+1          | null
+;
+
+fillNullWithDoubleValue
+required_capability: fillnull
+
+ROW a = null, b = 3.14
+| EVAL a = a::double
+| FILLNULL WITH 0.0 a
+;
+
+b:double | a:double
+3.14      | 0.0
+;
+
+fillNullLongDefault
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::long
+| FILLNULL a
+;
+
+a:long
+0
+;
+
+fillNullNoNulls
+required_capability: fillnull
+
+ROW a = 1, b = 2
+| FILLNULL WITH 0 a, b
+;
+
+a:integer | b:integer
+1          | 2
+;
+
+fillNullSingleField
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::keyword
+| FILLNULL WITH "filled" a
+;
+
+a:keyword
+filled
+;
+
+fillNullChained
+required_capability: fillnull
+
+ROW a = null, b = null
+| EVAL a = a::keyword, b = b::integer
+| FILLNULL WITH "unknown" a
+| FILLNULL WITH 0 b
+;
+
+a:keyword | b:integer
+unknown    | 0
+;
+
+fillNullIsNotNullAfterFill
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::keyword
+| FILLNULL a
+| EVAL is_missing = a IS NULL
+;
+
+a:keyword | is_missing:boolean
+           | false
+;
+
+fillNullComposition
+required_capability: fillnull
+
+ROW a = null, b = 2
+| EVAL a = a::integer
+| FILLNULL WITH -1 a
+| EVAL sum_ab = a + b
+;
+
+b:integer | a:integer | sum_ab:integer
+2          | -1        | 1
+;
+
+fillNullWithIntegerValueIntoDouble
+required_capability: fillnull
+
+ROW a = null, b = 1.5
+| EVAL a = a::double
+| FILLNULL WITH 0 a
+;
+
+b:double | a:double
+1.5       | 0.0
+;
+
+// The INTEGER fill literal is converted at plan time to the LONG column type and applied to an actually-null value
+// (fillNullOnVersionMetadata only exercises the conversion on a non-null _version).
+fillNullWithIntegerValueIntoLong
+required_capability: fillnull
+
+ROW a = null, b = 2
+| EVAL a = a::long
+| FILLNULL WITH 0 a
+;
+
+b:integer | a:long
+2          | 0
+;
+
+fillNullThenWhereIsNullIsEmpty
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::keyword
+| FILLNULL WITH "x" a
+| WHERE a IS NULL
+;
+
+a:keyword
+;
+
+fillNullWithValueSkipsIncompatibleAllFields
+required_capability: fillnull
+
+ROW i = null, k = null
+| EVAL i = i::integer, k = k::keyword
+| FILLNULL WITH 0
+;
+
+i:integer | k:keyword
+0          | null
+;
+
+// All-fields mode: the LONG fill value is type-compatible with the INTEGER column but its value
+// overflows the INTEGER range, so that column is skipped (left null) instead of failing the query;
+// the LONG column is filled normally.
+fillNullWithValueSkipsOutOfRangeAllFields
+required_capability: fillnull
+
+ROW i = null, l = null
+| EVAL i = i::integer, l = l::long
+| FILLNULL WITH 9999999999999
+;
+
+i:integer | l:long
+null       | 9999999999999
+;
+
+fillNullUnsupportedTypeLeftNull
+required_capability: fillnull
+
+ROW d = null, i = null
+| EVAL d = d::datetime, i = i::integer
+| FILLNULL
+;
+
+d:datetime | i:integer
+null        | 0
+;
+
+fillNullThenWhere
+required_capability: fillnull
+
+ROW a = null, b = 1
+| EVAL a = a::integer
+| FILLNULL WITH 0 a
+| WHERE a == 0 AND b == 1
+;
+
+b:integer | a:integer
+1          | 0
+;
+
+fillNullThenStats
+required_capability: fillnull
+
+ROW g = 1, a = null
+| EVAL a = a::integer
+| FILLNULL a
+| STATS s = SUM(a) BY g
+;
+
+s:long | g:integer
+0       | 1
+;
+
+fillNullFromGenderKeyword
+required_capability: fillnull
+
+FROM employees
+| WHERE gender IS NULL
+| FILLNULL WITH "Unknown" gender
+| KEEP emp_no, first_name, gender
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword | gender:keyword
+10010           | Duangkaew          | Unknown
+10011           | Mary               | Unknown
+10012           | Patricio           | Unknown
+;
+
+fillNullFromNonNullUntouched
+required_capability: fillnull
+
+FROM employees
+| WHERE gender IS NOT NULL
+| FILLNULL WITH "Unknown" gender
+| KEEP emp_no, first_name, gender
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword | gender:keyword
+10001           | Georgi             | M
+10002           | Bezalel            | F
+10003           | Parto              | M
+;
+
+fillNullFromThenSort
+required_capability: fillnull
+
+FROM employees
+| FILLNULL WITH "Unknown" gender
+| KEEP emp_no, gender
+| SORT gender, emp_no
+| LIMIT 3
+;
+
+emp_no:integer | gender:keyword
+10002           | F
+10006           | F
+10007           | F
+;
+
+fillNullFromThenStats
+required_capability: fillnull
+
+FROM employees
+| FILLNULL WITH "Unknown" gender
+| STATS c = COUNT(*) BY gender
+| SORT gender
+;
+
+c:long | gender:keyword
+33      | F
+57      | M
+10      | Unknown
+;
+
+fillNullOnIndexMetadata
+required_capability: fillnull
+
+FROM employees METADATA _index
+| WHERE emp_no == 10001
+| FILLNULL WITH "missing" _index
+| KEEP emp_no, _index
+;
+
+emp_no:integer | _index:keyword
+10001           | employees
+;
+
+fillNullOnIdMetadata
+required_capability: fillnull
+
+FROM employees METADATA _id
+| WHERE emp_no == 10001
+| FILLNULL WITH "missing" _id
+| STATS c = COUNT(*) BY has_id = (_id IS NOT NULL)
+;
+
+c:long | has_id:boolean
+1       | true
+;
+
+fillNullOnVersionMetadata
+required_capability: fillnull
+
+FROM employees METADATA _version
+| WHERE emp_no == 10001
+| FILLNULL WITH 0 _version
+| KEEP emp_no, _version
+;
+
+emp_no:integer | _version:long
+10001           | 1
+;
+
+fillNullAllFieldsModeWithMetadata
+required_capability: fillnull
+
+FROM employees METADATA _index
+| WHERE emp_no == 10001
+| FILLNULL WITH 0
+| KEEP emp_no, _index, gender
+;
+
+emp_no:integer | _index:keyword | gender:keyword
+10001           | employees      | M
+;
+
+fillNullOnMVField
+required_capability: fillnull
+
+FROM employees
+| WHERE emp_no IN (10001, 10003)
+| FILLNULL WITH "None" job_positions
+| KEEP emp_no, job_positions
+| SORT emp_no
+;
+
+emp_no:integer | job_positions:keyword
+10001           | [Accountant, Senior Python Developer]
+10003           | None
+;
+
+fillNullAllFieldsModePreservesMV
+required_capability: fillnull
+
+FROM employees
+| WHERE emp_no == 10001
+| FILLNULL WITH "None"
+| KEEP emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword
+10001           | [Accountant, Senior Python Developer]
+;
+
+fillNullThenMvCount
+required_capability: fillnull
+
+FROM employees
+| WHERE emp_no IN (10003, 10005, 10010)
+| FILLNULL WITH "None" job_positions
+| EVAL n = MV_COUNT(job_positions)
+| KEEP emp_no, n
+| SORT emp_no
+;
+
+emp_no:integer | n:integer
+10003           | 1
+10005           | 1
+10010           | 4
+;
+
+fillNullThenCountDistinctByGender
+required_capability: fillnull
+
+FROM employees
+| FILLNULL WITH "Unknown" gender
+| STATS d = COUNT_DISTINCT(emp_no) BY gender
+| SORT gender
+;
+
+d:long | gender:keyword
+33      | F
+57      | M
+10      | Unknown
+;
+
+fillNullCompositionInEval
+required_capability: fillnull
+
+FROM employees
+| WHERE emp_no IN (10020, 10021, 10022)
+| FILLNULL WITH 0 languages
+| EVAL bonus = languages + 10
+| KEEP emp_no, languages, bonus
+| SORT emp_no
+;
+
+emp_no:integer | languages:integer | bonus:integer
+10020           | 0                 | 10
+10021           | 0                 | 10
+10022           | 0                 | 10
+;
+
+fillNullThenFilterOnFilled
+required_capability: fillnull
+
+FROM employees
+| FILLNULL WITH "Unknown" gender
+| WHERE gender == "Unknown"
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;
+
+fillNullThenIsNotNull
+required_capability: fillnull
+
+FROM employees
+| FILLNULL WITH "Unknown" gender
+| WHERE gender IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
+fillNullPreservesColumnOrder
+required_capability: fillnull
+
+FROM employees
+| WHERE emp_no == 10001
+| FILLNULL WITH "Unknown" gender
+| KEEP first_name, gender, emp_no
+;
+
+first_name:keyword | gender:keyword | emp_no:integer
+Georgi              | M              | 10001
+;
+
+fillNullOnNullTypedColumnIsSkipped
+required_capability: fillnull
+
+ROW a = null, b = 1
+| FILLNULL WITH "x" a
+| KEEP a, b
+;
+
+a:null | b:integer
+null    | 1
+;
+
+fillNullAllFieldsWithValueSkipsNullTypedColumn
+required_capability: fillnull
+
+ROW a = null, b = null
+| EVAL b = b::keyword
+| FILLNULL WITH "x"
+;
+
+a:null | b:keyword
+null    | x
+;
+
+fillNullDefaultModeOnMappedFieldIsNoOp
+required_capability: fillnull
+required_capability: unmapped_fields_default_setting_rename
+
+SET unmapped_fields="default"\;
+FROM partial_mapping_sample_data
+| FILLNULL WITH "missing" message
+| KEEP @timestamp, message
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:date          | message:keyword
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
+2024-10-23T13:53:55.832Z | Connection error?
+2024-10-23T13:52:55.015Z | Connection error?
+;
+
+fillNullNullifyModeAllFieldsNoValuePreservesNullTyped
+required_capability: fillnull
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, message, unmapped_message
+| FILLNULL
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:date          | message:keyword        | unmapped_message:null
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | null
+2024-10-23T13:53:55.832Z | Connection error?      | null
+2024-10-23T13:52:55.015Z | Connection error?      | null
+;
+
+fillNullNullifyModeAllFieldsWithStringValue
+required_capability: fillnull
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, event_duration, message, unmapped_message
+| FILLNULL WITH "missing"
+| SORT @timestamp DESC
+| LIMIT 2
+;
+
+@timestamp:date          | event_duration:long | message:keyword        | unmapped_message:null
+2024-10-23T13:55:01.543Z | 1756466             | Connected to 10.1.0.1! | null
+2024-10-23T13:53:55.832Z | 5033754             | Connection error?      | null
+;
+
+fillNullNullifyModeExplicitTargetOnNullTypedUnmappedField
+required_capability: fillnull
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, unmapped_message
+| FILLNULL WITH "missing" unmapped_message
+| SORT @timestamp DESC
+| LIMIT 2
+;
+
+@timestamp:date          | unmapped_message:null
+2024-10-23T13:55:01.543Z | null
+2024-10-23T13:53:55.832Z | null
+;
+
+fillNullNullifyModeExplicitTargetOnMappedField
+required_capability: fillnull
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| FILLNULL WITH "missing" message
+| KEEP @timestamp, message
+| SORT @timestamp DESC
+| LIMIT 2
+;
+
+@timestamp:date          | message:keyword
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
+2024-10-23T13:53:55.832Z | Connection error?
+;
+
+fillNullLoadModeOnUnmappedKeywordField
+required_capability: fillnull
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, message, unmapped_message
+| FILLNULL WITH "missing" unmapped_message
+| SORT @timestamp DESC
+| LIMIT 2
+;
+
+@timestamp:date          | message:keyword        | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | Connection error?      | Disconnection error
+;
+
+fillNullLoadModeFillsExcludedSourceMappedField
+required_capability: fillnull
+required_capability: optional_fields_v5
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_excluded_source_sample_data
+| KEEP @timestamp, message
+| FILLNULL WITH "missing" message
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:date          | message:keyword
+2024-10-23T13:55:01.543Z | missing
+2024-10-23T13:53:55.832Z | missing
+2024-10-23T13:52:55.015Z | missing
+;
+
+fillNullLoadModeAllFieldsNoValue
+required_capability: fillnull
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, message, unmapped_message
+| FILLNULL
+| SORT @timestamp DESC
+| LIMIT 2
+;
+
+@timestamp:date          | message:keyword        | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | Connection error?      | Disconnection error
+;
+
+fillNullLoadModeChainedOnUnmappedField
+required_capability: fillnull
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, unmapped_message
+| FILLNULL WITH "first" unmapped_message
+| FILLNULL WITH "second" unmapped_message
+| SORT @timestamp DESC
+| LIMIT 1
+;
+
+@timestamp:date          | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | Disconnected from 10.1.0.1
+;
+
+fillNullLoadModeStatsByUnmappedField
+required_capability: fillnull
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| FILLNULL WITH "missing" unmapped_message
+| STATS c = COUNT(*) BY unmapped_message
+| SORT unmapped_message
+;
+
+c:long | unmapped_message:keyword
+1       | 43
+1       | Disconnected from 10.1.0.1
+1       | Disconnected from 10.1.0.2
+1       | Disconnected from 10.1.0.3
+3       | Disconnection error
+;
+
+fillNullThenRenameFilledField
+required_capability: fillnull
+
+// EVAL a = a::keyword shadows a, moving it after b, so the column order here is [b, a] -> [b, c].
+ROW a = null, b = 1
+| EVAL a = a::keyword
+| FILLNULL WITH "x" a
+| RENAME a AS c
+;
+
+b:integer | c:keyword
+1          | x
+;
+
+fillNullAllFieldsThenDropFilledField
+required_capability: fillnull
+
+// EVAL shadows a and b, moving them after c, so the column order is [c, a, b]; DROP b leaves [c, a].
+ROW a = null, b = null, c = 3
+| EVAL a = a::keyword, b = b::keyword
+| FILLNULL WITH "x"
+| DROP b
+;
+
+c:integer | a:keyword
+3          | x
+;
+
+fillNullFilledFieldInScalarFunction
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::keyword
+| FILLNULL WITH "hello" a
+| EVAL n = LENGTH(a)
+;
+
+a:keyword | n:integer
+hello      | 5
+;
+
+fillNullChainedOnSameFieldSecondIsNoOp
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::keyword
+| FILLNULL WITH "first" a
+| FILLNULL WITH "second" a
+;
+
+a:keyword
+first
+;
+
+fillNullAllFieldsMixedTypeDefaults
+required_capability: fillnull
+
+ROW i = null, l = null, d = null, k = null, b = null
+| EVAL i = i::integer, l = l::long, d = d::double, k = k::keyword, b = b::boolean
+| FILLNULL
+;
+
+i:integer | l:long | d:double | k:keyword | b:boolean
+0          | 0      | 0.0      |           | false
+;
+
+fillNullDottedFieldNameAfterColumnNarrowing
+required_capability: fillnull
+
+FROM datenanos-k8s
+| FILLNULL WITH 0 network.eth0.rx
+| STATS c = COUNT(*)
+;
+
+c:long
+200
+;
+
+
+fillNullPlainDottedFieldNameAfterColumnNarrowing
+required_capability: fillnull
+
+FROM datenanos-k8s
+| FILLNULL WITH 0 network.bytes_in
+| STATS c = COUNT(*)
+;
+
+c:long
+200
+;
+
+fillNullDottedFieldNameAfterForkAndStats
+required_capability: fillnull
+required_capability: fork_v9
+
+FROM datenanos-k8s
+| FORK (WHERE true) (WHERE true)
+| WHERE _fork == "fork1"
+| DROP _fork
+| FILLNULL WITH 0 network.eth0.rx
+| STATS c = COUNT(*)
+;
+
+c:long
+200
+;

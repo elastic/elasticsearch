@@ -147,6 +147,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
@@ -1058,6 +1059,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case LookupJoin j -> resolveLookupJoin(j, context);
                 case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
                 case Insist i -> resolveInsist(i, childrenOutput);
+                case FillNull f -> resolveFillNull(f, childrenOutput);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case Row row -> resolveRow(row);
@@ -1709,6 +1711,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return resolved;
+        }
+
+        private LogicalPlan resolveFillNull(FillNull fillNull, List<Attribute> childrenOutput) {
+            FillNull result = fillNull;
+            if (fillNull.targetFields().isEmpty() == false) {
+                List<Attribute> resolved = new ArrayList<>(fillNull.targetFields().size());
+                for (Attribute attr : fillNull.targetFields()) {
+                    if (attr instanceof UnresolvedAttribute ua) {
+                        resolved.add(maybeResolveAttribute(ua, childrenOutput));
+                    } else {
+                        resolved.add(attr);
+                    }
+                }
+                result = fillNull.withTargetFields(resolved);
+            }
+            // Materialize the fill aliases as NodeInfo state once inputs resolve, in the same post-order ResolveRefs
+            // pass that builds the output so downstream consumers see the filled schema. See FillNull#materialize.
+            if (result.inputsResolved() && result.expressionsResolved() == false) {
+                result = result.materialize(childrenOutput);
+            }
+            return result;
         }
 
         private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput) {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.util.Arrays;
 
 /**
  * A pass-through {@link Reader} that tracks the UTF-8 byte offset of every character it produces, so a
@@ -23,17 +24,19 @@ import java.io.Reader;
  * parser and records, for the monotonically increasing stream of characters it passes through, the byte
  * offset at which each character's encoding begins.
  *
- * <p><b>How the byte width is derived.</b> Widths are computed from the produced {@code char}s, not by
- * re-reading bytes: a BMP character below {@code U+0080} is one byte, below {@code U+0800} two, otherwise
- * three; a surrogate <em>pair</em> (one supplementary code point, two {@code char}s) is four bytes total,
- * attributed to the high surrogate with the low surrogate contributing zero. This is exact for UTF-8.
- * Record boundaries never fall inside a code point, so attributing the pair's four bytes to the high
- * surrogate keeps every record start byte-exact.
+ * <p><b>Sparse, ASCII-cheap tracking.</b> Byte offsets are derived from the produced {@code char}s: a BMP
+ * character below {@code U+0080} is one byte, below {@code U+0800} two, otherwise three; a surrogate
+ * <em>pair</em> (one supplementary code point, two {@code char}s) is four bytes total, attributed to the
+ * high surrogate with the low surrogate contributing zero. Because the overwhelming majority of CSV/TSV is
+ * ASCII (one byte per char, so byte offset == char offset), only the rare NON-ASCII characters record an
+ * "extra bytes" event ({@code width - 1}); ASCII characters record nothing. So the hot {@code read} loop does
+ * a single width check per char with no per-char store, and {@link #byteOffsetAtChar} is O(1) across a
+ * pure-ASCII run. This is exact for UTF-8; record boundaries never fall inside a code point.
  *
  * <p><b>Query contract.</b> {@link #byteOffsetAtChar(long)} must be called with non-decreasing character
  * offsets (record starts arrive in file order). It advances an internal cursor and is therefore O(1)
- * amortized; the only retained state is the run of per-character widths between the last query and the
- * furthest character produced so far (bounded by the parser's read-ahead). Not thread-safe; one reader
+ * amortized; the only retained state is the run of non-ASCII "extra bytes" events between the last query and
+ * the furthest character produced so far (bounded by the parser's read-ahead). Not thread-safe; one reader
  * drives one parser on one thread.
  */
 final class ByteOffsetTrackingReader extends Reader {
@@ -48,17 +51,21 @@ final class ByteOffsetTrackingReader extends Reader {
     private long cursorCharOffset;
     private long cursorByteOffset;
 
-    /**
-     * Per-character UTF-8 byte widths for characters in {@code [cursorCharOffset, charsProduced)} — the
-     * window between the last query and what has been produced. A ring would be tighter, but the window
-     * is bounded by the parser's read-ahead, so a trimmed array buffer is enough.
-     */
-    private byte[] widths = new byte[1024];
-    /** Number of valid entries in {@link #widths}, i.e. characters produced but not yet passed by a query. */
-    private int pending;
-
     /** When the previous produced character was a high surrogate, the pair's 4 bytes were already counted. */
     private boolean expectLowSurrogate;
+
+    /**
+     * Sparse "extra bytes" events for NON-ASCII characters in {@code [cursorCharOffset, charsProduced)}: the
+     * char offset of each such character and its {@code width - 1} extra UTF-8 bytes (negative for a low
+     * surrogate, whose 0-byte width the high surrogate already accounted for). ASCII characters are implicit
+     * (one byte each), so pure-ASCII input produces no events.
+     */
+    private long[] eventCharOffset = new long[16];
+    private byte[] eventExtraBytes = new byte[16];
+    /** Index of the first event not yet passed by a query. */
+    private int eventHead;
+    /** One past the last recorded event. */
+    private int eventCount;
 
     ByteOffsetTrackingReader(Reader delegate, long baseByteOffset) {
         this.delegate = delegate;
@@ -73,34 +80,48 @@ final class ByteOffsetTrackingReader extends Reader {
             return n;
         }
         for (int i = 0; i < n; i++) {
-            recordWidth(cbuf[off + i]);
+            char c = cbuf[off + i];
+            int width;
+            if (expectLowSurrogate) {
+                // The 4 bytes of the surrogate pair were attributed to the high surrogate already.
+                expectLowSurrogate = false;
+                width = 0;
+            } else if (Character.isHighSurrogate(c)) {
+                expectLowSurrogate = true;
+                width = 4;
+            } else if (c < 0x80) {
+                width = 1;
+            } else if (c < 0x800) {
+                width = 2;
+            } else {
+                width = 3;
+            }
+            if (width != 1) {
+                recordEvent(charsProduced, width - 1);
+            }
+            charsProduced++;
         }
         return n;
     }
 
-    private void recordWidth(char c) {
-        int width;
-        if (expectLowSurrogate) {
-            // The 4 bytes of the surrogate pair were attributed to the high surrogate already.
-            expectLowSurrogate = false;
-            width = 0;
-        } else if (Character.isHighSurrogate(c)) {
-            expectLowSurrogate = true;
-            width = 4;
-        } else if (c < 0x80) {
-            width = 1;
-        } else if (c < 0x800) {
-            width = 2;
-        } else {
-            width = 3;
+    private void recordEvent(long charOffset, int extraBytes) {
+        if (eventCount == eventCharOffset.length) {
+            // Compact away already-consumed events; grow only if the live run still fills the buffer.
+            if (eventHead > 0) {
+                int live = eventCount - eventHead;
+                System.arraycopy(eventCharOffset, eventHead, eventCharOffset, 0, live);
+                System.arraycopy(eventExtraBytes, eventHead, eventExtraBytes, 0, live);
+                eventHead = 0;
+                eventCount = live;
+            }
+            if (eventCount == eventCharOffset.length) {
+                eventCharOffset = Arrays.copyOf(eventCharOffset, eventCharOffset.length * 2);
+                eventExtraBytes = Arrays.copyOf(eventExtraBytes, eventExtraBytes.length * 2);
+            }
         }
-        if (pending == widths.length) {
-            byte[] grown = new byte[widths.length * 2];
-            System.arraycopy(widths, 0, grown, 0, widths.length);
-            widths = grown;
-        }
-        widths[pending++] = (byte) width;
-        charsProduced++;
+        eventCharOffset[eventCount] = charOffset;
+        eventExtraBytes[eventCount] = (byte) extraBytes;
+        eventCount++;
     }
 
     /**
@@ -116,14 +137,12 @@ final class ByteOffsetTrackingReader extends Reader {
         if (charOffset > charsProduced) {
             throw new IllegalArgumentException("byteOffsetAtChar(" + charOffset + ") exceeds characters produced (" + charsProduced + ")");
         }
-        int advance = Math.toIntExact(charOffset - cursorCharOffset);
-        for (int i = 0; i < advance; i++) {
-            cursorByteOffset += widths[i];
+        // One byte per char, plus the extra bytes of any non-ASCII char strictly before charOffset.
+        cursorByteOffset += charOffset - cursorCharOffset;
+        while (eventHead < eventCount && eventCharOffset[eventHead] < charOffset) {
+            cursorByteOffset += eventExtraBytes[eventHead];
+            eventHead++;
         }
-        // Drop the consumed prefix so the window only holds chars produced past this query.
-        int remaining = pending - advance;
-        System.arraycopy(widths, advance, widths, 0, remaining);
-        pending = remaining;
         cursorCharOffset = charOffset;
         return cursorByteOffset;
     }

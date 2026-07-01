@@ -55,6 +55,28 @@ public class ByteOffsetTrackingReaderTests extends ESTestCase {
         assertEquals((long) s.length(), reader.byteOffsetAtChar(s.length()));
     }
 
+    /**
+     * Many non-ASCII characters interleaved with ASCII, exercising the sparse "extra bytes" event buffer's
+     * growth + compaction (well past its initial capacity) and the O(1)-per-ASCII-run advance. Each record is
+     * {@code "é\n"} (an 'é' = 2 bytes + a newline = 1 byte = 3 bytes / 2 chars), so record {@code r} starts at
+     * char {@code 2r} and byte {@code 3r}.
+     */
+    public void testManyMultibyteEventsGrowAndCompact() throws Exception {
+        int records = 200;
+        StringBuilder sb = new StringBuilder();
+        for (int r = 0; r < records; r++) {
+            sb.append('é').append('\n'); // 'é' then newline
+        }
+        String s = sb.toString();
+        ByteOffsetTrackingReader reader = new ByteOffsetTrackingReader(new StringReader(s), 0L);
+        char[] buf = new char[7]; // odd, small buffer -> refills split code points across reads
+        while (reader.read(buf, 0, buf.length) >= 0) {
+        }
+        for (int r = 0; r <= records; r++) {
+            assertEquals("record " + r + " byte start", 3L * r, reader.byteOffsetAtChar(2L * r));
+        }
+    }
+
     public void testNonDecreasingQueryContractEnforced() throws Exception {
         ByteOffsetTrackingReader reader = new ByteOffsetTrackingReader(new StringReader("abcd"), 0L);
         char[] buf = new char[8];

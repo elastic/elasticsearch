@@ -593,7 +593,7 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
         }
     }
 
-    // This method issues search request to retrieves the database chunks from the .geoip_databases index and passes
+    // This method issues a search request to retrieve the database chunks from the .geoip_databases index and passes
     // them to the chunkConsumer (which appends the data to a tmp file). This method forks to the generic thread pool to do the search.
     void retrieveDatabase(
         ProjectId projectId,

@@ -51,6 +51,11 @@ public class PromqlHistogramQuantile extends AggregateFunction implements ToAggr
         })
         .description("Returns the φ-quantile of a classic histogram represented by cumulative `le` buckets.")
         .example("histogram_quantile(0.9, rate(http_request_duration_seconds_bucket[5m]))")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_5)
+        .differenceFromPrometheus(
+            "Only classic histograms, represented by cumulative `le` bucket series, are supported. Prometheus native "
+                + "histograms are not supported."
+        )
         .name("histogram_quantile");
 
     private final Expression upperBound;

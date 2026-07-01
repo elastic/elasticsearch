@@ -367,12 +367,51 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
         assertThat(((Number) rows.get(3).get(2)).longValue(), equalTo(75000L));
     }
 
-    public void testMixedTargetsInSubqueryRejected() {
+    /**
+     * A subquery that mixes a real index with a dataset is allowed — {@code DatasetRewriter} builds a
+     * {@code UnionAll} for the inner {@code FROM real_employees, employees} instead of rejecting it.
+     * The outer query sees a single subquery result; real_employees rows carry nulls for the dataset-only columns.
+     */
+    public void testMixedTargetsInSubqueryAllowed() {
         createRealEmployees();
         registerEmployees();
 
-        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM (FROM real_employees, employees)"), TIMEOUT));
-        assertCauseMessageContains(ex, "mixing datasets and non-datasets");
+        try (var response = run(syncEsqlQueryRequest("FROM (FROM real_employees, employees) | SORT emp_no, first_name"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(5));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(8)); // 5 from real_employees + 3 from employees
+
+            int empNoIdx = columns.stream().map(ColumnInfo::name).toList().indexOf("emp_no");
+            int firstNameIdx = columns.stream().map(ColumnInfo::name).toList().indexOf("first_name");
+            int lastNameIdx = columns.stream().map(ColumnInfo::name).toList().indexOf("last_name");
+
+            // emp_no=1: dataset row (Alice) sorts before index row (Alice-real)
+            assertThat(rows.get(0).get(empNoIdx), equalTo(1));
+            assertThat(rows.get(0).get(firstNameIdx).toString(), equalTo("Alice"));
+            assertThat(rows.get(0).get(lastNameIdx).toString(), equalTo("Anderson"));
+            assertThat(rows.get(1).get(empNoIdx), equalTo(1));
+            assertThat(rows.get(1).get(firstNameIdx).toString(), equalTo("Alice-real"));
+            assertNull(rows.get(1).get(lastNameIdx)); // real_employees has no last_name
+
+            // emp_no=2: dataset only
+            assertThat(rows.get(2).get(empNoIdx), equalTo(2));
+            assertThat(rows.get(2).get(firstNameIdx).toString(), equalTo("Bob"));
+
+            // emp_no=3: dataset row (Carol) then index row (Carol-real)
+            assertThat(rows.get(3).get(empNoIdx), equalTo(3));
+            assertThat(rows.get(3).get(firstNameIdx).toString(), equalTo("Carol"));
+            assertThat(rows.get(4).get(empNoIdx), equalTo(3));
+            assertThat(rows.get(4).get(firstNameIdx).toString(), equalTo("Carol-real"));
+            assertNull(rows.get(4).get(lastNameIdx));
+
+            // emp_no >= 99: real_employees only, null-padded
+            assertThat(rows.get(5).get(empNoIdx), equalTo(99));
+            assertNull(rows.get(5).get(lastNameIdx));
+            assertThat(rows.get(6).get(empNoIdx), equalTo(100));
+            assertThat(rows.get(7).get(empNoIdx), equalTo(101));
+        }
     }
 
     public void testIndexInMainMultipleDatasetInSubqueryRejected() {

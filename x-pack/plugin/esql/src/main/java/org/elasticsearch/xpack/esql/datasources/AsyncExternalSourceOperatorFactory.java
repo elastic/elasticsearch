@@ -72,6 +72,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils.drainPagesAsync;
 
@@ -115,9 +116,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final FormatReader formatReader;
     private final StoragePath path;
     private final List<Attribute> attributes;
-    // Data-attribute view of {@link #attributes} (metadata attributes stripped). Built once at
-    // construction; used to shape pages handed to SchemaAdaptingIterator and to scope filter
-    // adaptation in mapFilters.
+    // Data-attribute view of {@link #attributes} (virtual columns and Hive-style partition columns
+    // stripped). Built once at construction; used to shape pages handed to SchemaAdaptingIterator
+    // and to scope filter adaptation in mapFilters. Partition columns are excluded so this width
+    // matches the file-backed ColumnMapping even when a partition key shadows a same-named physical
+    // column (see ExternalSchema#dataAttributesOf(List, Set)).
     private final ExternalSchema queryDataSchema;
     /**
      * {@link #attributes} minus the synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN}, used when
@@ -311,7 +314,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.formatReader = formatReader;
         this.path = path;
         this.attributes = attributes;
-        this.queryDataSchema = ExternalSchema.dataAttributesOf(attributes);
         this.readerResolvedAttributes = stripRowPosition(attributes);
         this.executor = executor;
         this.batchSize = batchSize;
@@ -360,6 +362,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             }
             this.partitionColumnNames = Collections.unmodifiableSet(union);
         }
+        // Resolve queryDataSchema AFTER the effective partitionColumnNames (including any standard
+        // metadata / _id / _source names unioned above) is final: the data-only schema must exclude
+        // partition and virtual/metadata columns so its width matches the file-backed ColumnMapping
+        // (a partition key may shadow a same-named physical column). See
+        // ExternalSchema#dataAttributesOf(List, Set).
+        this.queryDataSchema = ExternalSchema.dataAttributesOf(attributes, this.partitionColumnNames);
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
         this.datasetName = datasetName;
         this.lastModifiedMillis = lastModifiedMillis;
@@ -1689,7 +1697,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     firstSplit,
                     perFileReadSchema,
                     fileSplit.offset(),
-                    state.buffer.capturedSourceMetadataSink()
+                    state.buffer.capturedSourceMetadataSink(),
+                    state.buffer::recordWarning
                 );
                 if (pages == null) {
                     boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
@@ -1871,7 +1880,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 true,
                 perFileReadSchema,
                 0L,
-                state.buffer.capturedSourceMetadataSink()
+                state.buffer.capturedSourceMetadataSink(),
+                state.buffer::recordWarning
             );
             if (pages == null) {
                 int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
@@ -1972,7 +1982,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 true,
                 null,
                 0L,
-                buffer.capturedSourceMetadataSink()
+                buffer.capturedSourceMetadataSink(),
+                buffer::recordWarning
             );
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
@@ -2215,7 +2226,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         boolean splitIncludesFileLeader,
         @Nullable List<Attribute> perFileReadSchema,
         long baseFileOffset,
-        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        @Nullable Consumer<String> partialResultsWarningSink
     ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             return null;
@@ -2280,7 +2292,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         perFileReadSchema,
                         baseFileOffset,
                         maxRecordBytes,
-                        captureSink
+                        captureSink,
+                        partialResultsWarningSink
                     );
                 } catch (Exception e) {
                     try {

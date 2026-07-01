@@ -20,6 +20,7 @@ import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfEncoder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
@@ -107,7 +108,7 @@ final class BulkBatchEncoders implements Releasable {
      * pre-scan logic can be exercised in isolation.
      */
     static boolean isItemBatchEligible(IndexRequest request) {
-        return request.indexSource().hasSource() && request.getContentType() != null && request.indexSource().hasEirfRow() == false;
+        return request.indexSource().hasSource() && request.getContentType() != null && request.indexSource().hasSourceRow() == false;
     }
 
     /**
@@ -176,11 +177,11 @@ final class BulkBatchEncoders implements Releasable {
      * on each item routed there (replacing inline source bytes with a row reference), and return
      * the resulting batches keyed by ShardId. Returns an empty map when {@link #disabled()} is true.
      */
-    Map<ShardId, EirfBatch> finalizeBatches() {
+    Map<ShardId, SourceBatch> finalizeBatches() {
         if (disabled) {
             return Collections.emptyMap();
         }
-        Map<ShardId, EirfBatch> batchesByShard = new HashMap<>();
+        Map<ShardId, SourceBatch> batchesByShard = new HashMap<>();
         for (IndexState state : indexStates.values()) {
             for (Map.Entry<ShardId, List<PendingAttachment>> entry : state.pendingByShard.entrySet()) {
                 List<PendingAttachment> pending = entry.getValue();
@@ -191,7 +192,7 @@ final class BulkBatchEncoders implements Releasable {
                 EirfBatch batch = state.encoder.buildPartition(shardId.getId());
                 batchesByShard.put(shardId, batch);
                 for (PendingAttachment attachment : pending) {
-                    attachment.indexRequest.indexSource().setEirfRow(batch, attachment.rowIndex);
+                    attachment.indexRequest.indexSource().setSourceRow(batch, attachment.rowIndex);
                 }
             }
         }

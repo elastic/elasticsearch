@@ -10,8 +10,8 @@
 package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.foreign.LinkerHelperUtil;
 import org.elasticsearch.foreign.LoaderHelper;
+import org.elasticsearch.foreign.adapter.LinkerAdapter;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
@@ -118,7 +118,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             var function = functionAddressOrNull(functionName + suffix);
             if (function != null) {
                 logger.debug("Binding {}", fullFunctionName);
-                return downcallHandle(function, functionDescriptor, LinkerHelperUtil.critical());
+                return downcallHandle(function, functionDescriptor, LinkerAdapter.critical());
             }
         }
         throw new LinkageError("Native function [" + functionName + "] could not be found");

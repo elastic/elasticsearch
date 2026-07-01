@@ -35,6 +35,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
@@ -515,6 +516,13 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         assertEquals("Open contexts on node " + searchNodeB + ".", 0L, searchService2.getActivePITContexts());
     }
 
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/150288",
+        value = "org.elasticsearch.action.search:TRACE,"
+            + "org.elasticsearch.search.SearchService:TRACE,"
+            + "co.elastic.elasticsearch.stateless.recovery.TransportStatelessUnpromotableRelocationAction:DEBUG,"
+            + "co.elastic.elasticsearch.stateless.recovery.PITRelocationService:DEBUG"
+    )
     public void testPointInTimeRelocationClosingSourceContexts() throws Exception {
         assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         startMasterAndIndexNode(nodeSettings);
@@ -549,7 +557,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
                 logger.info("Executing search t1 #" + i);
                 assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId1.get())), resp -> {
                     final TotalHits totalHits = resp.getHits().getTotalHits();
-                    assertEquals("Wrong hits for search " + i, numDocs_pit1, totalHits.value());
+                    assertEquals("Wrong hits for search " + i + ", response: " + resp, numDocs_pit1, totalHits.value());
                     pitId1.set(resp.pointInTimeId());
                 });
             }
@@ -562,7 +570,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
                 logger.info("Executing search t2 #" + i);
                 assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId1.get())), resp -> {
                     final TotalHits totalHits = resp.getHits().getTotalHits();
-                    assertEquals("Wrong hits for search " + i, numDocs_pit1, totalHits.value());
+                    assertEquals("Wrong hits for search " + i + ", response: " + resp, numDocs_pit1, totalHits.value());
                     pitId1.set(resp.pointInTimeId());
                 });
             }

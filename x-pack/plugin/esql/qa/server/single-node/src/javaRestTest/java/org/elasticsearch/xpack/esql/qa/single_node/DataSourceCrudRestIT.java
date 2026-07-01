@@ -30,6 +30,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 /**
  * End-to-end REST coverage for the CRUD API against a cluster with {@code esql-datasource-s3}
@@ -91,6 +92,41 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         deleteDataSource(name);
     }
 
+    public void testEncryptionResetWipesSecretsButPreservesConfig() throws IOException {
+        final String name = "reset_test_ds";
+        putDataSource(name, "s3", Map.of("region", "us-east-1", "access_key", "AKIAFAKE", "secret_key", "SECRETVALUE"));
+
+        // Before reset: non-secret present, secrets masked
+        Map<String, Object> before = getDataSource(name);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> beforeSettings = (Map<String, Object>) ((List<Map<String, Object>>) before.get("data_sources")).get(0)
+            .get("settings");
+        assertThat(beforeSettings.get("region"), equalTo("us-east-1"));
+        assertThat(beforeSettings.get("access_key"), equalTo(MASK_SENTINEL));
+        assertThat(beforeSettings.get("secret_key"), equalTo(MASK_SENTINEL));
+
+        Request resetReq = new Request("POST", "/_encryption/_reset");
+        resetReq.addParameter("accept_data_loss", "true");
+        assertThat(client().performRequest(resetReq).getStatusLine().getStatusCode(), equalTo(200));
+
+        // After reset: datasource survives, non-secret config intact, secrets null
+        Map<String, Object> after = getDataSource(name);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> afterHits = (List<Map<String, Object>>) after.get("data_sources");
+        assertThat(afterHits, hasSize(1));
+        assertThat(afterHits.get(0).get("name"), equalTo(name));
+        assertThat(afterHits.get(0).get("type"), equalTo("s3"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> afterSettings = (Map<String, Object>) afterHits.get(0).get("settings");
+        assertThat("non-secret config preserved after reset", afterSettings.get("region"), equalTo("us-east-1"));
+        assertTrue("wiped secret key is present", afterSettings.containsKey("access_key"));
+        assertNull("wiped secret surfaces as null", afterSettings.get("access_key"));
+        assertTrue("wiped secret key is present", afterSettings.containsKey("secret_key"));
+        assertNull("wiped secret surfaces as null", afterSettings.get("secret_key"));
+
+        deleteDataSource(name);
+    }
+
     public void testPutDataSourceRejectsUnknownTopLevelField() throws IOException {
         Request req = new Request("PUT", "/_query/data_source/bogus_field_ds");
         try (XContentBuilder b = jsonBuilder()) {
@@ -120,6 +156,95 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         assertThat(missing.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
         deleteDataSource(parent);
+    }
+
+    public void testListDatasetsWithCoresidentDataStream() throws IOException {
+        // Repro for the GET _query/dataset 404 reported 2026-06-30: listing datasets must not blow up just because the
+        // cluster also holds an unrelated data stream (the reported one was the Entity Store's entities-updates-default). End to
+        // end through the real transport path (action filters + resolution), unlike the resolver unit test.
+        final String dataStream = "entities-updates-default";
+        Request tmpl = new Request("PUT", "/_index_template/entities-updates-tmpl");
+        tmpl.setJsonEntity("{\"index_patterns\":[\"entities-updates-*\"],\"data_stream\":{}}");
+        assertThat(client().performRequest(tmpl).getStatusLine().getStatusCode(), equalTo(200));
+        Request createDs = new Request("PUT", "/_data_stream/" + dataStream);
+        assertThat(client().performRequest(createDs).getStatusLine().getStatusCode(), equalTo(200));
+
+        final String parent = "coresident_parent";
+        final String dataset = "cloudtrail_logs";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1"));
+        putDataset(dataset, parent, "s3://bucket/cloudtrail/*.json.gz", Map.of());
+
+        // GET /_query/dataset (list all == "*") — this is the exact request from the bug report.
+        Response resp = client().performRequest(new Request("GET", "/_query/dataset"));
+        assertThat(resp.getStatusLine().getStatusCode(), equalTo(200));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> hits = (List<Map<String, Object>>) entityAsMap(resp).get("datasets");
+        assertThat(hits, hasSize(1));
+        assertThat(hits.get(0).get("name"), equalTo(dataset));
+
+        deleteDataset(dataset);
+        deleteDataSource(parent);
+        client().performRequest(new Request("DELETE", "/_data_stream/" + dataStream));
+        client().performRequest(new Request("DELETE", "/_index_template/entities-updates-tmpl"));
+    }
+
+    public void testGetDatasetByExplicitDataStreamNameReturnsCleanNotFound() throws IOException {
+        // GET an explicit name that happens to be a co-resident data stream. The dataset resolver throws
+        // IndexNotFoundException (with excluded_ds) before its Type.DATASET filter runs; the GET transport must
+        // translate that to a clean dataset-shaped not-found — never leak the raw index_not_found_exception.
+        // Mirrors the DELETE behavior. (Before the fix this leaked "excluded_ds"; that was the shape of the reported 404.)
+        final String dataStream = "entities-updates-default";
+        Request tmpl = new Request("PUT", "/_index_template/entities-updates-tmpl");
+        tmpl.setJsonEntity("{\"index_patterns\":[\"entities-updates-*\"],\"data_stream\":{}}");
+        assertThat(client().performRequest(tmpl).getStatusLine().getStatusCode(), equalTo(200));
+        Request createDs = new Request("PUT", "/_data_stream/" + dataStream);
+        assertThat(client().performRequest(createDs).getStatusLine().getStatusCode(), equalTo(200));
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> client().performRequest(new Request("GET", "/_query/dataset/" + dataStream))
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+            String body = EntityUtils.toString(ex.getResponse().getEntity());
+            assertThat(body, containsString("dataset [" + dataStream + "] not found"));
+            assertThat("GET must not leak the raw index resolution error", body, not(containsString("excluded_ds")));
+            assertThat(body, not(containsString("index_not_found_exception")));
+        } finally {
+            client().performRequest(new Request("DELETE", "/_data_stream/" + dataStream));
+            client().performRequest(new Request("DELETE", "/_index_template/entities-updates-tmpl"));
+        }
+    }
+
+    public void testGetDatasetMixedValidAndDataStreamNamesNotFound() throws IOException {
+        // A comma-separated GET naming a valid dataset and a co-resident data stream: resolution throws on the
+        // data stream, so the whole request is a clean not-found that names the offending name (not the valid one,
+        // and not the raw index error). Confirms the error reports the specific failed name, mirroring delete.
+        final String dataStream = "entities-updates-default";
+        Request tmpl = new Request("PUT", "/_index_template/entities-updates-tmpl");
+        tmpl.setJsonEntity("{\"index_patterns\":[\"entities-updates-*\"],\"data_stream\":{}}");
+        assertThat(client().performRequest(tmpl).getStatusLine().getStatusCode(), equalTo(200));
+        Request createDs = new Request("PUT", "/_data_stream/" + dataStream);
+        assertThat(client().performRequest(createDs).getStatusLine().getStatusCode(), equalTo(200));
+        final String parent = "mixed_parent";
+        final String dataset = "valid_ds";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1"));
+        putDataset(dataset, parent, "s3://bucket/x/*.parquet", Map.of());
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> client().performRequest(new Request("GET", "/_query/dataset/" + dataset + "," + dataStream))
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+            String body = EntityUtils.toString(ex.getResponse().getEntity());
+            assertThat(body, containsString("dataset [" + dataStream + "] not found"));
+            assertThat(body, not(containsString("excluded_ds")));
+            assertThat(body, not(containsString("index_not_found_exception")));
+        } finally {
+            deleteDataset(dataset);
+            deleteDataSource(parent);
+            client().performRequest(new Request("DELETE", "/_data_stream/" + dataStream));
+            client().performRequest(new Request("DELETE", "/_index_template/entities-updates-tmpl"));
+        }
     }
 
     public void testPutDatasetWithMissingParent() throws IOException {

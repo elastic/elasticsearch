@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -257,9 +258,15 @@ class RetryPolicy {
                     decision.delayMillis(),
                     e.getMessage()
                 );
+                // Abort promptly if the originating query was already cancelled (skips the retry-count bump).
+                if (StorageRetryCancellation.isCancelled()) {
+                    throw new TaskCancelledException(StorageRetryCancellation.CANCELLED_MESSAGE);
+                }
                 onRetry.run();
                 try {
-                    Thread.sleep(decision.delayMillis());
+                    // Cancellation-aware sleep: polls during the delay so a cancel that flips mid-sleep aborts
+                    // within ~one poll interval rather than waiting out the full (up to 30s throttle) backoff.
+                    StorageRetryCancellation.sleepWithCancellationChecks(decision.delayMillis());
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     throw e;

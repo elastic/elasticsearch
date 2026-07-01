@@ -488,7 +488,6 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                     IndexVersion.current(),
                     true,
                     true,
-                    false,
                     new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true)
                 );
 

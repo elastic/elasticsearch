@@ -186,6 +186,37 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         as(preAggregateEval.child(), ExternalRelation.class);
     }
 
+    /**
+     * An external grouping column is renamed, a value is derived from the renamed column, then both the
+     * renamed column and the derived value are used as STATS BY keys. The derived key is functionally dependent on the
+     * renamed column, so it is pruned and rebuilt above the aggregate. The rebuilt expression must reference the column
+     * as the aggregate re-exposes it (i.e. the rename alias {@code cip}), not the pre-aggregate external id which the
+     * aggregate no longer surfaces. Otherwise the rebuilt Eval dangles and the plan fails the post-optimization
+     * consistency check. The same query over a native index is unaffected because the rule only prunes external
+     * groupings (see {@link #testDoesNotPruneDerivedOrdinaryIndexGrouping}).
+     */
+    public void testPrunesRenamedDerivedExternalGrouping() {
+        var plan = externalPlan("""
+            EXTERNAL "s3://bucket/data.parquet"
+            | RENAME ClientIP AS cip
+            | EVAL c = cip - 1
+            | STATS count = COUNT(*) BY cip, c
+            """);
+
+        var project = rewrittenProject(plan);
+        assertThat(Expressions.names(project.projections()), contains("count", "cip", "c"));
+
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("c"));
+        // the rebuilt grouping must read the aggregate's renamed output, not the pre-aggregate external attribute
+        assertThat(Expressions.names(eval.fields().get(0).child().references()), contains("cip"));
+
+        var aggregate = rewrittenAggregate(eval);
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("count", "cip"));
+        as(aggregate.child(), ExternalRelation.class);
+    }
+
     public void testDoesNotPruneInlineStatsGroupings() {
         assumeTrue("requires INLINE STATS command capability", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         var plan = plan("""

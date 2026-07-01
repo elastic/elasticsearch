@@ -119,7 +119,7 @@ if [[ "${USE_PI_AGENT:-}" == "true" ]]; then
   export PATH="${HOME}/.local/bin:${PATH}"
 
   # Bootstrap pi-agent if not already cached on this agent.
-  PI_AGENT_TAG="${PI_AGENT_TAG:-pi-agent-v1.0.5}"
+  PI_AGENT_TAG="${PI_AGENT_TAG:-pi-agent-v1.0.6}"
   PI_AGENT_DIR="${HOME}/.local/pi-agent"
 
   if [[ ! -x "${PI_AGENT_DIR}/bin/pi-agent.js" ]]; then

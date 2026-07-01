@@ -69,6 +69,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
@@ -547,7 +548,13 @@ class StatelessIndexEventListener implements IndexEventListener {
         Map<String, BlobFileRanges> blobFileRanges,
         Map<BlobFile, Long> offsetsToWarm,
         Map<BlobFile, Long> timestampsPerBlob
-    ) {}
+    ) {
+        public SearchRecoveryWarmingInputs {
+            Objects.requireNonNull(blobFileRanges);
+            Objects.requireNonNull(offsetsToWarm);
+            Objects.requireNonNull(timestampsPerBlob);
+        }
+    }
 
     @Override
     public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {

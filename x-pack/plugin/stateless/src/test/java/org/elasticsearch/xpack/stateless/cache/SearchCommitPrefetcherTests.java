@@ -204,8 +204,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
             commitFiles,
             Set.of("internal_1", "internal_2"),
             notificationRange.midpointMillis(),
-            resolver,
-            true
+            resolver
         );
 
         final Map<BlobFile, Long> timestampPerBlob = pending.timestampPerBlob();
@@ -376,8 +375,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
             commitFiles,
             Set.of(),
             randomLongBetween(1, Long.MAX_VALUE),
-            fileName -> randomLongBetween(1, Long.MAX_VALUE),
-            true
+            fileName -> randomLongBetween(1, Long.MAX_VALUE)
         ).ranges();
     }
 

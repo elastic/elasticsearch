@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
@@ -242,8 +243,7 @@ public class SearchCommitPrefetcher {
                 compoundCommit.commitFiles(),
                 compoundCommit.internalFiles(),
                 BlobFileRanges.midpointMillisOrUnknown(compoundCommit.getTimestampFieldValueRange()),
-                fileTimestampResolver,
-                cacheService.isCacheBoostPreferenceEnabled()
+                fileTimestampResolver
             );
             Map<BlobFile, ByteRange> bccRangesToPrefetch = pendingPrefetchDetails.ranges();
             Map<BlobFile, Long> timestampPerBlob = pendingPrefetchDetails.timestampPerBlob();
@@ -284,7 +284,9 @@ public class SearchCommitPrefetcher {
 
                 var cacheBlobReader = cacheBlobReaderSupplier.getCacheBlobReaderForPreFetching(blobFile);
 
-                final long timestampMillis = timestampPerBlob.getOrDefault(blobFile, SharedBlobCacheService.UNKNOWN_TIMESTAMP);
+                final long timestampMillis = cacheService.isCacheBoostPreferenceEnabled()
+                    ? timestampPerBlob.getOrDefault(blobFile, SharedBlobCacheService.UNKNOWN_TIMESTAMP)
+                    : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
 
                 // Calculate regions from the full range first, then compute the adjusted range per-region.
                 // This avoids Integer.MAX_VALUE truncation for > 2GB blobs.
@@ -381,7 +383,12 @@ public class SearchCommitPrefetcher {
         return maxPrefetchedOffset.get();
     }
 
-    public record PendingPrefetchDetails(Map<BlobFile, ByteRange> ranges, Map<BlobFile, Long> timestampPerBlob) {}
+    public record PendingPrefetchDetails(Map<BlobFile, ByteRange> ranges, Map<BlobFile, Long> timestampPerBlob) {
+        public PendingPrefetchDetails {
+            Objects.requireNonNull(ranges);
+            Objects.requireNonNull(timestampPerBlob);
+        }
+    }
 
     /**
      * Computes both the byte ranges to prefetch per blob and (optionally) a single representative data timestamp per blob.
@@ -392,8 +399,7 @@ public class SearchCommitPrefetcher {
         Map<String, BlobLocation> commitFiles,
         Set<String> internalFiles,
         long notificationCommitTimestamp,
-        FileTimestampResolver fileTimestampResolver,
-        boolean computeTimestamps
+        FileTimestampResolver fileTimestampResolver
     ) {
         Map<BlobFile, ByteRange> bccRangesToPrefetch = new HashMap<>();
         Map<BlobFile, Long> timestampPerBlob = new HashMap<>();
@@ -416,15 +422,15 @@ public class SearchCommitPrefetcher {
                     assert range.isSubRangeOf(extendedRange);
                     return extendedRange;
                 });
-                if (computeTimestamps) {
-                    long fileTimestamp = internalFiles.contains(fileName)
-                        ? notificationCommitTimestamp
-                        : fileTimestampResolver.getTimestampMillis(fileName);
-                    timestampPerBlob.merge(blobFile, fileTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
-                }
             }
-
+            // Calculate a timestamp over all the referenced files in the blob, not just those pending prefetch.
+            long fileTimestamp = internalFiles.contains(fileName)
+                ? notificationCommitTimestamp
+                : fileTimestampResolver.getTimestampMillis(fileName);
+            timestampPerBlob.merge(blobFile, fileTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
         }
+        timestampPerBlob.keySet().retainAll(bccRangesToPrefetch.keySet());
+        // substitute UNKNOWN_TIMESTAMP with the notification timestamp for any blob that has no known timestamp
         return new PendingPrefetchDetails(bccRangesToPrefetch, timestampPerBlob);
     }
 

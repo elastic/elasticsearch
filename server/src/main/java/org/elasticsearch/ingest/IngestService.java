@@ -56,8 +56,10 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.streams.StreamType;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -591,6 +593,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         nodeInfoListener.accept(listener.delegateFailureAndWrap((l, nodeInfos) -> {
             validatePipelineRequest(projectId, request, nodeInfos);
+            final ClusterSettings clusterSettings = clusterService.getClusterSettings();
+            validatePipelineSize(
+                projectId,
+                request,
+                clusterSettings.get(IngestSettings.MAX_PIPELINES),
+                clusterSettings.get(IngestSettings.MAX_PIPELINE_SIZE),
+                clusterSettings.get(IngestSettings.MAX_TOTAL_METADATA_SIZE)
+            );
 
             taskQueue.submitTask(
                 "put-pipeline-" + request.getId(),
@@ -598,6 +608,89 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 request.masterNodeTimeout()
             );
         }));
+    }
+
+    /**
+     * Rejects a pipeline that would put too much data into the cluster state. Pipelines are held in heap on every node and serialized on
+     * every cluster state update, so oversized or too-numerous pipelines can destabilize the cluster. Three safety limits are enforced,
+     * all read live from the (dynamically-updatable) cluster settings:
+     * <ul>
+     *     <li>the serialized size of the new pipeline ({@link IngestSettings#MAX_PIPELINE_SIZE}),</li>
+     *     <li>the total number of pipelines ({@link IngestSettings#MAX_PIPELINES}), enforced only when creating a new pipeline so existing
+     *     pipelines above the limit keep working, and</li>
+     *     <li>the combined serialized size of all pipelines ({@link IngestSettings#MAX_TOTAL_METADATA_SIZE}); per-pipeline and per-count
+     *     limits do not bound the aggregate, so many pipelines each just under the per-pipeline limit could otherwise accumulate.</li>
+     * </ul>
+     * These limits are only checked here, on the user-facing put path, and not in {@link PutPipelineClusterStateUpdateTask#execute} which
+     * is also used to apply operator-managed file-based pipelines -- those are trusted and must not be able to wedge cluster bootstrap.
+     * <p>
+     * Package-private and taking the limits as parameters (rather than reading them from the cluster settings itself) so it can be unit
+     * tested directly.
+     */
+    void validatePipelineSize(
+        ProjectId projectId,
+        PutPipelineRequest request,
+        int maxPipelines,
+        ByteSizeValue maxPipelineSize,
+        ByteSizeValue maxTotalSize
+    ) {
+        final PipelineConfiguration newPipeline = new PipelineConfiguration(
+            request.getId(),
+            request.getSource(),
+            request.getXContentType()
+        );
+        final long newSize = newPipeline.serializedSizeInBytes();
+        if (newSize > maxPipelineSize.getBytes()) {
+            throw new IllegalArgumentException(
+                "pipeline ["
+                    + request.getId()
+                    + "] of size ["
+                    + ByteSizeValue.ofBytes(newSize)
+                    + "] exceeds the maximum allowed size of ["
+                    + maxPipelineSize
+                    + "]; this limit is controlled by the ["
+                    + IngestSettings.MAX_PIPELINE_SIZE.getKey()
+                    + "] setting"
+            );
+        }
+
+        final IngestMetadata ingestMetadata = state.metadata().getProject(projectId).custom(IngestMetadata.TYPE);
+        final Map<String, PipelineConfiguration> existingPipelines = ingestMetadata == null ? Map.of() : ingestMetadata.getPipelines();
+        final boolean isNewPipeline = existingPipelines.containsKey(request.getId()) == false;
+
+        if (isNewPipeline && existingPipelines.size() >= maxPipelines) {
+            throw new IllegalArgumentException(
+                "could not create pipeline ["
+                    + request.getId()
+                    + "] because the maximum number of pipelines ["
+                    + maxPipelines
+                    + "] would be exceeded; this limit is controlled by the ["
+                    + IngestSettings.MAX_PIPELINES.getKey()
+                    + "] setting"
+            );
+        }
+
+        // The aggregate is the quantity that actually determines how much heap the ingest metadata occupies. Exclude the pipeline being
+        // replaced (if any) from the existing total, since the new definition supersedes it.
+        long totalSize = newSize;
+        for (Map.Entry<String, PipelineConfiguration> entry : existingPipelines.entrySet()) {
+            if (entry.getKey().equals(request.getId()) == false) {
+                totalSize += entry.getValue().serializedSizeInBytes();
+            }
+        }
+        if (totalSize > maxTotalSize.getBytes()) {
+            throw new IllegalArgumentException(
+                "could not store pipeline ["
+                    + request.getId()
+                    + "] because the total size of all ingest pipelines ["
+                    + ByteSizeValue.ofBytes(totalSize)
+                    + "] would exceed the maximum allowed size of ["
+                    + maxTotalSize
+                    + "]; this limit is controlled by the ["
+                    + IngestSettings.MAX_TOTAL_METADATA_SIZE.getKey()
+                    + "] setting"
+            );
+        }
     }
 
     public void validatePipelineRequest(ProjectId projectId, PutPipelineRequest request, NodesInfoResponse nodeInfos) throws Exception {

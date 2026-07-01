@@ -11,21 +11,24 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public class GetPipelineResponse extends ActionResponse implements ToXContentObject {
+public class GetPipelineResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private final List<PipelineConfiguration> pipelines;
     private final boolean summary;
@@ -71,10 +74,21 @@ public class GetPipelineResponse extends ActionResponse implements ToXContentObj
         return isFound() ? RestStatus.OK : RestStatus.NOT_FOUND;
     }
 
+    /**
+     * Renders the response in chunks -- one chunk per pipeline -- so that a large number of (or individually large) pipelines does not
+     * require the entire response to be held in memory at once while it is serialized.
+     */
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        for (PipelineConfiguration pipeline : pipelines) {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            Iterators.map(pipelines.iterator(), this::pipelineChunk),
+            ChunkedToXContentHelper.endObject()
+        );
+    }
+
+    private ToXContent pipelineChunk(PipelineConfiguration pipeline) {
+        return (builder, params) -> {
             builder.startObject(pipeline.getId());
             for (final Map.Entry<String, Object> configProperty : (summary ? Map.<String, Object>of() : pipeline.getConfig()).entrySet()) {
                 if (Pipeline.CREATED_DATE_MILLIS.equals(configProperty.getKey())) {
@@ -94,9 +108,8 @@ public class GetPipelineResponse extends ActionResponse implements ToXContentObj
                 }
             }
             builder.endObject();
-        }
-        builder.endObject();
-        return builder;
+            return builder;
+        };
     }
 
     @Override
@@ -131,7 +144,7 @@ public class GetPipelineResponse extends ActionResponse implements ToXContentObj
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(ChunkedToXContentObject.wrapAsToXContentObject(this));
     }
 
     @Override

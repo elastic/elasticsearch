@@ -14,7 +14,10 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.ingest.IngestSettings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -34,6 +37,12 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutPipelineAction extends BaseRestHandler {
 
+    private final ClusterSettings clusterSettings;
+
+    public RestPutPipelineAction(ClusterSettings clusterSettings) {
+        this.clusterSettings = clusterSettings;
+    }
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(PUT, "/_ingest/pipeline/{id}"));
@@ -46,6 +55,22 @@ public class RestPutPipelineAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        // Reject an oversized request body before parsing it. Parsing materializes the whole body as a map on the heap, so a single very
+        // large pipeline could consume a lot of heap before the transport-layer validation runs. The content length is known up front,
+        // making this an O(1) guard. The limit is read live so operators can adjust it via the cluster settings API without a restart.
+        final ByteSizeValue maxPipelineSize = clusterSettings.get(IngestSettings.MAX_PIPELINE_SIZE);
+        if (restRequest.contentLength() > maxPipelineSize.getBytes()) {
+            throw new IllegalArgumentException(
+                "pipeline request body of size ["
+                    + ByteSizeValue.ofBytes(restRequest.contentLength())
+                    + "] exceeds the maximum allowed size of ["
+                    + maxPipelineSize
+                    + "]; this limit is controlled by the ["
+                    + IngestSettings.MAX_PIPELINE_SIZE.getKey()
+                    + "] setting"
+            );
+        }
+
         Integer ifVersion = null;
         if (restRequest.hasParam("if_version")) {
             String versionString = restRequest.param("if_version");

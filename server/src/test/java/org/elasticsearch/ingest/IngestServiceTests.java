@@ -49,6 +49,7 @@ import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -121,6 +122,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -560,6 +562,112 @@ public class IngestServiceTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    public void testValidatePipelineSizeWithinLimits() {
+        IngestService ingestService = createWithProcessors();
+        var projectId = applyClusterStateWithPipelines(ingestService, Map.of());
+        PutPipelineRequest request = putJsonPipelineRequest("_id", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        // Generous limits: nothing should be rejected.
+        ingestService.validatePipelineSize(projectId, request, 100, ByteSizeValue.ofKb(64), ByteSizeValue.ofMb(1));
+    }
+
+    public void testValidatePipelineExceedsMaxPipelineSize() {
+        IngestService ingestService = createWithProcessors();
+        var projectId = applyClusterStateWithPipelines(ingestService, Map.of());
+        PutPipelineRequest request = putJsonPipelineRequest("_id", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        long size = new PipelineConfiguration("_id", request.getSource(), request.getXContentType()).serializedSizeInBytes();
+
+        // Exactly at the limit is allowed.
+        ingestService.validatePipelineSize(projectId, request, 100, ByteSizeValue.ofBytes(size), ByteSizeValue.ofMb(1));
+
+        // One byte under the pipeline's size is rejected.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ingestService.validatePipelineSize(projectId, request, 100, ByteSizeValue.ofBytes(size - 1), ByteSizeValue.ofMb(1))
+        );
+        assertThat(e.getMessage(), containsString("ingest.pipeline.max_pipeline_size"));
+    }
+
+    public void testValidatePipelineExceedsMaxPipelines() {
+        IngestService ingestService = createWithProcessors();
+        Map<String, PipelineConfiguration> existing = new HashMap<>();
+        for (int i = 0; i < 3; i++) {
+            existing.put("existing_" + i, randomPipelineConfiguration("existing_" + i));
+        }
+        var projectId = applyClusterStateWithPipelines(ingestService, existing);
+
+        PutPipelineRequest newPipeline = putJsonPipelineRequest("_new", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ingestService.validatePipelineSize(projectId, newPipeline, 3, ByteSizeValue.ofKb(64), ByteSizeValue.ofMb(1))
+        );
+        assertThat(e.getMessage(), containsString("ingest.pipeline.max_pipelines"));
+
+        // Updating an already-existing pipeline does not increase the count, so the limit does not apply to it.
+        PutPipelineRequest updateExisting = putJsonPipelineRequest("existing_0", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        ingestService.validatePipelineSize(projectId, updateExisting, 3, ByteSizeValue.ofKb(64), ByteSizeValue.ofMb(1));
+    }
+
+    public void testValidatePipelineExceedsMaxTotalMetadataSize() {
+        IngestService ingestService = createWithProcessors();
+        PipelineConfiguration existing = randomPipelineConfiguration("existing");
+        var projectId = applyClusterStateWithPipelines(ingestService, Map.of("existing", existing));
+
+        PutPipelineRequest request = putJsonPipelineRequest("_new", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        long newSize = new PipelineConfiguration("_new", request.getSource(), request.getXContentType()).serializedSizeInBytes();
+        long total = existing.serializedSizeInBytes() + newSize;
+
+        // Exactly at the aggregate limit is allowed.
+        ingestService.validatePipelineSize(projectId, request, 100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(total));
+
+        // One byte under the aggregate is rejected.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ingestService.validatePipelineSize(projectId, request, 100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(total - 1))
+        );
+        assertThat(e.getMessage(), containsString("ingest.pipeline.max_total_metadata_size"));
+    }
+
+    public void testValidatePipelineAggregateExcludesReplacedPipeline() {
+        IngestService ingestService = createWithProcessors();
+        // A large existing pipeline that will be replaced by a small one.
+        PipelineConfiguration existing = new PipelineConfiguration(
+            "_id",
+            new BytesArray("""
+                {"description": "%s", "processors": [{"set" : {"field": "_field", "value": "_value"}}]}""".formatted("x".repeat(2048))),
+            XContentType.JSON
+        );
+        var projectId = applyClusterStateWithPipelines(ingestService, Map.of("_id", existing));
+
+        PutPipelineRequest replacement = putJsonPipelineRequest("_id", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        long newSize = new PipelineConfiguration("_id", replacement.getSource(), replacement.getXContentType()).serializedSizeInBytes();
+        assertThat(newSize, lessThan(existing.serializedSizeInBytes()));
+
+        // The aggregate counts only the replacement, not the (larger) pipeline it supersedes: a limit equal to the new size passes even
+        // though the old pipeline alone was larger.
+        ingestService.validatePipelineSize(projectId, replacement, 100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(newSize));
+    }
+
+    private static ProjectId applyClusterStateWithPipelines(IngestService ingestService, Map<String, PipelineConfiguration> pipelines) {
+        var projectId = randomProjectIdOrDefault();
+        ClusterState previousClusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState clusterState = ClusterState.builder(previousClusterState)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines)).build())
+            .build();
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        return projectId;
+    }
+
+    private static PipelineConfiguration randomPipelineConfiguration(String id) {
+        return new PipelineConfiguration(id, new BytesArray("""
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
     }
 
     public void testGetProcessorsInPipeline() throws Exception {

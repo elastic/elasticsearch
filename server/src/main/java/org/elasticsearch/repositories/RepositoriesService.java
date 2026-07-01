@@ -757,18 +757,18 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             final ClusterState state = event.state();
             final ClusterState previousState = event.previousState();
 
-            for (var projectId : event.projectDelta().removed()) { // removed projects
+            for (var projectId : event.projectDelta().deleted()) { // removed projects
                 applyProjectStateForRemovedProject(state.version(), previousState.projectState(projectId));
             }
 
-            for (var projectId : event.projectDelta().added()) { // added projects
+            for (var projectId : event.projectDelta().initializing()) { // added projects
                 applyProjectStateForAddedOrExistingProject(state.version(), state.projectState(projectId), null);
             }
 
             // existing projects
-            final var common = event.projectDelta().added().isEmpty()
+            final var common = event.projectDelta().initializing().isEmpty()
                 ? state.metadata().projects().keySet()
-                : Sets.difference(state.metadata().projects().keySet(), event.projectDelta().added());
+                : Sets.difference(state.metadata().projects().keySet(), event.projectDelta().initializing());
             for (var projectId : common) {
                 applyProjectStateForAddedOrExistingProject(
                     state.version(),

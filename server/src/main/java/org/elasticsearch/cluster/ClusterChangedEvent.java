@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -29,6 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * An event received by the local node, signaling that the cluster state has changed.
@@ -53,7 +55,7 @@ public class ClusterChangedEvent {
         this.state = state;
         this.previousState = previousState;
         this.nodesDelta = state.nodes().delta(previousState.nodes());
-        this.projectsDelta = calculateProjectDelta(previousState.metadata(), state.metadata());
+        this.projectsDelta = calculateProjectDelta(previousState.metadata(), previousState.blocks(), state.metadata(), state.blocks());
     }
 
     /**
@@ -373,32 +375,72 @@ public class ClusterChangedEvent {
             .toList();
     }
 
-    private static ProjectsDelta calculateProjectDelta(Metadata previousMetadata, Metadata currentMetadata) {
-        if (previousMetadata == currentMetadata
-            || (previousMetadata.projects().size() == 1
-                && previousMetadata.hasProject(ProjectId.DEFAULT)
-                && currentMetadata.projects().size() == 1
-                && currentMetadata.hasProject(ProjectId.DEFAULT))) {
+    private static ProjectsDelta calculateProjectDelta(
+        Metadata previousMetadata,
+        ClusterBlocks previousBlocks,
+        Metadata currentMetadata,
+        ClusterBlocks currentBlocks
+    ) {
+        if (previousMetadata == currentMetadata && previousBlocks == currentBlocks) {
+            return ProjectsDelta.EMPTY;
+        }
+        if (previousMetadata.projects().size() == 1
+            && previousMetadata.hasProject(ProjectId.DEFAULT)
+            && currentMetadata.projects().size() == 1
+            && currentMetadata.hasProject(ProjectId.DEFAULT)) {
             return ProjectsDelta.EMPTY;
         }
 
-        final Set<ProjectId> added = Collections.unmodifiableSet(
-            Sets.difference(currentMetadata.projects().keySet(), previousMetadata.projects().keySet())
-        );
-        final Set<ProjectId> removed = Collections.unmodifiableSet(
+        final Set<ProjectId> initializing = Sets.difference(currentMetadata.projects().keySet(), previousMetadata.projects().keySet())
+            .stream()
+            .filter(id -> currentBlocks.hasGlobalBlock(id, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK))
+            .collect(Collectors.toUnmodifiableSet());
+        final Set<ProjectId> initialized = currentMetadata.projects()
+            .keySet()
+            .stream()
+            .filter(
+                id -> previousBlocks.hasGlobalBlock(id, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)
+                    && currentBlocks.hasGlobalBlock(id, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK) == false
+            )
+            .collect(Collectors.toUnmodifiableSet());
+
+        final Set<ProjectId> deleting = Sets.intersection(currentMetadata.projects().keySet(), previousMetadata.projects().keySet())
+            .stream()
+            .filter(
+                id -> previousBlocks.hasGlobalBlock(id, ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK) == false
+                    && currentBlocks.hasGlobalBlock(id, ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK)
+            )
+            .collect(Collectors.toUnmodifiableSet());
+        final Set<ProjectId> deleted = Collections.unmodifiableSet(
             Sets.difference(previousMetadata.projects().keySet(), currentMetadata.projects().keySet())
         );
+
         // TODO: Enable the following assertions once tests no longer add or remove default projects
-        // assert added.contains(ProjectId.DEFAULT) == false;
-        // assert removed.contains(ProjectId.DEFAULT) == false;
-        return new ProjectsDelta(added, removed);
+        // assert created.contains(ProjectId.DEFAULT) == false;
+        // assert initializing.contains(ProjectId.DEFAULT) == false;
+        // assert deleted.contains(ProjectId.DEFAULT) == false;
+        // assert deleting.contains(ProjectId.DEFAULT) == false;
+        return new ProjectsDelta(initializing, initialized, deleting, deleted);
     }
 
-    public record ProjectsDelta(Set<ProjectId> added, Set<ProjectId> removed) {
-        private static final ProjectsDelta EMPTY = new ProjectsDelta(Set.of(), Set.of());
+    /**
+     * Describes how the set of projects changed between two cluster states, broken down by lifecycle stage.
+     *
+     * <ul>
+     *   <li>{@link #initializing()} — projects that have just been created and are not yet ready to serve requests.</li>
+     *   <li>{@link #added()} — projects that finished initializing and are now fully operational.</li>
+     *   <li>{@link #deleting()} — projects that have been marked for deletion and are being cleaned up.</li>
+     *   <li>{@link #deleted()} — projects that have been fully removed from the cluster.</li>
+     * </ul>
+     *
+     * Each set is disjoint: a project appears in at most one bucket per event.
+     * Projects that have not changed lifecycle stage are absent from all sets.
+     */
+    public record ProjectsDelta(Set<ProjectId> initializing, Set<ProjectId> added, Set<ProjectId> deleting, Set<ProjectId> deleted) {
+        private static final ProjectsDelta EMPTY = new ProjectsDelta(Set.of(), Set.of(), Set.of(), Set.of());
 
         public boolean isEmpty() {
-            return added.isEmpty() && removed.isEmpty();
+            return initializing.isEmpty() && added.isEmpty() && deleting.isEmpty() && deleted.isEmpty();
         }
     }
 }

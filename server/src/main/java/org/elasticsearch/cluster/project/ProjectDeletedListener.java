@@ -29,7 +29,7 @@ public class ProjectDeletedListener {
     public void attach(ClusterService clusterService) {
         clusterService.addListener(event -> {
             final ClusterChangedEvent.ProjectsDelta delta = event.projectDelta();
-            delta.removed().forEach(consumer);
+            delta.deleted().forEach(consumer);
         });
     }
 

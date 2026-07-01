@@ -656,60 +656,120 @@ public class ClusterChangedEventTests extends ESTestCase {
     public void testProjectsDelta() {
         final var state0 = ClusterState.builder(TEST_CLUSTER_NAME).build();
 
-        // No project changes
+        // Test no project changes
+
         final var state1 = ClusterState.builder(state0)
             .metadata(Metadata.builder(state0.metadata()).put(ReservedStateMetadata.builder("test").build()))
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("test", state1, state0);
         assertTrue(event.projectDelta().isEmpty());
 
-        // Add projects
-        final List<ProjectId> projectIds = randomList(1, 5, ESTestCase::randomUniqueProjectId);
+        // Test projects going through the 4 stages of their lifecycle
+
+        // Stage 1 - create projects: each is added to metadata together with the under-creation block => "initializing".
+        final List<ProjectId> projectIds = randomList(2, 5, ESTestCase::randomUniqueProjectId);
         Metadata.Builder metadataBuilder = Metadata.builder(state1.metadata());
+        ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder(state1.blocks());
         for (ProjectId projectId : projectIds) {
             metadataBuilder.put(ProjectMetadata.builder(projectId));
+            blocksBuilder.addProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK);
         }
-        final var state2 = ClusterState.builder(state1).metadata(metadataBuilder.build()).build();
+        final var state2 = ClusterState.builder(state1).metadata(metadataBuilder.build()).blocks(blocksBuilder.build()).build();
         event = new ClusterChangedEvent("test", state2, state1);
-        assertThat(event.projectDelta().added(), containsInAnyOrder(projectIds.toArray()));
-        assertThat(event.projectDelta().removed(), empty());
-
-        // Add more projects and delete one
-        final var removedProjectIds = randomNonEmptySubsetOf(projectIds);
-        final List<ProjectId> moreProjectIds = randomList(1, 3, ESTestCase::randomUniqueProjectId);
-        metadataBuilder = Metadata.builder(state2.metadata());
-        GlobalRoutingTable.Builder routingTableBuilder = GlobalRoutingTable.builder(state2.globalRoutingTable());
-        for (ProjectId projectId : removedProjectIds) {
-            metadataBuilder.removeProject(projectId);
-            routingTableBuilder.removeProject(projectId);
-        }
-        for (ProjectId projectId : moreProjectIds) {
-            metadataBuilder.put(ProjectMetadata.builder(projectId));
-        }
-
-        final var state3 = ClusterState.builder(state2).metadata(metadataBuilder.build()).routingTable(routingTableBuilder.build()).build();
-
-        event = new ClusterChangedEvent("test", state3, state2);
-        assertThat(event.projectDelta().added(), containsInAnyOrder(moreProjectIds.toArray()));
-        assertThat(event.projectDelta().removed(), containsInAnyOrder(removedProjectIds.toArray()));
-
-        // Remove all projects
-        final List<ProjectId> remainingProjects = state3.metadata()
-            .projects()
-            .keySet()
-            .stream()
-            .filter(projectId -> ProjectId.DEFAULT.equals(projectId) == false)
-            .toList();
-        metadataBuilder = Metadata.builder(state3.metadata());
-        routingTableBuilder = GlobalRoutingTable.builder(state3.globalRoutingTable());
-        for (ProjectId projectId : remainingProjects) {
-            metadataBuilder.removeProject(projectId);
-            routingTableBuilder.removeProject(projectId);
-        }
-        final var state4 = ClusterState.builder(state3).metadata(metadataBuilder.build()).routingTable(routingTableBuilder.build()).build();
-        event = new ClusterChangedEvent("test", state4, state3);
+        assertThat(event.projectDelta().initializing(), containsInAnyOrder(projectIds.toArray()));
         assertThat(event.projectDelta().added(), empty());
-        assertThat(event.projectDelta().removed(), containsInAnyOrder(remainingProjects.toArray()));
+        assertThat(event.projectDelta().deleting(), empty());
+        assertThat(event.projectDelta().deleted(), empty());
+
+        // Stage 2 - finalize a subset: remove their under-creation block while they stay in metadata => "initialized".
+        // The remaining projects keep the block and stay initializing, so they produce no transition.
+        final List<ProjectId> finalizedIds = randomNonEmptySubsetOf(projectIds);
+        blocksBuilder = ClusterBlocks.builder(state2.blocks());
+        for (ProjectId projectId : finalizedIds) {
+            blocksBuilder.removeProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK);
+        }
+        final var state3 = ClusterState.builder(state2).blocks(blocksBuilder.build()).build();
+        event = new ClusterChangedEvent("test", state3, state2);
+        // non-finalized projects still carry the creation block but are not new to metadata, so no initializing event
+        assertThat(event.projectDelta().initializing(), empty());
+        assertThat(event.projectDelta().added(), containsInAnyOrder(finalizedIds.toArray()));
+        assertThat(event.projectDelta().deleting(), empty());
+        assertThat(event.projectDelta().deleted(), empty());
+
+        // Stage 3 - mark a subset of the initialized projects for deletion: add the under-deletion block while they stay
+        // in metadata => "deleting".
+        final List<ProjectId> markedForDeletionIds = randomNonEmptySubsetOf(finalizedIds);
+        blocksBuilder = ClusterBlocks.builder(state3.blocks());
+        for (ProjectId projectId : markedForDeletionIds) {
+            blocksBuilder.addProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK);
+        }
+        final var state4 = ClusterState.builder(state3).blocks(blocksBuilder.build()).build();
+        event = new ClusterChangedEvent("test", state4, state3);
+        assertThat(event.projectDelta().initializing(), empty());
+        assertThat(event.projectDelta().added(), empty());
+        assertThat(event.projectDelta().deleting(), containsInAnyOrder(markedForDeletionIds.toArray()));
+        assertThat(event.projectDelta().deleted(), empty());
+
+        // Stage 4 - delete the projects marked for deletion: remove them from metadata (along with routing and blocks) => "deleted".
+        metadataBuilder = Metadata.builder(state4.metadata());
+        GlobalRoutingTable.Builder routingTableBuilder = GlobalRoutingTable.builder(state4.globalRoutingTable());
+        blocksBuilder = ClusterBlocks.builder(state4.blocks());
+        for (ProjectId projectId : markedForDeletionIds) {
+            metadataBuilder.removeProject(projectId);
+            routingTableBuilder.removeProject(projectId);
+            blocksBuilder.removeProject(projectId);
+        }
+        final var state5 = ClusterState.builder(state4)
+            .metadata(metadataBuilder.build())
+            .routingTable(routingTableBuilder.build())
+            .blocks(blocksBuilder.build())
+            .build();
+        event = new ClusterChangedEvent("test", state5, state4);
+        assertThat(event.projectDelta().initializing(), empty());
+        assertThat(event.projectDelta().added(), empty());
+        assertThat(event.projectDelta().deleting(), empty());
+        assertThat(event.projectDelta().deleted(), containsInAnyOrder(markedForDeletionIds.toArray()));
+
+        // All four transitions can happen in a single cluster state change. Set up one project in each of the states that
+        // can transition, plus one that stays initializing to confirm a non-transitioning project is absent from the delta.
+
+        final var toInitialize = randomUniqueProjectId();  // added new with creation block => initializing
+        final var toFinalize = randomUniqueProjectId();     // creation block removed => initialized
+        final var stayInitializing = randomUniqueProjectId(); // keeps its creation block => no transition
+        final var toMarkForDeletion = randomUniqueProjectId(); // deletion block added => deleting
+        final var toDelete = randomUniqueProjectId();       // removed from metadata => deleted
+
+        var beforeMetadata = Metadata.builder(state5.metadata());
+        var beforeBlocks = ClusterBlocks.builder(state5.blocks());
+        beforeMetadata.put(ProjectMetadata.builder(toFinalize));
+        beforeBlocks.addProjectGlobalBlock(toFinalize, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK);
+        beforeMetadata.put(ProjectMetadata.builder(stayInitializing));
+        beforeBlocks.addProjectGlobalBlock(stayInitializing, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK);
+        beforeMetadata.put(ProjectMetadata.builder(toMarkForDeletion));
+        beforeMetadata.put(ProjectMetadata.builder(toDelete));
+        final var before = ClusterState.builder(state5).metadata(beforeMetadata.build()).blocks(beforeBlocks.build()).build();
+
+        var afterMetadata = Metadata.builder(before.metadata());
+        var afterRoutingTable = GlobalRoutingTable.builder(before.globalRoutingTable());
+        var afterBlocks = ClusterBlocks.builder(before.blocks());
+        afterMetadata.put(ProjectMetadata.builder(toInitialize));
+        afterBlocks.addProjectGlobalBlock(toInitialize, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK);
+        afterBlocks.removeProjectGlobalBlock(toFinalize, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK);
+        afterBlocks.addProjectGlobalBlock(toMarkForDeletion, ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK);
+        afterMetadata.removeProject(toDelete);
+        afterRoutingTable.removeProject(toDelete);
+        afterBlocks.removeProject(toDelete);
+        final var after = ClusterState.builder(before)
+            .metadata(afterMetadata.build())
+            .routingTable(afterRoutingTable.build())
+            .blocks(afterBlocks.build())
+            .build();
+
+        event = new ClusterChangedEvent("test", after, before);
+        assertThat(event.projectDelta().initializing(), containsInAnyOrder(toInitialize));
+        assertThat(event.projectDelta().added(), containsInAnyOrder(toFinalize));
+        assertThat(event.projectDelta().deleting(), containsInAnyOrder(toMarkForDeletion));
+        assertThat(event.projectDelta().deleted(), containsInAnyOrder(toDelete));
     }
 
     private static class CustomClusterMetadata2 extends TestClusterCustomMetadata {

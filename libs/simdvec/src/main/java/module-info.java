@@ -21,5 +21,5 @@ module org.elasticsearch.simdvec {
     requires org.elasticsearch.nativeaccess;
     requires org.apache.lucene.core;
 
-    exports org.elasticsearch.simdvec to org.elasticsearch.server;
+    exports org.elasticsearch.simdvec to org.elasticsearch.server, org.elasticsearch.xpack.stateless;
 }

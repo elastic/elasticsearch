@@ -29,6 +29,7 @@ import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -76,6 +77,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -149,6 +151,7 @@ import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
 
 /**
@@ -197,6 +200,7 @@ public class EsqlSession {
     private final Metrics metrics;
     private final EsqlFunctionRegistry functionRegistry;
     private final PromqlFunctionRegistry promqlFunctionRegistry;
+    private final AnalysisRegistry analysisRegistry;
     private final PreMapper preMapper;
 
     private final Mapper mapper;
@@ -260,6 +264,7 @@ public class EsqlSession {
         PreAnalyzer preAnalyzer,
         EsqlFunctionRegistry functionRegistry,
         PromqlFunctionRegistry promqlFunctionRegistry,
+        AnalysisRegistry analysisRegistry,
         Mapper mapper,
         Verifier verifier,
         Metrics metrics,
@@ -283,6 +288,7 @@ public class EsqlSession {
         this.metrics = metrics;
         this.functionRegistry = functionRegistry;
         this.promqlFunctionRegistry = promqlFunctionRegistry;
+        this.analysisRegistry = analysisRegistry;
         this.mapper = mapper;
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
@@ -379,29 +385,27 @@ public class EsqlSession {
             ? statement.setting(QuerySettings.TIME_ZONE)
             : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone());
 
-        Configuration configuration = new ConfigurationBuilder(
-            new Configuration(
-                timeZone,
-                Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
-                request.locale() != null ? request.locale() : Locale.US,
-                // TODO: plug-in security
-                null,
-                clusterName,
-                request.pragmas(),
-                analyzerSettings.resultTruncationMaxSize(),
-                analyzerSettings.resultTruncationDefaultSize(),
-                request.query(),
-                request.profile(),
-                request.tables(),
-                System.nanoTime(),
-                request.allowPartialResults(),
-                analyzerSettings.timeseriesResultTruncationMaxSize(),
-                analyzerSettings.timeseriesResultTruncationDefaultSize(),
-                projectRouting(request, statement),
-                approximationSettings(request, statement),
-                viewResolution.viewQueries()
-            )
-        ).grokMatcherWatchdogMs(parser.grokMatcherWatchdog().maxExecutionTimeInMillis()).build();
+        Configuration configuration = new Configuration(
+            timeZone,
+            Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
+            request.locale() != null ? request.locale() : Locale.US,
+            // TODO: plug-in security
+            null,
+            clusterName,
+            request.pragmas(),
+            analyzerSettings.resultTruncationMaxSize(),
+            analyzerSettings.resultTruncationDefaultSize(),
+            request.query(),
+            request.profile(),
+            request.tables(),
+            System.nanoTime(),
+            request.allowPartialResults(),
+            analyzerSettings.timeseriesResultTruncationMaxSize(),
+            analyzerSettings.timeseriesResultTruncationDefaultSize(),
+            projectRouting(request, statement),
+            approximationSettings(request, statement),
+            viewResolution.viewQueries()
+        );
 
         // Pre-analysis pass over the uncompacted plan from ViewResolver: reshape user-written
         // Subquery/UnionAll structures into ViewUnionAll. ViewShadowRelation siblings and nested
@@ -435,7 +439,10 @@ public class EsqlSession {
                     assert ThreadPool.assertCurrentThreadPool(
                         ThreadPool.Names.SEARCH,
                         ThreadPool.Names.SEARCH_COORDINATION,
-                        ThreadPool.Names.SYSTEM_READ
+                        ThreadPool.Names.SYSTEM_READ,
+                        // External source resolution ({@link ExternalSourceResolver}) dispatches through esql_worker
+                        // and this callback is reached on that thread.
+                        ESQL_WORKER_THREAD_POOL_NAME
                     );
 
                     LogicalPlan plan = analyzedPlan.inner();
@@ -525,7 +532,9 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION,
-            ThreadPool.Names.SYSTEM_READ
+            ThreadPool.Names.SYSTEM_READ,
+            // Downstream of the analyzed-plan callback, which may complete on esql_worker after external source resolution.
+            ESQL_WORKER_THREAD_POOL_NAME
         );
         var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion));
 
@@ -1342,7 +1351,7 @@ public class EsqlSession {
                 executionInfo.queryProfile().indicesResolutionMarker().stop();
                 return r;
             })
-            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeExternalSources(parsed, preAnalysis, r, l))
+            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeExternalSources(externalSourceResolver, parsed, preAnalysis, r, l))
             .<PreAnalysisResult>andThen((l, r) -> {
                 // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
                 executionInfo.queryProfile().enrichResolutionMarker().start();
@@ -1411,7 +1420,11 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION,
-            ThreadPool.Names.SYSTEM_READ
+            ThreadPool.Names.SYSTEM_READ,
+            // Typically entered from a field-caps completion on SEARCH_COORDINATION, but on analyzer retry
+            // (analyzeWithRetry -> resolveIndicesAndAnalyze) with a synchronous main-index forAll (e.g. no FROM
+            // indices) the resolver's continuation reaches this on esql_worker.
+            ESQL_WORKER_THREAD_POOL_NAME
         );
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.
@@ -1463,7 +1476,10 @@ public class EsqlSession {
      * This runs in parallel with other resolution steps to avoid blocking.
      * Extracts partition filter hints from the WHERE clause for partition-aware glob rewriting.
      */
-    private void preAnalyzeExternalSources(
+    // package-private static so EsqlSessionTests can drive the wiring with a capturing
+    // ExternalSourceResolver and assert that the computed pathsRequiringStats set is forwarded.
+    static void preAnalyzeExternalSources(
+        ExternalSourceResolver externalSourceResolver,
         LogicalPlan plan,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
@@ -1478,10 +1494,16 @@ public class EsqlSession {
 
         var filterHints = PartitionFilterHintExtractor.extract(plan);
 
+        // Always non-null (empty when no ungrouped aggregate is present). A non-null set switches the
+        // resolver to selective eager stats: only the listed paths read every file's footer at
+        // planning time; the rest defer (see ExternalStatsRequirementExtractor).
+        Set<String> pathsRequiringStats = ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan);
+
         externalSourceResolver.resolve(
             preAnalysis.icebergPaths(),
             pathConfigs,
             filterHints.isEmpty() ? null : filterHints,
+            pathsRequiringStats,
             listener.map(result::withExternalSourceResolution)
         );
     }
@@ -1716,7 +1738,10 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION,
-            ThreadPool.Names.SYSTEM_READ
+            ThreadPool.Names.SYSTEM_READ,
+            // On analyzer retry (analyzeWithRetry -> resolveIndicesAndAnalyze) this may be re-entered on esql_worker,
+            // the thread the external source resolver continued on.
+            ESQL_WORKER_THREAD_POOL_NAME
         );
         if (crossProjectModeDecider.crossProjectEnabled() == false) {
             EsqlCCSUtils.initCrossClusterState(
@@ -1819,7 +1844,7 @@ public class EsqlSession {
                 indicesExpressionGrouper,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
-                    EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
+                    EsqlCCSUtils.checkForRemoteResourceErrors(indexResolution.inner().failures());
                     maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
                         executionInfo.queryProfile().incFieldCapsCalls();
                         indexResolver.resolveMainIndicesVersioned(
@@ -1871,7 +1896,7 @@ public class EsqlSession {
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
-                EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
+                EsqlCCSUtils.checkForRemoteResourceErrors(indexResolution.inner().failures());
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 // TODO count distinct linked projects
                 l.onResponse(result.withWithLinkedIndices(linkedIndexPattern, indexResolution.inner()));
@@ -1907,7 +1932,7 @@ public class EsqlSession {
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
-                EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
+                EsqlCCSUtils.checkForRemoteResourceErrors(indexResolution.inner().failures());
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
@@ -2081,6 +2106,7 @@ public class EsqlSession {
             configuration,
             functionRegistry,
             promqlFunctionRegistry,
+            analysisRegistry,
             unmappedResolution,
             projectMetadata,
             r,

@@ -18,6 +18,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseService;
@@ -42,6 +43,8 @@ import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
+import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
@@ -58,8 +61,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 @ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
@@ -423,6 +428,47 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         } else {
             assertTrue("expected LookupOperator, got: " + allOperators, hasNonStreaming);
             assertFalse("unexpected StreamingLookupOperator, got: " + allOperators, hasStreaming);
+        }
+    }
+
+    /**
+     * Verifies that LOOKUP JOIN attributes bytes pulled from the
+     * lookup-side Lucene store to the corresponding lookup operator status, and that
+     * those bytes are reflected in the top-level response {@code bytesRead}.
+     */
+    public void testBytesReadAccountedForLookupJoin() throws IOException {
+        assumeTrue(
+            "directory_metrics feature flag must be enabled to record store bytes",
+            Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
+        );
+        ensureIndices(List.of(SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX));
+
+        String query = String.format(Locale.ROOT, """
+            FROM %s
+            | LOOKUP JOIN %s ON message
+            | KEEP @timestamp, client_ip, event_duration, message, type
+            | SORT @timestamp DESC
+            """, SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX);
+
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest(query).profile(true))) {
+            // Top-level aggregate bytes read should be non-zero — combined data-shard and lookup-shard Lucene I/O.
+            assertThat(resp.bytesRead(), greaterThan(0L));
+
+            assertNotNull("profile should be present", resp.profile());
+            List<OperatorStatus> lookupOperatorStatuses = resp.profile()
+                .drivers()
+                .stream()
+                .flatMap(d -> d.operators().stream())
+                .filter(
+                    op -> op.status() instanceof LookupFromIndexOperator.Status
+                        || op.status() instanceof StreamingLookupFromIndexOperator.StreamingLookupStatus
+                )
+                .toList();
+            assertThat("expected at least one lookup operator in profile", lookupOperatorStatuses, not(Collections.emptyList()));
+
+            long lookupBytesRead = lookupOperatorStatuses.stream().mapToLong(OperatorStatus::bytesRead).sum();
+            assertThat("lookup operator(s) should attribute bytes read from the lookup index", lookupBytesRead, greaterThan(0L));
+            assertThat(resp.bytesRead(), greaterThanOrEqualTo(lookupBytesRead));
         }
     }
 

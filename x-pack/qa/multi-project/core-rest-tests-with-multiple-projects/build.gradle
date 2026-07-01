@@ -75,6 +75,9 @@ tasks.named("yamlRestTest").configure {
     '^reindex/90_remote/*',
     '^reindex/95_parent_join/Reindex from remote*',
 
+    '^reindex/50_routing/Slice alias*',
+    '^reindex/85_scripting/Add slice alias',
+
     // Linked project configuration via ClusterSettings currently does not support multi-project
     '^cluster.stats/30_ccs_stats/cross-cluster search stats search',
 

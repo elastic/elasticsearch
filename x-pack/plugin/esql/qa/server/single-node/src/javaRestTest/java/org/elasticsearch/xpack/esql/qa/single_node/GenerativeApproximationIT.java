@@ -33,7 +33,7 @@ public class GenerativeApproximationIT extends GenerativeApproximationRestTest {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(CSV_DATA_PATH, spec -> {
         spec.plugin("inference-service-test").settings(nodeSpec -> LOGGING_CLUSTER_SETTINGS);
-    });
+    }, false);
 
     @Override
     protected String getTestRestCluster() {

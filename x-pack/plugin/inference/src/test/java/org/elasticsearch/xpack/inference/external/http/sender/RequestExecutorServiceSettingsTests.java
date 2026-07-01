@@ -18,9 +18,7 @@ public class RequestExecutorServiceSettingsTests {
         return createRequestExecutorServiceSettings(Settings.EMPTY);
     }
 
-    public static RequestExecutorServiceSettings createRequestExecutorServiceSettings(
-        @Nullable Integer queueCapacity
-    ) {
+    public static RequestExecutorServiceSettings createRequestExecutorServiceSettings(@Nullable Integer queueCapacity) {
         return createRequestExecutorServiceSettings(queueCapacity, null);
     }
 

@@ -116,6 +116,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "flattened",
+          "optional" : true,
+          "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "geo_point",
           "optional" : true,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."

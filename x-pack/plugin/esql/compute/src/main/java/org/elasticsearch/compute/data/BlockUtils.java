@@ -213,6 +213,20 @@ public final class BlockUtils {
         return new BuilderWrapper(b, o -> appendValue(b, o, type));
     }
 
+    /**
+     * Like {@link #wrapperFor(BlockFactory, ElementType, int)} but pre-sizes the byte storage of a
+     * {@link ElementType#BYTES_REF} builder via {@code byteHint} so callers that already know the
+     * column's total byte size avoid byte-buffer regrowth as values are appended. The hint is ignored
+     * for other element types and for non-positive values.
+     */
+    public static BuilderWrapper wrapperFor(BlockFactory blockFactory, ElementType type, int size, long byteHint) {
+        if (type == ElementType.BYTES_REF && byteHint > 0) {
+            var b = blockFactory.newBytesRefBlockBuilder(size, byteHint);
+            return new BuilderWrapper(b, o -> appendValue(b, o, type));
+        }
+        return wrapperFor(blockFactory, type, size);
+    }
+
     public static void appendValue(Block.Builder builder, Object val, ElementType type) {
         if (val == null) {
             builder.appendNull();

@@ -67,6 +67,11 @@ public class ToInteger extends AbstractConvertFunction {
     }
 
     @Override
+    public String functionName() {
+        return "TO_INTEGER";
+    }
+
+    @Override
     protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }

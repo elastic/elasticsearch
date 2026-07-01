@@ -13,6 +13,7 @@ import org.elasticsearch.foreign.processor.model.LibraryModel;
 
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.ClassSignature;
+import java.lang.classfile.Label;
 import java.lang.classfile.MethodSignature;
 import java.lang.classfile.Signature.ClassTypeSig;
 import java.lang.classfile.Signature.TypeArg;
@@ -37,6 +38,8 @@ class ProviderClassWriter {
 
     private static final ClassDesc CD_Class = ClassDesc.of("java.lang.Class");
     private static final ClassDesc CD_LibraryProvider = ClassDesc.of("org.elasticsearch.foreign.LibraryProvider");
+    private static final ClassDesc CD_Platform = ClassDesc.of("org.elasticsearch.foreign.Platform");
+    private static final MethodTypeDesc MTD_Platform_current = MethodTypeDesc.of(CD_Platform);
 
     private final Filer filer;
     private final int classFileVersion;
@@ -85,10 +88,26 @@ class ProviderClassWriter {
                 });
             });
 
-            // public T load() { return new <Interface>$Impl(); }
+            // public T load() { ... }
             cb.withMethod("load", MethodTypeDesc.of(CD_Object), ClassFile.ACC_PUBLIC, mb -> {
                 mb.with(SignatureAttribute.of(MethodSignature.of(ClassTypeSig.of(interfaceDesc))));
                 mb.withCode(code -> {
+                    if (model.unavailableOn().isEmpty() == false) {
+                        // Platform p = Platform.current();
+                        code.invokestatic(CD_Platform, "current", MTD_Platform_current);
+                        code.astore(1);
+                        for (String platformName : model.unavailableOn()) {
+                            // if (p == Platform.<platformName>) return null;
+                            Label skip = code.newLabel();
+                            code.aload(1);
+                            code.getstatic(CD_Platform, platformName, CD_Platform);
+                            code.if_acmpne(skip);
+                            code.aconst_null();
+                            code.areturn();
+                            code.labelBinding(skip);
+                        }
+                    }
+                    // return new $Impl();
                     code.new_(implDesc);
                     code.dup();
                     code.invokespecial(implDesc, "<init>", MethodTypeDesc.of(CD_void));

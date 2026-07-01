@@ -549,7 +549,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public void squareDistanceBulk(
         float[] query,
-        int queryOffset,
+        int vectorOffset,
         float[] v0,
         float[] v1,
         float[] v2,
@@ -558,16 +558,16 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         float[] distances,
         int length
     ) {
-        if (queryOffset == 0 && length == query.length) {
+        if (vectorOffset == 0 && length == query.length) {
             distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
             distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
             distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
             distances[distancesOffset + 3] = VectorUtil.squareDistance(query, v3);
         } else {
-            distances[distancesOffset] = squareDistance(query, v0, queryOffset, length);
-            distances[distancesOffset + 1] = squareDistance(query, v1, queryOffset, length);
-            distances[distancesOffset + 2] = squareDistance(query, v2, queryOffset, length);
-            distances[distancesOffset + 3] = squareDistance(query, v3, queryOffset, length);
+            distances[distancesOffset] = squareDistance(query, v0, vectorOffset, length);
+            distances[distancesOffset + 1] = squareDistance(query, v1, vectorOffset, length);
+            distances[distancesOffset + 2] = squareDistance(query, v2, vectorOffset, length);
+            distances[distancesOffset + 3] = squareDistance(query, v3, vectorOffset, length);
         }
     }
 
@@ -590,7 +590,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public void squareDistanceBulk(
         byte[] query,
-        int queryOffset,
+        int vectorOffset,
         byte[] v0,
         byte[] v1,
         byte[] v2,
@@ -599,16 +599,16 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         float[] distances,
         int length
     ) {
-        if (queryOffset == 0 && length == query.length) {
+        if (vectorOffset == 0 && length == query.length) {
             distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
             distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
             distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
             distances[distancesOffset + 3] = VectorUtil.squareDistance(query, v3);
         } else {
-            distances[distancesOffset] = squareDistance(query, v0, queryOffset, length);
-            distances[distancesOffset + 1] = squareDistance(query, v1, queryOffset, length);
-            distances[distancesOffset + 2] = squareDistance(query, v2, queryOffset, length);
-            distances[distancesOffset + 3] = squareDistance(query, v3, queryOffset, length);
+            distances[distancesOffset] = squareDistance(query, v0, vectorOffset, length);
+            distances[distancesOffset + 1] = squareDistance(query, v1, vectorOffset, length);
+            distances[distancesOffset + 2] = squareDistance(query, v2, vectorOffset, length);
+            distances[distancesOffset + 3] = squareDistance(query, v3, vectorOffset, length);
         }
     }
 
@@ -868,6 +868,13 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     public void linearCombination(float scaleOther, byte[] other, float scaleDest, float[] dest) {
         for (int d = 0; d < dest.length; d++) {
             dest[d] = fma(scaleOther, other[d], scaleDest * dest[d]);
+        }
+    }
+
+    @Override
+    public void linearCombination(float scaleOther, byte[] other, float[] dest) {
+        for (int d = 0; d < dest.length; d++) {
+            dest[d] = fma(scaleOther, other[d], dest[d]);
         }
     }
 

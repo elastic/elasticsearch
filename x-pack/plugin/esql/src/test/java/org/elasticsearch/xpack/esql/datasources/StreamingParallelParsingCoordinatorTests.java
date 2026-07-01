@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -32,7 +33,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -53,7 +56,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -171,8 +176,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 executor,
                 ErrorPolicy.STRICT,
                 null,
+                0L,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                sink
+                sink,
+                null
             );
             try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
                 while (iter.hasNext()) {
@@ -224,8 +231,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 executor,
                 ErrorPolicy.STRICT,
                 null,
+                0L,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                sink
+                sink,
+                null
             );
             try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
                 while (iter.hasNext()) {
@@ -285,8 +294,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 executor,
                 ErrorPolicy.STRICT,
                 null,
+                0L,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                sink
+                sink,
+                null
             );
             CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
             // Consume one page, then close without draining — an early termination.
@@ -937,7 +948,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 executor,
                 ErrorPolicy.STRICT,
                 null,
+                0L,
                 maxRecordBytes,
+                null,
                 null
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
@@ -946,6 +959,185 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    /**
+     * A {@code max_record_size} cap-hit must honor the read {@link ErrorPolicy}: a strict policy keeps
+     * hard-failing (as before), while a non-strict policy degrades gracefully — it truncates the read
+     * at the undelimitable record and returns the records parsed before it (truncate-at-failure, since
+     * an unclosed record has no resumption point). The fixture is a handful of clean records followed
+     * by an unclosed quoted field that the quote-aware splitter can never close, so the grow loop
+     * exceeds the (small, injected) cap.
+     */
+    public void testCapHitFailsUnderStrictButTruncatesToPartialUnderLenient() throws Exception {
+        int leadingRecords = 6;
+        int maxRecordBytes = 4096;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < leadingRecords; i++) {
+            sb.append("rec-").append(String.format(Locale.ROOT, "%04d", i)).append('\n');
+        }
+        // Unclosed quoted field, no terminator and no record after it: the quote-aware splitter stays
+        // "in quotes" forever so no boundary is found and the grow loop trips the cap.
+        sb.append('"').append("x".repeat(8 * 1024));
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        // Strict: the cap-hit is still a hard failure.
+        ExecutorService strictExecutor = Executors.newFixedThreadPool(6);
+        try {
+            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(512);
+            var strictIterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
+                reader,
+                new ByteArrayInputStream(bytes),
+                null,
+                List.of("line"),
+                50,
+                4,
+                strictExecutor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                maxRecordBytes,
+                null,
+                null
+            );
+            RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(strictIterator));
+            String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
+            assertTrue(
+                "strict policy must still hard-fail on the cap-hit, got: " + chain,
+                chain.contains("record exceeded max_record_size")
+            );
+        } finally {
+            strictExecutor.shutdownNow();
+        }
+
+        // Non-strict: truncate at the cap-hit and return the prefix records parsed so far.
+        ExecutorService lenientExecutor = Executors.newFixedThreadPool(6);
+        try {
+            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(512);
+            var lenientIterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
+                reader,
+                new ByteArrayInputStream(bytes),
+                null,
+                List.of("line"),
+                50,
+                4,
+                lenientExecutor,
+                ErrorPolicy.LENIENT,
+                null,
+                0L,
+                maxRecordBytes,
+                null,
+                null
+            );
+            List<String> got = collectLines(lenientIterator);
+            assertEquals("non-strict policy must return the records parsed before the cap-hit", leadingRecords, got.size());
+            for (int i = 0; i < leadingRecords; i++) {
+                assertEquals("rec-" + String.format(Locale.ROOT, "%04d", i), got.get(i));
+            }
+        } finally {
+            lenientExecutor.shutdownNow();
+        }
+    }
+
+    /**
+     * Under a non-strict policy the truncation must surface a partial-results warning the operator can
+     * relay to the client. The segmentator records that warning through the {@code partialResultsWarningSink}
+     * rather than emitting a {@link HeaderWarning} directly, precisely because it runs on a forked worker
+     * whose response headers never reach the client (see {@code AsyncExternalSourceOperator}, #835). This
+     * runs on a real multi-threaded executor and asserts the sink receives the message regardless of which
+     * thread the segmentator ran on — the property a same-thread executor would have masked. The cap is hit
+     * on the very first record (the splitter never reports a boundary), so no chunk is dispatched.
+     */
+    public void testTruncationRoutesWarningToSinkUnderLenient() throws Exception {
+        int maxRecordBytes = 4096;
+        StringBuilder sb = new StringBuilder();
+        while (sb.length() < 64 * 1024) {
+            sb.append("some-row-of-bytes-with-a-trailing-newline-and-a-bit-of-padding\n");
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        List<String> sink = new CopyOnWriteArrayList<>();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            NeverBoundaryFormatReader reader = new NeverBoundaryFormatReader(64);
+            var iterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
+                reader,
+                new ByteArrayInputStream(bytes),
+                null,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.LENIENT,
+                null,
+                0L,
+                maxRecordBytes,
+                null,
+                sink::add
+            );
+            List<String> got = collectLines(iterator);
+            assertEquals("an undelimitable first record yields no rows under truncation", 0, got.size());
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertEquals("truncation must record exactly one partial-results warning", 1, sink.size());
+        assertTrue(
+            "expected a partial-results truncation warning, got: " + sink,
+            sink.get(0).contains("results are partial")
+                && sink.get(0).contains("truncated at byte")
+                && sink.get(0).contains("record exceeded max_record_size")
+        );
+    }
+
+    /**
+     * When no sink is wired (tests, benchmarks, and any non-operator caller), the truncation warning
+     * falls back to a direct {@link HeaderWarning} on the segmentator thread. A same-thread executor runs
+     * the segmentator on the test thread so {@link org.elasticsearch.test.ESTestCase}'s registered
+     * {@code ThreadContext} can observe the emitted warning. This locks the fallback contract; the
+     * client-facing propagation is covered by {@code ExternalMaxRecordSizeTruncationIT}.
+     */
+    public void testTruncationFallsBackToHeaderWarningWhenNoSink() throws Exception {
+        int maxRecordBytes = 4096;
+        StringBuilder sb = new StringBuilder();
+        while (sb.length() < 64 * 1024) {
+            sb.append("some-row-of-bytes-with-a-trailing-newline-and-a-bit-of-padding\n");
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        Executor sameThread = Runnable::run;
+        NeverBoundaryFormatReader reader = new NeverBoundaryFormatReader(64);
+        var iterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
+            reader,
+            new ByteArrayInputStream(bytes),
+            null,
+            List.of("line"),
+            50,
+            4,
+            sameThread,
+            ErrorPolicy.LENIENT,
+            null,
+            0L,
+            maxRecordBytes,
+            null,
+            null
+        );
+        List<String> got = collectLines(iterator);
+        assertEquals("an undelimitable first record yields no rows under truncation", 0, got.size());
+
+        List<String> warnings = drainWarnings();
+        assertTrue(
+            "expected a client-visible partial-results warning, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("results are partial") && w.contains("record exceeded max_record_size"))
+        );
+    }
+
+    /** Drain and clear the response {@code Warning} headers accumulated on the test thread context. */
+    private List<String> drainWarnings() {
+        List<String> raw = threadContext.getResponseHeaders().getOrDefault("Warning", List.of());
+        List<String> messages = raw.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false)).toList();
+        threadContext.stashContext();
+        return messages;
     }
 
     /**
@@ -1198,6 +1390,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * dispatches every parser-thread read to the schema-bound variant.
      */
     private static class LineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final long minSegment;
         private final List<Attribute> resolvedSchema;
@@ -1342,6 +1538,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * grow-loop bound fails fast.
      */
     private static class NeverBoundaryFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final long minSegment;
 
@@ -1414,6 +1614,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * key into the sink by a known string.
      */
     private static class StatsPublishingLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final LineFormatReader delegate;
         private final String path;
@@ -1515,6 +1719,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * A format reader that fails after reading a configured number of lines.
      */
     private static class FailingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final int failAfterLines;
         private final long minSegment;
@@ -1602,6 +1810,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * logic but does not model full RFC 4180 quoting.
      */
     private static class QuoteAwareLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final long minSegment;
         private final List<Attribute> resolvedSchema;

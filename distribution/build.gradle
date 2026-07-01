@@ -218,7 +218,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   }
 
   distro.copyModule(processDefaultOutputsTaskProvider, module)
-  dependencies.add('featuresMetadata', module)
+  dependencies.add('featuresMetadata', dependencies.project(path: module.path))
   if (module.name.startsWith('transport-') || (buildParams.snapshotBuild == false && module.name == 'apm')) {
     distro.copyModule(processIntegTestOutputsTaskProvider, module)
   }
@@ -239,7 +239,7 @@ xpack.subprojects.findAll { it.parent == xpack || it.parent == esqlFunctions }.e
       }
     }
     distro.copyModule(processDefaultOutputsTaskProvider, xpackModule)
-    dependencies.add('featuresMetadata', xpackModule)
+    dependencies.add('featuresMetadata', dependencies.project(path: xpackModule.path))
     if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
       distro.copyModule(processIntegTestOutputsTaskProvider, xpackModule)
     }
@@ -347,7 +347,10 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsSecurityCli project(':x-pack:plugin:security:cli')
     libsGeoIpCli project(':distribution:tools:geoip-cli')
-    libsNative project(':libs:native:native-libraries')
+    // Request the dedicated `nativeLibs` consumable variant — see libs/native/libraries/build.gradle.
+    // Do not switch this back to the `default` configuration: it is plugin-order dependent and would
+    // silently bind to the Java runtime variant if `elasticsearch.build` is ever applied to that project.
+    libsNative project(path: ':libs:native:native-libraries', configuration: 'nativeLibs')
     libsEntitlementAgent project(':libs:entitlement:agent')
     libsEntitlementBridge project(':libs:entitlement:bridge')
   }

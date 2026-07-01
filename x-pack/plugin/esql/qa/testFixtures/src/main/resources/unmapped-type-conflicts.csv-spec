@@ -430,9 +430,9 @@ c:long | last_name:keyword
 0      | Azuma
 ;
 
-// Verify that a partially-mapped TEXT field is not automatically loaded from _source for the unmapped field index.
-// employees_no_gender doesn't have the gender field in its mappings, but it does have it in its _source, while
-// employees_gender_text has gender mapped as a TEXT field. Don't load gender from _source for employees_no_gender.
+// Verify that a partially-mapped TEXT field is not implicitly converted from KEYWORD under LOAD.
+// employees_no_gender doesn't have the gender field in its mappings, so its values are null.
+// employees_gender_text has gender mapped as a TEXT field.
 typeConflictPartiallyUnmappedTextFieldNotLoaded
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped

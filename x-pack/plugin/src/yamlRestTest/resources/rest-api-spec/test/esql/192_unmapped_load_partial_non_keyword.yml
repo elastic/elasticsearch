@@ -7,7 +7,7 @@ setup:
           path: /_query
           parameters: [ ]
           capabilities: [ optional_fields_fix_load_partially_mapped ]
-      reason: 'requires SET unmapped_fields="load" and current error message for partially unmapped non-keyword fields'
+      reason: 'requires SET unmapped_fields="load" support for partially mapped non-keyword fields'
   #
   # The table below represents the field mappings for the three indices created in this test.
   # In `FROM index*`, all the fields except lambda are PUNKs: partially unmapped non-keyword fields.
@@ -63,6 +63,14 @@ setup:
                          properties:
                             d:
                               type: boolean
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "index2" } }
+          - { "alpha": 7, "lambda": "l", "tau": "2026-04-07T00:00:00Z", "beta": 2.5 }
+          - { "index": { "_index": "index3" } }
+          - { "a": { "b": { "c": { "d": true } } } }
 
 ---
 rename-punks:
@@ -151,21 +159,21 @@ where-punks:
   - contains: { error.reason: 'line 1:56: Cannot use field [alpha] due to ambiguities being mapped as [2] incompatible types: [integer] in [index2], [long] in [index1]' }
 
 ---
-stats-punks:
+where-punks-nullified-per-index:
   - requires:
       capabilities:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_unmapped_load_auto_cast_two_legged_punks ]
-      reason: "requires auto-casting of two-legged PUNKs"
+          capabilities: [ optional_fields_unmapped_load_null_fallback ]
+      reason: 'requires null-fallback for single-type non-keyword PUNKs under unmapped_fields="load"'
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM index2,index3 | STATS x = AVG(beta::double), y = MIN(a.b.c.d)'
-  - match: { columns.0.name: "x" }
-  - match: { columns.0.type: "double" }
-  - match: { columns.1.name: "y" }
-  - match: { columns.1.type: "boolean" }
+          query: 'SET unmapped_fields="load"; FROM index2,index3 | WHERE beta > 0 | STATS c = COUNT(*)'
+  - length: { columns: 1 }
+  - match: { columns.0.name: "c" }
+  - length: { values: 1 }
+  - match: { values.0: [ 1 ] }

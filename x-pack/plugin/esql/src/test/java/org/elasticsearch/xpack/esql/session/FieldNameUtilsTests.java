@@ -2454,6 +2454,15 @@ public class FieldNameUtilsTests extends ESTestCase {
             | SORT _score, _fork, emp_no""", Set.of("_index", "emp_no", "emp_no.*"));
     }
 
+    public void testMatchWithMetadataAndKeepCollectsReferencedFields() {
+        assertFieldNames("""
+            FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+            | WHERE MATCH(txt, "Faulkner") OR txt IS NULL
+            | KEEP _index, doc_id, txt
+            | SORT _index
+            """, Set.of("_index", "doc_id", "doc_id.*", "txt", "txt.*"));
+    }
+
     public void testFuseWithMatchAndScore() {
         assertFieldNames("""
             FROM books METADATA _id, _index, _score

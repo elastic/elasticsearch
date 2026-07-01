@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 144121
+pr: 152200
+summary: "Unmapped fields: fallback to default nulls for two legged PUNKs with no\
+  \ implicit cast"
+type: feature

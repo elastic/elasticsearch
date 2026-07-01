@@ -321,6 +321,10 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
         return Objects.hash(super.innerHashCode(ignoreIds), parentName, field);
     }
 
+    public FieldAttribute withField(EsField field) {
+        return new FieldAttribute(source(), parentName(), qualifier(), name(), field, nullable(), id(), synthetic());
+    }
+
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (FieldAttribute) o;

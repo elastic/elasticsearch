@@ -199,6 +199,148 @@ language_code:keyword | language_name:keyword
 2                     | French
 ;
 
+fullTextMatchOperatorOnFullyMappedTextField
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: match_operator_colon
+
+SET unmapped_fields="load"\;
+FROM books
+| WHERE author:"Faulkner"
+| KEEP book_no, author
+| SORT book_no
+| LIMIT 3
+;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+;
+
+qstrTextMappedUnmappedAndNonExistentUnderLoad
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: qstr_function
+required_capability: fix_unmapped_fields_in_esrelation
+
+SET unmapped_fields="load"\;
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| WHERE QSTR("txt: Faulkner") OR txt IS NULL
+| KEEP _index, doc_id, txt
+| SORT _index
+;
+
+_index:keyword          | doc_id:keyword | txt:text
+text_state_mapped       | mapped-1       | William Faulkner
+text_state_nonexistent  | nonexistent-1  | null
+text_state_unmapped     | unmapped-1     | null
+;
+
+kqlTextMappedUnmappedAndNonExistentUnderLoad
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: kql_function
+required_capability: fix_unmapped_fields_in_esrelation
+
+SET unmapped_fields="load"\;
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| WHERE KQL("txt: Faulkner") OR txt IS NULL
+| KEEP _index, doc_id, txt
+| SORT _index
+;
+
+_index:keyword          | doc_id:keyword | txt:text
+text_state_mapped       | mapped-1       | William Faulkner
+text_state_nonexistent  | nonexistent-1  | null
+text_state_unmapped     | unmapped-1     | null
+;
+
+matchTextMappedUnmappedAndNonExistentUnderLoad
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: match_function
+required_capability: fix_unmapped_fields_in_esrelation
+
+SET unmapped_fields="load"\;
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| WHERE MATCH(txt, "Faulkner") OR txt IS NULL
+| KEEP _index, doc_id, txt
+| SORT _index
+;
+
+_index:keyword          | doc_id:keyword | txt:text
+text_state_mapped       | mapped-1       | William Faulkner
+text_state_nonexistent  | nonexistent-1  | null
+text_state_unmapped     | unmapped-1     | null
+;
+
+matchOperatorTextMappedUnmappedAndNonExistentUnderLoad
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: match_operator_colon
+required_capability: fix_unmapped_fields_in_esrelation
+
+SET unmapped_fields="load"\;
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| WHERE txt:"Faulkner" OR txt IS NULL
+| KEEP _index, doc_id, txt
+| SORT _index
+;
+
+_index:keyword          | doc_id:keyword | txt:text
+text_state_mapped       | mapped-1       | William Faulkner
+text_state_nonexistent  | nonexistent-1  | null
+text_state_unmapped     | unmapped-1     | null
+;
+
+renameTextMappedUnmappedAndNonExistentUnderLoad
+required_capability: optional_fields_unmapped_load_null_fallback
+
+SET unmapped_fields="load"\;
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| RENAME txt AS renamed_txt
+| KEEP _index, doc_id, renamed_txt
+| SORT _index, doc_id
+;
+
+_index:keyword          | doc_id:keyword | renamed_txt:text
+text_state_mapped       | mapped-1       | William Faulkner
+text_state_mapped       | mapped-2       | Jane Austen
+text_state_nonexistent  | nonexistent-1  | null
+text_state_unmapped     | unmapped-1     | null
+;
+
+# AwaitsFix: https://github.com/elastic/elasticsearch/issues/152184
+# A dense_vector PUNK should null-fill where unmapped, but the KEYWORD->dense_vector auto-cast hex-decodes the _source array and fails.
+denseVectorPunkShowsNullUnderLoad-Ignore
+required_capability: optional_fields_unmapped_load_null_fallback
+
+SET unmapped_fields="load"\;
+FROM colors, colors_unmapped METADATA _index
+| WHERE id == 15
+| KEEP _index, color, rgb_vector
+| SORT _index
+;
+
+_index:keyword       | color:text | rgb_vector:dense_vector
+colors               | green      | [0.0, 128.0, 0.0]
+colors_unmapped      | green      | null
+;
+
+# AwaitsFix: https://github.com/elastic/elasticsearch/issues/152196
+# KNN over a partially unmapped dense_vector should null-fill where unmapped, but instead errors that the field does not exist.
+knnOnDenseVectorPunkUnderLoad-Ignore
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: knn_function_v5
+
+SET unmapped_fields="load"\;
+FROM colors, employees METADATA _index, _score
+| WHERE knn(rgb_vector, [0, 128, 0])
+| SORT _score DESC, color ASC
+| KEEP _index, color
+| LIMIT 1
+;
+
+_index:keyword | color:text
+colors         | green
+;
+
 ######################
 # Single index tests #
 ######################

@@ -765,6 +765,19 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    /**
+     * Whether each field's per-field Lucene formats (postings, doc values, vectors) are written to their own files rather
+     * than co-mingled in shared files. Compound files still apply via {@code index.compound_format}, so only segments
+     * above that threshold expose per-field files. Off by default; stateless enables it for new indices (see
+     * {@code StatelessIndexSettingProvider}).
+     */
+    public static final Setting<Boolean> INDEX_PER_FIELD_FILES_SETTING = Setting.boolSetting(
+        "index.codec.per_field_files",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     public static final Setting<Boolean> SYNTHETIC_ID = Setting.boolSetting("index.mapping.synthetic_id", settings -> {
         IndexVersion indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
         boolean isTimeSeries = IndexMode.TIME_SERIES.equals(MODE.get(settings));
@@ -1362,6 +1375,7 @@ public final class IndexSettings {
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
     private final boolean indexDisabledByDefault;
+    private final boolean perFieldFiles;
     private final boolean useColumnarIdByDefault;
 
     /**
@@ -1574,6 +1588,7 @@ public final class IndexSettings {
             ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
             : version.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && version.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB);
         indexDisabledByDefault = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && scopedSettings.get(INDEX_DISABLED_BY_DEFAULT);
+        perFieldFiles = scopedSettings.get(INDEX_PER_FIELD_FILES_SETTING);
         useColumnarIdByDefault = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && scopedSettings.get(USE_COLUMNAR_ID_BY_DEFAULT);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
@@ -2411,6 +2426,15 @@ public final class IndexSettings {
 
     public boolean isIndexDisabledByDefault() {
         return indexDisabledByDefault;
+    }
+
+    /**
+     * Whether each field's per-field Lucene formats are written to their own files. Off by default; enabled on stateless.
+     *
+     * @see #INDEX_PER_FIELD_FILES_SETTING
+     */
+    public boolean perFieldFiles() {
+        return perFieldFiles;
     }
 
     public boolean isUseColumnarIdByDefault() {

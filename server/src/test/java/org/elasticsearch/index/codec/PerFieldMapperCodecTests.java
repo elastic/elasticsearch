@@ -627,6 +627,48 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertEquals("alpDouble>delta>offset>gcd>bitPack", config.describeStages());
     }
 
+    public void testPerFieldFilesDefaultsOff() {
+        assertFalse(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.get(Settings.EMPTY));
+        assertFalse(
+            IndexSettings.INDEX_PER_FIELD_FILES_SETTING.get(Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD).build())
+        );
+    }
+
+    public void testSplitFormatsAreDistinctPerFieldButStablePerField() throws IOException {
+        PerFieldFormatSupplier supplier = createSplitFormatSupplier(LOGS_MAPPING);
+
+        // Distinct fields get distinct (split) format instances, so each lands in its own files.
+        assertNotSame(supplier.getDocValuesFormatForField("hostname"), supplier.getDocValuesFormatForField("response_size"));
+        assertNotSame(supplier.getPostingsFormatForField("hostname"), supplier.getPostingsFormatForField("message"));
+
+        // The same field always resolves to the same instance: the per-field writers dedupe consumers by format
+        // identity within a segment, so a stable instance is required for correctness.
+        assertSame(supplier.getDocValuesFormatForField("hostname"), supplier.getDocValuesFormatForField("hostname"));
+        assertSame(supplier.getPostingsFormatForField("message"), supplier.getPostingsFormatForField("message"));
+
+        // The wrapper preserves the delegate's registered format name so the read path resolves it via SPI.
+        PerFieldFormatSupplier plain = createFormatSupplier(IndexMode.STANDARD, LOGS_MAPPING);
+        assertEquals(plain.getDocValuesFormatForField("hostname").getName(), supplier.getDocValuesFormatForField("hostname").getName());
+        assertEquals(plain.getPostingsFormatForField("message").getName(), supplier.getPostingsFormatForField("message").getName());
+    }
+
+    public void testFormatsAreSharedAcrossFieldsWhenPerFieldFilesDisabled() throws IOException {
+        PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.STANDARD, LOGS_MAPPING);
+        // Without per-field files the default formats are shared singletons, so multiple fields co-mingle in the same files.
+        assertSame(supplier.getDocValuesFormatForField("hostname"), supplier.getDocValuesFormatForField("response_size"));
+        assertSame(supplier.getPostingsFormatForField("hostname"), supplier.getPostingsFormatForField("message"));
+    }
+
+    private PerFieldFormatSupplier createSplitFormatSupplier(String mapping) throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .put(IndexSettings.INDEX_PER_FIELD_FILES_SETTING.getKey(), true)
+            .build();
+        MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings, "test");
+        mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+    }
+
     public void testGetDocValuesFormatForFieldReturnsSameInstanceAcrossCalls() throws IOException {
         assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
         final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(

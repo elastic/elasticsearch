@@ -45,7 +45,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 
 import static org.apache.lucene.util.hnsw.HnswGraphBuilder.DEFAULT_BEAM_WIDTH;
@@ -90,6 +92,14 @@ public class PerFieldFormatSupplier {
     private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
     private final DocValuesFormat tsdbDocValuesFormat;
 
+    // When per-field files are enabled, each field is handed a distinct (but cached) wrapper format instance so that the
+    // per-field Lucene formats write it to its own files. The caches keep the per-field instance stable across calls,
+    // which is required: the per-field writers dedupe consumers by format identity within a segment.
+    private final boolean perFieldFiles;
+    private final Map<String, DocValuesFormat> splitDocValuesFormats;
+    private final Map<String, PostingsFormat> splitPostingsFormats;
+    private final Map<String, KnnVectorsFormat> splitKnnVectorsFormats;
+
     @SuppressWarnings("this-escape")
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         this.mapperService = mapperService;
@@ -118,6 +128,28 @@ public class PerFieldFormatSupplier {
                 bloomFilterSettings.lowBitsPerDoc(),
                 bloomFilterSettings.maxSize()
             );
+        this.perFieldFiles = mapperService != null && mapperService.getIndexSettings().perFieldFiles();
+        if (perFieldFiles) {
+            this.splitDocValuesFormats = new ConcurrentHashMap<>();
+            this.splitPostingsFormats = new ConcurrentHashMap<>();
+            this.splitKnnVectorsFormats = new ConcurrentHashMap<>();
+        } else {
+            this.splitDocValuesFormats = null;
+            this.splitPostingsFormats = null;
+            this.splitKnnVectorsFormats = null;
+        }
+    }
+
+    private PostingsFormat maybeWrap(String field, PostingsFormat format) {
+        return perFieldFiles ? splitPostingsFormats.computeIfAbsent(field, f -> new SplitFieldFormats.Postings(format)) : format;
+    }
+
+    private DocValuesFormat maybeWrap(String field, DocValuesFormat format) {
+        return perFieldFiles ? splitDocValuesFormats.computeIfAbsent(field, f -> new SplitFieldFormats.DocValues(format)) : format;
+    }
+
+    private KnnVectorsFormat maybeWrap(String field, KnnVectorsFormat format) {
+        return perFieldFiles ? splitKnnVectorsFormats.computeIfAbsent(field, f -> new SplitFieldFormats.KnnVectors(format)) : format;
     }
 
     private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
@@ -162,12 +194,12 @@ public class PerFieldFormatSupplier {
             // This gets called during merges where the segment merger
             // instead of relying on the field format name attribute,
             // it delegates that decision to the codec.
-            return syntheticIdPostingsFormat;
+            return maybeWrap(field, syntheticIdPostingsFormat);
         }
         if (useBloomFilter(field)) {
-            return bloomFilterPostingsFormat;
+            return maybeWrap(field, bloomFilterPostingsFormat);
         }
-        return internalGetPostingsFormatForField(field);
+        return maybeWrap(field, internalGetPostingsFormatForField(field));
     }
 
     private PostingsFormat internalGetPostingsFormatForField(String field) {
@@ -216,22 +248,25 @@ public class PerFieldFormatSupplier {
         if (mapperService != null) {
             Mapper mapper = mapperService.mappingLookup().getMapper(field);
             if (mapper instanceof DenseVectorFieldMapper vectorMapper) {
-                return vectorMapper.getKnnVectorsFormatForField(knnVectorsFormat, mapperService.getIndexSettings(), threadPool);
+                return maybeWrap(
+                    field,
+                    vectorMapper.getKnnVectorsFormatForField(knnVectorsFormat, mapperService.getIndexSettings(), threadPool)
+                );
             }
         }
-        return knnVectorsFormat;
+        return maybeWrap(field, knnVectorsFormat);
     }
 
     public DocValuesFormat getDocValuesFormatForField(String field) {
         if (useTSDBSyntheticId(field)) {
-            return idBloomFilterDocValuesFormat;
+            return maybeWrap(field, idBloomFilterDocValuesFormat);
         }
 
         if (useTSDBDocValuesFormat(field)) {
-            return tsdbDocValuesFormat;
+            return maybeWrap(field, tsdbDocValuesFormat);
         }
 
-        return docValuesFormat;
+        return maybeWrap(field, docValuesFormat);
     }
 
     FieldContext resolveFieldContext(final String fieldName, final int blockSize) {

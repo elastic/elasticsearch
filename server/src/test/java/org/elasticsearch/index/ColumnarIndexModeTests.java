@@ -94,4 +94,5 @@ public class ColumnarIndexModeTests extends ESTestCase {
         ).getSettings();
         assertTrue(IndexSettings.INDEX_DISABLED_BY_DEFAULT.get(settings));
     }
+
 }

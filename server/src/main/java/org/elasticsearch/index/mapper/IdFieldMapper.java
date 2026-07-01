@@ -11,8 +11,11 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -153,7 +156,11 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
                 }
                 return Uid.encodeId(idObject.toString());
             }).toList();
-            return new TermInSetQuery(name(), bytesRefs);
+            if (bytesRefs.size() == 1) {
+                return new ConstantScoreQuery(new TermQuery(new Term(name(), bytesRefs.getFirst())));
+            } else {
+                return new TermInSetQuery(name(), bytesRefs);
+            }
         }
 
         @Override

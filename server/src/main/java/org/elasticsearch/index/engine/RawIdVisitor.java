@@ -33,4 +33,10 @@ final class RawIdVisitor extends StoredFieldVisitor {
     public void binaryField(FieldInfo fieldInfo, byte[] value) {
         idBytes = new BytesRef(value);
     }
+
+    /** Clears {@code idBytes} so that a subsequent {@link org.apache.lucene.index.StoredFields#document} call on a doc with no {@code _id}
+     * field (e.g. a NoOp tombstone) returns {@code null} rather than a stale value from the previous doc. */
+    void reset() {
+        idBytes = null;
+    }
 }

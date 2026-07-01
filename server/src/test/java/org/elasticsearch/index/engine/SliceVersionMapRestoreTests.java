@@ -85,6 +85,38 @@ public class SliceVersionMapRestoreTests extends EngineTestCase {
         }
     }
 
+    /**
+     * Verifies that a NoOp tombstone (which stores no {@code _id} field) following a live doc in the same Lucene
+     * segment does not corrupt the version map for the live doc. The shared {@link RawIdVisitor} inside
+     * {@code SlicedUIDLoader} must be reset before each document read; without the reset, the NoOp inherits
+     * the live doc's stale {@code idBytes} and registers a spurious {@link DeleteVersionValue} under the live uid.
+     */
+    public void testNoOpAfterLiveDocInDocumentModeDoesNotShadowVersionEntry() throws Exception {
+        final Path translogPath = createTempDir();
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (Store store = createStore()) {
+            final EngineConfig config = config(defaultSettings, store, translogPath, NoMergePolicy.INSTANCE, globalCheckpoint::get);
+            try (InternalEngine engine = createEngine(config)) {
+                engine.advanceMaxSeqNoOfUpdatesOrDeletes(2);
+                applyOperation(engine, sliceIndex("1", "s1", 1, 1));
+                applyOperation(engine, new Engine.NoOp(2, primaryTerm.get(), Engine.Operation.Origin.REPLICA, System.nanoTime(), "test"));
+                globalCheckpoint.set(engine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo());
+                engine.flush(true, true);
+                assertThat(engine.getPersistedLocalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+            }
+            // Reopen without translog recovery: restore visits seq_no 1 (live) then seq_no 2 (NoOp)
+            // in the same leaf via SlicedUIDLoader. The NoOp must not register a DeleteVersionValue.
+            try (InternalEngine engine = new InternalEngine(config)) {
+                final Map<BytesRef, VersionValue> versionMap = engine.getVersionMap();
+                final BytesRef uid = SliceIdFieldMapper.encodeCompoundId("1", "s1");
+                assertFalse(
+                    "NoOp tombstone must not register a spurious DeleteVersionValue for the live doc",
+                    versionMap.get(uid) instanceof DeleteVersionValue
+                );
+            }
+        }
+    }
+
     private Engine.Index sliceIndex(String id, String slice, long seqNo, long version) {
         final ParsedDocument doc = parseDocument(engine.engineConfig.getMapperService(), id, slice);
         return new Engine.Index(

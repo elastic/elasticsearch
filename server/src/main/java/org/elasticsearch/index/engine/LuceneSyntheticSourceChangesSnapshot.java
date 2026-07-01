@@ -26,6 +26,7 @@ import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SliceIdFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.Uid;
@@ -292,10 +293,10 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
                     }
                 }
                 var source = addSyntheticFields(sourceLoader.source(fieldLoader, segmentDocID), segmentDocID);
-                String routing = fieldLoader.routing();
-                if (routing == null && routingDocValues != null) {
-                    routing = readRoutingFromDocValues(routingDocValues, segmentDocID);
-                }
+                // Routing for slice indices is the slice, which is already encoded in the compound uid.
+                // Derive it directly to avoid relying on fieldLoader.routing() / routingDocValues which
+                // may not be recoverable in all synthetic-source configurations.
+                final String routing = SliceIdFieldMapper.sliceFromCompoundId(uid);
                 return new Translog.Index(
                     uid,
                     docRecord.seqNo(),

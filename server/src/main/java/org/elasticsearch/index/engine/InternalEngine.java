@@ -4153,6 +4153,7 @@ public class InternalEngine extends Engine {
                 return docValues.advanceExact(docId) ? BytesRef.deepCopyOf(docValues.binaryValue()) : null;
             }
             if (storedFields != null) {
+                rawIdVisitor.reset();
                 storedFields.document(docId, rawIdVisitor);
                 return rawIdVisitor.idBytes;
             }

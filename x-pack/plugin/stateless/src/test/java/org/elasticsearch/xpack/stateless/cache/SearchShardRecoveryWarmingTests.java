@@ -42,6 +42,7 @@ import org.elasticsearch.threadpool.FakeTimeThreadPool;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.TimestampResolver.BlobFileTimestampResolver;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -133,6 +134,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 StatelessCompoundCommit commit,
                 BlobStoreCacheDirectory directory,
                 @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                BlobFileTimestampResolver timestampResolver,
                 boolean preWarmForIdLookup,
                 ActionListener<Void> listener
             ) {
@@ -496,7 +498,15 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().get(0);
             PlainActionFuture<Void> resume = new PlainActionFuture<>();
-            service.warmCacheForSearchShardRecovery(state, mockIndexShard(self), null, null, null, resume);
+            service.warmCacheForSearchShardRecovery(
+                state,
+                mockIndexShard(self),
+                null,
+                null,
+                null,
+                BlobFileTimestampResolver.ALL_UNKNOWN,
+                resume
+            );
             assertTrue(resume.isDone());
         }
     }
@@ -527,6 +537,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 null,
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), 1L),
+                BlobFileTimestampResolver.ALL_UNKNOWN,
                 resumeFuture
             );
             safeGet(resumeFuture);
@@ -554,6 +565,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 null,
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), 1L),
+                BlobFileTimestampResolver.ALL_UNKNOWN,
                 resume
             );
             assertTrue(resume.isDone());

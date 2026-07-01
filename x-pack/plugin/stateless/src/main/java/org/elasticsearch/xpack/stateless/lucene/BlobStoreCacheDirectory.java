@@ -143,6 +143,13 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
     }
 
+    /**
+     * Returns {@code true} if this directory currently has metadata for {@code fileName}.
+     */
+    public boolean knowsFile(String fileName) {
+        return currentMetadata.containsKey(fileName);
+    }
+
     StatelessSharedBlobCacheService getCacheService() {
         return cacheService;
     }

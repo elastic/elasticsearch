@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.TimestampResolver.BlobFileTimestampResolver;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -339,6 +340,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
                     @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                    BlobFileTimestampResolver timestampResolver,
                     boolean preWarmForIdLookup,
                     org.elasticsearch.action.ActionListener<Void> listener
                 ) {

@@ -83,6 +83,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.TimestampResolver.BlobFileTimestampResolver;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionStrategy;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -261,6 +262,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory blobStoreCacheDirectory,
             @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+            BlobFileTimestampResolver timestampResolver,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener
         ) {

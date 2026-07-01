@@ -25,6 +25,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.TimestampResolver.BlobFileTimestampResolver;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -330,11 +331,21 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
                     @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                    BlobFileTimestampResolver timestampResolver,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {
                     var subscribableListener = new SubscribableListener<Void>();
-                    super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, preWarmForIdLookup, subscribableListener);
+                    super.warmCache(
+                        type,
+                        indexShard,
+                        commit,
+                        directory,
+                        endOffsetsToWarm,
+                        timestampResolver,
+                        preWarmForIdLookup,
+                        subscribableListener
+                    );
                     safeAwait(subscribableListener);
                     subscribableListener.addListener(listener);
                 }

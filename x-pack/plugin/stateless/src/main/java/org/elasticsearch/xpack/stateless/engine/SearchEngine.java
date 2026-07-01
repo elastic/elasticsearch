@@ -361,6 +361,7 @@ public class SearchEngine extends Engine {
                 searchDirectory.getShardId(),
                 statelessSharedBlobCacheService,
                 searchDirectory::getCacheBlobReaderForPreFetching,
+                searchDirectory::getTimestampMillis,
                 config.getThreadPool(),
                 prefetchExecutor,
                 clusterSettings,
@@ -580,6 +581,7 @@ public class SearchEngine extends Engine {
                     var newCommitFiles = new HashMap<>(latestCommit.commitFiles());
                     newCommitFiles.keySet().removeAll(searchDirectory.getKnownFileNames());
                     Map<String, BlobFileRanges> newBlobFileRanges = ConcurrentCollections.newConcurrentMap();
+                    // TODO: pass timestamps to cache regions read in this call
                     ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                         newCommitFiles,
                         null,

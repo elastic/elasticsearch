@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.BCCPreFetchedOffset;
+import org.elasticsearch.xpack.stateless.cache.TimestampResolver.BlobFileTimestampResolver;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -893,6 +894,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
                     @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                    BlobFileTimestampResolver timestampResolver,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {

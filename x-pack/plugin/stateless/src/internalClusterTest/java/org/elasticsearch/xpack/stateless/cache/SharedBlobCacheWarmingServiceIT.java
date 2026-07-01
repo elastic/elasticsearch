@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
+import org.elasticsearch.xpack.stateless.cache.TimestampResolver.BlobFileTimestampResolver;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -1602,6 +1603,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
             @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+            BlobFileTimestampResolver timestampResolver,
             ActionListener<Void> resumeRecoveryListener
         ) {
             if (awaitWarmingForSearchRecovery) {
@@ -1614,6 +1616,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     commit,
                     directory,
                     endOffsetsToWarm,
+                    timestampResolver,
                     false,
                     searchRecoveryWarmingListener(
                         TimeValue.timeValueMinutes(1),
@@ -1629,6 +1632,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     commit,
                     directory,
                     endOffsetsToWarm,
+                    timestampResolver,
                     resumeRecoveryListener
                 );
             }
@@ -1719,6 +1723,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
             @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+            BlobFileTimestampResolver timestampResolver,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener
         ) {
@@ -1731,7 +1736,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             for (Consumer<Type> beforeWarmingStartsListener : beforeWarmingStartsListeners) {
                 beforeWarmingStartsListener.accept(type);
             }
-            super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, preWarmForIdLookup, wrappedListener);
+            super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, timestampResolver, preWarmForIdLookup, wrappedListener);
             var callback = warmCacheReturnedCallback;
             if (callback != null) {
                 callback.run();

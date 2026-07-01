@@ -136,6 +136,28 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
+    public void testValidate_ColumnMetadata() {
+        var setting = QuerySettings.COLUMN_METADATA;
+
+        assertDefault(setting, equalTo(Boolean.FALSE));
+
+        assertValid(setting, Literal.fromBoolean(Source.EMPTY, true), equalTo(Boolean.TRUE));
+        assertValid(setting, Literal.fromBoolean(Source.EMPTY, false), equalTo(Boolean.FALSE));
+
+        assertInvalid(setting.name(), of("true"), "Setting [" + setting.name() + "] must be of type BOOLEAN");
+        assertInvalid(setting.name(), Literal.integer(Source.EMPTY, 1), "Setting [" + setting.name() + "] must be of type BOOLEAN");
+        assertInvalid(
+            setting.name(),
+            new MapExpression(Source.EMPTY, List.of()),
+            "Setting [" + setting.name() + "] must be of type BOOLEAN"
+        );
+        assertInvalid(
+            setting.name(),
+            new Literal(Source.EMPTY, List.of(true, false), DataType.BOOLEAN),
+            "Setting [" + setting.name() + "] must be a boolean"
+        );
+    }
+
     public void testValidate_Approximation() {
         var def = QuerySettings.APPROXIMATION;
         assertDefault(def, is(nullValue()));

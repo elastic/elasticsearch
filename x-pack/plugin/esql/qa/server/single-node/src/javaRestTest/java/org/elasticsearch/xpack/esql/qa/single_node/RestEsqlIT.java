@@ -1683,7 +1683,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     public void testBucketColumnMetadataCsvTxtFormat() throws IOException {
-        assumeTrue("requires column_metadata_bucket capability", EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET.isEnabled());
+        assumeTrue("requires column_metadata_bucket_v2 capability", EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET_V2.isEnabled());
 
         Request indexRequest = new Request("POST", "/bucket_csv_test/_doc/");
         indexRequest.addParameter("refresh", "true");

@@ -82,6 +82,11 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
                         }
                         return new MockPayloadTokenFilter(tokenStream, delimiter.charAt(0), encoder);
                     }
+
+                    @Override
+                    public Object sharingKey() {
+                        return this;
+                    }
                 };
             });
         }

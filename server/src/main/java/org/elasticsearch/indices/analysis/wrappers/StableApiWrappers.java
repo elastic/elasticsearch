@@ -112,6 +112,17 @@ public class StableApiWrappers {
             public Reader normalize(Reader reader) {
                 return charFilterFactory.normalize(reader);
             }
+
+            @Override
+            public Object sharingKey() {
+                // The stable plugin API has no sharingKey() contract, so a stable factory must never
+                // share by default. Returning this (a fresh wrapper per get()) keys on wrapper identity,
+                // which is never equal across indices — independent of whether the wrapped factory is a
+                // singleton or overrides equals()/hashCode(). Returning the wrapped factory instead would
+                // silently opt stable plugins into sharing based on an equals() they never wrote as a
+                // sharing contract.
+                return this;
+            }
         };
     }
 
@@ -137,6 +148,13 @@ public class StableApiWrappers {
                 return mapAnalysisMode(f.getAnalysisMode());
             }
 
+            @Override
+            public Object sharingKey() {
+                // Stable plugins have no sharingKey() contract: never share by default. A fresh wrapper
+                // per get() keys on wrapper identity, so it never collapses with another index's factory.
+                return this;
+            }
+
             private static org.elasticsearch.index.analysis.AnalysisMode mapAnalysisMode(AnalysisMode analysisMode) {
                 return org.elasticsearch.index.analysis.AnalysisMode.valueOf(analysisMode.name());
             }
@@ -154,6 +172,13 @@ public class StableApiWrappers {
             @Override
             public Tokenizer create() {
                 return f.create();
+            }
+
+            @Override
+            public Object sharingKey() {
+                // Stable plugins have no sharingKey() contract: never share by default. A fresh wrapper
+                // per get() keys on wrapper identity, so it never collapses with another index's factory.
+                return this;
             }
         };
     }
@@ -173,6 +198,13 @@ public class StableApiWrappers {
             @Override
             public Analyzer get() {
                 return f.create();
+            }
+
+            @Override
+            public Object sharingKey() {
+                // Stable plugins have no sharingKey() contract: never share by default. A fresh wrapper
+                // per get() keys on wrapper identity, so it never collapses with another index's factory.
+                return this;
             }
         };
     }

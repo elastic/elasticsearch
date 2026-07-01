@@ -108,13 +108,23 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
     }
 
     /**
+     * The provider only ever auto-selects logsdb_columnar in snapshot builds (see
+     * {@code LogsdbIndexModeSettingsProvider}), so in a release build every value of
+     * {@code cluster.logsdb_columnar.enabled} resolves to plain logsdb anyway; looping over both there would just
+     * repeat an identical check.
+     */
+    private static List<Boolean> columnarEnabledValuesToTest() {
+        return Build.current().isSnapshot() ? List.of(false, true) : List.of(false);
+    }
+
+    /**
      * Toggles the dynamic {@code cluster.logsdb_columnar.enabled} setting between {@code false} and {@code true} and
      * verifies the provider's auto-injection for both outcomes, rather than leaving it to a single random per-run
      * coin flip (the node, and any setting fixed once in {@link #nodeSettings()}, is reused across test methods).
      */
     public void testStandard() throws Exception {
         try {
-            for (boolean columnarEnabled : List.of(false, true)) {
+            for (boolean columnarEnabled : columnarEnabledValuesToTest()) {
                 updateClusterSettings(Settings.builder().put("cluster.logsdb_columnar.enabled", columnarEnabled).build());
                 String dataStreamName = "logs-k8s-prod-" + columnarEnabled;
                 var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id-" + columnarEnabled);
@@ -145,7 +155,7 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
      */
     public void testRouteOnSortFields() throws Exception {
         try {
-            for (boolean columnarEnabled : List.of(false, true)) {
+            for (boolean columnarEnabled : columnarEnabledValuesToTest()) {
                 updateClusterSettings(Settings.builder().put("cluster.logsdb_columnar.enabled", columnarEnabled).build());
                 String dataStreamName = "logs-k8s-prod-" + columnarEnabled;
                 var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id-" + columnarEnabled);

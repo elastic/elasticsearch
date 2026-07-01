@@ -29,8 +29,15 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * One declared column inside a dataset's {@link DatasetMapping} {@code properties} block — the value
  * of a {@code "logical_name": { ... }} entry.
  *
- * <p>Carries the declared {@code type} and an optional {@code source} (the physical column name in the
- * file, when the logical name differs — a rename at the reader boundary).
+ * <p>Carries the declared {@code type}, an optional {@code source} (the physical column name in the file,
+ * when the logical name differs — a rename at the reader boundary), and an optional {@code copy_to} (another
+ * logical column that receives a copy of this column's value).
+ *
+ * <p><b>Move vs copy.</b> {@code source} is a <em>move</em>: the physical column becomes this one logical
+ * column (the physical name is consumed, 1:1). {@code copy_to} is a <em>copy</em>: this column keeps its own
+ * value <em>and</em> the named target also reads it (the physical column feeds several logical columns, N:1) —
+ * e.g. {@code "ts": {"type":"date","copy_to":"@timestamp"}} keeps {@code ts} and adds a {@code @timestamp}
+ * column. The two compose: a moved column may itself {@code copy_to} a further target.
  *
  * <p><b>Binding caveat for text (CSV/TSV) sources:</b> non-strict resolution binds a declared column to the
  * file column of the same physical name (from the header), but strict resolution ({@code dynamic: false})
@@ -47,36 +54,50 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
 
     private static final ParseField TYPE = new ParseField("type");
     private static final ParseField SOURCE = new ParseField("source");
+    private static final ParseField COPY_TO = new ParseField("copy_to");
 
     private static final ConstructingObjectParser<DatasetFieldMapping, Void> PARSER = new ConstructingObjectParser<>(
         "dataset_field_mapping",
         false,
-        args -> new DatasetFieldMapping((String) args[0], (String) args[1])
+        args -> new DatasetFieldMapping((String) args[0], (String) args[1], (String) args[2])
     );
 
     static {
         PARSER.declareString(constructorArg(), TYPE);
         PARSER.declareString(optionalConstructorArg(), SOURCE);
+        PARSER.declareString(optionalConstructorArg(), COPY_TO);
     }
 
     private final String type;
     @Nullable
     private final String source;
+    @Nullable
+    private final String copyTo;
 
+    /** Convenience: a column with no {@code copy_to}. */
     public DatasetFieldMapping(String type, @Nullable String source) {
+        this(type, source, null);
+    }
+
+    public DatasetFieldMapping(String type, @Nullable String source, @Nullable String copyTo) {
         this.type = Objects.requireNonNull(type, "field mapping type must not be null");
         this.source = source;
+        this.copyTo = copyTo;
     }
 
     public DatasetFieldMapping(StreamInput in) throws IOException {
+        // Reached only under the dataset_declared_schema transport version (the whole DatasetMapping is gated),
+        // which is unreleased — so copy_to ships in that one version with no separate gate.
         this.type = in.readString();
         this.source = in.readOptionalString();
+        this.copyTo = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(type);
         out.writeOptionalString(source);
+        out.writeOptionalString(copyTo);
     }
 
     public static DatasetFieldMapping fromXContent(XContentParser parser) throws IOException {
@@ -89,6 +110,9 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
         builder.field(TYPE.getPreferredName(), type);
         if (source != null) {
             builder.field(SOURCE.getPreferredName(), source);
+        }
+        if (copyTo != null) {
+            builder.field(COPY_TO.getPreferredName(), copyTo);
         }
         builder.endObject();
         return builder;
@@ -105,21 +129,31 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
         return source;
     }
 
+    /** A further logical column that receives a copy of this column's value ({@code copy_to}), or {@code null}. */
+    @Nullable
+    public String copyTo() {
+        return copyTo;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DatasetFieldMapping that = (DatasetFieldMapping) o;
-        return type.equals(that.type) && Objects.equals(source, that.source);
+        return type.equals(that.type) && Objects.equals(source, that.source) && Objects.equals(copyTo, that.copyTo);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, source);
+        return Objects.hash(type, source, copyTo);
     }
 
     @Override
     public String toString() {
-        return "DatasetFieldMapping[type=" + type + (source != null ? ", source=" + source : "") + "]";
+        return "DatasetFieldMapping[type="
+            + type
+            + (source != null ? ", source=" + source : "")
+            + (copyTo != null ? ", copyTo=" + copyTo : "")
+            + "]";
     }
 }

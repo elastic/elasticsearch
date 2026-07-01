@@ -81,15 +81,6 @@ public class EirfEncoder implements SourceBatchEncoder {
     }
 
     /**
-     * Adds a single document to the encoder's default partition. Equivalent to
-     * {@code parseToScratch(source, xContentType, NO_OP_LEAF_SINK); commitScratchTo(DEFAULT_PARTITION);}.
-     */
-    public void addDocument(BytesReference source, XContentType xContentType, int partition) throws IOException {
-        parseToScratch(source, xContentType, LeafSink.NO_OP);
-        commitScratchTo(partition);
-    }
-
-    /**
      * Parses {@code source} into the encoder's per-document scratch and fires {@code sink} for every
      * primitive leaf value (string / number / boolean — null and array values are intentionally not
      * forwarded; see {@link LeafSink}). The parsed row is held in scratch until the next
@@ -98,6 +89,7 @@ public class EirfEncoder implements SourceBatchEncoder {
      * <p>Calling this method twice without an intervening {@code commitScratchTo} discards the
      * previously staged row.
      */
+    @Override
     public void parseToScratch(BytesReference source, XContentType xContentType, LeafSink sink) throws IOException {
         int columnCountBefore = schema.leafCount();
         Arrays.fill(scratch.typeBytes, 0, columnCountBefore, (byte) 0);
@@ -119,6 +111,7 @@ public class EirfEncoder implements SourceBatchEncoder {
      *
      * @throws IllegalStateException if no row is currently staged.
      */
+    @Override
     public int commitScratchTo(int partitionKey) throws IOException {
         if (rowStaged == false) {
             throw new IllegalStateException("commitScratchTo called without a staged row");
@@ -141,6 +134,7 @@ public class EirfEncoder implements SourceBatchEncoder {
      * batch consumes that partition's row data; subsequent calls for the same key will produce an
      * empty batch.
      */
+    @Override
     public EirfBatch buildPartition(int partitionKey) {
         Partition partition = getOrCreatePartition(partitionKey);
         ReleasableBytesReference rowBytes = partition.rowOutput.moveToBytesReference();
@@ -153,6 +147,7 @@ public class EirfEncoder implements SourceBatchEncoder {
      * Returns the number of rows committed to the partition identified by {@code partitionKey}.
      * Returns 0 for partitions that have never been written to.
      */
+    @Override
     public int docCount(int partitionKey) {
         Partition partition = partitionKey < partitions.length ? partitions[partitionKey] : null;
         return partition == null ? 0 : partition.docCount;
@@ -162,6 +157,7 @@ public class EirfEncoder implements SourceBatchEncoder {
      * Returns true if at least one row has been committed to the partition identified by
      * {@code partitionKey}.
      */
+    @Override
     public boolean hasPartition(int partitionKey) {
         Partition partition = partitionKey < partitions.length ? partitions[partitionKey] : null;
         return partition != null && partition.docCount > 0;
@@ -171,6 +167,7 @@ public class EirfEncoder implements SourceBatchEncoder {
      * Returns the dotted path for the given leaf column. Result is cached: callers may use the
      * column index as a stable key for their own per-column state.
      */
+    @Override
     public String columnPath(int columnIndex) {
         if (columnIndex >= cachedPath.length) {
             int newCap = cachedPath.length;

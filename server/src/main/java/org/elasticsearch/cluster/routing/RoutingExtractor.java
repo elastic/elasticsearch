@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.routing;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.sourcebatch.LeafSink;
+import org.elasticsearch.sourcebatch.SourceBatchEncoder;
 import org.elasticsearch.xcontent.XContentString;
 
 /**
@@ -29,7 +30,7 @@ import org.elasticsearch.xcontent.XContentString;
  * strategy and the column-index-to-path mapping are per-index.
  *
  * <p>The column-level cache is intentionally <b>not</b> cleared between documents: column indices
- * are stable for the lifetime of the {@link org.elasticsearch.sourcebatch.SourceBatchEncoder} they're attached to (the schema is built
+ * are stable for the lifetime of the {@link SourceBatchEncoder} they're attached to (the schema is built
  * up cumulatively across all docs in the bulk for a single index), so once column N's predicate
  * result is known it remains valid for every subsequent document fed to this extractor.
  */

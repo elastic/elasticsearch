@@ -77,6 +77,7 @@ public final class EirfArrayReader implements ArrayReader {
      * Advances to the next element. Returns false when all bytes have been consumed.
      * Handles all positioning — any unconsumed data from the previous element is skipped automatically.
      */
+    @Override
     public boolean next() {
         pos = nextStart;
         if (pos >= endOffset) {
@@ -94,14 +95,17 @@ public final class EirfArrayReader implements ArrayReader {
         return true;
     }
 
+    @Override
     public byte type() {
         return elemType;
     }
 
+    @Override
     public boolean isNull() {
         return elemType == EirfType.NULL;
     }
 
+    @Override
     public boolean booleanValue() {
         if (elemType == EirfType.TRUE) {
             return true;
@@ -112,22 +116,27 @@ public final class EirfArrayReader implements ArrayReader {
         throw new IllegalStateException("Element is not a boolean, type=" + EirfType.name(elemType));
     }
 
+    @Override
     public int intValue() {
         return ByteUtils.readIntLE(data, currentStart);
     }
 
+    @Override
     public float floatValue() {
         return Float.intBitsToFloat(ByteUtils.readIntLE(data, currentStart));
     }
 
+    @Override
     public long longValue() {
         return ByteUtils.readLongLE(data, currentStart);
     }
 
+    @Override
     public double doubleValue() {
         return Double.longBitsToDouble(ByteUtils.readLongLE(data, currentStart));
     }
 
+    @Override
     public String stringValue() {
         int len = ByteUtils.readIntLE(data, currentStart);
         return new String(data, currentStart + 4, len, StandardCharsets.UTF_8);
@@ -137,6 +146,7 @@ public final class EirfArrayReader implements ArrayReader {
      * Creates a child {@link EirfArrayReader} reader over the current compound array element's payload.
      * The current element must be a UNION_ARRAY or FIXED_ARRAY.
      */
+    @Override
     public EirfArrayReader nestedArray() {
         int len = ByteUtils.readIntLE(data, currentStart);
         int off = currentStart + 4;
@@ -148,6 +158,7 @@ public final class EirfArrayReader implements ArrayReader {
      * Creates a child {@link EirfKeyValueReader} reader over the current compound element's payload.
      * The current element must be of type KEY_VALUE.
      */
+    @Override
     public EirfKeyValueReader nestedKeyValue() {
         int len = ByteUtils.readIntLE(data, currentStart);
         int off = currentStart + 4;

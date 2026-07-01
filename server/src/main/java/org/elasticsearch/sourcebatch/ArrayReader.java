@@ -10,24 +10,22 @@
 package org.elasticsearch.sourcebatch;
 
 import org.elasticsearch.eirf.EirfKeyValueReader;
+import org.elasticsearch.eirf.EirfType;
 
 /**
  * A forward-only reader over a single array value of a {@link SourceRow}, independent of the physical
  * layout the batch stores the array in.
  *
  * <p>Call {@link #next()} to advance to each element, then read it with the accessor matching
- * {@link #type()} (an {@link org.elasticsearch.eirf.EirfType} byte). Value accessors are pure reads
+ * {@link #type()} (an {@link EirfType} byte). Value accessors are pure reads
  * and do not advance the cursor.
- *
- * <p>The row-major (EIRF) format stores arrays inline and reads them with the inline implementation;
- * a column-major format backs this with its own implementation over the array column's child values.
  */
 public interface ArrayReader {
 
     /** Advances to the next element. Returns {@code false} when all elements have been consumed. */
     boolean next();
 
-    /** The {@link org.elasticsearch.eirf.EirfType} byte of the current element. */
+    /** The {@link EirfType} byte of the current element. */
     byte type();
 
     /** Returns {@code true} if the current element is an explicit {@code null}. */

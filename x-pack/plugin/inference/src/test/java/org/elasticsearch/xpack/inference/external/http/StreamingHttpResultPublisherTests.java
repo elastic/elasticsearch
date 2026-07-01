@@ -638,11 +638,10 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     }
 
     public void testFailedPublisherReleasesCircuitBreakerBytes() throws IOException {
-        var messageBytesLength = (long) message.length;
         publisher.responseReceived(mock(HttpResponse.class));
         publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
 
-        assertThat("circuitBreaker should have tracked bytes after consuming content", circuitBreaker.getTracked(), equalTo(messageBytesLength));
+        assertThat("circuitBreaker should have tracked bytes after consuming content", circuitBreaker.getTracked(), equalTo((long) message.length));
 
         var subscriber = new TestSubscriber();
         testPublisher().subscribe(subscriber);
@@ -654,17 +653,33 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     }
 
     public void testCancelledSubscriberReleasesCircuitBreakerBytes() throws IOException {
-        var messageBytesLength = (long) message.length;
         publisher.responseReceived(mock(HttpResponse.class));
         publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
 
-        assertThat("circuitBreaker should have tracked bytes after consuming content", circuitBreaker.getTracked(), equalTo(messageBytesLength));
+        assertThat("circuitBreaker should have tracked bytes after consuming content", circuitBreaker.getTracked(), equalTo((long) message.length));
 
         var subscriber = new TestSubscriber();
         testPublisher().subscribe(subscriber);
         subscriber.subscription.cancel();
 
         assertThat("circuitBreaker should have 0 tracked bytes after the subscriber was cancelled", circuitBreaker.getTracked(), equalTo(0L));
+    }
+
+    public void testPublisherCancelReleasesCircuitBreakerBytesOnDrain() throws IOException {
+        publisher.responseReceived(mock(HttpResponse.class));
+        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
+
+        var subscriber = new TestSubscriber();
+        testPublisher().subscribe(subscriber);
+
+        publisher.cancel();
+
+        assertThat("circuitBreaker should still track bytes immediately after Apache cancelled", circuitBreaker.getTracked(), equalTo((long) message.length));
+
+        // Drains rest of the data in the queue
+        subscriber.requestData();
+
+        assertThat("circuitBreaker should have 0 tracked bytes after subscriber drains the queue", circuitBreaker.getTracked(), equalTo(0L));
     }
 
     private static class TestCircuitBreakerWithTracking extends TestCircuitBreaker {

@@ -12,8 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 
 import java.io.IOException;
@@ -52,8 +50,6 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
      * version marks all of them (a TV name may gate fields in more than one class).
      */
     static final TransportVersion ESQL_SPLIT_STATS_VALUE_COUNT = TransportVersion.fromName("esql_external_warm_aggregate_profile");
-
-    private static final Logger logger = LogManager.getLogger(SplitStats.class);
 
     /** Empty stats with zero rows and no columns. */
     public static final SplitStats EMPTY = new SplitStats(
@@ -508,10 +504,11 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
      * {@link SourceStatisticsSerializer#mergeStatistics}: SUM for row/size/null/value/size-bytes, the MIN/MAX
      * law ({@link #mergedMin}/{@link #mergedMax}) for extrema with per-extremum POISON becoming an unservable
      * bit, and the implicit-nulls (footer) or partial-column-drop (text) policy for a column absent from some
-     * splits. This is the compact-model twin of that flat-map fold: {@code fold(splits, m).toMap()} is
-     * key-equivalent to {@code mergeStatistics(splits.map(SplitStats::toMap), m)} -- asserted by the differential
-     * test. The servability MARKER of the flat form becomes the servable BIT here, folded by AND (unservable is
-     * sticky across levels), so a poisoned extremum cannot be refilled by a sibling.
+     * splits. This is the compact-model twin of that flat-map fold: {@code fold(splits, m).toMap()} was proven
+     * key-equivalent to the former {@code mergeStatistics(splits.map(SplitStats::toMap), m)} by the differential
+     * test (before {@code mergeStatistics} was switched to delegate here). The servability MARKER of the flat form
+     * becomes the servable BIT here, folded by AND (unservable is sticky across levels), so a poisoned extremum
+     * cannot be refilled by a sibling.
      *
      * @param implicitNullsForAbsentColumn footer (true): a split lacking a column folds its rows into that
      *        column's null_count. Text (false): a column absent from a NON-EMPTY split is dropped entirely.

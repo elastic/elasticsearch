@@ -259,9 +259,10 @@ public final class SourceStatisticsSerializer {
         }
 
         // Fold via the compact model: deserialize each input, fold with the one canonical engine, re-serialize.
-        // Proven key-equal to the former in-place flat-map fold by
-        // SplitStatsTests#testFoldMatchesMergeStatisticsDifferential. The per-field law lives once in
-        // SplitStats.mergedMin/mergedMax and the fold's SUM/AND; there is no longer a parallel StatFold law table.
+        // The equivalence to the former in-place flat-map fold was proven by
+        // SplitStatsTests#testFoldMatchesMergeStatisticsDifferential against that fold BEFORE this delegation landed
+        // (git history); the test now guards the of/fold/toMap round-trip. The per-field law lives once in
+        // SplitStats.mergedMin/mergedMax and the fold's SUM/AND -- there is no longer a parallel per-key law table.
         List<SplitStats> splits = new ArrayList<>(splitStats.size());
         for (Map<String, Object> stats : splitStats) {
             if (stats == null || stats.get(STATS_ROW_COUNT) instanceof Number == false) {

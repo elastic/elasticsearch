@@ -216,8 +216,10 @@ public class SplitStatsTests extends ESTestCase {
     /**
      * EQUIVALENCE PROOF for the compact fold: over a randomized corpus (multiple files, absent columns,
      * cross-type / NaN poison, pre-seeded unservable markers, both footer and text modes), the compact
-     * {@code SplitStats.fold(...).toMap()} must be key-equal to the flat {@code mergeStatistics(...)}. This is the
-     * signal that lets {@code mergeStatistics} be rewritten to delegate to {@code fold} without behavior change.
+     * {@code SplitStats.fold(...).toMap()} must be key-equal to {@code mergeStatistics(...)}. This was the signal
+     * that let {@code mergeStatistics} be rewritten to delegate to {@code fold} without behavior change (it ran
+     * against the independent flat-map fold at that point); now that {@code mergeStatistics} delegates, it guards
+     * the {@code of}/{@code fold}/{@code toMap} round-trip over the same broad corpus.
      */
     public void testFoldMatchesMergeStatisticsDifferential() {
         for (int trial = 0; trial < 500; trial++) {

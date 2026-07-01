@@ -321,7 +321,14 @@ final class PageColumnReader implements Releasable {
             if (chunks.size() == 1) {
                 return chunks.get(0);
             }
-            return combineBlocks(chunks, survivorCount, blockFactory);
+            // Exact-count guard: the sparse loop must have decoded exactly survivorCount rows across
+            // the chunks. This caught a real page-skip miscount and stays local to this path because
+            // the gather path in ParquetColumnExtractor has no such fixed 1:1 relationship.
+            assert sumPositions(chunks) == survivorCount : "chunk total " + sumPositions(chunks) + " != expected " + survivorCount;
+            // BlockChunks.concat resolves the element type from the first non-NULL chunk (so a
+            // null-leading run cannot poison a ConstantNullBlock builder) and closes the chunks on
+            // success; on a throw the catch below releases them.
+            return BlockChunks.concat(chunks, blockFactory);
         } catch (RuntimeException e) {
             for (Block chunk : chunks) {
                 Releasables.closeExpectNoException(chunk);
@@ -330,29 +337,12 @@ final class PageColumnReader implements Releasable {
         }
     }
 
-    /**
-     * Concatenates multiple blocks produced by the sparse-read loop into a single block
-     * by copying values from each chunk sequentially via a {@link Block.Builder}.
-     * Closes the source chunks after copying.
-     */
-    private static Block combineBlocks(List<Block> chunks, int totalPositions, BlockFactory blockFactory) {
-        int actualTotal = 0;
+    private static int sumPositions(List<Block> chunks) {
+        int total = 0;
         for (Block b : chunks) {
-            actualTotal += b.getPositionCount();
+            total += b.getPositionCount();
         }
-        assert actualTotal == totalPositions : "chunk total " + actualTotal + " != expected " + totalPositions;
-
-        Block first = chunks.get(0);
-        try (Block.Builder builder = first.elementType().newBlockBuilder(totalPositions, blockFactory)) {
-            for (Block chunk : chunks) {
-                builder.copyFrom(chunk, 0, chunk.getPositionCount());
-            }
-            Block result = builder.build();
-            for (Block chunk : chunks) {
-                Releasables.closeExpectNoException(chunk);
-            }
-            return result;
-        }
+        return total;
     }
 
     private void loadDictionaryIfNeeded() {

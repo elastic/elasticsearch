@@ -179,6 +179,7 @@ final class RequestXContent {
                     "Setting [" + settingName + "] is not exposed as a request body parameter"
                 );
             }
+            QuerySettings.warnIfDeprecated(def);
             p.nextToken(); // move to value
             Object value;
             try {

@@ -76,6 +76,7 @@ public final class QuerySettings {
         .withDefault(ZoneOffset.UTC)
         .withRequestBody()
         .withAliasAtRoot()
+        .canonicalize(ZoneId::normalized)
         .build();
 
     @Param(name = "unmapped_fields", type = { "keyword" }, since = "9.3.0", description = """
@@ -218,8 +219,9 @@ public final class QuerySettings {
     }
 
     /**
-     * Validates the in-query SETs. Unknown keys emit a deprecation header and are skipped (the in-query
-     * surface is forgiving of typos); other failures throw {@link ParsingException} early.
+     * Validates the in-query SETs. An unknown key is a typo the user can act on, so it fails loudly with a
+     * {@link ParsingException} — same as the request-body surface. A known-but-deprecated key is accepted with
+     * a deprecation warning (see {@link #warnIfDeprecated}). Type and availability failures also throw early.
      */
     public static void validate(EsqlStatement statement, SettingsValidationContext ctx) {
         if (statement.settings() == null) {
@@ -228,9 +230,9 @@ public final class QuerySettings {
         for (QuerySetting setting : statement.settings()) {
             QuerySettingDef<?> def = lookup(setting.name());
             if (def == null) {
-                HeaderWarning.addWarning("Unknown ES|QL setting [" + setting.name() + "] — ignored");
-                continue;
+                throw new ParsingException(setting.source(), "Unknown setting [" + setting.name() + "]");
             }
+            warnIfDeprecated(def);
             if (def.snapshotOnly() && ctx.isSnapshot() == false) {
                 throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] is only available in snapshot builds");
             }
@@ -241,6 +243,17 @@ public final class QuerySettings {
                 throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] must be a constant");
             }
             runTypedValidator(def, setting, ctx);
+        }
+    }
+
+    /**
+     * Emits a deprecation warning if {@code def} is deprecated. Called from both settings surfaces (in-query
+     * {@code SET} and the request body) so a deprecated setting warns wherever it is supplied, while still
+     * being resolved and applied.
+     */
+    public static void warnIfDeprecated(QuerySettingDef<?> def) {
+        if (def.deprecationMessage() != null) {
+            HeaderWarning.addWarning("Setting [" + def.name() + "] is deprecated: " + def.deprecationMessage());
         }
     }
 
@@ -318,7 +331,7 @@ public final class QuerySettings {
             if (error != null) {
                 throw new VerificationException("Error validating setting [" + def.name() + "]: " + error);
             }
-            resolved.put(def, value);
+            resolved.put(def, def.canonicalize(value));
         }
     }
 

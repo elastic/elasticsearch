@@ -40,6 +40,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class QuerySettingsTests extends ESTestCase {
@@ -57,13 +58,31 @@ public class QuerySettingsTests extends ESTestCase {
     );
 
     public void testValidate_NonExistingSetting() {
-        // Unknown SET keys in the query string warn and are skipped — they do not throw.
-        // (The body surface — settings.{} — is the strict one; that path is covered by RequestXContent tests.)
+        // An unknown SET key is a typo the user can act on, so it fails loudly — same as the request-body surface.
         String settingName = "non_existing";
         QuerySetting setting = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, settingName, of("12")));
         EsqlStatement statement = new EsqlStatement(null, List.of(setting));
-        QuerySettings.validate(statement, SNAPSHOT_CTX_WITH_CPS_ENABLED);
-        assertWarnings("Unknown ES|QL setting [" + settingName + "] — ignored");
+        ParsingException e = expectThrows(ParsingException.class, () -> QuerySettings.validate(statement, SNAPSHOT_CTX_WITH_CPS_ENABLED));
+        assertThat(e.getMessage(), containsString("Unknown setting [" + settingName + "]"));
+    }
+
+    public void testDeprecatedSettingWarnsButIsAccepted() {
+        // A known-but-deprecated setting is not a typo: it keeps working and merely warns, so clients that
+        // still send it are not broken (unlike an unknown key, which fails).
+        QuerySettingDef<String> deprecated = QuerySettingDef.string("legacy_knob").withDeprecated("use new_knob instead").build();
+        QuerySettings.warnIfDeprecated(deprecated);
+        assertWarnings("Setting [legacy_knob] is deprecated: use new_knob instead");
+
+        // A non-deprecated setting emits nothing.
+        QuerySettings.warnIfDeprecated(QuerySettings.TIME_ZONE);
+    }
+
+    public void testCanonicalizeNormalizesOnOverride() {
+        // TIME_ZONE.canonicalize(ZoneId::normalized) runs inside withOverride, so a programmatic (non-parsed)
+        // value is normalized just like a parsed one — no caller has to remember to normalize.
+        ResolvedSettings resolved = ResolvedSettings.EMPTY.withOverride(QuerySettings.TIME_ZONE, ZoneId.of("UTC"));
+        assertThat(QuerySettings.TIME_ZONE.get(resolved), equalTo(ZoneId.of("UTC").normalized()));
+        assertThat(QuerySettings.TIME_ZONE.get(resolved), not(equalTo(ZoneId.of("UTC"))));
     }
 
     public void testValidate_ProjectRouting() {

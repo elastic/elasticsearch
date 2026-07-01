@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.UnaryOperator;
 
 /**
  * The typed handle for one ES|QL query setting. Declared as a {@code public static final}
@@ -138,9 +139,10 @@ import java.util.List;
  *   <li><b>Build time.</b> {@code build()} refuses an incoherent declaration — for example, a body-exposed
  *       setting that has no JSON reader. The node won't start, so these surface at boot rather than in
  *       production.</li>
- *   <li><b>Parse time.</b> The body and {@code SET} paths diverge on purpose. Unknown body keys return a 400
- *       naming the field. Unknown {@code SET} keys emit a deprecation header and are skipped. Type mismatches
- *       throw on either path.</li>
+ *   <li><b>Parse time.</b> An unknown key is a typo the client can act on, so both surfaces reject it — the body
+ *       path with a 400 naming the field, the {@code SET} path with a {@link org.elasticsearch.xpack.esql.parser.ParsingException}.
+ *       A known-but-deprecated key (see {@link Builder#withDeprecated}) is accepted with a deprecation warning
+ *       on either surface. Type mismatches throw on either path.</li>
  *   <li><b>Resolve time.</b> A {@code snapshotOnly} setting supplied on a non-snapshot build throws. If a
  *       validator was declared, it runs against the resolved value with access to cluster context (snapshot-mode
  *       flag, cross-project mode, etc).</li>
@@ -185,6 +187,9 @@ public final class QuerySettingDef<T> {
     private final boolean preview;
     private final boolean snapshotOnly;
     private final boolean serverlessOnly;
+    @Nullable
+    private final String deprecationMessage;
+    private final UnaryOperator<T> canonicalizer;
 
     private QuerySettingDef(Builder<T> b) {
         this.name = b.name;
@@ -201,6 +206,18 @@ public final class QuerySettingDef<T> {
         this.preview = b.preview;
         this.snapshotOnly = b.snapshotOnly;
         this.serverlessOnly = b.serverlessOnly;
+        this.deprecationMessage = b.deprecationMessage;
+        this.canonicalizer = b.canonicalizer;
+    }
+
+    /**
+     * Coerce a value into this setting's canonical form. Applied on every write into a resolved view (both the
+     * resolver and {@link ResolvedSettings#withOverride}), so a value reaches consumers in one shape no matter
+     * which surface supplied it — e.g. {@code time_zone} normalizes {@code ZoneId}s so {@code "UTC"} and
+     * {@code "Z"} compare equal. Defaults to identity. {@code null} passes through untouched.
+     */
+    public T canonicalize(@Nullable T value) {
+        return value == null ? null : canonicalizer.apply(value);
     }
 
     public String name() {
@@ -235,6 +252,18 @@ public final class QuerySettingDef<T> {
 
     public boolean serverlessOnly() {
         return serverlessOnly;
+    }
+
+    /**
+     * A human-readable deprecation message, or {@code null} if the setting is not deprecated. A deprecated
+     * setting keeps working — it is still resolved and applied — but supplying it (via {@code SET} or the
+     * request body) emits this text as a deprecation warning. Deprecation is distinct from removal: a removed
+     * setting drops out of the registry and is then rejected as unknown, whereas a deprecated one stays known
+     * and merely warns, so clients relying on it are not broken.
+     */
+    @Nullable
+    public String deprecationMessage() {
+        return deprecationMessage;
     }
 
     public SettingReconciler<T> reconciler() {
@@ -301,6 +330,9 @@ public final class QuerySettingDef<T> {
         private boolean preview = false;
         private boolean snapshotOnly = false;
         private boolean serverlessOnly = false;
+        @Nullable
+        private String deprecationMessage = null;
+        private UnaryOperator<T> canonicalizer = UnaryOperator.identity();
 
         private Builder(String name, @Nullable DataType type) {
             this.name = name;
@@ -374,6 +406,26 @@ public final class QuerySettingDef<T> {
          */
         public Builder<T> withServerlessOnly() {
             this.serverlessOnly = true;
+            return this;
+        }
+
+        /**
+         * Mark this setting deprecated. It keeps working (still resolved and applied), but supplying it emits
+         * {@code message} as a deprecation warning. Use this instead of dropping a setting from the registry
+         * when you want to steer clients away from it without breaking the ones that still send it.
+         */
+        public Builder<T> withDeprecated(String message) {
+            this.deprecationMessage = message;
+            return this;
+        }
+
+        /**
+         * Coerce every value of this setting into a canonical form on write (see
+         * {@link QuerySettingDef#canonicalize}). Use it when equal values can be spelled differently — e.g.
+         * {@code time_zone} normalizes {@code ZoneId}s — so consumers never see two forms of the same value.
+         */
+        public Builder<T> canonicalize(UnaryOperator<T> canonicalizer) {
+            this.canonicalizer = canonicalizer;
             return this;
         }
 

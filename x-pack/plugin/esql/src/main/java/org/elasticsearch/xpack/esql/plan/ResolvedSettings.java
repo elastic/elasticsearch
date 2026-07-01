@@ -121,7 +121,8 @@ public final class ResolvedSettings implements Writeable {
         if (value == null) {
             updated.remove(def);
         } else {
-            updated.put(def, value);
+            // Canonicalize on write so every entry point (parse, resolve, programmatic override) stores one shape.
+            updated.put(def, def.canonicalize(value));
         }
         return new ResolvedSettings(updated);
     }

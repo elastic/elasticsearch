@@ -402,9 +402,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      * Folds the canonical {@code settings.{}} block into {@link #requestSettings}. A setting with a legacy
      * top-level body field (e.g. {@code time_zone}) may be supplied at the top level, under {@code settings.{}},
      * or in both — as long as the two agree. Supplying it in both places with <em>different</em> values is a
-     * 400: we won't silently pick a winner. Supplying the <em>same</em> value in both is allowed, so a client
-     * mid-migration can carry the field at both surfaces. The check runs after the whole body is parsed, so it
-     * is independent of JSON field order. In-query {@code SET} still overrides a body value — that precedence is
+     * 400: we won't silently pick a winner. Supplying the <em>same</em> value in both is harmless, so we accept
+     * it rather than nitpick a redundant duplicate. The check runs after the whole body is parsed, so it is
+     * independent of JSON field order. In-query {@code SET} still overrides a body value — that precedence is
      * intentional and unaffected here, because {@code SET} is reconciled later, off the request settings.
      */
     void applyCanonicalRequestSettings() {

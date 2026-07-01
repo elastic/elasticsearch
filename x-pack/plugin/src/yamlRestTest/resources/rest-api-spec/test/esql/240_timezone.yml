@@ -384,6 +384,25 @@ SET-only setting under settings is rejected:
   - match: { error.root_cause.0.reason: "/.*Setting..unmapped_fields..is.not.exposed.as.a.request.body.parameter.*/" }
 
 ---
+Unknown in-query SET key is rejected:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ query_settings_request_body ]
+      test_runner_features: [ capabilities ]
+      reason: "Unknown SET keys now fail loudly instead of warning"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            SET no_such_setting="x";
+            FROM tzs | LIMIT 1
+  - match: { error.root_cause.0.reason: "/.*Unknown.setting..no_such_setting..*/" }
+
+---
 Function parameter with SET:
   - do:
       esql.query:

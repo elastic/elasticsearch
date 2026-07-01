@@ -812,3 +812,6 @@ tests:
 - class: org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests
   method: testSkewedIndex
   issue: https://github.com/elastic/elasticsearch/issues/152650
+- class: org.elasticsearch.xpack.logsdb.PatternTextRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/152652

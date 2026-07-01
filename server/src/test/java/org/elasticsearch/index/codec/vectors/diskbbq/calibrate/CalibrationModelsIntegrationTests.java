@@ -75,6 +75,45 @@ public class CalibrationModelsIntegrationTests extends ESTestCase {
     }
 
     /**
+     * End-to-end check that {@link ErrorModel#estimateErrorScalingFit} and
+     * {@link ErrorModel#estimateMagnitudeModel} compose: scaling is fit once at 4q/1d,
+     * then magnitude is fit for a target encoding while reusing the scaling slope.
+     */
+    public void testErrorScalingFitAndMagnitudeModelCompose() throws IOException {
+        CalibrationFixture fixture = newCalibrationFixture(32);
+        int numVectors = fixture.corpusOrdinals().length;
+        VectorSimilarityFunction similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
+
+        ErrorScalingFit scalingFit = estimateErrorScalingFit(fixture, similarityFunction);
+        QuantizationErrorStdModel scalingModel = scalingFit.scalingModel();
+        assertTrue(Double.isFinite(scalingModel.params().beta0()));
+        assertTrue(Double.isFinite(scalingModel.params().beta1()));
+
+        QuantizationErrorStdModel magnitudeModel = estimateErrorMagnitude(fixture, similarityFunction, scalingFit, 4, 2);
+        assertEquals(scalingModel.params().beta1(), magnitudeModel.params().beta1(), 0.0);
+        assertThat(magnitudeModel.errorStd(VECTORS_PER_CLUSTER, numVectors), greaterThan(0.0));
+    }
+
+    /**
+     * A single scaling fit can seed magnitude fits for multiple encodings on the same corpus.
+     */
+    public void testErrorScalingFitReusedForMultipleMagnitudeModels() throws IOException {
+        CalibrationFixture fixture = newCalibrationFixture(32);
+        int numVectors = fixture.corpusOrdinals().length;
+        VectorSimilarityFunction similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
+
+        ErrorScalingFit scalingFit = estimateErrorScalingFit(fixture, similarityFunction);
+        double scalingSlope = scalingFit.scalingModel().params().beta1();
+
+        QuantizationErrorStdModel oneBitDoc = estimateErrorMagnitude(fixture, similarityFunction, scalingFit, 4, 1);
+        QuantizationErrorStdModel fourBitDoc = estimateErrorMagnitude(fixture, similarityFunction, scalingFit, 4, 4);
+
+        assertEquals(scalingSlope, oneBitDoc.params().beta1(), 0.0);
+        assertEquals(scalingSlope, fourBitDoc.params().beta1(), 0.0);
+        assertThat(oneBitDoc.errorStd(VECTORS_PER_CLUSTER, numVectors), greaterThan(fourBitDoc.errorStd(VECTORS_PER_CLUSTER, numVectors)));
+    }
+
+    /**
      * The error model's std should grow when we evaluate a coarser document bit width,
      * using manifold parameters from the same fixture.
      */
@@ -83,9 +122,9 @@ public class CalibrationModelsIntegrationTests extends ESTestCase {
         int numVectors = fixture.corpusOrdinals().length;
         VectorSimilarityFunction similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
 
-        QuantizationErrorStdModel scalingModel = estimateErrorScaling(fixture, similarityFunction);
-        QuantizationErrorStdModel oneBitDoc = estimateErrorMagnitude(fixture, similarityFunction, scalingModel, 4, 1);
-        QuantizationErrorStdModel fourBitDoc = estimateErrorMagnitude(fixture, similarityFunction, scalingModel, 4, 4);
+        ErrorScalingFit scalingFit = estimateErrorScalingFit(fixture, similarityFunction);
+        QuantizationErrorStdModel oneBitDoc = estimateErrorMagnitude(fixture, similarityFunction, scalingFit, 4, 1);
+        QuantizationErrorStdModel fourBitDoc = estimateErrorMagnitude(fixture, similarityFunction, scalingFit, 4, 4);
 
         double coarseStd = oneBitDoc.errorStd(VECTORS_PER_CLUSTER, numVectors);
         double fineStd = fourBitDoc.errorStd(VECTORS_PER_CLUSTER, numVectors);
@@ -105,8 +144,8 @@ public class CalibrationModelsIntegrationTests extends ESTestCase {
         double alpha = manifold[0];
         double invDim = manifold[1];
 
-        QuantizationErrorStdModel scalingModel = estimateErrorScaling(fixture, similarityFunction);
-        QuantizationErrorStdModel errorModel = estimateErrorMagnitude(fixture, similarityFunction, scalingModel, qbits, dbits);
+        ErrorScalingFit scalingFit = estimateErrorScalingFit(fixture, similarityFunction);
+        QuantizationErrorStdModel errorModel = estimateErrorMagnitude(fixture, similarityFunction, scalingFit, qbits, dbits);
         double errorStd = errorModel.errorStd(VECTORS_PER_CLUSTER, numVectors);
         int rerank = ExpectedRecall.rerankN(CALIBRATION_K, RERANK_DEPTH);
         return ExpectedRecall.expectedRecallAtK(similarityFunction, numVectors, alpha, invDim, errorStd, CALIBRATION_K, rerank);
@@ -127,8 +166,8 @@ public class CalibrationModelsIntegrationTests extends ESTestCase {
         );
     }
 
-    private static QuantizationErrorStdModel estimateErrorScaling(CalibrationFixture fixture, VectorSimilarityFunction similarityFunction) {
-        return ErrorModel.estimateQuantizationErrorStdModel(
+    private static ErrorScalingFit estimateErrorScalingFit(CalibrationFixture fixture, VectorSimilarityFunction similarityFunction) {
+        return ErrorModel.estimateErrorScalingFit(
             similarityFunction,
             fixture.dim(),
             fixture.fvv(),
@@ -147,12 +186,12 @@ public class CalibrationModelsIntegrationTests extends ESTestCase {
     private static QuantizationErrorStdModel estimateErrorMagnitude(
         CalibrationFixture fixture,
         VectorSimilarityFunction similarityFunction,
-        QuantizationErrorStdModel scalingModel,
+        ErrorScalingFit scalingFit,
         int qbits,
         int dbits
-    ) throws IOException {
-        return ErrorModel.estimateQuantizationErrorStdMagnitudeParameter(
-            scalingModel,
+    ) {
+        return ErrorModel.estimateMagnitudeModel(
+            scalingFit,
             similarityFunction,
             fixture.dim(),
             fixture.fvv(),

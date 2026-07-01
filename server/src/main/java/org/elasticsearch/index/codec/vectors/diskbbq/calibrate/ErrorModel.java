@@ -30,6 +30,11 @@ import java.util.Locale;
  * Error model for error in scalar quantization.
  * Estimates the standard deviation of the error in distance/similarity after quantizing
  * queries and documents. Used by calibration to predict recall.
+ * <p>
+ * Fitting is two-stage: {@link #estimateErrorScalingFit} sweeps sample sizes at fixed
+ * 4q/1d encoding to fit the slope of {@code log(error_std)} vs {@code log(L/N)}; then
+ * {@link #estimateMagnitudeModel} sweeps at a target (qbits, dbits) pair and fits magnitude
+ * while reusing that slope.
  */
 public final class ErrorModel {
 
@@ -73,7 +78,7 @@ public final class ErrorModel {
      * query residuals using OSQ, estimates dot products, and compares to exact
      * similarities for the top-5k ranked documents per query.
      */
-    static double quantizedRepErrorStd(
+    static QuantizedQueryErrorResult quantizedRepErrorStd(
         VectorSimilarityFunction sim,
         int dim,
         FloatVectorValues querySource,
@@ -85,18 +90,19 @@ public final class ErrorModel {
         boolean usePreconditioned,
         FloatVectorValues fvv,
         int[] corpusOrdinals,
-        int corpusLength,
+        int nDocs,
         int[] docAssignments,
         float[][] docCentroids,
         int nQueryClusters,
         int qbits,
         int dbits,
-        int k
+        int k,
+        HierarchicalKMeans<float[]> kmeans,
+        float[][] warmStartQueryCentroids
     ) throws IOException {
-        int nDocs = corpusLength;
         int nDocClusters = docCentroids.length;
         if (nDocClusters == 0 || nDocs == 0) {
-            return 1.0;
+            return new QuantizedQueryErrorResult(1.0, docCentroids.length > 0 ? new float[][] { docCentroids[0].clone() } : new float[0][]);
         }
 
         int effectiveQueryClusters = Math.min(nQueryClusters, nDocClusters);
@@ -108,8 +114,7 @@ public final class ErrorModel {
         } else {
             int targetSize = Math.max(1, nDocClusters / effectiveQueryClusters);
             KMeansFloatVectorValues centroidVectors = KMeansFloatVectorValues.build(Arrays.asList(docCentroids), null, dim);
-            KMeansResult<float[]> queryClustering = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, dim)
-                .cluster(centroidVectors, targetSize);
+            KMeansResult<float[]> queryClustering = kmeans.cluster(centroidVectors, targetSize, warmStartQueryCentroids);
             queryCentroids = queryClustering.centroids();
             docCentroidAssignments = queryClustering.assignments();
         }
@@ -160,10 +165,10 @@ public final class ErrorModel {
 
         float[] queryScratch = new float[dim];
         float[] preconditionScratch = preconditioner != null ? new float[dim] : null;
-        for (int qi = 0; qi < queryOrdinals.length; qi++) {
+        for (int queryOrdinal : queryOrdinals) {
             CalibrationUtils.materializeCalibrationQuery(
                 querySource,
-                queryOrdinals[qi],
+                queryOrdinal,
                 baseDim,
                 dim,
                 cosine,
@@ -222,8 +227,10 @@ public final class ErrorModel {
             }
         }
 
-        return Math.sqrt(3.0 * moments.sampleVariance());
+        return new QuantizedQueryErrorResult(Math.sqrt(3.0 * moments.sampleVariance()), queryCentroids);
     }
+
+    private record QuantizedQueryErrorResult(double std, float[][] queryCentroids) {}
 
     /**
      * Clusters the corpus prefix and measures quantized representation error standard deviation.
@@ -240,28 +247,25 @@ public final class ErrorModel {
         boolean usePreconditioned,
         FloatVectorValues fvv,
         int[] corpusOrdinals,
-        int corpusLength,
-        int nQueryClusters,
+        int nDocs,
         int nDocsPerCluster,
         int qbits,
         int dbits,
         int k,
-        float[][] warmStartCentroids
+        HierarchicalKMeans<float[]> kmeans,
+        float[][] warmStartDocCentroids,
+        float[][] warmStartQueryCentroids
     ) throws IOException {
-        KMeansFloatVectorValues corpusVectors = KMeansFloatVectorValues.wrap(fvv, corpusOrdinals, corpusLength);
-        int expectedClusters = HierarchicalKMeans.numClustersForTargetSize(corpusLength, nDocsPerCluster);
-        float[][] initialCentroids = warmStartCentroids != null && warmStartCentroids.length == expectedClusters
-            ? warmStartCentroids
-            : null;
-        KMeansResult<float[]> docClusters = calibrationKMeans(dim).cluster(corpusVectors, nDocsPerCluster, initialCentroids);
+        KMeansFloatVectorValues corpusVectors = KMeansFloatVectorValues.wrap(fvv, corpusOrdinals, nDocs);
+        KMeansResult<float[]> docClusters = kmeans.cluster(corpusVectors, nDocsPerCluster, warmStartDocCentroids);
 
         float[][] centroids = docClusters.centroids();
         int[] flatAssignments = docClusters.assignments();
         if (centroids.length == 0) {
-            return new QuantizedErrorComputeResult(1.0, centroids);
+            return new QuantizedErrorComputeResult(1.0, centroids, warmStartQueryCentroids);
         }
 
-        double qStd = quantizedRepErrorStd(
+        QuantizedQueryErrorResult queryError = quantizedRepErrorStd(
             sim,
             dim,
             querySource,
@@ -273,25 +277,58 @@ public final class ErrorModel {
             usePreconditioned,
             fvv,
             corpusOrdinals,
-            corpusLength,
+            nDocs,
             flatAssignments,
             centroids,
-            nQueryClusters,
+            ErrorModel.N_QUERY_CLUSTERS,
             qbits,
             dbits,
-            k
+            k,
+            kmeans,
+            warmStartQueryCentroids
         );
 
-        return new QuantizedErrorComputeResult(qStd, centroids);
+        return new QuantizedErrorComputeResult(queryError.std(), centroids, queryError.queryCentroids());
     }
 
-    record QuantizedErrorComputeResult(double std, float[][] centroids) {}
+    record QuantizedErrorComputeResult(double std, float[][] docCentroids, float[][] queryCentroids) {}
 
     /**
      * Estimate the scaling of quantization error by sweeping sample sizes at fixed
      * {@code nDocsPerCluster}, fitting {@code log(error_std) ~ beta0 + beta1 * (log(L) - log(N))}.
+     * Always uses 4 query bits and 1 document bit.
      */
     public static QuantizationErrorStdModel estimateQuantizationErrorStdModel(
+        VectorSimilarityFunction similarityFunction,
+        int dim,
+        FloatVectorValues querySource,
+        int[] queryOrdinals,
+        int baseDim,
+        boolean cosine,
+        boolean neyshabur,
+        Preconditioner preconditioner,
+        FloatVectorValues fvv,
+        int[] corpusOrdinals,
+        int k,
+        int nDocsPerCluster
+    ) {
+        return estimateErrorScalingFit(
+            similarityFunction,
+            dim,
+            querySource,
+            queryOrdinals,
+            baseDim,
+            cosine,
+            neyshabur,
+            preconditioner,
+            fvv,
+            corpusOrdinals,
+            k,
+            nDocsPerCluster
+        ).scalingModel();
+    }
+
+    public static ErrorScalingFit estimateErrorScalingFit(
         VectorSimilarityFunction similarityFunction,
         int dim,
         FloatVectorValues querySource,
@@ -310,7 +347,9 @@ public final class ErrorModel {
 
         double logNDocsPerCluster = Math.log(nDocsPerCluster);
         Regression.OLSAccumulator state = new Regression.OLSAccumulator();
-        float[][] warmStartCentroids = null;
+        HierarchicalKMeans<float[]> kmeans = calibrationKMeans(dim);
+        float[][] warmStartDocCentroids = null;
+        float[][] warmStartQueryCentroids = null;
         int corpusLength = 0;
 
         for (int i = 0; i < SAMPLE_SIZES_SCALING.length; i++) {
@@ -333,14 +372,16 @@ public final class ErrorModel {
                     fvv,
                     corpusOrdinals,
                     corpusLength,
-                    N_QUERY_CLUSTERS,
                     nDocsPerCluster,
                     SCALING_QBITS,
                     SCALING_DBITS,
                     k,
-                    warmStartCentroids
+                    kmeans,
+                    warmStartDocCentroids,
+                    warmStartQueryCentroids
                 );
-                warmStartCentroids = computed.centroids();
+                warmStartDocCentroids = computed.docCentroids();
+                warmStartQueryCentroids = computed.queryCentroids();
                 double x = logNDocsPerCluster - Math.log(sampleSize);
                 double y = Math.log(Math.max(computed.std(), 1e-38));
                 state.update(new double[] { x }, new double[] { y });
@@ -354,7 +395,11 @@ public final class ErrorModel {
 
         Regression.OLSResult params = state.fit();
         if (params == Regression.OLSResult.ZERO) {
-            return new QuantizationErrorStdModel(Regression.OLSResult.ZERO);
+            return new ErrorScalingFit(
+                new QuantizationErrorStdModel(Regression.OLSResult.ZERO),
+                warmStartDocCentroids,
+                warmStartQueryCentroids
+            );
         }
 
         double scalingSeconds = (System.nanoTime() - scalingStartNanos) / 1_000_000_000.0;
@@ -365,16 +410,16 @@ public final class ErrorModel {
             String.format(Locale.ROOT, "%.4f", state.r2(params))
         );
 
-        return new QuantizationErrorStdModel(params);
+        return new ErrorScalingFit(new QuantizationErrorStdModel(params), warmStartDocCentroids, warmStartQueryCentroids);
     }
 
     /**
      * Estimate the magnitude of quantization error for a specific (qbits, dbits) pair.
      * Sweeps sample sizes at fixed {@code nDocsPerCluster} and fits a plug-in regression
-     * that reuses the slope from the scaling model.
+     * that reuses the slope from {@link ErrorScalingFit#scalingModel()}.
      */
-    public static QuantizationErrorStdModel estimateQuantizationErrorStdMagnitudeParameter(
-        QuantizationErrorStdModel scalingModel,
+    public static QuantizationErrorStdModel estimateMagnitudeModel(
+        ErrorScalingFit scalingFit,
         VectorSimilarityFunction similarityFunction,
         int dim,
         FloatVectorValues querySource,
@@ -391,11 +436,14 @@ public final class ErrorModel {
         int dbits,
         int nDocsPerCluster
     ) {
+        QuantizationErrorStdModel scalingModel = scalingFit.scalingModel();
         long magnitudeStartNanos = System.nanoTime();
 
         double logNDocsPerCluster = Math.log(nDocsPerCluster);
         Regression.OLSAccumulator state = new Regression.OLSAccumulator();
-        float[][] warmStartCentroids = null;
+        HierarchicalKMeans<float[]> kmeans = calibrationKMeans(dim);
+        float[][] docWarmStart = scalingFit.lastDocCentroids;
+        float[][] queryWarmStart = scalingFit.lastQueryCentroids;
 
         for (int i = 0; i < SAMPLE_SIZES_MAGNITUDE.length; i++) {
             int sampleSize = SAMPLE_SIZES_MAGNITUDE[i];
@@ -416,14 +464,16 @@ public final class ErrorModel {
                     fvv,
                     corpusOrdinals,
                     sampleSize,
-                    N_QUERY_CLUSTERS,
                     nDocsPerCluster,
                     qbits,
                     dbits,
                     k,
-                    warmStartCentroids
+                    kmeans,
+                    docWarmStart,
+                    queryWarmStart
                 );
-                warmStartCentroids = computed.centroids();
+                docWarmStart = computed.docCentroids();
+                queryWarmStart = computed.queryCentroids();
                 double x = logNDocsPerCluster - Math.log(sampleSize);
                 double y = Math.log(Math.max(computed.std(), 1e-38));
                 state.update(new double[] { x }, new double[] { y });

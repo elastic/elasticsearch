@@ -11,6 +11,8 @@ package org.elasticsearch.index.codec.vectors.diskbbq.calibrate;
 
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
+import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
@@ -64,9 +66,9 @@ public class ErrorModelTests extends ESTestCase {
         assertThat(model.errorStd(128, 5000), greaterThan(0.0));
     }
 
-    public void testEstimateQuantizationErrorStdMagnitudeParameterReturnsFiniteModel() throws IOException {
+    public void testEstimateMagnitudeModelReturnsFiniteModel() throws IOException {
         CalibrationFixture fixture = newCalibrationFixture(8);
-        QuantizationErrorStdModel scalingModel = ErrorModel.estimateQuantizationErrorStdModel(
+        ErrorScalingFit scalingFit = ErrorModel.estimateErrorScalingFit(
             VectorSimilarityFunction.EUCLIDEAN,
             8,
             fixture.fvv(),
@@ -80,8 +82,8 @@ public class ErrorModelTests extends ESTestCase {
             10,
             128
         );
-        QuantizationErrorStdModel magnitudeModel = ErrorModel.estimateQuantizationErrorStdMagnitudeParameter(
-            scalingModel,
+        QuantizationErrorStdModel magnitudeModel = ErrorModel.estimateMagnitudeModel(
+            scalingFit,
             VectorSimilarityFunction.EUCLIDEAN,
             8,
             fixture.fvv(),
@@ -103,9 +105,9 @@ public class ErrorModelTests extends ESTestCase {
         assertThat(magnitudeModel.errorStd(128, 4096), greaterThan(0.0));
     }
 
-    public void testEstimateQuantizationErrorStdMagnitudeParameterReusesScalingSlope() throws IOException {
+    public void testEstimateMagnitudeModelReusesScalingSlope() throws IOException {
         CalibrationFixture fixture = newCalibrationFixture(8);
-        QuantizationErrorStdModel scalingModel = ErrorModel.estimateQuantizationErrorStdModel(
+        ErrorScalingFit scalingFit = ErrorModel.estimateErrorScalingFit(
             VectorSimilarityFunction.EUCLIDEAN,
             8,
             fixture.fvv(),
@@ -119,8 +121,8 @@ public class ErrorModelTests extends ESTestCase {
             10,
             128
         );
-        QuantizationErrorStdModel magnitudeModel = ErrorModel.estimateQuantizationErrorStdMagnitudeParameter(
-            scalingModel,
+        QuantizationErrorStdModel magnitudeModel = ErrorModel.estimateMagnitudeModel(
+            scalingFit,
             VectorSimilarityFunction.EUCLIDEAN,
             8,
             fixture.fvv(),
@@ -137,19 +139,19 @@ public class ErrorModelTests extends ESTestCase {
             2,
             128
         );
-        assertEquals(scalingModel.params().beta1(), magnitudeModel.params().beta1(), 0.0);
+        assertEquals(scalingFit.scalingModel().params().beta1(), magnitudeModel.params().beta1(), 0.0);
     }
 
-    public void testEstimateQuantizationErrorStdMagnitudeParameterWithInsufficientCorpusPreservesScalingModel() throws IOException {
+    public void testEstimateMagnitudeModelWithInsufficientCorpusPreservesScalingModel() throws IOException {
         float[][] rows = syntheticClusteredRows(64, 8, 4);
         FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(rows), null, 8);
         int[] queryOrdinals = { 0, 1, 2, 3 };
         int[] corpusOrdinals = { 4, 5, 6, 7, 8, 9, 10, 11 };
         Regression.OLSResult scalingParams = new Regression.OLSResult(-2.5, 0.35, 0.01, 0.001, 0.0, 0.01);
-        QuantizationErrorStdModel scalingModel = new QuantizationErrorStdModel(scalingParams);
+        ErrorScalingFit scalingFit = ErrorScalingFit.fromScalingModel(new QuantizationErrorStdModel(scalingParams));
 
-        QuantizationErrorStdModel magnitudeModel = ErrorModel.estimateQuantizationErrorStdMagnitudeParameter(
-            scalingModel,
+        QuantizationErrorStdModel magnitudeModel = ErrorModel.estimateMagnitudeModel(
+            scalingFit,
             VectorSimilarityFunction.EUCLIDEAN,
             8,
             fvv,
@@ -168,6 +170,103 @@ public class ErrorModelTests extends ESTestCase {
         );
         assertEquals(scalingParams.beta0(), magnitudeModel.params().beta0(), 0.0);
         assertEquals(scalingParams.beta1(), magnitudeModel.params().beta1(), 0.0);
+    }
+
+    public void testGrowingCorpusSweepReusesWarmStartCentroids() throws IOException {
+        CalibrationFixture fixture = newCalibrationFixture(8);
+        HierarchicalKMeans<float[]> kmeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, 8);
+        float[][] docWarmStart = null;
+        float[][] queryWarmStart = null;
+
+        ErrorModel.QuantizedErrorComputeResult first = ErrorModel.quantizedRepErrorStdWithCentroids(
+            VectorSimilarityFunction.EUCLIDEAN,
+            8,
+            fixture.fvv(),
+            fixture.queryOrdinals(),
+            8,
+            false,
+            false,
+            null,
+            true,
+            fixture.fvv(),
+            fixture.corpusOrdinals(),
+            2048,
+            128,
+            4,
+            1,
+            10,
+            kmeans,
+            docWarmStart,
+            queryWarmStart
+        );
+        ErrorModel.QuantizedErrorComputeResult second = ErrorModel.quantizedRepErrorStdWithCentroids(
+            VectorSimilarityFunction.EUCLIDEAN,
+            8,
+            fixture.fvv(),
+            fixture.queryOrdinals(),
+            8,
+            false,
+            false,
+            null,
+            true,
+            fixture.fvv(),
+            fixture.corpusOrdinals(),
+            3072,
+            128,
+            4,
+            1,
+            10,
+            kmeans,
+            first.docCentroids(),
+            first.queryCentroids()
+        );
+
+        assertTrue(Double.isFinite(first.std()));
+        assertTrue(Double.isFinite(second.std()));
+        assertThat(first.std(), greaterThan(0.0));
+        assertThat(second.std(), greaterThan(0.0));
+        assertNotNull(second.docCentroids());
+        assertNotNull(second.queryCentroids());
+        assertThat(first.docCentroids().length, greaterThan(0));
+        assertThat(second.docCentroids().length, greaterThan(0));
+    }
+
+    public void testMagnitudeFitReusesScalingFitClusteringState() throws IOException {
+        CalibrationFixture fixture = newCalibrationFixture(8);
+        ErrorScalingFit scalingFit = ErrorModel.estimateErrorScalingFit(
+            VectorSimilarityFunction.EUCLIDEAN,
+            8,
+            fixture.fvv(),
+            fixture.queryOrdinals(),
+            8,
+            false,
+            false,
+            null,
+            fixture.fvv(),
+            fixture.corpusOrdinals(),
+            10,
+            128
+        );
+        QuantizationErrorStdModel magnitudeModel = ErrorModel.estimateMagnitudeModel(
+            scalingFit,
+            VectorSimilarityFunction.EUCLIDEAN,
+            8,
+            fixture.fvv(),
+            fixture.queryOrdinals(),
+            8,
+            false,
+            false,
+            null,
+            true,
+            fixture.fvv(),
+            fixture.corpusOrdinals(),
+            10,
+            4,
+            2,
+            128
+        );
+        assertTrue(Double.isFinite(magnitudeModel.params().beta0()));
+        assertThat(magnitudeModel.errorStd(128, 4096), greaterThan(0.0));
     }
 
     private record CalibrationFixture(FloatVectorValues fvv, int[] queryOrdinals, int[] corpusOrdinals) {}

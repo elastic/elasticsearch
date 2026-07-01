@@ -146,7 +146,9 @@ public class HierarchicalKMeans<V> {
 
     /**
      * Like {@link #cluster(ClusteringVectorValues, int)} but seeds the top-level Lloyd pass with
-     * {@code warmStartCentroids} when its length matches the computed cluster count for {@code targetSize}.
+     * {@code warmStartCentroids}. When the warm-start length equals the computed cluster count, all
+     * centroids are copied. When it is smaller, remaining centroids are picked from {@code vectors};
+     * when it is larger, only the first {@code k} centroids are used.
      */
     public KMeansResult<V> cluster(ClusteringVectorValues<V> vectors, int targetSize, V[] warmStartCentroids) throws IOException {
         if (vectors.size() == 0) {
@@ -244,12 +246,19 @@ public class HierarchicalKMeans<V> {
         V[] warmStartCentroids,
         CentroidOps<V> ops
     ) throws IOException {
-        if (warmStartCentroids != null && warmStartCentroids.length == k) {
-            V[] centroids = ops.newCentroidArray(k, vectors.dimension());
-            ops.deepCopy(warmStartCentroids, centroids);
+        if (warmStartCentroids == null || warmStartCentroids.length == 0) {
+            return KMeansLocal.pickInitialCentroids(vectors, k, ops);
+        }
+        V[] centroids = ops.newCentroidArray(k, vectors.dimension());
+        if (warmStartCentroids.length >= k) {
+            ops.arrayCopy(warmStartCentroids, 0, centroids, 0, k);
             return centroids;
         }
-        return KMeansLocal.pickInitialCentroids(vectors, k, ops);
+        int warm = warmStartCentroids.length;
+        ops.arrayCopy(warmStartCentroids, 0, centroids, 0, warm);
+        V[] additional = KMeansLocal.pickInitialCentroids(vectors, k - warm, ops);
+        ops.arrayCopy(additional, 0, centroids, warm, k - warm);
+        return centroids;
     }
 
     private KMeansLocal<V> buildKmeansLocal(int numVectors, int localSampleSize) {

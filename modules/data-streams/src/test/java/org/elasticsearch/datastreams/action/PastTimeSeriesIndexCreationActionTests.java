@@ -39,6 +39,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -419,6 +420,22 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
             )
         );
         assertThat(illegalArgumentException.getMessage(), containsString("Cannot create past TSDB backing index for system data stream"));
+    }
+
+    public void testRequestSerialization() throws Exception {
+        long now = System.currentTimeMillis();
+        String dataStream = randomAlphaOfLength(10);
+        List<Instant> timestamps = LongStream.generate(
+            () -> now - randomLongBetween(TimeValue.timeValueDays(5).getMillis(), TimeValue.timeValueDays(100).getMillis())
+        ).limit(randomIntBetween(1, 20)).mapToObj(Instant::ofEpochMilli).toList();
+        long startTime = now + randomLongBetween(0, TimeValue.timeValueHours(2).getMillis());
+        var original = new PastTimeSeriesIndexCreationAction.Request(randomPositiveTimeValue(), dataStream, timestamps, startTime);
+        var copy = copyWriteable(original, writableRegistry(), PastTimeSeriesIndexCreationAction.Request::new);
+        assertThat(copy.masterNodeTimeout(), equalTo(original.masterNodeTimeout()));
+        assertThat(copy.ackTimeout(), equalTo(original.ackTimeout()));
+        assertThat(copy.dataStreamName(), equalTo(original.dataStreamName()));
+        assertThat(copy.timestamps(), equalTo(original.timestamps()));
+        assertThat(copy.requestStartTime(), equalTo(original.requestStartTime()));
     }
 
     public void testResponseSerialization() throws Exception {

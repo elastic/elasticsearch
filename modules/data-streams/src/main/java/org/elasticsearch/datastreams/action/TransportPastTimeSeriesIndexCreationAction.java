@@ -178,7 +178,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                 alreadyCovered,
                 request.ackTimeout(),
                 listener,
-                System.currentTimeMillis()
+                request.requestStartTime()
             ),
             request.masterNodeTimeout()
         );

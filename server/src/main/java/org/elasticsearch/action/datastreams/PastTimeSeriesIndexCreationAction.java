@@ -38,15 +38,23 @@ public final class PastTimeSeriesIndexCreationAction extends ActionType<PastTime
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
 
+        private final long requestStartTime;
         private final String dataStreamName;
         private final Collection<Instant> timestamps;
 
-        public Request(TimeValue masterNodeTimeout, String dataStreamName, Collection<Instant> timestamps) {
-            this(masterNodeTimeout, DEFAULT_ACK_TIMEOUT, dataStreamName, timestamps);
+        public Request(TimeValue masterNodeTimeout, String dataStreamName, Collection<Instant> timestamps, long requestStartTime) {
+            this(masterNodeTimeout, DEFAULT_ACK_TIMEOUT, dataStreamName, timestamps, requestStartTime);
         }
 
-        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String dataStreamName, Collection<Instant> timestamps) {
+        public Request(
+            TimeValue masterNodeTimeout,
+            TimeValue ackTimeout,
+            String dataStreamName,
+            Collection<Instant> timestamps,
+            long requestStartTime
+        ) {
             super(masterNodeTimeout, ackTimeout);
+            this.requestStartTime = requestStartTime;
             this.dataStreamName = dataStreamName;
             this.timestamps = timestamps;
         }
@@ -55,6 +63,7 @@ public final class PastTimeSeriesIndexCreationAction extends ActionType<PastTime
             super(in);
             this.dataStreamName = in.readString();
             this.timestamps = in.readCollectionAsList(StreamInput::readInstant);
+            this.requestStartTime = in.readVLong();
         }
 
         @Override
@@ -62,6 +71,7 @@ public final class PastTimeSeriesIndexCreationAction extends ActionType<PastTime
             super.writeTo(out);
             out.writeString(dataStreamName);
             out.writeCollection(timestamps, StreamOutput::writeInstant);
+            out.writeVLong(requestStartTime);
         }
 
         public String dataStreamName() {
@@ -70,6 +80,10 @@ public final class PastTimeSeriesIndexCreationAction extends ActionType<PastTime
 
         public Collection<Instant> timestamps() {
             return timestamps;
+        }
+
+        public long requestStartTime() {
+            return requestStartTime;
         }
 
         @Override

@@ -277,6 +277,13 @@ public class TestAnalyzer {
     }
 
     /**
+     * Adds the multi_column_joinable_lookup lookup index.
+     */
+    public TestAnalyzer addMultiColumnJoinableLookup() {
+        return addLookupIndex("multi_column_joinable_lookup", "mapping-multi_column_joinable_lookup.json");
+    }
+
+    /**
      * Adds the test index with mapping-default.json.
      */
     public TestAnalyzer addDefaultIndex() {

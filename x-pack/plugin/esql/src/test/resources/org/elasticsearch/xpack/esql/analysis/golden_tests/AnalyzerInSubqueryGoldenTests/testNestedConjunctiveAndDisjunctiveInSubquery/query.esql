@@ -1,0 +1,3 @@
+FROM employees
+| WHERE emp_no IN (FROM employees | KEEP emp_no)
+   OR (salary > 50000 AND (languages < 3 OR gender NOT IN (FROM employees | KEEP gender)))

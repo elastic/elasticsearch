@@ -11,8 +11,8 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,7 +31,7 @@ import java.util.Objects;
 /**
  * A request to find the list of target shards that might match the query for the given target indices.
  */
-public final class SearchShardsRequest extends LegacyActionRequest implements IndicesRequest.Replaceable {
+public final class SearchShardsRequest extends UntypedActionRequest implements IndicesRequest.Replaceable {
     private String[] indices;
     private final IndicesOptions indicesOptions;
     @Nullable

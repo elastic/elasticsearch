@@ -25,7 +25,6 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
@@ -477,7 +476,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 shardContexts,
                 querySupplier(esQueryExec.query()),
                 context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
-                topNAutoStrategy(),
+                LuceneTopNSourceOperator.autoStrategy(
+                    sortBuilders,
+                    scoring,
+                    (long) taskConcurrency * context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE)
+                ),
                 taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
@@ -498,11 +501,17 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 directoryBytesRead
             );
         } else {
+            // A no-limit scan (e.g. STATS) visits every matching doc, so it shares the cost-threshold rule with count and
+            // TopN: cheap -> SEGMENT, scan-heavy -> DOC (implicit-limit stays SHARD; time-series keeps its own strategy).
+            long minCostForDoc = (long) taskConcurrency * context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE);
+            var autoStrategy = context.timeSeries()
+                ? context.autoPartitioningStrategy()
+                : LuceneSourceOperator.Factory.autoStrategy(minCostForDoc);
             luceneFactory = new LuceneSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.queryBuilderAndTags()),
                 context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
-                context.autoPartitioningStrategy(),
+                autoStrategy,
                 context.queryPragmas().docsThresholdForAutoPartitioning(plannerSettings.docsThresholdForAutoPartitioning()),
                 taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
@@ -517,15 +526,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
-    }
-
-    private static DataPartitioning.AutoStrategy topNAutoStrategy() {
-        // TopN keeps SEGMENT under AUTO. Routing it to DOC via the source-operator's high-speed
-        // heuristic helps scan-dominant TopN (e.g. WHERE URL LIKE … | SORT … | LIMIT 10) but
-        // regresses sort-dominant TopN (cheap or no WHERE) — sub-segment slicing breaks Lucene's
-        // sorted-segment short-circuit. Users who want DOC for a scan-dominant TopN can opt in
-        // via the data_partitioning pragma.
-        return unusedLimit -> query -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
     }
 
     List<ValuesSourceReaderOperator.FieldInfo> extractFields(FieldExtractExec fieldExtractExec) {

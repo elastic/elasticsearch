@@ -37,9 +37,12 @@ _upload_session() {
   local latest
   latest=$(ls -t "$SESSION_DIR"/*.jsonl 2>/dev/null | head -1) || true
   if [[ -n "$latest" ]]; then
-    cp "$latest" "$SESSION_DIR/pi-agent-session.jsonl"
-    buildkite-agent artifact upload "$SESSION_DIR/pi-agent-session.jsonl" 2>/dev/null || true
-    echo "Session artifact uploaded ($(wc -c < "$SESSION_DIR/pi-agent-session.jsonl") bytes)"
+    local dest="$SESSION_DIR/pi-agent-session.jsonl"
+    # The newest .jsonl may already be the canonical artifact name (e.g. on a
+    # resumed retry). Only copy when they differ to avoid a cp self-copy error.
+    [[ "$latest" -ef "$dest" ]] || cp "$latest" "$dest"
+    buildkite-agent artifact upload "$dest" 2>/dev/null || true
+    echo "Session artifact uploaded ($(wc -c < "$dest") bytes)"
   fi
 }
 trap '_upload_session' EXIT

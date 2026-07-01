@@ -1,0 +1,5 @@
+area: CCS
+issues: []
+pr: 152558
+summary: Update search cluster metadata for successful queries
+type: bug

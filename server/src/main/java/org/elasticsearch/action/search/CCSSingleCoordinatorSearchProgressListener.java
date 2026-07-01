@@ -118,20 +118,25 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
     public void onQueryResult(int shardIndex, QuerySearchResult queryResult) {
         SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
         rememberClusterAliasForShardIndex(shardIndex, shardTarget);
-        // we only need to update Cluster state here if the search has timed out, since:
-        // 1) this is the only callback that gets search timedOut info and
-        // 2) the onFinalReduce will get all these shards again so the final accounting can be done there
-        // for queries that did not time out
-        if (queryResult.searchTimedOut() && clusters.hasClusterObjects()) {
-            String clusterAlias = clusterAliasOrLocal(shardTarget);
+        // We need to update Cluster state here to keep track of the number of successful shards and to set the status in the event of a
+        // partial failure, since otherwise, if allowPartialSearchResults is false we won't progress to the next phase and the status will
+        // be stuck as RUNNING
+        String clusterAlias = clusterAliasOrLocal(shardTarget);
+        if (clusters.hasClusterObjects()) {
             clusters.swapCluster(clusterAlias, (k, v) -> {
-                if (v.isTimedOut()) {
-                    return v; // cluster has already been marked as timed out on some other shard
+                int numSuccessfulShards = v.getSuccessfulShards() == null ? 1 : v.getSuccessfulShards() + 1;
+                int numFailedShards = Objects.requireNonNullElse(v.getFailedShards(), 0);
+                var isFinalShard = v.getTotalShards() == numSuccessfulShards + numFailedShards;
+
+                var builder = new SearchResponse.Cluster.Builder(v).setSuccessfulShards(numSuccessfulShards);
+                if (isFinalShard && numFailedShards > 0) {
+                    builder.setStatus(SearchResponse.Cluster.Status.PARTIAL);
+                    builder.setTook(new TimeValue(timeProvider.buildTookInMillis()));
                 }
-                if (v.getStatus() == SearchResponse.Cluster.Status.FAILED || v.getStatus() == SearchResponse.Cluster.Status.SKIPPED) {
-                    return v; // safety check to make sure it hasn't hit a terminal FAILED/SKIPPED state where timeouts don't matter
+                if (queryResult.searchTimedOut()) {
+                    builder.setTimedOut(true);
                 }
-                return new SearchResponse.Cluster.Builder(v).setTimedOut(true).build();
+                return builder.build();
             });
         }
     }
@@ -157,6 +162,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
 
             assert v.getTotalShards() != null : "total shards should be set on the Cluster but not for " + k;
             if (v.getTotalShards() == numFailedShards) {
+                // All shards failed
                 took = null;
                 if (v.isSkipUnavailable()) {
                     status = SearchResponse.Cluster.Status.SKIPPED;
@@ -165,9 +171,11 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                     // TODO in the fail-fast ticket, should we throw an exception here to stop the search?
                 }
             } else if (v.getTotalShards() == numFailedShards + v.getSuccessfulShards()) {
+                // Final shard failed
                 status = SearchResponse.Cluster.Status.PARTIAL;
                 took = new TimeValue(timeProvider.buildTookInMillis());
             } else {
+                // Still in progress
                 took = null;
                 status = SearchResponse.Cluster.Status.RUNNING;
             }

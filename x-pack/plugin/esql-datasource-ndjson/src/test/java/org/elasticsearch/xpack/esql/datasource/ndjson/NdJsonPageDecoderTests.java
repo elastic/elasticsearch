@@ -310,6 +310,38 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         }
     }
 
+    /**
+     * An array of objects on a structural node whose leading element(s) are stray scalars (e.g.
+     * {@code ["x", {"type":"a"}, {"type":"b"}]}) must still align with sibling columns. A structural prefix carries
+     * no scalar values of its own, so leading scalars are skipped when deciding the multi-value shape; otherwise
+     * {@code includeChildren} stayed false and the later objects appended into never-opened child builders,
+     * reproducing the same cross-column misalignment as the leading-null case (#152574). Covers leading-scalar,
+     * mid-scalar, and all-scalar arrays against a scalar {@code id} column that pins the expected row count.
+     */
+    public void testArrayOfObjectsWithScalarElements() throws IOException {
+        String ndjson = "{\"events\": [\"x\", {\"type\": \"a\"}, {\"type\": \"b\"}], \"id\": 1}\n"
+            + "{\"events\": [{\"type\": \"c\"}, \"y\", {\"type\": \"d\"}], \"id\": 2}\n"
+            + "{\"events\": [null, \"z\", {\"type\": \"e\"}], \"id\": 3}\n"
+            + "{\"events\": [\"only-scalars\", \"more\"], \"id\": 4}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("events.type", DataType.KEYWORD), attribute("id", DataType.INTEGER)))) {
+            assertNotNull(page);
+            assertEquals(4, page.getPositionCount());
+            BytesRefBlock type = page.getBlock(0);
+            IntBlock id = page.getBlock(1);
+            assertEquals(type.getPositionCount(), id.getPositionCount());
+            BytesRef scratch = new BytesRef();
+            assertMvAt(type, 0, scratch, List.of("a", "b"));
+            assertMvAt(type, 1, scratch, List.of("c", "d"));
+            assertMvAt(type, 2, scratch, List.of("e"));
+            assertTrue("all-scalar array -> type null", type.isNull(3));
+            for (int p = 0; p < 4; p++) {
+                assertFalse("id must be present for row " + p, id.isNull(p));
+                assertEquals(p + 1, id.getInt(id.getFirstValueIndex(p)));
+            }
+        }
+    }
+
     private Page decodePage(String ndjson, List<Attribute> attributes) throws IOException {
         try (
             NdJsonPageDecoder decoder = new NdJsonPageDecoder(

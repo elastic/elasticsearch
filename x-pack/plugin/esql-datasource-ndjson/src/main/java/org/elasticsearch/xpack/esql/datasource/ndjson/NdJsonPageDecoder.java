@@ -770,12 +770,24 @@ public class NdJsonPageDecoder implements Closeable {
                 // Note: the `inArray` flag is needed because blockBuilder.beginPositionEntry() is not idempotent.
                 // Calling it twice implicitly calls endPositionEntry().
                 if (!inArray) {
-                    // Decide the multi-value shape from the first non-null element. Leading JSON nulls must be
-                    // skipped first: for an array of objects, `includeChildren` gates opening the child MV entries,
-                    // and inferring it from a leading null (e.g. [null, {"type":"a"}]) would leave the child columns
-                    // without an open MV while later objects still append values, misaligning rows across columns.
+                    // `includeChildren` gates opening the child MV entries and must reflect whether the array
+                    // actually contains an object: otherwise later objects append into never-opened child builders,
+                    // misaligning rows across columns. Skip leading elements that cannot open this node's MV entry:
+                    // - a leaf node only skips leading JSON nulls (its scalars are real values);
+                    // - a structural (prefix) node carries no scalar values of its own, so it also skips leading
+                    // stray scalars (e.g. [null, "x", {"type":"a"}]) until the first object or the array end.
                     JsonToken first = parser.nextToken();
-                    while (first == JsonToken.VALUE_NULL) {
+                    while (first == JsonToken.VALUE_NULL
+                        || (blockBuilder == null && first != null && first != JsonToken.START_OBJECT && first != JsonToken.END_ARRAY)) {
+                        if (blockBuilder == null && first != JsonToken.VALUE_NULL && logger.isDebugEnabled()) {
+                            logger.debug(
+                                "Expected object in array for nested field [{}] but got {} at {}",
+                                parser.getParsingContext().pathAsPointer(),
+                                first,
+                                parser.getTokenLocation()
+                            );
+                        }
+                        parser.skipChildren(); // no-op for scalar/null tokens; safe to call here
                         first = parser.nextToken();
                     }
                     if (first == JsonToken.END_ARRAY) {
@@ -808,9 +820,11 @@ public class NdJsonPageDecoder implements Closeable {
                 // scalar where an object was expected. Leave the leaf descendants untracked so the end-of-row fill
                 // assigns them null, mirroring how missing fields and empty arrays are handled. This keeps datasets
                 // with occasionally-null nested objects (e.g. CloudTrail "responseElements": null) queryable.
-                if (token != JsonToken.VALUE_NULL) {
+                if (token != JsonToken.VALUE_NULL && logger.isDebugEnabled()) {
                     // Structural nodes never receive setAttribute(), so `name` is null here; derive the JSON path
                     // (e.g. /userIdentity/sessionContext) from the parser context so large files can be diagnosed.
+                    // Guarded by isDebugEnabled() so the JsonPointer/JsonLocation allocations are skipped when DEBUG
+                    // is off, since this can fire per-row across millions of records.
                     logger.debug(
                         "Expected object for nested field [{}] but got {} at {}",
                         parser.getParsingContext().pathAsPointer(),

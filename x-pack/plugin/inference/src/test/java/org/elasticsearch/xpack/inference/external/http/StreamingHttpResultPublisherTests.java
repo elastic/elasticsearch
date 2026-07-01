@@ -642,7 +642,11 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         publisher.responseReceived(mock(HttpResponse.class));
         publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
 
-        assertThat("circuitBreaker should have tracked bytes after consuming content", circuitBreaker.getTracked(), equalTo(messageBytesLength));
+        assertThat(
+            "circuitBreaker should have tracked bytes after consuming content",
+            circuitBreaker.getTracked(),
+            equalTo(messageBytesLength)
+        );
 
         var subscriber = new TestSubscriber();
         testPublisher().subscribe(subscriber);
@@ -658,19 +662,27 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         publisher.responseReceived(mock(HttpResponse.class));
         publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
 
-        assertThat("circuitBreaker should have tracked bytes after consuming content", circuitBreaker.getTracked(), equalTo(messageBytesLength));
+        assertThat(
+            "circuitBreaker should have tracked bytes after consuming content",
+            circuitBreaker.getTracked(),
+            equalTo(messageBytesLength)
+        );
 
         var subscriber = new TestSubscriber();
         testPublisher().subscribe(subscriber);
         subscriber.subscription.cancel();
 
-        assertThat("circuitBreaker should have 0 tracked bytes after the subscriber was cancelled", circuitBreaker.getTracked(), equalTo(0L));
+        assertThat(
+            "circuitBreaker should have 0 tracked bytes after the subscriber was cancelled",
+            circuitBreaker.getTracked(),
+            equalTo(0L)
+        );
     }
 
     private static class TestCircuitBreakerWithTracking extends TestCircuitBreaker {
         private long tracked;
 
-        TestCircuitBreakerWithTracking(){
+        TestCircuitBreakerWithTracking() {
             super();
             this.tracked = 0L;
         }

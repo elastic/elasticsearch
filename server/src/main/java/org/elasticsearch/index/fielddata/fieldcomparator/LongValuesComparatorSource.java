@@ -240,7 +240,8 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
             @Override
             public long cost() {
-                throw new UnsupportedOperationException();
+                // dense over [0, maxDoc)
+                return maxDoc;
             }
         };
     }

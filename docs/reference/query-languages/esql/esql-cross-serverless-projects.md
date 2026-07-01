@@ -96,7 +96,7 @@ The response includes:
 [Project routing](docs-content://explore-analyze/cross-project-search/cross-project-search-project-routing.md) limits the scope of a query to specific projects, based on tag values.
 Project routing happens before query execution, so excluded projects are never queried. This can help reduce cost and latency.
 
-Project routing expressions use Lucene query syntax, so you're not limited to a single tag or an exact match. The colon (`:`) matches a tag to a value and is equivalent to `=`. For example, `_csp:aws` matches projects on Amazon Web Services (AWS).
+Project routing expressions use Lucene query syntax, so you're not limited to a single tag or an exact match. The colon (`:`) separates a tag from its value. For example, `_csp:aws` matches projects on Amazon Web Services (AWS).
 
 You can route on any project tag:
 

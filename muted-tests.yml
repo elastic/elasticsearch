@@ -257,6 +257,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.ldap.OpenLdapUserSearchSessionFactoryTests
   method: testUserSearchWithBindUserOpenLDAP
   issue: https://github.com/elastic/elasticsearch/issues/152601
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:stats.filterSometimesMatches}
+  issue: https://github.com/elastic/elasticsearch/issues/152607
 
 # Examples:
 #

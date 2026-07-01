@@ -377,9 +377,9 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     private void checkRemoteJoin(Failures failures) {
         Set<Source> fails = new HashSet<>();
 
-        var myself = this;
-        this.forEachUp(LogicalPlan.class, u -> {
-            if (u == myself) {
+        var self = this;
+        forEachUp(LogicalPlan.class, u -> {
+            if (u == self) {
                 return; // skip myself
             }
             if (u instanceof Limit) {

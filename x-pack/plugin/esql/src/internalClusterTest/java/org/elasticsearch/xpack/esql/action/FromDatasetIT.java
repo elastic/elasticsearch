@@ -182,7 +182,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         "employees_parquet_rename",
         "employees_source_disabled",
         "employees_source_enabled",
-        "employees_copy_nonstrict"
+        "employees_copy_nonstrict",
+        "employees_parquet_copy"
     );
 
     /**
@@ -672,6 +673,49 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             assertThat(rows, hasSize(3));
             assertThat(rows.get(0).get(1).toString(), equalTo("ENG"));   // read from nested dept.code
             assertThat(rows.get(2).get(1).toString(), equalTo("OPS"));
+        }
+    }
+
+    public void testParquetStrictCopyToAndFilterPushdown() throws Exception {
+        // Strict + columnar + copy: comp (physical salary) is moved AND copied to comp2. The copy is an EVAL above the
+        // relation, so it works for parquet exactly as for CSV, and a WHERE on the copy target substitutes back to the
+        // source and pushes down — the trickiest combination (strict, columnar pushdown, copy alias-substitution).
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = writeParquetRenameFixture();
+        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", "emp_no"));
+        properties.put("comp", new DatasetFieldMapping("integer", "salary", "comp2")); // move salary->comp, copy to comp2
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), null);
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_parquet_copy",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+
+        // 1) the copy carries the source value
+        try (var response = run(syncEsqlQueryRequest("FROM employees_parquet_copy | SORT id | KEEP comp, comp2 | LIMIT 10"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat("copy carries the source value", row.get(1), equalTo(row.get(0)));
+            }
+        }
+        // 2) WHERE on the copy target pushes down (substituted to salary): Bob (200), Carol (300)
+        try (var response = run(syncEsqlQueryRequest("FROM employees_parquet_copy | WHERE comp2 > 150 | SORT id | LIMIT 10"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(2L));
+            assertThat(rows.get(1).get(0), equalTo(3L));
         }
     }
 

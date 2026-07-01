@@ -78,7 +78,7 @@ public class FlattenedFieldSyntheticWriterHelper {
      * A single field as presented to the writer: a parsed key path and its document-order value list. The list may
      * contain {@code null} elements representing JSON null slots, and is never empty.
      */
-    public record OrderedField(FlattenedKey key, List<BytesRef> values) {}
+    public record OrderedField(FlattenedKey key, List<String> values) {}
 
     private record Prefix(List<String> parts) {
 
@@ -159,7 +159,7 @@ public class FlattenedFieldSyntheticWriterHelper {
 
         private boolean initialized = false;
         private FlattenedKey peekKey;
-        private BytesRef peekValueRef;
+        private String peekValue;
         private FlattenedFieldArrayContext.KeyedOffsetField peekOffsets;
 
         public OffsetKeyedValueProducer(final SortedKeyedValues sortedKeyedValues, final SortedOffsetValues sortedOffsetValues) {
@@ -170,7 +170,7 @@ public class FlattenedFieldSyntheticWriterHelper {
         public void reset() {
             initialized = false;
             peekKey = null;
-            peekValueRef = null;
+            peekValue = null;
             peekOffsets = null;
         }
 
@@ -178,10 +178,10 @@ public class FlattenedFieldSyntheticWriterHelper {
             BytesRef raw = sortedKeyedValues.next();
             if (raw != null) {
                 peekKey = FlattenedKey.fromBytesRef(raw);
-                peekValueRef = BytesRef.deepCopyOf(FlattenedFieldParser.extractValue(raw));
+                peekValue = FlattenedFieldParser.extractValue(raw).utf8ToString();
             } else {
                 peekKey = null;
-                peekValueRef = null;
+                peekValue = null;
             }
         }
 
@@ -191,14 +191,14 @@ public class FlattenedFieldSyntheticWriterHelper {
             return ret;
         }
 
-        private FlattenedKey consumeValues(List<BytesRef> values) throws IOException {
+        private FlattenedKey consumeValues(List<String> values) throws IOException {
             var curr = peekKey;
-            values.add(peekValueRef);
+            values.add(peekValue);
             advanceKey();
 
             // Gather all values with the same path into a list so they can be written to a field together.
             while (peekKey != null && curr.pathEquals(peekKey)) {
-                values.add(peekValueRef);
+                values.add(peekValue);
                 advanceKey();
             }
 
@@ -224,7 +224,7 @@ public class FlattenedFieldSyntheticWriterHelper {
 
             if (peekOffsets == null) {
                 // Values without offsets: return sorted values directly (single-valued or no-null multi-valued).
-                List<BytesRef> values = new ArrayList<>();
+                List<String> values = new ArrayList<>();
                 FlattenedKey key = consumeValues(values);
                 return new OrderedField(key, values);
             }
@@ -236,16 +236,16 @@ public class FlattenedFieldSyntheticWriterHelper {
                 return new OrderedField(new FlattenedKey(offsets.fieldName()), nullList(offsets.offsets().length));
             } else if (comparison > 0) {
                 // Value precedes next offset: return sorted values directly.
-                List<BytesRef> values = new ArrayList<>();
+                List<String> values = new ArrayList<>();
                 FlattenedKey key = consumeValues(values);
                 return new OrderedField(key, values);
             } else {
                 // Matching path: expand the sorted-unique value list into document order using the offset permutation.
                 var offsets = consumeOffsets();
-                List<BytesRef> values = new ArrayList<>();
+                List<String> values = new ArrayList<>();
                 FlattenedKey key = consumeValues(values);
                 assert offsets.fieldName().equals(key.fullPath());
-                List<BytesRef> ordered = new ArrayList<>(offsets.offsets().length);
+                List<String> ordered = new ArrayList<>(offsets.offsets().length);
                 for (int ord : offsets.offsets()) {
                     ordered.add(ord == -1 ? null : values.get(ord));
                 }
@@ -253,8 +253,8 @@ public class FlattenedFieldSyntheticWriterHelper {
             }
         }
 
-        private static List<BytesRef> nullList(int length) {
-            List<BytesRef> list = new ArrayList<>(length);
+        private static List<String> nullList(int length) {
+            List<String> list = new ArrayList<>(length);
             for (int i = 0; i < length; i++) {
                 list.add(null);
             }
@@ -416,25 +416,24 @@ public class FlattenedFieldSyntheticWriterHelper {
         }
     }
 
-    private static void writeField(XContentBuilder b, List<BytesRef> values, String leaf) throws IOException {
+    private static void writeField(XContentBuilder b, List<String> values, String leaf) throws IOException {
         if (values.size() > 1) {
             b.startArray(leaf);
-            for (BytesRef v : values) {
+            for (String v : values) {
                 if (v == null) {
                     b.nullValue();
                 } else {
-                    b.utf8Value(v.bytes, v.offset, v.length);
+                    b.value(v);
                 }
             }
             b.endArray();
         } else {
-            BytesRef v = values.getFirst();
+            String v = values.getFirst();
             if (v == null) {
                 b.field(leaf);
                 b.nullValue();
             } else {
-                b.field(leaf);
-                b.utf8Value(v.bytes, v.offset, v.length);
+                b.field(leaf, v);
             }
         }
     }

@@ -26,7 +26,7 @@ public class EmbeddingRequestChunkerRequestTests extends InferenceObjectRamBytes
     public List<EmbeddingRequestChunker.Request> objectsToEstimateWithLargerInput() {
         return List.of(
             // Larger chunk (also exercises the chunkContainsWholeInput code path)
-            new EmbeddingRequestChunker.Request(0, 0, new Chunker.ChunkOffset(0, 10), new InferenceString(DataType.TEXT, INPUT))
+            new EmbeddingRequestChunker.Request(0, 0, new Chunker.ChunkOffset(0, 7), new InferenceString(DataType.TEXT, INPUT))
         );
     }
 

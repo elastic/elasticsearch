@@ -35,7 +35,8 @@ public enum FeatureFlag {
     SLICE_INDEXING("es.slice_indexing_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     INFERENCE_REGION_POLICY("es.inference_region_policy_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     ESQL_EXTERNAL_DATASOURCES_LOCAL("es.esql_external_datasources_local_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
-    ESQL_EXTERNAL_DATASOURCES_HTTP("es.esql_external_datasources_http_feature_flag_enabled=true", Version.fromString("9.5.0"), null);
+    ESQL_EXTERNAL_DATASOURCES_HTTP("es.esql_external_datasources_http_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
+    ESQL_EXTERNAL_DATASOURCES_KEYLESS("es.esql_external_datasources_keyless_feature_flag_enabled=true", Version.fromString("9.5.0"), null);
 
     public final String systemProperty;
     public final Version from;

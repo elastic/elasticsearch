@@ -17,12 +17,12 @@ import org.apache.lucene.search.Query;
 public class DenseVectorQueryBytesTests extends AbstractDenseVectorQueryTestCase {
     @Override
     DenseVectorQuery getDenseVectorQuery(String field, float[] query) {
-        return new DenseVectorQuery.Bytes(toBytes(query), field);
+        return DenseVectorQuery.Bytes.codecScored(toBytes(query), field);
     }
 
     @Override
     Query getDenseVectorQuery(String field, float[] query, Query filter) {
-        return new DenseVectorQuery.Bytes(toBytes(query), field).filteredBy(filter);
+        return DenseVectorQuery.Bytes.codecScored(toBytes(query), field).filteredBy(filter);
     }
 
     private static byte[] toBytes(float[] query) {

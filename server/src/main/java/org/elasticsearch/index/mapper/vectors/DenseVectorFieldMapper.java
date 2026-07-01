@@ -3196,7 +3196,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             squaredMagnitude
                         );
                     }
-                    yield new DenseVectorQuery.Floats(
+                    yield new DenseVectorQuery.DocValuesFloats(
                         queryVector,
                         name(),
                         effectiveSimilarity.rawVectorSimilarityFunction(),
@@ -3211,7 +3211,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
                         element.checkVectorMagnitude(effectiveSimilarity, ByteElement.errorElementsAppender(queryVector), squaredMagnitude);
                     }
-                    yield new DenseVectorQuery.Bytes(
+                    yield new DenseVectorQuery.DocValuesBytes(
                         queryVector,
                         name(),
                         effectiveSimilarity.rawVectorSimilarityFunction(),
@@ -3224,7 +3224,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 case BIT -> {
                     byte[] queryVector = resolvedQueryVector.asByteVector();
                     element.checkDimensions(dims, queryVector.length);
-                    yield new DenseVectorQuery.Bytes(queryVector, name(), null, ElementType.BIT, indexVersionCreated);
+                    yield new DenseVectorQuery.DocValuesBytes(queryVector, name(), null, ElementType.BIT, indexVersionCreated);
                 }
             };
         }
@@ -3235,7 +3235,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private Query createExactKnnBitQuery(byte[] queryVector, Query filter) {
             element.checkDimensions(dims, queryVector.length);
-            return new DenseVectorQuery.Bytes(queryVector, name()).filteredBy(filter);
+            // Bit vectors have no VectorSimilarityFunction; the codec scorer always computes Hamming distance.
+            return DenseVectorQuery.Bytes.codecScored(queryVector, name()).filteredBy(filter);
         }
 
         private Query createExactKnnByteQuery(byte[] queryVector, VectorSimilarity effectiveSimilarity, VectorSimilarityFunction function) {
@@ -3244,7 +3245,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
                 element.checkVectorMagnitude(effectiveSimilarity, ByteElement.errorElementsAppender(queryVector), squaredMagnitude);
             }
-            return new DenseVectorQuery.Bytes(queryVector, name(), function);
+            // null function ⇒ codec-bound (possibly quantized) scorer; non-null ⇒ raw scoring with this function.
+            return function == null
+                ? DenseVectorQuery.Bytes.codecScored(queryVector, name())
+                : DenseVectorQuery.Bytes.rawScored(queryVector, name(), function);
         }
 
         private Query createExactKnnFloatQuery(
@@ -3267,7 +3271,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             // A non-cosine override on a normalized-cosine field must score against the original (denormalized) vectors.
             boolean denormalize = isOverridden && isNormalized() && effectiveSimilarity != VectorSimilarity.COSINE;
-            return new DenseVectorQuery.Floats(queryVector, name(), function, denormalize);
+            // null function ⇒ codec-bound (possibly quantized) scorer; non-null ⇒ raw scoring with this function.
+            return function == null
+                ? DenseVectorQuery.Floats.codecScored(queryVector, name())
+                : DenseVectorQuery.Floats.rawScored(queryVector, name(), function, denormalize);
         }
 
         private static float[] normalizeQueryVector(float[] queryVector, float squaredMagnitude) {
@@ -3470,7 +3477,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
-                Query exactKnnQuery = new DenseVectorQuery.Bytes(queryVector, name()).filteredBy(filter);
+                Query exactKnnQuery = DenseVectorQuery.Bytes.codecScored(queryVector, name()).filteredBy(filter);
                 knnQuery = parentFilter != null ? new DiversifyingParentBlockQuery(parentFilter, exactKnnQuery) : exactKnnQuery;
             } else {
                 knnQuery = parentFilter != null
@@ -3537,7 +3544,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
-                Query exactKnnQuery = new DenseVectorQuery.Floats(queryVector, name()).filteredBy(filter);
+                Query exactKnnQuery = DenseVectorQuery.Floats.codecScored(queryVector, name()).filteredBy(filter);
                 knnQuery = parentFilter != null ? new DiversifyingParentBlockQuery(parentFilter, exactKnnQuery) : exactKnnQuery;
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);

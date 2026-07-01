@@ -17,12 +17,12 @@ import org.apache.lucene.search.Query;
 public class DenseVectorQueryFloatsTests extends AbstractDenseVectorQueryTestCase {
     @Override
     DenseVectorQuery getDenseVectorQuery(String field, float[] query) {
-        return new DenseVectorQuery.Floats(query, field);
+        return DenseVectorQuery.Floats.codecScored(query, field);
     }
 
     @Override
     Query getDenseVectorQuery(String field, float[] query, Query filter) {
-        return new DenseVectorQuery.Floats(query, field).filteredBy(filter);
+        return DenseVectorQuery.Floats.codecScored(query, field).filteredBy(filter);
     }
 
     @Override

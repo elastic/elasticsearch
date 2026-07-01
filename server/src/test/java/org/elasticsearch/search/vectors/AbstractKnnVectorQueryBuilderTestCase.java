@@ -276,8 +276,9 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         };
 
         Query bruteForceVectorQueryBuilt = switch (elementType()) {
-            case BIT, BYTE -> new DenseVectorQuery.Bytes(resolvedVector.asByteVector(), VECTOR_FIELD).filteredBy(filterQuery);
-            case FLOAT, BFLOAT16 -> new DenseVectorQuery.Floats(resolvedVector.asFloatVector(), VECTOR_FIELD).filteredBy(filterQuery);
+            case BIT, BYTE -> DenseVectorQuery.Bytes.codecScored(resolvedVector.asByteVector(), VECTOR_FIELD).filteredBy(filterQuery);
+            case FLOAT, BFLOAT16 -> DenseVectorQuery.Floats.codecScored(resolvedVector.asFloatVector(), VECTOR_FIELD)
+                .filteredBy(filterQuery);
         };
 
         if (query instanceof VectorSimilarityQuery vectorSimilarityQuery) {

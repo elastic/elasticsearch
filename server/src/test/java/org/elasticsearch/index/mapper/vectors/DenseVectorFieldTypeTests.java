@@ -494,11 +494,11 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         // A non-indexed field has no mapped similarity; without an override it defaults to cosine and produces a
         // doc-values-backed query (no codec/KNN values for a non-indexed field).
         Query defaulted = field.createExactKnnQuery(VectorData.fromFloats(queryVector), null, null, false);
-        assertTrue(defaulted instanceof DenseVectorQuery.Floats);
+        assertTrue(defaulted instanceof DenseVectorQuery.DocValuesFloats);
 
         // An explicit similarity_function override is also honored.
         Query overridden = field.createExactKnnQuery(VectorData.fromFloats(queryVector), null, VectorSimilarity.COSINE, false);
-        assertTrue(overridden instanceof DenseVectorQuery.Floats);
+        assertTrue(overridden instanceof DenseVectorQuery.DocValuesFloats);
 
         // The exact-knn entry point used by ExactKnnQueryBuilder/inner-hits still requires an indexed field.
         IllegalArgumentException requiresIndexed = expectThrows(
@@ -523,7 +523,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         byte[] bitQuery = new byte[bitDims / Byte.SIZE];
         random().nextBytes(bitQuery);
         Query bitQueryResult = bitField.createExactKnnQuery(VectorData.fromBytes(bitQuery), null, null, false);
-        assertTrue(bitQueryResult instanceof DenseVectorQuery.Bytes);
+        assertTrue(bitQueryResult instanceof DenseVectorQuery.DocValuesBytes);
     }
 
     public void testFloatCreateKnnQuery() {

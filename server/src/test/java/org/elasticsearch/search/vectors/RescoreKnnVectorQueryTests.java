@@ -83,7 +83,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         float[] queryVector = randomVector(numDims);
         List<Query> innerQueries = new ArrayList<>();
         innerQueries.add(new KnnFloatVectorQuery(FIELD_NAME, randomVector(numDims), (int) (k * randomFloatBetween(1.0f, 10.0f, true))));
-        innerQueries.add(new DenseVectorQuery.Floats(queryVector, FIELD_NAME).filteredBy(new FieldExistsQuery(FIELD_NAME)));
+        innerQueries.add(DenseVectorQuery.Floats.codecScored(queryVector, FIELD_NAME).filteredBy(new FieldExistsQuery(FIELD_NAME)));
         innerQueries.add(Queries.ALL_DOCS_INSTANCE);
 
         try (Directory d = newDirectory()) {
@@ -219,7 +219,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
         List<Query> innerQueries = new ArrayList<>();
         innerQueries.add(new KnnFloatVectorQuery(FIELD_NAME, randomVector(numDims), (int) (k * randomFloatBetween(1.0f, 10.0f, true))));
-        innerQueries.add(new DenseVectorQuery.Floats(queryVector, FIELD_NAME).filteredBy(new FieldExistsQuery(FIELD_NAME)));
+        innerQueries.add(DenseVectorQuery.Floats.codecScored(queryVector, FIELD_NAME).filteredBy(new FieldExistsQuery(FIELD_NAME)));
         innerQueries.add(Queries.ALL_DOCS_INSTANCE);
 
         try (Directory d = newDirectory()) {

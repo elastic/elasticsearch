@@ -180,6 +180,8 @@ public class SemanticTextChunkUtils {
                     queries.add(Queries.ALL_DOCS_INSTANCE);
                 } else if (query instanceof DenseVectorQuery.Floats floatsQuery) {
                     queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(floatsQuery.getQuery()), similarity));
+                } else if (query instanceof DenseVectorQuery.DocValuesFloats docValuesFloatsQuery) {
+                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(docValuesFloatsQuery.getQuery()), similarity));
                 } else if (query instanceof IVFKnnFloatVectorQuery ivfQuery) {
                     queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(ivfQuery.getQuery()), similarity));
                 } else if (query instanceof RescoreKnnVectorQuery rescoreQuery) {

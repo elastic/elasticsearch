@@ -51,24 +51,28 @@ import java.util.Objects;
  * the index. This query never filters on its own; {@link FilteredDenseVectorQuery} wraps an instance of
  * this class to additionally restrict scoring to documents that match a filter query.
  *
- * <p>Each subclass takes an optional {@link VectorSimilarityFunction}, which selects one of three modes:
+ * <p>Each concrete subclass corresponds to exactly one way of producing a {@link VectorScorer}, chosen once
+ * at construction time by the caller (see {@code DenseVectorFieldMapper}):
  * <ul>
- *     <li>{@code function == null}: scoring uses the codec-bound scorer returned by
- *     {@code vectorValues.scorer(query)}. On codec-quantized fields this scores against the
+ *     <li>{@link Floats#codecScored} / {@link Bytes#codecScored}: scoring uses the codec-bound scorer
+ *     returned by {@code vectorValues.scorer(query)}. On codec-quantized fields this scores against the
  *     quantized representation.</li>
- *     <li>{@code function != null} and equal to the field's bound similarity function: scoring uses
- *     {@code vectorValues.rescorer(query)}, Lucene's primitive for highest-fidelity raw scoring.
- *     For codecs that preserve raw vectors alongside quantized ones (INT8/INT4/BBQ via
- *     {@code QuantizedAndRawFloatVectorValues} and friends) this returns the raw scorer; for
- *     non-quantized codecs it equals {@code scorer(query)} per the Lucene default.</li>
- *     <li>{@code function != null} and different from the field's bound similarity function:
- *     scoring iterates {@code vectorValue(ord)} and applies {@code function.compare(target, raw)}
- *     directly — the only path that supports a per-query similarity-function override.</li>
+ *     <li>{@link Floats#rawScored} / {@link Bytes#rawScored}: raw scoring with an explicit
+ *     {@link VectorSimilarityFunction}. Per leaf, this still prefers {@code vectorValues.rescorer(query)}
+ *     when the requested function equals that leaf's bound similarity function — Lucene's primitive for
+ *     highest-fidelity raw scoring, returning the raw (unquantized) scorer for codecs that preserve one
+ *     (INT8/INT4/BBQ) — falling back to iterating {@code vectorValue(ord)} and applying
+ *     {@code function.compare(target, raw)} directly otherwise. That per-leaf choice can't be hoisted to
+ *     construction time: it depends on each segment's {@link FieldInfo}, which can differ across segments
+ *     written before and after a mapping update. {@link Floats#rawScored} additionally supports
+ *     {@code denormalize}: when the KNN-indexed vectors are unit-normalized but the query requests a
+ *     different metric, the scorer reads {@code <field>._magnitude} {@link NumericDocValues} to reconstruct
+ *     the original vectors before comparing.</li>
+ *     <li>{@link DocValuesFloats} / {@link DocValuesBytes}: non-indexed ({@code index:false}) fields have no
+ *     KNN vector values; their vectors are stored as binary doc values instead. These decode each document's
+ *     vector and apply a (always non-null, except for bit vectors) {@code function} directly. There is no
+ *     codec or quantized representation in this mode.</li>
  * </ul>
- *
- * <p>Non-indexed (index:false) fields have no KNN vector values; their vectors are stored as binary doc
- * values. The doc-values constructors select a scorer that decodes each document's vector and applies a
- * (always non-null) {@code function} directly. There is no codec or quantized representation in this mode.
  *
  * <p>{@link ScorerSupplier#bulkScorer()} is overridden to return a {@code DenseVectorBulkScorer}
  * that drives the top-level collection path. It calls {@code DenseVectorScorer#nextDocsAndScores}
@@ -106,21 +110,30 @@ public abstract class DenseVectorQuery extends Query {
      * {@code filterWeight} when non-null. {@link FilteredDenseVectorQuery} supplies the filterWeight;
      * the unfiltered {@link #createWeight} path above passes {@code null}.
      */
-    abstract DenseVectorWeight denseVectorWeight(float boost, Weight filterWeight) throws IOException;
+    DenseVectorWeight denseVectorWeight(float boost, Weight filterWeight) {
+        return new DenseVectorWeight(this, boost, filterWeight);
+    }
 
-    abstract static class DenseVectorWeight extends Weight {
+    /**
+     * Produces the scorer for a single leaf. Each subclass implements exactly one of the cases documented
+     * on the class: doc-values decode, codec-bound scoring, or raw scoring (with its per-leaf rescorer
+     * preference). Returns {@code null} when the leaf has no vector values for {@link #field}.
+     */
+    abstract VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException;
+
+    static class DenseVectorWeight extends Weight {
+        private final DenseVectorQuery query;
         private final String field;
         private final float boost;
         private final Weight filterWeight;
 
         protected DenseVectorWeight(DenseVectorQuery query, float boost, Weight filterWeight) {
             super(query);
+            this.query = query;
             this.field = query.field;
             this.boost = boost;
             this.filterWeight = filterWeight;
         }
-
-        abstract VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException;
 
         @Override
         public Explanation explain(LeafReaderContext leafReaderContext, int i) throws IOException {
@@ -130,7 +143,7 @@ public abstract class DenseVectorQuery extends Query {
                     return Explanation.noMatch("Document does not match filter", filterExplanation);
                 }
             }
-            VectorScorer vectorScorer = vectorScorer(leafReaderContext);
+            VectorScorer vectorScorer = query.vectorScorer(leafReaderContext);
             if (vectorScorer == null) {
                 return Explanation.noMatch("No vector values found for field: " + field);
             }
@@ -145,7 +158,7 @@ public abstract class DenseVectorQuery extends Query {
 
         @Override
         public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-            VectorScorer vectorScorer = vectorScorer(context);
+            VectorScorer vectorScorer = query.vectorScorer(context);
             if (vectorScorer == null) {
                 return null;
             }
@@ -190,52 +203,33 @@ public abstract class DenseVectorQuery extends Query {
 
         private final float[] query;
         private final VectorSimilarityFunction function;
-        // Non-null only for non-indexed (index:false) fields, which are scored from binary doc values; see the
-        // doc-values constructor. elementType selects float vs bfloat16 decoding.
-        private final ElementType docValuesElementType;
-        private final IndexVersion docValuesIndexVersion;
         // True when the KNN-indexed vectors are unit-normalized but the query requests a different metric.
         // The scorer reads <field>._magnitude NumericDocValues to reconstruct the originals before scoring.
         private final boolean denormalize;
 
         /**
-         * Codec-bound scoring (uses {@code FloatVectorValues.scorer(query)}). On quantized fields
-         * this scores against the quantized representation.
+         * Codec-bound scoring (uses {@code FloatVectorValues.scorer(query)}). On quantized fields this
+         * scores against the quantized representation.
          */
-        public Floats(float[] query, String field) {
-            this(query, field, null, null, null, false);
+        public static Floats codecScored(float[] query, String field) {
+            return new Floats(query, field, null, false);
         }
 
         /**
-         * Scores a non-indexed (index:false) field from binary doc values, decoding each document's vector
-         * (per {@code elementType}) and applying {@code function}. Use only when the field has no KNN values.
+         * Raw scoring with the given {@code function}. Per leaf, prefers {@code FloatVectorValues.rescorer(
+         * query)} when {@code function} equals that leaf's bound similarity function; otherwise iterates
+         * {@code vectorValue(ord)} and applies {@code function.compare} directly. When {@code denormalize} is
+         * {@code true}, reads {@code <field>._magnitude} NumericDocValues to reconstruct original vectors
+         * from unit-normalized KNN storage before applying {@code function}.
          */
-        public Floats(float[] query, String field, VectorSimilarityFunction function, ElementType elementType, IndexVersion indexVersion) {
-            this(query, field, function, elementType, indexVersion, false);
+        public static Floats rawScored(float[] query, String field, VectorSimilarityFunction function, boolean denormalize) {
+            return new Floats(query, field, Objects.requireNonNull(function), denormalize);
         }
 
-        /**
-         * Raw scoring with the given {@code function}. When {@code denormalize} is {@code true}, reads
-         * {@code <field>._magnitude} NumericDocValues to reconstruct original vectors from unit-normalized
-         * KNN storage before applying {@code function}.
-         */
-        public Floats(float[] query, String field, VectorSimilarityFunction function, boolean denormalize) {
-            this(query, field, function, null, null, denormalize);
-        }
-
-        private Floats(
-            float[] query,
-            String field,
-            VectorSimilarityFunction function,
-            ElementType elementType,
-            IndexVersion indexVersion,
-            boolean denormalize
-        ) {
+        private Floats(float[] query, String field, VectorSimilarityFunction function, boolean denormalize) {
             super(field);
             this.query = query;
             this.function = function;
-            this.docValuesElementType = elementType;
-            this.docValuesIndexVersion = indexVersion;
             this.denormalize = denormalize;
         }
 
@@ -253,36 +247,24 @@ public abstract class DenseVectorQuery extends Query {
         }
 
         @Override
-        DenseVectorWeight denseVectorWeight(float boost, Weight filterWeight) {
-            return new DenseVectorWeight(Floats.this, boost, filterWeight) {
-                @Override
-                VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException {
-                    if (docValuesIndexVersion != null) {
-                        BinaryDocValues docValues = leafReaderContext.reader().getBinaryDocValues(field);
-                        if (docValues == null) {
-                            return null;
-                        }
-                        return new DocValuesFloatVectorScorer(docValues, query, function, docValuesElementType, docValuesIndexVersion);
-                    }
-                    FloatVectorValues vectorValues = leafReaderContext.reader().getFloatVectorValues(field);
-                    if (vectorValues == null) {
-                        return null;
-                    }
-                    if (function == null) {
-                        return vectorValues.scorer(query);
-                    }
-                    if (denormalize) {
-                        NumericDocValues magnitudes = leafReaderContext.reader()
-                            .getNumericDocValues(field + DenseVectorFieldMapper.COSINE_MAGNITUDE_FIELD_SUFFIX);
-                        return new RawFloatVectorScorer(new DenormalizedCosineFloatVectorValues(vectorValues, magnitudes), query, function);
-                    }
-                    FieldInfo fieldInfo = leafReaderContext.reader().getFieldInfos().fieldInfo(field);
-                    if (fieldInfo != null && fieldInfo.getVectorSimilarityFunction() == function) {
-                        return vectorValues.rescorer(query);
-                    }
-                    return new RawFloatVectorScorer(vectorValues, query, function);
-                }
-            };
+        VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException {
+            FloatVectorValues vectorValues = leafReaderContext.reader().getFloatVectorValues(field);
+            if (vectorValues == null) {
+                return null;
+            }
+            if (function == null) {
+                return vectorValues.scorer(query);
+            }
+            if (denormalize) {
+                NumericDocValues magnitudes = leafReaderContext.reader()
+                    .getNumericDocValues(field + DenseVectorFieldMapper.COSINE_MAGNITUDE_FIELD_SUFFIX);
+                return new RawFloatVectorScorer(new DenormalizedCosineFloatVectorValues(vectorValues, magnitudes), query, function);
+            }
+            FieldInfo fieldInfo = leafReaderContext.reader().getFieldInfos().fieldInfo(field);
+            if (fieldInfo != null && fieldInfo.getVectorSimilarityFunction() == function) {
+                return vectorValues.rescorer(query);
+            }
+            return new RawFloatVectorScorer(vectorValues, query, function);
         }
 
         @Override
@@ -293,14 +275,197 @@ public abstract class DenseVectorQuery extends Query {
             return Objects.equals(field, other.field)
                 && Objects.deepEquals(query, other.query)
                 && function == other.function
-                && docValuesElementType == other.docValuesElementType
-                && Objects.equals(docValuesIndexVersion, other.docValuesIndexVersion)
                 && denormalize == other.denormalize;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(field, Arrays.hashCode(query), function, docValuesElementType, docValuesIndexVersion, denormalize);
+            return Objects.hash(field, Arrays.hashCode(query), function, denormalize);
+        }
+
+        private static final class RawFloatVectorScorer implements VectorScorer {
+            private final FloatVectorValues values;
+            private final float[] target;
+            private final VectorSimilarityFunction function;
+            private final KnnVectorValues.DocIndexIterator iterator;
+
+            RawFloatVectorScorer(FloatVectorValues values, float[] target, VectorSimilarityFunction function) {
+                this.values = values;
+                this.target = target;
+                this.function = function;
+                this.iterator = values.iterator();
+            }
+
+            @Override
+            public float score() throws IOException {
+                return function.compare(target, values.vectorValue(iterator.index()));
+            }
+
+            @Override
+            public DocIdSetIterator iterator() {
+                return iterator;
+            }
+        }
+    }
+
+    public static class Bytes extends DenseVectorQuery {
+
+        private final byte[] query;
+        private final VectorSimilarityFunction function;
+
+        /**
+         * Codec-bound scoring (uses {@code ByteVectorValues.scorer(query)}).
+         */
+        public static Bytes codecScored(byte[] query, String field) {
+            return new Bytes(query, field, null);
+        }
+
+        /**
+         * Raw scoring with the given {@code function}. Per leaf, prefers {@link ByteVectorValues#rescorer(
+         * byte[])} (Lucene's high-fidelity raw primitive) when {@code function} equals that leaf's bound
+         * similarity function; otherwise iterates {@code vectorValue(ord)} and applies
+         * {@code function.compare(query, raw)} directly.
+         */
+        public static Bytes rawScored(byte[] query, String field, VectorSimilarityFunction function) {
+            return new Bytes(query, field, Objects.requireNonNull(function));
+        }
+
+        private Bytes(byte[] query, String field, VectorSimilarityFunction function) {
+            super(field);
+            this.query = query;
+            this.function = function;
+        }
+
+        public byte[] getQuery() {
+            return query;
+        }
+
+        public VectorSimilarityFunction getFunction() {
+            return function;
+        }
+
+        @Override
+        public String toString(String field) {
+            return "DenseVectorQuery.Bytes";
+        }
+
+        @Override
+        VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException {
+            ByteVectorValues vectorValues = leafReaderContext.reader().getByteVectorValues(field);
+            if (vectorValues == null) {
+                return null;
+            }
+            if (function == null) {
+                return vectorValues.scorer(query);
+            }
+            FieldInfo fieldInfo = leafReaderContext.reader().getFieldInfos().fieldInfo(field);
+            if (fieldInfo != null && fieldInfo.getVectorSimilarityFunction() == function) {
+                return vectorValues.rescorer(query);
+            }
+            return new RawByteVectorScorer(vectorValues, query, function);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Bytes other = (Bytes) o;
+            return Objects.equals(field, other.field) && Objects.deepEquals(query, other.query) && function == other.function;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(field, Arrays.hashCode(query), function);
+        }
+
+        private static final class RawByteVectorScorer implements VectorScorer {
+            private final ByteVectorValues values;
+            private final byte[] target;
+            private final VectorSimilarityFunction function;
+            private final KnnVectorValues.DocIndexIterator iterator;
+
+            RawByteVectorScorer(ByteVectorValues values, byte[] target, VectorSimilarityFunction function) {
+                this.values = values;
+                this.target = target;
+                this.function = function;
+                this.iterator = values.iterator();
+            }
+
+            @Override
+            public float score() throws IOException {
+                return function.compare(target, values.vectorValue(iterator.index()));
+            }
+
+            @Override
+            public DocIdSetIterator iterator() {
+                return iterator;
+            }
+        }
+    }
+
+    /**
+     * Scores a non-indexed ({@code index:false}) float or bfloat16 field from binary doc values, decoding
+     * each document's vector (per {@code elementType}) and applying {@code function}. Use only when the
+     * field has no KNN vector values.
+     */
+    public static class DocValuesFloats extends DenseVectorQuery {
+
+        private final float[] query;
+        private final VectorSimilarityFunction function;
+        private final ElementType elementType;
+        private final IndexVersion indexVersion;
+
+        public DocValuesFloats(
+            float[] query,
+            String field,
+            VectorSimilarityFunction function,
+            ElementType elementType,
+            IndexVersion indexVersion
+        ) {
+            super(field);
+            this.query = query;
+            this.function = Objects.requireNonNull(function);
+            this.elementType = elementType;
+            this.indexVersion = indexVersion;
+        }
+
+        public float[] getQuery() {
+            return query;
+        }
+
+        public VectorSimilarityFunction getFunction() {
+            return function;
+        }
+
+        @Override
+        public String toString(String field) {
+            return "DenseVectorQuery.DocValuesFloats";
+        }
+
+        @Override
+        VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException {
+            BinaryDocValues docValues = leafReaderContext.reader().getBinaryDocValues(field);
+            if (docValues == null) {
+                return null;
+            }
+            return new DocValuesFloatVectorScorer(docValues, query, function, elementType, indexVersion);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DocValuesFloats other = (DocValuesFloats) o;
+            return Objects.equals(field, other.field)
+                && Objects.deepEquals(query, other.query)
+                && function == other.function
+                && elementType == other.elementType
+                && Objects.equals(indexVersion, other.indexVersion);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(field, Arrays.hashCode(query), function, elementType, indexVersion);
         }
 
         /** Decodes each document's float vector from binary doc values and applies {@code function}. */
@@ -357,69 +522,32 @@ public abstract class DenseVectorQuery extends Query {
                 return values;
             }
         }
-
-        private static final class RawFloatVectorScorer implements VectorScorer {
-            private final FloatVectorValues values;
-            private final float[] target;
-            private final VectorSimilarityFunction function;
-            private final KnnVectorValues.DocIndexIterator iterator;
-
-            RawFloatVectorScorer(FloatVectorValues values, float[] target, VectorSimilarityFunction function) {
-                this.values = values;
-                this.target = target;
-                this.function = function;
-                this.iterator = values.iterator();
-            }
-
-            @Override
-            public float score() throws IOException {
-                return function.compare(target, values.vectorValue(iterator.index()));
-            }
-
-            @Override
-            public DocIdSetIterator iterator() {
-                return iterator;
-            }
-        }
     }
 
-    public static class Bytes extends DenseVectorQuery {
+    /**
+     * Scores a non-indexed ({@code index:false}) byte or bit field from binary doc values, decoding each
+     * document's vector. {@code byte} fields apply {@code function}; {@code bit} fields ({@code function ==
+     * null}) score by Hamming distance instead. Use only when the field has no KNN vector values.
+     */
+    public static class DocValuesBytes extends DenseVectorQuery {
 
         private final byte[] query;
         private final VectorSimilarityFunction function;
-        // Non-null only for non-indexed (index:false) byte/bit fields, which are scored from binary doc values;
-        // see the doc-values constructor. elementType selects byte (function.compare) vs bit (Hamming) scoring.
-        private final ElementType docValuesElementType;
-        private final IndexVersion docValuesIndexVersion;
+        private final ElementType elementType;
+        private final IndexVersion indexVersion;
 
-        /**
-         * Codec-bound scoring (uses {@code ByteVectorValues.scorer(query)}).
-         */
-        public Bytes(byte[] query, String field) {
-            this(query, field, null);
-        }
-
-        /**
-         * Raw scoring with the given {@code function}. When {@code function} matches the field's bound
-         * similarity, scoring uses {@link ByteVectorValues#rescorer(byte[])} (Lucene's high-fidelity
-         * raw primitive); when it differs, scoring iterates {@code vectorValue(ord)} and applies
-         * {@code function.compare(query, raw)} directly. Pass {@code null} to use the codec scorer.
-         */
-        public Bytes(byte[] query, String field, VectorSimilarityFunction function) {
-            this(query, field, function, null, null);
-        }
-
-        /**
-         * Scores a non-indexed (index:false) byte or bit field from binary doc values, decoding each
-         * document's vector. {@code byte} fields apply {@code function}; {@code bit} fields score by Hamming
-         * distance. Use only when the field has no KNN values.
-         */
-        public Bytes(byte[] query, String field, VectorSimilarityFunction function, ElementType elementType, IndexVersion indexVersion) {
+        public DocValuesBytes(
+            byte[] query,
+            String field,
+            VectorSimilarityFunction function,
+            ElementType elementType,
+            IndexVersion indexVersion
+        ) {
             super(field);
             this.query = query;
             this.function = function;
-            this.docValuesElementType = elementType;
-            this.docValuesIndexVersion = indexVersion;
+            this.elementType = elementType;
+            this.indexVersion = indexVersion;
         }
 
         public byte[] getQuery() {
@@ -432,52 +560,33 @@ public abstract class DenseVectorQuery extends Query {
 
         @Override
         public String toString(String field) {
-            return "DenseVectorQuery.Bytes";
+            return "DenseVectorQuery.DocValuesBytes";
         }
 
         @Override
-        DenseVectorWeight denseVectorWeight(float boost, Weight filterWeight) {
-            return new DenseVectorWeight(Bytes.this, boost, filterWeight) {
-                @Override
-                VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException {
-                    if (docValuesIndexVersion != null) {
-                        BinaryDocValues docValues = leafReaderContext.reader().getBinaryDocValues(field);
-                        if (docValues == null) {
-                            return null;
-                        }
-                        return new DocValuesByteVectorScorer(docValues, query, function, docValuesElementType, docValuesIndexVersion);
-                    }
-                    ByteVectorValues vectorValues = leafReaderContext.reader().getByteVectorValues(field);
-                    if (vectorValues == null) {
-                        return null;
-                    }
-                    if (function == null) {
-                        return vectorValues.scorer(query);
-                    }
-                    FieldInfo fieldInfo = leafReaderContext.reader().getFieldInfos().fieldInfo(field);
-                    if (fieldInfo != null && fieldInfo.getVectorSimilarityFunction() == function) {
-                        return vectorValues.rescorer(query);
-                    }
-                    return new RawByteVectorScorer(vectorValues, query, function);
-                }
-            };
+        VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException {
+            BinaryDocValues docValues = leafReaderContext.reader().getBinaryDocValues(field);
+            if (docValues == null) {
+                return null;
+            }
+            return new DocValuesByteVectorScorer(docValues, query, function, elementType, indexVersion);
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Bytes other = (Bytes) o;
+            DocValuesBytes other = (DocValuesBytes) o;
             return Objects.equals(field, other.field)
                 && Objects.deepEquals(query, other.query)
                 && function == other.function
-                && docValuesElementType == other.docValuesElementType
-                && Objects.equals(docValuesIndexVersion, other.docValuesIndexVersion);
+                && elementType == other.elementType
+                && Objects.equals(indexVersion, other.indexVersion);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(field, Arrays.hashCode(query), function, docValuesElementType, docValuesIndexVersion);
+            return Objects.hash(field, Arrays.hashCode(query), function, elementType, indexVersion);
         }
 
         /**
@@ -521,30 +630,6 @@ public abstract class DenseVectorQuery extends Query {
             @Override
             public DocIdSetIterator iterator() {
                 return values;
-            }
-        }
-
-        private static final class RawByteVectorScorer implements VectorScorer {
-            private final ByteVectorValues values;
-            private final byte[] target;
-            private final VectorSimilarityFunction function;
-            private final KnnVectorValues.DocIndexIterator iterator;
-
-            RawByteVectorScorer(ByteVectorValues values, byte[] target, VectorSimilarityFunction function) {
-                this.values = values;
-                this.target = target;
-                this.function = function;
-                this.iterator = values.iterator();
-            }
-
-            @Override
-            public float score() throws IOException {
-                return function.compare(target, values.vectorValue(iterator.index()));
-            }
-
-            @Override
-            public DocIdSetIterator iterator() {
-                return iterator;
             }
         }
     }

@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static java.util.Collections.nCopies;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
@@ -64,7 +65,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
                     BytesRef type = ((BytesRefBlock) resultPage.getBlock(1)).getBytesRef(j, new BytesRef());
                     double pvalue = ((DoubleBlock) resultPage.getBlock(2)).getDouble(j);
                     assertThat(type.utf8ToString(), equalTo("step_change"));
-                    assertThat(pvalue, equalTo(0.0));
+                    assertThat(pvalue, closeTo(0.0, 1e-50));
                     seenOne = true;
                 } else {
                     assertThat(resultPage.getBlock(1).isNull(j), equalTo(true));

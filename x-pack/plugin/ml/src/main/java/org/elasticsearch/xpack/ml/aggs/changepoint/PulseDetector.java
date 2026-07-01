@@ -1,0 +1,260 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.ml.aggs.changepoint;
+
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+
+public class PulseDetector {
+
+    // Half-width of the centred window used for the rolling-median baseline that residuals are taken from.
+    private static final int WEIGHT_HALF_WINDOW = 5;
+    // Width of the local window used to fit the robust Theil-Sen boundary line that restores the first/last
+    // WEIGHT_HALF_WINDOW residuals (where the centred rolling median has collapsed). Wide enough for a stable
+    // slope, local enough to track the boundary.
+    private static final int BOUNDARY_LINE_WINDOW = 2 * WEIGHT_HALF_WINDOW + 1;
+    // Candidate ("long list") threshold: a point is a candidate excursion when its residual from the local
+    // rolling-median baseline exceeds this many robust sigmas of the residual scale. Generous pre-filter; the
+    // significance decision is the KDE gate.
+    private static final double PULSE_Z_THRESHOLD = 3.0;
+    // Candidates separated by at most this many buckets (and of the same sign) are one physical excursion and
+    // are merged. We do NOT chain across larger gaps: repeated/recurring excursions are a structural/dispersion
+    // matter, not something the pulse stream should fuse. Set to 1 (strictly adjacent).
+    private static final int PULSE_MERGE_MAX_GAP = 1;
+    // We report at most this many pulses — the highest-z excursions. A small floor plus a slowly-growing fraction
+    // of the series length, so a pathological or very noisy series cannot drown the output in spikes.
+    private static final int MAX_PULSES_FLOOR = 5;
+    private static final double MAX_PULSES_FRACTION = 0.02;
+    // Minimum KDE bandwidth as a fraction of the stabilized residual range, so the kernel width never collapses
+    // to zero on a flat/degenerate background (which would make the empirical-tail gate unable to flag any outlier).
+    // Small enough to be inert on a well-spread background, where Silverman's bandwidth dominates.
+    private static final double BANDWIDTH_RANGE_FLOOR = 0.02;
+
+    private final int minSegmentLength;
+    private final double pValueThreshold;
+
+    private static final Logger logger = LogManager.getLogger(PulseDetector.class);
+
+    PulseDetector(int minSegmentLength, double pValueThreshold) {
+        this.pValueThreshold = pValueThreshold;
+        this.minSegmentLength = minSegmentLength;
+    }
+
+    /**
+     * Detects spike/dip events as point excursions from a local rolling-median baseline. Working off the local
+     * residual (not raw values versus a global centre) means level structure is removed — a multi-level series
+     * cannot mask an excursion on a low-level regime — and smooth curvature is tracked, so a gradually bending
+     * trend does not leave the large residuals a piecewise-linear fit would.
+     *
+     * The pipeline is:
+     * 1. propose a long list of candidates whose residual exceeds {@link #PULSE_Z_THRESHOLD} robust sigmas of
+     *    the residual scale,
+     * 2. merge candidates within {@link #PULSE_MERGE_MAX_GAP} of one another and have the same sign into single
+     *    excursions, dropping any that span a full {@code minSegmentLength},
+     * 3. sort the excursions by their peak z and keep the top {@code max(MAX_PULSES_FLOOR, MAX_PULSES_FRACTION * n)}.
+     * 4. build ONE Gaussian-KDE null from the residuals with <em>all</em> of those top excursions removed,
+     *    and keep an excursion only if its peak's Bonferroni-corrected tail probability under that null clears
+     *    the threshold.
+     *
+     * Removing all the tested excursions from the single null at once is deliberate: scoring each against a null
+     * that contains the others (leave-one-out) means the largest spike and dip mask all the rest. Removing them
+     * together means several genuinely distinct excursions are each judged against the quiet remainder and all
+     * survive, while a recurring population is still rejected.
+     */
+    public List<ChangeType> detect(double[] values) {
+        int n = values.length;
+        if (n < 4) {
+            return new ArrayList<>();
+        }
+
+        // Residual signal and its robust scale. The scale is the largest of three estimators:
+        // - the composite scale of the residuals (which inflates once a heteroscedastic high-variance regime
+        // appears, so that regime's ordinary fluctuations are not each treated as candidates),
+        // - the global first-difference noise from the median of |first differences| (meaningful on smooth data),
+        // - a tie-robust movement scale from the IQR of first differences. The median estimator collapses to
+        // zero on a quantized or stepped series with many repeated values (>50% tied differences) -- and then
+        // even a tiny residual reads as many sigma, so a trend's extreme endpoint (the series min/max, which
+        // the value gate trivially calls a tail event) is mis-proposed as a spurious spike/dip. The IQR
+        // tolerates 25%-per-tail ties, recovering the characteristic step size; it is taken as a per-sample
+        // equivalent (differences have sqrt(2) the per-sample spread) so it matches the median estimator on
+        // clean data and only ever raises the scale where the median has collapsed.
+        double[] residuals = Stats.rollingMedianResiduals(values, WEIGHT_HALF_WINDOW);
+        // The centred rolling-median window collapses at the ends (a point becomes its own median), leaving the
+        // first/last WEIGHT_HALF_WINDOW residuals ~0 -- so a spike or dip sitting in those boundary regions was
+        // invisible to the proposer. Re-residual the boundary points against a robust Theil-Sen line over a local
+        // window: a point on a local trend keeps a ~0 residual (no false boundary spike), while a genuine boundary
+        // excursion the robust line ignores gets a large residual and is proposed like any interior point.
+        Stats.applyBoundaryLineResiduals(values, residuals, WEIGHT_HALF_WINDOW, BOUNDARY_LINE_WINDOW);
+        double maxAbs = 0.0;
+        for (double v : values) {
+            maxAbs = Math.max(maxAbs, Math.abs(v));
+        }
+        double movementScale = Math.sqrt(Stats.interquartileNoiseVariance(values, 0, n) / 2.0);
+        double scale = Math.max(
+            Stats.compositeScale(residuals, maxAbs),
+            Math.max(Math.sqrt(Stats.globalNoiseVariance(values)), movementScale)
+        );
+        logger.trace("Pulse detection on series of length [{}] has residual scale [{}]", n, scale);
+        if (scale <= 0.0) {
+            return new ArrayList<>();
+        }
+
+        // Long list, then merge adjacent same-sign candidates into excursions (dropping regime-length runs).
+        List<Excursion> excursions = mergeCandidates(residuals, scale, n);
+        logger.trace("Pulse detection found [{}] initial excursions", excursions.size());
+        if (excursions.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // Keep the top excursions by peak z (the most extreme); the gate then decides which are significant.
+        int limit = Math.max(MAX_PULSES_FLOOR, (int) Math.ceil(MAX_PULSES_FRACTION * n));
+        if (excursions.size() > limit) {
+            excursions.sort(Comparator.comparingDouble((Excursion e) -> e.peakZ()).reversed());
+            excursions = new ArrayList<>(excursions.subList(0, limit));
+        }
+
+        // Gate each excursion against a KDE null, all in an asinh-stabilised value space. Telemetry noise is
+        // typically multiplicative (its spread grows with magnitude), so a single bandwidth on raw values is
+        // far too narrow up in the high-magnitude tail and flags ordinary large values. asinh(x / scale) is
+        // monotonic (so the gate still asks the value-based question "is this magnitude one we see at other
+        // times?") but removes the magnitude dependence so one bandwidth is valid across orders of magnitude.
+        //
+        // Two distinct scales are used deliberately. The KDE null is the stabilised background values: so a
+        // magnitude that recurs elsewhere has neighbours and is not surprising. The bandwidth (the kernel's
+        // smoothing width) is taken from the stabilised residuals, not the stabilised values: a level change
+        // makes the value distribution bimodal and would inflate a value-derived width, making the gate
+        // suppress genuine within-regime spike after a step.
+        double[] backgroundValues = backgroundExcluding(values, excursions, n);
+        double stabilizingScale = Stats.asinhScale(backgroundValues);
+        double[] stabilizedBackground = Stats.asinhStabilize(backgroundValues, stabilizingScale);
+        double[] stabilizedValues = Stats.asinhStabilize(values, stabilizingScale);
+        double[] stabilizedResiduals = Stats.rollingMedianResiduals(stabilizedValues, WEIGHT_HALF_WINDOW);
+        // Floor the KDE bandwidth at a small multiple of the stabilized residual range. On a flat (e.g. all-
+        // zero or constant) background the estimated spread collapses to ~0, and the empirical-step fallback
+        // (Bonferroni-corrected over n) cannot call any single point significant so a clear outlier is missed.
+        // A floor tied to the residual range is always well-defined and needs no granularity estimation; we
+        // use the range of the residuals (not the values) so it strips level/step structure (a large step
+        // must not widen the kernel and smear a within-regime spike) while still reflecting the scale of the
+        // excursions being tested. The fraction is small enough that on a well-spread background Silverman's
+        // value dominates and the floor is inert; it only rescues the degenerate case. Working in asinh space
+        // keeps it scale-robust, so a huge spike does not mask a moderate one.
+        double residualRange = Stats.range(stabilizedResiduals);
+        double minBandwidth = BANDWIDTH_RANGE_FLOOR * residualRange;
+        double bandwidth = Stats.kdeBandwidth(backgroundExcluding(stabilizedResiduals, excursions, n), minBandwidth);
+        double logN = Math.log(n);
+        List<ChangeType> pulses = new ArrayList<>();
+        for (Excursion e : excursions) {
+            double stabilizedValue = Stats.asinh(values[e.peak()] / stabilizingScale);
+            double logPValue = Math.min(
+                0.0,
+                Stats.kdeLogTailProbability(stabilizedValue, stabilizedBackground, bandwidth, e.sign()) + logN
+            );
+            double pValue = Math.exp(logPValue);
+            if (pValue < pValueThreshold) {
+                // Percent deviation of the peak from the local rolling-median baseline (signed: + for a spike,
+                // - for a dip). Floored by the robust residual scale so a baseline near zero does not blow the
+                // percentage up.
+                double deviation = residuals[e.peak()];
+                double baseline = values[e.peak()] - deviation;
+                double magnitudePercent = 100.0 * deviation / Math.max(Math.abs(baseline), scale);
+                // Short description of the size of the peak.
+                String description = Strings.format("%+.2f%% change from rolling median", magnitudePercent);
+                pulses.add(
+                    e.sign() > 0
+                        ? new ChangeType.Spike(logPValue, e.peak(), description)
+                        : new ChangeType.Dip(logPValue, e.peak(), description)
+                );
+            }
+        }
+        pulses.sort(Comparator.comparingInt(ChangeType::changePoint));
+        logger.trace("Pulse detection found [{}] significant pulses", pulses.size());
+        return pulses;
+    }
+
+    /**
+     * Builds the long list (residual z above threshold) and merges adjacent same-sign candidates within
+     * {@link #PULSE_MERGE_MAX_GAP} into excursions. A run spanning a full minimum segment length is dropped
+     * — that is a regime, owned by the structural/dispersion channels, not a point pulse.
+     */
+    private List<Excursion> mergeCandidates(double[] residuals, double scale, int n) {
+        List<Excursion> excursions = new ArrayList<>();
+        int i = 0;
+        while (i < n) {
+            if (Math.abs(residuals[i]) / scale <= PULSE_Z_THRESHOLD) {
+                i++;
+                continue;
+            }
+            int sign = residuals[i] >= 0.0 ? 1 : -1;
+            int start = i;
+            int last = i;
+            int j = i + 1;
+            while (j < n
+                && j - last <= PULSE_MERGE_MAX_GAP
+                && Math.abs(residuals[j]) / scale > PULSE_Z_THRESHOLD
+                && (residuals[j] >= 0.0 ? 1 : -1) == sign) {
+                last = j;
+                j++;
+            }
+            if (last + 1 - start < minSegmentLength) {
+                int peak = peakIndex(residuals, start, last + 1, sign);
+                excursions.add(new Excursion(start, last + 1, sign, peak, Math.abs(residuals[peak]) / scale));
+            }
+            i = j;
+        }
+        return excursions;
+    }
+
+    /** Values of all points not covered by any of the given excursions, forming the KDE null. */
+    private static double[] backgroundExcluding(double[] values, List<Excursion> excursions, int n) {
+        boolean[] excluded = new boolean[n];
+        for (Excursion e : excursions) {
+            for (int i = e.start(); i < e.end(); i++) {
+                excluded[i] = true;
+            }
+        }
+        // We exclude the first and last point since we also exclude them as candidates, so the count must be
+        // taken over the same [1, n - 1) range as the fill below -- otherwise the array is oversized and the
+        // trailing slots stay 0.0, injecting phantom zero-valued samples into the KDE null (which, for a series
+        // away from zero, masks dips by making low values look unremarkable).
+        int count = 0;
+        for (int i = 0; i < n; i++) {
+            if (excluded[i] == false) {
+                count++;
+            }
+        }
+        double[] background = new double[count];
+        int b = 0;
+        for (int i = 0; i < n; i++) {
+            if (excluded[i] == false) {
+                background[b++] = values[i];
+            }
+        }
+        return background;
+    }
+
+    /** Index of the most extreme residual (in the excursion's direction) over {@code [start, end)}. */
+    private static int peakIndex(double[] residuals, int start, int end, int sign) {
+        int peak = start;
+        double best = Double.NEGATIVE_INFINITY;
+        for (int i = start; i < end; i++) {
+            double oriented = sign > 0 ? residuals[i] : -residuals[i];
+            if (oriented > best) {
+                best = oriented;
+                peak = i;
+            }
+        }
+        return peak;
+    }
+
+    private record Excursion(int start, int end, int sign, int peak, double peakZ) {}
+}

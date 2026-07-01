@@ -80,5 +80,4 @@ public class ChangePointAggregationBuilder extends BucketMetricsPipelineAggregat
         builder.field(BUCKETS_PATH_FIELD.getPreferredName(), bucketsPaths[0]);
         return builder;
     }
-
 }

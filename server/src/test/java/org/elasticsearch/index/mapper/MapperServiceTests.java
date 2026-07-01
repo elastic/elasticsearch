@@ -138,7 +138,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
-            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
+
             .build();
 
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));

@@ -46,7 +46,6 @@ import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -207,6 +206,19 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Setting.Property.Dynamic
     );
 
+    /**
+     * Kill switch for the {@code flattened} data type in ES|QL. When {@code false}, {@code flattened} fields resolve as {@code unsupported}
+     * during index resolution (the exact pre-flattened-support behavior: {@code FROM} still works and the column is
+     * returned as {@code unsupported}, but any explicit use errors). Because {@code field_extract} only operates on
+     * {@code flattened} fields, disabling the type also disables that function transitively.
+     */
+    public static final Setting<Boolean> FLATTENED_ENABLED = Setting.boolSetting(
+        "esql.query.flattened.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_WARN_SETTING = Setting.timeSetting(
         "esql.querylog.threshold.warn",
         TimeValue.timeValueMillis(-1),
@@ -248,17 +260,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
-    );
-
-    /**
-     * Maximum time (in milliseconds) that a GROK matcher is allowed to run before being interrupted.
-     * Limits how long a GROK matcher can run to protect against expensive regex patterns.
-     */
-    public static final Setting<TimeValue> GROK_WATCHDOG_MAX_EXECUTION_TIME = Setting.timeSetting(
-        "esql.grok.watchdog.max_execution_time",
-        TimeValue.timeValueMillis(1000),
-        TimeValue.timeValueMillis(0),
-        Setting.Property.NodeScope
     );
 
     /**
@@ -347,6 +348,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 v -> workloadIdentityEnabled.set(isStateless == false && v)
             );
 
+        // Kill switch for the flattened data type. The IndexResolver is a node-level singleton, so the dynamic
+        // setting is tracked here in an AtomicBoolean and read (at field-caps resolution time) through a supplier.
+        AtomicBoolean flattenedDataTypeEnabled = new AtomicBoolean(FLATTENED_ENABLED.get(settings));
+        services.clusterService().getClusterSettings().addSettingsUpdateConsumer(FLATTENED_ENABLED, flattenedDataTypeEnabled::set);
+
         // Create DataSourceModule with all discovered plugins.
         // This executor backs SPI coordination, decompression, and async-I/O plugin callbacks (e.g. the HTTP
         // client) — NOT the file-read path. Blocking external reads are routed onto the dedicated
@@ -365,8 +371,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        MatcherWatchdog grokWatchdog = MatcherWatchdog.newInstance(GROK_WATCHDOG_MAX_EXECUTION_TIME.get(settings).millis());
-        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry, grokWatchdog));
+        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
 
         services.ipLocationService()
@@ -449,7 +454,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         return List.of(
             new PlanExecutor(
-                new IndexResolver(services.client()),
+                new IndexResolver(services.client(), flattenedDataTypeEnabled::get),
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
                 new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
@@ -459,7 +464,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 functionRegistry,
                 PromqlFunctionRegistry.INSTANCE,
                 parser,
-                cacheService
+                cacheService,
+                services.indicesService().getAnalysis()
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -507,6 +513,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
                 QUERY_ALLOW_PARTIAL_RESULTS,
                 LOOKUP_JOIN_STREAMING,
+                FLATTENED_ENABLED,
                 ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
                 ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
                 ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
@@ -520,8 +527,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
                 DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING,
-                DatasetService.MAX_DATASETS_COUNT_SETTING,
-                GROK_WATCHDOG_MAX_EXECUTION_TIME
+                DatasetService.MAX_DATASETS_COUNT_SETTING
             )
         );
         settings.addAll(PlannerSettings.settings());

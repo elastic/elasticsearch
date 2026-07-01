@@ -55,6 +55,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
+import org.elasticsearch.index.mapper.ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.BinaryDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
@@ -72,6 +73,7 @@ import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.search.FuzzyQueries;
@@ -273,9 +275,10 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public WildcardFieldMapper build(MapperBuilderContext context) {
+            boolean arrayOrderBinaryDocValues = indexMode.isStrictColumnar();
             return new WildcardFieldMapper(
                 leafName(),
-                new WildcardFieldType(context.buildFullName(leafName()), indexCreatedVersion, meta.get(), this),
+                new WildcardFieldType(context.buildFullName(leafName()), indexCreatedVersion, meta.get(), this, arrayOrderBinaryDocValues),
                 context.isSourceSynthetic(),
                 builderParams(this, context),
                 this
@@ -297,8 +300,15 @@ public class WildcardFieldMapper extends FieldMapper {
         private final NamedAnalyzer analyzer;
         private final IgnoreAbove ignoreAbove;
         private final IndexVersion indexVersion;
+        private final boolean arrayOrderBinaryDocValues;
 
-        private WildcardFieldType(String name, IndexVersion version, Map<String, String> meta, Builder builder) {
+        private WildcardFieldType(
+            String name,
+            IndexVersion version,
+            Map<String, String> meta,
+            Builder builder,
+            boolean arrayOrderBinaryDocValues
+        ) {
             super(name, IndexType.terms(true, true), false, meta);
             this.indexVersion = version;
             if (version.onOrAfter(IndexVersions.V_7_10_0)) {
@@ -308,6 +318,16 @@ public class WildcardFieldMapper extends FieldMapper {
             }
             this.nullValue = builder.nullValue.getValue();
             this.ignoreAbove = new IgnoreAbove(builder.ignoreAbove.getValue(), builder.indexMode, builder.indexCreatedVersion);
+            this.arrayOrderBinaryDocValues = arrayOrderBinaryDocValues;
+        }
+
+        /**
+         * High-cardinality columnar fields in strictly columnar index mode store their values in document order directly in the
+         * binary doc values ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}) instead of sorting and deduplicating them,
+         * so that array order and duplicates survive a synthetic {@code _source} round trip.
+         */
+        boolean usesArrayOrderBinaryDocValues() {
+            return arrayOrderBinaryDocValues;
         }
 
         @Override
@@ -336,9 +356,21 @@ public class WildcardFieldMapper extends FieldMapper {
             if (numClauses > 0) {
                 // We can accelerate execution with the ngram query
                 BooleanQuery approxQuery = rewritten.build();
-                return BinaryDvConfirmedQuery.fromWildcardQuery(approxQuery, name(), wildcardPattern, caseInsensitive);
+                return BinaryDvConfirmedQuery.fromWildcardQuery(
+                    approxQuery,
+                    name(),
+                    wildcardPattern,
+                    caseInsensitive,
+                    arrayOrderBinaryDocValues
+                );
             } else {
-                return BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, name(), wildcardPattern, caseInsensitive);
+                return BinaryDvConfirmedQuery.fromWildcardQuery(
+                    Queries.ALL_DOCS_INSTANCE,
+                    name(),
+                    wildcardPattern,
+                    caseInsensitive,
+                    arrayOrderBinaryDocValues
+                );
             }
         }
 
@@ -434,7 +466,15 @@ public class WildcardFieldMapper extends FieldMapper {
             Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery);
 
             // We can accelerate execution with the ngram query
-            return BinaryDvConfirmedQuery.fromRegexpQuery(approxNgramQuery, name(), value, syntaxFlags, matchFlags, maxDeterminizedStates);
+            return BinaryDvConfirmedQuery.fromRegexpQuery(
+                approxNgramQuery,
+                name(),
+                value,
+                syntaxFlags,
+                matchFlags,
+                maxDeterminizedStates,
+                arrayOrderBinaryDocValues
+            );
         }
 
         // Convert a regular expression to a simplified query consisting of BooleanQuery and TermQuery objects
@@ -765,9 +805,25 @@ public class WildcardFieldMapper extends FieldMapper {
             }
 
             if (accelerationQuery == null) {
-                return BinaryDvConfirmedQuery.fromRangeQuery(Queries.ALL_DOCS_INSTANCE, name(), lower, upper, includeLower, includeUpper);
+                return BinaryDvConfirmedQuery.fromRangeQuery(
+                    Queries.ALL_DOCS_INSTANCE,
+                    name(),
+                    lower,
+                    upper,
+                    includeLower,
+                    includeUpper,
+                    arrayOrderBinaryDocValues
+                );
             }
-            return BinaryDvConfirmedQuery.fromRangeQuery(accelerationQuery, name(), lower, upper, includeLower, includeUpper);
+            return BinaryDvConfirmedQuery.fromRangeQuery(
+                accelerationQuery,
+                name(),
+                lower,
+                upper,
+                includeLower,
+                includeUpper,
+                arrayOrderBinaryDocValues
+            );
         }
 
         @Override
@@ -850,9 +906,15 @@ public class WildcardFieldMapper extends FieldMapper {
                     name()
                 );
                 if (ngramQ.clauses().size() == 0) {
-                    return BinaryDvConfirmedQuery.fromFuzzyQuery(Queries.ALL_DOCS_INSTANCE, name(), searchTerm, fq);
+                    return BinaryDvConfirmedQuery.fromFuzzyQuery(
+                        Queries.ALL_DOCS_INSTANCE,
+                        name(),
+                        searchTerm,
+                        fq,
+                        arrayOrderBinaryDocValues
+                    );
                 }
-                return BinaryDvConfirmedQuery.fromFuzzyQuery(ngramQ, name(), searchTerm, fq);
+                return BinaryDvConfirmedQuery.fromFuzzyQuery(ngramQ, name(), searchTerm, fq, arrayOrderBinaryDocValues);
             } catch (IOException ioe) {
                 throw new ElasticsearchParseException("Error parsing wildcard field fuzzy string [" + searchTerm + "]");
             }
@@ -875,9 +937,14 @@ public class WildcardFieldMapper extends FieldMapper {
             Integer numClauses = getApproxWildCardQuery(escapeWildcardSyntax(searchTerm), rewritten);
             if (numClauses != null && numClauses > 0) {
                 Query approxQuery = rewritten.build();
-                return BinaryDvConfirmedQuery.fromTerms(approxQuery, name(), new BytesRef(searchTerm));
+                return BinaryDvConfirmedQuery.fromTerms(approxQuery, name(), arrayOrderBinaryDocValues, new BytesRef(searchTerm));
             } else {
-                return BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, name(), new BytesRef(searchTerm));
+                return BinaryDvConfirmedQuery.fromTerms(
+                    Queries.ALL_DOCS_INSTANCE,
+                    name(),
+                    arrayOrderBinaryDocValues,
+                    new BytesRef(searchTerm)
+                );
             }
         }
 
@@ -915,7 +982,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 }
                 aproxQuery = new TermInSetQuery(name(), tokenList);
             }
-            return BinaryDvConfirmedQuery.fromTerms(new ConstantScoreQuery(aproxQuery), name(), terms);
+            return BinaryDvConfirmedQuery.fromTerms(new ConstantScoreQuery(aproxQuery), name(), arrayOrderBinaryDocValues, terms);
         }
 
         private static BytesRef getMiddleToken(Set<String> tokens) {
@@ -973,7 +1040,10 @@ public class WildcardFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
                 if (indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
-                    return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
+                    return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(
+                        name(),
+                        arrayOrderBinaryDocValues ? ArrayOrderSource.INLINE : ArrayOrderSource.NONE
+                    );
                 }
                 return new BytesRefsFromCustomBinaryBlockLoader(name());
             }
@@ -987,7 +1057,8 @@ public class WildcardFieldMapper extends FieldMapper {
                 name(),
                 CoreValuesSourceType.KEYWORD,
                 WildcardDocValuesField::new,
-                indexVersion
+                indexVersion,
+                arrayOrderBinaryDocValues
             );
         }
 
@@ -1094,6 +1165,10 @@ public class WildcardFieldMapper extends FieldMapper {
             } else {
                 createFields(value, parseDoc, fields);
             }
+        } else if (fieldType().usesArrayOrderBinaryDocValues()) {
+            // In-order path: preserve the null's position. A value that tripped ignore_above (value != null) records no slot,
+            // matching the legacy sort-and-dedup path where ignored values are simply dropped.
+            MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(parseDoc, fieldType().name());
         }
         parseDoc.addAll(fields);
     }
@@ -1107,13 +1182,20 @@ public class WildcardFieldMapper extends FieldMapper {
         Field ngramField = new Field(fieldType().name(), ngramValue, NGRAM_FIELD_TYPE);
         fields.add(ngramField);
 
-        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-            parseDoc,
-            fieldType().name(),
-            new BytesRef(value.getBytes(StandardCharsets.UTF_8)),
-            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
-            indexVersionCreated
-        );
+        BytesRef binaryValue = new BytesRef(value.getBytes(StandardCharsets.UTF_8));
+        if (fieldType().usesArrayOrderBinaryDocValues()) {
+            // In-order path: values are recorded in document order, keeping duplicates, directly in the field's own binary doc-values
+            // column instead of the sorted-and-deduplicated set used elsewhere.
+            MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(parseDoc, fieldType().name(), binaryValue);
+        } else {
+            MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                parseDoc,
+                fieldType().name(),
+                binaryValue,
+                MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+                indexVersionCreated
+            );
+        }
     }
 
     // Values held in the ngram index are encoded with special characters to denote start and end of values.
@@ -1132,10 +1214,19 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     @Override
+    public boolean storesArrayValuesInOrder() {
+        return fieldType().usesArrayOrderBinaryDocValues();
+    }
+
+    @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(() -> {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
-            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexVersionCreated));
+            if (fieldType().usesArrayOrderBinaryDocValues()) {
+                layers.add(new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fullPath()));
+            } else {
+                layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexVersionCreated));
+            }
             if (ignoreAbove.valuesPotentiallyIgnored()) {
                 if (storeIgnoredFieldsInBinaryDocValues) {
                     layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(originalName(), indexVersionCreated));

@@ -178,7 +178,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
      * by default returns an {@code AwsCredentialsProviderChain}. Tests may subclass and override
      * that method to inject a static provider — the same seam used by GcsStorageProvider.
      */
-    public void testWorkloadIdentityCredentialsProviderType() {
+    public void testManagedIdentityCredentialsProviderType() {
         S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "managed_identity");
         assertNotNull(config);
         assertTrue(config.isManagedIdentity());
@@ -196,7 +196,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
      * a test credential — the unit-test seam for wrong-credential counter-proofs. The MANAGED_IDENTITY
      * switch arm in the constructor selects exactly this provider.
      */
-    public void testWorkloadIdentityCredentialOverrideSeam() {
+    public void testManagedIdentityCredentialOverrideSeam() {
         var injected = software.amazon.awssdk.auth.credentials.StaticCredentialsProvider.create(
             software.amazon.awssdk.auth.credentials.AwsBasicCredentials.create("test-key", "test-secret")
         );
@@ -216,7 +216,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
     /**
      * auth=managed_identity is mutually exclusive with explicit credentials.
      */
-    public void testWorkloadIdentityModeConflictsWithCredentials() {
+    public void testManagedIdentityModeConflictsWithCredentials() {
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
             () -> S3Configuration.fromFields("ak", "sk", null, null, "managed_identity")

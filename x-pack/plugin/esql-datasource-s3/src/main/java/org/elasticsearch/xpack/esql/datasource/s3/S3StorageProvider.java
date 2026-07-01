@@ -102,13 +102,13 @@ public class S3StorageProvider implements StorageProvider {
     private final StsAsyncClient stsAsyncClient;
     private final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
     /**
-     * Workload-identity credentials providers that this instance creates in
-     * {@link #workloadIdentityProviders()} and therefore owns: the {@link ContainerCredentialsProvider}
+     * Managed-identity credentials providers that this instance creates in
+     * {@link #managedIdentityProviders()} and therefore owns: the {@link ContainerCredentialsProvider}
      * and {@link InstanceProfileCredentialsProvider}, each of which opens a background credential-refresh
      * resource. Closed by {@link #close()}. The IRSA provider is excluded — it is a node-level singleton
      * owned by {@code S3DataSourcePlugin}.
      */
-    private final List<SdkAutoCloseable> ownedWorkloadIdentityProviders = new ArrayList<>();
+    private final List<SdkAutoCloseable> ownedManagedIdentityProviders = new ArrayList<>();
 
     /**
      * Test-friendly constructor: no IRSA web-identity provider available, async pool sized at the
@@ -131,7 +131,7 @@ public class S3StorageProvider implements StorageProvider {
         int maxConnections
     ) {
         this.config = config;
-        // Set first so that workloadIdentityProviders() (called from buildManagedIdentityCredentialsProvider() on
+        // Set first so that managedIdentityProviders() (called from buildManagedIdentityCredentialsProvider() on
         // the MANAGED_IDENTITY path) can read it.
         this.webIdentityTokenCredentialsProvider = webIdentityTokenCredentialsProvider;
         StsAsyncClient sts = null;
@@ -156,7 +156,7 @@ public class S3StorageProvider implements StorageProvider {
                     sts = buildStsAsyncClient(config);
                     yield buildWorkloadIdentityCredentialsProvider(config, issuerClient, sts);
                 }
-                // IMDS / IRSA / Pod Identity / EC2 chain; populates ownedWorkloadIdentityProviders (closed in the finally).
+                // IMDS / IRSA / Pod Identity / EC2 chain; populates ownedManagedIdentityProviders (closed in the finally).
                 case MANAGED_IDENTITY -> buildManagedIdentityCredentialsProvider();
             };
             s3 = buildS3Client(config, credentials);
@@ -166,10 +166,10 @@ public class S3StorageProvider implements StorageProvider {
             success = true;
         } finally {
             if (success == false) {
-                List<Closeable> closeables = new ArrayList<>(2 + ownedWorkloadIdentityProviders.size());
+                List<Closeable> closeables = new ArrayList<>(2 + ownedManagedIdentityProviders.size());
                 closeables.add(asCloseable(sts));
                 closeables.add(asCloseable(s3));
-                for (SdkAutoCloseable provider : ownedWorkloadIdentityProviders) {
+                for (SdkAutoCloseable provider : ownedManagedIdentityProviders) {
                     closeables.add(asCloseable(provider));
                 }
                 IOUtils.closeWhileHandlingException(closeables);
@@ -338,7 +338,7 @@ public class S3StorageProvider implements StorageProvider {
             // transient failure that caused fallback to a lower-priority provider does not become
             // permanent once the preferred provider recovers.
             .reuseLastProviderEnabled(false)
-            .credentialsProviders(workloadIdentityProviders())
+            .credentialsProviders(managedIdentityProviders())
             .build();
     }
 
@@ -348,19 +348,19 @@ public class S3StorageProvider implements StorageProvider {
      * chain composition by inspecting the list directly rather than parsing
      * {@link AwsCredentialsProviderChain#toString()}.
      */
-    List<AwsCredentialsProvider> workloadIdentityProviders() {
+    List<AwsCredentialsProvider> managedIdentityProviders() {
         List<AwsCredentialsProvider> providers = new ArrayList<>(3);
         if (webIdentityTokenCredentialsProvider != null && webIdentityTokenCredentialsProvider.isActive()) {
             // Node-level singleton owned by S3DataSourcePlugin; do NOT close it from this instance.
             providers.add(new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER));
         }
         // Created per S3StorageProvider, so this instance owns them and must close them in close(). Track each in
-        // ownedWorkloadIdentityProviders the instant it is created, before the next create() runs — if the second
+        // ownedManagedIdentityProviders the instant it is created, before the next create() runs — if the second
         // create() throws, the first is still tracked for cleanup by the constructor's finally block.
         ContainerCredentialsProvider containerCredentialsProvider = ContainerCredentialsProvider.create();
-        ownedWorkloadIdentityProviders.add(containerCredentialsProvider);
+        ownedManagedIdentityProviders.add(containerCredentialsProvider);
         InstanceProfileCredentialsProvider instanceProfileCredentialsProvider = InstanceProfileCredentialsProvider.create();
-        ownedWorkloadIdentityProviders.add(instanceProfileCredentialsProvider);
+        ownedManagedIdentityProviders.add(instanceProfileCredentialsProvider);
         providers.add(containerCredentialsProvider);
         providers.add(instanceProfileCredentialsProvider);
         return providers;
@@ -493,11 +493,11 @@ public class S3StorageProvider implements StorageProvider {
 
     @Override
     public void close() throws IOException {
-        List<Closeable> closeables = new ArrayList<>(3 + ownedWorkloadIdentityProviders.size());
+        List<Closeable> closeables = new ArrayList<>(3 + ownedManagedIdentityProviders.size());
         closeables.add(asCloseable(s3Client));
         closeables.add(asCloseable(s3AsyncClient));
         closeables.add(asCloseable(stsAsyncClient));
-        for (SdkAutoCloseable provider : ownedWorkloadIdentityProviders) {
+        for (SdkAutoCloseable provider : ownedManagedIdentityProviders) {
             closeables.add(asCloseable(provider));
         }
         IOUtils.close(closeables);

@@ -132,7 +132,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
     }
 
-    public void testValidateDatasourceRejectsWorkloadIdentityWhenDisabled() {
+    public void testValidateDatasourceRejectsManagedIdentityWhenDisabled() {
         // default validator has managed identity disabled
         var e = expectThrows(
             ValidationException.class,
@@ -151,20 +151,20 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertWarnings("auth value [workload_identity] is deprecated; the canonical value is [managed_identity]");
     }
 
-    public void testValidateDatasourceAcceptsWorkloadIdentityWhenEnabled() {
-        var workloadIdentityValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+    public void testValidateDatasourceAcceptsManagedIdentityWhenEnabled() {
+        var managedIdentityValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
             .withManagedIdentityEnabled(() -> true);
-        var result = workloadIdentityValidator.validateDatasource(Map.of("auth", "managed_identity", "region", "us-east-1"));
+        var result = managedIdentityValidator.validateDatasource(Map.of("auth", "managed_identity", "region", "us-east-1"));
         assertEquals("managed_identity", result.get("auth").nonSecretValue());
         assertFalse(result.get("auth").secret());
     }
 
-    public void testValidateDatasourceWorkloadIdentityConflictWithCredentials() {
-        var workloadIdentityValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+    public void testValidateDatasourceManagedIdentityConflictWithCredentials() {
+        var managedIdentityValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
             .withManagedIdentityEnabled(() -> true);
         expectThrows(
             ValidationException.class,
-            () -> workloadIdentityValidator.validateDatasource(
+            () -> managedIdentityValidator.validateDatasource(
                 Map.of("auth", "managed_identity", "access_key", "AKIA123", "secret_key", "secret")
             )
         );

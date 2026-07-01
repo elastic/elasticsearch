@@ -197,7 +197,7 @@ public class GcsStorageProviderTests extends ESTestCase {
      * auth=managed_identity resolves to MANAGED_IDENTITY and the switch arm builds {@link ComputeEngineCredentials}
      * from the production seam.
      */
-    public void testWorkloadIdentityCredentialsReturnsComputeEngine() throws Exception {
+    public void testManagedIdentityCredentialsReturnsComputeEngine() throws Exception {
         GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "managed_identity"));
         assertEquals(AuthMode.MANAGED_IDENTITY, config.resolveAuthMode());
         Credentials creds = new GcsStorageProvider(mockStorage).buildManagedIdentityCredentials();
@@ -209,7 +209,7 @@ public class GcsStorageProviderTests extends ESTestCase {
      * is overridable, so tests can inject a credential backed by a mock HTTP transport instead of the GCE metadata
      * server. Verifies the override is honored; the arm→seam routing is exercised end-to-end by the ITs.
      */
-    public void testWorkloadIdentityCredentialsSeamIsOverridable() throws Exception {
+    public void testManagedIdentityCredentialsSeamIsOverridable() throws Exception {
         GoogleCredentials injected = GoogleCredentials.create(new com.google.auth.oauth2.AccessToken("seam-token", null));
         GcsStorageProvider provider = new GcsStorageProvider(mockStorage) {
             @Override

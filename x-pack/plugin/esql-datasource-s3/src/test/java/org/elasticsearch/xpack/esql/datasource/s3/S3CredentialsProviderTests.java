@@ -102,8 +102,8 @@ public class S3CredentialsProviderTests extends ESTestCase {
      * ContainerCredentialsProvider followed by InstanceProfileCredentialsProvider — the v1
      * shape. Behavior on every non-EKS deployment.
      */
-    public void testWorkloadIdentityChainExcludesIrsaWhenSingletonAbsent() {
-        List<AwsCredentialsProvider> providers = S3StorageProvider.forTesting(null, null).workloadIdentityProviders();
+    public void testManagedIdentityChainExcludesIrsaWhenSingletonAbsent() {
+        List<AwsCredentialsProvider> providers = S3StorageProvider.forTesting(null, null).managedIdentityProviders();
         assertThat(providers, hasSize(2));
         assertThat(providers.get(0), instanceOf(ContainerCredentialsProvider.class));
         assertThat(providers.get(1), instanceOf(InstanceProfileCredentialsProvider.class));
@@ -113,10 +113,10 @@ public class S3CredentialsProviderTests extends ESTestCase {
      * An inactive singleton (env var unset on the node) is treated the same as no singleton at
      * all: skipped from the chain so we don't attempt STS calls that have no chance of succeeding.
      */
-    public void testWorkloadIdentityChainExcludesIrsaWhenSingletonInactive() {
+    public void testManagedIdentityChainExcludesIrsaWhenSingletonInactive() {
         CustomWebIdentityTokenCredentialsProvider inactive = new CustomWebIdentityTokenCredentialsProvider(null, null, null, name -> null);
         assertFalse("test setup: provider must be inactive when env returns null for everything", inactive.isActive());
-        List<AwsCredentialsProvider> providers = new S3StorageProvider(null, null, inactive).workloadIdentityProviders();
+        List<AwsCredentialsProvider> providers = new S3StorageProvider(null, null, inactive).managedIdentityProviders();
         assertThat(providers, hasSize(2));
         assertThat(providers.get(0), instanceOf(ContainerCredentialsProvider.class));
         assertThat(providers.get(1), instanceOf(InstanceProfileCredentialsProvider.class));
@@ -127,7 +127,7 @@ public class S3CredentialsProviderTests extends ESTestCase {
      * (ECS / Pod Identity) before EC2 instance profile.
      */
     public void testV1ChainOrder() {
-        List<AwsCredentialsProvider> providers = S3StorageProvider.forTesting(null, null).workloadIdentityProviders();
+        List<AwsCredentialsProvider> providers = S3StorageProvider.forTesting(null, null).managedIdentityProviders();
         assertThat(providers, hasSize(2));
         assertThat(providers.get(0), instanceOf(ContainerCredentialsProvider.class));
         assertThat(providers.get(1), instanceOf(InstanceProfileCredentialsProvider.class));

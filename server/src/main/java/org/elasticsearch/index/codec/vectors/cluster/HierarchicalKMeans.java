@@ -193,7 +193,7 @@ public class HierarchicalKMeans<V> {
     /**
      * Number of top-level clusters {@link #cluster(ClusteringVectorValues, int)} targets before recursive splitting.
      */
-    public static int numClustersForTargetSize(int vectorCount, int targetSize) {
+    static int numClustersForTargetSize(int vectorCount, int targetSize) {
         return Math.clamp((int) ((vectorCount + targetSize / 2.0f) / (float) targetSize), 2, MAXK);
     }
 

@@ -267,7 +267,9 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
 
     private static ExternalSourceExec createExternalSourceExec(FileList fileList, String sourceType) {
         List<Attribute> attrs = List.of(fieldAttr("id", DataType.LONG), fieldAttr("name", DataType.KEYWORD));
-        return new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", sourceType, attrs, Map.of(), Map.of(), null, null, fileList);
+        return new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", sourceType, attrs, Map.of(), Map.of(), null, null).withFileList(
+            fileList
+        );
     }
 
     private static Attribute fieldAttr(String name, DataType type) {

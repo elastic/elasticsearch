@@ -1414,12 +1414,12 @@ public class EsqlCapabilities {
         /**
          * Support ROW as a source command inside subquery in the from command.
          */
-        SUBQUERY_WITH_ROW(Build.current().isSnapshot()),
+        SUBQUERY_WITH_ROW,
 
         /**
          * Support TS as a source command inside subquery in the from command.
          */
-        SUBQUERY_WITH_TS(Build.current().isSnapshot()),
+        SUBQUERY_WITH_TS,
 
         /**
          * Fixed {@code TranslateTimeSeriesWithout} and {@code TranslateTimeSeriesAggregate} to associate time-series attributes with the

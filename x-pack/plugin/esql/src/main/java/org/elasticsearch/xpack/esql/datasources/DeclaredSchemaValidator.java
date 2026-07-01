@@ -78,11 +78,12 @@ public final class DeclaredSchemaValidator {
             }
             // Every copy_to target is a NEW output column — it must not collide with a declared column or another target.
             for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
-                String copyTo = e.getValue().copyTo();
-                if (copyTo != null && outputNames.add(copyTo) == false) {
-                    throw new IllegalArgumentException(
-                        "copy_to target [" + copyTo + "] on column [" + e.getKey() + "] collides with another declared column"
-                    );
+                for (String copyTo : e.getValue().copyTo()) {
+                    if (outputNames.add(copyTo) == false) {
+                        throw new IllegalArgumentException(
+                            "copy_to target [" + copyTo + "] on column [" + e.getKey() + "] collides with another declared column"
+                        );
+                    }
                 }
             }
             boolean strict = mappings.dynamic() == DatasetMapping.Dynamic.FALSE;

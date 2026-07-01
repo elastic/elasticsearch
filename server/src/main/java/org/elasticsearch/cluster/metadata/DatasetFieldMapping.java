@@ -14,12 +14,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -58,33 +61,51 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
     private static final ParseField SOURCE = new ParseField("source");
     private static final ParseField COPY_TO = new ParseField("copy_to");
 
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DatasetFieldMapping, Void> PARSER = new ConstructingObjectParser<>(
         "dataset_field_mapping",
         false,
-        args -> new DatasetFieldMapping((String) args[0], (String) args[1], (String) args[2])
+        args -> new DatasetFieldMapping((String) args[0], (String) args[1], (List<String>) args[2])
     );
 
     static {
         PARSER.declareString(constructorArg(), TYPE);
         PARSER.declareString(optionalConstructorArg(), SOURCE);
-        PARSER.declareString(optionalConstructorArg(), COPY_TO);
+        // copy_to accepts a single string or an array of strings (mirrors core ES copy_to).
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> parseStringOrStringArray(p), COPY_TO, ObjectParser.ValueType.STRING_ARRAY);
+    }
+
+    private static List<String> parseStringOrStringArray(XContentParser parser) throws IOException {
+        if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+            List<String> targets = new ArrayList<>();
+            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                targets.add(parser.text());
+            }
+            return targets;
+        }
+        return List.of(parser.text());
     }
 
     private final String type;
     @Nullable
     private final String source;
-    @Nullable
-    private final String copyTo;
+    /** Logical columns that receive a copy of this column's value ({@code copy_to}); empty when none, never null. */
+    private final List<String> copyTo;
 
     /** Convenience: a column with no {@code copy_to}. */
     public DatasetFieldMapping(String type, @Nullable String source) {
-        this(type, source, null);
+        this(type, source, List.of());
     }
 
+    /** Convenience: a single {@code copy_to} target. */
     public DatasetFieldMapping(String type, @Nullable String source, @Nullable String copyTo) {
+        this(type, source, copyTo == null ? List.of() : List.of(copyTo));
+    }
+
+    public DatasetFieldMapping(String type, @Nullable String source, @Nullable List<String> copyTo) {
         this.type = Objects.requireNonNull(type, "field mapping type must not be null");
         this.source = source;
-        this.copyTo = copyTo;
+        this.copyTo = copyTo == null ? List.of() : List.copyOf(copyTo);
     }
 
     public DatasetFieldMapping(StreamInput in) throws IOException {
@@ -92,14 +113,14 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
         // which is unreleased — so copy_to ships in that one version with no separate gate.
         this.type = in.readString();
         this.source = in.readOptionalString();
-        this.copyTo = in.readOptionalString();
+        this.copyTo = in.readStringCollectionAsList();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(type);
         out.writeOptionalString(source);
-        out.writeOptionalString(copyTo);
+        out.writeStringCollection(copyTo);
     }
 
     public static DatasetFieldMapping fromXContent(XContentParser parser) throws IOException {
@@ -113,7 +134,7 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
         if (source != null) {
             builder.field(SOURCE.getPreferredName(), source);
         }
-        if (copyTo != null) {
+        if (copyTo.isEmpty() == false) {
             builder.field(COPY_TO.getPreferredName(), copyTo);
         }
         builder.endObject();
@@ -131,9 +152,8 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
         return source;
     }
 
-    /** A further logical column that receives a copy of this column's value ({@code copy_to}), or {@code null}. */
-    @Nullable
-    public String copyTo() {
+    /** Logical columns that receive a copy of this column's value ({@code copy_to}); empty when none, never null. */
+    public List<String> copyTo() {
         return copyTo;
     }
 
@@ -142,7 +162,7 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DatasetFieldMapping that = (DatasetFieldMapping) o;
-        return type.equals(that.type) && Objects.equals(source, that.source) && Objects.equals(copyTo, that.copyTo);
+        return type.equals(that.type) && Objects.equals(source, that.source) && copyTo.equals(that.copyTo);
     }
 
     @Override
@@ -155,7 +175,7 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
         return "DatasetFieldMapping[type="
             + type
             + (source != null ? ", source=" + source : "")
-            + (copyTo != null ? ", copyTo=" + copyTo : "")
+            + (copyTo.isEmpty() ? "" : ", copyTo=" + copyTo)
             + "]";
     }
 }

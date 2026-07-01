@@ -184,7 +184,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         "employees_source_enabled",
         "employees_copy_nonstrict",
         "employees_parquet_copy",
-        "employees_copy_collide"
+        "employees_copy_collide",
+        "employees_copy_multi"
     );
 
     /**
@@ -674,6 +675,46 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             assertThat(rows, hasSize(3));
             assertThat(rows.get(0).get(1).toString(), equalTo("ENG"));   // read from nested dept.code
             assertThat(rows.get(2).get(1).toString(), equalTo("OPS"));
+        }
+    }
+
+    public void testCopyToMultipleTargets() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // copy_to a LIST of targets: emp_no is copied to both emp_a and emp_b (one EVAL alias per target).
+        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("emp_no", new DatasetFieldMapping("long", null, java.util.List.of("emp_a", "emp_b")));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties), null);
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_copy_multi",
+                    "local_ds",
+                    csvFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees_copy_multi | SORT emp_no | KEEP emp_no, emp_a, emp_b | LIMIT 10"),
+                TIMEOUT
+            )
+        ) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(3));
+            assertThat(columns.get(1).name(), equalTo("emp_a"));
+            assertThat(columns.get(2).name(), equalTo("emp_b"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat(row.get(1), equalTo(row.get(0))); // emp_a == emp_no
+                assertThat(row.get(2), equalTo(row.get(0))); // emp_b == emp_no
+            }
         }
     }
 

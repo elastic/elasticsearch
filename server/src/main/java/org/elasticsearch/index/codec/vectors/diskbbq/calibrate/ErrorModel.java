@@ -501,7 +501,7 @@ public final class ErrorModel {
                 queryWarmStart = computed.queryCentroids();
                 double x = logNDocsPerCluster - Math.log(sampleSize);
                 double y = Math.log(Math.max(computed.std(), 1e-38));
-                state.update(new double[]{x}, new double[]{y});
+                state.update(new double[] { x }, new double[] { y });
             } catch (IOException e) {
                 logger.warn("failed to compute quantization error std for magnitude sample size [{}]", sampleSize, e);
             }

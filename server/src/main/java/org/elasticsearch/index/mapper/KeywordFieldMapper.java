@@ -503,11 +503,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public KeywordFieldMapper build(MapperBuilderContext context) {
-            enforceIndexSortDocValuesCompatibility(
-                context.buildFullName(leafName()),
-                indexSettings.getIndexSortConfig(),
-                docValuesParameters
-            );
             FieldType fieldtype = resolveFieldType(forceDocValuesSkipper, context.buildFullName(leafName()));
             super.hasScript = script.get() != null;
             super.onScriptError = onScriptError.getValue();

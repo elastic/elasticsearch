@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -1971,18 +1970,6 @@ public abstract class FieldMapper extends Mapper {
             return DEPRECATED_PARAMS.contains(propName);
         }
 
-        /**
-         * Ensures that index sort fields don't use binary (non-sortable) doc values. If the default for a columnar index is HIGH
-         * cardinality, it is silently overridden to LOW since sort fields require sortable doc values.
-         */
-        protected static void enforceIndexSortDocValuesCompatibility(
-            String fullFieldName,
-            IndexSortConfig sortConfig,
-            DocValuesParameter docValuesParameters
-        ) {
-            // BinarySortField makes binary doc values index-sortable, so cardinality: high is compatible
-            // with index sort fields regardless of whether it was explicitly set or defaulted.
-        }
     }
 
     /**

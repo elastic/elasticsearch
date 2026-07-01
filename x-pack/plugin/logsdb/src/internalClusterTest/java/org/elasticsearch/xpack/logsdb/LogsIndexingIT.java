@@ -116,9 +116,7 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
                 .indexPatterns(List.of(dataStreamName + "*"))
                 .template(
                     new Template(
-                        indexSettings(4, 0).put("index.mode", indexMode)
-                            .put("index.sort.field", "message,k8s.pod.uid,@timestamp")
-                            .build(),
+                        indexSettings(4, 0).put("index.mode", indexMode).put("index.sort.field", "message,k8s.pod.uid,@timestamp").build(),
                         new CompressedXContent(MAPPING_TEMPLATE),
                         null
                     )
@@ -155,8 +153,7 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
         checkIndexSearchAndRetrieval(dataStreamName, true, columnarEnabled);
     }
 
-    private void checkIndexSearchAndRetrieval(String dataStreamName, boolean routeOnSortFields, boolean columnarEnabled)
-        throws Exception {
+    private void checkIndexSearchAndRetrieval(String dataStreamName, boolean routeOnSortFields, boolean columnarEnabled) throws Exception {
         String[] uuis = {
             UUID.randomUUID().toString(),
             UUID.randomUUID().toString(),

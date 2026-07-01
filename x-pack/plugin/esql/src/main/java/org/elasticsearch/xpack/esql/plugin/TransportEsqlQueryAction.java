@@ -266,14 +266,27 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     /**
-     * Returns the executor used for external source coordination (e.g. connector handshakes and registry wiring).
+     * Returns the executor used for external source coordination: connector handshakes, registry wiring,
+     * and source resolution (glob expansion, footer reads, schema reconciliation performed by
+     * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver}).
      * File-based async reads and slice-queue drain use the dedicated {@code esql_external_blocking_io} pool
      * ({@link EsqlPlugin#EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME}) via {@link OperatorFactoryRegistry#fileReadExecutor},
      * so blocking external reads share neither the compute-driver pool nor the shared {@link ThreadPool.Names#GENERIC} pool.
-     * Isolated from {@link ThreadPool.Names#SEARCH} to prevent heavy external queries from starving regular ES operations.
+     * Isolated from {@link ThreadPool.Names#SEARCH} to prevent heavy external queries (glob expansion of thousands of
+     * S3 files, or long-running compute drivers) from starving regular ES operations.
      */
     protected Executor externalSourceExecutor() {
-        return threadPool.executor(ESQL_WORKER_THREAD_POOL_NAME);
+        return threadPool.executor(externalSourceExecutorName());
+    }
+
+    /**
+     * Name of the thread pool that backs {@link #externalSourceExecutor()}. Extracted so that unit tests can pin
+     * the wiring without needing a live {@link ThreadPool}. Must not resolve to {@link ThreadPool.Names#SEARCH}: a
+     * single wildcard external query previously consumed nearly the entire SEARCH pool during resolution, starving
+     * unrelated searches and other ES|QL queries.
+     */
+    static String externalSourceExecutorName() {
+        return ESQL_WORKER_THREAD_POOL_NAME;
     }
 
     /**
@@ -368,6 +381,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             remoteClusterService,
             planRunner,
             services,
+            externalSourceExecutor(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
                 recordCCSTelemetry(task, executionInfo, request, null);

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.FilterEvaluationOrderEstimator;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
@@ -289,22 +290,29 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         var effectiveStats = SplitStats.resolveEffectiveStats(externalExec.splits(), externalExec.sourceMetadata());
         pushableCandidates = FilterEvaluationOrderEstimator.orderByEstimatedCost(pushableCandidates, effectiveStats);
 
+        // A declared `source` rename lives in logical space in the plan, but the opaque per-format predicate the SPI
+        // mints must reference the file's PHYSICAL columns. Physicalize only the conjuncts handed to the mint; map the
+        // returned pushed/remainder expressions back to logical (via inverse, NameId-preserving) so the plan's FilterExec
+        // and reconciliation stay logical. No-op when the dataset declares no rename.
+        Map<String, String> renames = PhysicalNames.fromConfig(externalExec.config());
+        Map<String, String> toLogical = PhysicalNames.inverse(renames);
+
         // Use the SPI to push filters
         FilterPushdownSupport.PushdownResult result = pushableCandidates.isEmpty()
             ? FilterPushdownSupport.PushdownResult.none(List.of())
-            : pushdownSupport.pushFilters(pushableCandidates);
+            : pushdownSupport.pushFilters(PhysicalNames.translateExpressionNames(pushableCandidates, renames));
 
         if (result.hasPushedFilter()) {
-            // Create new ExternalSourceExec with pushed filter and the original ESQL expressions
+            // Create new ExternalSourceExec with the (physical) pushed filter and the pushed ESQL expressions in logical space
             ExternalSourceExec newExternalExec = externalExec.withPushedFilterAndExpressions(
                 result.pushedFilter(),
-                result.pushedExpressions()
+                PhysicalNames.translateExpressionNames(result.pushedExpressions(), toLogical)
             );
 
-            // Combine partition conjuncts (always kept) with the SPI's remainder, if any.
+            // Combine partition conjuncts (always kept) with the SPI's remainder (mapped back to logical), if any.
             List<Expression> remainder = new ArrayList<>(partitionConjuncts);
             if (result.hasRemainder()) {
-                remainder.addAll(result.remainder());
+                remainder.addAll(PhysicalNames.translateExpressionNames(result.remainder(), toLogical));
             }
             if (remainder.isEmpty()) {
                 return newExternalExec;

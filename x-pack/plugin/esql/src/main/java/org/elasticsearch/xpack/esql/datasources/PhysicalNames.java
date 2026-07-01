@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -84,6 +86,39 @@ public final class PhysicalNames {
             out.add(physical.equals(attr.name()) ? attr : attr.withName(physical));
         }
         return out;
+    }
+
+    /**
+     * Rewrite the column names referenced by each expression through {@code renames} (via {@link Attribute#withName},
+     * which preserves the attribute's {@link org.elasticsearch.xpack.esql.core.expression.NameId} — so a physical&rarr;
+     * logical round-trip restores the original attribute identity). Used to physicalize the conjuncts handed to a
+     * format's filter-pushdown mint (the opaque predicate then references file columns), and — with {@link #inverse} —
+     * to map the mint's returned pushed/remainder expressions back to logical for the plan and reconciliation.
+     */
+    public static List<Expression> translateExpressionNames(List<Expression> expressions, Map<String, String> renames) {
+        if (renames == null || renames.isEmpty() || expressions == null || expressions.isEmpty()) {
+            return expressions;
+        }
+        List<Expression> out = new ArrayList<>(expressions.size());
+        for (Expression expression : expressions) {
+            out.add(expression.transformDown(Attribute.class, a -> {
+                String physical = translate(a.name(), renames);
+                return physical.equals(a.name()) ? a : a.withName(physical);
+            }));
+        }
+        return out;
+    }
+
+    /** The physical&rarr;logical inverse of a logical&rarr;physical rename map (renames are 1:1, so the inverse is well-defined). */
+    public static Map<String, String> inverse(Map<String, String> renames) {
+        if (renames == null || renames.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> out = new HashMap<>(renames.size());
+        for (Map.Entry<String, String> e : renames.entrySet()) {
+            out.put(e.getValue(), e.getKey());
+        }
+        return Map.copyOf(out);
     }
 
     /**

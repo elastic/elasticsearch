@@ -301,14 +301,12 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
 
-
         try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
             assertValues(resp.values(), List.of(List.of(1, 0.0), List.of(6, 0.0)));
         }
     }
-
 
     public void testMatchWithinEval() {
         var query = """

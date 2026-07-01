@@ -61,14 +61,14 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     private HttpSettings settings;
     private final AtomicReference<Tuple<StreamingHttpResult, Exception>> result = new AtomicReference<>(null);
     private StreamingHttpResultPublisher publisher;
-    private TrackingTestCircuitBreaker circuitBreaker;
+    private TestCircuitBreakerWithTracking circuitBreaker;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
         threadPool = mock(ThreadPool.class);
         settings = mock(HttpSettings.class);
-        circuitBreaker = new TrackingTestCircuitBreaker();
+        circuitBreaker = new TestCircuitBreakerWithTracking();
 
         when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(maxBytes));
@@ -637,16 +637,29 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         assertThat("circuitBreaker should track input bytes on consumeContent", circuitBreaker.getTracked(), equalTo(messageBytesLength));
     }
 
-    // TODO: bytes are released on sendToSubscriber error
+    public void testFailedPublisherReleasesCircuitBreakerBytes() throws IOException {
+        var messageBytesLength = (long) message.length;
+        publisher.responseReceived(mock(HttpResponse.class));
+        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
+
+        assertThat("circuitBreaker should have tracked bytes after consuming content", circuitBreaker.getTracked(), equalTo(messageBytesLength));
+
+        var subscriber = new TestSubscriber();
+        testPublisher().subscribe(subscriber);
+
+        publisher.failed(new NullPointerException("test"));
+        subscriber.requestData();
+
+        assertThat("circuitBreaker should have 0 tracked bytes after the publisher failed", circuitBreaker.getTracked(), equalTo(0L));
+    }
 
     // TODO: bytes are released on subscriber cancellation
 
-    // TODO:
 
-    private static class TrackingTestCircuitBreaker extends TestCircuitBreaker {
+    private static class TestCircuitBreakerWithTracking extends TestCircuitBreaker {
         private long tracked;
 
-        TrackingTestCircuitBreaker(){
+        TestCircuitBreakerWithTracking(){
             super();
             this.tracked = 0L;
         }

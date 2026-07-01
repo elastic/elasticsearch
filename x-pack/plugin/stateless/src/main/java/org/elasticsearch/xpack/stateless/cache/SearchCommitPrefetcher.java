@@ -236,23 +236,23 @@ public class SearchCommitPrefetcher {
                 ? notification.batchedCompoundCommitGeneration()
                 : notification.latestUploadedBatchedCompoundCommitTermAndGen().generation();
 
-            Map<BlobFile, ByteRangeAndTimestamp> bccRangesToPrefetch = getPendingRangesToPrefetch(
+            PendingPrefetchDetails pendingPrefetchDetails = getPendingRangesToPrefetch(
                 currentMaxPrefetchedOffset,
                 maxBCCGenerationToPrefetch,
                 compoundCommit.commitFiles(),
                 compoundCommit.internalFiles(),
                 BlobFileRanges.midpointMillisOrUnknown(compoundCommit.getTimestampFieldValueRange()),
-                fileTimestampResolver
+                fileTimestampResolver,
+                cacheService.isCacheBoostPreferenceEnabled()
             );
+            Map<BlobFile, ByteRange> bccRangesToPrefetch = pendingPrefetchDetails.ranges();
+            Map<BlobFile, Long> timestampPerBlob = pendingPrefetchDetails.timestampPerBlob();
 
             logger.debug("[{}] Missing ranges [{}] for new commit [{}]", shardId, bccRangesToPrefetch, notification);
 
-            for (Map.Entry<BlobFile, ByteRangeAndTimestamp> bccRangeToPrefetch : bccRangesToPrefetch.entrySet()) {
+            for (Map.Entry<BlobFile, ByteRange> bccRangeToPrefetch : bccRangesToPrefetch.entrySet()) {
                 var blobFile = bccRangeToPrefetch.getKey();
-                ByteRange rangeToPrefetch = bccRangeToPrefetch.getValue().byteRange();
-                final long timestampMillis = cacheService.isCacheBoostPreferenceEnabled()
-                    ? bccRangeToPrefetch.getValue().timestampMillis()
-                    : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+                var rangeToPrefetch = bccRangeToPrefetch.getValue();
 
                 // Skip pre-fetching from indexing nodes when requests exceed one region size.
                 //
@@ -283,6 +283,8 @@ public class SearchCommitPrefetcher {
                 var cacheKey = new FileCacheKey(shardId, blobFile.primaryTerm(), blobFile.blobName());
 
                 var cacheBlobReader = cacheBlobReaderSupplier.getCacheBlobReaderForPreFetching(blobFile);
+
+                final long timestampMillis = timestampPerBlob.getOrDefault(blobFile, SharedBlobCacheService.UNKNOWN_TIMESTAMP);
 
                 // Calculate regions from the full range first, then compute the adjusted range per-region.
                 // This avoids Integer.MAX_VALUE truncation for > 2GB blobs.
@@ -379,20 +381,22 @@ public class SearchCommitPrefetcher {
         return maxPrefetchedOffset.get();
     }
 
-    record ByteRangeAndTimestamp(ByteRange byteRange, long timestampMillis) {}
+    public record PendingPrefetchDetails(Map<BlobFile, ByteRange> ranges, Map<BlobFile, Long> timestampPerBlob) {}
 
     /**
-     * Computes both the byte ranges to prefetch per blob and a single representative data timestamp per blob.
+     * Computes both the byte ranges to prefetch per blob and (optionally) a single representative data timestamp per blob.
      */
-    static Map<BlobFile, ByteRangeAndTimestamp> getPendingRangesToPrefetch(
+    static PendingPrefetchDetails getPendingRangesToPrefetch(
         BCCPreFetchedOffset currentMaxPrefetchedOffset,
         long maxBCCTermAndGenToPrefetch,
         Map<String, BlobLocation> commitFiles,
         Set<String> internalFiles,
         long notificationCommitTimestamp,
-        FileTimestampResolver fileTimestampResolver
+        FileTimestampResolver fileTimestampResolver,
+        boolean computeTimestamps
     ) {
-        Map<BlobFile, ByteRangeAndTimestamp> bccRangesToPrefetch = new HashMap<>();
+        Map<BlobFile, ByteRange> bccRangesToPrefetch = new HashMap<>();
+        Map<BlobFile, Long> timestampPerBlob = new HashMap<>();
         for (var commitFile : commitFiles.entrySet()) {
             String fileName = commitFile.getKey();
             BlobLocation blobLocation = commitFile.getValue();
@@ -401,32 +405,27 @@ public class SearchCommitPrefetcher {
             var bccTermAndGen = blobLocation.getBatchedCompoundCommitTermAndGeneration();
             if (currentMaxPrefetchedOffset.precedesOrAt(bccTermAndGen, blobLocationOffset)
                 && bccTermAndGen.generation() <= maxBCCTermAndGenToPrefetch) {
-                bccRangesToPrefetch.compute(blobFile, (unused, rangeAndTimestamp) -> {
+                bccRangesToPrefetch.compute(blobFile, (unused, range) -> {
                     long blobLocationEnd = blobLocationOffset + blobLocation.fileLength();
+                    if (range == null) {
+                        boolean isNewBCC = bccTermAndGen.compareTo(currentMaxPrefetchedOffset.bccTermAndGen()) > 0;
+                        var rangeStart = isNewBCC ? 0 : Math.min(currentMaxPrefetchedOffset.offset(), blobLocationOffset);
+                        return ByteRange.of(rangeStart, blobLocationEnd);
+                    }
+                    var extendedRange = ByteRange.of(Math.min(range.start(), blobLocationOffset), Math.max(blobLocationEnd, range.end()));
+                    assert range.isSubRangeOf(extendedRange);
+                    return extendedRange;
+                });
+                if (computeTimestamps) {
                     long fileTimestamp = internalFiles.contains(fileName)
                         ? notificationCommitTimestamp
                         : fileTimestampResolver.getTimestampMillis(fileName);
-                    if (rangeAndTimestamp == null) {
-                        boolean isNewBCC = bccTermAndGen.compareTo(currentMaxPrefetchedOffset.bccTermAndGen()) > 0;
-                        var rangeStart = isNewBCC ? 0 : Math.min(currentMaxPrefetchedOffset.offset(), blobLocationOffset);
-                        return new ByteRangeAndTimestamp(ByteRange.of(rangeStart, blobLocationEnd), fileTimestamp);
-                    }
-                    ByteRange existingRange = rangeAndTimestamp.byteRange();
-                    long existingBlobTimestamp = rangeAndTimestamp.timestampMillis();
-                    var extendedRange = ByteRange.of(
-                        Math.min(existingRange.start(), blobLocationOffset),
-                        Math.max(blobLocationEnd, existingRange.end())
-                    );
-                    assert existingRange.isSubRangeOf(extendedRange);
-                    return new ByteRangeAndTimestamp(
-                        extendedRange,
-                        BlobFileRanges.mostRecentKnownTimestamp(existingBlobTimestamp, fileTimestamp)
-                    );
-                });
+                    timestampPerBlob.merge(blobFile, fileTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
+                }
             }
 
         }
-        return bccRangesToPrefetch;
+        return new PendingPrefetchDetails(bccRangesToPrefetch, timestampPerBlob);
     }
 
     /**

@@ -28,7 +28,12 @@ public class AnthropicToolUtilsTests extends ESTestCase {
 
     private static final String TOOL_NAME = "get_price";
     private static final String TOOL_DESCRIPTION = "Get the price";
-    private static final Map<String, Object> INPUT_SCHEMA = Map.of("type", "object");
+    private static final Map<String, Object> INPUT_SCHEMA = Map.of(
+        "type",
+        "object",
+        "properties",
+        Map.of("item", Map.of("type", "string"))
+    );
 
     public void testWriteToolChoice_translatesObjectToToolType() throws IOException {
         var toolChoice = new ToolChoiceObject("function", new ToolChoiceObject.FunctionField(TOOL_NAME));
@@ -79,7 +84,12 @@ public class AnthropicToolUtilsTests extends ESTestCase {
                         "name": "%s",
                         "description": "%s",
                         "input_schema": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                                "item": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     }
                 ]
@@ -87,14 +97,54 @@ public class AnthropicToolUtilsTests extends ESTestCase {
             """, TOOL_NAME, TOOL_DESCRIPTION));
     }
 
-    public void testWriteTools_omitsInputSchemaWhenNoParameters() throws IOException {
+    public void testWriteTools_defaultsInputSchemaWhenNoParameters() throws IOException {
+        // Anthropic requires an object schema on every tool, so a parameterless tool still gets the minimal {"type":"object"} schema.
         var tool = new Tool("function", new Tool.FunctionField(TOOL_DESCRIPTION, TOOL_NAME, null, null));
         assertToolsJson(List.of(tool), Strings.format("""
             {
                 "tools": [
                     {
                         "name": "%s",
-                        "description": "%s"
+                        "description": "%s",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {}
+                        }
+                    }
+                ]
+            }
+            """, TOOL_NAME, TOOL_DESCRIPTION));
+    }
+
+    public void testWriteTools_normalizesTypeAndPreservesSchemaKeywords() throws IOException {
+        // Incoming "type" is forced to object; "properties"/"required" are copied and any other keyword is passed through.
+        var parameters = Map.of(
+            "type",
+            "string",
+            "properties",
+            Map.of("item", Map.of("type", "string")),
+            "required",
+            List.of("item"),
+            "additionalProperties",
+            false
+        );
+        var tool = new Tool("function", new Tool.FunctionField(TOOL_DESCRIPTION, TOOL_NAME, parameters, null));
+        assertToolsJson(List.of(tool), Strings.format("""
+            {
+                "tools": [
+                    {
+                        "name": "%s",
+                        "description": "%s",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {
+                                "item": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": ["item"],
+                            "additionalProperties": false
+                        }
                     }
                 ]
             }
@@ -111,12 +161,21 @@ public class AnthropicToolUtilsTests extends ESTestCase {
                         "name": "first",
                         "description": "First",
                         "input_schema": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                                "item": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     },
                     {
                         "name": "second",
-                        "description": "Second"
+                        "description": "Second",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {}
+                        }
                     }
                 ]
             }
@@ -128,14 +187,27 @@ public class AnthropicToolUtilsTests extends ESTestCase {
         assertToolsJson(List.of(), "{}");
     }
 
-    public void testWriteTools_strictFieldThrows() {
+    public void testWriteTools_ignoresStrictField() throws IOException {
+        // The OpenAI "strict" field has no Anthropic equivalent, so it is silently dropped rather than rejected.
         var tool = new Tool("function", new Tool.FunctionField(TOOL_DESCRIPTION, TOOL_NAME, INPUT_SCHEMA, randomBoolean()));
-        var exception = expectThrows(ElasticsearchStatusException.class, () -> renderTools(List.of(tool)));
-        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
-        assertThat(
-            exception.getMessage(),
-            is("The [strict] field in tool function definitions is not supported by the Anthropic chat completion API.")
-        );
+        assertToolsJson(List.of(tool), Strings.format("""
+            {
+                "tools": [
+                    {
+                        "name": "%s",
+                        "description": "%s",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {
+                                "item": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+            """, TOOL_NAME, TOOL_DESCRIPTION));
     }
 
     private static void assertStringToolChoiceTranslation(String openAiValue, String anthropicType) throws IOException {

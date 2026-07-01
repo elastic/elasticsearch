@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.DESCRIPTION_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.NAME_FIELD;
@@ -37,6 +38,9 @@ public final class AnthropicToolUtils {
 
     private static final String TOOL_CHOICE_TOOL_TYPE = "tool";
     private static final String INPUT_SCHEMA_FIELD = "input_schema";
+    private static final String OBJECT_TYPE = "object";
+    private static final String PROPERTIES_FIELD = "properties";
+    private static final String REQUIRED_FIELD = "required";
 
     private AnthropicToolUtils() {}
 
@@ -45,7 +49,8 @@ public final class AnthropicToolUtils {
      * {@code toolChoice} is {@code null}.
      *
      * <ul>
-     *     <li>Object {@code {"type":"function","function":{"name":"function_name"}}} becomes {@code {"type":"tool","name":"function_name"}}.</li>
+     *     <li>Object {@code {"type":"function","function":{"name":"function_name"}}} becomes
+     *         {@code {"type":"tool","name":"function_name"}}.</li>
      *     <li>String {@code "auto"}/{@code "none"} are passed through and {@code "required"} maps to Anthropic's {@code "any"}.</li>
      * </ul>
      *
@@ -82,7 +87,8 @@ public final class AnthropicToolUtils {
      * Writes the {@code tools} array, mapping each unified tool's function definition onto Anthropic's
      * {@code name}/{@code description}/{@code input_schema} shape. Does nothing when {@code tools} is {@code null} or empty.
      *
-     * @throws ElasticsearchStatusException if a tool sets the {@code strict} field, which Anthropic does not support.
+     * <p>The OpenAI {@code strict} field has no Anthropic equivalent and is silently dropped (rather than rejected) so that
+     * OpenAI-shaped requests remain drop-in compatible, for consistency with other inference services.
      */
     public static void writeTools(XContentBuilder builder, List<Tool> tools) throws IOException {
         if (tools == null || tools.isEmpty()) {
@@ -91,21 +97,47 @@ public final class AnthropicToolUtils {
         builder.startArray(TOOL_FIELD);
         for (var tool : tools) {
             var function = tool.function();
-            if (function.strict() != null) {
-                throw new ElasticsearchStatusException(
-                    "The [strict] field in tool function definitions is not supported by the Anthropic chat completion API.",
-                    RestStatus.BAD_REQUEST
-                );
-            }
             builder.startObject();
             builder.field(NAME_FIELD, function.name());
             builder.field(DESCRIPTION_FIELD, function.description());
-            var parameters = function.parameters();
-            if (parameters != null && parameters.isEmpty() == false) {
-                builder.field(INPUT_SCHEMA_FIELD, parameters);
-            }
+            writeInputSchema(builder, function.parameters());
             builder.endObject();
         }
         builder.endArray();
+    }
+
+    /**
+     * Writes a tool's {@code input_schema}. Anthropic requires a JSON-Schema object on every tool, so this always emits an object
+     * schema: {@code type} is forced to {@code "object"}, {@code properties} defaults to an empty object, {@code required} is
+     * copied through when present, and any remaining JSON-Schema keywords are passed through unchanged. When {@code parameters}
+     * is {@code null} (a parameterless tool) the minimal valid schema {@code {"type":"object","properties":{}}} is emitted.
+     */
+    private static void writeInputSchema(XContentBuilder builder, Map<String, Object> parameters) throws IOException {
+        builder.startObject(INPUT_SCHEMA_FIELD);
+        builder.field(TYPE_FIELD, OBJECT_TYPE);
+        if (parameters == null) {
+            builder.startObject(PROPERTIES_FIELD).endObject();
+            builder.endObject();
+            return;
+        }
+        var properties = parameters.get(PROPERTIES_FIELD);
+        if (properties != null) {
+            builder.field(PROPERTIES_FIELD, properties);
+        } else {
+            builder.startObject(PROPERTIES_FIELD).endObject();
+        }
+        var required = parameters.get(REQUIRED_FIELD);
+        if (required != null) {
+            builder.field(REQUIRED_FIELD, required);
+        }
+        // Preserve any other JSON-Schema keywords (e.g. additionalProperties, $defs); the incoming "type" is normalized to object.
+        for (var entry : parameters.entrySet()) {
+            var key = entry.getKey();
+            if (TYPE_FIELD.equals(key) || PROPERTIES_FIELD.equals(key) || REQUIRED_FIELD.equals(key)) {
+                continue;
+            }
+            builder.field(key, entry.getValue());
+        }
+        builder.endObject();
     }
 }

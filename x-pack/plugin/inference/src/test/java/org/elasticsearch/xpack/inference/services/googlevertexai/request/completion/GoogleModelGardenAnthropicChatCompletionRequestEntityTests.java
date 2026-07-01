@@ -36,18 +36,19 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends 
     private static final String ANTHROPIC_VERSION = "vertex-2023-10-16";
     private static final String TOOL_NAME = "name";
     private static final String TOOL_DESCRIPTION = "description";
-    private static final String PARAM_NAME = "parameterName";
-    private static final String PARAM_VALUE = "parameterValue";
+    private static final Map<String, Object> TOOL_PARAMETERS = Map.of(
+        "type",
+        "object",
+        "properties",
+        Map.of("item", Map.of("type", "string"))
+    );
 
     private static final GoogleVertexAiChatCompletionTaskSettings EMPTY_SETTINGS = GoogleVertexAiChatCompletionTaskSettings.EMPTY_SETTINGS;
 
     // OpenAI-shaped tool_choice object {"type":"function","function":{"name":"function_name"}} must be translated to Anthropic's
     // {"type":"tool","name":"function_name"} form, otherwise Anthropic rejects the request with a 400 (unexpected tag 'function').
     private static final ToolChoice FUNCTION_TOOL_CHOICE = new ToolChoiceObject("function", new ToolChoiceObject.FunctionField(TOOL_NAME));
-    private static final Tool TOOL = new Tool(
-        "function",
-        new Tool.FunctionField(TOOL_DESCRIPTION, TOOL_NAME, Map.of(PARAM_NAME, PARAM_VALUE), null)
-    );
+    private static final Tool TOOL = new Tool("function", new Tool.FunctionField(TOOL_DESCRIPTION, TOOL_NAME, TOOL_PARAMETERS, null));
 
     private static final String TOOL_CHOICE_OBJECT_JSON = Strings.format("""
         {
@@ -99,20 +100,16 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends 
         assertThat(exception.getMessage(), is("Unsupported tool_choice value [unsupported] for the Anthropic chat completion API."));
     }
 
-    public void testStrictToolFieldThrows() {
-        var strictTool = new Tool(
-            "function",
-            new Tool.FunctionField(TOOL_DESCRIPTION, TOOL_NAME, Map.of("type", "object"), randomBoolean())
-        );
-        var exception = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> render(null, List.of(strictTool), null, null, null, false, EMPTY_SETTINGS)
-        );
-        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
-        assertThat(
-            exception.getMessage(),
-            is("The [strict] field in tool function definitions is not supported by the Anthropic chat completion API.")
-        );
+    public void testStrictToolFieldIsIgnored() throws IOException {
+        // The OpenAI "strict" field has no Anthropic equivalent, so it is silently dropped: the rendered request is identical to
+        // one built from the same tool without "strict".
+        var strictTool = new Tool("function", new Tool.FunctionField(TOOL_DESCRIPTION, TOOL_NAME, TOOL_PARAMETERS, randomBoolean()));
+        var actual = render(new ToolChoiceString("auto"), List.of(strictTool), null, null, null, false, EMPTY_SETTINGS);
+        var toolChoiceJson = """
+            {
+                "type": "auto"
+            }""";
+        assertThat(actual, is(expectedRequestJson(null, toolChoiceJson, null, false, 1024)));
     }
 
     private static void assertToolChoiceStringTranslation(String openAiValue, String anthropicType) throws IOException {
@@ -148,7 +145,12 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends 
                                 "name": "%s",
                                 "description": "%s",
                                 "input_schema": {
-                                    "%s": "%s"
+                                    "type": "object",
+                                    "properties": {
+                                        "item": {
+                                            "type": "string"
+                                        }
+                                    }
                                 }
                             }
                         ],
@@ -163,8 +165,6 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends 
                 toolChoiceJson,
                 TOOL_NAME,
                 TOOL_DESCRIPTION,
-                PARAM_NAME,
-                PARAM_VALUE,
                 topP == null ? "" : Strings.format("\"top_p\": %s,", topP),
                 stream,
                 maxTokens

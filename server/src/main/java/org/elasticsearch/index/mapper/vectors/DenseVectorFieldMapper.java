@@ -625,6 +625,25 @@ public class DenseVectorFieldMapper extends FieldMapper {
         ElementType.BIT
     );
 
+    /**
+     * A query vector already known to be a float or byte array — never a string — validated against the
+     * field's dimensions/bounds/magnitude and, for floats, normalized to match indexed unit vectors.
+     * Resolving a {@link VectorData} into one of these, via {@link Element#resolveAndValidate}, replaces ad
+     * hoc calls to {@link VectorData#asFloatVector()}/{@link VectorData#asByteVector()} (which silently
+     * narrow or widen between float and byte on demand, rather than validating against the field's actual
+     * element type) with a single virtual call that performs every check once, in one place per element type.
+     *
+     * <p>{@code denormalize} is {@code true} when a non-cosine similarity override is being scored against a
+     * normalized-cosine field's KNN-indexed vectors, meaning the query must be compared against the
+     * originals rather than the unit-normalized stored representation; see
+     * {@link DenseVectorQuery.Floats#rawScored}.
+     */
+    sealed interface ResolvedVector permits ResolvedVector.Floats, ResolvedVector.Bytes {
+        record Floats(float[] values, boolean denormalize) implements ResolvedVector {}
+
+        record Bytes(byte[] values) implements ResolvedVector {}
+    }
+
     public abstract static class Element {
 
         public static Element getElement(ElementType elementType) {
@@ -667,6 +686,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         public abstract ElementType elementType();
+
+        /**
+         * Extracts this element type's expected representation from a resolved (non-string) query vector,
+         * validating dimensions/bounds/magnitude and, for floats, normalizing/computing {@code denormalize}
+         * — see {@link ResolvedVector}. {@code isOverridden} and {@code isNormalized} only affect floats;
+         * pass {@code false} for both from doc-values callers, which have no override/normalization concept.
+         */
+        abstract ResolvedVector resolveAndValidate(
+            VectorData queryVector,
+            Integer dims,
+            VectorSimilarity effectiveSimilarity,
+            boolean isOverridden,
+            boolean isNormalized
+        );
 
         public abstract void writeValues(ByteBuffer byteBuffer, float[] values);
 
@@ -768,6 +801,23 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public ElementType elementType() {
             return ElementType.BYTE;
+        }
+
+        @Override
+        ResolvedVector resolveAndValidate(
+            VectorData queryVector,
+            Integer dims,
+            VectorSimilarity effectiveSimilarity,
+            boolean isOverridden,
+            boolean isNormalized
+        ) {
+            byte[] vector = queryVector.asByteVector();
+            checkDimensions(dims, vector.length);
+            if (effectiveSimilarity == VectorSimilarity.DOT_PRODUCT || effectiveSimilarity == VectorSimilarity.COSINE) {
+                float squaredMagnitude = ESVectorUtil.dotProduct(vector, vector);
+                checkVectorMagnitude(effectiveSimilarity, errorElementsAppender(vector), squaredMagnitude);
+            }
+            return new ResolvedVector.Bytes(vector);
         }
 
         @Override
@@ -1076,6 +1126,32 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public ElementType elementType() {
             return ElementType.FLOAT;
+        }
+
+        @Override
+        ResolvedVector resolveAndValidate(
+            VectorData queryVector,
+            Integer dims,
+            VectorSimilarity effectiveSimilarity,
+            boolean isOverridden,
+            boolean isNormalized
+        ) {
+            float[] vector = queryVector.asFloatVector();
+            checkDimensions(dims, vector.length);
+            checkVectorBounds(vector);
+            if (effectiveSimilarity == VectorSimilarity.DOT_PRODUCT || effectiveSimilarity == VectorSimilarity.COSINE) {
+                float squaredMagnitude = ESVectorUtil.dotProduct(vector, vector);
+                checkVectorMagnitude(effectiveSimilarity, errorElementsAppender(vector), squaredMagnitude);
+                // Normalize the query only on the non-override path: a normalized-cosine field is scored with
+                // DOT_PRODUCT against unit-stored vectors, so the query must be unit-length too. An override uses
+                // the literal function, which normalizes both operands itself, so normalizing here would be wrong.
+                if (isOverridden == false && isNormalized && isUnitVector(squaredMagnitude) == false) {
+                    vector = DenseVectorFieldType.normalizeQueryVector(vector, squaredMagnitude);
+                }
+            }
+            // A non-cosine override on a normalized-cosine field must score against the original (denormalized) vectors.
+            boolean denormalize = isOverridden && isNormalized && effectiveSimilarity != VectorSimilarity.COSINE;
+            return new ResolvedVector.Floats(vector, denormalize);
         }
 
         @Override
@@ -3121,20 +3197,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (dims == null) {
                 return new MatchNoDocsQuery("No data has been indexed for field [" + name() + "]");
             }
-            if (similarityOverride != null && element.elementType() == ElementType.BIT && similarityOverride != VectorSimilarity.L2_NORM) {
+            boolean isSimilarityOverridden = similarityOverride != null;
+            if (isSimilarityOverridden && element.elementType() == ElementType.BIT && similarityOverride != VectorSimilarity.L2_NORM) {
                 throw new IllegalArgumentException("[" + VectorSimilarity.L2_NORM + "] is the only supported similarity for bit vectors");
             }
-            if (useQuantized && similarityOverride != null) {
+            if (useQuantized && isSimilarityOverridden) {
                 throw new IllegalArgumentException("[similarity_function] cannot be used when [quantized] is true");
             }
             // similarity is null when a field is not indexed
-            VectorSimilarity effectiveSimilarity = similarityOverride != null ? similarityOverride
+            VectorSimilarity effectiveSimilarity = isSimilarityOverridden ? similarityOverride
                 : similarity != null ? similarity
                 : element.elementType().defaultSimilarity();
             VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             Query knnQuery = nonIndexed
                 ? createDocValuesExactKnnQuery(resolvedQueryVector, effectiveSimilarity)
-                : createIndexedExactKnnQuery(resolvedQueryVector, effectiveSimilarity, similarityOverride, useQuantized);
+                : createIndexedExactKnnQuery(resolvedQueryVector, effectiveSimilarity, similarityOverride != null, useQuantized);
             if (vectorSimilarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -3148,30 +3225,32 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private Query createIndexedExactKnnQuery(
             VectorData resolvedQueryVector,
             VectorSimilarity effectiveSimilarity,
-            VectorSimilarity similarityOverride,
+            boolean isSimilarityOverridden,
             boolean useQuantized
         ) {
-            // null function ⇒ codec-bound scorer; non-null ⇒ raw scoring with this function.
-            final VectorSimilarityFunction function;
-            if (useQuantized) {
-                // On a codec with no quantized representation (flat/hnsw, byte, bit) the codec scorer reads the
-                // raw values, so quantized:true is ignored.
-                function = null;
-            } else if (similarityOverride != null) {
-                function = similarityOverride.rawVectorSimilarityFunction();
-            } else {
-                function = effectiveSimilarity.vectorSimilarityFunction(indexVersionCreated, element.elementType());
-            }
-            return switch (element.elementType()) {
-                case BYTE -> createExactKnnByteQuery(resolvedQueryVector.asByteVector(), effectiveSimilarity, function);
-                case FLOAT, BFLOAT16 -> createExactKnnFloatQuery(
-                    resolvedQueryVector.asFloatVector(),
-                    effectiveSimilarity,
-                    function,
-                    similarityOverride != null
-                );
-                // BIT has no separate quantized representation — codec scorer is always raw Hamming distance.
-                case BIT -> createExactKnnBitQuery(resolvedQueryVector.asByteVector(), null);
+            assert !(useQuantized && isSimilarityOverridden) : "Use quantized cannot be combined with overridden similarity function";
+            // if useQuantized, function ignored. Otherwise, raw scoring with this function.
+            final VectorSimilarityFunction function = isSimilarityOverridden
+                ? effectiveSimilarity.rawVectorSimilarityFunction()
+                : effectiveSimilarity.vectorSimilarityFunction(indexVersionCreated, element.elementType());
+            ResolvedVector resolved = element.resolveAndValidate(
+                resolvedQueryVector,
+                dims,
+                effectiveSimilarity,
+                isSimilarityOverridden,
+                isNormalized()
+            );
+            return switch (resolved) {
+                case ResolvedVector.Floats(float[] queryVector, boolean denormalize) -> useQuantized
+                    ? DenseVectorQuery.Floats.codecScored(queryVector, name())
+                    : DenseVectorQuery.Floats.rawScored(queryVector, name(), function, denormalize);
+                // BIT has no separate quantized representation — codec scorer is always raw Hamming distance,
+                // so it must never take the raw-VectorSimilarityFunction path that BYTE otherwise would.
+                case ResolvedVector.Bytes(byte[] queryVector) -> element.elementType() == ElementType.BIT
+                    ? createExactKnnBitQuery(queryVector, null)
+                    : (useQuantized
+                        ? DenseVectorQuery.Bytes.codecScored(queryVector, name())
+                        : DenseVectorQuery.Bytes.rawScored(queryVector, name(), function));
             };
         }
 
@@ -3183,49 +3262,25 @@ public class DenseVectorFieldMapper extends FieldMapper {
          * similarity. Bit vectors are scored by Hamming distance (their only metric), matching the indexed path.
          */
         private Query createDocValuesExactKnnQuery(VectorData resolvedQueryVector, VectorSimilarity effectiveSimilarity) {
-            return switch (element.elementType()) {
-                case FLOAT, BFLOAT16 -> {
-                    float[] queryVector = resolvedQueryVector.asFloatVector();
-                    element.checkDimensions(dims, queryVector.length);
-                    element.checkVectorBounds(queryVector);
-                    if (effectiveSimilarity == VectorSimilarity.DOT_PRODUCT || effectiveSimilarity == VectorSimilarity.COSINE) {
-                        float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
-                        element.checkVectorMagnitude(
-                            effectiveSimilarity,
-                            FloatElement.errorElementsAppender(queryVector),
-                            squaredMagnitude
-                        );
-                    }
-                    yield new DenseVectorQuery.DocValuesFloats(
-                        queryVector,
-                        name(),
-                        effectiveSimilarity.rawVectorSimilarityFunction(),
-                        element.elementType(),
-                        indexVersionCreated
-                    );
-                }
-                case BYTE -> {
-                    byte[] queryVector = resolvedQueryVector.asByteVector();
-                    element.checkDimensions(dims, queryVector.length);
-                    if (effectiveSimilarity == VectorSimilarity.DOT_PRODUCT || effectiveSimilarity == VectorSimilarity.COSINE) {
-                        float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
-                        element.checkVectorMagnitude(effectiveSimilarity, ByteElement.errorElementsAppender(queryVector), squaredMagnitude);
-                    }
-                    yield new DenseVectorQuery.DocValuesBytes(
-                        queryVector,
-                        name(),
-                        effectiveSimilarity.rawVectorSimilarityFunction(),
-                        ElementType.BYTE,
-                        indexVersionCreated
-                    );
-                }
-                // Bit vectors have no VectorSimilarityFunction; the scorer computes Hamming distance directly,
-                // matching the indexed path's (numBits - xorBitCount) / numBits.
-                case BIT -> {
-                    byte[] queryVector = resolvedQueryVector.asByteVector();
-                    element.checkDimensions(dims, queryVector.length);
-                    yield new DenseVectorQuery.DocValuesBytes(queryVector, name(), null, ElementType.BIT, indexVersionCreated);
-                }
+            // No override/normalization concept for doc-values fields (they're never indexed), and BIT's
+            // effectiveSimilarity is always L2_NORM here, so the BYTE and BIT arms below share one query shape.
+            ResolvedVector resolved = element.resolveAndValidate(resolvedQueryVector, dims, effectiveSimilarity, false, false);
+            return switch (resolved) {
+                // Doc-values fields never denormalize (that concept only applies to the KNN-indexed path).
+                case ResolvedVector.Floats(float[] queryVector, boolean denormalize) -> new DenseVectorQuery.DocValuesFloats(
+                    queryVector,
+                    name(),
+                    effectiveSimilarity.rawVectorSimilarityFunction(),
+                    element.elementType(),
+                    indexVersionCreated
+                );
+                case ResolvedVector.Bytes(byte[] queryVector) -> new DenseVectorQuery.DocValuesBytes(
+                    queryVector,
+                    name(),
+                    effectiveSimilarity.rawVectorSimilarityFunction(),
+                    element.elementType(),
+                    indexVersionCreated
+                );
             };
         }
 
@@ -3237,44 +3292,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             element.checkDimensions(dims, queryVector.length);
             // Bit vectors have no VectorSimilarityFunction; the codec scorer always computes Hamming distance.
             return DenseVectorQuery.Bytes.codecScored(queryVector, name()).filteredBy(filter);
-        }
-
-        private Query createExactKnnByteQuery(byte[] queryVector, VectorSimilarity effectiveSimilarity, VectorSimilarityFunction function) {
-            element.checkDimensions(dims, queryVector.length);
-            if (effectiveSimilarity == VectorSimilarity.DOT_PRODUCT || effectiveSimilarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
-                element.checkVectorMagnitude(effectiveSimilarity, ByteElement.errorElementsAppender(queryVector), squaredMagnitude);
-            }
-            // null function ⇒ codec-bound (possibly quantized) scorer; non-null ⇒ raw scoring with this function.
-            return function == null
-                ? DenseVectorQuery.Bytes.codecScored(queryVector, name())
-                : DenseVectorQuery.Bytes.rawScored(queryVector, name(), function);
-        }
-
-        private Query createExactKnnFloatQuery(
-            float[] queryVector,
-            VectorSimilarity effectiveSimilarity,
-            VectorSimilarityFunction function,
-            boolean isOverridden
-        ) {
-            element.checkDimensions(dims, queryVector.length);
-            element.checkVectorBounds(queryVector);
-            if (effectiveSimilarity == VectorSimilarity.DOT_PRODUCT || effectiveSimilarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
-                element.checkVectorMagnitude(effectiveSimilarity, FloatElement.errorElementsAppender(queryVector), squaredMagnitude);
-                // Normalize the query only on the non-override path: a normalized-cosine field is scored with
-                // DOT_PRODUCT against unit-stored vectors, so the query must be unit-length too. An override uses
-                // the literal function, which normalizes both operands itself, so normalizing here would be wrong.
-                if (isOverridden == false && isNormalized() && element.isUnitVector(squaredMagnitude) == false) {
-                    queryVector = normalizeQueryVector(queryVector, squaredMagnitude);
-                }
-            }
-            // A non-cosine override on a normalized-cosine field must score against the original (denormalized) vectors.
-            boolean denormalize = isOverridden && isNormalized() && effectiveSimilarity != VectorSimilarity.COSINE;
-            // null function ⇒ codec-bound (possibly quantized) scorer; non-null ⇒ raw scoring with this function.
-            return function == null
-                ? DenseVectorQuery.Floats.codecScored(queryVector, name())
-                : DenseVectorQuery.Floats.rawScored(queryVector, name(), function, denormalize);
         }
 
         private static float[] normalizeQueryVector(float[] queryVector, float squaredMagnitude) {

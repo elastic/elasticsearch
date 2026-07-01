@@ -420,7 +420,7 @@ public class InferencePlugin extends Plugin
         components.addAll(ccmRelatedComponents.components());
 
         inferenceServices.add(() -> List.of(context -> {
-            var eisService = new ElasticInferenceService(
+            var eisService = ElasticInferenceService.create(
                 elasticInferenceServiceFactory.get(),
                 serviceComponents.get(),
                 inferenceServiceSettings,

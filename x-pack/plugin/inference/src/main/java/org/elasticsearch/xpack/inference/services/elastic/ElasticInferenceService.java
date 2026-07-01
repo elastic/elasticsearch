@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.elastic;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.TimeValue;
@@ -45,6 +44,7 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenceServiceActionCreator;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.compatibility.Compatibility;
+import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionsCompatibilityService;
 import org.elasticsearch.xpack.inference.services.elastic.compatibility.ReasoningTaskSettingsCompatibility;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
@@ -113,37 +113,56 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(SPARSE_EMBEDDING, COMPLETION, TEXT_EMBEDDING);
 
     private final CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory;
+    private final CompletionsCompatibilityService completionsCompatibilityService;
     private ElasticInferenceServiceActionCreator actionCreator;
 
-    public ElasticInferenceService(
+    public static ElasticInferenceService create(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
         InferenceServiceExtension.InferenceServiceFactoryContext context,
         CCMAuthenticationApplierFactory ccmAuthApplierFactory
     ) {
-        this(factory, serviceComponents, elasticInferenceServiceSettings, context.clusterService(), ccmAuthApplierFactory);
+        return new ElasticInferenceService(
+            factory,
+            serviceComponents,
+            elasticInferenceServiceSettings,
+            context,
+            ccmAuthApplierFactory,
+            new CompletionsCompatibilityService(context.inferenceFeatureService())
+        );
     }
 
-    public ElasticInferenceService(
+    private ElasticInferenceService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
-        ClusterService clusterService,
-        CCMAuthenticationApplierFactory ccmAuthApplierFactory
+        InferenceServiceExtension.InferenceServiceFactoryContext context,
+        CCMAuthenticationApplierFactory ccmAuthApplierFactory,
+        CompletionsCompatibilityService completionsCompatibilityService
     ) {
-        super(factory, serviceComponents, clusterService, initModelCreators(elasticInferenceServiceSettings));
+        super(
+            factory,
+            serviceComponents,
+            context.clusterService(),
+            initModelCreators(elasticInferenceServiceSettings, completionsCompatibilityService)
+        );
         this.ccmAuthenticationApplierFactory = ccmAuthApplierFactory;
+        this.completionsCompatibilityService = completionsCompatibilityService;
     }
 
     private static Map<TaskType, ModelCreator<? extends ElasticInferenceServiceModel>> initModelCreators(
-        ElasticInferenceServiceSettings elasticInferenceServiceSettings
+        ElasticInferenceServiceSettings elasticInferenceServiceSettings,
+        CompletionsCompatibilityService completionsCompatibilityService
     ) {
         var elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
             elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
         );
         var denseEmbeddingsModelCreator = new ElasticInferenceServiceDenseEmbeddingsModelCreator(elasticInferenceServiceComponents);
-        var completionModelCreator = new ElasticInferenceServiceCompletionModelCreator(elasticInferenceServiceComponents);
+        var completionModelCreator = new ElasticInferenceServiceCompletionModelCreator(
+            elasticInferenceServiceComponents,
+            completionsCompatibilityService
+        );
         return Map.of(
             TaskType.TEXT_EMBEDDING,
             denseEmbeddingsModelCreator,

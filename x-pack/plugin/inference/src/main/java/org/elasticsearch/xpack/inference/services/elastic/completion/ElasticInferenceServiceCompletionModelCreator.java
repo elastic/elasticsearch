@@ -11,15 +11,15 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModelCreator;
-import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
+import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionsCompatibilityService;
 
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Creates {@link ElasticInferenceServiceCompletionModel} instances from config maps
@@ -27,8 +27,15 @@ import java.util.Map;
  */
 public class ElasticInferenceServiceCompletionModelCreator extends ElasticInferenceServiceModelCreator<
     ElasticInferenceServiceCompletionModel> {
-    public ElasticInferenceServiceCompletionModelCreator(ElasticInferenceServiceComponents elasticInferenceServiceComponents) {
+
+    private final CompletionsCompatibilityService completionsCompatibilityService;
+
+    public ElasticInferenceServiceCompletionModelCreator(
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        CompletionsCompatibilityService completionsCompatibilityService
+    ) {
         super(elasticInferenceServiceComponents);
+        this.completionsCompatibilityService = Objects.requireNonNull(completionsCompatibilityService);
     }
 
     @Override
@@ -43,12 +50,8 @@ public class ElasticInferenceServiceCompletionModelCreator extends ElasticInfere
         ConfigurationParseContext context,
         @Nullable EndpointMetadata endpointMetadata
     ) {
-        TaskSettings effectiveTaskSettings;
-        if (taskType == TaskType.CHAT_COMPLETION) {
-            effectiveTaskSettings = ElasticInferenceServiceChatCompletionTaskSettings.fromMap(taskSettings, taskType, context);
-        } else {
-            effectiveTaskSettings = ImmutableEmptyTaskSettings.fromMap(taskSettings, context);
-        }
+        var effectiveTaskSettings = completionsCompatibilityService.getTaskSettingsStrategy(taskType)
+            .createTaskSettings(taskSettings, context);
 
         return new ElasticInferenceServiceCompletionModel(
             inferenceId,

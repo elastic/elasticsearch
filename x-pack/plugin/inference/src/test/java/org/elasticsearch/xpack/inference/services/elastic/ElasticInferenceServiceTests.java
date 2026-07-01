@@ -26,8 +26,10 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.EmptySecretSettings;
+import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
@@ -1975,11 +1977,11 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
-        var service = new ElasticInferenceService(
+        var service = ElasticInferenceService.create(
             factory,
             createWithEmptySettings(threadPool),
             new ElasticInferenceServiceSettings(Settings.EMPTY),
-            mockClusterServiceEmpty(),
+            createFactoryContext(),
             createNoopApplierFactory()
         );
         service.init();
@@ -1991,15 +1993,27 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
     }
 
     private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory, String elasticInferenceServiceURL) {
-        var service = new ElasticInferenceService(
+        var service = ElasticInferenceService.create(
             senderFactory,
             createWithEmptySettings(threadPool),
             ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
-            mockClusterServiceEmpty(),
+            createFactoryContext(),
             createNoopApplierFactory()
         );
         service.init();
         return service;
+    }
+
+    private InferenceServiceExtension.InferenceServiceFactoryContext createFactoryContext() {
+        var clusterService = mockClusterServiceEmpty();
+        return new InferenceServiceExtension.InferenceServiceFactoryContext(
+            mock(),
+            threadPool,
+            clusterService,
+            Settings.EMPTY,
+            mock(),
+            new InferenceFeatureService(clusterService, FEATURE_SERVICE)
+        );
     }
 
     public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {

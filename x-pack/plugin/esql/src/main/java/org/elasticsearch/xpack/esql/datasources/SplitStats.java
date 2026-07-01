@@ -568,19 +568,10 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         for (Map.Entry<String, ColumnFold> e : byName.entrySet()) {
             ColumnFold cf = e.getValue();
             if (cf.dropped) {
-                // Text partial-harvest drops the column's VALUES. mergeStatistics emits its poison marker AFTER
-                // the drop, so a poisoned extremum leaves an orphaned .min/.max_unservable behind (harmless -- the
-                // column is otherwise absent, so serve safe-misses it regardless). Replicated here for exact
-                // behavior-identity; a candidate for a separate cleanup increment (drop the orphan in both).
-                if (cf.minServable == false || cf.maxServable == false) {
-                    int dropOrd = b.addColumn(e.getKey());
-                    if (cf.minServable == false) {
-                        b.minUnservable(dropOrd);
-                    }
-                    if (cf.maxServable == false) {
-                        b.maxUnservable(dropOrd);
-                    }
-                }
+                // Text partial-harvest: a column not observed in every non-empty split cannot be served, so it is
+                // dropped ENTIRELY -- no value, no count, and no unservable marker. (The former in-place fold set
+                // the poison marker AFTER the drop, leaving a harmless orphan; dropping it here is the cleanup.
+                // Serve safe-misses the column either way via hasColumn == false.)
                 continue;
             }
             int ord = b.addColumn(e.getKey());

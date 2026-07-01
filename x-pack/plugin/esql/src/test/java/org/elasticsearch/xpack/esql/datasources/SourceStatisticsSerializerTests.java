@@ -306,6 +306,36 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertFalse("a zero total size is not emitted", merged.containsKey(SourceStatisticsSerializer.STATS_SIZE_BYTES));
     }
 
+    /**
+     * A text-dropped column must carry NO stats at all -- not even an orphaned extremum marker. When a column is
+     * both poisoned (NaN vs finite) AND absent from a non-empty split, text mode drops it entirely; the poison
+     * marker must not linger (the former in-place fold emitted the marker AFTER the drop, leaving a harmless
+     * orphan -- this pins the cleaned-up behavior).
+     */
+    public void testTextDropRemovesEvenAPoisonedExtremumMarker() {
+        Map<String, Object> a = new HashMap<>();
+        a.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+        a.put(SourceStatisticsSerializer.columnMinKey("v"), Double.NaN);
+        a.put(SourceStatisticsSerializer.columnMaxKey("v"), 8.0);
+        Map<String, Object> b = new HashMap<>();
+        b.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+        b.put(SourceStatisticsSerializer.columnMinKey("v"), 5.0);
+        b.put(SourceStatisticsSerializer.columnMaxKey("v"), 9.0);
+        Map<String, Object> c = new HashMap<>(); // non-empty split without "v" -> forces the text-drop of "v"
+        c.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+
+        Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(List.of(a, b, c), false);
+        assertNotNull(merged);
+        assertEquals(30L, merged.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertFalse(
+            "dropped column carries no min_unservable orphan",
+            merged.containsKey(SourceStatisticsSerializer.columnMinUnservableKey("v"))
+        );
+        assertFalse(merged.containsKey(SourceStatisticsSerializer.columnMaxUnservableKey("v")));
+        assertFalse("dropped column carries no min value", merged.containsKey(SourceStatisticsSerializer.columnMinKey("v")));
+        assertFalse("dropped column carries no null_count", merged.containsKey(SourceStatisticsSerializer.columnNullCountKey("v")));
+    }
+
     public void testMergeStatisticsAddsImplicitNullsForAbsentColumns() {
         // File A: 100 rows, has bonus with 5 explicit nulls.
         Map<String, Object> a = new HashMap<>();

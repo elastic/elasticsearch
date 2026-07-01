@@ -69,6 +69,8 @@ import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.PostFilterKnnQuery;
+import org.elasticsearch.search.vectors.PostFilterableKnnQuery;
 import org.elasticsearch.search.vectors.QueryProfilerProvider;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.test.knn.data.DataGenerator;
@@ -109,6 +111,11 @@ import static org.elasticsearch.test.knn.KnnIndexer.VECTOR_FIELD;
 public class KnnSearcher {
 
     private static final String NN_CACHE_DIR = "target/nn_cache/";
+
+    // PostFilterKnnQuery's production default (1.0) only engages post-filtering when the filter
+    // matches everything, so it never fires across a selectivity sweep. For benchmarking we force
+    // post-filtering on for every postFilter=true run regardless of selectivity.
+    private static final float BENCHMARK_POST_FILTERING_THRESHOLD = 0f;
 
     private final List<Path> docPath;
     private final Path indexPath;
@@ -548,6 +555,7 @@ public class KnnSearcher {
         finalResults.numCandidates = searchParameters.numCandidates();
         finalResults.topK = searchParameters.topK();
         finalResults.earlyTermination = searchParameters.earlyTermination();
+        finalResults.postFilter = searchParameters.postFilter();
         if (finalResults.totalIndexVectors > 0) {
             finalResults.actualVisitPercentage = (finalResults.averageVisited / finalResults.totalIndexVectors) * 100.0;
         }
@@ -767,6 +775,16 @@ public class KnnSearcher {
                 indexType == KnnIndexTester.IndexType.HNSW && searchParameters.earlyTermination()
             );
         }
+        if (searchParameters.postFilter() && filterQuery != null && knnQuery instanceof PostFilterableKnnQuery pfKnnQuery) {
+            knnQuery = new PostFilterKnnQuery(
+                pfKnnQuery,
+                filterQuery,
+                searchParameters.topK(),
+                VECTOR_FIELD,
+                null,
+                BENCHMARK_POST_FILTERING_THRESHOLD
+            );
+        }
         QueryProfiler profiler = new QueryProfiler();
         TopDocs docs = searcher.search(knnQuery, searchParameters.topK());
         assert knnQuery instanceof QueryProfilerProvider : "this knnQuery doesn't support profiling";
@@ -835,6 +853,16 @@ public class KnnSearcher {
                 filterQuery,
                 DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy(),
                 indexType == KnnIndexTester.IndexType.HNSW && searchParameters.earlyTermination()
+            );
+        }
+        if (searchParameters.postFilter() && filterQuery != null && knnQuery instanceof PostFilterableKnnQuery pfKnnQuery) {
+            knnQuery = new PostFilterKnnQuery(
+                pfKnnQuery,
+                filterQuery,
+                overSampledTopK,
+                VECTOR_FIELD,
+                null,
+                BENCHMARK_POST_FILTERING_THRESHOLD
             );
         }
         if (searchParameters.overSamplingFactor() > 1f && testConfiguration.autoCalibrate() == false) {

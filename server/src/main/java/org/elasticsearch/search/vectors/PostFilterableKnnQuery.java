@@ -11,15 +11,18 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 
 import java.io.IOException;
 import java.util.List;
 
 /**
  * Interface for KNN queries that support post-filtering with retry.
- * Implemented by both HNSW ({@link ESKnnFloatVectorQuery}, {@link ESKnnByteVectorQuery})
- * and IVF ({@link IVFKnnFloatVectorQuery}) queries.
+ * Implemented by the HNSW query classes ({@link ESKnnFloatVectorQuery},
+ * {@link ESKnnByteVectorQuery}, and their diversifying-children variants).
  */
 public interface PostFilterableKnnQuery {
 
@@ -83,22 +86,6 @@ public interface PostFilterableKnnQuery {
     Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK);
 
     /**
-     * Reconstructs the KNN query for the augmented pre-filter fallback used by
-     * {@link PostFilterKnnQuery} when post-filtering yields some — but fewer than {@code k} —
-     * results. The returned query keeps the implementor's original filter as a pre-filter,
-     * combined with an {@link ExcludeDocsQuery} over {@code excludedDocs} so already-collected
-     * docs are not visited again, and asks for {@code remainingK} results.
-     * <p>
-     * Unlike {@link #createRetryQuery}, no seed docs are passed — the fallback switches modes
-     * from post-filter to pre-filter, so HNSW graph seeding does not apply.
-     *
-     * @param reader        the index reader
-     * @param excludedDocs  docs already collected by the post-filter rounds, sorted
-     * @param remainingK    how many additional top results we aim to return ({@code k - collected})
-     */
-    Query createFallbackQuery(IndexReader reader, int[] excludedDocs, int remainingK);
-
-    /**
      * Creates a filter-less delegate query for post-filtering. Subclasses provide
      * the concrete query type with the appropriate vector data.
      */
@@ -117,9 +104,34 @@ public interface PostFilterableKnnQuery {
     int numCands();
 
     /**
-     * Per-leaf docs collected during first round of post-filtering, used by the retry round.
+     * Per-leaf candidate docs collected during the delegate's {@code mergeLeafResults}, indexed
+     * by leaf ordinal. Each non-null entry contains the full candidate pool for that leaf with
+     * global doc IDs and scores. The orchestrator walks each leaf to partition candidates into
+     * filter-matching and filtered-out sets without per-doc {@code subIndex} lookups.
+     * <p>
+     * Never returns {@code null}: implementations that have not run yet return an empty per-leaf
+     * array (every entry {@code null}), so the orchestrator can iterate without a null check.
      */
-    default int[] getTrackedDocs() {
-        return new int[0];
+    default ScoreDoc[][] getPostFilterCandidates() {
+        return new ScoreDoc[0][];
+    }
+
+    /**
+     * Groups arbitrary-order per-leaf {@link TopDocs} into a {@code ScoreDoc[][]} indexed by
+     * leaf ordinal. Lucene's {@code AbstractKnnVectorQuery} passes {@code mergeLeafResults} an
+     * array sourced from {@code HashMap.values()} whose iteration order is unspecified, so this
+     * method resolves each entry's leaf via {@link ReaderUtil#subIndex}.
+     * <p>
+     * Each leaf's {@link ScoreDoc} array is cloned so the orchestrator can sort it in place
+     * without mutating the delegate's {@link TopDocs}.
+     */
+    static ScoreDoc[][] buildPerLeafCandidates(TopDocs[] perLeafResults, List<LeafReaderContext> leaves) {
+        ScoreDoc[][] perLeafCandidates = new ScoreDoc[leaves.size()][];
+        for (TopDocs td : perLeafResults) {
+            if (td.scoreDocs.length == 0) continue;
+            int leafOrd = ReaderUtil.subIndex(td.scoreDocs[0].doc, leaves);
+            perLeafCandidates[leafOrd] = td.scoreDocs.clone();
+        }
+        return perLeafCandidates;
     }
 }

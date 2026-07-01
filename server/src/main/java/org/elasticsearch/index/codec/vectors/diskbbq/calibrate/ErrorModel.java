@@ -566,12 +566,9 @@ public final class ErrorModel {
      * sample size of a sweep. Allocated once per sweep in {@link #estimateErrorScalingFit}
      * and {@link #estimateMagnitudeModel} and threaded through each sample-size iteration to
      * avoid repeated large array allocations.
-     * <p>
      * Every buffer is fully overwritten before it is read on each call (per the logical
      * lengths {@code nDocs}, {@code actualQueryClusters}, {@code nDocClusters}), so no
      * clearing is needed between invocations and correctness is independent of call order.
-     * {@link WelfordVariance} ({@code moments}) is not scratch — it accumulates the
-     * computation result — and is therefore kept as a fresh per-call local.
      */
     static final class QuantizedErrorScratch {
         // per-dim

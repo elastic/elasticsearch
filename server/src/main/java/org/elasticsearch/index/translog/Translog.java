@@ -1133,6 +1133,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             public Operation next() {
                 return null;
             }
+
         };
 
         /**
@@ -1152,6 +1153,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * Returns the next operation in the snapshot or <code>null</code> if we reached the end.
          */
         Translog.Operation next() throws IOException;
+
+        /**
+         * Returns the next `Translog.Operation` or `Translog.BatchIndex` for translog recovery
+         * Defaults to {@link #next()}
+         */
+        default Translog.Record nextRecord() throws IOException {
+            return next();
+        }
     }
 
     /**
@@ -1192,6 +1201,37 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 } else {
                     filteredOpsCount++;
                 }
+            }
+            return null;
+        }
+
+        @Override
+        public Translog.Record nextRecord() throws IOException {
+            Translog.Record record;
+            while ((record = delegate.nextRecord()) != null) {
+                if (record instanceof Translog.Operation op) {
+                    if (fromSeqNo <= op.seqNo() && op.seqNo() <= toSeqNo) {
+                        return op;
+                    }
+                    filteredOpsCount++;
+                    continue;
+                }
+                final Translog.IndexBatch batch = (Translog.IndexBatch) record;
+                final List<Translog.IndexBatch.Op> inRangeOps = new ArrayList<>(batch.ops().size());
+                for (Translog.IndexBatch.Op o : batch.ops()) {
+                    if (fromSeqNo <= o.seqNo() && o.seqNo() <= toSeqNo) {
+                        inRangeOps.add(o);
+                    } else {
+                        filteredOpsCount++;
+                    }
+                }
+                if (inRangeOps.isEmpty()) {
+                    continue;
+                }
+
+                return inRangeOps.size() == batch.ops().size()
+                    ? batch
+                    : new Translog.IndexBatch(batch.batchData(), batch.primaryTerm(), inRangeOps);
             }
             return null;
         }

@@ -222,6 +222,100 @@ public class TranslogIndexBatchTests extends ESTestCase {
         }
     }
 
+    public void testNextRecordReturnsWholeBatch() throws IOException {
+        final XContentType xContentType = XContentType.JSON;
+        final List<Map<String, Object>> docs = List.of(Map.of("field", "alpha"), Map.of("field", "beta"), Map.of("field", "gamma"));
+        final Translog.IndexBatch batch = buildBatch(docs, xContentType, 0L, primaryTerm.get());
+
+        translog.add(batch);
+
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            final Translog.Record record = snapshot.nextRecord();
+            assertTrue(
+                "expected an IndexBatch, got " + (record == null ? "null" : record.getClass()),
+                record instanceof Translog.IndexBatch
+            );
+            assertEquals(docs.size(), ((Translog.IndexBatch) record).docCount());
+            assertNull(snapshot.nextRecord());
+        }
+    }
+
+    public void testNextRecordNewerGenerationOverwritesOlder() throws IOException {
+        final XContentType xContentType = XContentType.JSON;
+        final long term = primaryTerm.get();
+
+        // Older generation: seqNos 0..2 with "old-*" content.
+        final Translog.IndexBatch older = buildBatch(
+            List.of(Map.of("field", "old-0"), Map.of("field", "old-1"), Map.of("field", "old-2")),
+            xContentType,
+            0L,
+            term
+        );
+        translog.add(older);
+        translog.rollGeneration();
+
+        // Newer generation: the same seqNos 0..2 re-written with "new-*" content (as during resync).
+        final Translog.IndexBatch newer = buildBatch(
+            List.of(Map.of("field", "new-0"), Map.of("field", "new-1"), Map.of("field", "new-2")),
+            xContentType,
+            0L,
+            term
+        );
+        translog.add(newer);
+
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            final Translog.Record record = snapshot.nextRecord();
+            assertTrue(
+                "expected an IndexBatch, got " + (record == null ? "null" : record.getClass()),
+                record instanceof Translog.IndexBatch
+            );
+            final List<Translog.Operation> exploded = ((Translog.IndexBatch) record).explode();
+            assertEquals(3, exploded.size());
+            for (int i = 0; i < exploded.size(); i++) {
+                final Translog.Index idx = (Translog.Index) exploded.get(i);
+                final Map<String, Object> source = XContentHelper.convertToMap(idx.source(), false, xContentType).v2();
+                assertEquals("new-" + i, source.get("field"));
+            }
+            assertNull(snapshot.nextRecord());
+            // Everything from older generation was skipped
+            assertEquals(3, snapshot.skippedOperations());
+        }
+    }
+
+    public void testNextRecordExplodesBatchContainingNoOp() throws IOException {
+        final XContentType xContentType = XContentType.JSON;
+        final List<BytesReference> sources = List.of(new BytesArray("{\"k\":\"row-0\"}"), new BytesArray("{\"k\":\"row-2\"}"));
+        final BytesReference batchData;
+        try (EirfBatch eirf = EirfEncoder.encode(sources, xContentType)) {
+            batchData = new BytesArray(eirf.data().toBytesRef(), true);
+        }
+
+        final long term = primaryTerm.get();
+        final List<Translog.IndexBatch.Op> metas = List.of(
+            new Translog.IndexBatch.IndexOp(1L, 0L, 100L, 0, xContentType, Uid.encodeId("doc-0"), null),
+            new Translog.IndexBatch.NoOpOp(1L, "post-lucene failure"),
+            new Translog.IndexBatch.IndexOp(1L, 2L, 102L, 1, xContentType, Uid.encodeId("doc-2"), null)
+        );
+        translog.add(new Translog.IndexBatch(batchData, term, metas));
+
+        // We explode no-ops, so we will get individual operations instead of a batch
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            final Translog.Record r0 = snapshot.nextRecord();
+            assertTrue("expected exploded Index op, got " + (r0 == null ? "null" : r0.getClass()), r0 instanceof Translog.Index);
+            assertEquals(0L, ((Translog.Index) r0).seqNo());
+
+            final Translog.Record r1 = snapshot.nextRecord();
+            assertTrue("expected exploded NoOp, got " + (r1 == null ? "null" : r1.getClass()), r1 instanceof Translog.NoOp);
+            assertEquals(1L, ((Translog.NoOp) r1).seqNo());
+
+            final Translog.Record r2 = snapshot.nextRecord();
+            assertTrue("expected exploded Index op, got " + (r2 == null ? "null" : r2.getClass()), r2 instanceof Translog.Index);
+            assertEquals(2L, ((Translog.Index) r2).seqNo());
+
+            assertNull(snapshot.nextRecord());
+        }
+    }
+
     public void testInterleavedBatchesAndRegularOps() throws IOException {
         final long term = primaryTerm.get();
         final Translog.Index op0 = new Translog.Index(Uid.encodeId("solo-0"), 0, term, 1L, new BytesArray("{\"k\":\"v0\"}"), null, -1L);

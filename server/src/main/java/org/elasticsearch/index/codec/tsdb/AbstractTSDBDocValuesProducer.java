@@ -2635,7 +2635,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                     int firstClearBit = nextClearBit((doc & numericBlockMask) + 1, matches);
                                     return Math.min((blockId << numericBlockShift) + firstClearBit, maxDoc);
                                 }
-                                return doc + 1;
+                                return doc;
                             }
                         });
                     } else {
@@ -2685,7 +2685,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                     int firstClearBit = nextClearBit((doc & numericBlockMask) + 1, matches);
                                     return Math.min((blockId << numericBlockShift) + firstClearBit, maxDoc);
                                 }
-                                return doc + 1;
+                                return doc;
                             }
                         });
                     }

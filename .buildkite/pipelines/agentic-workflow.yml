@@ -77,17 +77,18 @@ steps:
       esac
 
       # ── Session persistence (spot-instance preemption recovery) ──────────────
-      # PI_AGENT_SESSION_DIR is a step-level env var (see env: block above) so
-      # ${PI_AGENT_SESSION_DIR} is safely expanded by Buildkite at parse time.
-      mkdir -p "${PI_AGENT_SESSION_DIR}"
+      # PI_AGENT_SESSION_DIR is set in the step env: block; Buildkite's ${...}
+      # interpolation only covers build-level vars, so reference it via $$
+      # (which Buildkite passes through as $ for bash to evaluate at runtime).
+      mkdir -p "$$PI_AGENT_SESSION_DIR"
 
       _upload_session() {
         local latest
-        latest=$$(ls -t "${PI_AGENT_SESSION_DIR}"/*.jsonl 2>/dev/null | head -1) || true
+        latest=$$(ls -t "$$PI_AGENT_SESSION_DIR"/*.jsonl 2>/dev/null | head -1) || true
         if [[ -n "$$latest" ]]; then
-          cp "$$latest" "${PI_AGENT_SESSION_DIR}/pi-agent-session.jsonl"
-          buildkite-agent artifact upload "${PI_AGENT_SESSION_DIR}/pi-agent-session.jsonl" 2>/dev/null || true
-          echo "Session artifact uploaded ($$(wc -c < "${PI_AGENT_SESSION_DIR}/pi-agent-session.jsonl") bytes)"
+          cp "$$latest" "$$PI_AGENT_SESSION_DIR/pi-agent-session.jsonl"
+          buildkite-agent artifact upload "$$PI_AGENT_SESSION_DIR/pi-agent-session.jsonl" 2>/dev/null || true
+          echo "Session artifact uploaded ($$(wc -c < "$$PI_AGENT_SESSION_DIR/pi-agent-session.jsonl") bytes)"
         fi
       }
       trap '_upload_session' EXIT
@@ -95,8 +96,8 @@ steps:
 
       if [[ "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
         echo "--- Retry #${BUILDKITE_RETRY_COUNT} — downloading previous session"
-        buildkite-agent artifact download "pi-agent-session.jsonl" "${PI_AGENT_SESSION_DIR}/" 2>/dev/null \
-          && echo "Session downloaded ($$(wc -c < "${PI_AGENT_SESSION_DIR}/pi-agent-session.jsonl") bytes) — will resume" \
+        buildkite-agent artifact download "pi-agent-session.jsonl" "$$PI_AGENT_SESSION_DIR/" 2>/dev/null \
+          && echo "Session downloaded ($$(wc -c < "$$PI_AGENT_SESSION_DIR/pi-agent-session.jsonl") bytes) — will resume" \
           || echo "No previous session artifact found — starting fresh"
       fi
 

@@ -1984,3 +1984,149 @@ a:unsigned_long
 [100, 200]
 [200, 300]
 ;
+
+matchOnRuntimeLongWithFractionalQueryTruncates
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+// A numeric query against a numeric field is coerced to the field's type: 2.9 truncates to 2.
+ROW a = [1, 2, 3]::long
+| MV_EXPAND a
+| WHERE match(a, 2.9)
+| SORT a
+;
+
+a:long
+2
+;
+
+matchOnRuntimeLongWithStringQuery
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW a = [10, 20, 30]::long
+| MV_EXPAND a
+| WHERE match(a, "20")
+| SORT a
+;
+
+a:long
+20
+;
+
+matchOnRuntimeDoubleWithStringQuery
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW a = [1.5, 2.5]
+| MV_EXPAND a
+| WHERE match(a, "2.5")
+;
+
+a:double
+2.5
+;
+
+matchOnRuntimeBooleanWithStringQuery
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW a = [true, false]
+| MV_EXPAND a
+| WHERE match(a, "true")
+;
+
+a:boolean
+true
+;
+
+matchOnRuntimeIntegerBoundary
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW a = [2147483647, 1]::integer
+| MV_EXPAND a
+| WHERE match(a, 2147483647)
+;
+
+a:integer
+2147483647
+;
+
+matchOnRuntimeTextConversionIsAnalyzed
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+// Casting a runtime keyword to text makes match analyze it: the lowercased token "quick" is found.
+ROW phrase = "The Quick Brown Fox"
+| EVAL content = to_text(phrase)
+| WHERE match(content, "quick")
+| KEEP phrase
+;
+
+phrase:keyword
+The Quick Brown Fox
+;
+
+matchOnRuntimeLongWithStringQueryMultiValueAndNull
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+// String query conversion combined with multivalues and a null position.
+ROW a = [10, 20, 30, 40]::long
+| MV_EXPAND a
+| EVAL a = CASE(a == 40, null, a)
+| WHERE match(a, "10") OR match(a, "30")
+| SORT a
+;
+
+a:long
+10
+30
+;
+
+matchOnRuntimeDoubleWithIntegerQuery
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+// Cross-type numeric query: an integer query widens to the double field.
+ROW a = [1.0, 2.0, 3.0]
+| MV_EXPAND a
+| WHERE match(a, 2)
+;
+
+a:double
+2.0
+;
+
+matchOnRuntimeUnsignedLongWithIntegerQuery
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+// A plain integer query is encoded into the unsigned_long representation before matching.
+ROW a = [100, 200, 300]::unsigned_long
+| MV_EXPAND a
+| WHERE match(a, 200)
+;
+
+a:unsigned_long
+200
+;

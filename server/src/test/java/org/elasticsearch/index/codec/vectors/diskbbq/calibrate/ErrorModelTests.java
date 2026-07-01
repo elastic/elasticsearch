@@ -178,6 +178,9 @@ public class ErrorModelTests extends ESTestCase {
         float[][] docWarmStart = null;
         float[][] queryWarmStart = null;
 
+        // Shared scratch sized to the larger of the two sample sizes
+        ErrorModel.QuantizedErrorScratch scratch = new ErrorModel.QuantizedErrorScratch(3072, 8, false, true, false);
+
         ErrorModel.QuantizedErrorComputeResult first = ErrorModel.quantizedRepErrorStdWithCentroids(
             VectorSimilarityFunction.EUCLIDEAN,
             8,
@@ -197,7 +200,8 @@ public class ErrorModelTests extends ESTestCase {
             10,
             kmeans,
             docWarmStart,
-            queryWarmStart
+            queryWarmStart,
+            scratch
         );
         ErrorModel.QuantizedErrorComputeResult second = ErrorModel.quantizedRepErrorStdWithCentroids(
             VectorSimilarityFunction.EUCLIDEAN,
@@ -218,7 +222,8 @@ public class ErrorModelTests extends ESTestCase {
             10,
             kmeans,
             first.docCentroids(),
-            first.queryCentroids()
+            first.queryCentroids(),
+            scratch
         );
 
         assertTrue(Double.isFinite(first.std()));

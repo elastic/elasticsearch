@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.vectors.diskbbq.calibrate;
 
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.core.WelfordVariance;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
@@ -98,7 +99,8 @@ public final class ErrorModel {
         int dbits,
         int k,
         HierarchicalKMeans<float[]> kmeans,
-        float[][] warmStartQueryCentroids
+        float[][] warmStartQueryCentroids,
+        QuantizedErrorScratch scratch
     ) throws IOException {
         int nDocClusters = docCentroids.length;
         if (nDocClusters == 0 || nDocs == 0) {
@@ -120,22 +122,22 @@ public final class ErrorModel {
         }
         int actualQueryClusters = queryCentroids.length;
 
-        double[] centroidDotCentroid = new double[nDocClusters];
+        double[] centroidDotCentroid = scratch.centroidDotCentroid;
         for (int i = 0; i < nDocClusters; i++) {
             centroidDotCentroid[i] = ESVectorUtil.dotProduct(queryCentroids[docCentroidAssignments[i]], docCentroids[i]);
         }
 
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(VectorSimilarityFunction.EUCLIDEAN);
-        float[] residualScratch = new float[dim];
-        float[] normScratch = cosine ? new float[dim] : null;
-        int[] quantizeScratch = new int[dim];
+        float[] residualScratch = scratch.residualScratch;
+        float[] normScratch = scratch.normScratch;
+        int[] quantizeScratch = scratch.quantizeScratch;
 
-        float[] docLower = new float[nDocs];
-        float[] docUpper = new float[nDocs];
-        int[] docL1 = new int[nDocs];
-        byte[][] docQuantized = new byte[nDocs][dim];
-        double[] corpusDotCentroid = new double[nDocs];
-        double[] docDotDoc = sim == VectorSimilarityFunction.EUCLIDEAN ? new double[nDocs] : null;
+        float[] docLower = scratch.docLower;
+        float[] docUpper = scratch.docUpper;
+        int[] docL1 = scratch.docL1;
+        byte[][] docQuantized = scratch.docQuantized;
+        double[] corpusDotCentroid = scratch.corpusDotCentroid;
+        double[] docDotDoc = scratch.docDotDoc;
 
         for (int i = 0; i < nDocs; i++) {
             float[] doc = fvv.vectorValue(corpusOrdinals[i]);
@@ -158,13 +160,18 @@ public final class ErrorModel {
         double dScale = 1.0 / ((1 << dbits) - 1);
         double qScale = 1.0 / ((1 << qbits) - 1);
 
-        float[] queryLower = new float[actualQueryClusters];
-        float[] queryUpper = new float[actualQueryClusters];
-        int[] queryL1 = new int[actualQueryClusters];
-        byte[][] queryQuantized = new byte[actualQueryClusters][dim];
+        float[] queryLower = scratch.queryLower;
+        float[] queryUpper = scratch.queryUpper;
+        int[] queryL1 = scratch.queryL1;
+        byte[][] queryQuantized = scratch.queryQuantized;
 
-        float[] queryScratch = new float[dim];
-        float[] preconditionScratch = preconditioner != null ? new float[dim] : null;
+        float[] queryScratch = scratch.queryScratch;
+        float[] preconditionScratch = scratch.preconditionScratch;
+
+        double[] queryDotCentroid = scratch.queryDotCentroid;
+        double[] simOsq = scratch.simOsq;
+        int[] order = scratch.order;
+
         for (int queryOrdinal : queryOrdinals) {
             CalibrationUtils.materializeCalibrationQuery(
                 querySource,
@@ -186,12 +193,10 @@ public final class ErrorModel {
                 queryL1[qc] = qr.quantizedComponentSum();
             }
 
-            double[] queryDotCentroid = new double[nDocClusters];
             for (int i = 0; i < nDocClusters; i++) {
                 queryDotCentroid[i] = ESVectorUtil.dotProduct(queryScratch, docCentroids[i]);
             }
 
-            double[] simOsq = new double[nDocs];
             for (int i = 0; i < nDocs; i++) {
                 int dc = docAssignments[i];
                 int qc = docCentroidAssignments[dc];
@@ -212,7 +217,6 @@ public final class ErrorModel {
                 simOsq[i] = dotEst;
             }
 
-            int[] order = new int[nDocs];
             sortIndicesByKeysDescending(simOsq, order, nDocs);
 
             int topN = Math.min(5 * k, nDocs);
@@ -254,7 +258,8 @@ public final class ErrorModel {
         int k,
         HierarchicalKMeans<float[]> kmeans,
         float[][] warmStartDocCentroids,
-        float[][] warmStartQueryCentroids
+        float[][] warmStartQueryCentroids,
+        QuantizedErrorScratch scratch
     ) throws IOException {
         KMeansFloatVectorValues corpusVectors = KMeansFloatVectorValues.wrap(fvv, corpusOrdinals, nDocs);
         KMeansWithOverspill<float[]> docClusters = kmeans.cluster(corpusVectors, nDocsPerCluster, warmStartDocCentroids);
@@ -285,7 +290,8 @@ public final class ErrorModel {
             dbits,
             k,
             kmeans,
-            warmStartQueryCentroids
+            warmStartQueryCentroids,
+            scratch
         );
 
         return new QuantizedErrorComputeResult(queryError.std(), centroids, queryError.queryCentroids());
@@ -352,6 +358,15 @@ public final class ErrorModel {
         float[][] warmStartQueryCentroids = null;
         int corpusLength = 0;
 
+        int maxNDocs = Math.min(SAMPLE_SIZES_SCALING[SAMPLE_SIZES_SCALING.length - 1], corpusOrdinals.length);
+        QuantizedErrorScratch scratch = new QuantizedErrorScratch(
+            maxNDocs,
+            dim,
+            cosine,
+            similarityFunction == VectorSimilarityFunction.EUCLIDEAN,
+            preconditioner != null
+        );
+
         for (int i = 0; i < SAMPLE_SIZES_SCALING.length; i++) {
             int sampleSize = SAMPLE_SIZES_SCALING[i];
             if (sampleSize > corpusOrdinals.length) {
@@ -378,7 +393,8 @@ public final class ErrorModel {
                     k,
                     kmeans,
                     warmStartDocCentroids,
-                    warmStartQueryCentroids
+                    warmStartQueryCentroids,
+                    scratch
                 );
                 warmStartDocCentroids = computed.docCentroids();
                 warmStartQueryCentroids = computed.queryCentroids();
@@ -445,8 +461,16 @@ public final class ErrorModel {
         float[][] docWarmStart = scalingFit.lastDocCentroids;
         float[][] queryWarmStart = scalingFit.lastQueryCentroids;
 
-        for (int i = 0; i < SAMPLE_SIZES_MAGNITUDE.length; i++) {
-            int sampleSize = SAMPLE_SIZES_MAGNITUDE[i];
+        int maxNDocs = Math.min(SAMPLE_SIZES_MAGNITUDE[SAMPLE_SIZES_MAGNITUDE.length - 1], corpusOrdinals.length);
+        QuantizedErrorScratch scratch = new QuantizedErrorScratch(
+            maxNDocs,
+            dim,
+            cosine,
+            similarityFunction == VectorSimilarityFunction.EUCLIDEAN,
+            preconditioner != null
+        );
+
+        for (int sampleSize : SAMPLE_SIZES_MAGNITUDE) {
             if (sampleSize > corpusOrdinals.length) {
                 break;
             }
@@ -470,13 +494,14 @@ public final class ErrorModel {
                     k,
                     kmeans,
                     docWarmStart,
-                    queryWarmStart
+                    queryWarmStart,
+                    scratch
                 );
                 docWarmStart = computed.docCentroids();
                 queryWarmStart = computed.queryCentroids();
                 double x = logNDocsPerCluster - Math.log(sampleSize);
                 double y = Math.log(Math.max(computed.std(), 1e-38));
-                state.update(new double[] { x }, new double[] { y });
+                state.update(new double[]{x}, new double[]{y});
             } catch (IOException e) {
                 logger.warn("failed to compute quantization error std for magnitude sample size [{}]", sampleSize, e);
             }
@@ -498,40 +523,114 @@ public final class ErrorModel {
 
         return new QuantizationErrorStdModel(params);
     }
-/**
- * Sorts {@code idx[0..len)} into a permutation of {@code 0..len-1} such that
- * {@code keys[idx[i]]} is non-increasing (descending).
- */
-private static void sortIndicesByKeysDescending(double[] keys, int[] idx, int len) {
-    if (len < 2) {
-        if (len == 1) {
-            idx[0] = 0;
+
+    /**
+     * Sorts {@code idx[0..len)} into a permutation of {@code 0..len-1} such that
+     * {@code keys[idx[i]]} is non-increasing (descending).
+     */
+    private static void sortIndicesByKeysDescending(double[] keys, int[] idx, int len) {
+        if (len < 2) {
+            if (len == 1) {
+                idx[0] = 0;
+            }
+            return;
         }
-        return;
+        for (int i = 0; i < len; i++) {
+            idx[i] = i;
+        }
+        new IntroSorter() {
+            double pivot;
+
+            @Override
+            protected void swap(int i, int j) {
+                int tmp = idx[i];
+                idx[i] = idx[j];
+                idx[j] = tmp;
+            }
+
+            @Override
+            protected void setPivot(int i) {
+                pivot = keys[idx[i]];
+            }
+
+            @Override
+            protected int comparePivot(int j) {
+                // descending: pivot > keys[idx[j]] means pivot should come first
+                return Double.compare(keys[idx[j]], pivot);
+            }
+        }.sort(0, len);
     }
-    for (int i = 0; i < len; i++) {
-        idx[i] = i;
+
+    /**
+     * Reusable scratch buffers for {@link #quantizedRepErrorStd}, sized for the maximum
+     * sample size of a sweep. Allocated once per sweep in {@link #estimateErrorScalingFit}
+     * and {@link #estimateMagnitudeModel} and threaded through each sample-size iteration to
+     * avoid repeated large array allocations.
+     * <p>
+     * Every buffer is fully overwritten before it is read on each call (per the logical
+     * lengths {@code nDocs}, {@code actualQueryClusters}, {@code nDocClusters}), so no
+     * clearing is needed between invocations and correctness is independent of call order.
+     * {@link WelfordVariance} ({@code moments}) is not scratch — it accumulates the
+     * computation result — and is therefore kept as a fresh per-call local.
+     */
+    static final class QuantizedErrorScratch {
+        // per-dim
+        final float[] residualScratch;
+        final float[] queryScratch;
+        final int[] quantizeScratch;
+        /** null unless cosine normalisation is active */
+        final float[] normScratch;
+        /** null unless a preconditioner is provided */
+        final float[] preconditionScratch;
+
+        // per-doc (sized to maxNDocs)
+        final float[] docLower;
+        final float[] docUpper;
+        final int[] docL1;
+        final byte[][] docQuantized;
+        final double[] corpusDotCentroid;
+        /** null unless the similarity function is EUCLIDEAN */
+        final double[] docDotDoc;
+        /** per-query-loop: OSQ estimated similarities, indexed [0..nDocs) */
+        final double[] simOsq;
+        /** per-query-loop: sort permutation over simOsq, indexed [0..nDocs) */
+        final int[] order;
+
+        // per-query-cluster and per-doc-cluster arrays.
+        // Although the target is N_QUERY_CLUSTERS query clusters, k-means can return up to
+        // nDocClusters centroids (e.g. when targetSize=1). nDocClusters is itself bounded by
+        // nDocs <= maxNDocs, so maxNDocs is the safe upper bound for all cluster-count arrays.
+        final float[] queryLower;
+        final float[] queryUpper;
+        final int[] queryL1;
+        final byte[][] queryQuantized;
+        final double[] centroidDotCentroid;
+        /** per-query-loop: query · each doc-centroid, indexed [0..nDocClusters) */
+        final double[] queryDotCentroid;
+
+        QuantizedErrorScratch(int maxNDocs, int dim, boolean cosine, boolean euclidean, boolean hasPreconditioner) {
+            residualScratch = new float[dim];
+            queryScratch = new float[dim];
+            quantizeScratch = new int[dim];
+            normScratch = cosine ? new float[dim] : null;
+            preconditionScratch = hasPreconditioner ? new float[dim] : null;
+
+            docLower = new float[maxNDocs];
+            docUpper = new float[maxNDocs];
+            docL1 = new int[maxNDocs];
+            docQuantized = new byte[maxNDocs][dim];
+            corpusDotCentroid = new double[maxNDocs];
+            docDotDoc = euclidean ? new double[maxNDocs] : null;
+            simOsq = new double[maxNDocs];
+            order = new int[maxNDocs];
+
+            queryLower = new float[maxNDocs];
+            queryUpper = new float[maxNDocs];
+            queryL1 = new int[maxNDocs];
+            queryQuantized = new byte[maxNDocs][dim];
+
+            centroidDotCentroid = new double[maxNDocs];
+            queryDotCentroid = new double[maxNDocs];
+        }
     }
-    new IntroSorter() {
-        double pivot;
-
-        @Override
-        protected void swap(int i, int j) {
-            int tmp = idx[i];
-            idx[i] = idx[j];
-            idx[j] = tmp;
-        }
-
-        @Override
-        protected void setPivot(int i) {
-            pivot = keys[idx[i]];
-        }
-
-        @Override
-        protected int comparePivot(int j) {
-            // descending: pivot > keys[idx[j]] means pivot should come first
-            return Double.compare(keys[idx[j]], pivot);
-        }
-    }.sort(0, len);
-}
 }

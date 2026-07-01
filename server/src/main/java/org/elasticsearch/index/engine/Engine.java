@@ -1018,13 +1018,6 @@ public abstract class Engine implements Closeable {
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
-     */
-    public final SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper) throws EngineException {
-        return acquireSearcherSupplier(wrapper, SearcherScope.EXTERNAL);
-    }
-
     // Called before a {@link Searcher} is created, to allow subclasses to perform any stats or logging operations.
     protected void onSearcherCreation(String source, SearcherScope scope) {}
 
@@ -1033,14 +1026,7 @@ public abstract class Engine implements Closeable {
         return reader;
     }
 
-    /**
-     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
-     */
-    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
-        return acquireSearcherSupplier(wrapper, scope, SplitShardCountSummary.UNSET);
-    }
-
-    public SearcherSupplier acquireSearcherSupplier(
+    public final SearcherSupplier acquireSearcherSupplier(
         Function<Searcher, Searcher> wrapper,
         SearcherScope scope,
         SplitShardCountSummary splitShardCountSummary

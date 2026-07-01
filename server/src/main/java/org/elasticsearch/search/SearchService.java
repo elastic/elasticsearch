@@ -2618,7 +2618,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     if (queryStillMatchesAfterRewrite(canMatchContext.request, queryRewriteContext) == false) {
                         return new CanMatchShardResponse(false, null);
                     }
-                    final Engine.SearcherSupplier searcherSupplier = canMatchContext.getShard().acquireSearcherSupplier();
+                    final Engine.SearcherSupplier searcherSupplier = canMatchContext.getShard()
+                        .acquireExternalSearcherSupplier(canMatchContext.request.getSplitShardCountSummary());
                     if (canMatchContext.request.readerId().sameSearcherIdsAs(searcherSupplier.getSearcherId()) == false) {
                         searcherSupplier.close();
                         return new CanMatchShardResponse(true, null);

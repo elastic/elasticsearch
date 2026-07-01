@@ -193,8 +193,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
             if (storageRegistry.hasProvider(path.scheme()) == false) {
                 return false;
             }
-            // Require a host so a scheme-only location (e.g. "s3://") is not claimed.
-            if (path.host() == null || path.host().isEmpty()) {
+            // Reject a location that names nothing to read — neither an authority nor a path (e.g. "s3://").
+            // A file:// URI has an empty authority but a real absolute path, so it is not rejected here.
+            boolean noHost = path.host() == null || path.host().isEmpty();
+            boolean noPath = path.path() == null || path.path().isEmpty();
+            if (noHost && noPath) {
                 return false;
             }
             String format = FormatNameResolver.resolve(config, "");

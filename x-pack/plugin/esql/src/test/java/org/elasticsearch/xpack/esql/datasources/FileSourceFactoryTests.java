@@ -142,7 +142,7 @@ public class FileSourceFactoryTests extends ESTestCase {
         );
         assertFalse(
             "no storage provider for the scheme -> not claimed even with an explicit format",
-            fileSourceFactory.canHandle("file:///tmp/data", Map.of(FileSourceFactory.CONFIG_FORMAT, "test-parquet"))
+            fileSourceFactory.canHandle("gs://bucket/data", Map.of(FileSourceFactory.CONFIG_FORMAT, "test-parquet"))
         );
     }
 
@@ -164,6 +164,13 @@ public class FileSourceFactoryTests extends ESTestCase {
             fileSourceFactory.canHandle("s3://bucket/logs/", explicitFormat)
         );
         assertTrue("bare authority with an explicit format is claimed", fileSourceFactory.canHandle("s3://bucket", explicitFormat));
+
+        // file:// has an empty authority but a real absolute path; with an explicit format it must be claimed.
+        // Regression: an over-eager host check rejected every file:// URI, breaking extensionless file datasets.
+        assertTrue(
+            "file:// with an empty authority but a real path is claimed",
+            fileSourceFactory.canHandle("file:///opt/data/employees_no_ext", explicitFormat)
+        );
 
         // Regression: a glob already has a non-empty object name ("*") and stays claimed with an explicit format.
         assertTrue("glob with an explicit format is claimed", fileSourceFactory.canHandle("s3://bucket/logs/*", explicitFormat));
@@ -192,6 +199,9 @@ public class FileSourceFactoryTests extends ESTestCase {
         StorageProviderRegistry storageRegistry = new StorageProviderRegistry(Settings.EMPTY);
         StorageProvider stubProvider = new StubStorageProvider();
         storageRegistry.registerFactory("s3", StorageProviderFactory.noConfigKeys(() -> stubProvider));
+        // file:// has an empty authority; registering it lets the tests exercise that shape (a real path,
+        // no host) as well as the s3 host-bearing shape.
+        storageRegistry.registerFactory("file", StorageProviderFactory.noConfigKeys(() -> stubProvider));
 
         return new FileSourceFactory(storageRegistry, formatRegistry, new DecompressionCodecRegistry(), Settings.EMPTY);
     }

@@ -1,0 +1,7 @@
+area: Mapping
+issues:
+ - 152318
+pr: 152405
+summary: Fix empty `DocIdSetIterator` behaviour for `exponential_histogram` field
+  type
+type: bug

@@ -33,17 +33,12 @@ public abstract class AbstractLloydKMeansLocalTestCase<V> extends ESTestCase {
 
     public void testIllegalClustersPerNeighborhood() {
         CentroidOps<V> ops = centroidOps();
-        KMeansLocal<V> kMeansLocal = new LloydKMeansLocalSerial<>(ops, randomInt(), randomInt());
+        KMeansLocal<V> kMeansLocal = new LloydKMeansLocalSerial<>(ops, randomInt(), randomInt(), randomFloat());
         V[] emptyCentroids = ops.newCentroidArrayShallow(0);
         KMeansIntermediate<V> kMeansIntermediate = new KMeansIntermediate<>(emptyCentroids, new int[0], i -> i);
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> kMeansLocal.cluster(
-                buildEmptyVectors(randomInt(1024)),
-                kMeansIntermediate,
-                randomIntBetween(Integer.MIN_VALUE, 1),
-                randomFloat()
-            )
+            () -> kMeansLocal.cluster(buildEmptyVectors(randomInt(1024)), kMeansIntermediate, randomIntBetween(Integer.MIN_VALUE, 1))
         );
         assertThat(ex.getMessage(), containsString("clustersPerNeighborhood must be at least 2"));
     }
@@ -60,7 +55,7 @@ public abstract class AbstractLloydKMeansLocalTestCase<V> extends ESTestCase {
         CentroidOps<V> ops = centroidOps();
         ClusteringVectorValues<V> vectors = generateData(nVectors, dims, nClusters);
         V[] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, ops);
-        LloydKMeansLocal.cluster(vectors, ops, centroids, sampleSize, maxIterations);
+        LloydKMeansLocal.cluster(vectors, ops, centroids, sampleSize, maxIterations, soarLambda);
 
         int[] assignments = new int[vectors.size()];
         int[] assignmentOrdinals = new int[vectors.size()];
@@ -80,8 +75,8 @@ public abstract class AbstractLloydKMeansLocalTestCase<V> extends ESTestCase {
         }
 
         KMeansIntermediate<V> kMeansIntermediate = new KMeansIntermediate<>(centroids, assignments, i -> assignmentOrdinals[i]);
-        KMeansLocal<V> kMeansLocal = new LloydKMeansLocalSerial<>(ops, sampleSize, maxIterations);
-        var result = kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+        KMeansLocal<V> kMeansLocal = new LloydKMeansLocalSerial<>(ops, sampleSize, maxIterations, soarLambda);
+        var result = kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood);
 
         assertEquals(nClusters, centroids.length);
     }
@@ -99,7 +94,7 @@ public abstract class AbstractLloydKMeansLocalTestCase<V> extends ESTestCase {
         int sampleSize = nVectors;
 
         V[] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, ops);
-        LloydKMeansLocal.cluster(vectors, ops, centroids, sampleSize, maxIterations);
+        LloydKMeansLocal.cluster(vectors, ops, centroids, sampleSize, maxIterations, soarLambda);
 
         int[] assignments = new int[nVectors];
         int[] assignmentOrdinals = new int[nVectors];
@@ -119,8 +114,8 @@ public abstract class AbstractLloydKMeansLocalTestCase<V> extends ESTestCase {
         }
 
         KMeansIntermediate<V> kMeansIntermediate = new KMeansIntermediate<>(centroids, assignments, i -> assignmentOrdinals[i]);
-        KMeansLocal<V> kMeansLocal = new LloydKMeansLocalSerial<>(ops, sampleSize, maxIterations);
-        kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+        KMeansLocal<V> kMeansLocal = new LloydKMeansLocalSerial<>(ops, sampleSize, maxIterations, soarLambda);
+        kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood);
 
         assertEquals(nClusters, centroids.length);
         assertCentroidsAreZero(centroids);

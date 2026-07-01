@@ -62,9 +62,9 @@ public final class DeclaredSchemaResolver {
     }
 
     /**
-     * The declared columns as ES|QL attributes, keyed by <b>logical</b> name and in declaration order (a source column
-     * immediately followed by its {@code copy_to} target). Returns an empty list when there is no {@code mappings}
-     * block (role-only declarations contribute no columns).
+     * The declared columns as ES|QL attributes, keyed by <b>logical</b> name and in declaration order. Returns an empty
+     * list when there is no {@code mappings} block (role-only declarations contribute no columns). A {@code copy_to} does
+     * not appear here — it is materialized as an {@code EVAL} above the relation, not a base column.
      */
     public static List<Attribute> declaredAttributes(DatasetMapping mapping) {
         DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
@@ -80,10 +80,10 @@ public final class DeclaredSchemaResolver {
     }
 
     /**
-     * Logical&rarr;physical name map for every declared logical whose name differs from its physical column — a
-     * {@code source} move ({@code L → source}) and a {@code copy_to} target ({@code target → the source's physical}).
-     * Empty when nothing renames or copies. Several logicals may share one physical (copy) — the map is still a
-     * function (logical keys are distinct); only its inverse fans out. {@link PhysicalNames} uses it at the last-mile
+     * Logical&rarr;physical name map for the columns that declare a {@code source} move (logical name &ne; physical
+     * name). Empty when nothing renames. The map is 1:1 (a physical is claimed by at most one logical — validation
+     * enforces it), so its {@link PhysicalNames#inverse} is well-defined. A {@code copy_to} is NOT in this map — it is
+     * an {@code EVAL} above the relation, never a read-path rename. {@link PhysicalNames} uses this at the last-mile
      * reader-facing boundaries; the reader and {@code ColumnMapping} stay rename-agnostic.
      */
     public static Map<String, String> renameMap(DatasetMapping mapping) {
@@ -131,58 +131,39 @@ public final class DeclaredSchemaResolver {
         if (mappings == null || mappings.properties().isEmpty()) {
             return new Overlaid(inferred, inferred);
         }
-        // Logical-keyed (not physical-keyed): several declared logicals may share one physical (a copy), so keying by
-        // physical would last-wins-clobber them. Each declared logical reads a physical column, retyped.
         LinkedHashMap<String, ColSpec> declaredLogicals = declaredLogicalColumns(mappings);
-        // physical column -> logicals reading it, in declaration order (a move emits its logical at the physical's
-        // position, preserving column order; two logicals sharing one physical are both emitted there — a copy).
-        LinkedHashMap<String, List<String>> logicalsByPhysical = new LinkedHashMap<>();
+        // physical (file) name -> the declared logical name + type that overrides it. Exactly 1:1: validation rejects
+        // two columns sharing a physical, and a copy_to is an EVAL above the relation, so it never reaches the resolver.
+        Map<String, String> logicalByPhysical = new LinkedHashMap<>();
+        Map<String, DataType> typeByPhysical = new LinkedHashMap<>();
         for (Map.Entry<String, ColSpec> e : declaredLogicals.entrySet()) {
-            logicalsByPhysical.computeIfAbsent(e.getValue().physical(), k -> new ArrayList<>()).add(e.getKey());
+            logicalByPhysical.put(e.getValue().physical(), e.getKey());
+            typeByPhysical.put(e.getValue().physical(), e.getValue().type());
         }
         Set<String> inferredNames = new HashSet<>(inferred.size());
         for (Attribute a : inferred) {
             inferredNames.add(a.name());
         }
-        // Every physical a declared logical reads must exist in the (authoritative unified) inferred schema.
+        // Every physical a declared column reads must exist in the (authoritative unified) inferred schema.
         if (lenient == false) {
-            List<String> missing = logicalsByPhysical.keySet().stream().filter(p -> inferredNames.contains(p) == false).sorted().toList();
+            List<String> missing = logicalByPhysical.keySet().stream().filter(p -> inferredNames.contains(p) == false).sorted().toList();
             if (missing.isEmpty() == false) {
                 throw new IllegalArgumentException("declared columns not found in the source: " + missing);
             }
         }
-        List<Attribute> output = new ArrayList<>(inferred.size() + declaredLogicals.size());
-        Set<String> emitted = new HashSet<>();
-        // 1. Walk inferred: retype-in-place if declared under its own name; if the physical is consumed by moves/copies
-        // (no logical keeps its name), emit those logicals at its position; otherwise pass the inferred column through.
+        // Walk inferred: a declared column overrides the inferred column of its physical name (renamed to its logical
+        // name, retyped) at that column's position; undeclared inferred columns pass through unchanged.
+        List<Attribute> output = new ArrayList<>(inferred.size());
         for (Attribute a : inferred) {
-            ColSpec asIs = declaredLogicals.get(a.name());
-            if (asIs != null) {
-                output.add(new ReferenceAttribute(Source.EMPTY, null, a.name(), asIs.type()));
-                emitted.add(a.name());
-            } else if (logicalsByPhysical.containsKey(a.name())) {
-                for (String logical : logicalsByPhysical.get(a.name())) {
-                    if (emitted.add(logical)) {
-                        output.add(new ReferenceAttribute(Source.EMPTY, null, logical, declaredLogicals.get(logical).type()));
-                    }
-                }
+            DataType declaredType = typeByPhysical.get(a.name());
+            if (declaredType != null) {
+                output.add(new ReferenceAttribute(Source.EMPTY, null, logicalByPhysical.get(a.name()), declaredType));
             } else {
                 output.add(a);
             }
         }
-        // 2. Copy targets whose source column was kept under its own name (not emitted in step 1), in declaration order.
-        for (Map.Entry<String, ColSpec> e : declaredLogicals.entrySet()) {
-            if (emitted.contains(e.getKey())) {
-                continue;
-            }
-            if (lenient && inferredNames.contains(e.getValue().physical()) == false) {
-                continue; // per-file union-by-name: this file lacks the source column, so skip the logical here.
-            }
-            output.add(new ReferenceAttribute(Source.EMPTY, null, e.getKey(), e.getValue().type()));
-            emitted.add(e.getKey());
-        }
-        // A declared logical whose name collides with a surviving (undeclared) inferred column would produce two output
-        // columns with the same name (e.g. declare logical `y` with source `x` when the file also has an undeclared `y`).
+        // A move whose logical name collides with a surviving (undeclared) inferred column would produce two output
+        // columns with the same name (declare logical `y` with source `x` when the file also has an undeclared `y`).
         // Reject against the authoritative unified schema (lenient == false); PUT cannot catch this — it needs the file.
         if (lenient == false) {
             Set<String> seen = new HashSet<>(output.size());
@@ -194,8 +175,8 @@ public final class DeclaredSchemaResolver {
                 }
             }
         }
-        // Both lists carry LOGICAL names; a source rename / copy is physicalized (with dedup + fan-out) at the reader
-        // boundary via PhysicalNames, so the operator and reconciliation never see physical names.
+        // Both lists carry LOGICAL names; a `source` move is physicalized at the reader boundary via PhysicalNames, so
+        // the operator and reconciliation never see physical names.
         return new Overlaid(output, output);
     }
 

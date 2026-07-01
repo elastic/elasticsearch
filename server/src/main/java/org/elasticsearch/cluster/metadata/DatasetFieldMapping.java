@@ -34,10 +34,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * logical column that receives a copy of this column's value).
  *
  * <p><b>Move vs copy.</b> {@code source} is a <em>move</em>: the physical column becomes this one logical
- * column (the physical name is consumed, 1:1). {@code copy_to} is a <em>copy</em>: this column keeps its own
- * value <em>and</em> the named target also reads it (the physical column feeds several logical columns, N:1) —
- * e.g. {@code "ts": {"type":"date","copy_to":"@timestamp"}} keeps {@code ts} and adds a {@code @timestamp}
- * column. The two compose: a moved column may itself {@code copy_to} a further target.
+ * column (the physical name is consumed, 1:1) — a read-path rename. {@code copy_to} is a <em>copy</em>: this
+ * column keeps its own value <em>and</em> the named target also gets that value — e.g.
+ * {@code "ts": {"type":"date","copy_to":"@timestamp"}} keeps {@code ts} and adds a {@code @timestamp} column.
+ * A copy is not a second read: it is materialized as an {@code EVAL target = source} above the external relation
+ * (in the ES|QL analyzer), so it works for every format and never touches the read path. The two compose: a
+ * moved column may itself {@code copy_to} a further target.
  *
  * <p><b>Binding caveat for text (CSV/TSV) sources:</b> non-strict resolution binds a declared column to the
  * file column of the same physical name (from the header), but strict resolution ({@code dynamic: false})

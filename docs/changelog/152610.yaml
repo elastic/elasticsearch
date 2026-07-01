@@ -1,0 +1,6 @@
+area: Security
+issues:
+ - 152582
+pr: 152610
+summary: Fix stale role cache after invalidation
+type: bug

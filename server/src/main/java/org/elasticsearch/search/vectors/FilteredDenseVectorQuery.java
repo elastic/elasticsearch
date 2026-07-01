@@ -33,11 +33,11 @@ import java.util.Objects;
  */
 public final class FilteredDenseVectorQuery extends Query {
 
-    private final DenseVectorQuery query;
+    private final DenseVectorQuery innerQuery;
     private final Query filter;
 
-    public FilteredDenseVectorQuery(DenseVectorQuery query, Query filter) {
-        this.query = Objects.requireNonNull(query);
+    public FilteredDenseVectorQuery(DenseVectorQuery innerQuery, Query filter) {
+        this.innerQuery = Objects.requireNonNull(innerQuery);
         this.filter = Objects.requireNonNull(filter);
     }
 
@@ -48,12 +48,12 @@ public final class FilteredDenseVectorQuery extends Query {
             return rewrittenFilter;
         }
         if (rewrittenFilter.getClass() == MatchAllDocsQuery.class) {
-            return query;
+            return innerQuery;
         }
         if (rewrittenFilter == filter) {
             return this;
         }
-        return new FilteredDenseVectorQuery(query, rewrittenFilter);
+        return new FilteredDenseVectorQuery(innerQuery, rewrittenFilter);
     }
 
     @Override
@@ -61,7 +61,7 @@ public final class FilteredDenseVectorQuery extends Query {
         BooleanQuery booleanFilter = new BooleanQuery.Builder().add(filter, BooleanClause.Occur.FILTER).build();
         Query rewrittenFilter = searcher.rewrite(booleanFilter);
         Weight filterWeight = rewrittenFilter.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
-        return query.denseVectorWeight(boost, filterWeight);
+        return innerQuery.denseVectorWeight(boost, filterWeight);
     }
 
     @Override
@@ -69,12 +69,12 @@ public final class FilteredDenseVectorQuery extends Query {
         // Delegate straight to the inner query so visitors see the same leaf (and the same
         // DenseVectorQuery.Floats/Bytes instanceof checks succeed) whether or not a filter is
         // present, matching pre-extraction behavior where the filter was never itself visited.
-        query.visit(queryVisitor);
+        innerQuery.visit(queryVisitor);
     }
 
     @Override
     public String toString(String field) {
-        return "FilteredDenseVectorQuery(" + query.toString(field) + ")";
+        return "FilteredDenseVectorQuery(" + innerQuery.toString(field) + ")";
     }
 
     @Override
@@ -82,11 +82,11 @@ public final class FilteredDenseVectorQuery extends Query {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FilteredDenseVectorQuery other = (FilteredDenseVectorQuery) o;
-        return Objects.equals(query, other.query) && Objects.equals(filter, other.filter);
+        return Objects.equals(innerQuery, other.innerQuery) && Objects.equals(filter, other.filter);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, filter);
+        return Objects.hash(innerQuery, filter);
     }
 }

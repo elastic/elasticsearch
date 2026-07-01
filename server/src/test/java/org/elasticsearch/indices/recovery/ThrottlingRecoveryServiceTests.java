@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -552,7 +553,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         ensureListenersWereNotified(listener1, listener2);
     }
 
-    public void testStaleRecordedEntryRemovedOnClusterStateChange() {
+    public void testStaleRecordedEntryRemovedOnClusterStateChangeWithLocalNodeNull() {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
@@ -570,6 +571,42 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         when(event.state()).thenReturn(state);
         when(state.getRoutingNodes()).thenReturn(routingNodes);
         when(routingNodes.node(anyString())).thenReturn(null);
+        service.clusterChanged(event);
+
+        final var recoveryState = newRecoveryState(shardId);
+        final var listener = new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED);
+        service.enqueue(
+            listener,
+            recoveryState,
+            allocationId,
+            stats,
+            l -> l.onRecoveryDone(recoveryState, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+        );
+        taskQueue.runAllRunnableTasks();
+        assertThat(service.currentQueueSize(), equalTo(0));
+        ensureListenersWereNotified(listener);
+    }
+
+    public void testStaleRecordedEntryRemovedOnClusterStateChangeWithShardRelocated() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            newClusterService(10),
+            RecoverySchedulingListener.NOOP
+        );
+        final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
+        final var allocationId = UUIDs.randomBase64UUID();
+
+        assertTrue(service.cancelRecoveries(Map.of(allocationId, shardId)).isEmpty());
+
+        final var event = mock(ClusterChangedEvent.class);
+        final var state = mock(ClusterState.class);
+        final var routingNodes = mock(RoutingNodes.class);
+        final var routingNode = mock(RoutingNode.class);
+        when(event.state()).thenReturn(state);
+        when(state.getRoutingNodes()).thenReturn(routingNodes);
+        when(routingNodes.node(anyString())).thenReturn(routingNode);
+        when(routingNode.getByShardId(shardId)).thenReturn(null);
         service.clusterChanged(event);
 
         final var recoveryState = newRecoveryState(shardId);

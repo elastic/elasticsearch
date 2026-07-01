@@ -52,7 +52,7 @@ public class CancelRecoveriesActionRequestTests extends AbstractWireSerializingT
         for (int i = 0; i < size; i++) {
             cancellations.add(
                 new CancelRecoveriesAction.ShardRecoveryCancellation(
-                    new ShardId("test", UUIDs.randomBase64UUID(), i),
+                    new ShardId(randomIdentifier(), UUIDs.randomBase64UUID(), i),
                     UUIDs.randomBase64UUID(),
                     randomBoolean()
                 )

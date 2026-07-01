@@ -78,13 +78,34 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
      * reading of) the core mapping vocabulary — supporting a new key has to be a deliberate, test-breaking change.
      */
     public void testRejectsCoreMappingsKeysWeDoNotSupport() throws IOException {
-        for (String key : List.of("runtime", "dynamic_templates", "_source", "_routing", "_meta", "_field_names", "subobjects", "_size")) {
+        for (String key : List.of("runtime", "dynamic_templates", "_routing", "_meta", "_field_names", "subobjects", "_size")) {
             String json = "{\"dynamic\":\"true\",\"" + key + "\":{}}";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
                 parser.nextToken(); // advance to START_OBJECT, where parseMappings expects to begin
                 Exception e = expectThrows(Exception.class, () -> DatasetMapping.parseMappings(parser));
                 assertThat("core mappings key [" + key + "] must be rejected", e.getMessage(), containsString(key));
             }
+        }
+    }
+
+    public void testSourceEnabledParsesAndDefaults() throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"dynamic\":\"true\",\"_source\":{\"enabled\":false}}")) {
+            parser.nextToken();
+            DatasetMapping.Mappings m = DatasetMapping.parseMappings(parser);
+            assertEquals(Boolean.FALSE, m.sourceEnabled());
+            assertFalse(m.sourceAvailable());
+        }
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"dynamic\":\"true\"}")) {
+            parser.nextToken();
+            DatasetMapping.Mappings m = DatasetMapping.parseMappings(parser);
+            assertNull("absent _source leaves the knob unset", m.sourceEnabled());
+            assertTrue("unset means available by default", m.sourceAvailable());
+        }
+        // Only [enabled] is supported under _source; other core _source knobs (mode, includes, ...) are rejected.
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"_source\":{\"mode\":\"synthetic\"}}")) {
+            parser.nextToken();
+            Exception e = expectThrows(Exception.class, () -> DatasetMapping.parseMappings(parser));
+            assertThat(e.getMessage(), containsString("_source"));
         }
     }
 

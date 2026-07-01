@@ -129,7 +129,8 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
             String source = randomBoolean() ? null : randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
             properties.put("col_" + i, new DatasetFieldMapping(type, source));
         }
-        return new DatasetMapping.Mappings(dynamic, properties);
+        Boolean sourceEnabled = randomBoolean() ? null : randomBoolean();
+        return new DatasetMapping.Mappings(dynamic, properties, sourceEnabled);
     }
 
     private static Map<String, Object> randomSettings() {

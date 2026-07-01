@@ -74,26 +74,52 @@ public final class DatasetMapping implements Writeable {
      * The {@code mappings} block: an undeclared-column policy and the per-column declarations keyed by logical name.
      * {@code properties} is order-preserving and may be empty (e.g. {@code "mappings": { "dynamic": "false" }}).
      */
-    public record Mappings(Dynamic dynamic, Map<String, DatasetFieldMapping> properties) implements Writeable {
+    /**
+     * @param sourceEnabled {@code _source.enabled}: whether a synthetic {@code _source} is produced for the dataset's
+     *                      rows. {@code null} means unset — the default ({@code true}, source available). Mirrors the
+     *                      core {@code _source} mapping's {@code enabled}, restricted to the read-applicable knob.
+     */
+    public record Mappings(Dynamic dynamic, Map<String, DatasetFieldMapping> properties, @Nullable Boolean sourceEnabled)
+        implements
+            Writeable {
 
         public Mappings {
             Objects.requireNonNull(dynamic, "dynamic must not be null");
             properties = properties == null ? Map.of() : Collections.unmodifiableMap(properties);
         }
 
+        /** Back-compat convenience: a mappings block with no {@code _source} knob (source enabled by default). */
+        public Mappings(Dynamic dynamic, Map<String, DatasetFieldMapping> properties) {
+            this(dynamic, properties, null);
+        }
+
         Mappings(StreamInput in) throws IOException {
-            this(Dynamic.values()[in.readVInt()], in.readOrderedMap(StreamInput::readString, DatasetFieldMapping::new));
+            // The whole DatasetMapping is gated by the dataset_declared_schema transport version (see Dataset), which is
+            // unreleased — so every field, including _source.enabled, ships in that one version; no separate gate needed.
+            this(
+                Dynamic.values()[in.readVInt()],
+                in.readOrderedMap(StreamInput::readString, DatasetFieldMapping::new),
+                in.readOptionalBoolean()
+            );
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(dynamic.ordinal());
             out.writeMap(properties, (o, v) -> v.writeTo(o));
+            out.writeOptionalBoolean(sourceEnabled);
+        }
+
+        /** {@code _source.enabled} resolved to its effective value: {@code true} (available) unless explicitly disabled. */
+        public boolean sourceAvailable() {
+            return sourceEnabled == null || sourceEnabled;
         }
     }
 
     private static final String DYNAMIC = "dynamic";
     private static final String PROPERTIES = "properties";
+    private static final String SOURCE = "_source";
+    private static final String ENABLED = "enabled";
 
     @Nullable
     private final Mappings mappings;
@@ -138,6 +164,7 @@ public final class DatasetMapping implements Writeable {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         Dynamic dynamic = Dynamic.TRUE;
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        Boolean sourceEnabled = null;
         String field = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -156,11 +183,25 @@ public final class DatasetMapping implements Writeable {
                         properties.put(name, DatasetFieldMapping.fromXContent(parser));
                     }
                 }
+            } else if (SOURCE.equals(field)) {
+                // _source: { enabled: <bool> } — the only supported knob (mirrors the core _source mapping, read-side).
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+                XContentParser.Token t;
+                while ((t = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (t == XContentParser.Token.FIELD_NAME) {
+                        String key = parser.currentName();
+                        if (ENABLED.equals(key) == false) {
+                            throw new IllegalArgumentException("unknown [_source] field [" + key + "]; only [enabled] is supported");
+                        }
+                    } else {
+                        sourceEnabled = parser.booleanValue();
+                    }
+                }
             } else {
                 throw new IllegalArgumentException("unknown mappings field [" + field + "]");
             }
         }
-        return new Mappings(dynamic, properties);
+        return new Mappings(dynamic, properties, sourceEnabled);
     }
 
     /** Emits the flat {@code mappings}/{@code timestamp_field}/{@code id_field} keys into an already-open dataset object. */
@@ -175,6 +216,9 @@ public final class DatasetMapping implements Writeable {
                     e.getValue().toXContent(builder, null);
                 }
                 builder.endObject();
+            }
+            if (mappings.sourceEnabled() != null) {
+                builder.startObject(SOURCE).field(ENABLED, mappings.sourceEnabled()).endObject();
             }
             builder.endObject();
         }

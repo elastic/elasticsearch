@@ -175,20 +175,17 @@ public class EventDetector {
      * (smallest p-value), so a single regime boundary is not reported by more than one detector.
      */
     private List<ChangeType> deduplicate(List<ChangeType> events) {
-        Integer[] order = new Integer[events.size()];
-        for (int i = 0; i < order.length; i++) {
-            order[i] = i;
-        }
-        java.util.Arrays.sort(order, Comparator.comparingDouble(i -> events.get(i).logPValue()));
+        List<ChangeType> ordered = new ArrayList<>(events);
+        ordered.sort(Comparator.comparingDouble(ChangeType::logPValue));
 
         List<ChangeType> kept = new ArrayList<>();
         List<ChangeType> classification = new ArrayList<>();
-        for (int i : order) {
-            if (events.get(i).isChange() == false) {
-                classification.add(events.get(i));
+        for (ChangeType event : ordered) {
+            if (event.isChange() == false) {
+                classification.add(event);
                 continue;
             }
-            int cp = events.get(i).changePoint();
+            int cp = event.changePoint();
             boolean tooClose = false;
             for (ChangeType k : kept) {
                 int gap = cp - k.changePoint();
@@ -196,7 +193,7 @@ public class EventDetector {
                     logger.trace(
                         "suppressing event at [{}] with p-value [{}] because it is within [{}] of more significant event at [{}]",
                         cp,
-                        events.get(i).pValue(),
+                        event.pValue(),
                         minSegmentLength,
                         k.changePoint()
                     );
@@ -205,7 +202,7 @@ public class EventDetector {
                 }
             }
             if (tooClose == false) {
-                kept.add(events.get(i));
+                kept.add(event);
             }
         }
         return kept.isEmpty() ? classification : kept;

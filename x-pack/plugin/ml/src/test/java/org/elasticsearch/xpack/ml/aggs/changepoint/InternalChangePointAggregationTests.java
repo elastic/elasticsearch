@@ -35,23 +35,26 @@ public class InternalChangePointAggregationTests extends AbstractWireSerializing
 
     @Override
     protected InternalChangePointAggregation createTestInstance() {
-        return new InternalChangePointAggregation(
-            randomAlphaOfLength(10),
-            Collections.singletonMap("foo", "bar"),
-            randomBoolean()
-                ? List.of()
-                : List.of(new ChangePointBucket(randomAlphaOfLength(10), randomNonNegativeLong(), InternalAggregations.EMPTY)),
-            List.of(
-                randomFrom(
-                    new ChangeType.Stationary(),
-                    new ChangeType.NonStationary(randomDouble(), randomDouble(), randomAlphaOfLength(10)),
-                    new ChangeType.Dip(randomDouble(), randomInt(1000), randomAlphaOfLength(10)),
-                    new ChangeType.Spike(randomDouble(), randomInt(1000), randomAlphaOfLength(10)),
-                    new ChangeType.TrendChange(randomDouble(), randomDouble(), randomInt(1000), randomAlphaOfLength(10)),
-                    new ChangeType.DistributionChange(randomDouble(), randomInt(1000), randomAlphaOfLength(10))
-                )
-            )
-        );
+        int n = randomIntBetween(0, 3);
+        List<ChangeType> changeTypes = new ArrayList<>(n);
+        List<ChangePointBucket> buckets = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            ChangeType c = randomFrom(
+                new ChangeType.Stationary(),
+                new ChangeType.NonStationary(randomDouble(), randomDouble(), randomAlphaOfLength(10)),
+                new ChangeType.Dip(randomDouble(), randomInt(1000), randomAlphaOfLength(10)),
+                new ChangeType.Spike(randomDouble(), randomInt(1000), randomAlphaOfLength(10)),
+                new ChangeType.TrendChange(randomDouble(), randomDouble(), randomInt(1000), randomAlphaOfLength(10)),
+                new ChangeType.DistributionChange(randomDouble(), randomInt(1000), randomAlphaOfLength(10))
+            );
+            changeTypes.add(c);
+            buckets.add(
+                c.isChange() && randomBoolean()
+                    ? new ChangePointBucket(randomAlphaOfLength(10), randomNonNegativeLong(), InternalAggregations.EMPTY)
+                    : null
+            );
+        }
+        return new InternalChangePointAggregation(randomAlphaOfLength(10), Collections.singletonMap("foo", "bar"), buckets, changeTypes);
     }
 
     @Override

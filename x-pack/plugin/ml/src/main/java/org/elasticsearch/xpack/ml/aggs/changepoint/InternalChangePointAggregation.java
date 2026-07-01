@@ -38,6 +38,8 @@ public class InternalChangePointAggregation extends InternalAggregation {
         List<ChangeType> changeTypes
     ) {
         super(name, metadata);
+        assert buckets.size() == changeTypes.size()
+            : "buckets [" + buckets.size() + "] and changeTypes [" + changeTypes.size() + "] must be 1-to-1";
         this.buckets = buckets;
         this.changeTypes = changeTypes;
     }

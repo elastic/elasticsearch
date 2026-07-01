@@ -17,6 +17,7 @@ import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
+import org.elasticsearch.index.codec.vectors.cluster.KMeansWithOverspill;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -114,7 +115,7 @@ public final class ErrorModel {
         } else {
             int targetSize = Math.max(1, nDocClusters / effectiveQueryClusters);
             KMeansFloatVectorValues centroidVectors = KMeansFloatVectorValues.build(Arrays.asList(docCentroids), null, dim);
-            KMeansResult<float[]> queryClustering = kmeans.cluster(centroidVectors, targetSize, warmStartQueryCentroids);
+            KMeansWithOverspill<float[]> queryClustering = kmeans.cluster(centroidVectors, targetSize, warmStartQueryCentroids);
             queryCentroids = queryClustering.centroids();
             docCentroidAssignments = queryClustering.assignments();
         }
@@ -257,7 +258,7 @@ public final class ErrorModel {
         float[][] warmStartQueryCentroids
     ) throws IOException {
         KMeansFloatVectorValues corpusVectors = KMeansFloatVectorValues.wrap(fvv, corpusOrdinals, nDocs);
-        KMeansResult<float[]> docClusters = kmeans.cluster(corpusVectors, nDocsPerCluster, warmStartDocCentroids);
+        KMeansWithOverspill<float[]> docClusters = kmeans.cluster(corpusVectors, nDocsPerCluster, warmStartDocCentroids);
 
         float[][] centroids = docClusters.centroids();
         int[] flatAssignments = docClusters.assignments();

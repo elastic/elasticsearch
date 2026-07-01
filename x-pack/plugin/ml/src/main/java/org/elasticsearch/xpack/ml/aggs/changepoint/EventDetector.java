@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.changepoint;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
@@ -140,7 +141,7 @@ public class EventDetector {
                 double scaleAfter = Math.expm1(Stats.meanRange(dispersion, k, k + magnitudeWindow));
                 double floor = Math.max(0.1 * typicalScale, 1e-10);
                 double magnitudePercent = 100.0 * (scaleAfter - scaleBefore) / Math.max(scaleBefore, floor);
-                String description = String.format("%+.2f%% change in error scale", magnitudePercent);
+                String description = Strings.format("%+.2f%% change in error scale", magnitudePercent);
                 events.add(new ChangeType.DistributionChange(e.logPValue(), valueIndex, description));
             }
         }

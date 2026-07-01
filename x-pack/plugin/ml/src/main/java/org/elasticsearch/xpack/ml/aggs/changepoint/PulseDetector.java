@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.changepoint;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -167,7 +168,7 @@ public class PulseDetector {
                 double baseline = values[e.peak()] - deviation;
                 double magnitudePercent = 100.0 * deviation / Math.max(Math.abs(baseline), scale);
                 // Short description of the size of the peak.
-                String description = String.format("%+.2f%% change from rolling median", magnitudePercent);
+                String description = Strings.format("%+.2f%% change from rolling median", magnitudePercent);
                 pulses.add(
                     e.sign() > 0
                         ? new ChangeType.Spike(logPValue, e.peak(), description)

@@ -83,16 +83,18 @@ public class ParquetColumnExtractorTests extends ESTestCase {
      */
     private ParquetColumnExtractor newFullFileExtractor(StorageObject so) throws IOException {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        ParquetMetadata footer;
+        return new ParquetColumnExtractor(so, reader, loadFooter(so));
+    }
+
+    private ParquetMetadata loadFooter(StorageObject so) throws IOException {
         try (
             ParquetFileReader fr = ParquetFileReader.open(
                 new ParquetStorageObjectAdapter(so, blockFactory.arrowAllocator()),
                 PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
             )
         ) {
-            footer = fr.getFooter();
+            return fr.getFooter();
         }
-        return new ParquetColumnExtractor(so, reader, footer);
     }
 
     public void testRowCount() throws IOException {
@@ -165,15 +167,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     public void testExtractFlatAcrossRowGroupsWithDuplicates() throws IOException {
         byte[] data = writeMultiRowGroupFile(500);
         StorageObject so = createStorageObject(data);
-        ParquetMetadata fullFooter;
-        try (
-            ParquetFileReader fr = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(so, blockFactory.arrowAllocator()),
-                PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
-            )
-        ) {
-            fullFooter = fr.getFooter();
-        }
+        ParquetMetadata fullFooter = loadFooter(so);
         assertTrue("expected multiple row groups", fullFooter.getBlocks().size() >= 2);
 
         long secondRowGroupFirstRow = fullFooter.getBlocks().get(0).getRowCount();
@@ -194,15 +188,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     public void testExtractNullableFlatAcrossRowGroupsWithDuplicateNulls() throws IOException {
         byte[] data = writeNullableIntMultiRowGroupFile(500);
         StorageObject so = createStorageObject(data);
-        ParquetMetadata fullFooter;
-        try (
-            ParquetFileReader fr = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(so, blockFactory.arrowAllocator()),
-                PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
-            )
-        ) {
-            fullFooter = fr.getFooter();
-        }
+        ParquetMetadata fullFooter = loadFooter(so);
         assertTrue("expected multiple row groups", fullFooter.getBlocks().size() >= 2);
 
         long firstNullInSecondRowGroup = nextRowDivisibleByFive(fullFooter.getBlocks().get(0).getRowCount());
@@ -347,15 +333,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     public void testExtractListAcrossRowGroupsWithDuplicates() throws IOException {
         byte[] data = writeMultiRowGroupIntListFile(500);
         StorageObject so = createStorageObject(data);
-        ParquetMetadata fullFooter;
-        try (
-            ParquetFileReader fr = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(so, blockFactory.arrowAllocator()),
-                PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
-            )
-        ) {
-            fullFooter = fr.getFooter();
-        }
+        ParquetMetadata fullFooter = loadFooter(so);
         assertTrue("expected multiple row groups", fullFooter.getBlocks().size() >= 2);
 
         long rowInSecondGroup = fullFooter.getBlocks().get(0).getRowCount() + 1;
@@ -388,15 +366,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         // never touched" assertion.
         byte[] data = writeMultiRowGroupFile(2000);
         TrackingStorageObject so = new TrackingStorageObject(data);
-        ParquetMetadata fullFooter;
-        try (
-            ParquetFileReader fr = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(so, blockFactory.arrowAllocator()),
-                PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
-            )
-        ) {
-            fullFooter = fr.getFooter();
-        }
+        ParquetMetadata fullFooter = loadFooter(so);
         // Sanity check: the writer's small budget produces multiple row groups so there is a
         // real opportunity to skip groups.
         assertTrue("expected multiple row groups, got " + fullFooter.getBlocks().size(), fullFooter.getBlocks().size() >= 3);
@@ -482,15 +452,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
      */
     public void testExtractMultipleColumnsCoalescesIO() throws IOException {
         byte[] data = writeMixedTypeMultiRowGroupFile(2000);
-        ParquetMetadata fullFooter;
-        try (
-            ParquetFileReader fr = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(new TrackingStorageObject(data), blockFactory.arrowAllocator()),
-                PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
-            )
-        ) {
-            fullFooter = fr.getFooter();
-        }
+        ParquetMetadata fullFooter = loadFooter(new TrackingStorageObject(data));
         assertTrue("expected multiple row groups, got " + fullFooter.getBlocks().size(), fullFooter.getBlocks().size() >= 3);
 
         // Pick three survivors spread across row groups so the multi-column path has to visit
@@ -559,15 +521,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
      */
     public void testExtractDispatchesPrefetchesInParallel() throws Exception {
         byte[] data = writeMultiRowGroupFile(2000);
-        ParquetMetadata fullFooter;
-        try (
-            ParquetFileReader fr = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(new TrackingStorageObject(data), blockFactory.arrowAllocator()),
-                PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
-            )
-        ) {
-            fullFooter = fr.getFooter();
-        }
+        ParquetMetadata fullFooter = loadFooter(new TrackingStorageObject(data));
         assertTrue("expected at least 3 row groups", fullFooter.getBlocks().size() >= 3);
 
         // Survivors landing in three distinct row groups → three buckets → three prefetches.

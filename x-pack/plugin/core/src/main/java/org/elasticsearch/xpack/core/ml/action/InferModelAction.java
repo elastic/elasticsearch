@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -34,8 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.core.Strings.format;
-
 public class InferModelAction extends ActionType<InferModelAction.Response> {
     public static final String NAME = "cluster:internal/xpack/ml/inference/infer";
     public static final String EXTERNAL_NAME = "cluster:monitor/xpack/ml/inference/infer";
@@ -47,7 +45,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         super(name);
     }
 
-    public static class Request extends LegacyActionRequest {
+    public static class Request extends UntypedActionRequest {
 
         public static final ParseField ID = new ParseField("id");
         public static final ParseField DEPLOYMENT_ID = new ParseField("deployment_id");

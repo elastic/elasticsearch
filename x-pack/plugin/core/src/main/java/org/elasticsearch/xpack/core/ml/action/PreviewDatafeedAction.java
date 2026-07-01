@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,7 +35,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalLong;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.DatafeedParams.parseDateOrThrow;
 import static org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.END_TIME;
 import static org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.START_TIME;
@@ -49,7 +48,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
         super(NAME);
     }
 
-    public static class Request extends LegacyActionRequest implements ToXContentObject {
+    public static class Request extends UntypedActionRequest implements ToXContentObject {
 
         private static final String BLANK_ID = "";
 

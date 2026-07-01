@@ -289,6 +289,49 @@ public class SplitStatsTests extends ESTestCase {
         }
     }
 
+    /**
+     * TRIPWIRE linking the two extremum-merge implementations: the fold-time {@link SplitStats#fold} (uses the
+     * stored servable bit) and the serve-time {@link MergedSplitStats} (re-derives poison from a null-count
+     * heuristic). They share the {@code mergedMin}/{@code mergedMax} law but implement the poison POLICY twice; a
+     * future SUM/AVG or a heuristic tweak could silently diverge the serve path from the fold path. On realistic
+     * per-file children -- every child HAS the column, each either servable, all-null, or poisoned (never the
+     * unrealistic present-values-but-no-servable-min state where the two correctly differ by granularity) -- the
+     * two paths MUST agree on columnMin/columnMax (and the counts). Enforces the "argued-benign" split as tested.
+     */
+    public void testMergedSplitStatsMatchesFoldOnRealisticChildren() {
+        for (int trial = 0; trial < 400; trial++) {
+            int n = randomIntBetween(2, 5);
+            List<SplitStats> children = new ArrayList<>();
+            for (int i = 0; i < n; i++) {
+                long rows = randomIntBetween(1, 100);
+                SplitStats.Builder b = new SplitStats.Builder().rowCount(rows);
+                int c = b.addColumn("c");
+                switch (randomIntBetween(0, 2)) {
+                    case 0 -> { // servable: has non-null values (nc < rows) and a min/max
+                        b.nullCount(c, randomIntBetween(0, (int) rows - 1));
+                        b.min(c, randomExtremum());
+                        b.max(c, randomExtremum());
+                    }
+                    case 1 -> // all-null: every row null, no extremum, not poisoned
+                        b.nullCount(c, rows);
+                    default -> { // poisoned: has values (nc < rows) but the extremum was cleared
+                        b.nullCount(c, randomIntBetween(0, (int) rows - 1));
+                        b.minUnservable(c);
+                        b.maxUnservable(c);
+                    }
+                }
+                children.add(b.build());
+            }
+            SplitStats folded = SplitStats.fold(children, randomBoolean());
+            MergedSplitStats merged = new MergedSplitStats(List.copyOf(children));
+            String ctx = "children=" + children;
+            assertEquals("columnMin fold vs MergedSplitStats: " + ctx, folded.columnMin("c"), merged.columnMin("c"));
+            assertEquals("columnMax fold vs MergedSplitStats: " + ctx, folded.columnMax("c"), merged.columnMax("c"));
+            assertEquals("columnNullCount fold vs MergedSplitStats: " + ctx, folded.columnNullCount("c"), merged.columnNullCount("c"));
+            assertEquals("rowCount fold vs MergedSplitStats: " + ctx, folded.rowCount(), merged.rowCount());
+        }
+    }
+
     /** A random extremum value spanning the fold-relevant types: int / long / double / NaN. */
     private Object randomExtremum() {
         return switch (randomIntBetween(0, 3)) {

@@ -74,9 +74,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private final List<Expression> pushedExpressions; // NOT serialized - ESQL expressions for per-file re-translation
     private final int pushedLimit; // NOT serialized, set locally on data nodes
     /**
-     * Transient hint that the data above this source is a STATS aggregation followed by a TopN over a single
-     * grouping key. When present, the {@link BlockHash} can prune non-competitive groups during aggregation.
-     * NOT serialized; set locally on each node by {@code PushTopNIntoExternalSource}.
+     * Transient hint that the data above this source is a STATS aggregation followed by a TopN over one or
+     * more grouping keys. When present, the {@link BlockHash} can prune non-competitive groups during
+     * aggregation based on the primary sort key. NOT serialized; set locally on each node by
+     * {@code PushTopNIntoExternalSource}.
      */
     @Nullable
     private final BlockHash.TopNDef pushedTopN;
@@ -896,15 +897,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             sb.append("[limit=").append(pushedLimit).append("]");
         }
         if (pushedTopN != null) {
-            sb.append("[topN=order:")
-                .append(pushedTopN.order())
-                .append(",asc:")
-                .append(pushedTopN.asc())
-                .append(",nullsFirst:")
-                .append(pushedTopN.nullsFirst())
-                .append(",limit:")
-                .append(pushedTopN.limit())
-                .append("]");
+            sb.append("[topN=keys:").append(pushedTopN.sortKeys().size()).append(",limit:").append(pushedTopN.limit()).append("]");
         }
         if (splits.isEmpty() == false) {
             sb.append("[splits=").append(splits.size()).append("]");

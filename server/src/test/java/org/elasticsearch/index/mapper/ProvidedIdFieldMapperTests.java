@@ -16,6 +16,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndicesService;
@@ -186,5 +187,32 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_id").field("mode", "document").endObject()));
         IdLoader idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
         assertThat(idLoader, instanceOf(IdLoader.StoredIdLoader.class));
+    }
+
+    public void testStrictColumnarModesRejectExplicitDocumentId() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(settings, topMapping(b -> b.startObject("_id").field("mode", "document").endObject()))
+            );
+            assertThat(e.getMessage(), containsString("_id mode [document] is not allowed in index using [" + indexMode + "]"));
+        }
+    }
+
+    public void testStrictColumnarModesRejectColumnarIdDisabledByDefault() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), indexMode.getName())
+                .put("index.mapping.use_columnar_id_mode_by_default", false)
+                .build();
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(settings, mapping(b -> {}))
+            );
+            assertThat(e.getMessage(), containsString("_id mode [document] is not allowed in index using [" + indexMode + "]"));
+        }
     }
 }

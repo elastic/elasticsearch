@@ -501,11 +501,17 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 directoryBytesRead
             );
         } else {
+            // A no-limit scan (e.g. STATS) visits every matching doc, so it shares the cost-threshold rule with count and
+            // TopN: cheap -> SEGMENT, scan-heavy -> DOC (implicit-limit stays SHARD; time-series keeps its own strategy).
+            long minCostForDoc = (long) taskConcurrency * context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE);
+            var autoStrategy = context.timeSeries()
+                ? context.autoPartitioningStrategy()
+                : LuceneSourceOperator.Factory.autoStrategy(minCostForDoc);
             luceneFactory = new LuceneSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.queryBuilderAndTags()),
                 context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
-                context.autoPartitioningStrategy(),
+                autoStrategy,
                 context.queryPragmas().docsThresholdForAutoPartitioning(plannerSettings.docsThresholdForAutoPartitioning()),
                 taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),

@@ -21,7 +21,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -112,24 +111,16 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                     return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
                 }
             }
-            // A costly-to-build clause in the filter (point range, multi-term) -> keep whole segments: sub-segment DOC
-            // slices would each pay the full-segment scorer-build cost (BKD/automaton iterate in value order).
-            if (LuceneSourceOperator.Factory.containsCostlyClause(query)) {
-                return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
-            }
-            // Low-cost query -> not enough work to amortize DOC's per-slice overhead.
-            Weight weight = ctx.searcher().createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
-            long cost = 0;
-            for (LeafReaderContext leaf : leaves) {
-                var scorerSupplier = weight.scorerSupplier(leaf);
-                if (scorerSupplier != null) {
-                    cost += scorerSupplier.cost();
-                    if (cost >= minCostForDoc) {
-                        break;
-                    }
-                }
-            }
-            return cost < minCostForDoc ? LuceneSliceQueue.PartitioningStrategy.SEGMENT : LuceneSliceQueue.PartitioningStrategy.DOC;
+            // Past the sort short-circuits, share the AUTO decision with the source and count operators: a field sort must
+            // examine every matching doc (no early termination), so a costly clause -> SEGMENT and a cheap query -> SEGMENT
+            // (below the threshold DOC's per-slice overhead isn't amortized); otherwise the sort is a full scan -> DOC.
+            return LuceneSourceOperator.Factory.autoPartitioning(
+                ctx,
+                query,
+                LuceneSliceQueue.PartitioningStrategy.DOC, // matchAll: a field sort must scan every doc
+                minCostForDoc,
+                LuceneSliceQueue.PartitioningStrategy.SEGMENT // cheap / empty
+            );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

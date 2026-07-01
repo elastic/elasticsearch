@@ -108,7 +108,12 @@ public class LocalFileAccess {
         if (enabled == false) {
             throw new IllegalArgumentException(LOCAL_DISK_DISABLED_MESSAGE);
         }
-        Path resolved = PathUtils.get(allowedRoots, path.localPath());
+        // For a glob location (e.g. file:///dir/*.parquet) the raw path is not a valid filesystem path —
+        // resolving it would throw InvalidPathException on filesystems that reject glob metacharacters
+        // (notably the Windows mock FS used in tests). Mirror LocalStorageProvider.toFilePath and validate the
+        // longest non-glob prefix directory instead; patternPrefix() preserves any ".." so escapes are still caught.
+        String localPath = path.isPattern() ? path.patternPrefix().localPath() : path.localPath();
+        Path resolved = PathUtils.get(allowedRoots, localPath);
         if (resolved == null) {
             throw new IllegalArgumentException(PATH_OUTSIDE_ALLOWLIST_PREFIX + path);
         }

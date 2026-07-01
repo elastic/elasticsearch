@@ -122,6 +122,43 @@ public class LocalFileAccessTests extends ESTestCase {
         access.check(StoragePath.of("file://" + file2.toAbsolutePath()));
     }
 
+    // --- Glob patterns ---
+
+    public void testGlobUnderAllowedRootSucceeds() {
+        Path allowed = createTempDir();
+        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
+        LocalFileAccess access = LocalFileAccess.create(settings);
+
+        // A glob location must validate its non-glob prefix directory, not the raw "*.parquet" path
+        // (which would throw InvalidPathException on filesystems that reject glob metacharacters).
+        access.check(StoragePath.of("file://" + allowed.toAbsolutePath() + "/*.parquet"));
+        access.check(StoragePath.of("file://" + allowed.toAbsolutePath() + "/sub/data-*.csv"));
+    }
+
+    public void testGlobWhosePrefixEscapesRootRejected() {
+        Path allowed = createTempDir();
+        Path sibling = createTempDir();
+        Settings settings = Settings.builder().putList("esql.datasource.local_allowed_paths", allowed.toString()).build();
+        LocalFileAccess access = LocalFileAccess.create(settings);
+
+        // The glob prefix resolves outside the allowed root via ".." — must be rejected, not crash.
+        String traversalGlob = allowed.toAbsolutePath() + "/../" + sibling.getFileName() + "/*.parquet";
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> access.check(StoragePath.of("file://" + traversalGlob))
+        );
+        assertThat(e.getMessage(), containsString("esql.datasource.local_allowed_paths"));
+    }
+
+    public void testGlobRejectedWhenDisabled() {
+        LocalFileAccess access = LocalFileAccess.create(Settings.EMPTY);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> access.check(StoragePath.of("file:///some/dir/*.parquet"))
+        );
+        assertThat(e.getMessage(), containsString("esql.datasource.local_allowed_paths"));
+    }
+
     // --- UNRESTRICTED sentinel ---
 
     public void testUnrestrictedAllowsAnything() {

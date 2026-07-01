@@ -26,11 +26,21 @@ public class ExternalDistributedClusters {
     static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {
         return Clusters.testCluster(spec -> {
             spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES);
+            // This suite force-enables the umbrella feature so its external tests run even in release builds. The
+            // file:// and http(s):// schemes are each gated by their own sub-flag (scheme registration depends on
+            // them), so enable both or those reads hit "No storage provider registered for scheme: …".
+            spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_LOCAL);
+            spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_HTTP);
             spec.plugin("inference-service-test");
             spec.module("repository-s3");
             spec.module("repository-gcs");
             spec.setting("xpack.ml.enabled", "false");
             spec.setting("path.repo", FixtureUtils.pathRepoRootForIcebergFixtures(ExternalDistributedClusters.class));
+            // file:// fixtures live under the iceberg-fixtures root (not csvDataPath), so the allowlist must point here.
+            spec.setting(
+                "esql.datasource.local_allowed_paths",
+                FixtureUtils.pathRepoRootForIcebergFixtures(ExternalDistributedClusters.class)
+            );
             spec.setting("s3.client.default.endpoint", s3EndpointSupplier);
             spec.keystore("s3.client.default.access_key", ACCESS_KEY);
             spec.keystore("s3.client.default.secret_key", SECRET_KEY);

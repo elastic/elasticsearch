@@ -259,14 +259,14 @@ public class WellKnownBinary {
         out.write(scratch.order() == ByteOrder.BIG_ENDIAN ? 0 : 1);
         switch (type) {
             case "point" -> writeWKBPoint(stream, out, scratch, explicitZ, validator);
-            case "multipoint" -> writeWKBMultiPoint(stream, out, scratch, validator);
-            case "linestring" -> writeWKBLineString(stream, out, scratch, validator);
-            case "multilinestring" -> writeWKBMultiLineString(stream, out, scratch, validator);
-            case "polygon" -> writeWKBPolygon(stream, out, scratch, coerce, validator);
-            case "multipolygon" -> writeWKBMultiPolygon(stream, out, scratch, coerce, validator);
-            case "geometrycollection" -> writeWKBGeometryCollection(stream, out, scratch, coerce, depth, validator);
-            case "circle" -> writeWKBCircle(stream, out, scratch, validator);
-            case "bbox" -> writeWKBBBox(stream, out, scratch, validator);
+            case "multipoint" -> writeWKBMultiPoint(stream, out, scratch, explicitZ, validator);
+            case "linestring" -> writeWKBLineString(stream, out, scratch, explicitZ, validator);
+            case "multilinestring" -> writeWKBMultiLineString(stream, out, scratch, explicitZ, validator);
+            case "polygon" -> writeWKBPolygon(stream, out, scratch, coerce, explicitZ, validator);
+            case "multipolygon" -> writeWKBMultiPolygon(stream, out, scratch, coerce, explicitZ, validator);
+            case "geometrycollection" -> writeWKBGeometryCollection(stream, out, scratch, coerce, depth, explicitZ, validator);
+            case "circle" -> writeWKBCircle(stream, out, scratch, explicitZ, validator);
+            case "bbox" -> writeWKBBBox(stream, out, scratch, explicitZ, validator);
             default -> throw new ParseException("Unknown geometry type: " + type, stream.lineno());
         }
     }
@@ -303,6 +303,7 @@ public class WellKnownBinary {
         StreamTokenizer stream,
         ByteArrayOutputStream out,
         ByteBuffer scratch,
+        boolean explicitZ,
         GeometryValidator validator
     ) throws IOException, ParseException {
         if (WellKnownText.nextEmptyOrOpen(stream).equals(WellKnownText.EMPTY)) {
@@ -311,6 +312,7 @@ public class WellKnownBinary {
             return;
         }
         CoordsList coords = wktReadCoordinates(stream, validator);
+        WellKnownText.checkZorMAttribute(explicitZ, coords.hasZ());
         writeInt(out, scratch, coords.hasZ() ? 1002 : 2);
         writeInt(out, scratch, coords.size());
         writeCoordinateList(out, scratch, coords);
@@ -321,6 +323,7 @@ public class WellKnownBinary {
         ByteArrayOutputStream out,
         ByteBuffer scratch,
         boolean coerce,
+        boolean explicitZ,
         GeometryValidator validator
     ) throws IOException, ParseException {
         if (WellKnownText.nextEmptyOrOpen(stream).equals(WellKnownText.EMPTY)) {
@@ -336,6 +339,12 @@ public class WellKnownBinary {
             rings.add(wktReadRing(stream, coerce, validator));
         }
         boolean hasZ = rings.isEmpty() == false && rings.get(0).hasZ();
+        for (CoordsList ring : rings) {
+            if (ring.hasZ() != hasZ) {
+                throw new IllegalArgumentException("holes must have the same number of dimensions as the polygon");
+            }
+        }
+        WellKnownText.checkZorMAttribute(explicitZ, hasZ);
         writeInt(out, scratch, hasZ ? 1003 : 3);
         writeInt(out, scratch, rings.size());
         for (CoordsList ring : rings) {
@@ -348,6 +357,7 @@ public class WellKnownBinary {
         StreamTokenizer stream,
         ByteArrayOutputStream out,
         ByteBuffer scratch,
+        boolean explicitZ,
         GeometryValidator validator
     ) throws IOException, ParseException {
         if (WellKnownText.nextEmptyOrOpen(stream).equals(WellKnownText.EMPTY)) {
@@ -357,6 +367,7 @@ public class WellKnownBinary {
         }
         CoordsList coords = wktReadCoordinates(stream, validator);
         boolean hasZ = coords.hasZ();
+        WellKnownText.checkZorMAttribute(explicitZ, hasZ);
         writeInt(out, scratch, hasZ ? 1004 : 4);
         writeInt(out, scratch, coords.size());
         byte byteOrderByte = (byte) (scratch.order() == ByteOrder.BIG_ENDIAN ? 0 : 1);
@@ -375,6 +386,7 @@ public class WellKnownBinary {
         StreamTokenizer stream,
         ByteArrayOutputStream out,
         ByteBuffer scratch,
+        boolean explicitZ,
         GeometryValidator validator
     ) throws IOException, ParseException {
         if (WellKnownText.nextEmptyOrOpen(stream).equals(WellKnownText.EMPTY)) {
@@ -383,15 +395,17 @@ public class WellKnownBinary {
             return;
         }
         List<CoordsList> lines = new ArrayList<>();
-        boolean hasZ = false;
         CoordsList firstLine = wktReadLineStringCoords(stream, validator);
         lines.add(firstLine);
-        if (firstLine.hasZ()) hasZ = true;
+        boolean hasZ = firstLine.hasZ();
         while (WellKnownText.nextCloserOrComma(stream).equals(WellKnownText.COMMA)) {
             CoordsList line = wktReadLineStringCoords(stream, validator);
             lines.add(line);
-            if (line.hasZ()) hasZ = true;
+            if (line.hasZ() != hasZ) {
+                throw new IllegalArgumentException("all elements of the collection should have the same number of dimension");
+            }
         }
+        WellKnownText.checkZorMAttribute(explicitZ, hasZ);
         writeInt(out, scratch, hasZ ? 1005 : 5);
         writeInt(out, scratch, lines.size());
         byte byteOrderByte = (byte) (scratch.order() == ByteOrder.BIG_ENDIAN ? 0 : 1);
@@ -408,6 +422,7 @@ public class WellKnownBinary {
         ByteArrayOutputStream out,
         ByteBuffer scratch,
         boolean coerce,
+        boolean explicitZ,
         GeometryValidator validator
     ) throws IOException, ParseException {
         if (WellKnownText.nextEmptyOrOpen(stream).equals(WellKnownText.EMPTY)) {
@@ -416,15 +431,18 @@ public class WellKnownBinary {
             return;
         }
         List<List<CoordsList>> polygons = new ArrayList<>();
-        boolean hasZ = false;
         List<CoordsList> firstPolygon = wktReadPolygonRings(stream, coerce, validator);
         polygons.add(firstPolygon);
-        if (firstPolygon.isEmpty() == false && firstPolygon.get(0).hasZ()) hasZ = true;
+        boolean hasZ = firstPolygon.isEmpty() == false && firstPolygon.get(0).hasZ();
         while (WellKnownText.nextCloserOrComma(stream).equals(WellKnownText.COMMA)) {
             List<CoordsList> polygon = wktReadPolygonRings(stream, coerce, validator);
             polygons.add(polygon);
-            if (polygon.isEmpty() == false && polygon.get(0).hasZ()) hasZ = true;
+            boolean polygonHasZ = polygon.isEmpty() == false && polygon.get(0).hasZ();
+            if (polygonHasZ != hasZ) {
+                throw new IllegalArgumentException("all elements of the collection should have the same number of dimension");
+            }
         }
+        WellKnownText.checkZorMAttribute(explicitZ, hasZ);
         writeInt(out, scratch, hasZ ? 1006 : 6);
         writeInt(out, scratch, polygons.size());
         byte byteOrderByte = (byte) (scratch.order() == ByteOrder.BIG_ENDIAN ? 0 : 1);
@@ -445,6 +463,7 @@ public class WellKnownBinary {
         ByteBuffer scratch,
         boolean coerce,
         int depth,
+        boolean explicitZ,
         GeometryValidator validator
     ) throws IOException, ParseException {
         if (WellKnownText.nextEmptyOrOpen(stream).equals(WellKnownText.EMPTY)) {
@@ -456,19 +475,21 @@ public class WellKnownBinary {
             throw new ParseException("maximum nested depth of " + WellKnownText.MAX_NESTED_DEPTH + " exceeded", stream.lineno());
         }
         List<byte[]> subGeometries = new ArrayList<>();
-        boolean hasZ = false;
         ByteArrayOutputStream subOut = new ByteArrayOutputStream();
         writeWKBGeometry(stream, subOut, scratch, coerce, depth + 1, validator);
         byte[] subBytes = subOut.toByteArray();
         subGeometries.add(subBytes);
-        hasZ |= wkbTypeHasZ(subBytes);
+        boolean hasZ = wkbTypeHasZ(subBytes);
         while (WellKnownText.nextCloserOrComma(stream).equals(WellKnownText.COMMA)) {
             subOut = new ByteArrayOutputStream();
             writeWKBGeometry(stream, subOut, scratch, coerce, depth + 1, validator);
             subBytes = subOut.toByteArray();
             subGeometries.add(subBytes);
-            hasZ |= wkbTypeHasZ(subBytes);
+            if (wkbTypeHasZ(subBytes) != hasZ) {
+                throw new IllegalArgumentException("all elements of the collection should have the same number of dimension");
+            }
         }
+        WellKnownText.checkZorMAttribute(explicitZ, hasZ);
         writeInt(out, scratch, hasZ ? 1007 : 7);
         writeInt(out, scratch, subGeometries.size());
         for (byte[] subGeom : subGeometries) {
@@ -476,8 +497,13 @@ public class WellKnownBinary {
         }
     }
 
-    private static void writeWKBCircle(StreamTokenizer stream, ByteArrayOutputStream out, ByteBuffer scratch, GeometryValidator validator)
-        throws IOException, ParseException {
+    private static void writeWKBCircle(
+        StreamTokenizer stream,
+        ByteArrayOutputStream out,
+        ByteBuffer scratch,
+        boolean explicitZ,
+        GeometryValidator validator
+    ) throws IOException, ParseException {
         if (WellKnownText.nextEmptyOrOpen(stream).equals(WellKnownText.EMPTY)) {
             throw new IllegalArgumentException("Empty CIRCLE cannot be represented in WKB");
         }
@@ -492,6 +518,7 @@ public class WellKnownBinary {
         WellKnownText.nextCloser(stream);
         validator.validateCoordinate(x, y, z);
         boolean hasZ = Double.isNaN(z) == false;
+        WellKnownText.checkZorMAttribute(explicitZ, hasZ);
         // WKB circle format: type x y [z] r — z comes before radius
         writeInt(out, scratch, hasZ ? 1017 : 17);
         writeDouble(out, scratch, x);
@@ -502,8 +529,13 @@ public class WellKnownBinary {
         writeDouble(out, scratch, r);
     }
 
-    private static void writeWKBBBox(StreamTokenizer stream, ByteArrayOutputStream out, ByteBuffer scratch, GeometryValidator validator)
-        throws IOException, ParseException {
+    private static void writeWKBBBox(
+        StreamTokenizer stream,
+        ByteArrayOutputStream out,
+        ByteBuffer scratch,
+        boolean explicitZ,
+        GeometryValidator validator
+    ) throws IOException, ParseException {
         if (WellKnownText.nextEmptyOrOpen(stream).equals(WellKnownText.EMPTY)) {
             throw new IllegalArgumentException("Empty ENVELOPE cannot be represented in WKB");
         }
@@ -518,6 +550,7 @@ public class WellKnownBinary {
         WellKnownText.nextCloser(stream);
         validator.validateCoordinate(minX, minY, Double.NaN);
         validator.validateCoordinate(maxX, maxY, Double.NaN);
+        WellKnownText.checkZorMAttribute(explicitZ, false);
         writeInt(out, scratch, 18);
         writeDouble(out, scratch, minX);
         writeDouble(out, scratch, maxX);

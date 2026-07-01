@@ -24,6 +24,7 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.ByteOrder;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -196,6 +197,38 @@ public class WKBTests extends ESTestCase {
 
     public void testFromWKTRectangle() throws Exception {
         assertFromWKT(GeometryTestUtils.randomRectangle());
+    }
+
+    public void testFromWKTLineStringZWithOnly2D() {
+        assertFromWKTRejectsLikeGeometryPath("LINESTRING Z (0 0, 1 1)");
+    }
+
+    public void testFromWKTPolygonMixedShellAndHoleDimension() {
+        assertFromWKTRejectsLikeGeometryPath("POLYGON ((0 0, 0 3, 3 3, 3 0, 0 0), (1 1 1, 1 2 1, 2 2 1, 2 1 1, 1 1 1))");
+    }
+
+    public void testFromWKTMultiLineStringMixedDimension() {
+        assertFromWKTRejectsLikeGeometryPath("MULTILINESTRING ((0 0, 1 1), (2 2 2, 3 3 3))");
+    }
+
+    public void testFromWKTMultiPolygonMixedDimension() {
+        assertFromWKTRejectsLikeGeometryPath("MULTIPOLYGON (((0 0, 0 1, 1 1, 1 0, 0 0)), ((2 2 2, 2 3 2, 3 3 2, 3 2 2, 2 2 2)))");
+    }
+
+    public void testFromWKTGeometryCollectionMixedDimension() {
+        assertFromWKTRejectsLikeGeometryPath("GEOMETRYCOLLECTION (POINT (0 0), POINT (1 1 1))");
+    }
+
+    /**
+     * Verifies that WellKnownBinary.fromWKT rejects a malformed WKT string with the same behavior
+     * (an exception) as the Geometry-based WellKnownText.fromWKT path.
+     */
+    private void assertFromWKTRejectsLikeGeometryPath(String wkt) {
+        expectThrows(IllegalArgumentException.class, () -> WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt));
+        expectThrowsAnyOf(
+            List.of(IllegalArgumentException.class, ParseException.class),
+            () -> WellKnownBinary.fromWKT(wkt, randomByteOrder(), false)
+        );
     }
 
     /** Verifies that WellKnownBinary.fromWKT produces the same WKB as the Geometry-based path. */

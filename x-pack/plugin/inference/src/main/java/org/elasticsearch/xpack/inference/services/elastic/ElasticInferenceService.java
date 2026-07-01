@@ -276,6 +276,11 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     }
 
     @Override
+    protected boolean supportsMultimodalRerank() {
+        return true;
+    }
+
+    @Override
     protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         if (!(model instanceof ElasticInferenceServiceRerankModel elasticInferenceServiceRerankModel)) {
             listener.onFailure(createInvalidModelException(model));

@@ -371,7 +371,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             ClusterState updatedClusterState = clusterState;
 
             // From the oldest to the newest
-            Deque<IndexBoundaries> stack = sortAndRetrieveExistingBackingIndices(dataStream, currentProject);
+            Deque<CoveredTimeWindow> stack = sortAndRetrieveCoveredTimeWindows(dataStream, currentProject);
             if (stack.isEmpty()) {
                 throw new IllegalStateException(
                     "Cannot create past TSDB backing index for data stream ["
@@ -379,7 +379,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                         + "] because it requires to have yet at least one time series backing index. Please rollover first."
                 );
             }
-            IndexBoundaries previousIndex = null;
+            CoveredTimeWindow previousIndex = null;
 
             for (long ts : timestamps) {
                 Instant timestampInstant = Instant.ofEpochMilli(ts);
@@ -409,7 +409,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                 while (stack.isEmpty() == false && stack.peek().end() <= ts) {
                     previousIndex = stack.pop();
                 }
-                IndexBoundaries nextIndex = stack.isEmpty() ? null : stack.peek();
+                CoveredTimeWindow nextIndex = stack.isEmpty() ? null : stack.peek();
                 assert nextIndex != null : "there should always be a next index, ultimately the write index";
                 if (nextIndex.start() <= ts) {
                     coveredTimestamps.add(timestampInstant);
@@ -425,7 +425,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                 } else {
                     // Jump backward in interval-sized windows anchored to nextIndex.start().
                     // k is the zero-based slot index counting back from nextIndex: slot 0 = [next-D, next), slot 1 = [next-2D, next-D), …
-                    long k = Math.floorDiv(nextIndex.start() - ts - 1, indexIntervalMillis);
+                    long k = (nextIndex.start() - ts - 1) / indexIntervalMillis;
                     indexEnd = nextIndex.start() - k * indexIntervalMillis;
                     indexStart = indexEnd - indexIntervalMillis;
                     if (previousIndex != null) {
@@ -447,29 +447,46 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                 logger.info("created past TSDB backing index [{}] for data stream [{}]", pastIndexName, dataStreamName);
                 createdIndexNames.add(pastIndexName);
                 // The new index is pushed on top; it becomes the anchor for any timestamps further in the past.
-                stack.push(new IndexBoundaries(indexStart, indexEnd));
+                // We're processing timestamps in order, so subsequent timestamps can't be mapped to an earlier interval.
+                stack.push(new CoveredTimeWindow(indexStart, indexEnd));
                 coveredTimestamps.add(timestampInstant);
             }
             return updatedClusterState;
         }
 
         // Package-visible for testing
-        static Deque<IndexBoundaries> sortAndRetrieveExistingBackingIndices(DataStream dataStream, ProjectMetadata currentProject) {
-            List<IndexBoundaries> sortedExistingBackingIndices = new ArrayList<>();
+        static Deque<CoveredTimeWindow> sortAndRetrieveCoveredTimeWindows(DataStream dataStream, ProjectMetadata currentProject) {
+            List<CoveredTimeWindow> coveredTimeWindows = new ArrayList<>();
             for (Index existingIndex : dataStream.getIndices()) {
                 IndexMetadata im = currentProject.index(existingIndex);
                 if (im == null || im.getIndexMode() != IndexMode.TIME_SERIES) {
                     continue;
                 }
                 assert im.getTimeSeriesStart() != null && im.getTimeSeriesEnd() != null : "TSDB indices always have start and end time";
-                sortedExistingBackingIndices.add(new IndexBoundaries(im.getTimeSeriesStart(), im.getTimeSeriesEnd()));
+                coveredTimeWindows.add(new CoveredTimeWindow(im.getTimeSeriesStart(), im.getTimeSeriesEnd()));
             }
-            sortedExistingBackingIndices.sort(Comparator.comparingLong(IndexBoundaries::start));
-            Deque<IndexBoundaries> sortedIndexBoundaries = new ArrayDeque<>();
-            for (int i = sortedExistingBackingIndices.size() - 1; i >= 0; i--) {
-                sortedIndexBoundaries.push(sortedExistingBackingIndices.get(i));
+
+            coveredTimeWindows.sort(Comparator.comparingLong(CoveredTimeWindow::start));
+            Deque<CoveredTimeWindow> sortedTimeWindows = new ArrayDeque<>();
+            long currentWindowStart = -1;
+            long currentWindowEnd = -1;
+            for (int i = coveredTimeWindows.size() - 1; i >= 0; i--) {
+                CoveredTimeWindow nextWindow = coveredTimeWindows.get(i);
+                if (currentWindowStart == -1) {
+                    currentWindowStart = nextWindow.start();
+                    currentWindowEnd = nextWindow.end();
+                } else if (currentWindowStart == nextWindow.end()) {
+                    currentWindowStart = nextWindow.start();
+                } else {
+                    sortedTimeWindows.push(new CoveredTimeWindow(currentWindowStart, currentWindowEnd));
+                    currentWindowStart = nextWindow.start();
+                    currentWindowEnd = nextWindow.end();
+                }
             }
-            return sortedIndexBoundaries;
+            if (currentWindowStart != -1 && currentWindowEnd != -1) {
+                sortedTimeWindows.push(new CoveredTimeWindow(currentWindowStart, currentWindowEnd));
+            }
+            return sortedTimeWindows;
         }
 
         public void init() {
@@ -478,9 +495,9 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
         }
     }
 
-    record IndexBoundaries(long start, long end) {
+    record CoveredTimeWindow(long start, long end) {
 
-        IndexBoundaries(Instant start, Instant end) {
+        CoveredTimeWindow(Instant start, Instant end) {
             this(start.toEpochMilli(), end.toEpochMilli());
         }
     }

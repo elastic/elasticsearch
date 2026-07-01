@@ -45,6 +45,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -85,27 +86,24 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
         {
             ClusterState state = stateWithNoTsdbIndices();
             DataStream ds = state.projectState(projectId).metadata().dataStreams().get(DATA_STREAM);
-            var result = PastTimeSeriesIndexCreationExecutor.sortAndRetrieveExistingBackingIndices(
+            var result = PastTimeSeriesIndexCreationExecutor.sortAndRetrieveCoveredTimeWindows(
                 ds,
                 state.projectState(projectId).metadata()
             );
             assertThat(result, empty());
         }
-        // Retrieve all TSDB indices in ascending order
+        // Retrieve all continuous TSDB indices in a single window
         {
             Instant start1 = Instant.parse("2024-01-15T00:00:00Z");
             Instant start2 = Instant.parse("2024-01-16T00:00:00Z");
             Instant start3 = Instant.parse("2024-01-17T00:00:00Z");
+            Instant end = Instant.parse("2024-01-18T00:00:00Z");
             ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStream(
                 projectId,
                 DATA_STREAM,
-                List.of(
-                    Tuple.tuple(start3, Instant.parse("2024-01-18T00:00:00Z")),
-                    Tuple.tuple(start1, start2),
-                    Tuple.tuple(start2, start3)
-                )
+                List.of(Tuple.tuple(start3, end), Tuple.tuple(start1, start2), Tuple.tuple(start2, start3))
             );
-            // Updated project metadata with a mixed backing index data stream
+            // Updated project metadata with a consequent and unsored ts backing indices in a mixed data stream
             String nonTsdbName = randomIndexName();
             IndexMetadata nonTsdb = IndexMetadata.builder(nonTsdbName)
                 .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
@@ -115,14 +113,57 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
             DataStream mixedDs = project.dataStreams().get(DATA_STREAM).unsafeAddBackingIndex(nonTsdb.getIndex());
             project = ProjectMetadata.builder(project).put(nonTsdb, false).put(mixedDs).build();
 
-            var result = PastTimeSeriesIndexCreationExecutor.sortAndRetrieveExistingBackingIndices(
+            var result = PastTimeSeriesIndexCreationExecutor.sortAndRetrieveCoveredTimeWindows(
+                project.dataStreams().get(DATA_STREAM),
+                project
+            );
+            assertThat(result, hasSize(1));
+            TransportPastTimeSeriesIndexCreationAction.CoveredTimeWindow timeWindow = result.pop();
+            assertThat(timeWindow.start(), is(start1.toEpochMilli()));
+            assertThat(timeWindow.end(), is(end.toEpochMilli()));
+        }
+
+        // Retrieve all continuous TSDB indices in a single window
+        {
+            // 3 continuous indices window A
+            Instant startA_1 = Instant.parse("2024-01-15T00:00:00Z");
+            Instant startA_2 = Instant.parse("2024-01-16T00:00:00Z");
+            Instant startA_3 = Instant.parse("2024-01-17T00:00:00Z");
+            Instant endA = Instant.parse("2024-01-18T00:00:00Z");
+
+            // 2 continuous indices window B
+            Instant startB_1 = Instant.parse("2025-01-15T00:00:00Z");
+            Instant startB_2 = Instant.parse("2025-01-16T12:00:00Z");
+            Instant endB = Instant.parse("2025-01-18T00:00:00Z");
+
+            // now, will be used for the "write" backing index
+            Instant now = Instant.now();
+
+            ProjectMetadata project = stateWithExisting(
+                List.of(
+                    Tuple.tuple(startA_3, endA),
+                    Tuple.tuple(startA_1, startA_2),
+                    Tuple.tuple(startB_1, startB_2),
+                    Tuple.tuple(startA_2, startA_3),
+                    Tuple.tuple(startB_2, endB)
+                ),
+                now
+            ).projectState(projectId).metadata();
+
+            var result = PastTimeSeriesIndexCreationExecutor.sortAndRetrieveCoveredTimeWindows(
                 project.dataStreams().get(DATA_STREAM),
                 project
             );
             assertThat(result, hasSize(3));
-            assertThat(result.pop().start(), is(start1.toEpochMilli()));
-            assertThat(result.pop().start(), is(start2.toEpochMilli()));
-            assertThat(result.pop().start(), is(start3.toEpochMilli()));
+            TransportPastTimeSeriesIndexCreationAction.CoveredTimeWindow timeWindow = result.pop();
+            assertThat(timeWindow.start(), is(startA_1.toEpochMilli()));
+            assertThat(timeWindow.end(), is(endA.toEpochMilli()));
+            timeWindow = result.pop();
+            assertThat(timeWindow.start(), is(startB_1.toEpochMilli()));
+            assertThat(timeWindow.end(), is(endB.toEpochMilli()));
+            timeWindow = result.pop();
+            assertThat(timeWindow.start(), is(now.toEpochMilli()));
+            assertThat(timeWindow.end(), greaterThan(now.toEpochMilli()));
         }
     }
 

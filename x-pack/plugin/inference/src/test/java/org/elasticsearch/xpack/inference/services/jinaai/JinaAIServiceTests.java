@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -66,6 +67,7 @@ import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankMode
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankTaskSettingsTests;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -704,7 +706,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             );
 
             assertThat(model.getServiceSettings().modelId(), is(modelName));
-            assertThat(model.apiKey().toString(), is(apiKey));
+            assertApiKey(model, apiKey);
         }
     }
 
@@ -773,7 +775,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 multimodalModel,
                 new JinaAIEmbeddingsTaskSettings(inputType, lateChunking),
                 chunkingSettings,
-                ""
+                null
             );
         }
     }
@@ -805,7 +807,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 model,
                 modelName,
                 new RateLimitSettings(requestsPerMinute),
-                "",
+                null,
                 new JinaAIRerankTaskSettings(topN, returnDocuments)
             );
         }
@@ -895,7 +897,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             );
 
             assertThat(model.getServiceSettings().modelId(), is(modelName));
-            assertThat(model.apiKey().toString(), is(""));
+            assertApiKey(model, null);
         }
     }
 
@@ -2039,7 +2041,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         boolean multimodalModel,
         JinaAIEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
-        String apiKey
+        @Nullable String apiKey
     ) {
         assertThat(model, instanceOf(JinaAIEmbeddingsModel.class));
 
@@ -2067,7 +2069,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         Model model,
         String modelName,
         RateLimitSettings rateLimitSettings,
-        String apiKey,
+        @Nullable String apiKey,
         JinaAIRerankTaskSettings taskSettings
     ) {
         assertThat(model, instanceOf(JinaAIRerankModel.class));
@@ -2087,18 +2089,30 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         @Nullable Integer dimensions,
         @Nullable Boolean dimensionsSetByUser,
         @Nullable ChunkingSettings chunkingSettings,
-        String apiKey
+        @Nullable String apiKey
     ) {
         assertThat(model.uri().toString(), is(url));
         assertThat(model.getServiceSettings().modelId(), is(modelName));
-        assertThat(model.rateLimitServiceSettings().rateLimitSettings(), is(rateLimitSettings));
+        assertThat(model.getServiceSettings().rateLimitSettings(), is(rateLimitSettings));
         assertThat(model.getServiceSettings().similarity(), is(similarity));
         assertThat(model.getServiceSettings().dimensions(), is(dimensions));
         assertThat(model.getServiceSettings().dimensionsSetByUser(), is(dimensionsSetByUser));
 
         assertThat(model.getConfigurations().getChunkingSettings(), is(chunkingSettings));
 
-        assertThat(model.apiKey().toString(), is(apiKey));
+        assertApiKey(model, apiKey);
+    }
+
+    /**
+     * Asserts the model's secret settings. A {@code null} {@code expectedApiKey} means no secrets are expected (e.g. a model parsed
+     * from a persisted config without secrets), so the model must have no secret settings at all; otherwise the secret settings must
+     * equal those for the expected api key.
+     */
+    private static void assertApiKey(JinaAIModel model, @Nullable String expectedApiKey) {
+        var expectedSecretSettings = expectedApiKey == null
+            ? null
+            : new DefaultSecretSettings(new SecureString(expectedApiKey.toCharArray()));
+        assertThat(model.getSecretSettings(), is(expectedSecretSettings));
     }
 
     private static ActionListener<Model> getModelListenerForStatusException(String expectedMessage) {
@@ -2132,7 +2146,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         );
 
         assertThat(model.getServiceSettings().modelId(), is(modelName));
-        assertThat(model.apiKey().toString(), is(apiKey));
+        assertApiKey(model, apiKey);
     }
 
     private static void assertParsePersistedConfigMinimalSettings(
@@ -2151,7 +2165,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         );
 
         assertThat(model.getServiceSettings().modelId(), is(modelName));
-        assertThat(model.apiKey().toString(), is(""));
+        assertApiKey(model, null);
     }
 
     public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {

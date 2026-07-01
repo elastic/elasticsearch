@@ -73,8 +73,6 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
         super(
             new ModelConfigurations(inferenceId, taskType, JinaAIService.NAME, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings,
             Objects.requireNonNullElse(ServiceUtils.createOptionalUri(uri), buildUri("JinaAI", DEFAULT_URI_BUILDER::build))
         );
     }
@@ -86,13 +84,7 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
      * @param secrets a model secrets object
      */
     public JinaAIEmbeddingsModel(ModelConfigurations config, ModelSecrets secrets) {
-        super(
-            config,
-            secrets,
-            (DefaultSecretSettings) secrets.getSecretSettings(),
-            (BaseJinaAIEmbeddingsServiceSettings) config.getServiceSettings(),
-            buildUri("JinaAI", DEFAULT_URI_BUILDER::build)
-        );
+        super(config, secrets, buildUri("JinaAI", DEFAULT_URI_BUILDER::build));
     }
 
     private JinaAIEmbeddingsModel(JinaAIEmbeddingsModel model, JinaAIEmbeddingsTaskSettings taskSettings) {
@@ -115,7 +107,7 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
 
     @Override
     public DefaultSecretSettings getSecretSettings() {
-        return (DefaultSecretSettings) super.getSecretSettings();
+        return super.getSecretSettings();
     }
 
     @Override

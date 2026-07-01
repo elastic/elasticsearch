@@ -66,28 +66,16 @@ public class JinaAIRerankModel extends JinaAIModel {
         super(
             new ModelConfigurations(modelId, TaskType.RERANK, JinaAIService.NAME, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings,
             Objects.requireNonNullElse(ServiceUtils.createOptionalUri(uri), buildUri("JinaAI", DEFAULT_URI_BUILDER::build))
         );
     }
 
     public JinaAIRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-        super(
-            modelConfigurations,
-            modelSecrets,
-            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
-            (JinaAIRerankServiceSettings) modelConfigurations.getServiceSettings(),
-            buildUri("JinaAI", DEFAULT_URI_BUILDER::build)
-        );
+        super(modelConfigurations, modelSecrets, buildUri("JinaAI", DEFAULT_URI_BUILDER::build));
     }
 
     private JinaAIRerankModel(JinaAIRerankModel model, JinaAIRerankTaskSettings taskSettings) {
         super(model, taskSettings);
-    }
-
-    public JinaAIRerankModel(JinaAIRerankModel model, JinaAIRerankServiceSettings serviceSettings) {
-        super(model, serviceSettings);
     }
 
     @Override
@@ -102,7 +90,7 @@ public class JinaAIRerankModel extends JinaAIModel {
 
     @Override
     public DefaultSecretSettings getSecretSettings() {
-        return (DefaultSecretSettings) super.getSecretSettings();
+        return super.getSecretSettings();
     }
 
     /**

@@ -37,16 +37,10 @@ public final class EncryptionServiceRegistry {
     }
 
     /**
-     * Registers the node's {@link EncryptionService}. Called once by the encryption plugin from {@code createComponents}
-     * A second call without previously calling {@link #reset} indicates the plugin was wired twice and fails loudly rather than silently
-     * overwriting the previously registered instance.
-     *
-     * @throws IllegalStateException if encryption service is already registered
+     * Registers the node's {@link EncryptionService}. Called by the encryption plugin from {@code createComponents}
      */
     public static void setEncryptionService(EncryptionService service) {
-        if (instance.compareAndSet(null, Objects.requireNonNull(service, "encryptionService")) == false) {
-            throw new IllegalStateException("EncryptionService is already registered");
-        }
+        instance.set(Objects.requireNonNull(service, "encryptionService"));
     }
 
     /**

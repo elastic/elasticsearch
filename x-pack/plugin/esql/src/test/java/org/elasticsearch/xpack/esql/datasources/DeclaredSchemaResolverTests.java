@@ -147,18 +147,16 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         assertEquals(Map.of("@timestamp", "ts"), DeclaredSchemaResolver.renameMap(m));
     }
 
-    public void testCopyToKeepsSourceAndAppendsTarget() {
-        // ts copy_to @timestamp: ts is kept in place, @timestamp is an added copy reading the same physical.
+    public void testCopyToLeavesTheResolverSchema() {
+        // A copy_to is NOT expanded in the resolver — it becomes an EVAL above the relation. The resolver schema stays
+        // base (just the source column), and the rename map carries only the move.
         List<Attribute> inferred = List.of(attr("ts", DataType.DATETIME), attr("other", DataType.KEYWORD));
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
         props.put("ts", new DatasetFieldMapping("date", null, "@timestamp"));
         DatasetMapping m = mapping(props);
         List<String> names = DeclaredSchemaResolver.overlayNonStrict(inferred, m).output().stream().map(Attribute::name).toList();
-        assertEquals(List.of("ts", "other", "@timestamp"), names);
-        // copy target -> the source's physical; the kept source (ts == physical ts) contributes no rename.
-        assertEquals(Map.of("@timestamp", "ts"), DeclaredSchemaResolver.renameMap(m));
-        // strict: declaredAttributes emits the source column then its copy target.
-        List<String> declared = DeclaredSchemaResolver.declaredAttributes(m).stream().map(Attribute::name).toList();
-        assertEquals(List.of("ts", "@timestamp"), declared);
+        assertEquals(List.of("ts", "other"), names); // no @timestamp here — it's an Eval target
+        assertTrue(DeclaredSchemaResolver.renameMap(m).isEmpty()); // ts == physical ts, no rename; copy is not a rename
+        assertEquals(List.of("ts"), DeclaredSchemaResolver.declaredAttributes(m).stream().map(Attribute::name).toList());
     }
 }

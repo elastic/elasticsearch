@@ -181,7 +181,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         "employees_ndjson_rename_nonstrict",
         "employees_parquet_rename",
         "employees_source_disabled",
-        "employees_source_enabled"
+        "employees_source_enabled",
+        "employees_copy_nonstrict"
     );
 
     /**
@@ -405,6 +406,50 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             assertThat(rows, hasSize(3));
             assertThat(rows.get(0).get(0), equalTo(1L));
             assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+        }
+    }
+
+    public void testCopyToDuplicatesColumnNonStrict() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        // Non-strict copy: emp_no is kept AND copied to emp_copy. The copy materializes as EVAL emp_copy = emp_no above
+        // the base relation, so both columns carry the same value and the read path is untouched.
+        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("emp_no", new DatasetFieldMapping("long", null, "emp_copy"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties), null);
+
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_copy_nonstrict",
+                    "local_ds",
+                    csvFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees_copy_nonstrict | KEEP emp_no, emp_copy | SORT emp_no | LIMIT 10"),
+                TIMEOUT
+            )
+        ) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("emp_no"));
+            assertThat(columns.get(1).name(), equalTo("emp_copy")); // the copy target
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat("copy carries the source value", row.get(1), equalTo(row.get(0)));
+            }
+            assertThat(rows.get(0).get(0), equalTo(1L));
         }
     }
 

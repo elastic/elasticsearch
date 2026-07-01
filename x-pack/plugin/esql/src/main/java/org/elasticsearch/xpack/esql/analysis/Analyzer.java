@@ -685,7 +685,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             var metadata = resolvedSource.metadata();
             MetadataBindResult bindResult = bindMetadataFields(plan, metadata.schema());
-            return new ExternalRelation(
+            ExternalRelation relation = new ExternalRelation(
                 plan.source(),
                 tablePath,
                 metadata,
@@ -695,6 +695,44 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 plan.datasetName(),
                 bindResult.unresolvedMetadata()
             );
+            // A declared `copy_to` materializes as an EVAL `target = <source column>` above the base relation. Copies
+            // stay out of the read/reconciliation schema — every format reader gets them for free, the read path is
+            // untouched, and the copy reuses the plan's projection, pushdown alias-substitution, and cast machinery.
+            List<Alias> copyAliases = copyToAliases(plan.mapping(), relation.output(), plan.source());
+            return copyAliases.isEmpty() ? relation : new Eval(plan.source(), relation, copyAliases);
+        }
+
+        /**
+         * One {@link Alias} per declared {@code copy_to} target: {@code target = <the property's own column>}. The
+         * source column is a base-relation output attribute (a move renames it there; an as-is column keeps its name),
+         * so the copy is a plain reference — the optimizer substitutes it on pushdown. Empty when nothing copies, so
+         * the common path adds no {@code Eval}.
+         */
+        private static List<Alias> copyToAliases(
+            org.elasticsearch.cluster.metadata.DatasetMapping mapping,
+            List<Attribute> baseOutput,
+            Source source
+        ) {
+            org.elasticsearch.cluster.metadata.DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
+            if (mappings == null) {
+                return List.of();
+            }
+            Map<String, Attribute> byName = new HashMap<>(baseOutput.size());
+            for (Attribute a : baseOutput) {
+                byName.putIfAbsent(a.name(), a);
+            }
+            List<Alias> aliases = new ArrayList<>();
+            for (Map.Entry<String, org.elasticsearch.cluster.metadata.DatasetFieldMapping> e : mappings.properties().entrySet()) {
+                String copyTo = e.getValue().copyTo();
+                if (copyTo == null) {
+                    continue;
+                }
+                Attribute src = byName.get(e.getKey());
+                if (src != null) {
+                    aliases.add(new Alias(source, copyTo, src));
+                }
+            }
+            return aliases;
         }
 
         /**

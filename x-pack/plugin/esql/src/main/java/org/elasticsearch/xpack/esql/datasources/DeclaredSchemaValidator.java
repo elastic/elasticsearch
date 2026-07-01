@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -57,15 +58,25 @@ public final class DeclaredSchemaValidator {
         }
         DatasetMapping.Mappings mappings = mapping.mappings();
         if (mappings != null) {
-            // Output-name uniqueness. Several logical columns MAY read one physical column (a copy — `copy_to`, or two
-            // `source`s onto one physical): the read path dedups the physical read and fans the block out, so N:1 is
-            // fine. What breaks is two columns with the same OUTPUT name — the source column's key and every `copy_to`
-            // target must be distinct. Reject at PUT (resolve-or-reject at create, like the type check).
+            // Physical-name uniqueness for the read (move) columns: a column's physical name is its `source`, or its
+            // logical name. Two columns resolving to one physical break the 1:1 read-path rename, so reject. (A COPY is
+            // NOT a shared physical: `copy_to` is materialized as an EVAL above the relation, so it never touches the
+            // read path — only the OUTPUT name must be unique, checked below.)
             Set<String> outputNames = new HashSet<>();
+            Map<String, String> physicalToLogical = new HashMap<>();
             for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
                 validateType(e.getKey(), e.getValue().type());
                 outputNames.add(e.getKey()); // property keys are unique by JSON-object semantics
+                String logical = e.getKey();
+                String physical = e.getValue().source() != null ? e.getValue().source() : logical;
+                String clash = physicalToLogical.putIfAbsent(physical, logical);
+                if (clash != null) {
+                    throw new IllegalArgumentException(
+                        "columns [" + clash + "] and [" + logical + "] both resolve to the physical column [" + physical + "]"
+                    );
+                }
             }
+            // Every copy_to target is a NEW output column — it must not collide with a declared column or another target.
             for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
                 String copyTo = e.getValue().copyTo();
                 if (copyTo != null && outputNames.add(copyTo) == false) {

@@ -83,35 +83,6 @@ public class PhysicalNamesTests extends ESTestCase {
         assertTrue(PhysicalNames.noLogicalNamesRemain(List.of("id"), Map.of())); // no renames -> always holds
     }
 
-    public void testFanOutMoveIsIdentity() {
-        // A move/rename: every projected column has a distinct physical, so the plan is identity (no fan-out).
-        PhysicalNames.FanOut f = PhysicalNames.fanOut(List.of("id", "ts", "dept"), RENAMES);
-        assertTrue(f.isIdentity());
-        assertEquals(List.of("id", "ts", "dept"), f.base());
-        assertArrayEquals(new int[] { 0, 1, 2 }, f.index());
-    }
-
-    public void testFanOutCopyDedupsAndFansOut() {
-        // ts kept and @timestamp copied from it: both physicalize to "ts" (via a copy rename), so the reader reads "ts"
-        // once (base position 0) and both output columns point at it.
-        Map<String, String> copyRenames = Map.of("@timestamp", "ts"); // ts -> ts (identity, kept), @timestamp -> ts
-        PhysicalNames.FanOut f = PhysicalNames.fanOut(List.of("ts", "other", "@timestamp"), copyRenames);
-        assertFalse(f.isIdentity());
-        assertEquals(List.of("ts", "other"), f.base()); // @timestamp deduped away — its physical (ts) is base 0
-        assertArrayEquals(new int[] { 0, 1, 0 }, f.index()); // @timestamp fans out from base 0 (ts)
-    }
-
-    public void testFanOutMovePlusCopyBaseIsLogicalAndMustPhysicalize() {
-        // Column b is MOVED from physical p AND copied to c. base holds the LOGICAL name b (not the physical p), and
-        // MUST be run through translateNames before reaching a reader — this is the contract the correctness gate flagged.
-        Map<String, String> renames = Map.of("b", "p", "c", "p"); // b -> p (move), c -> p (copy of b)
-        PhysicalNames.FanOut f = PhysicalNames.fanOut(List.of("b", "c"), renames);
-        assertFalse(f.isIdentity());
-        assertEquals(List.of("b"), f.base()); // logical b, deduped (c shares physical p) — NOT physical p
-        assertArrayEquals(new int[] { 0, 0 }, f.index());
-        assertEquals(List.of("p"), PhysicalNames.translateNames(f.base(), renames)); // physicalizes to p for the reader
-    }
-
     private static ReferenceAttribute ref(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, name, type);
     }

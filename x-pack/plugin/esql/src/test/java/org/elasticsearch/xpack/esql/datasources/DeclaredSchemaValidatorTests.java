@@ -35,17 +35,24 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
         DeclaredSchemaValidator.validate(null); // no throw
     }
 
-    public void testNToOnePhysicalIsAllowedAsCopy() {
-        // Several logical columns reading one physical column is a COPY now (the read path dedups + fans out), not an
-        // error. Both the explicit copy_to form and two sources onto one physical are accepted.
+    public void testCopyToAcceptedAtPut() {
+        // A copy_to is shape-valid at PUT — it materializes as an EVAL above the relation, so the source column stays a
+        // normal 1:1 move/read and the target is a new output column.
         Map<String, DatasetFieldMapping> copyTo = new LinkedHashMap<>();
         copyTo.put("ts", new DatasetFieldMapping("date", null, "@timestamp"));
         DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, copyTo), null)); // no throw
+    }
 
+    public void testTwoSourcesOntoOnePhysicalRejected() {
+        // Two columns reading one physical break the 1:1 read-path rename (a copy must use copy_to, not a shared source).
         Map<String, DatasetFieldMapping> sameSource = new LinkedHashMap<>();
         sameSource.put("a", new DatasetFieldMapping("keyword", "x"));
         sameSource.put("b", new DatasetFieldMapping("keyword", "x"));
-        DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.FALSE, sameSource), null)); // no throw
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.FALSE, sameSource), null))
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("physical column [x]"));
     }
 
     public void testCopyToTargetCollisionRejected() {

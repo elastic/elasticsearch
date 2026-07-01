@@ -41,11 +41,14 @@ public final class DeclaredSchemaResolver {
     private record ColSpec(String physical, DataType type) {}
 
     /**
-     * Expand a {@code mappings} block into its declared <b>logical</b> columns, keyed by logical name in declaration
-     * order. A property contributes its own column ({@code source} is a <em>move</em>: physical = source, or the logical
-     * name when unset), plus — for a {@code copy_to} — an extra target column reading the same physical with the same
-     * type (a <em>copy</em>: physical → several logicals, N:1). Keyed by logical so copies never collide (unlike a
-     * physical-keyed map, which would last-wins-clobber two logicals sharing one physical).
+     * Expand a {@code mappings} block into its declared <b>base</b> logical columns, keyed by logical name in
+     * declaration order. A property contributes exactly one column ({@code source} is a <em>move</em>: physical =
+     * source, or the logical name when unset), so this is a 1:1 physical↔logical mapping.
+     *
+     * <p>A {@code copy_to} target is deliberately NOT expanded here: a copy is materialized as an {@code EVAL
+     * target = source} projected above the external relation (see {@code Analyzer.ResolveExternalRelations}), reusing
+     * the plan's projection/pushdown/cast machinery. Keeping copies out of the read/reconciliation schema is what lets
+     * every format get copy for free and leaves the read path untouched.
      */
     private static LinkedHashMap<String, ColSpec> declaredLogicalColumns(DatasetMapping.Mappings mappings) {
         LinkedHashMap<String, ColSpec> cols = new LinkedHashMap<>();
@@ -53,12 +56,7 @@ public final class DeclaredSchemaResolver {
             String logical = e.getKey();
             DatasetFieldMapping f = e.getValue();
             String physical = f.source() != null ? f.source() : logical;
-            DataType type = resolveType(logical, f.type());
-            cols.put(logical, new ColSpec(physical, type));
-            if (f.copyTo() != null) {
-                // v1: the copy target inherits the source column's type (no cast on the copy target yet).
-                cols.put(f.copyTo(), new ColSpec(physical, type));
-            }
+            cols.put(logical, new ColSpec(physical, resolveType(logical, f.type())));
         }
         return cols;
     }

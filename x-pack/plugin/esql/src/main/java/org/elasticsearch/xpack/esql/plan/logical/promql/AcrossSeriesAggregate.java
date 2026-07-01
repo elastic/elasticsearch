@@ -113,14 +113,22 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
      * concrete labels minus the excluded ones - the {@code WITHOUT} is a plain re-grouping over known columns, so it
      * must NOT claim a {@code _timeseries} the plan never produces. {@code BY} and {@code NONE} export concrete labels
      * or nothing.
+     * <p>
+     * Order-statistic functions ({@code topk}) always follow the {@code WITHOUT} shape regardless of their own
+     * grouping: their {@code by}/{@code without}/{@code none} clause only partitions the ranking, it never drops
+     * labels from the surviving series, so the output must keep the full identity the same way an empty
+     * {@code without ()} would.
      */
     @Override
     public List<Attribute> output() {
-        if (grouping == Grouping.WITHOUT) {
+        // Output `_timeseries` if grouping is not constant, e.g. `without(...)` or undefined, e.g. `topk(...)`
+        if (grouping == Grouping.WITHOUT || definition().functionType() == FunctionType.ACROSS_SERIES_REDUCTION) {
             if (child() instanceof AcrossSeriesAggregate childAggregate && childAggregate.grouping() != Grouping.WITHOUT) {
                 Set<String> excluded = new HashSet<>();
-                for (Attribute label : groupings) {
-                    excluded.add(labelKey(label));
+                if (grouping == Grouping.WITHOUT) {
+                    for (Attribute label : groupings) {
+                        excluded.add(labelKey(label));
+                    }
                 }
                 return childAggregate.output().stream().filter(a -> excluded.contains(labelKey(a)) == false).toList();
             }

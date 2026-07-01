@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.stateless.cache.reader;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyUploadedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -53,6 +55,8 @@ import static org.elasticsearch.xpack.stateless.StatelessPlugin.GET_VIRTUAL_BATC
 public class CacheFileReader {
 
     public static final FeatureFlag OBJECT_STORE_PREFETCH_FEATURE_FLAG = new FeatureFlag("stateless_object_store_prefetch");
+
+    static final int MAX_PREFETCH_ALREADY_UPLOADED_RETRIES = 2;
 
     private static final Logger logger = LogManager.getLogger(CacheFileReader.class);
 
@@ -302,8 +306,30 @@ public class CacheFileReader {
         final int intLength = clampedLength < Integer.MAX_VALUE ? Math.toIntExact(clampedLength) : Integer.MAX_VALUE;
         // same ranges cannot be passed to populate, as write range may extend beyond actually file length,
         // however read range must stay within file length
-        final ByteRange rangeToWrite = cacheBlobReader.getRange(offset, intLength, remainingFileLength);
         final ByteRange rangeToRead = ByteRange.of(offset, offset + clampedLength);
+        populateForPrefetch(offset, intLength, remainingFileLength, rangeToRead, 0, ActionListener.wrap(v -> {
+            blobCacheMetrics.recordPrefetch(PrefetchResult.Fetched);
+        }, e -> {
+            blobCacheMetrics.recordPrefetch(PrefetchResult.Failed);
+            logger.debug(() -> "async prefetch failed for [" + cacheFile.getCacheKey() + "]", e);
+        }));
+        return false;
+    }
+
+    /**
+     * Populates the cache for an async prefetch, but retries in case of {@link ResourceAlreadyUploadedException}.
+     * Such a failure means the batched compound commit was uploaded to the object store while the fetch to the
+     * indexing node was in flight
+     */
+    private void populateForPrefetch(
+        long offset,
+        int intLength,
+        long remainingFileLength,
+        ByteRange rangeToRead,
+        int attempt,
+        ActionListener<Integer> listener
+    ) {
+        final ByteRange rangeToWrite = cacheBlobReader.getRange(offset, intLength, remainingFileLength);
         cacheFile.populate(rangeToWrite, rangeToRead, (channel, channelPos, relativePos, len) -> {
             channel.prefetch(channelPos, len);
             return len;
@@ -319,14 +345,19 @@ public class CacheFileReader {
                 StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
             ),
             "lucene-prefetch:" + cacheFile.getCacheKey().fileName(),
-            ActionListener.wrap(v -> {
-                blobCacheMetrics.recordPrefetch(PrefetchResult.Fetched);
-            }, e -> {
-                blobCacheMetrics.recordPrefetch(PrefetchResult.Failed);
-                logger.debug(() -> "async prefetch failed for [" + cacheFile.getCacheKey() + "]", e);
+            listener.delegateResponse((l, e) -> {
+                if (attempt < MAX_PREFETCH_ALREADY_UPLOADED_RETRIES
+                    && ExceptionsHelper.unwrap(e, ResourceAlreadyUploadedException.class) != null) {
+                    logger.debug(
+                        () -> "prefetch for [" + cacheFile.getCacheKey() + "] already uploaded, retrying with attempt " + attempt,
+                        e
+                    );
+                    populateForPrefetch(offset, intLength, remainingFileLength, rangeToRead, attempt + 1, l);
+                } else {
+                    l.onFailure(e);
+                }
             })
         );
-        return false;
     }
 
     /**

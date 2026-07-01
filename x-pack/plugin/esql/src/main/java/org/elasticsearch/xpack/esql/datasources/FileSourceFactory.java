@@ -179,21 +179,22 @@ final class FileSourceFactory implements ExternalSourceFactory {
         if (canHandle(location)) {
             return true;
         }
-        // Otherwise the resource carries no inferable format (e.g. an extensionless object). An explicit
-        // `format` (or `reader` alias) in the query config supplies the missing piece, so claim the path
-        // when the override names a registered format on a scheme we have a storage provider for. This is
-        // the read-path counterpart to FileDataSourceValidator accepting an explicit format on an
-        // extensionless resource.
+        // Otherwise the resource carries no extension to infer a format from (an extensionless object, a
+        // bare prefix, or an authority). An explicit `format` (or `reader` alias) in the config is
+        // authoritative: it names the reader directly, so detection is moot and we claim the resource
+        // regardless of its object name — matching resolveReader, which honors an explicit format
+        // unconditionally. `auto`/absent leave `format` null here and stay on the extension-based
+        // path-only form above.
         if (location == null || config == null || config.isEmpty()) {
             return false;
         }
         try {
             StoragePath path = StoragePath.of(location);
-            String objectName = path.objectName();
-            if (objectName == null || objectName.isEmpty()) {
+            if (storageRegistry.hasProvider(path.scheme()) == false) {
                 return false;
             }
-            if (storageRegistry.hasProvider(path.scheme()) == false) {
+            // Require a host so a scheme-only location (e.g. "s3://") is not claimed.
+            if (path.host() == null || path.host().isEmpty()) {
                 return false;
             }
             String format = FormatNameResolver.resolve(config, "");

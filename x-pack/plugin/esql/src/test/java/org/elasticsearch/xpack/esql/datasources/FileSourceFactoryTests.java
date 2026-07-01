@@ -146,6 +146,43 @@ public class FileSourceFactoryTests extends ESTestCase {
         );
     }
 
+    /**
+     * An explicit `format` is authoritative: it names the reader directly, so the factory must claim the
+     * resource regardless of whether the location has an object name to infer an extension from. Detection
+     * (extension-based inference) is only for `auto`/absent, which still require an object name. This mirrors
+     * resolveReader, which honors an explicit format unconditionally; canHandle must not reject what
+     * resolveReader would resolve.
+     */
+    public void testCanHandleWithExplicitFormatIsAuthoritativeRegardlessOfObjectName() {
+        FileSourceFactory fileSourceFactory = newFileSourceFactory();
+        Map<String, Object> explicitFormat = Map.of(FileSourceFactory.CONFIG_FORMAT, "test-parquet");
+
+        // Empty-objectName resources: a bare prefix and a bare authority carry no extension, but an explicit
+        // format resolves the reader, so they are claimed.
+        assertTrue(
+            "trailing-slash prefix with an explicit format is claimed",
+            fileSourceFactory.canHandle("s3://bucket/logs/", explicitFormat)
+        );
+        assertTrue("bare authority with an explicit format is claimed", fileSourceFactory.canHandle("s3://bucket", explicitFormat));
+
+        // Regression: a glob already has a non-empty object name ("*") and stays claimed with an explicit format.
+        assertTrue("glob with an explicit format is claimed", fileSourceFactory.canHandle("s3://bucket/logs/*", explicitFormat));
+
+        // Without an authoritative format, empty-objectName resources stay on the detection path, which has no
+        // extension to work with -> not claimed. `auto` is equivalent to absent here.
+        assertFalse(
+            "trailing-slash prefix, no format -> detection has no extension",
+            fileSourceFactory.canHandle("s3://bucket/logs/", Map.of())
+        );
+        assertFalse(
+            "trailing-slash prefix, format=auto -> falls through to detection, not claimed",
+            fileSourceFactory.canHandle("s3://bucket/logs/", Map.of(FileSourceFactory.CONFIG_FORMAT, "auto"))
+        );
+
+        // A scheme-only location has no host and is never claimed, even with an explicit format.
+        assertFalse("scheme-only location is not claimed", fileSourceFactory.canHandle("s3://", explicitFormat));
+    }
+
     private static FileSourceFactory newFileSourceFactory() {
         FormatReader stubReader = new StubFormatReader();
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());

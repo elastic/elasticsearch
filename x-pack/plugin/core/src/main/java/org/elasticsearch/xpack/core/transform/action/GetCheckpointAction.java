@@ -29,6 +29,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * Transform internal API (no REST layer) to retrieve index checkpoints.
  */

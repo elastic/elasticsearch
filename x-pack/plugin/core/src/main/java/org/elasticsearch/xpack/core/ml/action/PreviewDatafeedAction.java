@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalLong;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.DatafeedParams.parseDateOrThrow;
 import static org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.END_TIME;
 import static org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.START_TIME;

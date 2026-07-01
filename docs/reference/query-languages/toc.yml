@@ -97,11 +97,11 @@ toc:
       - file: esql/esql-syntax-reference.md
         children:
           - file: esql/esql-syntax.md
+          - file: esql/directives/directives.md
+            children:
+              - file: esql/directives/set.md
           - file: esql/esql-commands.md
             children:
-              - file: esql/commands/directives.md
-                children:
-                  - file: esql/commands/set.md
               - file: esql/commands/source-commands.md
                 children:
                   - file: esql/commands/from.md

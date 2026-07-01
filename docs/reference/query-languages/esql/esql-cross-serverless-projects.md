@@ -102,16 +102,16 @@ Project routing expressions use Lucene query syntax. The `:` operator matches a 
 
 You can specify project routing in two ways:
 
-- [Embed project routing in the query with `SET`](#option-1-use-the-set-source-command): This approach works wherever you can write an {{esql}} query.
+- [Embed project routing in the query with `SET`](#option-1-use-the-set-directive): This approach works wherever you can write an {{esql}} query.
 - [Pass project routing in the `_query` API request body](#option-2-pass-project_routing-in-the-api-request-body): You can pass a `project_routing` field to keep project routing logic separate from the query string.
 
 :::{important}
 If both options are combined, `SET project_routing` takes precedence.
 :::
 
-### Option 1: Use the `SET` source command
+### Option 1: Use the `SET` directive
 
-`SET project_routing` embeds project routing directly within the {{esql}} query. You can use this approach wherever you write {{esql}}. [`SET`](/reference/query-languages/esql/commands/set.md) must appear before other {{esql}} commands. The semicolon after the last parameter separates it from the rest of the query. The order of parameters within `SET` does not matter.
+`SET project_routing` embeds project routing directly within the {{esql}} query. You can use this approach wherever you write {{esql}}. [`SET`](/reference/query-languages/esql/directives/set.md) must appear before other {{esql}} commands. The semicolon after the last parameter separates it from the rest of the query. The order of parameters within `SET` does not matter.
 
 ```esql
 SET project_routing="_alias:my-project";    <1>
@@ -354,6 +354,6 @@ The lookup index must exist on every project being queried, because each project
 
 * [ES|QL cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md): the equivalent feature for non-serverless deployments.
 * [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions and `METADATA` syntax.
-* [`SET` directive](/reference/query-languages/esql/commands/set.md): full reference for the `SET` directive in {{esql}}.
+* [`SET` directive](/reference/query-languages/esql/directives/set.md): full reference for the `SET` directive in {{esql}}.
 * [ES|QL metadata fields](/reference/query-languages/esql/esql-metadata-fields.md): full reference for metadata fields available in ES|QL queries.
 * [ES|QL `LOOKUP JOIN`](/reference/query-languages/esql/esql-lookup-join.md): details on `LOOKUP JOIN` constraints, including cross-cluster and cross-project support.

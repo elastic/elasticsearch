@@ -83,10 +83,11 @@ import java.util.function.Function;
  * The async dependencies ({@code azure-core-http-netty}, Reactor Netty, Netty) are already
  * bundled in this plugin's classloader. Versions are aligned with {@code repository-azure}.
  * <p>
- * Authentication: connection string, account+key, SAS token, {@code auth=anonymous} for public
- * containers, {@code auth=managed_identity} (AKS Workload Identity via the entitled
- * federated-token symlink under {@code ${ES_PATH_CONF}} when configured, falling back to
- * {@code ManagedIdentityCredential} via Azure IMDS), or workload identity federation
+ * Authentication (selected by the {@code auth} mode; {@code auto} infers it from the fields present):
+ * {@code auth=static_credentials} (connection string, account+key, or account+SAS token),
+ * {@code auth=anonymous} for public containers, {@code auth=managed_identity} (AKS Workload Identity via the
+ * entitled federated-token symlink under {@code ${ES_PATH_CONF}} when configured, falling back to
+ * {@code ManagedIdentityCredential} via Azure IMDS), or {@code auth=federated_identity}
  * ({@code tenant_id} + {@code client_id} + {@code jwt_audience}) which mints a JWT via the
  * node's workload-identity issuer and exchanges it through Azure AD as a client assertion.
  * {@code DefaultAzureCredential} is excluded entirely: it bundles file-reading and process-spawning

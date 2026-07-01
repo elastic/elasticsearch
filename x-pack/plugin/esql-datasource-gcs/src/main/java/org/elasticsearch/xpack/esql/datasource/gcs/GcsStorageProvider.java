@@ -44,11 +44,12 @@ import java.util.NoSuchElementException;
 /**
  * StorageProvider implementation for Google Cloud Storage.
  * <p>
- * Supports the {@code gs://} URI scheme. Authentication must be provided explicitly via:
+ * Supports the {@code gs://} URI scheme. The {@code auth} mode selects the credential; {@code auto} (the default)
+ * infers it from the fields present:
  * <ul>
- *   <li>Explicit service account JSON credentials</li>
- *   <li>Workload identity federation via {@code jwt_audience}, {@code sts_audience}, and
- *       {@code service_account_impersonation_url}</li>
+ *   <li>{@code auth=static_credentials} — a service account JSON key or a short-lived OAuth2 access token</li>
+ *   <li>{@code auth=federated_identity} — workload identity federation via {@code jwt_audience}, {@code sts_audience},
+ *       and {@code service_account_impersonation_url}</li>
  *   <li>{@code auth=anonymous} for anonymous access to public buckets</li>
  * </ul>
  * {@code auth=managed_identity} uses the GCE/GKE metadata server ({@link ComputeEngineCredentials}).

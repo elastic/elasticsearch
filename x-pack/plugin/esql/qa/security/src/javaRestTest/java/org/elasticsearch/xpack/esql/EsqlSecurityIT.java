@@ -2255,6 +2255,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.field("type", "s3");
         builder.startObject("settings");
         builder.field("region", "us-east-1");
+        builder.field("auth", "anonymous");
         builder.endObject();
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
@@ -2270,6 +2271,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.field("type", "s3");
         builder.startObject("settings");
         builder.field("region", "us-east-1");
+        builder.field("auth", "anonymous");
         builder.endObject();
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
@@ -2328,6 +2330,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.field("type", "s3");
         builder.startObject("settings");
         builder.field("region", "us-east-1");
+        builder.field("auth", "anonymous");
         builder.endObject();
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
@@ -2346,6 +2349,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.field("type", "s3");
         builder.startObject("settings");
         builder.field("region", "us-east-1");
+        builder.field("auth", "anonymous");
         builder.endObject();
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));

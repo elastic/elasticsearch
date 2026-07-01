@@ -84,6 +84,10 @@ import java.util.NoSuchElementException;
  * Both clients share the same credentials, region, and endpoint configuration. The Netty
  * jars are bundled with this plugin (classloader-isolated from the server and other plugins)
  * at {@code ${versions.netty}}, matching the pattern used by the inference plugin.
+ * <p>
+ * The credential mode is selected by the {@code auth} setting (see {@link S3Configuration}):
+ * {@code static_credentials}, {@code federated_identity}, {@code anonymous}, or {@code managed_identity};
+ * {@code auto} (the default) infers it from the fields present.
  */
 public class S3StorageProvider implements StorageProvider {
     private static final Logger LOGGER = LogManager.getLogger(S3StorageProvider.class);

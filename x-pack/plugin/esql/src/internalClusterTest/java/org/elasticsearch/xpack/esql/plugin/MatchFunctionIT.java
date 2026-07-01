@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -22,6 +23,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.CoreMatchers.containsString;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -429,6 +431,40 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
                 )
             );
         }
+    }
+
+    public void testMatchRuntimeEvalWithOptionsThrowsError() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
+        var query = """
+            FROM test
+            | EVAL new_content = to_text(concat(content, " extra"))
+            | WHERE match(new_content, "fox", {"analyzer": "standard"})
+            | KEEP new_content
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        assertThat(
+            error.getMessage(),
+            containsString("Options are not supported for [MATCH] function call on non-index-mapped field [new_content]")
+        );
+    }
+
+    public void testMatchRuntimeRowWithOptionsThrowsError() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
+        var query = """
+            ROW content = to_text("This is a brown fox")
+            | WHERE match(content, "fox AND brown", {"operator": "AND"})
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        assertThat(
+            error.getMessage(),
+            containsString("Options are not supported for [MATCH] function call on non-index-mapped field [content]")
+        );
     }
 
     static void createAndPopulateIndex(Consumer<String[]> ensureYellow) {

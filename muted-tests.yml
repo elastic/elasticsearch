@@ -737,7 +737,6 @@ tests:
 - class: org.elasticsearch.index.store.BytesReadHeaderIT
   method: testMultipleIndicesAccumulateBytesRead
   issue: https://github.com/elastic/elasticsearch/issues/152425
-
 - class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
   method: testStoredIgnoredSource
   issue: https://github.com/elastic/elasticsearch/issues/152448

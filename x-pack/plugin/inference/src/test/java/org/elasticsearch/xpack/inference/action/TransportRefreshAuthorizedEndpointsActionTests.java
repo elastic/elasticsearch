@@ -391,7 +391,9 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
                             endpoint.endOfLifeDate()
                         ),
                         new EndpointMetadata.Internal(endpoint.fingerprint(), ENDPOINT_SCHEMA_VERSION),
-                        endpoint.display()
+                        endpoint.display(),
+                        List.of(),
+                        false
                     )
                 )
             )
@@ -401,7 +403,13 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
     }
 
     private static EndpointMetadata createEndpointMetadataWithInternal(EndpointMetadata.Internal internal) {
-        return new EndpointMetadata(EndpointMetadata.Heuristics.EMPTY_INSTANCE, internal, EndpointMetadata.Display.EMPTY_INSTANCE);
+        return new EndpointMetadata(
+            EndpointMetadata.Heuristics.EMPTY_INSTANCE,
+            internal,
+            EndpointMetadata.Display.EMPTY_INSTANCE,
+            List.of(),
+            false
+        );
     }
 
     private static MinimalServiceSettings createEisSparseSettingsWithFingerprintAndVersion(

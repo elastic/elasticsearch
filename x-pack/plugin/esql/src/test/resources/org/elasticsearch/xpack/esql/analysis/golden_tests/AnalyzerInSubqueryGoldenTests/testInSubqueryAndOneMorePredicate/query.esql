@@ -1,0 +1,3 @@
+FROM employees
+| WHERE emp_no IN (FROM employees | KEEP emp_no)
+  AND salary > 50000

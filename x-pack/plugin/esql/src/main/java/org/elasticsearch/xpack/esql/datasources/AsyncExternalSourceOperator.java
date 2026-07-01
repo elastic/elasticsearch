@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Source operator that retrieves data from external sources (Iceberg tables, Parquet files, etc.).
@@ -152,7 +153,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         FormatReaderStatus formatReaderStatus = buffer.formatReaderStatus();
         long readNanos = formatReaderStatus == null ? 0L : formatReaderStatus.readNanos();
         // Both record methods self-guard (best-effort): an instrumentation failure cannot break teardown.
-        externalSourceMetrics.recordParse(rowsEmitted, readNanos / 1_000_000, scheme);
+        externalSourceMetrics.recordParse(rowsEmitted, TimeUnit.NANOSECONDS.toMillis(readNanos), scheme);
         externalSourceMetrics.recordSplitsScanned(splitsProcessed, scheme);
     }
 

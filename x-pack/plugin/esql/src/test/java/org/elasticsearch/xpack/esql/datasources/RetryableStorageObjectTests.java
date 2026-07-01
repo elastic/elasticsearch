@@ -485,6 +485,77 @@ public class RetryableStorageObjectTests extends ESTestCase {
         );
     }
 
+    /**
+     * B1 scope-invariant regression: a metadata-op retry must NOT move the read-scoped registry
+     * {@code storage.retries.total}. Metadata ops ({@code length}/{@code lastModified}/{@code exists}) never bump the
+     * read-scoped {@code storage.requests.total}, so counting their retries (or errors / read-stall) against the
+     * registry would leak {@code storage.retries.total} past {@code storage.requests.total} — the exact scope
+     * violation this fix restores ({@code retries}/{@code errors}/{@code read_stall} &le; {@code requests} on retryable
+     * providers). The metadata retry MUST still surface in the per-query profile snapshot (pre-existing behaviour). For
+     * contrast, a read-path ({@code newStream()}) retry DOES move {@code storage.retries.total}. Uses real
+     * {@link RecordingMeterRegistry}-backed holders (no mocks) so the production {@code attachMetrics} -> retry ->
+     * registry path is exercised end to end.
+     */
+    public void testMetadataOpRetryIsNotReadScopedButReadPathRetryIs() throws IOException {
+        // --- Metadata-op path: length() throws one transient fault, then succeeds. ---
+        RecordingMeterRegistry metadataRegistry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metadataMetrics = new ExternalSourceMetrics(metadataRegistry);
+        MetadataFailingStorageObject metadataDelegate = new MetadataFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            new SocketTimeoutException("read timed out"),
+            1,
+            4096L
+        );
+        RetryableStorageObject metadataObj = new RetryableStorageObject(metadataDelegate, new RetryPolicy(3, 1, 10));
+        metadataObj.attachMetrics(metadataMetrics, "s3");
+
+        assertEquals("length() recovers after the single transient fault", 4096L, metadataObj.length());
+
+        // The metadata-op retry must NOT reach the read-scoped registry counter.
+        assertThat(
+            "a metadata-op retry must not move the read-scoped storage.retries.total",
+            measurements(metadataRegistry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_RETRIES_TOTAL),
+            hasSize(0)
+        );
+        // Nor may its (recovered) retry leak an error or a read-stall to the registry.
+        assertThat(
+            "a recovered metadata-op retry must not record a storage error",
+            measurements(metadataRegistry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL),
+            hasSize(0)
+        );
+        assertThat(
+            "a metadata-op retry must not record a read-stall on the read-scoped histogram",
+            measurements(metadataRegistry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION),
+            hasSize(0)
+        );
+        // ...but the retry is still visible in the per-query profile snapshot (pre-existing profile behaviour).
+        assertEquals("the metadata retry is still visible in the profile snapshot", 1L, metadataObj.metrics().retryCount());
+
+        // --- Read-path contrast: newStream() throws one transient fault, then succeeds; this DOES move the registry. ---
+        RecordingMeterRegistry readRegistry = new RecordingMeterRegistry();
+        ExternalSourceMetrics readMetrics = new ExternalSourceMetrics(readRegistry);
+        FakeStorageObject readDelegate = new FakeStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            new StorageObjectMetrics(1, 100, 4096, 0),
+            new SocketTimeoutException("read timed out"),
+            new byte[] { 1, 2, 3 },
+            1
+        );
+        RetryableStorageObject readObj = new RetryableStorageObject(readDelegate, new RetryPolicy(3, 1, 10));
+        readObj.attachMetrics(readMetrics, "s3");
+        try (InputStream in = readObj.newStream()) {
+            in.readAllBytes();
+        }
+
+        List<Measurement> readRetries = measurements(
+            readRegistry,
+            InstrumentType.LONG_COUNTER,
+            ExternalSourceMetrics.STORAGE_RETRIES_TOTAL
+        );
+        assertThat("a read-path retry MUST move the read-scoped storage.retries.total", readRetries, hasSize(1));
+        assertThat("the read-path retry counts exactly once", readRetries.get(0).getLong(), equalTo(1L));
+    }
+
     private static List<Measurement> measurements(RecordingMeterRegistry registry, InstrumentType type, String name) {
         return registry.getRecorder().getMeasurements(type, name);
     }
@@ -912,6 +983,74 @@ public class RetryableStorageObjectTests extends ESTestCase {
 
         @Override
         public boolean exists() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+
+        @Override
+        public int readBytes(long position, ByteBuffer target) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StorageObjectMetrics metrics() {
+            return new StorageObjectMetrics(0, 0, 0, 0);
+        }
+    }
+
+    /**
+     * Test fixture for the B1 metadata-op scope test: {@code length()} and {@code exists()} throw the configured
+     * transient fault {@code failuresBeforeSuccess} times, then succeed ({@code length()} returns {@code lengthValue},
+     * {@code exists()} returns {@code true}). The read paths are unsupported — the test drives only metadata ops, and a
+     * real fault beats a silently-mocked default.
+     */
+    private static final class MetadataFailingStorageObject implements StorageObject {
+        private final StoragePath path;
+        private final IOException failure;
+        private final int failuresBeforeSuccess;
+        private final long lengthValue;
+        private int lengthCalls = 0;
+        private int existsCalls = 0;
+
+        MetadataFailingStorageObject(StoragePath path, IOException failure, int failuresBeforeSuccess, long lengthValue) {
+            this.path = path;
+            this.failure = failure;
+            this.failuresBeforeSuccess = failuresBeforeSuccess;
+            this.lengthValue = lengthValue;
+        }
+
+        @Override
+        public long length() throws IOException {
+            if (lengthCalls++ < failuresBeforeSuccess) {
+                throw failure;
+            }
+            return lengthValue;
+        }
+
+        @Override
+        public boolean exists() throws IOException {
+            if (existsCalls++ < failuresBeforeSuccess) {
+                throw failure;
+            }
+            return true;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return null;
+        }
+
+        @Override
+        public InputStream newStream() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
             throw new UnsupportedOperationException();
         }
 

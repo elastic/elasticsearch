@@ -84,6 +84,18 @@ public final class StorageObjectMetricsCounters {
     }
 
     /**
+     * Records one retry for the per-query <b>profile snapshot only</b> — bumps {@link #retryCount} but does
+     * <b>not</b> publish to the node {@link ExternalSourceMetrics} sink. Used by metadata ops
+     * ({@code length}/{@code lastModified}/{@code exists}) on {@code RetryableStorageObject}: those ops never bump the
+     * read-scoped {@code requests.total}, so publishing their retries to the registry would leak
+     * {@code storage.retries.total} past {@code storage.requests.total} (a scope violation on retryable providers). The
+     * read path uses {@link #addRetry()} so its retries reach the registry as before.
+     */
+    public void addRetryProfileOnly() {
+        retryCount.increment();
+    }
+
+    /**
      * Records one object-store read that exhausted retries and gave up terminally. Telemetry-only: it does
      * not touch the profile snapshot (only request/retry/bytes counters surface there). No-op when no sink
      * is attached; the record method self-guards so an instrumentation failure never breaks the read path.

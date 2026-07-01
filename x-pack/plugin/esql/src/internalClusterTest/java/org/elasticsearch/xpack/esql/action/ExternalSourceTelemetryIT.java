@@ -236,21 +236,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         // A clean success trips neither the discovery-failure nor the breaker counter.
         assertThat("no discovery failures on a clean scan", counterTotal(ExternalSourceMetrics.DISCOVERY_FAILURES_TOTAL), equalTo(0L));
 
-        // --- storage read layer (data node), tagged with the canonical file scheme ---
-        //
-        // PRODUCT FINDING (asserted un-weakened per the task's do-not-paper-over rule; this block CURRENTLY FAILS):
-        // The storage-read trio (storage.requests.total / storage.bytes_read.total /
-        // storage.requests.duration.histogram) does NOT fire on the real scan, even though the file is read and
-        // parse.rows.total / discovery.* / query.* all fire. Root cause is an attach-ordering bug in
-        // AsyncExternalSourceOperatorFactory#openNextFile: it opens the reader via fileReader.read(obj, ctx) — which
-        // eagerly calls obj.newStream() (CsvFormatReader.read's first statement), and newStream() records the read on
-        // the object's StorageObjectMetricsCounters via counters.addRequest — BEFORE it calls attachStorageMetrics(obj)
-        // to attach the node telemetry sink to those same counters. So the addRequest event lands on an unattached
-        // sink and is captured only in the per-query profile snapshot (obj.metrics()), never bridged to the node
-        // MeterRegistry. For a whole-file provider like the local CSV reader the entire read happens at open, so the
-        // storage-read metrics are lost completely. The fix is to attach the sink before opening the reader (move
-        // attachStorageMetrics(obj) above the openWithParallelism / fileReader.read call). Not changed here because the
-        // task is add-tests-only.
+        // storage read layer (data node), tagged with the canonical file scheme
         assertThat(
             "storage.requests.total must fire for the file scheme",
             counterTotalForScheme(ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL, "file"),

@@ -98,7 +98,10 @@ public final class ExternalSourceMetrics {
     /** Rows parsed out of a format reader by the external-source scan operator. */
     public static final String PARSE_ROWS_TOTAL = "es.esql.datasources.parse.rows.total";
 
-    /** Wall time an external-source scan operator spent reading/parsing an object, in milliseconds. */
+    /**
+     * Cumulative reader-thread time an external-source scan operator spent reading and parsing an object, in
+     * milliseconds — summed across parallel parse workers ({@link FormatReaderStatus#readNanos()}), not wall time.
+     */
     public static final String PARSE_DURATION = "es.esql.datasources.parse.duration.histogram";
 
     /**
@@ -274,7 +277,8 @@ public final class ExternalSourceMetrics {
         );
         this.parseDuration = meterRegistry.registerLongHistogram(
             PARSE_DURATION,
-            "Wall time an ES|QL external-data-source scan operator spent reading and parsing an object",
+            "Cumulative reader-thread time an ES|QL external-data-source scan operator spent reading and parsing an object "
+                + "(summed across parallel parse workers)",
             "ms"
         );
         this.parseSplitsScanned = meterRegistry.registerLongHistogram(

@@ -1942,6 +1942,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * {@link ExternalSourceMetrics} folds it to one canonical token (s3/gcs/azure/http/file) on lookup, so the
      * scheme is the only, low-cardinality, dimension. This guard wraps the non-record {@code attachMetrics} /
      * {@code path()} calls, so it stays (the record methods self-guard separately).
+     * <p>
+     * <b>Attach-ordering contract:</b> the sink is attached AFTER the final metadata probe
+     * ({@code length}/{@code lastModified}/{@code exists}) but BEFORE the first byte is read, so the read-scoped
+     * {@code storage.*} registry metrics count only reads. Metadata ops must therefore never feed the registry sink:
+     * on a retryable provider {@code RetryableStorageObject} passes {@code RetryPolicy.RetryTelemetry.NONE} and routes
+     * their retries through the profile-only counter, so a metadata retry/error/stall cannot leak past
+     * {@code storage.requests.total} (retries/errors/read_stall &le; requests). Moving this attach before a metadata
+     * probe would reintroduce that leak.
      */
     private void attachStorageMetrics(StorageObject obj) {
         try {

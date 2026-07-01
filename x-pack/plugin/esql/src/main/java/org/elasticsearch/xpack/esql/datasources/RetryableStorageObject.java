@@ -168,17 +168,45 @@ class RetryableStorageObject implements StorageObject {
 
     @Override
     public long length() throws IOException {
-        return retryPolicy.execute(delegate::length, "length", delegate.path(), retryCounters::addRetry, storageTelemetry);
+        // Metadata ops (length/lastModified/exists) never bump the read-scoped registry request counter, so their
+        // retries/errors/read-stall must NOT feed the registry sink — that would leak storage.retries/errors/read_stall
+        // past storage.requests, a scope violation on retryable providers. So: pass RetryTelemetry.NONE (drops the
+        // error/read-stall/throttled publish) AND route the retry through addRetryProfileOnly (bumps the per-query
+        // profile retry count exactly as before, but does NOT publish storage.retries.total). Only newStream() (the
+        // read path) keeps storageTelemetry + the registry-publishing addRetry.
+        return retryPolicy.execute(
+            delegate::length,
+            "length",
+            delegate.path(),
+            retryCounters::addRetryProfileOnly,
+            RetryPolicy.RetryTelemetry.NONE
+        );
     }
 
     @Override
     public Instant lastModified() throws IOException {
-        return retryPolicy.execute(delegate::lastModified, "lastModified", delegate.path(), retryCounters::addRetry, storageTelemetry);
+        // See length(): metadata-op retries stay off the read-scoped registry sink (RetryTelemetry.NONE +
+        // addRetryProfileOnly), but still feed the per-query profile retry count.
+        return retryPolicy.execute(
+            delegate::lastModified,
+            "lastModified",
+            delegate.path(),
+            retryCounters::addRetryProfileOnly,
+            RetryPolicy.RetryTelemetry.NONE
+        );
     }
 
     @Override
     public boolean exists() throws IOException {
-        return retryPolicy.execute(delegate::exists, "exists", delegate.path(), retryCounters::addRetry, storageTelemetry);
+        // See length(): metadata-op retries stay off the read-scoped registry sink (RetryTelemetry.NONE +
+        // addRetryProfileOnly), but still feed the per-query profile retry count.
+        return retryPolicy.execute(
+            delegate::exists,
+            "exists",
+            delegate.path(),
+            retryCounters::addRetryProfileOnly,
+            RetryPolicy.RetryTelemetry.NONE
+        );
     }
 
     @Override

@@ -503,6 +503,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         values[1] = Double.NEGATIVE_INFINITY;
         values[2] = -0.0;
         values[3] = Double.MAX_VALUE;
+        values[4] = Double.NaN;
         values[numDocs - 1] = Double.MIN_NORMAL;
         assertDoubleRoundTrip(DOUBLE_GAUGE_FIELD, blockShift, values);
     }

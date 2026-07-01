@@ -4,13 +4,12 @@
 // apps.csv has a typed header (id:integer,version:version,name:keyword,_id:keyword)
 // and two rows with empty version cells (id=11 and id=13).
 //
-// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. On dataset-capable
-// backends (S3) the harness registers the dataset and runs the FROM query verbatim; on the others it rebuilds
-// the equivalent EXTERNAL query. The bare name `apps` would collide with the ES|QL apps index twin, so the
-// dataset is named `apps_ds`.
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. The harness registers
+// the dataset on every storage backend and runs the FROM query verbatim. The bare name `apps` would collide
+// with the ES|QL apps index twin, so the dataset is named `apps_ds`.
 
 filterVersionIsNull
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: datasource_file_readers_no_text_type
 dataset: apps_ds: "{{apps}}"
@@ -27,7 +26,7 @@ id:integer | name:keyword
 ;
 
 filterVersionIsNotNull
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: datasource_file_readers_no_text_type
 dataset: apps_ds: "{{apps}}"

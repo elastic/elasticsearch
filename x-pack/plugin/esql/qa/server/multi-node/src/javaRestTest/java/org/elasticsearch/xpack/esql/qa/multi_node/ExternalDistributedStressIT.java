@@ -14,6 +14,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
@@ -97,8 +98,8 @@ public class ExternalDistributedStressIT extends AbstractExternalDistributedIT {
         }
     }
 
-    private String stressQuery(String suffix) {
-        return externalS3Query(stressRunPrefix + "*.csv") + suffix;
+    private String stressQuery(String suffix) throws IOException {
+        return fromS3(stressRunPrefix + "*.csv") + suffix;
     }
 
     public void testManyUniformSplits() throws Exception {

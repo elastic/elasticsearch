@@ -11,12 +11,12 @@ import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
@@ -26,7 +26,8 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
+
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 /**
  * Runs external source csv-spec tests on a 3-node cluster with each distribution
@@ -80,14 +81,6 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
         return CLUSTER_INSTANCE.getHttpAddresses();
     }
 
-    // Migrated specs run via FROM <dataset> on S3 and via the rebuilt EXTERNAL query on the other backends.
-    // On this 3-node cluster the warm pass may re-scan on a second coordinator (a coverage gap, never a wrong
-    // answer; see runColdThenWarm), but all three distribution modes must still agree per query.
-    @Override
-    protected Set<StorageBackend> datasetModeBackends() {
-        return Set.of(StorageBackend.S3);
-    }
-
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
         List<Object[]> backendTests = readExternalSpecTests("/external-basic.csv-spec", "/external-multivalue.csv-spec");
@@ -106,20 +99,12 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
-        assumeTrue("External source connectors not available", hasExternalSourceConnectors());
-    }
-
-    // TODO: replace it with a better system
-    private boolean hasExternalSourceConnectors() {
-        try {
-            Request request = new Request("POST", "/_query");
-            request.setJsonEntity("{\"query\": \"EXTERNAL \\\"s3://THIS_IS_JUST_A_PROBING_QUERY/IT_SHOULD_FAIL.csv\\\"\"}");
-            client().performRequest(request);
-            return true;
-        } catch (Exception e) {
-            String msg = e.getMessage();
-            return msg == null || msg.contains("Unsupported storage scheme") == false;
-        }
+        // Every spec in this suite now runs via FROM <dataset>; gate on that capability rather than
+        // probing for the EXTERNAL command's storage connectors.
+        assumeTrue(
+            "FROM <dataset> requires the [dataset_in_from_command] capability",
+            hasCapabilities(client(), List.of(EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.capabilityName()))
+        );
     }
 
     @Override

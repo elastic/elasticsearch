@@ -2,15 +2,15 @@
 // All three files share the employees schema, so all strategies should succeed.
 // Uses {{employees_multifile_split}} which resolves to multifile_split/*.<format>.
 //
-// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. On dataset-capable
-// backends (S3) the flipped format ITs (TSV/NDJSON/Java-Parquet) register the dataset and run the FROM query
-// verbatim; the other backends rebuild the equivalent EXTERNAL query. The dataset name encodes the
-// schema_resolution option so the same name always carries the same settings.
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. The external-source
+// format ITs (TSV/NDJSON/Java-Parquet) register the dataset on every storage backend and run the FROM query
+// verbatim; the generic EsqlSpecTestCase families that share this file skip it (no fixture). The dataset name
+// encodes the schema_resolution option so the same name always carries the same settings.
 
 // ===== FIRST_FILE_WINS =====
 
 ffwCount
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_split_ffw: "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins"}
 
@@ -22,7 +22,7 @@ count:long
 ;
 
 ffwFilterAndSort
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_split_ffw: "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins"}
 
@@ -39,7 +39,7 @@ emp_no:integer | first_name:keyword | salary:integer
 ;
 
 ffwAggregateByGender
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_split_ffw: "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins"}
 
@@ -54,7 +54,7 @@ count:long | gender:keyword
 ;
 
 ffwSalaryStats
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_split_ffw: "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins"}
 
@@ -68,7 +68,7 @@ avg_salary:double | total:long
 // ===== STRICT =====
 
 strictCount
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_split_strict: "{{employees_multifile_split}}" WITH {"schema_resolution": "strict"}
 
@@ -80,7 +80,7 @@ count:long
 ;
 
 strictFilterAndSort
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_split_strict: "{{employees_multifile_split}}" WITH {"schema_resolution": "strict"}
 
@@ -97,7 +97,7 @@ emp_no:integer | first_name:keyword | salary:integer
 ;
 
 strictAggregateByGender
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_split_strict: "{{employees_multifile_split}}" WITH {"schema_resolution": "strict"}
 
@@ -112,7 +112,7 @@ count:long | gender:keyword
 ;
 
 strictSalaryStats
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_split_strict: "{{employees_multifile_split}}" WITH {"schema_resolution": "strict"}
 
@@ -126,7 +126,7 @@ avg_salary:double | total:long
 // ===== UNION_BY_NAME (default) =====
 
 ubnCount
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split
@@ -137,7 +137,7 @@ count:long
 ;
 
 ubnExplicitCount
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_split_ubn: "{{employees_multifile_split}}" WITH {"schema_resolution": "union_by_name"}
 
@@ -149,7 +149,7 @@ count:long
 ;
 
 ubnFilterAndSort
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split
@@ -165,7 +165,7 @@ emp_no:integer | first_name:keyword | salary:integer
 ;
 
 ubnAggregateByGender
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split
@@ -179,7 +179,7 @@ count:long | gender:keyword
 ;
 
 ubnSalaryStats
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split

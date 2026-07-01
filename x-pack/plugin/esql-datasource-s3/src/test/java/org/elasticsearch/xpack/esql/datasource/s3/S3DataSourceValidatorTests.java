@@ -145,6 +145,31 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
     }
 
+    public void testValidateDatasourceRejectsKeylessWhenDisabled() {
+        // default validator has keyless authentication disabled
+        var keylessConfig = Map.<String, Object>of(
+            "role_arn",
+            "arn:aws:iam::123456789012:role/example",
+            "jwt_audience",
+            "sts.amazonaws.com",
+            "region",
+            "us-east-1"
+        );
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(keylessConfig));
+        assertThat(e.getMessage(), containsString("esql_external_datasources_keyless"));
+    }
+
+    public void testValidateDatasourceAcceptsKeylessWhenEnabled() {
+        var keylessValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n")).withKeylessEnabled(
+            () -> true
+        );
+        var result = keylessValidator.validateDatasource(
+            Map.of("role_arn", "arn:aws:iam::123456789012:role/example", "jwt_audience", "sts.amazonaws.com", "region", "us-east-1")
+        );
+        assertEquals("arn:aws:iam::123456789012:role/example", result.get("role_arn").nonSecretValue());
+        assertFalse(result.get("role_arn").secret());
+    }
+
     public void testValidateDatasourceWithSessionToken() {
         var result = validator.validateDatasource(
             Map.of("access_key", "AKIA123", "secret_key", "secret", "session_token", "FwoGZXIvYXdz", "region", "us-east-1")

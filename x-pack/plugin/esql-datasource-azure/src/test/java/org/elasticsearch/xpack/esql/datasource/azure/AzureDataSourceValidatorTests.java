@@ -126,6 +126,27 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
         );
     }
 
+    public void testValidateDatasourceRejectsKeylessWhenDisabled() {
+        // default validator has keyless authentication disabled
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(
+                Map.of("tenant_id", "tenant", "client_id", "client", "jwt_audience", "api://AzureADTokenExchange")
+            )
+        );
+        assertThat(e.getMessage(), containsString("esql_external_datasources_keyless"));
+    }
+
+    public void testValidateDatasourceAcceptsKeylessWhenEnabled() {
+        var keylessValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
+            .withKeylessEnabled(() -> true);
+        var result = keylessValidator.validateDatasource(
+            Map.of("tenant_id", "tenant", "client_id", "client", "jwt_audience", "api://AzureADTokenExchange")
+        );
+        assertEquals("tenant", result.get("tenant_id").nonSecretValue());
+        assertFalse(result.get("tenant_id").secret());
+    }
+
     public void testValidateDatasourceWithSasToken() {
         assertTrue(validator.validateDatasource(Map.of("sas_token", "?sv=2020")).get("sas_token").secret());
     }

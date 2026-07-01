@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
@@ -41,6 +42,25 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationU
  * base dataset fields are accepted — preserving backward compatibility.
  */
 public class FileDataSourceValidator implements DataSourceValidator {
+
+    /**
+     * Gates provisioning data sources that use keyless workload-identity federation (e.g. S3 {@code role_arn},
+     * GCS {@code sts_audience}, Azure {@code tenant_id}/{@code client_id}). A single flag covers every file-based
+     * provider, since they all funnel through this validator and share the
+     * {@link DataSourceConfiguration#hasKeylessAuth()} mechanism. Snapshot-on, release-off; override in release with
+     * {@code -Des.esql_external_datasources_keyless_feature_flag_enabled=true}. The keyless fields themselves remain
+     * registered on each configuration regardless, so a PUT carrying them produces the explicit
+     * {@link #KEYLESS_DISABLED_MESSAGE} rather than an "unknown setting" error.
+     */
+    public static final FeatureFlag ESQL_EXTERNAL_DATASOURCES_KEYLESS_FEATURE_FLAG = new FeatureFlag("esql_external_datasources_keyless");
+
+    /**
+     * Error shown when a data source is provisioned with keyless authentication settings while the
+     * {@link #ESQL_EXTERNAL_DATASOURCES_KEYLESS_FEATURE_FLAG} feature flag is disabled.
+     */
+    public static final String KEYLESS_DISABLED_MESSAGE =
+        "keyless authentication settings require the [esql_external_datasources_keyless] feature flag to be enabled; "
+            + "it is disabled by default in release builds";
 
     // Dataset settings are plain values — no secrets. Credentials are inherited from the parent datasource.
     private static final String SCHEMA_SAMPLE_SIZE = "schema_sample_size";
@@ -84,13 +104,14 @@ public class FileDataSourceValidator implements DataSourceValidator {
     private final FormatConfigKeyResolver formatConfigKeyResolver;
     private final Set<String> compressionExtensions;
     private final BooleanSupplier workloadIdentityEnabled;
+    private final BooleanSupplier keylessEnabled;
 
     public FileDataSourceValidator(
         String type,
         Function<Map<String, Object>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
-        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false);
+        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false, () -> false);
     }
 
     private FileDataSourceValidator(
@@ -99,7 +120,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
         Set<String> supportedSchemes,
         @Nullable FormatConfigKeyResolver formatConfigKeyResolver,
         Set<String> compressionExtensions,
-        BooleanSupplier workloadIdentityEnabled
+        BooleanSupplier workloadIdentityEnabled,
+        BooleanSupplier keylessEnabled
     ) {
         this.type = type;
         this.configFactory = configFactory;
@@ -107,6 +129,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         this.formatConfigKeyResolver = formatConfigKeyResolver;
         this.compressionExtensions = compressionExtensions;
         this.workloadIdentityEnabled = workloadIdentityEnabled;
+        this.keylessEnabled = keylessEnabled;
     }
 
     /**
@@ -119,7 +142,15 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * runtime resolution in {@code FormatReaderRegistry}/{@code DecompressionCodecRegistry}.
      */
     public FileDataSourceValidator withFormatConfigKeyResolver(FormatConfigKeyResolver resolver, Set<String> compressionExtensions) {
-        return new FileDataSourceValidator(type, configFactory, supportedSchemes, resolver, compressionExtensions, workloadIdentityEnabled);
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            resolver,
+            compressionExtensions,
+            workloadIdentityEnabled,
+            keylessEnabled
+        );
     }
 
     /**
@@ -130,7 +161,33 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * without a node restart.
      */
     public FileDataSourceValidator withWorkloadIdentityEnabled(BooleanSupplier supplier) {
-        return new FileDataSourceValidator(type, configFactory, supportedSchemes, formatConfigKeyResolver, compressionExtensions, supplier);
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            formatConfigKeyResolver,
+            compressionExtensions,
+            supplier,
+            keylessEnabled
+        );
+    }
+
+    /**
+     * Returns a new validator that gates keyless workload-identity authentication on the supplied boolean supplier.
+     * The supplier is called on each validation. Wire it to
+     * {@link #ESQL_EXTERNAL_DATASOURCES_KEYLESS_FEATURE_FLAG} in production; tests pass a fixed supplier to exercise
+     * both states without flipping the process-wide feature flag.
+     */
+    public FileDataSourceValidator withKeylessEnabled(BooleanSupplier supplier) {
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            formatConfigKeyResolver,
+            compressionExtensions,
+            workloadIdentityEnabled,
+            supplier
+        );
     }
 
     @Override
@@ -148,6 +205,9 @@ public class FileDataSourceValidator implements DataSourceValidator {
             && fc.isWorkloadIdentity()
             && workloadIdentityEnabled.getAsBoolean() == false) {
             throw new ValidationException().addValidationError(FileDataSourceConfiguration.WORKLOAD_IDENTITY_DISABLED_MESSAGE);
+        }
+        if (config != null && config.hasKeylessAuth() && keylessEnabled.getAsBoolean() == false) {
+            throw new ValidationException().addValidationError(KEYLESS_DISABLED_MESSAGE);
         }
         return config != null ? config.toStoredSettings() : Map.of();
     }

@@ -123,6 +123,20 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
         );
     }
 
+    public void testValidateDatasourceRejectsKeylessWhenDisabled() {
+        // default validator has keyless authentication disabled
+        var keylessConfig = Map.<String, Object>of("jwt_audience", "//aud", "sts_audience", "//sts");
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(keylessConfig));
+        assertThat(e.getMessage(), containsString("esql_external_datasources_keyless"));
+    }
+
+    public void testValidateDatasourceAcceptsKeylessWhenEnabled() {
+        var keylessValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs")).withKeylessEnabled(() -> true);
+        var result = keylessValidator.validateDatasource(Map.of("jwt_audience", "//aud", "sts_audience", "//sts"));
+        assertEquals("//sts", result.get("sts_audience").nonSecretValue());
+        assertFalse(result.get("sts_audience").secret());
+    }
+
     public void testValidateDatasetValid() {
         var result = validator.validateDataset(Map.of(), "gs://bucket/path/*.parquet", Map.of("partition_detection", "hive"));
         assertEquals("hive", result.get("partition_detection"));

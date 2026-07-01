@@ -652,8 +652,13 @@ public class ParquetTestingIT extends ESRestTestCase {
                 double epsilon = Math.abs(gtd) * 1e-6 + 1e-15;
                 assertEquals("Float mismatch at " + ctx, gtd, esqld, epsilon);
             } else if ("unsigned_long".equals(esqlType)) {
-                long esqlDecoded = esqlNum.longValue() ^ Long.MIN_VALUE;
-                assertEquals("Unsigned long mismatch at " + ctx, gtNum.longValue(), esqlDecoded);
+                // The ESQL response already holds the decoded unsigned value (the JSON output edge decodes
+                // unsigned_long blocks), so compare it directly against the ground truth. Both sides are compared
+                // as unsigned over the full [0, 2^64-1] range: the ground truth is the raw INT64 bits reinterpreted
+                // as unsigned, and the response value may be a Long (<= Long.MAX_VALUE) or a BigInteger (above it).
+                java.math.BigInteger gtUnsigned = new java.math.BigInteger(Long.toUnsignedString(gtNum.longValue()));
+                java.math.BigInteger esqlUnsigned = new java.math.BigInteger(esqlNum.toString());
+                assertEquals("Unsigned long mismatch at " + ctx, gtUnsigned, esqlUnsigned);
             } else {
                 assertEquals("Integer mismatch at " + ctx, gtNum.longValue(), esqlNum.longValue());
             }

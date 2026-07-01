@@ -29,7 +29,8 @@ public interface InferenceServiceExtension {
         ThreadPool threadPool,
         ClusterService clusterService,
         Settings settings,
-        InferenceStats inferenceStats
+        InferenceStats inferenceStats,
+        InferenceFeatureService inferenceFeatureService
     ) {}
 
     interface Factory {

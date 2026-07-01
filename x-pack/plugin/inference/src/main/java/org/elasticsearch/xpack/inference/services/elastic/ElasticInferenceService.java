@@ -189,8 +189,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        if (model instanceof ElasticInferenceServiceCompletionModel == false
-            || (model.getTaskType() != CHAT_COMPLETION && model.getTaskType() != COMPLETION)) {
+        if (model instanceof ElasticInferenceServiceCompletionModel == false || (model.getTaskType() != CHAT_COMPLETION)) {
             listener.onFailure(createInvalidModelException(model));
             return;
         }
@@ -214,6 +213,12 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     }
 
     private static UnifiedChatInput getUnifiedInputs(ElasticInferenceServiceCompletionModel model, UnifiedChatInput inputs) {
+        if (model.getTaskType() != CHAT_COMPLETION) {
+            throw new IllegalArgumentException(
+                Strings.format("Only chat completion models support reasoning, but model task type is: [%s]", model.getTaskType())
+            );
+        }
+
         var storedReasoning = model.getTaskSettings() instanceof ElasticInferenceServiceChatCompletionTaskSettings ts
             ? ts.reasoning()
             : null;

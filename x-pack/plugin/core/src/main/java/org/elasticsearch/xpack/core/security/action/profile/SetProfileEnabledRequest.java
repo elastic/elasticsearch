@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.core.security.action.profile;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class SetProfileEnabledRequest extends LegacyActionRequest {
+public class SetProfileEnabledRequest extends UntypedActionRequest {
 
     private final String uid;
     private final boolean enabled;

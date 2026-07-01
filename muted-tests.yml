@@ -830,3 +830,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.KeywordRollingUpgradeIT
   method: testIndexing
   issue: https://github.com/elastic/elasticsearch/issues/152659
+- class: org.elasticsearch.xpack.logsdb.SyntheticSourceRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/152660

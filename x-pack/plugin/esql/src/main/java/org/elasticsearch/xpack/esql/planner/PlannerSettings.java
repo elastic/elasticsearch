@@ -666,6 +666,8 @@ public class PlannerSettings {
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold
         );
     }
@@ -948,6 +950,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -975,6 +978,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,

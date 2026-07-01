@@ -49,7 +49,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
@@ -125,14 +124,6 @@ import static org.elasticsearch.reindex.remote.RemoteReindexingUtils.openPit;
 public class Reindexer {
 
     private static final Logger logger = LogManager.getLogger(Reindexer.class);
-
-    /// Allows setting the system property `es.reindex.disable_pit_search` as an escape hatch to disable the use of PIT-based search, and
-    /// force the use of the legacy scroll-based search.
-    // TODO(#2715): Remove this when we're confident the PIT version works
-    private static final boolean DISABLE_PIT_SEARCH = Booleans.parseBooleanLenient(
-        System.getProperty("es.reindex.disable_pit_search"),
-        false
-    );
 
     private final ClusterService clusterService;
     private final ReindexSettings reindexSettings;
@@ -255,7 +246,7 @@ public class Reindexer {
         Consumer<Version> workerAction = createWorkerAction(task, request, bulkClient, responseListener);
 
         // Point-in-time searching is disabled, so default to scroll
-        if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) == false || DISABLE_PIT_SEARCH) {
+        if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) == false) {
             executePaginatedSearch(task, request, responseListener, workerAction, null);
         }
         /**
@@ -1192,6 +1183,7 @@ public class Reindexer {
              * here on out operates on the index request rather than the template.
              */
             index.routing(mainRequest.getDestination().routing());
+            index.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
             index.setPipeline(mainRequest.getDestination().getPipeline());
             if (mainRequest.getDestination().opType() == DocWriteRequest.OpType.CREATE) {
                 index.opType(mainRequest.getDestination().opType());
@@ -1208,15 +1200,24 @@ public class Reindexer {
             String routingSpec = mainRequest.getDestination().routing();
             if (routingSpec == null) {
                 super.copyRouting(request, routing);
+                // Prevent saying "routing from slice" on empty routing on write, as this is invalid
+                request.setRoutingFromSlice(false);
                 return;
             }
             if (routingSpec.startsWith("=")) {
                 super.copyRouting(request, mainRequest.getDestination().routing().substring(1));
+                request.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
                 return;
             }
             switch (routingSpec) {
-                case "keep" -> super.copyRouting(request, routing);
-                case "discard" -> super.copyRouting(request, null);
+                case "keep" -> {
+                    super.copyRouting(request, routing);
+                    request.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
+                }
+                case "discard" -> {
+                    super.copyRouting(request, null);
+                    request.setRoutingFromSlice(false);
+                }
                 default -> throw new IllegalArgumentException("Unsupported routing command");
             }
         }
@@ -1276,8 +1277,9 @@ public class Reindexer {
                  * Its important that routing comes after parent in case you want to
                  * change them both.
                  */
-                if (metadata.routingChanged()) {
+                if (metadata.routingChangedWithSlice(request.isRoutingFromSlice())) {
                     request.setRouting(metadata.getRouting());
+                    request.setRoutingFromSlice(metadata.isRoutingFromSlice());
                 }
             }
         }

@@ -110,6 +110,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -242,7 +243,7 @@ public class ComputeService {
         return formatReaderRegistry;
     }
 
-    PhysicalPlan discoverSplits(PhysicalPlan plan, Configuration configuration, EsqlExecutionInfo execInfo) {
+    PhysicalPlan discoverSplits(PhysicalPlan plan, Configuration configuration, EsqlExecutionInfo execInfo, BooleanSupplier isCancelled) {
         if (operatorFactoryRegistry == null) {
             return plan;
         }
@@ -250,10 +251,14 @@ public class ComputeService {
             SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
                 plan,
                 operatorFactoryRegistry.sourceFactories(),
-                maxRecordBytes(configuration)
+                maxRecordBytes(configuration),
+                isCancelled
             );
             recordExternalScanStats(execInfo, result);
             return coalesceSplits(result.plan());
+        } catch (TaskCancelledException e) {
+            // Cancellation is not a discovery failure — propagate it without the warn.
+            throw e;
         } catch (Exception e) {
             LOGGER.warn("split discovery failed for external source", e);
             throw e;
@@ -302,9 +307,10 @@ public class ComputeService {
     ExternalDistributionResult applyExternalDistributionStrategy(
         PhysicalPlan plan,
         Configuration configuration,
-        EsqlExecutionInfo execInfo
+        EsqlExecutionInfo execInfo,
+        BooleanSupplier isCancelled
     ) {
-        List<ExternalSplit> externalSplits = collectExternalSplits(plan, configuration, execInfo);
+        List<ExternalSplit> externalSplits = collectExternalSplits(plan, configuration, execInfo, isCancelled);
         if (externalSplits.isEmpty()) {
             return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, List.of());
         }
@@ -337,7 +343,12 @@ public class ComputeService {
         }
     }
 
-    private List<ExternalSplit> collectExternalSplits(PhysicalPlan plan, Configuration configuration, EsqlExecutionInfo execInfo) {
+    private List<ExternalSplit> collectExternalSplits(
+        PhysicalPlan plan,
+        Configuration configuration,
+        EsqlExecutionInfo execInfo,
+        BooleanSupplier isCancelled
+    ) {
         List<ExternalSplit> splits = new ArrayList<>();
         // A physical plan is produced by a single mapper, so top-level ExternalSourceExec nodes and
         // fragment-wrapped ExternalRelation nodes never coexist: the distributed Mapper wraps every
@@ -348,7 +359,7 @@ public class ComputeService {
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
         if (splits.isEmpty()) {
             if (canSkipSplitDiscovery(plan, formatReaderRegistry) == false) {
-                discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo);
+                discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo, isCancelled);
                 if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
                     if (coalesced != splits) {
@@ -450,7 +461,8 @@ public class ComputeService {
         PhysicalPlan plan,
         List<ExternalSplit> splits,
         int maxRecordBytes,
-        EsqlExecutionInfo execInfo
+        EsqlExecutionInfo execInfo,
+        BooleanSupplier isCancelled
     ) {
         if (operatorFactoryRegistry == null) {
             return;
@@ -461,7 +473,8 @@ public class ComputeService {
                 SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
                     tempExec,
                     operatorFactoryRegistry.sourceFactories(),
-                    maxRecordBytes
+                    maxRecordBytes,
+                    isCancelled
                 );
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
@@ -745,8 +758,18 @@ public class ComputeService {
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile
     ) {
-        final PhysicalPlan splitPlan = discoverSplits(physicalPlan, configuration, execInfo);
-        final ExternalDistributionResult distributionResult = applyExternalDistributionStrategy(splitPlan, configuration, execInfo);
+        final PhysicalPlan splitPlan;
+        final ExternalDistributionResult distributionResult;
+        try {
+            // Phase 2 split discovery runs synchronously here and can be long (thousands of footer
+            // reads); thread the query's cancellation signal so a cancel aborts it promptly. A cancel
+            // (or any discovery failure) is surfaced through the listener rather than thrown raw.
+            splitPlan = discoverSplits(physicalPlan, configuration, execInfo, rootTask::isCancelled);
+            distributionResult = applyExternalDistributionStrategy(splitPlan, configuration, execInfo, rootTask::isCancelled);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         final PhysicalPlan resolvedPlan = distributionResult.plan();
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             resolvedPlan,
@@ -1193,6 +1216,10 @@ public class ComputeService {
         );
 
         try {
+            var workerThreadPool = transportService.getThreadPool();
+            var parallelWorkerExecutor = workerThreadPool.executor(ESQL_WORKER_THREAD_POOL_NAME);
+            int esqlWorkerPoolSize = workerThreadPool.info(ESQL_WORKER_THREAD_POOL_NAME).getMax();
+
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
                 context.clusterAlias(),
@@ -1210,7 +1237,9 @@ public class ComputeService {
                 ipLocationService,
                 projectResolver,
                 physicalOperationProviders,
-                operatorFactoryRegistry
+                operatorFactoryRegistry,
+                parallelWorkerExecutor,
+                esqlWorkerPoolSize
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

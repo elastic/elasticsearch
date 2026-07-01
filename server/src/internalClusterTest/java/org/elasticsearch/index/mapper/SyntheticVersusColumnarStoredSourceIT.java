@@ -111,6 +111,41 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         assertEqualSource(mappingXContent, document, randomBoolean());
     }
 
+    /**
+     * A minimal, deterministic reproduction of the columnar_stored nested reconstruction bug.
+     *
+     * <p>The mapping declares a single level of nesting ({@code n}), which columnar supports. But an object sub-field
+     * that appears as an array of objects ({@code obj}) is materialized under {@code subobjects:false} as its own child
+     * documents, parented to the {@code n} child - a second <em>physical</em> level of documents in the Lucene block,
+     * even though no second {@code nested} field is declared.
+     *
+     * <p>{@link NestedObjectMapper}'s columnar_stored reconstruction only descends one physical level (it selects the
+     * documents parented directly to the root), so the {@code obj} sub-documents are never visited and their content is
+     * dropped. Synthetic source reconstructs them, so the two source modes diverge. Once the reconstruction handles the
+     * deeper documents, both modes should produce identical {@code _source} and this test will pass.
+     */
+    public void testNestedWithObjectArraySubfield() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("n")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("obj")
+            .startObject("properties")
+            .startObject("val")
+            .field("type", "long")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        var document = Map.of("n", List.of(Map.of("obj", List.of(Map.of("val", 1), Map.of("val", 2)))));
+        assertEqualSource(mappingXContent, document, randomBoolean());
+    }
+
     private void runTest(boolean useTimeSeriesDocValuesFormat) throws Exception {
         var spec = buildSpec();
         var template = new TemplateGenerator(spec).generate();

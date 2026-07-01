@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -65,7 +66,9 @@ public class RejectionActionIT extends ESIntegTestCase {
                     }
                 }, latch));
         }
-        latch.await();
+        // Bounded wait: some search requests can be stuck indefinitely (see #146022), in which case we'd
+        // rather fail fast with a clear timeout than have the whole suite hang until it hits its own timeout.
+        safeAwait(latch, TimeValue.ONE_MINUTE);
 
         // validate all responses
         for (Object response : responses) {

@@ -121,7 +121,7 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
             // pipeline.
             Set<String> eagerPipelines = pipelinesWithGeoIpProcessor(projectMetadata, true);
             Set<String> lazyPipelines = pipelinesWithGeoIpProcessor(projectMetadata, false);
-            if (eagerPipelines.isEmpty() == false || anyIndexReferencesPipeline(projectMetadata, lazyPipelines)) {
+            if (shouldRequestDownloads(projectMetadata, eagerPipelines, lazyPipelines)) {
                 ipLocationService.requestDownloads(projectId.id(), IpLocationConsumer.INGEST);
             } else if (lazyPipelines.isEmpty()) {
                 // Drop any pending downloads for this project only if there are no pipelines that need them (we know the eager
@@ -131,9 +131,13 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
         }
     }
 
-    static boolean hasAtLeastOneGeoipProcessor(ProjectMetadata projectMetadata) {
-        return pipelinesWithGeoIpProcessor(projectMetadata, true).isEmpty() == false
-            || anyIndexReferencesPipeline(projectMetadata, pipelinesWithGeoIpProcessor(projectMetadata, false));
+    /**
+     * Whether IP-location downloads should be requested for the project: an eager
+     * ({@code download_database_on_pipeline_creation:true}) geoip pipeline exists, or an index references one of the
+     * lazy pipelines.
+     */
+    static boolean shouldRequestDownloads(ProjectMetadata projectMetadata, Set<String> eagerPipelines, Set<String> lazyPipelines) {
+        return eagerPipelines.isEmpty() == false || anyIndexReferencesPipeline(projectMetadata, lazyPipelines);
     }
 
     /**
@@ -161,7 +165,7 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
      * @return A set of pipeline ids matching criteria.
      */
     @SuppressWarnings("unchecked")
-    private static Set<String> pipelinesWithGeoIpProcessor(ProjectMetadata projectMetadata, boolean downloadDatabaseOnPipelineCreation) {
+    static Set<String> pipelinesWithGeoIpProcessor(ProjectMetadata projectMetadata, boolean downloadDatabaseOnPipelineCreation) {
         List<PipelineConfiguration> configurations = IngestService.getPipelines(projectMetadata);
         Map<String, PipelineConfiguration> pipelineConfigById = HashMap.newHashMap(configurations.size());
         for (PipelineConfiguration configuration : configurations) {

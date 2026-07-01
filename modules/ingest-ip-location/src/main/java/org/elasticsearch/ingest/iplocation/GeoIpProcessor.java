@@ -293,7 +293,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             boolean firstOnly = readBooleanProperty(type, processorTag, config, "first_only", true);
 
             // Consume the property to prevent "unknown property" validation error.
-            // The actual logic is handled by IngestIpLocationPlugin.hasAtLeastOneGeoipProcessor().
+            // The actual logic is handled by IngestIpLocationPlugin.pipelinesWithGeoIpProcessor().
             readBooleanProperty(type, processorTag, config, "download_database_on_pipeline_creation", true);
 
             final IpDataLookup lookup;

@@ -115,6 +115,14 @@ public class IngestIpLocationPluginTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("test")).nodes(MASTER_NODES).build();
     }
 
+    private static boolean shouldRequestDownloads(ProjectMetadata projectMetadata) {
+        return IngestIpLocationPlugin.shouldRequestDownloads(
+            projectMetadata,
+            IngestIpLocationPlugin.pipelinesWithGeoIpProcessor(projectMetadata, true),
+            IngestIpLocationPlugin.pipelinesWithGeoIpProcessor(projectMetadata, false)
+        );
+    }
+
     public void testProjectWithGeoipPipelineRequestsDownloads() throws IOException {
         var mocks = createPluginWithMocks();
         ProjectId projectId = randomProjectIdOrDefault();
@@ -282,22 +290,22 @@ public class IngestIpLocationPluginTests extends ESTestCase {
         verify(mocks.service).cancelDownloadRequest(projectId.id(), IpLocationConsumer.INGEST);
     }
 
-    public void testHasAtLeastOneGeoipProcessorWhenDownloadDatabaseOnPipelineCreationIsFalse() throws IOException {
+    public void testShouldRequestDownloadsWhenDownloadDatabaseOnPipelineCreationIsFalse() throws IOException {
         for (String pipelineConfigJson : getPipelinesWithGeoIpProcessors(false)) {
             var ingestMetadata = new IngestMetadata(
                 Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipelineConfigJson), XContentType.JSON))
             );
             // The pipeline is not used in any index, expected to return false.
             var projectMetadata = projectMetadataWithIndex(b -> {}, ingestMetadata);
-            assertFalse(IngestIpLocationPlugin.hasAtLeastOneGeoipProcessor(projectMetadata));
+            assertFalse(shouldRequestDownloads(projectMetadata));
 
             // The pipeline is set as default pipeline in an index, expected to return true.
             projectMetadata = projectMetadataWithIndex(b -> b.put(IndexSettings.DEFAULT_PIPELINE.getKey(), "_id1"), ingestMetadata);
-            assertTrue(IngestIpLocationPlugin.hasAtLeastOneGeoipProcessor(projectMetadata));
+            assertTrue(shouldRequestDownloads(projectMetadata));
 
             // The pipeline is set as final pipeline in an index, expected to return true.
             projectMetadata = projectMetadataWithIndex(b -> b.put(IndexSettings.FINAL_PIPELINE.getKey(), "_id1"), ingestMetadata);
-            assertTrue(IngestIpLocationPlugin.hasAtLeastOneGeoipProcessor(projectMetadata));
+            assertTrue(shouldRequestDownloads(projectMetadata));
         }
 
     }
@@ -307,7 +315,7 @@ public class IngestIpLocationPluginTests extends ESTestCase {
      * download_database_on_pipeline_creation set to false, then we will correctly acknowledge that the pipeline has a geoip processor so
      * that we download it appropriately.
      */
-    public void testHasAtLeastOneGeoipProcessorInPipelineProcessorWhenDownloadDatabaseOnPipelineCreationIsFalse() throws IOException {
+    public void testShouldRequestDownloadsForPipelineProcessorWhenDownloadDatabaseOnPipelineCreationIsFalse() throws IOException {
         String innerInnerPipelineJson = """
             {
               "processors":[""" + getGeoIpProcessor(false) + """
@@ -338,18 +346,18 @@ public class IngestIpLocationPluginTests extends ESTestCase {
         );
         // The pipeline is not used in any index, expected to return false.
         var projectMetadata = projectMetadataWithIndex(b -> {}, ingestMetadata);
-        assertFalse(IngestIpLocationPlugin.hasAtLeastOneGeoipProcessor(projectMetadata));
+        assertFalse(shouldRequestDownloads(projectMetadata));
 
         // The pipeline is set as default pipeline in an index, expected to return true.
         projectMetadata = projectMetadataWithIndex(b -> b.put(IndexSettings.DEFAULT_PIPELINE.getKey(), "outerPipeline"), ingestMetadata);
-        assertTrue(IngestIpLocationPlugin.hasAtLeastOneGeoipProcessor(projectMetadata));
+        assertTrue(shouldRequestDownloads(projectMetadata));
 
         // The pipeline is set as final pipeline in an index, expected to return true.
         projectMetadata = projectMetadataWithIndex(b -> b.put(IndexSettings.FINAL_PIPELINE.getKey(), "outerPipeline"), ingestMetadata);
-        assertTrue(IngestIpLocationPlugin.hasAtLeastOneGeoipProcessor(projectMetadata));
+        assertTrue(shouldRequestDownloads(projectMetadata));
     }
 
-    public void testHasAtLeastOneGeoipProcessorRecursion() throws IOException {
+    public void testShouldRequestDownloadsWithRecursivePipelines() throws IOException {
         /*
          * The pipeline in this test is invalid -- it has a cycle from outerPipeline -> innerPipeline -> innerInnerPipeline ->
          * innerPipeline. Since this method is called at server startup, we want to make sure that we don't get a StackOverFlowError and
@@ -386,44 +394,44 @@ public class IngestIpLocationPluginTests extends ESTestCase {
         );
         // The pipeline is not used in any index, expected to return false.
         var projectMetadata = projectMetadataWithIndex(b -> {}, ingestMetadata);
-        assertFalse(IngestIpLocationPlugin.hasAtLeastOneGeoipProcessor(projectMetadata));
+        assertFalse(shouldRequestDownloads(projectMetadata));
 
         // The pipeline is set as default pipeline in an index, expected to return true.
         projectMetadata = projectMetadataWithIndex(b -> b.put(IndexSettings.DEFAULT_PIPELINE.getKey(), "outerPipeline"), ingestMetadata);
-        assertTrue(IngestIpLocationPlugin.hasAtLeastOneGeoipProcessor(projectMetadata));
+        assertTrue(shouldRequestDownloads(projectMetadata));
 
         // The pipeline is set as final pipeline in an index, expected to return true.
         projectMetadata = projectMetadataWithIndex(b -> b.put(IndexSettings.FINAL_PIPELINE.getKey(), "outerPipeline"), ingestMetadata);
-        assertTrue(IngestIpLocationPlugin.hasAtLeastOneGeoipProcessor(projectMetadata));
+        assertTrue(shouldRequestDownloads(projectMetadata));
     }
 
-    public void testHasAtLeastOneGeoipProcessor() throws IOException {
+    public void testShouldRequestDownloads() throws IOException {
         var projectId = Metadata.DEFAULT_PROJECT_ID;
         List<String> expectHitsInputs = getPipelinesWithGeoIpProcessors(true);
         List<String> expectMissesInputs = getPipelinesWithoutGeoIpProcessors();
         {
-            // Test that hasAtLeastOneGeoipProcessor returns true for any pipeline with a geoip processor:
+            // Test that shouldRequestDownloads returns true for any pipeline with a geoip processor:
             for (String pipeline : expectHitsInputs) {
                 var ingestMetadata = new IngestMetadata(
                     Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipeline), XContentType.JSON))
                 );
                 ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build();
-                assertTrue(IngestIpLocationPlugin.hasAtLeastOneGeoipProcessor(projectMetadata));
+                assertTrue(shouldRequestDownloads(projectMetadata));
             }
         }
         {
-            // Test that hasAtLeastOneGeoipProcessor returns false for any pipeline without a geoip processor:
+            // Test that shouldRequestDownloads returns false for any pipeline without a geoip processor:
             for (String pipeline : expectMissesInputs) {
                 var ingestMetadata = new IngestMetadata(
                     Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipeline), XContentType.JSON))
                 );
                 ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build();
-                assertFalse(IngestIpLocationPlugin.hasAtLeastOneGeoipProcessor(projectMetadata));
+                assertFalse(shouldRequestDownloads(projectMetadata));
             }
         }
         {
             /*
-             * Now test that hasAtLeastOneGeoipProcessor returns true for a mix of pipelines, some which have geoip processors and some
+             * Now test that shouldRequestDownloads returns true for a mix of pipelines, some which have geoip processors and some
              * which do not:
              */
             Map<String, PipelineConfiguration> configs = new HashMap<>();
@@ -437,12 +445,12 @@ public class IngestIpLocationPluginTests extends ESTestCase {
             }
             var ingestMetadata = new IngestMetadata(configs);
             ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build();
-            assertTrue(IngestIpLocationPlugin.hasAtLeastOneGeoipProcessor(projectMetadata));
+            assertTrue(shouldRequestDownloads(projectMetadata));
         }
     }
 
     /*
-     * This method returns an assorted list of pipelines that have geoip processors -- ones that ought to cause hasAtLeastOneGeoipProcessor
+     * This method returns an assorted list of pipelines that have geoip processors -- ones that ought to cause shouldRequestDownloads
      *  to return true.
      */
     private List<String> getPipelinesWithGeoIpProcessors(boolean downloadDatabaseOnPipelineCreation) throws IOException {
@@ -554,7 +562,7 @@ public class IngestIpLocationPluginTests extends ESTestCase {
 
     /*
      * This method returns an assorted list of pipelines that _do not_ have geoip processors -- ones that ought to cause
-     * hasAtLeastOneGeoipProcessor to return false.
+     * shouldRequestDownloads to return false.
      */
     private List<String> getPipelinesWithoutGeoIpProcessors() {
         String empty = """

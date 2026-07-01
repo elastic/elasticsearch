@@ -58,6 +58,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
@@ -707,20 +708,20 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var clusterService = internalCluster().getInstance(ClusterService.class, node);
         final var allocationId = latestShard.allocationId();
 
+        final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId.getId(), true))
         );
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
 
-        final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
         TestRecoveryBlockerPlugin.beforeShardCreatedGate.release();
         safeAwait(shardFailureReceived);
 
         awaitClusterState(state -> {
             final var primaryShard = state.routingTable().shardRoutingTable(shardId).primaryShard();
             return (primaryShard.unassigned() && primaryShard.unassignedInfo().failedAllocations() > 0)
-                || primaryShard.allocationId() != allocationId;
+                || Objects.equals(primaryShard.allocationId(), allocationId) == false;
         });
         assertThat(directCancellationMetric(node), equalTo(0L));
     }

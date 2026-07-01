@@ -76,6 +76,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryClusterStateDelay;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
@@ -902,7 +903,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 originalState.metadata().projectFor(shardRouting.index()).id(),
                 shardRouting,
                 recoveryTargetService,
-                new ShardRecoveryListener(shardRouting, primaryTerm),
+                new ShardRecoveryListener(shardRouting, primaryTerm, originalState.version()),
                 repositoriesService,
                 failedShardHandler,
                 this::updateGlobalCheckpointForShard,
@@ -1166,9 +1167,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          */
         private final long primaryTerm;
 
-        private ShardRecoveryListener(final ShardRouting shardRouting, final long primaryTerm) {
+        /**
+         * The cluster state version under which this shard creation started.
+         */
+        private final long creationClusterStateVersion;
+
+        private ShardRecoveryListener(final ShardRouting shardRouting, final long primaryTerm, final long creationClusterStateVersion) {
             this.shardRouting = shardRouting;
             this.primaryTerm = primaryTerm;
+            this.creationClusterStateVersion = creationClusterStateVersion;
         }
 
         @Override
@@ -1189,7 +1196,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         @Override
         public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-            handleRecoveryFailure(shardRouting, sendShardFailure, e);
+            RecoveryClusterStateDelay.ensureClusterStateVersion(
+                creationClusterStateVersion,
+                clusterService,
+                threadPool.generic(),
+                threadPool.getThreadContext(),
+                ActionListener.noop(),
+                listener -> {
+                    handleRecoveryFailure(shardRouting, sendShardFailure, e);
+                    listener.onResponse(null);
+                }
+            );
         }
 
         @Override

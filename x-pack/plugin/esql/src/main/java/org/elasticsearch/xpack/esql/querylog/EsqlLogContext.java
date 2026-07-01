@@ -118,7 +118,6 @@ public class EsqlLogContext extends QueryLoggerContext {
             if (index != null) {
                 return new String[] { index };
             }
-            return new String[] {};
         }
         if (response == null) {
             return null;

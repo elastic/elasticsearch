@@ -789,10 +789,7 @@ public final class EsqlTestUtils {
     public static Configuration configuration(QueryPragmas pragmas, String query, EsqlStatement statement) {
         // No manual normalize here — TIME_ZONE.canonicalize(ZoneId::normalized) runs inside withOverride,
         // so this matches production exactly.
-        ResolvedSettings resolved = ResolvedSettings.EMPTY.withOverride(
-            QuerySettings.TIME_ZONE,
-            statement.setting(QuerySettings.TIME_ZONE)
-        )
+        ResolvedSettings resolved = ResolvedSettings.EMPTY.withOverride(QuerySettings.TIME_ZONE, statement.setting(QuerySettings.TIME_ZONE))
             .withOverride(
                 QuerySettings.APPROXIMATION,
                 new ApproximationSettings.Builder(false).merge(statement.setting(QuerySettings.APPROXIMATION)).build()

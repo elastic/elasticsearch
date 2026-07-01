@@ -1671,6 +1671,91 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testReadListOfUnsignedLongColumn() throws Exception {
+        assertReadListOfUnsignedLongColumn(new ParquetFormatReader(blockFactory, false)); // baseline reader
+    }
+
+    public void testReadListOfUnsignedLongColumnOptimizedReader() throws Exception {
+        assertReadListOfUnsignedLongColumn(new ParquetFormatReader(blockFactory, true)); // optimized reader
+    }
+
+    /**
+     * A LIST of unsigned_long (Parquet INT64 with {@code intType(64, false)}) must sign-flip-encode each element
+     * ({@code value ^ 2^63}), just like the scalar path, so the always-decoding output edge produces the true unsigned
+     * value. Before the encode was added, list columns fell into the unsupported branch and read back as all-null.
+     * Both reader paths route list columns through the same shared decoder, so both are exercised here.
+     */
+    private void assertReadListOfUnsignedLongColumn(ParquetFormatReader reader) throws Exception {
+        Type listType = Types.optionalList()
+            .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.intType(64, false)) // unsigned, bit-width 64
+            .named("values");
+        MessageType schema = new MessageType("test_schema", listType);
+
+        long maxUnsigned = 0xFFFFFFFFFFFFFFFFL; // 2^64-1
+        // 2^63 + 100: as an unsigned value this is > Long.MAX_VALUE, so it encodes (^ 2^63) to a non-negative long --
+        // the opposite side of the sign boundary from 0 and 100, which encode to negative longs.
+        long aboveSignedMaxUnsigned = 0x8000000000000064L;
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            // Row 0: [0, 2^63+100, 2^64-1] -- spans both sides of the encoding's sign boundary
+            Group g1 = factory.newGroup();
+            Group list1 = g1.addGroup("values");
+            list1.addGroup("list").append("element", 0L);
+            list1.addGroup("list").append("element", aboveSignedMaxUnsigned);
+            list1.addGroup("list").append("element", maxUnsigned);
+
+            // Row 1: null list (no addGroup call)
+            Group g2 = factory.newGroup();
+
+            // Row 2: [100, null element, 200]
+            Group g3 = factory.newGroup();
+            Group list3 = g3.addGroup("values");
+            list3.addGroup("list").append("element", 100L);
+            list3.addGroup("list"); // element absent -> null within the list
+            list3.addGroup("list").append("element", 200L);
+
+            // Row 3: [] (empty, non-null list)
+            Group g4 = factory.newGroup();
+            g4.addGroup("values");
+
+            return List.of(g1, g2, g3, g4);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.UNSIGNED_LONG, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(4, page.getPositionCount());
+
+            LongBlock block = (LongBlock) page.getBlock(0);
+            // Row 0: [0, 2^63+100, 2^64-1] sign-flip-encoded
+            assertFalse(block.isNull(0));
+            assertEquals(3, block.getValueCount(0));
+            int start0 = block.getFirstValueIndex(0);
+            assertEquals(0L ^ Long.MIN_VALUE, block.getLong(start0));
+            assertEquals(aboveSignedMaxUnsigned ^ Long.MIN_VALUE, block.getLong(start0 + 1));
+            assertEquals(maxUnsigned ^ Long.MIN_VALUE, block.getLong(start0 + 2));
+
+            // Row 1: null list
+            assertTrue(block.isNull(1));
+
+            // Row 2: [100, 200] encoded; the null element is dropped (multivalue blocks do not hold null slots within a list)
+            assertFalse(block.isNull(2));
+            assertEquals(2, block.getValueCount(2));
+            int start2 = block.getFirstValueIndex(2);
+            assertEquals(100L ^ Long.MIN_VALUE, block.getLong(start2));
+            assertEquals(200L ^ Long.MIN_VALUE, block.getLong(start2 + 1));
+
+            // Row 3: [] empty list -> read back as null (the shared list decoder maps an empty list to a null position;
+            // ESQL multivalue blocks have no distinct empty-list representation). This is pre-existing list behavior,
+            // independent of the unsigned encoding, asserted here to document it for the unsigned_long path.
+            assertTrue(block.isNull(3));
+        }
+    }
+
     // --- UUID formatting unit test ---
 
     public void testFormatUuid() {
@@ -3455,8 +3540,95 @@ public class ParquetFormatReaderTests extends ESTestCase {
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
-            assertEquals(unsignedBits, ((LongBlock) page.getBlock(0)).getLong(0));
+            // ESQL stores unsigned_long sign-flip-encoded (value ^ 2^63); the output edge decodes it back to the true value.
+            assertEquals(unsignedBits ^ Long.MIN_VALUE, ((LongBlock) page.getBlock(0)).getLong(0));
             assertFalse(iterator.hasNext());
+        }
+    }
+
+    public void testUnsignedLong64SignFlipEncoding() throws Exception {
+        assertUnsignedLong64SignFlipEncoding(new ParquetFormatReader(blockFactory, false)); // baseline reader
+    }
+
+    public void testUnsignedLong64SignFlipEncodingOptimizedReader() throws Exception {
+        assertUnsignedLong64SignFlipEncoding(new ParquetFormatReader(blockFactory, true)); // optimized reader
+    }
+
+    /**
+     * A 64-bit unsigned column maps to UNSIGNED_LONG, which ESQL stores in a signed LongBlock in sign-flip-encoded form
+     * ({@code value ^ 2^63}) so signed-long ordering matches unsigned ordering. The producer (this reader) must emit the
+     * encoded form because the output edge unconditionally decodes UNSIGNED_LONG blocks. This asserts the encode is applied
+     * across representative values, including {@code 0} and {@code 2^64-1}, on both reader paths.
+     */
+    private void assertUnsignedLong64SignFlipEncoding(ParquetFormatReader reader) throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.intType(64, false)) // unsigned, bit-width 64
+            .named("u64")
+            .named("test_schema");
+        // The encoding (v ^ 2^63) maps unsigned values in [0, 2^63-1] to negative longs and [2^63, 2^64-1] to non-negative
+        // longs. Cover both sides of that boundary: 0, small positive, 2^63-1 (largest value encoding to a negative long),
+        // 2^63 (smallest value encoding to a non-negative long), and 2^64-1.
+        long[] unsignedValues = { 0L, 100L, 0x7FFFFFFFFFFFFFFFL, 0x8000000000000000L, 0xFFFFFFFFFFFFFFFFL };
+        byte[] data = createParquetFile(schema, f -> {
+            List<Group> g = new ArrayList<>();
+            for (long bits : unsignedValues) {
+                g.add(f.newGroup().append("u64", bits));
+            }
+            return g;
+        });
+        var so = createStorageObject(data);
+        assertEquals(DataType.UNSIGNED_LONG, reader.metadata(so).schema().get(0).dataType());
+        try (CloseableIterator<Page> it = reader.read(so, null, 10)) {
+            LongBlock block = (LongBlock) it.next().getBlock(0);
+            for (int i = 0; i < unsignedValues.length; i++) {
+                // contract: a uint64 column is stored sign-flip-encoded (v ^ 2^63 == asLongUnsigned(v))
+                assertEquals(unsignedValues[i] ^ Long.MIN_VALUE, block.getLong(i));
+            }
+        }
+    }
+
+    public void testUnsignedLong64ConstantColumnEncoding() throws Exception {
+        assertUnsignedLong64ConstantColumnEncoding(new ParquetFormatReader(blockFactory, false), false); // baseline reader
+    }
+
+    public void testUnsignedLong64ConstantColumnEncodingOptimizedReader() throws Exception {
+        // The optimized reader collapses an all-equal column into a constant block; assert both the encoding and the collapse,
+        // which proves the encode is applied before constant detection rather than after.
+        assertUnsignedLong64ConstantColumnEncoding(new ParquetFormatReader(blockFactory, true), true);
+    }
+
+    /**
+     * A constant unsigned_long column must still be sign-flip-encoded. The encode is applied before constant detection,
+     * so a collapsed constant block holds the encoded value rather than the raw bits.
+     *
+     * @param expectConstantCollapse when {@code true} the block is additionally asserted to be a constant vector; only the
+     *                               optimized reader performs this collapse, so the baseline reader passes {@code false}.
+     */
+    private void assertUnsignedLong64ConstantColumnEncoding(ParquetFormatReader reader, boolean expectConstantCollapse) throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.intType(64, false)) // unsigned
+            .named("u64")
+            .named("test_schema");
+        long unsignedBits = 0xFFFFFFFFFFFFFFFFL; // 2^64-1, constant across all rows
+        byte[] data = createParquetFile(schema, f -> {
+            List<Group> g = new ArrayList<>();
+            for (int i = 0; i < 16; i++) {
+                g.add(f.newGroup().append("u64", unsignedBits));
+            }
+            return g;
+        });
+        var so = createStorageObject(data);
+        try (CloseableIterator<Page> it = reader.read(so, null, 100)) {
+            LongBlock block = (LongBlock) it.next().getBlock(0);
+            assertEquals(16, block.getPositionCount());
+            for (int i = 0; i < block.getPositionCount(); i++) {
+                assertEquals(unsignedBits ^ Long.MIN_VALUE, block.getLong(i));
+            }
+            if (expectConstantCollapse) {
+                assertTrue("optimized reader should collapse an all-equal column into a constant vector", block.asVector().isConstant());
+            }
         }
     }
 

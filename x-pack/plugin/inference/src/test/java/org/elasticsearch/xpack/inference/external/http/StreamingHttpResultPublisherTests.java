@@ -12,6 +12,7 @@ import org.apache.http.nio.ContentDecoder;
 import org.apache.http.nio.IOControl;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -60,17 +61,19 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     private HttpSettings settings;
     private final AtomicReference<Tuple<StreamingHttpResult, Exception>> result = new AtomicReference<>(null);
     private StreamingHttpResultPublisher publisher;
+    private TrackingTestCircuitBreaker circuitBreaker;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
         threadPool = mock(ThreadPool.class);
         settings = mock(HttpSettings.class);
+        circuitBreaker = new TrackingTestCircuitBreaker();
 
         when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(maxBytes));
 
-        publisher = new StreamingHttpResultPublisher(threadPool, settings, listener(), new TestCircuitBreaker(), INFERENCE_ENTITY_ID);
+        publisher = new StreamingHttpResultPublisher(threadPool, settings, listener(), circuitBreaker, INFERENCE_ENTITY_ID);
     }
 
     private ActionListener<StreamingHttpResult> listener() {
@@ -81,6 +84,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         result.set(null);
+        circuitBreaker.reset();
     }
 
     /**
@@ -625,6 +629,45 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         verify(threadPool, times(0)).executor(UTILITY_THREAD_POOL_NAME);
         subscriber.requestData();
         verify(threadPool, times(1)).executor(UTILITY_THREAD_POOL_NAME);
+    }
+
+    public void testConsumeContentTracksCircuitBreakerBytes() throws IOException {
+        var messageBytesLength = (long) message.length;
+        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
+        assertThat("circuitBreaker should track input bytes on consumeContent", circuitBreaker.getTracked(), equalTo(messageBytesLength));
+    }
+
+    // TODO: bytes are released on sendToSubscriber error
+
+    // TODO: bytes are released on subscriber cancellation
+
+    // TODO:
+
+    private static class TrackingTestCircuitBreaker extends TestCircuitBreaker {
+        private long tracked;
+
+        TrackingTestCircuitBreaker(){
+            super();
+            this.tracked = 0L;
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            this.tracked += bytes;
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            this.tracked += bytes;
+        }
+
+        public long getTracked() {
+            return tracked;
+        }
+
+        public void reset(){
+            this.tracked = 0L;
+        }
     }
 
     private static ContentDecoder contentDecoder(byte[] message) {

@@ -50,6 +50,7 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the weighted average of a numeric expression.",
         description = "The weighted average of a numeric expression.",
         type = FunctionType.AGGREGATE,
         examples = @Example(file = "stats", tag = "weighted-avg")

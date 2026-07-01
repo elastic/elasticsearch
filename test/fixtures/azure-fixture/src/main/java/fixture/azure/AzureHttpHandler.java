@@ -59,14 +59,6 @@ public class AzureHttpHandler implements HttpHandler {
     static final String X_MS_PROPOSED_LEASE_ID = "x-ms-proposed-lease-id";
     static final String X_MS_LEASE_DURATION = "x-ms-lease-duration";
 
-    /**
-     * Default {@code Last-Modified} value (RFC 1123) reported under {@code <Properties>} in the
-     * blob listing XML. Real Azure returns the wall-clock time the blob was last modified;
-     * consumers such as {@code _file.modified} in ES|QL distinguish "unknown" (epoch / null)
-     * from "known" mtime, so the default is a fixed, non-epoch timestamp. Keep this stable
-     * across releases.
-     */
-    static final String DEFAULT_BLOB_LAST_MODIFIED = "Mon, 01 Jan 2024 00:00:00 GMT";
     static final String X_MS_LEASE_BREAK_PERIOD = "x-ms-lease-break-period";
     static final String X_MS_BLOB_TYPE = "x-ms-blob-type";
     static final String X_MS_BLOB_CONTENT_LENGTH = "x-ms-blob-content-length";
@@ -287,7 +279,10 @@ public class AzureHttpHandler implements HttpHandler {
                 responseHeaders.add("Content-Length", String.valueOf(blobContents.length()));
                 responseHeaders.add(X_MS_BLOB_TYPE, blob.type());
                 responseHeaders.add("ETag", "\"blockblob\"");
-                responseHeaders.add("Last-Modified", DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC)));
+                responseHeaders.add(
+                    "Last-Modified",
+                    DateTimeFormatter.RFC_1123_DATE_TIME.format(blob.lastModified().atOffset(ZoneOffset.UTC))
+                );
 
                 final String accessTier = blob.accessTier();
                 if (accessTier != null) {
@@ -355,7 +350,7 @@ public class AzureHttpHandler implements HttpHandler {
                 exchange.getResponseHeaders().add(X_MS_BLOB_TYPE, blob.type());
                 exchange.getResponseHeaders().add("ETag", "\"blockblob\"");
                 exchange.getResponseHeaders()
-                    .add("Last-Modified", DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC)));
+                    .add("Last-Modified", DateTimeFormatter.RFC_1123_DATE_TIME.format(blob.lastModified().atOffset(ZoneOffset.UTC)));
                 final String blobAccessTier = blob.accessTier();
                 if (blobAccessTier != null) {
                     exchange.getResponseHeaders().add(X_MS_ACCESS_TIER, blobAccessTier);
@@ -416,7 +411,7 @@ public class AzureHttpHandler implements HttpHandler {
                                    </Properties>
                                 </Blob>""",
                             blobPath,
-                            DEFAULT_BLOB_LAST_MODIFIED,
+                            DateTimeFormatter.RFC_1123_DATE_TIME.format(blob.getValue().lastModified().atOffset(ZoneOffset.UTC)),
                             blob.getValue().getContents().length(),
                             tier != null ? "<AccessTier>" + tier + "</AccessTier>" : ""
                         )

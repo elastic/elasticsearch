@@ -37,7 +37,7 @@ public class DataPointNumberTests extends ESTestCase {
         assertThat(longGauge.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("gauge_long"));
     }
 
-    public void testCounterTemporality() {
+    public void testCumulativeCounter() {
         DataPoint.Number doubleCumulative = new DataPoint.Number(
             createDoubleDataPoint(nowUnixNanos),
             createSumMetric("http.requests.count", "", List.of(), true, AGGREGATION_TEMPORALITY_CUMULATIVE)
@@ -48,16 +48,19 @@ public class DataPointNumberTests extends ESTestCase {
             createSumMetric("http.requests.count", "", List.of(), true, AGGREGATION_TEMPORALITY_CUMULATIVE)
         );
         assertThat(longCumulative.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("counter_long"));
+    }
+
+    public void testDeltaCounter() {
         DataPoint.Number doubleDelta = new DataPoint.Number(
             createDoubleDataPoint(nowUnixNanos),
             createSumMetric("http.requests.count", "", List.of(), true, AGGREGATION_TEMPORALITY_DELTA)
         );
-        assertThat(doubleDelta.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("gauge_double"));
         DataPoint.Number longDelta = new DataPoint.Number(
             createLongDataPoint(nowUnixNanos),
             createSumMetric("http.requests.count", "", List.of(), true, AGGREGATION_TEMPORALITY_DELTA)
         );
-        assertThat(longDelta.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("gauge_long"));
+        assertThat(doubleDelta.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("counter_double"));
+        assertThat(longDelta.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("counter_long"));
     }
 
     public void testCounterNonMonotonic() {

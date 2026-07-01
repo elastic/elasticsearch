@@ -85,4 +85,20 @@ public abstract class AbstractExternalDistributedIT extends ESRestTestCase {
         var request = new RestEsqlTestCase.RequestObjectBuilder().query(query).pragmasOk().pragmas(pragmas);
         return RestEsqlTestCase.runEsqlSync(request, new AssertWarnings.NoWarnings(), null);
     }
+
+    /**
+     * Run a query with an explicit distribution mode and intra-file parsing parallelism. A
+     * {@code parsingParallelism >= 2} on a file larger than twice the reader's minimum segment size
+     * splits the file into multiple byte-range segments, engaging the multi-segment path of
+     * {@link org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator} rather than the
+     * single-stream fallback.
+     */
+    protected Map<String, Object> runQueryWithMode(String query, String distributionMode, int parsingParallelism) throws IOException {
+        Settings pragmas = Settings.builder()
+            .put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), distributionMode)
+            .put(QueryPragmas.PARSING_PARALLELISM.getKey(), parsingParallelism)
+            .build();
+        var request = new RestEsqlTestCase.RequestObjectBuilder().query(query).pragmasOk().pragmas(pragmas);
+        return RestEsqlTestCase.runEsqlSync(request, new AssertWarnings.NoWarnings(), null);
+    }
 }

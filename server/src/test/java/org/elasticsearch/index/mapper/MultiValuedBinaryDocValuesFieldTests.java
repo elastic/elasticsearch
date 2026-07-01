@@ -238,7 +238,9 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         // then
         assertNotNull(doc.getByKey("field"));
         assertTrue(doc.getByKey("field") instanceof SeparateCount);
-        assertNotNull(doc.getByKey("field.counts"));
+        // count field is added to the fields list un-keyed (no second keyedFields put needed)
+        assertNull(doc.getByKey("field.counts"));
+        assertNotNull(doc.getField("field.counts"));
     }
 
     public void testAddToBinaryFieldInDocUsesIntegratedCountForPreviousVersion() {

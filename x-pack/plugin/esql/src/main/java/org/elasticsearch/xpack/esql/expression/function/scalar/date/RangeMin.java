@@ -39,6 +39,7 @@ public class RangeMin extends UnaryScalarFunction {
         returnType = "date",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        briefSummary = "Returns the start value of a date range.",
         description = "Returns the minimum (start) value of a date_range. For a date_range [x, y), it returns x.",
         examples = @Example(file = "date_range", tag = "range_min")
     )

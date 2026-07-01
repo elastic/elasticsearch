@@ -33,10 +33,13 @@ public class Cosh extends AbstractTrigonometricFunction {
         .unaryValueTransformation(Cosh::new)
         .description("Calculates the hyperbolic cosine of all elements in the input vector.")
         .example("cosh(some_metric)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.OVERFLOW_NOTE)
         .name("cosh");
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the hyperbolic cosine of a number.",
         description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic cosine] of a number.",
         examples = @Example(file = "floats", tag = "cosh")
     )

@@ -43,6 +43,11 @@ public class PosixCloseableMappedByteBuffer extends JdkCloseableMappedByteBuffer
 
     @Override
     public void prefetch(long offset, long length) {
+        madvise(offset, length, PosixCLibrary.POSIX_MADV_WILLNEED);
+    }
+
+    @Override
+    public void madvise(long offset, long length, int advice) {
         Objects.checkFromIndexSize(offset, length, segment.byteSize());
         // Align offset with the page size, this is required for madvise.
         // Compute the offset of the current position in the OS's page.
@@ -58,7 +63,7 @@ public class PosixCloseableMappedByteBuffer extends JdkCloseableMappedByteBuffer
                 return;
             }
         }
-        int ret = LIB.madvise(segment, offset, length, PosixCLibrary.POSIX_MADV_WILLNEED);
+        int ret = LIB.madvise(segment, offset, length, advice);
         if (ret != 0) {
             int errno = LIB.errno();
             throw new RuntimeException("madvise failed with (error=" + errno + "): " + LIB.strerror(errno));

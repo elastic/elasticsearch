@@ -39,6 +39,7 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
         returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date", "date_nanos" },
+        briefSummary = "Returns the latest value of a field sorted by timestamp.",
         description = """
             An alias for [`LAST`](/reference/query-languages/esql/functions-operators/aggregation-functions/last.md) where
             the sort field (the second parameter) is implicit and is set to `@timestamp`.""",

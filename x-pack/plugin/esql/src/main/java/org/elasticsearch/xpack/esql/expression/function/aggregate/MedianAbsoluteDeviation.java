@@ -44,6 +44,7 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
     // TODO: Add parameter
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the median absolute deviation, a robust measure of variability.",
         description = "Returns the median absolute deviation, a measure of variability. It is a robust "
             + "statistic, meaning that it is useful for describing data that may have outliers, "
             + "or may not be normally distributed. For such data it can be more descriptive "

@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.inference.common.JsonUtils.toJson;
 import static org.hamcrest.Matchers.contains;
@@ -105,9 +106,9 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
         assertTrue(settings.isFailed());
 
         var expectedError = Strings.format(
-            "[%s] OAuth2 fields [%s] must be provided together; missing: [%s]",
+            "[%s] OAuth2 fields %s must be provided together; missing: [%s]",
             ModelConfigurations.SERVICE_SETTINGS,
-            OAuth2Settings.REQUIRED_FIELDS,
+            new TreeSet<>(OAuth2Settings.REQUIRED_FIELDS),
             missingField
         );
         var errors = validationException.validationErrors();

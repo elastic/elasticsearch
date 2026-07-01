@@ -4,6 +4,10 @@
 stack: ga 9.1.0
 ```
 
+
+:::{include} ../briefSummary/copy_sign.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/copy_sign.svg

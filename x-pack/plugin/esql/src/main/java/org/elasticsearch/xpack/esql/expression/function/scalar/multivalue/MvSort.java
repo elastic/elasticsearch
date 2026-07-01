@@ -74,6 +74,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
 
     @FunctionInfo(
         returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "version" },
+        briefSummary = "Sorts the values in a multi-value field.",
         description = "Sorts a multivalued field in lexicographical order.",
         examples = @Example(file = "ints", tag = "mv_sort")
     )
@@ -87,6 +88,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
         @Param(
             name = "order",
             type = { "keyword" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT, allowedValues = { "asc", "desc" }),
             description = "Sort order. The valid options are ASC and DESC, the default is ASC.",
             optional = true
         ) Expression order

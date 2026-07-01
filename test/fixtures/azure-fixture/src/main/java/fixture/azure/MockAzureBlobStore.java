@@ -18,6 +18,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -197,9 +198,14 @@ public class MockAzureBlobStore {
         private volatile String accessTier = null;
         private final Map<String, BytesReference> blocks;
         private volatile BytesReference contents;
+        private volatile Instant lastModified = Instant.now();
 
         private AzureBlockBlob() {
             this.blocks = new ConcurrentHashMap<>();
+        }
+
+        public Instant lastModified() {
+            return lastModified;
         }
 
         @Nullable
@@ -228,6 +234,7 @@ public class MockAzureBlobStore {
                 }
                 final BytesReference[] resolvedContents = blockIds.stream().map(blocks::get).toList().toArray(new BytesReference[0]);
                 contents = CompositeBytesReference.of(resolvedContents);
+                lastModified = Instant.now();
             }
         }
 
@@ -254,6 +261,7 @@ public class MockAzureBlobStore {
                 this.contents = contents;
                 this.blocks.clear();
                 this.copyInfo = copyInfo;
+                this.lastModified = Instant.now();
             }
         }
 

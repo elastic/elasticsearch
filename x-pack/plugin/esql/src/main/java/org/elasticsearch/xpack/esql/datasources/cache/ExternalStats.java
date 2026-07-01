@@ -35,18 +35,36 @@ public final class ExternalStats {
     public static final String CONFIG_FINGERPRINT_KEY = "_stats.config_fingerprint";
 
     /**
-     * Set on per-chunk contributions to signal "this is a partial — sum to a whole only if
-     * accompanied by a {@link #FINALIZE_CHUNKS_KEY} marker for the same file". Coordinator-side
-     * reconciliation enforces the gate.
+     * Set on per-chunk/per-segment contributions to mark them as a partial cover of the file (as
+     * opposed to a whole-file read). A partial also carries a coverage range (see {@link
+     * #COVERAGE_START_KEY}); the coordinator reconciler unions partials by range and commits only
+     * when they tile the file. Whole-file reads carry neither marker and stay on the authoritative
+     * dedup path.
      */
     public static final String PARTIAL_CHUNK_KEY = "_stats.partial_chunk";
 
     /**
-     * Published by {@code ParallelParsingCoordinator}'s outer iterator at clean whole-file
-     * completion to signal "the per-chunk contributions for this file constitute the entire
-     * file." Without this marker, partial contributions are discarded.
+     * Coverage-addressing keys. Every stats contribution describes the half-open byte range
+     * {@code [COVERAGE_START_KEY, COVERAGE_END_KEY)} of the file it observed, in that path's own read
+     * coordinate system (decompressed-stream offset for stream codecs like gzip/zstd; raw file offset
+     * for uncompressed or block-splittable inputs — a single file is read in exactly one coordinate
+     * system per {@code (path, config)}, so ranges are always comparable). The range is the
+     * contribution's <em>intrinsic identity</em>: the coordinator reconciler unions contributions by
+     * range, so a range observed more than once — the two branches of a FORK each re-scanning the
+     * source, a schema-probe pass plus the data scan, a retry, a redelivery — is counted once, while
+     * disjoint ranges (parallel chunks, record-aligned macro-splits, block splits, splits spread
+     * across nodes) are summed. This replaces scan/finalize counting, which was a brittle proxy: "how
+     * many times was it read" is an implementation detail, "which bytes did this cover" is not.
+     * <p>
+     * {@link #COVERAGE_IS_LAST_KEY} marks the contribution that observed the end of the input. A
+     * cover is complete — and therefore cacheable as a file-level statistic — only when the unioned
+     * ranges tile {@code [0, end)} with no gap and the final range is flagged last. The keys ride
+     * inside the opaque {@code _stats.*} map, so there is no transport-version impact; an older node
+     * emits no coverage and its contribution is treated as un-addressable (never cached).
      */
-    public static final String FINALIZE_CHUNKS_KEY = "_stats.finalize_chunks";
+    public static final String COVERAGE_START_KEY = "_stats.coverage_start";
+    public static final String COVERAGE_END_KEY = "_stats.coverage_end";
+    public static final String COVERAGE_IS_LAST_KEY = "_stats.coverage_is_last";
 
     /**
      * Published by any chunk whose iterator dropped rows (rowsSkipped > 0). The presence of this

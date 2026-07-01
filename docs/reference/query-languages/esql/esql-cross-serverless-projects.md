@@ -5,7 +5,7 @@ applies_to:
 products:
   - id: elasticsearch
 description: Learn how to use the ES|QL language in Elasticsearch to query across multiple Serverless projects. Learn about index resolution, project routing, and accessing project metadata.
-navigation_title: "CPS with ES|QL"
+navigation_title: "Query across serverless projects"
 ---
 
 # Query across {{serverless-short}} projects with {{esql}}

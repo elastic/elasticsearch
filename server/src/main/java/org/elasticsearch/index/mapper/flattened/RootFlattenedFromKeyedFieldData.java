@@ -141,6 +141,7 @@ public final class RootFlattenedFromKeyedFieldData implements IndexFieldData<Lea
         private Iterator<BytesRef> iterator;
 
         KeyStrippingDeduplicatingDocValues(SortedBinaryDocValues delegate) {
+            super(delegate.docIdIterator());
             this.delegate = delegate;
         }
 

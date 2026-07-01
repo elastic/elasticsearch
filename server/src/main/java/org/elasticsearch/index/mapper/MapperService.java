@@ -833,6 +833,20 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mappingLookup().indexAnalyzer(field, unindexedFieldAnalyzer);
     }
 
+    /**
+     * Determines whether the columnar ID mode is enabled for the index.
+     *
+     * @return true if columnar ID mode is enabled, either explicitly via the provided ID field mapper
+     *         or by default in the index settings; false otherwise.
+     */
+    public boolean isUseColumnarId() {
+        if (this.mapper == null) {
+            return indexSettings.isUseColumnarIdByDefault();
+        }
+
+        return mappingLookup().isColumnarId();
+    }
+
     @Override
     public void close() throws IOException {
         indexAnalyzers.close();

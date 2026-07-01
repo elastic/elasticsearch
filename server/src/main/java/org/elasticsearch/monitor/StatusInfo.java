@@ -14,12 +14,18 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Class that represents the Health status for a node as determined by {@link NodeHealthService} and provides additional
  * info explaining the reasons
  */
 public record StatusInfo(Status status, String info) implements Writeable {
+
+    public StatusInfo {
+        Objects.requireNonNull(status, "Expected a non null status");
+        Objects.requireNonNull(info, "Expected a non null info");
+    }
 
     public StatusInfo(StreamInput in) throws IOException {
         this(readStatus(in), in.readString());
@@ -45,7 +51,7 @@ public record StatusInfo(Status status, String info) implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(status == null ? null : status.name());
+        out.writeString(status.name());
         out.writeString(info);
     }
 

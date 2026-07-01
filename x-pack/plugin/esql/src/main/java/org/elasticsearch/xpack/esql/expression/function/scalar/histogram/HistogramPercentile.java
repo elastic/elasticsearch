@@ -53,7 +53,7 @@ public class HistogramPercentile extends EsqlScalarFunction {
     private final Expression histogram;
     private final Expression percentile;
 
-    @FunctionInfo(returnType = { "double" })
+    @FunctionInfo(returnType = { "double" }, briefSummary = "Calculates a percentile value from a histogram.")
     public HistogramPercentile(
         Source source,
         @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression histogram,

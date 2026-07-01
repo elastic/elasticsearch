@@ -86,9 +86,7 @@ public class RemoteClusterSecurityBWCToRCS2ClusterRestIT extends AbstractRemoteC
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
+    public void configureRemoteClusterForTest() throws Exception {
         configureRemoteCluster(REMOTE_CLUSTER_ALIAS, fulfillingCluster, false, randomBoolean(), false);
-        super.setUp();
     }
 }

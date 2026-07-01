@@ -50,14 +50,19 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.arrow.ArrowToEsql;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NullSpliceRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -75,7 +80,6 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * FormatReader backed by a Rust parquet-rs native library via JNI.
@@ -346,7 +350,9 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
         int batchSize = context.batchSize();
         int rowLimit = context.rowLimit();
 
-        String[] columns = projectedColumns != null && projectedColumns.isEmpty() == false ? projectedColumns.toArray(new String[0]) : null;
+        int rowPosSlot = rowPositionSlot(projectedColumns);
+        List<String> nativeProjected = stripRowPosition(projectedColumns, rowPosSlot);
+        String[] columns = nativeProjected != null && nativeProjected.isEmpty() == false ? nativeProjected.toArray(new String[0]) : null;
         long limit = rowLimit == FormatReader.NO_LIMIT ? -1 : rowLimit;
 
         // Native FilterExpr ownership is bounded by this method: build it here, hand it to
@@ -363,6 +369,8 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             // Ownership of readerHandle has transferred to the iterator's close(); zero our copy
             // so the finally below doesn't double-free it.
             readerHandle = 0;
+            // The _rowPosition slot (when projected) is spliced as NULL by the dispatcher via
+            // {@link #rowPositionStrategy()}; the native bridge produces no row-position channel.
             return iterator;
         } finally {
             if (filterHandle != 0) {
@@ -372,6 +380,41 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
                 ParquetRsBridge.closeReader(readerHandle);
             }
         }
+    }
+
+    /**
+     * Returns the index of {@link ColumnExtractor#ROW_POSITION_COLUMN} in {@code projectedColumns},
+     * or {@code -1} when absent. The optimizer injects this synthetic column whenever {@code _id} or
+     * {@code _file.record_ref} is requested, but the native reader has no such column to materialise;
+     * see {@link #stripRowPosition} for the strip; the {@link NullSpliceRowPositionStrategy} returned
+     * by {@link #rowPositionStrategy()} re-introduces the column as a NULL block on the dispatcher side.
+     */
+    private static int rowPositionSlot(List<String> projectedColumns) {
+        return SyntheticColumns.rowPositionIndexInNames(projectedColumns);
+    }
+
+    /**
+     * Returns {@code projectedColumns} with {@link ColumnExtractor#ROW_POSITION_COLUMN} removed if
+     * present, otherwise the original list. The native bridge errors on unknown column names, so we
+     * never pass {@code _rowPosition} through; the dispatcher's {@link NullSpliceRowPositionStrategy}
+     * restores the column at the correct output position.
+     */
+    private static List<String> stripRowPosition(List<String> projectedColumns, int rowPosSlot) {
+        if (rowPosSlot < 0) {
+            return projectedColumns;
+        }
+        List<String> filtered = new ArrayList<>(projectedColumns.size() - 1);
+        for (int i = 0; i < projectedColumns.size(); i++) {
+            if (i != rowPosSlot) {
+                filtered.add(projectedColumns.get(i));
+            }
+        }
+        return filtered;
+    }
+
+    @Override
+    public RowPositionStrategy rowPositionStrategy() {
+        return new NullSpliceRowPositionStrategy(blockFactory, "parquet-rs lacks row-position API; pending Rust bridge");
     }
 
     // --- RangeAwareFormatReader ---
@@ -449,7 +492,9 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
         List<String> projectedColumns = context.projectedColumns();
         int batchSize = context.batchSize();
         String path = resolveReadPath(object);
-        String[] columns = projectedColumns != null && projectedColumns.isEmpty() == false ? projectedColumns.toArray(new String[0]) : null;
+        int rowPosSlot = rowPositionSlot(projectedColumns);
+        List<String> nativeProjected = stripRowPosition(projectedColumns, rowPosSlot);
+        String[] columns = nativeProjected != null && nativeProjected.isEmpty() == false ? nativeProjected.toArray(new String[0]) : null;
         long metaHandle = metadataHandleCache.computeIfAbsent(path, p -> ParquetRsBridge.loadArrowMetadata(p, configJson));
         long filterHandle = 0;
         long readerHandle = 0;
@@ -470,6 +515,7 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             );
             ParquetRsBatchIterator iterator = new ParquetRsBatchIterator(readerHandle, blockFactory);
             readerHandle = 0;
+            // _rowPosition splice is owned by the dispatcher via {@link #rowPositionStrategy()}.
             return iterator;
         } finally {
             if (filterHandle != 0) {
@@ -608,7 +654,9 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             offsets[i] = ref.offset();
             lengths[i] = ref.length();
         }
-        String[] cols = projectedColumns != null && projectedColumns.isEmpty() == false ? projectedColumns.toArray(new String[0]) : null;
+        int rowPosSlot = rowPositionSlot(projectedColumns);
+        List<String> nativeProjected = stripRowPosition(projectedColumns, rowPosSlot);
+        String[] cols = nativeProjected != null && nativeProjected.isEmpty() == false ? nativeProjected.toArray(new String[0]) : null;
         long filterHandle = 0;
         long readerHandle = 0;
         try {
@@ -618,6 +666,7 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             readerHandle = ParquetRsBridge.openReaderMulti(paths, offsets, lengths, cols, batchSize, -1, filterHandle, configJson);
             ParquetRsBatchIterator iterator = new ParquetRsBatchIterator(readerHandle, blockFactory);
             readerHandle = 0;
+            // _rowPosition splice is owned by the dispatcher via {@link #rowPositionStrategy()}.
             return iterator;
         } finally {
             if (filterHandle != 0) {
@@ -633,13 +682,11 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
      * Iterates over batches from the native parquet-rs reader using the Arrow C Data Interface.
      * Each batch is imported as a VectorSchemaRoot, then columns are zero-copy wrapped as ESQL blocks.
      */
-    static class ParquetRsBatchIterator implements CloseableIterator<Page>, Describable {
+    static class ParquetRsBatchIterator extends BufferingPageIterator implements Describable {
         private final long handle;
         private final BlockFactory blockFactory;
         private final BufferAllocator allocator;
-        private final AtomicBoolean closed = new AtomicBoolean(false);
         private boolean exhausted = false;
-        private Page nextPage;
         // describe() can be called from a different thread than iteration (driver/profiler vs compute);
         // volatile gives us safe publication of the cached plan string.
         private volatile String cachedPlan;
@@ -662,7 +709,10 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
 
         @Override
         public boolean hasNext() {
-            if (exhausted) {
+            // isClosed() guards the native handle: after closeInternal() frees it, a stray hasNext()/next()
+            // (early close via LIMIT/cancel leaves exhausted==false) would call nextBatch() on a freed
+            // ParquetReaderState — a native use-after-free. Mirrors the NdJson reader's post-close guard.
+            if (exhausted || isClosed()) {
                 return false;
             }
             if (nextPage != null) {
@@ -822,13 +872,11 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
         }
 
         @Override
-        public void close() {
-            // Idempotent: the native side guards on handle != 0 but does not clear it for the caller,
-            // so a double-call would double-free the ParquetReaderState. Use an AtomicBoolean so the
-            // first close() wins regardless of which thread initiates it.
-            if (closed.compareAndSet(false, true)) {
-                ParquetRsBridge.closeReader(handle);
-            }
+        protected void closeInternal() {
+            // BufferingPageIterator.close() already guarantees a single, thread-safe invocation, so the native
+            // ParquetReaderState (which would double-free on a second closeReader) is torn down exactly once.
+            ParquetRsBridge.closeReader(handle);
         }
     }
+
 }

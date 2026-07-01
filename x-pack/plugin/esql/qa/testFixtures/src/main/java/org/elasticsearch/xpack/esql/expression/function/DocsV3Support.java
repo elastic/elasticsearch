@@ -232,7 +232,7 @@ public abstract class DocsV3Support {
     /**
      * Operators are unregistered functions.
      */
-    static final Map<String, OperatorConfig> OPERATORS = Map.ofEntries(
+    public static final Map<String, OperatorConfig> OPERATORS = Map.ofEntries(
         // Binary
         operatorEntry("equals", "==", Equals.class, OperatorCategory.BINARY),
         operatorEntry("not_equals", "!=", NotEquals.class, OperatorCategory.BINARY),
@@ -594,7 +594,7 @@ public abstract class DocsV3Support {
             case "match" -> "search-functions";
 
             // Grouping
-            case "bucket", "tbucket", "categorize" -> "grouping-functions";
+            case "bucket", "tbucket", "categorize", "without" -> "grouping-functions";
 
             // Time series
             case "avg_over_time", "rate", "last_over_time", "count_distinct_over_time" -> "time-series-aggregation-functions";
@@ -761,6 +761,7 @@ public abstract class DocsV3Support {
             assert info != null;
             boolean hasTypes = renderTypes(name, description.args());
             renderParametersList(description.args());
+            renderBriefSummary(info.briefSummary());
             renderDescription(description.description(), info.detailedDescription(), info.note());
             Optional<EsqlFunctionRegistry.ArgSignature> mapArgSignature = description.args()
                 .stream()
@@ -921,6 +922,7 @@ public abstract class DocsV3Support {
             StringBuilder rendered = new StringBuilder(
                 docsWarning() + """
                     $APPLIES_TO$
+                    $BRIEF_SUMMARY$
                     ## Syntax
 
                     :::{image} /reference/query-languages/esql/images/generated/$PLUGIN_NAME$/$CATEGORY$/$NAME$.svg
@@ -932,6 +934,7 @@ public abstract class DocsV3Support {
                     .replace("$CATEGORY$", category)
                     .replace("$PLUGIN_NAME$", pluginName)
                     .replace("$APPLIES_TO$", makeAppliesToText(Arrays.asList(info.appliesTo()), info.preview(), false))
+                    .replace("$BRIEF_SUMMARY$", addInclude("briefSummary"))
             );
             for (String section : new String[] { "parameters", "description" }) {
                 rendered.append(addInclude(section));
@@ -1077,6 +1080,11 @@ public abstract class DocsV3Support {
                 }
 
                 @Override
+                public String briefSummary() {
+                    return orig.briefSummary();
+                }
+
+                @Override
                 public String detailedDescription() {
                     return "";
                 }
@@ -1138,6 +1146,7 @@ public abstract class DocsV3Support {
                 }
             }
             renderKibanaFunctionDefinition(name, titleName, info, args, variadic, observabilityTier);
+            renderBriefSummary(info.briefSummary());
             renderDetailedDescription(info.detailedDescription(), info.note());
             renderTypes(name, args);
             renderExamples(info);
@@ -1660,6 +1669,16 @@ public abstract class DocsV3Support {
         writeToTempSnippetsDir("description", rendered);
     }
 
+    void renderBriefSummary(String briefSummary) throws IOException {
+        if (Strings.isNullOrEmpty(briefSummary)) {
+            return;
+        }
+        String rendered = docsWarning() + briefSummary.trim() + "\n";
+        logger.info("Writing brief summary for [{}]", name);
+        logger.debug("{}", rendered);
+        writeToTempSnippetsDir("briefSummary", rendered);
+    }
+
     protected boolean renderExamples(FunctionInfo info) throws IOException {
         if (info == null || info.examples().length == 0) {
             return false;
@@ -1828,6 +1847,13 @@ public abstract class DocsV3Support {
                                 builder.field(constraint.getKey(), constraint.getValue());
                             }
                             builder.endObject();
+                        }
+                        if (arg.hint.allowedValues() != null && arg.hint.allowedValues().isEmpty() == false) {
+                            builder.startArray("allowedValues");
+                            for (String v : arg.hint.allowedValues()) {
+                                builder.value(v);
+                            }
+                            builder.endArray();
                         }
                         builder.endObject();
                     }

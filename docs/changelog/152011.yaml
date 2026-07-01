@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 152011
+summary: Support term queries on flattened fields when index=false
+type: bug

@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 150876
+summary: Setting for trace sampling and batch processor
+type: enhancement

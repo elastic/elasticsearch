@@ -38,6 +38,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -550,9 +551,104 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         threadPool.generic().execute(() -> {
             buildTask.initializeIndexer(indexerBuilder);
             buildTask.setAuthState(authState);
-            // TransformTask#start will fail if the task state is FAILED
-            buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, startRetriesOnFirstFailureListener);
+
+            Runnable doStart = () -> buildTask.setNumFailureRetries(numFailureRetries)
+                .start(previousCheckpoint, startRetriesOnFirstFailureListener);
+
+            String credentialId = indexerBuilder.getTransformConfig() == null
+                ? null
+                : indexerBuilder.getTransformConfig().getCredentialId();
+
+            // Best-effort startup sweep: revoke + delete any credential docs for this transform whose
+            // tokenId is not the currently-active credentialId. This closes the gap for batch transforms
+            // (which don't reload config mid-run) and cleans up any dangling credentials from prior
+            // interrupted rotations. Failures are logged but do not block the transform from starting.
+            if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+                sweepDanglingCredentials(params.getId(), credentialId, () -> {
+                    if (credentialId != null) {
+                        loadCloudCredentialWithRetry(buildTask, params, credentialId, doStart);
+                    } else {
+                        // Feature off, or this transform has no associated UIAM credential — nothing to load.
+                        doStart.run();
+                    }
+                });
+            } else {
+                doStart.run();
+            }
         });
+    }
+
+    /**
+     * Best-effort startup sweep: lists all credential storage docs owned by {@code transformId}
+     * and revokes + deletes any whose tokenId is not the currently-active {@code activeCredentialId}.
+     * Designed to clean up dangling tokens left by interrupted rotations (e.g. a batch transform
+     * that was updated while INDEXING) and by the {@code _update} stopped-task revoke path.
+     * Failures at any stage are logged but never propagate — startup is not blocked.
+     *
+     * @param transformId        the transform whose credentials to sweep
+     * @param activeCredentialId the tokenId of the currently-active credential (excluded from sweep);
+     *                           may be null (no active credential → all found tokens are dangling)
+     * @param next               called once all per-token cleanup attempts have completed
+     */
+    private void sweepDanglingCredentials(String transformId, @Nullable String activeCredentialId, Runnable next) {
+        transformServices.configManager().forEachTransformCloudCredential(transformId, credential -> {
+            if (credential.id().equals(activeCredentialId) == false) {
+                transformServices.cloudCredentialManager().revokeCloseAndDelete(transformId, credential);
+            }
+        },
+            ActionListener.runAfter(
+                ActionListener.wrap(
+                    ignored -> {},
+                    e -> logger.warn(() -> "[" + transformId + "] failed to list credentials for startup sweep; proceeding", e)
+                ),
+                next
+            )
+        );
+    }
+
+    /**
+     * Loads the persisted cloud credential for {@code credentialId} (the UIAM tokenId recorded on
+     * the {@link TransformConfig}) and sets it on the task context before running {@code doStart}.
+     * The first attempt is direct; if it fails (system index unavailable, cluster state still
+     * recovering, ...) we hand off to a {@link TransformRetryableStartUpListener} registered with
+     * the {@link org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler} that
+     * retries indefinitely — same shape as {@link #startTask}'s post-start retry. The user can
+     * abort with {@code _stop?force=true}, which deregisters the scheduler entry.
+     */
+    private void loadCloudCredentialWithRetry(TransformTask buildTask, TransformTaskParams params, String credentialId, Runnable doStart) {
+        var transformId = params.getId();
+        ActionListener<PersistedCloudCredential> setCredentialAndStart = ActionListener.wrap(credential -> {
+            if (credential != null) {
+                logger.debug("[{}] loaded cloud credential [{}] for task start", transformId, credential.id());
+            }
+            buildTask.getContext().setPersistedCloudCredential(credential);
+            doStart.run();
+        },
+            // shouldRetry==() -> true so this only fires if the task was stopped while retries were pending
+            e -> logger.debug(() -> "[" + transformId + "] cloud credential load aborted", e)
+        );
+        transformServices.configManager()
+            .getTransformCloudCredentialByTokenId(credentialId, true, setCredentialAndStart.delegateResponse((l, e) -> {
+                // First attempt failed. Failures here are almost always transient; hand off to the
+                // scheduler so we retry indefinitely until the system index is back. The user can
+                // _stop?force=true to abort.
+                logger.warn(
+                    () -> "[" + transformId + "] failed to load cloud credential [" + credentialId + "], retrying via scheduler",
+                    e
+                );
+                var scheduler = transformServices.scheduler();
+                scheduler.registerTransform(
+                    params,
+                    new TransformRetryableStartUpListener<>(
+                        transformId,
+                        ll -> transformServices.configManager().getTransformCloudCredentialByTokenId(credentialId, true, ll),
+                        ActionListener.runBefore(l, () -> scheduler.deregisterTransform(transformId)),
+                        retryListener(buildTask),
+                        () -> true,
+                        buildTask.getContext()
+                    )
+                );
+            }));
     }
 
     private void setNumFailureRetries(int numFailureRetries) {

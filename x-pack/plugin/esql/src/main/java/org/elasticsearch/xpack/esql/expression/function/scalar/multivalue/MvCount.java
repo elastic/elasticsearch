@@ -40,6 +40,7 @@ public class MvCount extends AbstractMultivalueFunction {
 
     @FunctionInfo(
         returnType = "integer",
+        briefSummary = "Counts the values in a multi-value field.",
         description = "Converts a multivalued expression into a single valued column containing a count of the number of values.",
         examples = @Example(file = "string", tag = "mv_count")
     )

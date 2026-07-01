@@ -48,7 +48,7 @@ public class FilterUnsupportedTemporality extends EsqlScalarFunction {
     private final Expression histogram;
     private final Expression temporality;
 
-    @FunctionInfo(returnType = { "exponential_histogram", "tdigest" })
+    @FunctionInfo(returnType = { "exponential_histogram", "tdigest" }, briefSummary = "Filters histograms with unsupported temporality.")
     public FilterUnsupportedTemporality(
         Source source,
         @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression histogram,

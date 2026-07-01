@@ -15,6 +15,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 
@@ -40,7 +41,11 @@ public interface SageMakerSchemaPayload {
      * Implement this if the model requires extra ServiceSettings that can be saved to the model index.
      * This can be accessed via {@link SageMakerModel#apiServiceSettings()}.
      */
-    default SageMakerStoredServiceSchema apiServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
+    default SageMakerStoredServiceSchema apiServiceSettings(
+        Map<String, Object> serviceSettings,
+        ConfigurationParseContext context,
+        ValidationException validationException
+    ) {
         return SageMakerStoredServiceSchema.NO_OP;
     }
 

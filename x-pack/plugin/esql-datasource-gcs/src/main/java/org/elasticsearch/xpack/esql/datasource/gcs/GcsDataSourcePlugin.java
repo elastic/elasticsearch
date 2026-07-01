@@ -25,7 +25,7 @@ import java.util.concurrent.ExecutorService;
  * Usage in ESQL:
  * <pre>
  *   EXTERNAL "gs://my-bucket/data/sales.parquet"
- *   EXTERNAL "gs://my-bucket/data/sales.parquet" WITH (credentials="{ ... service account JSON ... }", project_id="my-project")
+ *   EXTERNAL "gs://my-bucket/data/sales.parquet" WITH {"credentials": "{ ... service account JSON ... }", "project_id": "my-project"}
  * </pre>
  */
 public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {

@@ -74,6 +74,7 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
 
     @FunctionInfo(
         returnType = "boolean",
+        briefSummary = "Checks if any value from one multi-value exists in another.",
         description = "Checks if any value yielded by the second multivalue expression is present in the values yielded by "
             + "the first multivalue expression. Returns a boolean. Null values are treated as an empty set.",
         examples = {

@@ -1,0 +1,6 @@
+area: Inference
+issues:
+ - 146881
+pr: 150834
+summary: Preserve `dimensions_set_by_user` for SageMaker text embeddings
+type: bug

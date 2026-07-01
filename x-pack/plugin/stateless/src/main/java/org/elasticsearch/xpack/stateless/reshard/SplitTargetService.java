@@ -231,8 +231,8 @@ public class SplitTargetService {
             if (!validateStateTransition(newState)) return;
             this.currentState = newState;
             metricsRecorder.advance(newState);
-            // TODO relax logging once implementation is stable
-            logger.info("Advancing split target shard state machine for shard {} to {}", shard.shardId(), newState);
+
+            logStateTransition(newState);
 
             // We always fork to generic here since we get callbacks
             // from various places like cluster state update threads
@@ -240,8 +240,18 @@ public class SplitTargetService {
             clusterService.threadPool().generic().submit(() -> advanceInternal(newState));
         }
 
-        private void advanceInternal(State newState) {
+        private void logStateTransition(State newState) {
+            if (newState instanceof State.Failed && cancelled.get()) {
+                logger.info(
+                    "Stopping split target shard state machine for shard {}, shard is closed. Will retry after recovery.",
+                    shard.shardId()
+                );
+            } else {
+                logger.info("Advancing split target shard state machine for shard {} to {}", shard.shardId(), newState);
+            }
+        }
 
+        private void advanceInternal(State newState) {
             switch (newState) {
                 case State.Clone clone -> {
                     // Start split RPC won't complete until the entire handoff sequence completes.

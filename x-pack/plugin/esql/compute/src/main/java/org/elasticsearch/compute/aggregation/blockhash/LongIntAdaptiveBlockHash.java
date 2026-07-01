@@ -81,6 +81,15 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
         return intBlock.asVector();
     }
 
+    // for testing
+    int effectiveEmitBatchSize() {
+        if (current instanceof LongIntVectorOnlyBlockHash) {
+            return vectorBatchSize;
+        } else {
+            return emitBatchSize;
+        }
+    }
+
     final class LongIntVectorOnlyBlockHash extends BlockHash {
         private final LongLongHashTable longLongHash;
         private final long batchUsedBytes;

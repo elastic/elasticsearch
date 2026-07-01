@@ -785,19 +785,19 @@ bytes:long | pod:keyword | time_bucket:datetime
 20         | one         | 2024-05-09T23:40:00.000Z
 ;
 
-# Awaits fix: https://github.com/elastic/metrics-program/issues/302
-count_over_time_aggregate_metric_double_implicit_casting_promql-Ignore
+count_over_time_aggregate_metric_double_implicit_casting_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: aggregate_metric_double_v0
+required_capability: time_series_translation_in_analyzer
 
 PROMQL index=k8s,k8s-downsampled step=10m bytes=(sum by (pod) (count_over_time(network.eth0.rx[10m])))
 | SORT bytes, pod, step | LIMIT 10;
 
 bytes:double | step:datetime            | pod:keyword
-7.0          | 2024-05-10T00:20:00.000Z | two
-8.0          | 2024-05-10T00:20:00.000Z | one
-8.0          | 2024-05-10T00:20:00.000Z | three
+5.0          | 2024-05-10T00:30:00.000Z | three
+7.0          | 2024-05-10T00:30:00.000Z | two
+8.0          | 2024-05-10T00:30:00.000Z | one
 8.0          | 2024-05-09T23:40:00.000Z | two
 10.0         | 2024-05-09T23:30:00.000Z | three
 11.0         | 2024-05-09T23:50:00.000Z | one

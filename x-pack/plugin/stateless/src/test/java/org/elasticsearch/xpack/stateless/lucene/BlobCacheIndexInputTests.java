@@ -55,6 +55,8 @@ import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHand
 import org.elasticsearch.xpack.stateless.cache.reader.SwitchingCacheBlobReader;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -104,15 +106,13 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
     private ThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeThreadPool() throws Exception {
         threadPool = getThreadPool("BlobCacheIndexInputTests");
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
     }
 
@@ -1447,6 +1447,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testAsyncPrefetchOnCacheMiss() throws IOException {
+        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         final SharedBlobCacheService.CacheFile cacheFile = mock(SharedBlobCacheService.CacheFile.class);
         when(cacheFile.copy()).thenReturn(cacheFile);
         when(cacheFile.tryPrefetch(anyLong(), anyLong())).thenReturn(false);
@@ -1501,6 +1502,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testAsyncPrefetchSuccessIsRecorded() throws IOException {
+        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         final SharedBlobCacheService.CacheFile cacheFile = mock(SharedBlobCacheService.CacheFile.class);
         when(cacheFile.copy()).thenReturn(cacheFile);
         when(cacheFile.tryPrefetch(anyLong(), anyLong())).thenReturn(false);
@@ -1550,6 +1552,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testAsyncPrefetchFailureIsRecorded() throws IOException {
+        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         final SharedBlobCacheService.CacheFile cacheFile = mock(SharedBlobCacheService.CacheFile.class);
         when(cacheFile.copy()).thenReturn(cacheFile);
         when(cacheFile.tryPrefetch(anyLong(), anyLong())).thenReturn(false);
@@ -1600,6 +1603,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testAsyncPrefetchNotCalledOnCacheHit() throws IOException {
+        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         final SharedBlobCacheService.CacheFile cacheFile = mock(SharedBlobCacheService.CacheFile.class);
         when(cacheFile.copy()).thenReturn(cacheFile);
         when(cacheFile.tryPrefetch(anyLong(), anyLong())).thenReturn(true);

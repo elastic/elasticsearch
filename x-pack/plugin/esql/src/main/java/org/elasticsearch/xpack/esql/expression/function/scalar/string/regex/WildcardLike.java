@@ -45,6 +45,7 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
 
     @FunctionInfo(
         returnType = "boolean",
+        briefSummary = "Filters data based on string patterns using wildcards.",
         description = """
             Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`
             usually acts on a field placed on the left-hand side of the operator, but it can

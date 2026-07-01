@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 151137
+summary: Allow deleting a backing index via modify data streams API
+type: enhancement

@@ -55,6 +55,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -257,10 +258,21 @@ public abstract class MappedFieldType {
      * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
      * are generated with {@link #termQuery}. */
     public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
+        return defaultTermsQuery(values, this::termQuery, context);
+    }
+
+    /**
+     * The default way of building a terms query.
+     */
+    protected static Query defaultTermsQuery(
+        Collection<?> values,
+        BiFunction<Object, SearchExecutionContext, Query> termQuery,
+        SearchExecutionContext context
+    ) {
         Set<?> dedupe = new HashSet<>(values);
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (Object value : dedupe) {
-            builder.add(termQuery(value, context), Occur.SHOULD);
+            builder.add(termQuery.apply(value, context), Occur.SHOULD);
         }
         return new ConstantScoreQuery(builder.build());
     }

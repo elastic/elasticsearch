@@ -61,6 +61,7 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = "ip",
+        briefSummary = "Truncates an IP to a given prefix length.",
         description = "Truncates an IP to a given prefix length.",
         examples = @Example(file = "ip", tag = "ipPrefix")
     )

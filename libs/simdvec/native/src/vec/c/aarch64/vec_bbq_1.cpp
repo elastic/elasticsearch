@@ -286,6 +286,65 @@ EXPORT void vec_dotd1q1_bulk_sparse(
     dotd1qN_inner_bulk<const int8_t*, 1, sparse_mapper>((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 
+EXPORT int64_t vec_dotd2q2(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length
+) {
+    int64_t lower = dotd1qN_inner<2>(a, query, length/2);
+    int64_t upper = dotd1qN_inner<2>(a + length/2, query, length/2);
+    return lower + (upper << 1);
+}
+
+template <typename TData, const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t)>
+static inline void dotd2q2_inner_bulk(
+    const TData* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    int c = 0;
+    const int bit_length = length/2;
+    for (; c < count; c++) {
+        const int8_t* a0 = mapper(a, c, offsets, pitch);
+        int64_t lower = dotd1qN_inner<2>(a0, query, bit_length);
+        int64_t upper = dotd1qN_inner<2>(a0 + bit_length, query, bit_length);
+        results[c] = (f32_t)(lower + (upper << 1));
+    }
+}
+
+EXPORT void vec_dotd2q2_bulk(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results) {
+    dotd2q2_inner_bulk<int8_t, sequential_mapper>(a, query, length, length, NULL, count, results);
+}
+
+EXPORT void vec_dotd2q2_bulk_offsets(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    dotd2q2_inner_bulk<int8_t, offsets_mapper>(a, query, length, pitch, offsets, count, results);
+}
+
+EXPORT void vec_dotd2q2_bulk_sparse(
+    const void* const* addresses,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results) {
+    dotd2q2_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
+}
+
 EXPORT int64_t vec_dotd2q4(
     const int8_t* a,
     const int8_t* query,

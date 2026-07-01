@@ -29,6 +29,7 @@ public class Sha256 extends AbstractHashFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Computes the SHA256 hash of the input.",
         description = "Computes the SHA256 hash of the input.",
         examples = { @Example(file = "hash", tag = "sha256") }
     )

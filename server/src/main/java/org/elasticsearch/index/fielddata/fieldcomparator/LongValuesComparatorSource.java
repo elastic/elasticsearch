@@ -99,7 +99,12 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     DenseLongValues getLongValues(LeafReaderContext context, long missingValue) throws IOException {
         final SortedNumericLongValues values = loadDocValues(context);
         if (nested == null) {
-            return FieldData.replaceMissing(sortMode.select(values), missingValue);
+            var longValues = sortMode.select(values);
+            if (longValues instanceof DenseLongValues denseLongValues) {
+                return denseLongValues;
+            } else {
+                return FieldData.replaceMissing(longValues, missingValue);
+            }
         }
         final BitSet rootDocs = nested.rootDocs(context);
         final DocIdSetIterator innerDocs = nested.innerDocs(context);

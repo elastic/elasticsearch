@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 150626
+summary: Add stack trace suppression for OTel traces
+type: enhancement

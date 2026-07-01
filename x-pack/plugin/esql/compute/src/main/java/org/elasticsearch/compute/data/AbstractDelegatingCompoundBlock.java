@@ -206,9 +206,9 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
     }
 
     @Override
-    public T filter(boolean mayContainDuplicates, int... positions) {
+    public T filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         if (firstValueIndexes == null) {
-            return applyToSubBlocks(b -> b.filter(mayContainDuplicates, positions), -1, null);
+            return applyToSubBlocks(b -> b.filter(mayContainDuplicates, positions, offset, length), -1, null);
         }
         throw new UnsupportedOperationException("Not yet implemented for multi-valued blocks");
     }

@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 150172
+summary: Change EIS rerank request format to use objects for query and documents
+type: enhancement

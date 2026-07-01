@@ -48,14 +48,14 @@ public class LuceneChangesSnapshotTests extends SearchBasedChangesSnapshotTests 
             int smallBatch = between(5, 9);
             long seqNo = 0;
             for (int i = 0; i < smallBatch; i++) {
-                engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(seqNo), null), 1, seqNo, true));
+                engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(seqNo), null, false, false, columnarId), 1, seqNo, true));
                 seqNo++;
             }
-            engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(1000), null), 1, 1000, true));
+            engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(1000), null, false, false, columnarId), 1, 1000, true));
             seqNo = 11;
             int largeBatch = between(15, 100);
             for (int i = 0; i < largeBatch; i++) {
-                engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(seqNo), null), 1, seqNo, true));
+                engine.index(replicaIndexForDoc(createParsedDoc(Long.toString(seqNo), null, false, false, columnarId), 1, seqNo, true));
                 seqNo++;
             }
             // disable optimization for a small batch

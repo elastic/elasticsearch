@@ -683,7 +683,8 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                                 continue;
                             }
                             acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(
-                                filterSupplier,
+                                () -> filterSupplier.get(Long.MAX_VALUE).iterator(),
+                                filterSupplier::cost,
                                 liveDocs,
                                 leafReader.maxDoc(),
                                 ord,

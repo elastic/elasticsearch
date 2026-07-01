@@ -51,6 +51,7 @@ public class EndsWith extends EsqlScalarFunction implements TranslationAware.Sin
 
     @FunctionInfo(
         returnType = "boolean",
+        briefSummary = "Checks whether a keyword string ends with another string.",
         description = "Returns a boolean that indicates whether a keyword string ends with another string.",
         examples = @Example(file = "string", tag = "endsWith")
     )

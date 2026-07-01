@@ -14,6 +14,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotShutdownProgressTracker;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.junit.After;
 import org.junit.Before;
 
 import static org.elasticsearch.snapshots.SnapshotShutdownProgressTracker.SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING;
@@ -29,14 +30,14 @@ public class StatelessSnapshotShutdownIT extends AbstractStatelessPluginIntegTes
         startMasterOnlyNode();
     }
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void captureMockLog() throws Exception {
         mockLog = MockLog.capture(SnapshotShutdownProgressTracker.class);
     }
 
-    public void tearDown() throws Exception {
+    @After
+    public void closeMockLog() throws Exception {
         mockLog.close();
-        super.tearDown();
     }
 
     /**

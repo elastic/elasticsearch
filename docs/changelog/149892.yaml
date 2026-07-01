@@ -1,0 +1,6 @@
+area: Infra/Core
+issues:
+ - 99720
+pr: 149892
+summary: Ability to configure a number of replicas for system indices
+type: enhancement

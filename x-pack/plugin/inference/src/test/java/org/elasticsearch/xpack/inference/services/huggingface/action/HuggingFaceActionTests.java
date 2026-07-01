@@ -20,9 +20,10 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.AlwaysRetryingResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
+import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceRequestManager;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
+import org.elasticsearch.xpack.inference.services.huggingface.request.embeddings.HuggingFaceEmbeddingsRequest;
 import org.junit.After;
 import org.junit.Before;
 
@@ -32,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
+import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 import static org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModelTests.createModel;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -114,19 +116,24 @@ public class HuggingFaceActionTests extends ESTestCase {
     }
 
     private ExecutableAction createAction(HuggingFaceElserModel model, Sender sender) {
-        var requestCreator = HuggingFaceRequestManager.of(
+        var truncator = TruncatorTests.createTruncator();
+        var requestManager = new GenericRequestManager<>(
+            threadPool,
             model,
             new AlwaysRetryingResponseHandler("test", (result) -> null),
-            TruncatorTests.createTruncator(),
-            threadPool
+            (embeddingsInput) -> new HuggingFaceEmbeddingsRequest(
+                truncator,
+                truncate(embeddingsInput.getTextInputs(), model.getTokenLimit()),
+                model
+            ),
+            EmbeddingsInput.class
         );
         var errorMessage = format(
             "Failed to send Hugging Face %s request from inference entity id [%s]",
             "test action",
             model.getInferenceEntityId()
         );
-
-        return new SenderExecutableAction(sender, requestCreator, errorMessage);
+        return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
 
     private ExecutableAction createAction(String url, Sender sender, String modelId) {

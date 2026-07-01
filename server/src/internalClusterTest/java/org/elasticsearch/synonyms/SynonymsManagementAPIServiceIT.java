@@ -52,8 +52,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initSynonymsManagementService() throws Exception {
         maxSynonymRules = randomIntBetween(100, 1000);
         synonymsManagementAPIService = new SynonymsManagementAPIService(
             client(),

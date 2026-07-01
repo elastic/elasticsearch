@@ -1352,4 +1352,249 @@ PromQL label matcher unknown param error:
       esql.query:
         body:
           query: 'PROMQL index=test step=1m tx_rate=(sum(rate(k8s.pod.network.tx{k8s.pod.name=?_unknown}[1m])))'
-          params: []
+
+---
+flattened field with time_series_dimensions:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_datatype, flattened_datatype_sorted_keys ]
+      reason: "requires flattened datatype support"
+
+  - do:
+      indices.create:
+        index: test_flattened_tsdb_dim
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              uid:
+                type: keyword
+                time_series_dimension: true
+              deployment:
+                type: flattened
+                time_series_dimensions: [ "build.tag" ]
+              voltage:
+                type: double
+                time_series_metric: gauge
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_flattened_tsdb_dim
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "host-a", "voltage": 7.2, "deployment": {"build": {"tag": "v1.0"}, "region": "us-east-1"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "host-a", "voltage": 7.4, "deployment": {"build": {"tag": "v1.0"}, "region": "us-east-1"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "host-b", "voltage": 5.1, "deployment": {"build": {"tag": "v2.0"}, "region": "eu-west-1"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "host-b", "voltage": 5.3, "deployment": {"build": {"tag": "v2.0"}, "region": "eu-west-1"}}'
+
+  - is_false: errors
+
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM test_flattened_tsdb_dim
+            | WHERE @timestamp == "2021-04-28T18:35:24.467Z"
+            | SORT uid
+            | KEEP uid, deployment, voltage
+            | LIMIT 10
+
+  - match: {columns.0.name: "uid"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "deployment"}
+  - match: {columns.1.type: "flattened"}
+  - match: {columns.2.name: "voltage"}
+  - match: {columns.2.type: "double"}
+  - length: {values: 2}
+  - match: {values.0.0: "host-a"}
+  - match: {values.0.1: {build.tag: "v1.0", region: "us-east-1"}}
+  - match: {values.0.2: 7.2}
+  - match: {values.1.0: "host-b"}
+  - match: {values.1.1: {build.tag: "v2.0", region: "eu-west-1"}}
+  - match: {values.1.2: 5.1}
+
+---
+TS command on flattened field with time_series_dimensions:
+  # The TS command groups by all dimension fields.  For the flattened deployment
+  # field (isDimension=true because build.tag is in time_series_dimensions), ESQL
+  # currently falls back to Values aggregation over the full flattened JSON blob
+  # rather than reading just the dimension sub-key from _tsid.  The grouping still
+  # produces one row per time series because non-dimension keys (region) are
+  # constant within each series in this dataset.
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ ts_command_v0, flattened_datatype, flattened_datatype_sorted_keys ]
+      reason: "requires TS command and flattened datatype support"
+
+  - do:
+      indices.create:
+        index: test_flattened_tsdb_dim_ts
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              uid:
+                type: keyword
+                time_series_dimension: true
+              deployment:
+                type: flattened
+                time_series_dimensions: [ "build.tag" ]
+              voltage:
+                type: double
+                time_series_metric: gauge
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_flattened_tsdb_dim_ts
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "host-a", "voltage": 7.2, "deployment": {"build": {"tag": "v1.0"}, "region": "us-east-1"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "host-a", "voltage": 7.4, "deployment": {"build": {"tag": "v1.0"}, "region": "us-east-1"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "host-b", "voltage": 5.1, "deployment": {"build": {"tag": "v2.0"}, "region": "eu-west-1"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "host-b", "voltage": 5.3, "deployment": {"build": {"tag": "v2.0"}, "region": "eu-west-1"}}'
+
+  - is_false: errors
+
+  - do:
+      esql.query:
+        body:
+          query: |
+            TS test_flattened_tsdb_dim_ts
+            | STATS avg_v = avg(voltage) BY uid, deployment
+            | SORT uid
+            | LIMIT 10
+  - match: {columns.0.name: "avg_v"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "uid"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "deployment"}
+  - match: {columns.2.type: "flattened"}
+  - length: {values: 2}
+  - match: {values.0.0: 7.4}
+  - match: {values.0.1: "host-a"}
+  - match: {values.0.2: {build.tag: "v1.0", region: "us-east-1"}}
+  - match: {values.1.0: 5.3}
+  - match: {values.1.1: "host-b"}
+  - match: {values.1.2: {build.tag: "v2.0", region: "eu-west-1"}}
+
+---
+TS command spurious grouping when non-dimension flattened keys vary:
+  # When non-dimension flattened keys vary within a time series, the Values
+  # fallback for the root flattened field (which is isDimension=true) collects
+  # multiple distinct JSON blobs for the same _tsid.  On a single shard those
+  # blobs stay together in one Pack/Unpack bucket, so the second-pass grouping
+  # sees a multi-valued deployment column for the affected time series.  On
+  # multiple shards the blobs split across shards and produce spurious extra
+  # groups — one per distinct non-dimension value combination — even though
+  # the time series key (uid + build.tag) is the same.
+  #
+  # host-a: build.tag=v1.0 constant, region varies (us-east-1 vs us-east-2)
+  # host-b: build.tag=v2.0 constant, region constant (eu-west-1)
+  #
+  # Expected correct result: 2 rows, one per time series.
+  # Actual result on a single shard: 2 rows, but host-a has a multi-valued
+  # deployment column containing both JSON blobs.
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ ts_command_v0, flattened_datatype, flattened_datatype_sorted_keys ]
+      reason: "requires TS command and flattened datatype support"
+  - do:
+      indices.create:
+        index: test_flattened_tsdb_dim_varying
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              uid:
+                type: keyword
+                time_series_dimension: true
+              deployment:
+                type: flattened
+                time_series_dimensions: [ "build.tag" ]
+              voltage:
+                type: double
+                time_series_metric: gauge
+  - do:
+      bulk:
+        refresh: true
+        index: test_flattened_tsdb_dim_varying
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "host-a", "voltage": 7.0, "deployment": {"build": {"tag": "v1.0"}, "region": "us-east-1"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "host-a", "voltage": 7.4, "deployment": {"build": {"tag": "v1.0"}, "region": "us-east-2"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "host-b", "voltage": 5.0, "deployment": {"build": {"tag": "v2.0"}, "region": "eu-west-1"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "host-b", "voltage": 5.4, "deployment": {"build": {"tag": "v2.0"}, "region": "eu-west-1"}}'
+  - is_false: errors
+  # The TS source collapses each time series to its most recent document, so
+  # Values(deployment) sees only one blob per _tsid even though region varied.
+  # For host-a the latest document (18:35:34) has region "us-east-2", so the
+  # earlier region "us-east-1" is silently dropped.  avg_v is likewise the
+  # most-recent voltage (7.4), not the true average (7.2) across both docs.
+  - do:
+      esql.query:
+        body:
+          query: |
+            TS test_flattened_tsdb_dim_varying
+            | STATS avg_v = avg(voltage) BY uid, deployment
+            | SORT uid
+            | LIMIT 10
+  - match: {columns.0.name: "avg_v"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "uid"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "deployment"}
+  - match: {columns.2.type: "flattened"}
+  - length: {values: 2}
+  - match: {values.0.0: 7.4}
+  - match: {values.0.1: "host-a"}
+  - match: {values.0.2: {build.tag: "v1.0", region: "us-east-2"}}
+  - match: {values.1.0: 5.4}
+  - match: {values.1.1: "host-b"}
+  - match: {values.1.2: {build.tag: "v2.0", region: "eu-west-1"}}

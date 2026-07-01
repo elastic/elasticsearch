@@ -30,9 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createTestSnapshot() throws Exception {
         createRepository("repository", FsRepository.TYPE);
         assertAcked(
             prepareCreate(
@@ -48,12 +46,10 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
+    public void cleanupTestSnapshot() throws Exception {
         assertAcked(indicesAdmin().prepareDelete("mounted-*"));
         assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "repository", "snapshot").get());
         assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repository"));
-        super.tearDown();
     }
 
     private static void runResizeAction(String targetIndexName, ResizeType resizeType, Settings.Builder settings) {

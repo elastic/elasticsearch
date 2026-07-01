@@ -15,6 +15,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -34,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.inference.Utils.storeDenseModel;
@@ -62,8 +64,7 @@ public abstract class SemanticTextLegacyFormatTestCase extends ESIntegTestCase {
     protected ModelRegistry modelRegistry;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void storeInferenceModels() throws Exception {
         indexName = "test_legacy_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         modelRegistry = internalCluster().getCurrentMasterNodeInstance(ModelRegistry.class);
         storeSparseModel(SPARSE_INFERENCE_ID, modelRegistry);
@@ -71,9 +72,7 @@ public abstract class SemanticTextLegacyFormatTestCase extends ESIntegTestCase {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void deleteTestIndex() throws Exception {
         IntegrationTestUtils.deleteIndex(client(), indexName);
     }
 
@@ -186,21 +185,29 @@ public abstract class SemanticTextLegacyFormatTestCase extends ESIntegTestCase {
      * @param shouldExist whether model_settings is expected to be present
      */
     @SuppressWarnings("unchecked")
-    protected void assertMappingModelSettings(String index, String fieldName, boolean shouldExist) {
-        GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, index).get();
-        MappingMetadata mappingMetadata = mappingsResponse.getMappings().get(index);
-        assertThat(mappingMetadata, notNullValue());
-        Map<String, Object> mappingSource = mappingMetadata.getSourceAsMap();
-        Map<String, Object> properties = (Map<String, Object>) mappingSource.get("properties");
-        assertThat("properties should not be null", properties, notNullValue());
-        Map<String, Object> fieldMapping = (Map<String, Object>) properties.get(fieldName);
-        assertThat("field mapping for [" + fieldName + "] should not be null", fieldMapping, notNullValue());
+    protected void assertMappingModelSettings(String index, String fieldName, boolean shouldExist) throws Exception {
+        CheckedRunnable<Exception> assertion = () -> {
+            GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, index).get();
+            MappingMetadata mappingMetadata = mappingsResponse.getMappings().get(index);
+            assertThat(mappingMetadata, notNullValue());
+            Map<String, Object> mappingSource = mappingMetadata.getSourceAsMap();
+            Map<String, Object> properties = (Map<String, Object>) mappingSource.get("properties");
+            assertThat("properties should not be null", properties, notNullValue());
+            Map<String, Object> fieldMapping = (Map<String, Object>) properties.get(fieldName);
+            assertThat("field mapping for [" + fieldName + "] should not be null", fieldMapping, notNullValue());
 
-        boolean modelSettingsPresent = fieldMapping.containsKey("model_settings");
+            boolean modelSettingsPresent = fieldMapping.containsKey("model_settings");
+            if (shouldExist) {
+                assertTrue("model_settings should be present in [" + fieldName + "] mapping", modelSettingsPresent);
+            } else {
+                assertFalse("model_settings should not be present in [" + fieldName + "] mapping before first doc", modelSettingsPresent);
+            }
+        };
+
         if (shouldExist) {
-            assertTrue("model_settings should be present in [" + fieldName + "] mapping", modelSettingsPresent);
+            assertBusy(assertion, 5, TimeUnit.SECONDS);
         } else {
-            assertFalse("model_settings should not be present in [" + fieldName + "] mapping before first doc", modelSettingsPresent);
+            assertion.run();
         }
     }
 

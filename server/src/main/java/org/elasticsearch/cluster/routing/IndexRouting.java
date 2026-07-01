@@ -68,18 +68,34 @@ public abstract class IndexRouting {
             routingFunction = RoutingFunction.legacyRoutingNumberOfShards(metadata.getRoutingNumShards(), metadata.getRoutingFactor());
         }
 
+        return create(metadata, routingFunction, metadata.getReshardingMetadata());
+    }
+
+    public static IndexRouting reshardingCustom(
+        IndexMetadata metadata,
+        RoutingFunction routingFunction,
+        IndexReshardingMetadata reshardingMetadata
+    ) {
+        return create(metadata, routingFunction, reshardingMetadata);
+    }
+
+    private static IndexRouting create(
+        IndexMetadata metadata,
+        RoutingFunction routingFunction,
+        IndexReshardingMetadata reshardingMetadata
+    ) {
         if (metadata.getIndexMode() == IndexMode.TIME_SERIES
             && metadata.getTimeSeriesDimensions().isEmpty() == false
             && metadata.getCreationVersion().onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)) {
-            return new ExtractFromSource.ForIndexDimensions(metadata, routingFunction, metadata.getReshardingMetadata());
+            return new ExtractFromSource.ForIndexDimensions(metadata, routingFunction, reshardingMetadata);
         }
         if (metadata.getRoutingPaths().isEmpty() == false) {
-            return new ExtractFromSource.ForRoutingPath(metadata, routingFunction, metadata.getReshardingMetadata());
+            return new ExtractFromSource.ForRoutingPath(metadata, routingFunction, reshardingMetadata);
         }
         if (metadata.isRoutingPartitionedIndex()) {
-            return new Partitioned(metadata, routingFunction, metadata.getReshardingMetadata());
+            return new Partitioned(metadata, routingFunction, reshardingMetadata);
         }
-        return new Unpartitioned(metadata, routingFunction, metadata.getReshardingMetadata());
+        return new Unpartitioned(metadata, routingFunction, reshardingMetadata);
     }
 
     protected final String indexName;

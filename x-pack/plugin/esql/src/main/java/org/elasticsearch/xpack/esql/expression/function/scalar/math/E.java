@@ -30,6 +30,7 @@ public class E extends DoubleConstantFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the mathematical constant e.",
         description = "Returns {wikipedia}/E_(mathematical_constant)[Euler’s number].",
         examples = @Example(file = "math", tag = "e")
     )

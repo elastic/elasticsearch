@@ -609,12 +609,13 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-cyera.datastore-*",
                         "logs-ironscales.incident-*",
                         "logs-axonius.adapter-*",
-                        "logs-axonius.alert_and_incident-*",
+                        "logs-axonius.alert_finding-*",
                         "logs-axonius.application-*",
                         "logs-axonius.compute-*",
                         "logs-axonius.exposure-*",
                         "logs-axonius.gateway-*",
                         "logs-axonius.identity-*",
+                        "logs-axonius.incident-*",
                         "logs-axonius.network-*",
                         "logs-axonius.storage-*",
                         "logs-axonius.ticket-*",
@@ -706,12 +707,14 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
                 // For connectors telemetry. Will be removed once we switched to connectors API
                 RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read").build(),
-                // Significant events. Kibana system user only manages the index plumbing
-                // (template, rollover, mappings, settings, data stream lifecycle); end-user
-                // credentials own reading and writing the documents.
+                // Significant events. Kibana system user manages index plumbing and document access.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".significant_events-*")
                     .privileges(
+                        "auto_configure",
+                        "create_index",
+                        "read",
+                        "write",
                         RolloverAction.NAME,
                         TransportPutMappingAction.TYPE.name(),
                         TransportAutoPutMappingAction.TYPE.name(),

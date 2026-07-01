@@ -47,40 +47,56 @@ public final class PainlessScriptEngine implements ScriptEngine {
      */
     public static final String NAME = "painless";
 
-    /**
-     * Default compiler settings to be used. Note that {@link CompilerSettings} is mutable but this instance shouldn't be mutated outside
-     * of {@link PainlessScriptEngine#PainlessScriptEngine(Settings, Map)}.
-     */
-    private final CompilerSettings defaultCompilerSettings = new CompilerSettings();
-
     private final Map<ScriptContext<?>, Compiler> contextsToCompilers;
     private final Map<ScriptContext<?>, PainlessLookup> contextsToLookups;
+
+    /**
+     * Per-context default {@link CompilerSettings} (node regex config plus that context's allocation limit), read once at
+     * construction since {@link CompilerSettings#MAX_ALLOCATION_BYTES} is {@code NodeScope}. Mirrors {@link #contextsToLookups}.
+     */
+    private final Map<ScriptContext<?>, CompilerSettings> contextsToDefaultCompilerSettings;
 
     /**
      * Constructor.
      * @param settings The settings to initialize the engine with.
      */
     public PainlessScriptEngine(Settings settings, Map<ScriptContext<?>, List<Whitelist>> contexts) {
-        defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
-        defaultCompilerSettings.setRegexLimitFactor(CompilerSettings.REGEX_LIMIT_FACTOR.get(settings));
+        CompilerSettings.RegexEnabled regexEnabled = CompilerSettings.REGEX_ENABLED.get(settings);
+        int regexLimitFactor = CompilerSettings.REGEX_LIMIT_FACTOR.get(settings);
 
         Map<ScriptContext<?>, Compiler> mutableContextsToCompilers = new HashMap<>();
         Map<ScriptContext<?>, PainlessLookup> mutableContextsToLookups = new HashMap<>();
+        Map<ScriptContext<?>, CompilerSettings> mutableContextsToDefaultCompilerSettings = new HashMap<>();
 
         final Map<Object, Object> dedup = new HashMap<>();
         final Map<PainlessMethod, PainlessMethod> filteredMethodCache = new HashMap<>();
         for (Map.Entry<ScriptContext<?>, List<Whitelist>> entry : contexts.entrySet()) {
             ScriptContext<?> context = entry.getKey();
             PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(entry.getValue(), dedup, filteredMethodCache);
+
+            CompilerSettings contextDefaults = new CompilerSettings();
+            contextDefaults.setRegexesEnabled(regexEnabled);
+            contextDefaults.setRegexLimitFactor(regexLimitFactor);
+            contextDefaults.setMaxAllocationBytes(
+                CompilerSettings.MAX_ALLOCATION_BYTES.getConcreteSettingForNamespace(context.name).get(settings).getBytes()
+            );
+
             mutableContextsToCompilers.put(
                 context,
                 new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz, lookup)
             );
             mutableContextsToLookups.put(context, lookup);
+            mutableContextsToDefaultCompilerSettings.put(context, contextDefaults);
         }
 
         this.contextsToCompilers = Collections.unmodifiableMap(mutableContextsToCompilers);
         this.contextsToLookups = Collections.unmodifiableMap(mutableContextsToLookups);
+        this.contextsToDefaultCompilerSettings = Collections.unmodifiableMap(mutableContextsToDefaultCompilerSettings);
+    }
+
+    /** The per-context default compiler settings read at construction; for tests. */
+    CompilerSettings getDefaultCompilerSettings(ScriptContext<?> context) {
+        return contextsToDefaultCompilerSettings.get(context);
     }
 
     public Map<ScriptContext<?>, PainlessLookup> getContextsToLookups() {
@@ -102,7 +118,14 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
         final Loader loader = compiler.createLoader(getClass().getClassLoader());
 
-        ScriptScope scriptScope = compile(contextsToCompilers.get(context), loader, scriptName, scriptSource, params);
+        ScriptScope scriptScope = compile(
+            compiler,
+            contextsToDefaultCompilerSettings.get(context),
+            loader,
+            scriptName,
+            scriptSource,
+            params
+        );
 
         if (context.statefulFactoryClazz != null) {
             return generateFactory(loader, context, generateStatefulFactory(loader, context, scriptScope), scriptScope);
@@ -365,8 +388,15 @@ public final class PainlessScriptEngine implements ScriptEngine {
         }
     }
 
-    ScriptScope compile(Compiler compiler, Loader loader, String scriptName, String source, Map<String, String> params) {
-        final CompilerSettings compilerSettings = buildCompilerSettings(params);
+    ScriptScope compile(
+        Compiler compiler,
+        CompilerSettings contextDefaults,
+        Loader loader,
+        String scriptName,
+        String source,
+        Map<String, String> params
+    ) {
+        final CompilerSettings compilerSettings = buildCompilerSettings(contextDefaults, params);
 
         try {
             // Drop all permissions to actually compile the code itself.
@@ -378,19 +408,19 @@ public final class PainlessScriptEngine implements ScriptEngine {
         }
     }
 
-    private CompilerSettings buildCompilerSettings(Map<String, String> params) {
+    private CompilerSettings buildCompilerSettings(CompilerSettings contextDefaults, Map<String, String> params) {
         CompilerSettings compilerSettings;
         if (params.isEmpty()) {
             // Use the default settings.
-            compilerSettings = defaultCompilerSettings;
+            compilerSettings = contextDefaults;
         } else {
             // Use custom settings specified by params.
             compilerSettings = new CompilerSettings();
 
-            // Except regexes enabled - this is a node level setting and can't be changed in the request.
-            compilerSettings.setRegexesEnabled(defaultCompilerSettings.areRegexesEnabled());
-
-            compilerSettings.setRegexLimitFactor(defaultCompilerSettings.getAppliedRegexLimitFactor());
+            // Except node-level settings, which can't be changed in the request: regexes and the allocation limit.
+            compilerSettings.setRegexesEnabled(contextDefaults.areRegexesEnabled());
+            compilerSettings.setRegexLimitFactor(contextDefaults.getAppliedRegexLimitFactor());
+            compilerSettings.setMaxAllocationBytes(contextDefaults.getMaxAllocationBytes());
 
             Map<String, String> copy = new HashMap<>(params);
 

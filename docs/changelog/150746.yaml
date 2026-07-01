@@ -1,0 +1,5 @@
+pr: 150746
+summary: "ES|QL|DS: release the S3 read buffer when onComplete loses the completion race"
+area: ES|QL
+type: bug
+issues: []

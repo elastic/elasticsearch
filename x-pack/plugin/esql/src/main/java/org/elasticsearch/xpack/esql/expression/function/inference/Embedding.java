@@ -61,6 +61,7 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
 
     @FunctionInfo(
         returnType = "dense_vector",
+        briefSummary = "Generates dense vector embeddings from multimodal input using an inference endpoint.",
         description = "Generates dense vector embeddings from multimodal input using a specified "
             + "[inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md) "
             + "with the `embedding` task type. "

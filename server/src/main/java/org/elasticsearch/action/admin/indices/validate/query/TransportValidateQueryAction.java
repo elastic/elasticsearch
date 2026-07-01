@@ -291,27 +291,15 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         final String target = request.indices().length == 0
             ? Strings.arrayToCommaDelimitedString(concreteIndices)
             : Strings.arrayToCommaDelimitedString(request.indices());
-        if (anySliceEnabled && fromSlice == false && request.routing() != null) {
-            throw new IllegalArgumentException(
-                "[routing] is not allowed when [index.slice.enabled] is true for validate query request targeting ["
-                    + target
-                    + "], use [_slice] instead"
-            );
-        }
-        if (fromSlice && anySliceEnabled == false) {
-            throw new IllegalArgumentException(
-                "[_slice] is not allowed when [index.slice.enabled] is false for validate query request targeting [" + target + "]"
-            );
-        }
-        if (anySliceEnabled && fromSlice == false) {
-            throw new IllegalArgumentException(
-                "[_slice] is required when [index.slice.enabled] is true for validate query request targeting [" + target + "]"
-            );
-        }
-        if (fromSlice) {
-            return SliceIndexing.SLICE_ALL.equals(requestedSlice) ? null : requestedSlice;
-        }
-        return request.routing();
+        return SliceIndexing.validateAndResolveSliceRoutingRequirement(
+            anySliceEnabled,
+            fromSlice,
+            request.routing(),
+            requestedSlice,
+            "validate query request",
+            target,
+            false
+        );
     }
 
     private static String explain(SearchContext context, boolean rewritten) {

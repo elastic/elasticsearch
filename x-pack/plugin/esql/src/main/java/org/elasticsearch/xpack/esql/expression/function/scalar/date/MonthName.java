@@ -53,6 +53,7 @@ public class MonthName extends EsqlConfigurationFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Returns the month name for a date.",
         description = "Returns the month name for the provided date based on the configured Locale.",
         examples = @Example(file = "date", tag = "docsMonthName"),
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") }

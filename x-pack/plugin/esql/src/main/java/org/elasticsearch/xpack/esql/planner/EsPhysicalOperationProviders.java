@@ -110,6 +110,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.query.LuceneSourceOperator.NO_LIMIT;
@@ -174,15 +175,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private final PlannerSettings plannerSettings;
 
+    private final LongSupplier directoryBytesRead;
+
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
         IndexedByShardId<? extends ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
-        PlannerSettings plannerSettings
+        PlannerSettings plannerSettings,
+        LongSupplier directoryBytesRead
     ) {
         super(foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
         this.plannerSettings = plannerSettings;
+        this.directoryBytesRead = directoryBytesRead;
     }
 
     @Override
@@ -216,7 +221,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 reuseColumnLoaders,
                 docChannel,
                 plannerSettings.sourceReservationFactor(),
-                docSequenceThreshold
+                docSequenceThreshold,
+                directoryBytesRead
             ),
             layout.build()
         );
@@ -244,7 +250,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         BlockLoaderWarnings warnings = new BlockLoaderWarnings(warningsMode, attr.source());
         String fieldName = getFieldName(attr);
         if (attr instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
-            functionConfig = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, timeSeriesMetadataAttribute.withoutFields());
+            functionConfig = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, timeSeriesMetadataAttribute.excludedFields());
             fieldName = SourceFieldMapper.NAME;
         } else if (attr instanceof TemporalityAttribute) {
             return resolveTemporalitySource(shardContext, warnings, fieldExtractPreference);
@@ -477,7 +483,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 limit,
                 sortBuilders,
                 estimatedPerRowSortSize,
-                scoring
+                scoring,
+                directoryBytesRead
             );
         } else if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
             luceneFactory = new TimeSeriesSourceOperator.Factory(
@@ -487,7 +494,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 context.queryPragmas().docsThresholdForAutoPartitioning(plannerSettings.docsThresholdForAutoPartitioning()),
                 taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
-                limit
+                limit,
+                directoryBytesRead
             );
         } else {
             luceneFactory = new LuceneSourceOperator.Factory(
@@ -499,7 +507,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
-                scoring
+                scoring,
+                directoryBytesRead,
+                context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE)
             );
         }
         Layout.Builder layout = new Layout.Builder();
@@ -510,6 +520,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     private static DataPartitioning.AutoStrategy topNAutoStrategy() {
+        // TopN keeps SEGMENT under AUTO. Routing it to DOC via the source-operator's high-speed
+        // heuristic helps scan-dominant TopN (e.g. WHERE URL LIKE … | SORT … | LIMIT 10) but
+        // regresses sort-dominant TopN (cheap or no WHERE) — sub-segment slicing breaks Lucene's
+        // sorted-segment short-circuit. Users who want DOC for a scan-dominant TopN can opt in
+        // via the data_partitioning pragma.
         return unusedLimit -> query -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
     }
 
@@ -581,7 +596,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             LuceneOperator.SMALL_INDEX_BOUNDARY,
             context.queryPragmas().taskConcurrency(),
             tagTypes,
-            limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
+            limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx()),
+            directoryBytesRead,
+            context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE)
         );
     }
 

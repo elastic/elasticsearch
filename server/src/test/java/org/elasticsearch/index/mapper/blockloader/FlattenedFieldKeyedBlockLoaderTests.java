@@ -98,7 +98,9 @@ public class FlattenedFieldKeyedBlockLoaderTests extends BinaryDVBlockLoaderTest
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         boolean useDocValues = hasDocValues(fieldMapping, true)
-            && (params.preference() != MappedFieldType.FieldExtractPreference.STORED || params.syntheticSource());
+            && (params.preference() != MappedFieldType.FieldExtractPreference.STORED
+                || params.syntheticSource()
+                || params.isColumnarStored());
 
         int ignoreAbove = fieldMapping.get("ignore_above") != null && useDocValues
             ? ((Number) fieldMapping.get("ignore_above")).intValue()

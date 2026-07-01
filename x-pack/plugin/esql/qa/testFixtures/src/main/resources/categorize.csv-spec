@@ -616,6 +616,7 @@ COUNT():long | x:keyword
 ;
 
 categorize in aggs same as grouping inside function
+skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_v6
 
 FROM sample_data
@@ -631,6 +632,7 @@ COUNT():long | x:keyword
 ;
 
 categorize in aggs same as grouping inside function with explicit alias
+skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_v6
 
 FROM sample_data
@@ -678,6 +680,7 @@ count:long | category:keyword         | timestamp:datetime
 
 
 multiple groupings with categorize and limit before stats
+skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_multiple_groupings
 
 FROM sample_data | SORT message | LIMIT 5

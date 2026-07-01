@@ -19,6 +19,7 @@ public final class IpScriptDocValues extends SortedBinaryDocValues {
     private int cursor;
 
     IpScriptDocValues(IpFieldScript script) {
+        super(null);
         this.script = script;
     }
 

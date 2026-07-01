@@ -78,7 +78,15 @@ public class S3HttpHandlerTests extends ESTestCase {
         Randomness.shuffle(queryParts);
 
         final var requestUri = "/bucket" + randomFrom("", "/") + (queryParts.isEmpty() ? "" : "?" + String.join("&", queryParts));
-        assertEquals("GET " + requestUri, new TestHttpResponse(RestStatus.OK, expectedResponse), handleRequest(handler, "GET", requestUri));
+        final var actual = handleRequest(handler, "GET", requestUri);
+        assertEquals("GET " + requestUri + " status", RestStatus.OK, actual.status());
+        // Normalize <LastModified> values before comparing: BlobEntry.lastModified() is Instant.now() so the exact
+        // timestamp varies per run. Replacing both sides with a placeholder still verifies the element is present.
+        assertEquals("GET " + requestUri, normalizeLastModified(expectedResponse), normalizeLastModified(actual.body().utf8ToString()));
+    }
+
+    private static String normalizeLastModified(String xml) {
+        return xml.replaceAll("<LastModified>[^<]+</LastModified>", "<LastModified>*</LastModified>");
     }
 
     public void testSimpleObjectOperations() {

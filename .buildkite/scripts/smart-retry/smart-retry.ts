@@ -151,17 +151,37 @@ export function transformTaskStatus(report: TaskStatusReport, testseed: string):
   );
   const successfulTasks = [...successfulTaskSet].sort();
 
+  // Collect successful suites for tasks that are not fully successful.
+  // The plugin can exclude entire test classes rather than individual methods.
+  const successfulSuites: Record<string, string[]> = {};
+  if (report.suites) {
+    for (const suite of report.suites) {
+      if (suite.result !== "SUCCESS") continue;
+      if (successfulTaskSet.has(suite.taskPath)) continue;
+      (successfulSuites[suite.taskPath] ??= []).push(suite.className);
+    }
+    for (const key of Object.keys(successfulSuites)) {
+      successfulSuites[key].sort();
+    }
+  }
+
+  // Collect successful individual tests for suites that are not fully successful.
+  const successfulSuiteSet = new Set(
+    Object.entries(successfulSuites).flatMap(([taskPath, classes]) => classes.map((c) => `${taskPath}\0${c}`)),
+  );
+
   const successfulTests: Record<string, string[]> = {};
   for (const test of report.tests) {
     if (test.result !== "SUCCESS") continue;
     if (successfulTaskSet.has(test.taskPath)) continue;
+    if (successfulSuiteSet.has(`${test.taskPath}\0${test.className}`)) continue;
     (successfulTests[test.taskPath] ??= []).push(`${test.className}#${test.methodName}`);
   }
   for (const key of Object.keys(successfulTests)) {
     successfulTests[key].sort();
   }
 
-  return { successfulTasks, successfulTests, testseed };
+  return { successfulTasks, successfulSuites, successfulTests, testseed };
 }
 
 // ---------------------------------------------------------------------------

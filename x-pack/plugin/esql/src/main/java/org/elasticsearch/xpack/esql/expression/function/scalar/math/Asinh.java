@@ -34,10 +34,12 @@ public class Asinh extends AbstractTrigonometricFunction {
         .unaryValueTransformation(Asinh::new)
         .description("Calculates the inverse hyperbolic sine of all elements in the input vector.")
         .example("asinh(some_metric)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("asinh");
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the inverse hyperbolic sine of a number.",
         description = "Returns the {wikipedia}/Inverse_trigonometric_functions[inverse hyperbolic sine] of a number.",
         examples = @Example(file = "floats", tag = "asinh")
     )

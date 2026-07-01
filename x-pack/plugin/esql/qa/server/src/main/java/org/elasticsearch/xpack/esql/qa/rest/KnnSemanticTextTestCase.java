@@ -91,8 +91,7 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void setupInferenceAndIndex() throws Exception {
         setupInferenceEndpoints();
         setupIndex();
     }
@@ -142,8 +141,7 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void cleanupInferenceAndIndex() throws Exception {
         client().performRequest(new Request("DELETE", "semantic-test"));
         CsvTestsDataLoader.deleteInferenceEndpoint(client(), "test_dense_inference");
         CsvTestsDataLoader.deleteInferenceEndpoint(client(), "test_sparse_inference");

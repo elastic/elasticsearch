@@ -23,13 +23,14 @@ public class OtelSdkResourceTests extends ESTestCase {
     public void testOtelSdkResourceBuilding() {
         Settings settings = Settings.builder()
             .put("node.name", "node-7")
-            .put("telemetry.otel.resource.elasticsearch.project.id", "abc-123")
-            .put("telemetry.otel.resource.k8s.cluster.name", "es-prod-eu-west-1")
+            .put("telemetry.resource.project.id", "abc-123")
+            .put("telemetry.resource.orchestrator.cluster.name", "es-prod-eu-west-1")
             .build();
 
         Resource resource = OtelSdkResource.get(settings);
 
-        assertThat(resource.getAttribute(AttributeKey.stringKey("service.name")), is("elasticsearch"));
+        assertThat(resource.getAttribute(AttributeKey.stringKey("service.name")), is("self-managed-elasticsearch"));
+        assertThat(resource.getAttribute(AttributeKey.stringKey("service.type")), is("elasticsearch"));
         assertThat(resource.getAttribute(AttributeKey.stringKey("service.version")), is(Build.current().version()));
         assertThat(resource.getAttribute(AttributeKey.stringKey("service.language.name")), is("java"));
         assertThat(resource.getAttribute(AttributeKey.stringKey("service.agent.name")), is("elasticsearch-otel-sdk"));
@@ -37,12 +38,12 @@ public class OtelSdkResourceTests extends ESTestCase {
         assertThat(resource.getAttribute(AttributeKey.stringKey("telemetry.distro.name")), is("elasticsearch-otel-sdk"));
         assertThat(resource.getAttribute(AttributeKey.stringKey("telemetry.distro.version")), is(Build.current().version()));
         assertThat(resource.getAttribute(AttributeKey.stringKey("service.instance.id")), is("node-7"));
-        assertThat(resource.getAttribute(AttributeKey.stringKey("elasticsearch.project.id")), is("abc-123"));
-        assertThat(resource.getAttribute(AttributeKey.stringKey("k8s.cluster.name")), is("es-prod-eu-west-1"));
+        assertThat(resource.getAttribute(AttributeKey.stringKey("project.id")), is("abc-123"));
+        assertThat(resource.getAttribute(AttributeKey.stringKey("orchestrator.cluster.name")), is("es-prod-eu-west-1"));
     }
 
     public void testOtelSdkResourceOverride() {
-        Settings settings = Settings.builder().put("telemetry.otel.resource.service.name", "operator-supplied-name").build();
+        Settings settings = Settings.builder().put("telemetry.resource.service.name", "operator-supplied-name").build();
 
         Resource resource = OtelSdkResource.get(settings);
 

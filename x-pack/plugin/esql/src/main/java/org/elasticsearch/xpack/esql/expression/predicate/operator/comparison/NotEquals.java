@@ -10,6 +10,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
@@ -49,6 +50,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         Map.entry(DataType.UNSIGNED_LONG, NotEqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.DATETIME, NotEqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.DATE_NANOS, NotEqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.DATE_RANGE, NotEqualsLongRangeEvaluator.Factory::new),
         Map.entry(DataType.GEO_POINT, NotEqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.CARTESIAN_POINT, NotEqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.GEO_SHAPE, NotEqualsGeometriesEvaluator.Factory::new),
@@ -82,6 +84,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_range",
                 "dense_vector",
                 "double",
                 "flattened",
@@ -107,6 +110,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_range",
                 "dense_vector",
                 "double",
                 "flattened",
@@ -191,6 +195,11 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
 
     @Evaluator(extraName = "Geometries")
     static boolean processGeometries(BytesRef lhs, BytesRef rhs) {
+        return false == lhs.equals(rhs);
+    }
+
+    @Evaluator(extraName = "LongRange")
+    static boolean processLongRange(LongRangeBlockBuilder.LongRange lhs, LongRangeBlockBuilder.LongRange rhs) {
         return false == lhs.equals(rhs);
     }
 

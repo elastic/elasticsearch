@@ -77,6 +77,7 @@ public class SpatialIntersects extends SpatialRelatesFunction {
 
     @FunctionInfo(
         returnType = { "boolean" },
+        briefSummary = "Returns true if two geometries intersect.",
         description = """
             Returns true if two geometries intersect.
             They intersect if they have any point in common, including their interior points

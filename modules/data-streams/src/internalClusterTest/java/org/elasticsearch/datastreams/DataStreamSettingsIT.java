@@ -111,7 +111,11 @@ public class DataStreamSettingsIT extends ESIntegTestCase {
             assertThat(getSettingsResponses.size(), equalTo(1));
             assertThat(getSettingsResponses.get(0).settings(), equalTo(dataStreamSettings));
             assertThat(
-                getSettingsResponses.get(0).effectiveSettings(),
+                Settings.builder()
+                    .put(getSettingsResponses.get(0).effectiveSettings())
+                    // RandomizeColumnarIdModePlugin will randomly add this setting:
+                    .remove("index.mapping.use_columnar_id_mode_by_default")
+                    .build(),
                 equalTo(Settings.builder().put(dataStreamSettings).put("index.number_of_replicas", "0").build())
             );
         }

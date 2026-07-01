@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,6 +30,19 @@ import java.util.concurrent.ConcurrentMap;
 public final class ExternalStatsCapture {
 
     private static final ThreadLocal<ConcurrentMap<String, List<Map<String, Object>>>> ACTIVE = new ThreadLocal<>();
+    /**
+     * Coverage bound alongside {@link #ACTIVE} so every contribution a worker records while reading
+     * one chunk/segment is stamped with the file byte-range it observed ({@link
+     * ExternalStats#COVERAGE_START_KEY} / {@link ExternalStats#COVERAGE_END_KEY} / {@link
+     * ExternalStats#COVERAGE_IS_LAST_KEY}). The reconciler unions contributions by that range, so a
+     * range re-observed by another scan of the same file (e.g. a sibling FORK branch) is counted once
+     * while disjoint ranges are summed. {@code null} for whole-file reads, which stay un-addressed and
+     * keep the authoritative {@code WholeFile} dedup path.
+     */
+    private static final ThreadLocal<Coverage> ACTIVE_COVERAGE = new ThreadLocal<>();
+
+    /** The file byte-range a chunk/segment observed, in that path's read coordinate system. */
+    public record Coverage(long start, long end, boolean last) {}
 
     private ExternalStatsCapture() {}
 
@@ -49,7 +63,20 @@ public final class ExternalStatsCapture {
         }
         ConcurrentMap<String, List<Map<String, Object>>> sink = ACTIVE.get();
         if (sink != null) {
-            sink.computeIfAbsent(filePath, k -> Collections.synchronizedList(new ArrayList<>())).add(stats);
+            // Stamp the active coverage range so the coordinator can union this chunk/segment by the
+            // bytes it observed. Copy rather than mutate in place — the caller may pass an immutable or
+            // reused map, and coverage must not leak back into a caller's buffer. Skip when a
+            // contribution already carries coverage.
+            Coverage coverage = ACTIVE_COVERAGE.get();
+            Map<String, Object> stamped = stats;
+            if (coverage != null && stats.containsKey(ExternalStats.COVERAGE_START_KEY) == false) {
+                stamped = new HashMap<>(stats);
+                stamped.put(ExternalStats.COVERAGE_START_KEY, coverage.start());
+                stamped.put(ExternalStats.COVERAGE_END_KEY, coverage.end());
+                stamped.put(ExternalStats.COVERAGE_IS_LAST_KEY, coverage.last());
+            }
+            Map<String, Object> contribution = stamped;
+            sink.computeIfAbsent(filePath, k -> Collections.synchronizedList(new ArrayList<>())).add(contribution);
         }
     }
 
@@ -60,13 +87,34 @@ public final class ExternalStatsCapture {
      * is the sink's own responsibility.
      */
     public static Handle bind(ConcurrentMap<String, List<Map<String, Object>>> sink) {
-        ConcurrentMap<String, List<Map<String, Object>>> previous = ACTIVE.get();
+        return bind(sink, null);
+    }
+
+    /**
+     * Binds {@code sink} and the {@code coverage} this read observes on the current thread; every
+     * {@link #record} call made under this binding is stamped with the coverage range (see {@link
+     * ExternalStats#COVERAGE_START_KEY}) so the coordinator can union contributions by the bytes they
+     * cover. Bind one coverage per chunk/segment read; pass {@code null} for a whole-file read (which
+     * stays on the authoritative {@code WholeFile} dedup path). The returned handle restores both the
+     * previous sink and the previous coverage.
+     */
+    public static Handle bind(ConcurrentMap<String, List<Map<String, Object>>> sink, Coverage coverage) {
+        ConcurrentMap<String, List<Map<String, Object>>> previousSink = ACTIVE.get();
+        Coverage previousCoverage = ACTIVE_COVERAGE.get();
         ACTIVE.set(sink);
+        if (coverage != null) {
+            ACTIVE_COVERAGE.set(coverage);
+        }
         return () -> {
-            if (previous == null) {
+            if (previousSink == null) {
                 ACTIVE.remove();
             } else {
-                ACTIVE.set(previous);
+                ACTIVE.set(previousSink);
+            }
+            if (previousCoverage == null) {
+                ACTIVE_COVERAGE.remove();
+            } else {
+                ACTIVE_COVERAGE.set(previousCoverage);
             }
         };
     }

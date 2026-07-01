@@ -324,6 +324,7 @@ public class NodeTests extends ESTestCase {
         public int hashCode() {
             return Objects.hash(thing, children());
         }
+
     }
 
     public static class ChildrenAreAProperty extends Dummy {
@@ -358,14 +359,14 @@ public class NodeTests extends ESTestCase {
         }
 
         @Override
-        public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
             sb.append(nodeName()).append("(");
             List<Dummy> kids = children();
             for (int i = 0; i < kids.size(); i++) {
                 if (i > 0) {
                     sb.append(",");
                 }
-                kids.get(i).nodeString(sb, format);
+                kids.get(i).nodeString(sb, format, mapper);
             }
             sb.append(")");
         }

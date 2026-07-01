@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.test.ESTestCase;
 
@@ -104,6 +105,11 @@ public class DimensionFieldDownsamplerTests extends ESTestCase {
             @Override
             public Object nextValue() {
                 return iterator.next();
+            }
+
+            @Override
+            public DocIdSetIterator docIdIterator() {
+                return null;
             }
         };
 

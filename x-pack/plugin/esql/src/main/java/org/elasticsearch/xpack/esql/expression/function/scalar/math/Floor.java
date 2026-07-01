@@ -41,10 +41,12 @@ public class Floor extends UnaryScalarFunction {
         .unaryValueTransformation(Floor::new)
         .description("Rounds the sample values of all elements down to the nearest integer.")
         .example("floor(rate(http_requests_total[5m]))")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("floor");
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
+        briefSummary = "Rounds a number down to the nearest integer.",
         description = "Round a number down to the nearest integer.",
         note = """
             This is a noop for `long` (including unsigned) and `integer`.

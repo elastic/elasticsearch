@@ -46,6 +46,7 @@ public class ToText extends AbstractConvertFunction implements EvaluatorMapper {
 
     @FunctionInfo(
         returnType = "text",
+        briefSummary = "Converts a value to text.",
         description = "Converts an input value into a text.",
         examples = { @Example(file = "convert", tag = "to_text") }
     )

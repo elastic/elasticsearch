@@ -32,6 +32,7 @@ public class ToLower extends ChangeCase {
 
     @FunctionInfo(
         returnType = { "keyword" },
+        briefSummary = "Returns a new string converted to lower case.",
         description = "Returns a new string representing the input string converted to lower case.",
         examples = {
             @Example(file = "string", tag = "to_lower"),

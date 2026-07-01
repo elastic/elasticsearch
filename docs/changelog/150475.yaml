@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 150383
+pr: 150475
+summary: Fix `date_range` encoding/decoding in TopN
+type: bug

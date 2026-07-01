@@ -49,6 +49,7 @@ public class Left extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Returns a substring of the specified length from the left side of a string.",
         description = "Returns the substring that extracts *length* chars from *string* starting from the left.",
         examples = { @Example(file = "string", tag = "left") }
     )

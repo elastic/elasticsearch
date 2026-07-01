@@ -42,6 +42,7 @@ public class ByteLength extends UnaryScalarFunction implements BlockLoaderExpres
 
     @FunctionInfo(
         returnType = "integer",
+        briefSummary = "Returns the byte length of a string.",
         description = "Returns the byte length of a string.",
         note = "All strings are in UTF-8, so a single character can use multiple bytes.",
         examples = @Example(file = "eval", tag = "byteLength")

@@ -47,6 +47,7 @@ public class ToCartesianPoint extends AbstractConvertFunction {
 
     @FunctionInfo(
         returnType = "cartesian_point",
+        briefSummary = "Converts a value to a cartesian_point.",
         description = """
             Converts an input value to a `cartesian_point` value.
             A string will only be successfully converted if it respects the

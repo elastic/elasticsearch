@@ -187,6 +187,7 @@ book_no:keyword
 ;
 
 matchPhraseWithFunctionPushedToLucene
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_phrase_function
 
 from hosts 
@@ -227,6 +228,7 @@ book_no:keyword | title:text
 ;
 
 matchPhraseMultivaluedField
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_phrase_function
 
 from employees 
@@ -244,6 +246,7 @@ emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 testMultiValuedFieldWithConjunction
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_phrase_function
 
 from employees 
@@ -256,6 +259,7 @@ emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 testMatchPhraseAndQueryStringFunctions
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_phrase_function
 required_capability: qstr_function
 

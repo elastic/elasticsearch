@@ -524,7 +524,10 @@ public final class DefBootstrap {
                     throw new BootstrapMethodError("Illegal parameter for method call: " + args[0]);
                 }
                 String recipe = (String) args[0];
-                int numLambdas = recipe.length();
+                // 'S' is a leading non-lambda sentinel set by the compiler when the call site
+                // pushed the script receiver ahead of user args; peel it before counting lambdas.
+                int recipeLambdaStart = (recipe.isEmpty() == false && recipe.charAt(0) == 'S') ? 1 : 0;
+                int numLambdas = recipe.length() - recipeLambdaStart;
                 if (numLambdas > type.parameterCount()) {
                     throw new BootstrapMethodError("Illegal recipe for method call: too many bits");
                 }

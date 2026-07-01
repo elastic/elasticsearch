@@ -432,6 +432,7 @@ abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
 ;
 
 byMultivaluedMvExpand
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 
 FROM airports
@@ -448,6 +449,7 @@ GWL            |9                  |4                      |military
 ;
 
 byMvExpand
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 required_capability: st_x_y_quantized
 // ST_X and ST_Y return slightly different precision in older versions
@@ -565,6 +567,7 @@ ZNZ            |4                       |German
 ;
 
 afterEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: inline_stats
 required_capability: enrich_load
 
@@ -627,6 +630,7 @@ emp_no:integer | languages:integer | max_salary:integer
 ;
 
 beforeEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: inline_stats
 required_capability: enrich_load
 
@@ -646,6 +650,7 @@ ACA            |Acapulco de Juárez|385            |major          |Acapulco de 
 ;
 
 beforeAndAfterEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: inline_stats
 required_capability: enrich_load
 
@@ -1443,6 +1448,7 @@ salary:integer |x:keyword|gender:keyword |min_sl:integer |emp_no:integer
 ;
 
 overridingGroupings
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 
 FROM employees
@@ -1462,6 +1468,7 @@ salary:integer |x:integer      |gender:keyword |min_sl:integer |emp_no:integer
 ;
 
 overridingExpressionGroupings
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 
 FROM employees
@@ -2574,6 +2581,7 @@ FROM employees
 ;
 
 groupingFilterIsAlwaysTrue
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 FROM employees
 | MV_EXPAND job_positions
@@ -2592,6 +2600,7 @@ FROM employees
 
 
 groupingFilterIsAlwaysFalse
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 FROM employees
 | MV_EXPAND job_positions
@@ -2610,6 +2619,7 @@ null           |48942          |Patricio          |A                      |10012
 
 
 groupingFilterSometimesMatches
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 FROM employees
 | MV_EXPAND job_positions
@@ -3237,6 +3247,7 @@ count:long
 ;
 
 multiIndexTsLongInlinestatsInline2
+skip_flattened_rewrite: inline_stats_multi_index_column_mismatch
 required_capability: inline_stats
 
 FROM sample_data, sample_data_ts_long, sample_data_ts_nanos
@@ -4280,11 +4291,12 @@ null                 | 0
 
 
 inlineStatsAfterPruningAggregate6
+skip_flattened_rewrite: match_family_rejects_field_extract
 // https://github.com/elastic/elasticsearch/issues/135679
 required_capability: inline_stats_double_release_fix
 required_capability: join_lookup_v12
 
-from date*,decades,dense*,distances,*,-addresses_*
+from date*,decades,dense*,distances,*,-addresses_*,-hosts_ip_is_kwd
 | rename scalerank as other2
 | rename author.keyword as name_str
 | rename intersects as is_active_bool
@@ -4621,6 +4633,7 @@ emp_idx:integer|salary:integer |sum:long       |languages:integer
 ;
 
 inlineStatsAfterEnrichAndSort
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: inline_stats_preceeded_by_sort
 required_capability: enrich_load
 

@@ -58,6 +58,7 @@ public class ToDouble extends AbstractConvertFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Converts a value to a double.",
         description = """
             Converts an input value to a double value. If the input parameter is of a date type,
             its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch],

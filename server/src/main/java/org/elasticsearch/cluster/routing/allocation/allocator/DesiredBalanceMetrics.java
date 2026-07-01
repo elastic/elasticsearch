@@ -13,16 +13,15 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator.NodeAllocationStatsAndWeight;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.telemetry.metric.ConsumingLongGaugeMetric;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
 /**
@@ -152,6 +151,7 @@ public class DesiredBalanceMetrics {
     private final AtomicReference<Map<DiscoveryNode, NodeAllocationStatsAndWeight>> allocationStatsPerNodeRef = new AtomicReference<>(
         Map.of()
     );
+    private final ConsumingLongGaugeMetric writeLoadDeciderMaxQueueLatencyGauge;
 
     private volatile DesiredBalanceStats desiredBalanceStats = DesiredBalanceStats.ZERO;
 
@@ -173,6 +173,12 @@ public class DesiredBalanceMetrics {
 
     public DesiredBalanceMetrics(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
+        this.writeLoadDeciderMaxQueueLatencyGauge = ConsumingLongGaugeMetric.create(
+            meterRegistry,
+            WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE,
+            "max latency for write load decider",
+            "ms"
+        );
         meterRegistry.registerLongsGauge(
             UNASSIGNED_SHARDS_METRIC_NAME,
             "Current number of unassigned shards",
@@ -293,6 +299,10 @@ public class DesiredBalanceMetrics {
         );
     }
 
+    public ConsumingLongGaugeMetric getWriteLoadDeciderMaxQueueLatencyGauge() {
+        return writeLoadDeciderMaxQueueLatencyGauge;
+    }
+
     /**
      * When {@link #nodeIsMaster} is set to true, the server will report APM metrics registered in this file. When set to false, empty
      * values will be returned such that no APM metrics are sent from this server.
@@ -319,15 +329,6 @@ public class DesiredBalanceMetrics {
 
     DesiredBalanceStats desiredBalanceStats() {
         return desiredBalanceStats;
-    }
-
-    public void registerWriteLoadDeciderMaxLatencyGauge(Supplier<Collection<LongWithAttributes>> maxLatencySupplier) {
-        meterRegistry.registerLongsGauge(
-            WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE,
-            "max latency for write load decider",
-            "ms",
-            maxLatencySupplier
-        );
     }
 
     private List<LongWithAttributes> getUnassignedShardsMetrics() {

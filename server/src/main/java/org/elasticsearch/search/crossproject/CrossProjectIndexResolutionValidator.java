@@ -16,6 +16,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
+import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -89,12 +91,27 @@ public class CrossProjectIndexResolutionValidator {
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
         Map<String, Exception> remoteExceptions
     ) {
-        // Check for remote view exceptions that may not have been caught by the per-expression checks above.
-        // This can happen for flat expressions where the resolved expressions don't include remote expressions for views.
+        // Check for remote view/dataset exceptions that may not have been caught by the per-expression checks above.
+        // This can happen for flat expressions where the resolved expressions don't include remote expressions for them.
+        // Both kinds are collected and reported together so a query matching a remote view on one project and a remote
+        // dataset on another surfaces both at once rather than whichever project's exception is iterated first.
+        List<String> remoteViews = new ArrayList<>();
+        List<String> remoteDatasets = new ArrayList<>();
         for (Exception remoteEx : remoteExceptions.values()) {
-            if (ExceptionsHelper.unwrapCause(remoteEx) instanceof RemoteViewNotSupportedException viewException) {
-                return viewException;
+            Throwable cause = ExceptionsHelper.unwrapCause(remoteEx);
+            // A remote that hosts both kinds already combined them into RemoteResourceNotSupportedException; a remote with
+            // a single kind reports the per-kind exception. Collect from whichever shape arrived.
+            if (cause instanceof RemoteResourceNotSupportedException resourceException) {
+                remoteViews.addAll(resourceException.views());
+                remoteDatasets.addAll(resourceException.datasets());
+            } else if (cause instanceof RemoteViewNotSupportedException viewException) {
+                remoteViews.addAll(viewException.views());
+            } else if (cause instanceof RemoteDatasetNotSupportedException datasetException) {
+                remoteDatasets.addAll(datasetException.datasets());
             }
+        }
+        if (remoteViews.isEmpty() == false || remoteDatasets.isEmpty() == false) {
+            return new RemoteResourceNotSupportedException(remoteViews, remoteDatasets);
         }
 
         if (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable()) {
@@ -152,9 +169,9 @@ public class CrossProjectIndexResolutionValidator {
                 }
                 // qualified linked project expression
                 for (String remoteExpression : remoteExpressions) {
-                    String[] splitResource = splitQualifiedResource(remoteExpression);
-                    var projectAlias = splitResource[0];
-                    var resource = splitResource[1];
+                    var splitResource = RemoteClusterAware.splitIndexName(remoteExpression);
+                    var projectAlias = splitResource.clusterAlias();
+                    var resource = splitResource.indexExpression();
 
                     ElasticsearchException remoteException = checkSingleRemoteExpression(
                         localResolvedExpressions,
@@ -199,9 +216,9 @@ public class CrossProjectIndexResolutionValidator {
                     Map<String, List<String>>> populateRemoteSecurityExceptionAndIndices = null;
                 // checking if flat expression matched remotely
                 for (String remoteExpression : remoteExpressions) {
-                    String[] splitResource = splitQualifiedResource(remoteExpression);
-                    var projectAlias = splitResource[0];
-                    var resource = splitResource[1];
+                    var splitResource = RemoteClusterAware.splitIndexName(remoteExpression);
+                    var projectAlias = splitResource.clusterAlias();
+                    var resource = splitResource.indexExpression();
 
                     ElasticsearchException remoteException = checkSingleRemoteExpression(
                         localResolvedExpressions,
@@ -345,14 +362,21 @@ public class CrossProjectIndexResolutionValidator {
         if (resolvedExpressionsInProject == null) {
             // if we're missing results from the remote because of a connection error, report it; else assume we have an exclusion
             if (remoteExceptions.containsKey(projectAlias)) {
-                if (ExceptionsHelper.unwrapCause(remoteExceptions.get(projectAlias)) instanceof RemoteViewNotSupportedException viewEx) {
-                    return viewEx;
+                Throwable cause = ExceptionsHelper.unwrapCause(remoteExceptions.get(projectAlias));
+                if (cause instanceof RemoteResourceNotSupportedException resourceEx) {
+                    return resourceEx;
+                }
+                if (cause instanceof RemoteViewNotSupportedException viewEx) {
+                    return new RemoteResourceNotSupportedException(viewEx.views(), List.of());
+                }
+                if (cause instanceof RemoteDatasetNotSupportedException datasetEx) {
+                    return new RemoteResourceNotSupportedException(List.of(), datasetEx.datasets());
                 }
                 return new IndexNotFoundException(remoteExpression);
             } else {
                 assert localExpressions.expressions()
                     .stream()
-                    .anyMatch(e -> e.remoteExpressions().stream().anyMatch(r -> r.equals(Strings.format("-%s:*", projectAlias))))
+                    .anyMatch(e -> e.remoteExpressions().stream().anyMatch(Strings.format("-%s:*", projectAlias)::equals))
                     : Strings.format("Expected cluster exclusion for %s", projectAlias);
 
                 return checkResolutionFailure(
@@ -366,9 +390,7 @@ public class CrossProjectIndexResolutionValidator {
         ResolvedIndexExpression.LocalExpressions matchingExpression = findMatchingExpression(resolvedExpressionsInProject, resource);
         if (matchingExpression == null) {
             // assume that this is the result of sending an exclusion to the remote
-            assert localExpressions.expressions()
-                .stream()
-                .anyMatch(e -> e.remoteExpressions().stream().anyMatch(r -> r.startsWith(projectAlias + ":-")))
+            assert hasProjectExclusionPrefix(localExpressions, projectAlias)
                 : Strings.format("Could not find matching project exclusion for missing remote expression %s", remoteExpression);
 
             return checkResolutionFailure(
@@ -381,15 +403,12 @@ public class CrossProjectIndexResolutionValidator {
         return checkResolutionFailure(matchingExpression, remoteExpression, indicesOptions);
     }
 
-    public static String[] splitQualifiedResource(String resource) {
-        String[] splitResource = RemoteClusterAware.splitIndexName(resource);
-        assert splitResource.length == 2
-            : "Expected two strings (project and indexExpression) for a qualified resource ["
-                + resource
-                + "], but found ["
-                + splitResource.length
-                + "]";
-        return splitResource;
+    private static boolean hasProjectExclusionPrefix(ResolvedIndexExpressions localExpressions, String projectAlias) {
+        final String aliasPrefix = "-" + projectAlias + ":";
+        final String indexPrefix = projectAlias + ":-";
+        return localExpressions.expressions()
+            .stream()
+            .anyMatch(e -> e.remoteExpressions().stream().anyMatch(r -> r.startsWith(aliasPrefix) || r.startsWith(indexPrefix)));
     }
 
     // TODO optimize with a precomputed Map<String, ResolvedIndexExpression.LocalExpressions> instead
@@ -407,10 +426,10 @@ public class CrossProjectIndexResolutionValidator {
 
     private static String asOriginExpression(String originalExpression) {
         var split = RemoteClusterAware.splitIndexName(originalExpression);
-        if (split[0] == null || split[0].indexOf('*') == -1) {
+        if (split.clusterAlias() == null || split.clusterAlias().indexOf('*') == -1) {
             return originalExpression;
         }
-        return RemoteClusterAware.buildRemoteIndexName("_origin", split[1]);
+        return RemoteClusterAware.buildRemoteIndexName("_origin", split.indexExpression());
     }
 
     private static ElasticsearchException checkResolutionFailure(

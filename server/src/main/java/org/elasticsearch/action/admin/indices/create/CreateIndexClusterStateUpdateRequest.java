@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -38,6 +39,7 @@ public class CreateIndexClusterStateUpdateRequest {
     private Index recoverFrom;
     private ResizeType resizeType;
     private boolean copySettings;
+    private SystemIndexDescriptor systemIndexDescriptor;
     private SystemDataStreamDescriptor systemDataStreamDescriptor;
     private boolean isFailureIndex = false;
 
@@ -111,6 +113,11 @@ public class CreateIndexClusterStateUpdateRequest {
         return this;
     }
 
+    public CreateIndexClusterStateUpdateRequest systemIndexDescriptor(SystemIndexDescriptor systemIndexDescriptor) {
+        this.systemIndexDescriptor = systemIndexDescriptor;
+        return this;
+    }
+
     public CreateIndexClusterStateUpdateRequest systemDataStreamDescriptor(SystemDataStreamDescriptor systemDataStreamDescriptor) {
         this.systemDataStreamDescriptor = systemDataStreamDescriptor;
         return this;
@@ -147,6 +154,10 @@ public class CreateIndexClusterStateUpdateRequest {
 
     public Index recoverFrom() {
         return recoverFrom;
+    }
+
+    public SystemIndexDescriptor systemIndexDescriptor() {
+        return systemIndexDescriptor;
     }
 
     public SystemDataStreamDescriptor systemDataStreamDescriptor() {
@@ -227,6 +238,10 @@ public class CreateIndexClusterStateUpdateRequest {
 
     public boolean settingsSystemProvided() {
         return settingsSystemProvided;
+    }
+
+    public boolean isSystem() {
+        return systemIndexDescriptor != null || systemDataStreamDescriptor != null;
     }
 
     @Override

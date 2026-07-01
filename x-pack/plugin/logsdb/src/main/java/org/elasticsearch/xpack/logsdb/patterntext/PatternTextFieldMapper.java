@@ -222,7 +222,8 @@ public class PatternTextFieldMapper extends FieldMapper {
                 patternTextFieldType.templateIdFieldName(leafName()),
                 indexSettings,
                 isWithinMultiField()
-            ).indexed(false).build(context);
+                // Enforce LOW cardinality even if cardinality defaults to HIGH:
+            ).indexed(false).docValues(DocValuesParameter.Values.Cardinality.LOW).build(context);
             return new PatternTextFieldMapper(leafName(), fieldType, patternTextFieldType, builderParams, this, templateIdMapper);
         }
     }

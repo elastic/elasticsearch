@@ -275,6 +275,11 @@ public class HistogramFieldMapper extends FieldMapper {
                                         value.reset(values.binaryValue());
                                         return value;
                                     }
+
+                                    @Override
+                                    public DocIdSetIterator docIdIterator() {
+                                        return values;
+                                    }
                                 };
                             } catch (IOException e) {
                                 throw new UncheckedIOException("Unable to loead histogram doc values", e);

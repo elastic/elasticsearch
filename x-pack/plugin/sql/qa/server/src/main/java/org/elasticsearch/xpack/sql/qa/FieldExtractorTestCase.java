@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
 import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,9 +50,8 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     boolean enableSource;
     Map<String, Object> indexProps;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initFieldExtractorTestSettings() throws Exception {
         explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
         enableSource = randomBoolean(); // enable _source at index level
         indexProps = Maps.newMapWithExpectedSize(1);

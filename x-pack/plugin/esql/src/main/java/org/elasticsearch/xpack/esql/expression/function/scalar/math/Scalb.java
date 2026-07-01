@@ -46,6 +46,7 @@ public class Scalb extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the result of multiplying a number by 2 raised to a scale factor.",
         description = """
             Returns the result of `d * 2 ^ scaleFactor`,
             Similar to Java's `scalb` function. Result is rounded as if

@@ -187,6 +187,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private static final String EXPECTED_ROLLUP_WARNING_MESSAGE =
         "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.";
+
     public static final RequestOptions.Builder ROLLUP_REQUESTS_OPTIONS = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
         if (warnings.isEmpty()) {
             return false;
@@ -385,6 +386,18 @@ public abstract class ESRestTestCase extends ESTestCase {
         activeProject = "active00" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         extraProjects = randomSet(1, 3, () -> randomAlphaOfLength(12).toLowerCase(Locale.ROOT));
         multiProjectEnabled = Booleans.parseBoolean(System.getProperty("tests.multi_project.enabled", "false"));
+    }
+
+    @Override
+    public final void setUp() throws Exception {
+        // do not override setUp, use an @Before
+        super.setUp();
+    }
+
+    @Override
+    public final void tearDown() throws Exception {
+        // do not override tearDown, use an @After
+        super.tearDown();
     }
 
     @Before

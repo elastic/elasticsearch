@@ -28,7 +28,7 @@ public interface MeterSupplier extends Supplier<Meter>, AutoCloseable {
      * Returns the underlying {@link MeterProvider} for wiring SDK self-monitoring into other exporters.
      * Defaults to {@link MeterProvider#noop()} when the supplier does not expose a concrete provider.
      */
-    default MeterProvider getHealthMeterProvider() {
+    default MeterProvider getMeterProvider() {
         return MeterProvider.noop();
     }
 

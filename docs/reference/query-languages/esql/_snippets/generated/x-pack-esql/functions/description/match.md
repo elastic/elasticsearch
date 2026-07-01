@@ -16,3 +16,7 @@ For a simplified syntax, you can use the [match operator](/reference/query-langu
 
 `MATCH` returns true if the provided query matches the row.
 
+:::{tip}
+Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+:::
+

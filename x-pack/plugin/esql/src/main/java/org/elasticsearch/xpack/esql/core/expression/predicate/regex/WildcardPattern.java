@@ -14,6 +14,8 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.io.IOException;
@@ -50,6 +52,37 @@ public class WildcardPattern extends AbstractStringPattern implements Writeable 
 
     public String pattern() {
         return wildcard;
+    }
+
+    /**
+     * Renders the wildcard quoted, routing literal runs through {@code mapper.column} while keeping
+     * the wildcard metacharacters ({@code * ? % _}) and escapes structural. Under
+     * {@link NodeStringMapper#IDENTITY} this reproduces the raw pattern.
+     */
+    @Override
+    public void nodeString(StringBuilder sb, Node.NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append('"');
+        StringBuilder run = new StringBuilder();
+        for (int i = 0; i < wildcard.length(); i++) {
+            char c = wildcard.charAt(i);
+            if (c == '\\' && i + 1 < wildcard.length()) {
+                run.append(wildcard.charAt(++i));
+                continue;
+            }
+            if (c == '*' || c == '?' || c == '%' || c == '_') {
+                if (run.length() > 0) {
+                    sb.append(mapper.column(run.toString()));
+                    run.setLength(0);
+                }
+                sb.append(c);
+            } else {
+                run.append(c);
+            }
+        }
+        if (run.length() > 0) {
+            sb.append(mapper.column(run.toString()));
+        }
+        sb.append('"');
     }
 
     @Override

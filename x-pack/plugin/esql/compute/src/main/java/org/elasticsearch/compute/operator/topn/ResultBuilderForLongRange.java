@@ -42,16 +42,9 @@ public class ResultBuilderForLongRange implements ResultBuilder {
     }
 
     private void decodeOneLongRange(BytesRef values) {
-        if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values)) {
-            builder.from().appendLong(TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(values));
-        } else {
-            builder.from().appendNull();
-        }
-        if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values)) {
-            builder.to().appendLong(TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(values));
-        } else {
-            builder.to().appendNull();
-        }
+        long from = TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(values);
+        long to = TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(values);
+        builder.appendLongRange(from, to);
     }
 
     @Override

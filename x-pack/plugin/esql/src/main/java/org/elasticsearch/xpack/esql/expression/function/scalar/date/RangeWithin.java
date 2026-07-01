@@ -74,6 +74,7 @@ public class RangeWithin extends EsqlScalarFunction implements TranslationAware 
         returnType = "boolean",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        briefSummary = "Returns true if a date or date range falls within another date range.",
         description = "Returns true if the first argument is "
             + "[within](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-range-query) "
             + "the second argument. "

@@ -64,7 +64,7 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
 
     public void testFromMap_CreatesEmptySettings_WhenAllFieldsAreNull() {
         MatcherAssert.assertThat(
-            VoyageAIEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of())),
+            VoyageAIEmbeddingsTaskSettings.fromMap(new HashMap<>()),
             is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null))
         );
     }

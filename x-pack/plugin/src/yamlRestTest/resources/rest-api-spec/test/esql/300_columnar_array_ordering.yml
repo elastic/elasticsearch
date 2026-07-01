@@ -111,6 +111,159 @@ setup:
   - match: { values.0.0: [1, 3, 5] }
 
 ---
+"ip multi-value array order":
+  - requires:
+      cluster_features: [ "mapper.columnar.maintain_array_order_ip_text" ]
+      reason: "Columnar array ordering for ip fields is part of the part-4 mapper wiring"
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: ip }
+  - do:
+      indices.create:
+        index: test_logsdb
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: ip }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_columnar" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": ["10.0.0.5", "10.0.0.1", "10.0.0.3"] }
+          - { "index": { "_index": "test_logsdb" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": ["10.0.0.5", "10.0.0.1", "10.0.0.3"] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_columnar | KEEP val'
+  - match: { values.0.0: ["10.0.0.5", "10.0.0.1", "10.0.0.3"] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_logsdb | KEEP val'
+  - match: { values.0.0: ["10.0.0.1", "10.0.0.3", "10.0.0.5"] }
+
+---
+"text multi-value array order":
+  # text/match_only_text array ordering requires explicit doc_values:true; columnar mode does not force doc values on.
+  - requires:
+      cluster_features: [ "mapper.columnar.maintain_array_order_ip_text", "mapper.columnar.inline_array_order_binary_doc_values" ]
+      reason: "Columnar array ordering for text fields is part of the part-4 mapper wiring, and stores array order inline in binary
+        doc values, which is not readable by nodes that still use the sidecar .offsets layout"
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: text, doc_values: true }
+  - do:
+      indices.create:
+        index: test_logsdb
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: text, doc_values: true }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_columnar" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": ["banana", "apple", "cherry"] }
+          - { "index": { "_index": "test_logsdb" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": ["banana", "apple", "cherry"] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_columnar | KEEP val'
+  - match: { values.0.0: [banana, apple, cherry] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_logsdb | KEEP val'
+  - match: { values.0.0: [apple, banana, cherry] }
+
+---
+"match_only_text multi-value array order":
+  - requires:
+      cluster_features: [ "mapper.columnar.maintain_array_order_ip_text", "mapper.columnar.inline_array_order_binary_doc_values" ]
+      reason: "Columnar array ordering for match_only_text fields is part of the part-4 mapper wiring, and stores array order inline in
+        binary doc values, which is not readable by nodes that still use the sidecar .offsets layout"
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: match_only_text, doc_values: true }
+  - do:
+      indices.create:
+        index: test_logsdb
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: match_only_text, doc_values: true }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_columnar" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": ["banana", "apple", "cherry"] }
+          - { "index": { "_index": "test_logsdb" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": ["banana", "apple", "cherry"] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_columnar | KEEP val'
+  - match: { values.0.0: [banana, apple, cherry] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_logsdb | KEEP val'
+  - match: { values.0.0: [apple, banana, cherry] }
+
+---
 "double multi-value array order":
   - do:
       indices.create:
@@ -159,6 +312,10 @@ setup:
 
 ---
 "keyword multi-value array order":
+  # High-cardinality keyword in columnar mode stores array order inline in binary doc values rather than a sidecar .offsets field.
+  - requires:
+      cluster_features: [ "mapper.columnar.inline_array_order_binary_doc_values" ]
+      reason: "Inline binary doc-values array order is not readable by nodes that still use the sidecar .offsets layout"
   - do:
       indices.create:
         index: test_columnar

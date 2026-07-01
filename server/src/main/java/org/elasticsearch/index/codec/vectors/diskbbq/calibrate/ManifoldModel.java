@@ -1,0 +1,318 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.codec.vectors.diskbbq.calibrate;
+
+import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.simdvec.ESVectorUtil;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Locale;
+
+/**
+ * Manifold model for distance/similarity as a function of rank and corpus size.
+ * Fits a log-linear model: log(distance at rank k) ~ alpha + invDim * (log(k) - log(N)).
+ * Used in calibration to predict expected distances and compute expected recall@k.
+ * <p>
+ * Average rank-distance estimation:
+ * per-query {@code TopK} heaps of capacity {@code 6 * k} are fed successive corpus slices
+ * without reset, so each sweep step uses the cumulative corpus prefix (not disjoint chunks).
+ * Dot, cosine, and maximum-inner-product metrics use negated float dot product in the heap
+ * (no extra L2 normalization).
+ */
+public final class ManifoldModel {
+    private static final Logger logger = LogManager.getLogger(ManifoldModel.class);
+
+    /**
+     * multipliers for the manifold rank sweep:
+     * rank = floor(multiplier * k / 5), multipliers descending 29..5.
+     */
+    static final int[] RANK_MULTIPLIERS = { 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5 };
+
+    /**
+     * min to max corpus slice (with fixed 512 steps) for a stable k-NN statistic (empirically determined).
+     */
+    static final int[] SAMPLE_SIZES = {
+        4096,
+        4608,
+        5120,
+        5632,
+        6144,
+        6656,
+        7168,
+        7680,
+        8192,
+        8704,
+        9216,
+        9728,
+        10240,
+        10752,
+        11264,
+        11776,
+        12288,
+        12800,
+        13312,
+        13824,
+        14336,
+        14848,
+        15360,
+        15872,
+        16384 };
+
+    private ManifoldModel() {}
+
+    /**
+     * Estimate manifold parameters (alpha, invDim) using default sample sizes.
+     * Query buffers are sized from {@link CalibrationUtils#calibrationQueryDimension(int, boolean)}
+     * so cosine normalization and Neyshabur lift are supported.
+     */
+    public static double[] estimateManifoldParameters(
+        VectorSimilarityFunction similarityFunction,
+        int dim,
+        FloatVectorValues querySource,
+        int[] queryOrdinals,
+        int baseDim,
+        boolean cosine,
+        boolean neyshabur,
+        FloatVectorValues fvv,
+        int[] corpusOrdinals,
+        int k
+    ) throws IOException {
+        return estimateManifoldParameters(
+            similarityFunction,
+            dim,
+            querySource,
+            queryOrdinals,
+            baseDim,
+            cosine,
+            neyshabur,
+            fvv,
+            corpusOrdinals,
+            k,
+            ranksFromMultipliers(k)
+        );
+    }
+
+    static int[] ranksFromMultipliers(int k) {
+        int[] ranks = new int[ManifoldModel.RANK_MULTIPLIERS.length];
+        for (int i = 0; i < ManifoldModel.RANK_MULTIPLIERS.length; i++) {
+            ranks[i] = Math.max(1, (ManifoldModel.RANK_MULTIPLIERS[i] * k) / 5);
+        }
+        return ranks;
+    }
+
+    /**
+     * Estimate manifold parameters (log(alpha), invDim) from query-corpus distances at various
+     * ranks and sample sizes. Corpus vectors are accessed lazily via {@code fvv} and
+     * {@code corpusOrdinals}.
+     *
+     * @param fvv            the underlying vector values source
+     * @param corpusOrdinals ordinal indices into {@code fvv} for the corpus subset
+     * @param ranksForK      the rank values to sweep
+     * @return double[2] containing {log(alpha), invDim}
+     */
+    static double[] estimateManifoldParameters(
+        VectorSimilarityFunction similarityFunction,
+        int dim,
+        FloatVectorValues querySource,
+        int[] queryOrdinals,
+        int baseDim,
+        boolean cosine,
+        boolean neyshabur,
+        FloatVectorValues fvv,
+        int[] corpusOrdinals,
+        int k,
+        int[] ranksForK
+    ) throws IOException {
+        int nQueries = queryOrdinals.length;
+        int nDocsTotal = corpusOrdinals.length;
+        int m = Math.min(ranksForK.length, ManifoldModel.SAMPLE_SIZES.length);
+        int dimWork = CalibrationUtils.calibrationQueryDimension(baseDim, neyshabur);
+
+        int logCount = 0;
+        double[] logRanks = new double[m];
+        double[] logSampleSizes = new double[m];
+        double[] logDistances = new double[m];
+
+        float[] queryScratch = new float[dimWork];
+        ManifoldTopK[] topKs = new ManifoldTopK[nQueries];
+        for (int qi = 0; qi < nQueries; qi++) {
+            topKs[qi] = new ManifoldTopK(similarityFunction, 6 * k);
+        }
+
+        int sampleStart = 0;
+        for (int i = 0; i < m; i++) {
+            int rank = ranksForK[i];
+            int sampleEnd = ManifoldModel.SAMPLE_SIZES[i];
+            if (sampleEnd > nDocsTotal) {
+                break;
+            }
+            double avgDist;
+            double sum = 0;
+            for (int qi = 0; qi < nQueries; qi++) {
+                CalibrationUtils.materializeCalibrationQuery(
+                    querySource,
+                    queryOrdinals[qi],
+                    baseDim,
+                    dimWork,
+                    cosine,
+                    neyshabur,
+                    null,
+                    false,
+                    queryScratch,
+                    null
+                );
+                topKs[qi].add(queryScratch, fvv, corpusOrdinals, sampleStart, sampleEnd);
+                sum += topKs[qi].ithDistance(rank);
+            }
+            avgDist = sum / nQueries;
+            logRanks[logCount] = Math.log(rank);
+            logSampleSizes[logCount] = Math.log(ManifoldModel.SAMPLE_SIZES[i]);
+            logDistances[logCount] = Math.log(avgDist);
+            logCount++;
+            sampleStart = sampleEnd;
+        }
+        if (logCount < 2) {
+            return new double[] { 0, 0 };
+        }
+        // build regression variables
+        // x = log(rank) - log(sampleSize) = log(k/N)
+        // y = log(distance)
+        double[] x = new double[logCount];
+        for (int i = 0; i < logCount; i++) {
+            x[i] = logRanks[i] - logSampleSizes[i];
+        }
+        double[] y = new double[logCount];
+        System.arraycopy(logDistances, 0, y, 0, logCount);
+
+        // for different sample sizes, the typical distance to the rank-th nearest neighbor is avgDist.
+        // log(alpha) + (1/d) * (log(rank) - log(sampleSize)) = log(distance)
+        // fit regression model (log(alpha) and 1/d) and compute R²
+        Regression.OLSResult res = Regression.fitOls(x, y);
+        double r2 = Regression.rSquared(x, y, res); // coefficient of determination for the fitted model
+        logger.debug(
+            "Estimated manifold parameters: dist(k) = [{}] * (k/N)^[{}] (R² = [{}])",
+            String.format(Locale.ROOT, "%.4f", Math.exp(res.beta0())),
+            String.format(Locale.ROOT, "%.4f", res.beta1()),
+            String.format(Locale.ROOT, "%.4f", r2)
+        );
+        return new double[] { res.beta0(), res.beta1() };
+    }
+
+    /**
+     * Tracks up to {@code capacity} smallest distances (negated dot product for dot-like metrics).
+     * {@link #ithDistance} sorts a reusable scratch buffer instead of cloning and draining a heap.
+     */
+    static final class ManifoldTopK {
+        private final VectorSimilarityFunction similarityFunction;
+        private final int capacity;
+        private final float[] buffer;
+        private final float[] scratch;
+        private final float[] bulkDistances;
+        private int size;
+        private int maxIndex;
+
+        ManifoldTopK(VectorSimilarityFunction similarityFunction, int capacity) {
+            this.similarityFunction = similarityFunction;
+            this.capacity = capacity;
+            this.buffer = new float[capacity];
+            this.scratch = new float[capacity];
+            this.bulkDistances = new float[4];
+        }
+
+        void add(float[] query, FloatVectorValues fvv, int[] corpusOrdinals, int startDoc, int endDoc) throws IOException {
+            boolean dotLike = isDotLike(similarityFunction);
+            int d = startDoc;
+            int bulkLimit = endDoc - 3;
+            while (d < bulkLimit) {
+                float[] v0 = fvv.vectorValue(corpusOrdinals[d]);
+                float[] v1 = fvv.vectorValue(corpusOrdinals[d + 1]);
+                float[] v2 = fvv.vectorValue(corpusOrdinals[d + 2]);
+                float[] v3 = fvv.vectorValue(corpusOrdinals[d + 3]);
+                if (dotLike) {
+                    ESVectorUtil.dotProductBulk(query, v0, v1, v2, v3, 0, bulkDistances);
+                    considerCandidate(-bulkDistances[0]);
+                    considerCandidate(-bulkDistances[1]);
+                    considerCandidate(-bulkDistances[2]);
+                    considerCandidate(-bulkDistances[3]);
+                } else {
+                    ESVectorUtil.squareDistanceBulk(query, 0, query.length, v0, v1, v2, v3, bulkDistances);
+                    considerCandidate(bulkDistances[0]);
+                    considerCandidate(bulkDistances[1]);
+                    considerCandidate(bulkDistances[2]);
+                    considerCandidate(bulkDistances[3]);
+                }
+                d += 4;
+            }
+            for (; d < endDoc; d++) {
+                float[] doc = fvv.vectorValue(corpusOrdinals[d]);
+                float dist = dotLike ? -ESVectorUtil.dotProduct(query, doc) : ESVectorUtil.squareDistance(query, doc);
+                considerCandidate(dist);
+            }
+        }
+
+        private void considerCandidate(float dist) {
+            if (size < capacity) {
+                buffer[size++] = dist;
+                if (size == capacity) {
+                    updateMaxIndex();
+                }
+            } else if (dist < buffer[maxIndex]) {
+                buffer[maxIndex] = dist;
+                updateMaxIndex();
+            }
+        }
+
+        private void updateMaxIndex() {
+            maxIndex = 0;
+            float max = buffer[0];
+            for (int i = 1; i < size; i++) {
+                if (buffer[i] > max) {
+                    max = buffer[i];
+                    maxIndex = i;
+                }
+            }
+        }
+
+        /**
+         * {@code rank}-th smallest stored distance (1-based).
+         */
+        float ithDistance(int rank) {
+            if (size == 0 || rank <= 0) {
+                return 0f;
+            }
+            System.arraycopy(buffer, 0, scratch, 0, size);
+            Arrays.sort(scratch, 0, size);
+            float val = scratch[Math.min(rank, size) - 1];
+            return isDotLike(similarityFunction) ? -val : val;
+        }
+    }
+
+    /**
+     * Expected distance/similarity value at rank k in a corpus of size N from the manifold model.
+     */
+    public static double expectedRankDistance(VectorSimilarityFunction similarityFunction, double alpha, double invDim, int N, int k) {
+        double logK = Math.log(k);
+        double logN = Math.log(N);
+        if (isDotLike(similarityFunction)) {
+            return -Math.exp(alpha + (logK - logN) * invDim);
+        }
+        return Math.exp(alpha + (logK - logN) * invDim);
+    }
+
+    static boolean isDotLike(VectorSimilarityFunction similarityFunction) {
+        return similarityFunction == VectorSimilarityFunction.DOT_PRODUCT
+            || similarityFunction == VectorSimilarityFunction.COSINE
+            || similarityFunction == VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
+    }
+}

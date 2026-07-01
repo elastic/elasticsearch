@@ -102,8 +102,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private volatile int numReducePhases;
 
     /**
-     * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
-     * as shard results are consumed.
+     * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results as shard results are consumed.
      */
     public QueryPhaseResultConsumer(
         SearchRequest request,
@@ -135,6 +134,18 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.aggReduceContextBuilder = hasAggs ? controller.getReduceContext(isCanceled, source.aggregations()) : null;
         batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         topDocsStats = new TopDocsStats(request.resolveTrackTotalHitsUpTo());
+    }
+
+    /**
+     * Transfers query-phase aggregation breaker accounting to a multi-search coordinator.
+     * Bytes remain charged on the breaker until {@link TransportMultiSearchAction} releases them.
+     *
+     * @return bytes to attach to the {@link SearchResponse}; zero when there is nothing to transfer
+     */
+    synchronized long transferAggregationBreakerBytesForMultiSearch() {
+        long bytes = circuitBreakerBytes;
+        circuitBreakerBytes = 0;
+        return bytes;
     }
 
     @Override

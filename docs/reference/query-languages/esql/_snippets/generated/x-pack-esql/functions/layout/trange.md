@@ -4,6 +4,10 @@
 stack: ga 9.3.0
 ```
 
+
+:::{include} ../briefSummary/trange.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/trange.svg

@@ -117,17 +117,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(10L);
     private static final long MAX_COPY_SIZE_BEFORE_MULTIPART_MB = 5;
 
-    private String region;
+    private final String region = randomBoolean() ? "test-region" : null;
     private final AtomicBoolean shouldFailCompleteMultipartUploadRequest = new AtomicBoolean();
-
-    @Override
-    public void setUp() throws Exception {
-        if (randomBoolean()) {
-            region = "test-region";
-        }
-        shouldFailCompleteMultipartUploadRequest.set(false);
-        super.setUp();
-    }
 
     @Override
     protected String repositoryType() {

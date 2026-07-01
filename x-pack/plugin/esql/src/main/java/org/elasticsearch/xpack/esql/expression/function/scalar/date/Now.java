@@ -38,6 +38,7 @@ public class Now extends EsqlConfigurationFunction {
 
     @FunctionInfo(
         returnType = "date",
+        briefSummary = "Returns current date and time.",
         description = "Returns current date and time.",
         examples = {
             @Example(file = "date", tag = "docsNow"),

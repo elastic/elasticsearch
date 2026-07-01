@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.inference.external.request.elastic;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringTests;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
@@ -31,8 +33,8 @@ public class ElasticInferenceServiceRerankRequestTests extends ESTestCase {
 
     public void testTraceContextPropagatedThroughHTTPHeaders() {
         var url = "http://eis-gateway.com";
-        var query = "query";
-        var documents = List.of("document 1", "document 2", "document 3");
+        var query = InferenceString.ofText("query");
+        var documents = InferenceString.fromStringList(List.of("document 1", "document 2", "document 3"));
         var modelId = "my-model-id";
         var topN = 3;
 
@@ -51,8 +53,8 @@ public class ElasticInferenceServiceRerankRequestTests extends ESTestCase {
 
     public void testTruncate_DoesNotTruncate() throws IOException {
         var url = "http://eis-gateway.com";
-        var query = "query";
-        var documents = List.of("document 1", "document 2", "document 3");
+        var query = InferenceString.ofText("query");
+        var documents = InferenceString.fromStringList(List.of("document 1", "document 2", "document 3"));
         var modelId = "my-model-id";
         var topN = 3;
 
@@ -65,16 +67,16 @@ public class ElasticInferenceServiceRerankRequestTests extends ESTestCase {
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(4));
-        assertThat(requestMap.get("query"), is(query));
+        assertThat(requestMap.get("query"), is(InferenceStringTests.inferenceStringToMap(query)));
         assertThat(requestMap.get("model"), is(modelId));
-        assertThat(requestMap.get("documents"), is(documents));
+        assertThat(requestMap.get("documents"), is(documents.stream().map(InferenceStringTests::inferenceStringToMap).toList()));
         assertThat(requestMap.get("top_n"), is(topN));
     }
 
     public void testDecorate_HttpRequest_WithAuthorizationHeader() {
         var url = "http://eis-gateway.com";
-        var query = "query";
-        var documents = List.of("document 1", "document 2", "document 3");
+        var query = InferenceString.ofText("query");
+        var documents = InferenceString.fromStringList(List.of("document 1", "document 2", "document 3"));
         var modelId = "my-model-id";
         var topN = 3;
         var secret = "secret";
@@ -106,8 +108,8 @@ public class ElasticInferenceServiceRerankRequestTests extends ESTestCase {
     private ElasticInferenceServiceRerankRequest createRequest(
         String url,
         String modelId,
-        String query,
-        List<String> documents,
+        InferenceString query,
+        List<InferenceString> documents,
         Integer topN
     ) {
         var rerankModel = ElasticInferenceServiceRerankModelTests.createModel(url, modelId);

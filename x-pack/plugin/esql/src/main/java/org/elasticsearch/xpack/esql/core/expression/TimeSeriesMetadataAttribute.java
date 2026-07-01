@@ -12,8 +12,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
-import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 
@@ -21,10 +19,10 @@ import java.util.Set;
  * Field attribute for {@code _timeseries} field
  */
 public final class TimeSeriesMetadataAttribute extends FieldAttribute {
-    private final Set<String> withoutFields;
+    private final Set<String> excludedFields;
 
-    public TimeSeriesMetadataAttribute(Source source, Set<String> withoutFields) {
-        this(source, null, null, MetadataAttribute.TIMESERIES, timeSeriesField(), Nullability.TRUE, null, false, withoutFields);
+    public TimeSeriesMetadataAttribute(Source source, Set<String> excludedFields) {
+        this(source, null, null, MetadataAttribute.TIMESERIES, timeSeriesField(), Nullability.TRUE, null, false, excludedFields);
     }
 
     public TimeSeriesMetadataAttribute(
@@ -36,43 +34,14 @@ public final class TimeSeriesMetadataAttribute extends FieldAttribute {
         Nullability nullability,
         @Nullable NameId id,
         boolean synthetic,
-        Set<String> withoutFields
+        Set<String> excludedFields
     ) {
         super(source, parentName, qualifier, name, field, nullability, id, synthetic);
-        this.withoutFields = asImmutableSet(withoutFields);
+        this.excludedFields = excludedFields;
     }
 
-    private static Set<String> asImmutableSet(Set<String> without) {
-        if (without.isEmpty()) {
-            return Set.of();
-        }
-        return Collections.unmodifiableSet(new LinkedHashSet<>(without));
-    }
-
-    /**
-     * Builds a {@code _timeseries} attribute from an existing attribute while preserving its identity.
-     */
-    public static TimeSeriesMetadataAttribute from(Attribute attribute, Set<String> withoutFields) {
-        if (attribute instanceof TimeSeriesMetadataAttribute timeSeriesAttribute
-            && timeSeriesAttribute.withoutFields.equals(withoutFields)) {
-            return timeSeriesAttribute;
-        }
-        String parentName = attribute instanceof FieldAttribute fieldAttribute ? fieldAttribute.parentName() : null;
-        return new TimeSeriesMetadataAttribute(
-            attribute.source(),
-            parentName,
-            attribute.qualifier(),
-            MetadataAttribute.TIMESERIES,
-            timeSeriesField(),
-            attribute.nullable(),
-            attribute.id(),
-            attribute.synthetic(),
-            withoutFields
-        );
-    }
-
-    public Set<String> withoutFields() {
-        return withoutFields;
+    public Set<String> excludedFields() {
+        return excludedFields;
     }
 
     @Override
@@ -87,7 +56,7 @@ public final class TimeSeriesMetadataAttribute extends FieldAttribute {
             nullable(),
             id(),
             synthetic(),
-            withoutFields
+            excludedFields
         );
     }
 
@@ -102,17 +71,17 @@ public final class TimeSeriesMetadataAttribute extends FieldAttribute {
         boolean synthetic
     ) {
         // Ignore `type`, this must be the same as the field's type.
-        return new TimeSeriesMetadataAttribute(source, parentName(), qualifier, name, field(), nullability, id, synthetic, withoutFields);
+        return new TimeSeriesMetadataAttribute(source, parentName(), qualifier, name, field(), nullability, id, synthetic, excludedFields);
     }
 
     @Override
     protected int innerHashCode(boolean ignoreIds) {
-        return Objects.hash(super.innerHashCode(ignoreIds), withoutFields);
+        return Objects.hash(super.innerHashCode(ignoreIds), excludedFields);
     }
 
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (TimeSeriesMetadataAttribute) o;
-        return super.innerEquals(other, ignoreIds) && Objects.equals(withoutFields, other.withoutFields);
+        return super.innerEquals(other, ignoreIds) && Objects.equals(excludedFields, other.excludedFields);
     }
 }

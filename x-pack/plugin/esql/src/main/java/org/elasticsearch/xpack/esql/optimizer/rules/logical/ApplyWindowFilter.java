@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -15,7 +17,6 @@ import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
@@ -23,14 +24,15 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ApplyWindowFilter extends OptimizerRules.ParameterizedOptimizerRule<TimeSeriesAggregate, LogicalOptimizerContext> {
+public class ApplyWindowFilter extends AnalyzerRules.ParameterizedAnalyzerRule<TimeSeriesAggregate, AnalyzerContext> {
 
-    public ApplyWindowFilter() {
-        super(OptimizerRules.TransformDirection.UP);
+    @Override
+    protected boolean skipResolved() {
+        return false;
     }
 
     @Override
-    protected LogicalPlan rule(TimeSeriesAggregate aggregate, LogicalOptimizerContext context) {
+    protected LogicalPlan rule(TimeSeriesAggregate aggregate, AnalyzerContext context) {
         List<NamedExpression> aggs = new ArrayList<>();
         boolean modified = false;
         for (var agg : aggregate.aggregates()) {

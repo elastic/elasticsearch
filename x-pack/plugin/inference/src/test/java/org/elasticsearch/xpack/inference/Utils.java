@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestRerankingServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
@@ -80,6 +81,14 @@ public final class Utils {
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
 
         return clusterService;
+    }
+
+    /**
+     * Returns an {@link OAuth2ClusterSettings} built from {@link Settings#EMPTY} and a mock cluster service.
+     * Suitable for tests that construct OpenAI models but do not exercise OAuth2 token fetching.
+     */
+    public static OAuth2ClusterSettings mockOAuth2ClusterSettings() {
+        return new OAuth2ClusterSettings(Settings.EMPTY, mockClusterServiceEmpty());
     }
 
     public static ScalingExecutorBuilder[] inferenceUtilityExecutors() {

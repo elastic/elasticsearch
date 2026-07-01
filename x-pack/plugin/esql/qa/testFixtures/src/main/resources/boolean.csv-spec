@@ -208,6 +208,7 @@ row ul = [9223372036854775808, 9223372036854775807, 1, 0] | eval bool = to_bool(
 ;
 
 convertFromIntAndLong
+request_stored: skip
 from employees | sort emp_no | keep emp_no, salary_change* | eval int2bool = to_boolean(salary_change.int), long2bool = to_boolean(salary_change.long) | limit 10;
 
 emp_no:integer |salary_change:double      |salary_change.int:integer | salary_change.keyword:keyword |salary_change.long:long |int2bool:boolean          |long2bool:boolean       

@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.is;
 
 public class AzureAiStudioChatCompletionRequestTaskSettingsTests extends ESTestCase {
     public void testFromMap_ReturnsEmptySettings_WhenTheMapIsEmpty() {
-        var settings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of()));
+        var settings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>());
         assertThat(settings, is(AzureAiStudioChatCompletionRequestTaskSettings.EMPTY_SETTINGS));
     }
 

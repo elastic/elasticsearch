@@ -50,6 +50,7 @@ public class UrlEncodeComponent extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "URL-encodes a string with spaces encoded as percent codes.",
         description = "URL-encodes the input. All characters are {wikipedia}/Percent-encoding[percent-encoded] except "
             + "for alphanumerics, `.`, `-`, `_`, and `~`. Spaces are encoded as `%20`.",
         examples = { @Example(file = "string", tag = "url_encode_component") },

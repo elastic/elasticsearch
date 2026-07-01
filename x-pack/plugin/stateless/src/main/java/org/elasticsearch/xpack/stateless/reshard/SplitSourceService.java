@@ -345,7 +345,7 @@ public class SplitSourceService {
 
         logger.debug("preparing for handoff to {}", targetShardId);
         SubscribableListener<Releasable> withPermits = SubscribableListener.<Void>newForked(
-            afterMutable -> sourceShard.ensureMutable(afterMutable, false)
+            afterMutable -> sourceShard.ensureMutable(afterMutable, false, EsExecutors.DIRECT_EXECUTOR_SERVICE)
         ).<Engine.FlushResult>andThen(afterFirstFlush -> sourceShard.withEngine(engine -> {
             logger.debug("handoff: flushing {} for {} before acquiring permits", sourceShard.shardId(), targetShardId);
             // Similar to relocation, flush before blocking operations because we expect this to reduce the amount of work done by the
@@ -791,8 +791,7 @@ public class SplitSourceService {
             validateStateTransition(newState);
             this.currentState = newState;
 
-            // TODO relax logging once implementation is stable
-            logger.info("Advancing split source shard state machine for shard {} to {}", indexShard.shardId(), newState);
+            logStateTransition(newState);
 
             switch (newState) {
                 case State.MonitoringTargetShards ignored -> {
@@ -846,6 +845,16 @@ public class SplitSourceService {
                         );
                 }
             }
+        }
+
+        private void logStateTransition(State newState) {
+            if (newState instanceof State.Failed && cancelled.get()) {
+                logger.info(
+                    "Stopping split source shard state machine for shard {}, shard is closed. Will retry after recovery.",
+                    indexShard.shardId()
+                );
+            }
+            logger.info("Advancing split source shard state machine for shard {} to {}", indexShard.shardId(), newState);
         }
 
         private void validateStateTransition(State newState) {

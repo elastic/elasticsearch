@@ -65,7 +65,11 @@ public class DeltaOnlyHistogramMergeOverTime extends TimeSeriesAggregateFunction
 
     private final Expression temporality;
 
-    @FunctionInfo(returnType = { "exponential_histogram", "tdigest" }, type = FunctionType.TIME_SERIES_AGGREGATE)
+    @FunctionInfo(
+        returnType = { "exponential_histogram", "tdigest" },
+        type = FunctionType.TIME_SERIES_AGGREGATE,
+        briefSummary = "Merges histograms over time using delta aggregation for gauge metrics."
+    )
     public DeltaOnlyHistogramMergeOverTime(
         Source source,
         @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression field,

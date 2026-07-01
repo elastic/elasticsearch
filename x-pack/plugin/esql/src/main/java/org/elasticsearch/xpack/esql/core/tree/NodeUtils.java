@@ -60,15 +60,29 @@ public abstract class NodeUtils {
 
     private static final int TO_STRING_LIMIT = 52;
 
-    public static void toString(StringBuilder sb, Collection<? extends Attribute> c, Node.NodeStringFormat format) {
-        switch (format) {
-            case LIMITED -> limitedToString(sb, c);
-            case FULL -> unlimitedToString(sb, c);
+    public static void toString(
+        StringBuilder sb,
+        Collection<? extends Attribute> c,
+        Node.NodeStringFormat format,
+        NodeStringMapper mapper
+    ) {
+        // LIMITED truncates to keep human-readable toString bounded; FULL prints the whole list.
+        // Both routes render each attribute through nodeString with the supplied format + mapper so
+        // identifier mapping (anonymization) propagates correctly.
+        if (format == Node.NodeStringFormat.LIMITED) {
+            limitedToString(sb, c, format, mapper);
+        } else {
+            unlimitedToString(sb, c, format, mapper);
         }
     }
 
-    private static void limitedToString(StringBuilder sb, Collection<?> c) {
-        Iterator<?> it = c.iterator();
+    private static void limitedToString(
+        StringBuilder sb,
+        Collection<? extends Attribute> c,
+        Node.NodeStringFormat format,
+        NodeStringMapper mapper
+    ) {
+        Iterator<? extends Attribute> it = c.iterator();
         if (it.hasNext() == false) {
             sb.append("[]");
             return;
@@ -78,8 +92,14 @@ public abstract class NodeUtils {
         int start = sb.length();
         sb.append('[');
         for (;;) {
-            Object e = it.next();
-            String next = e == c ? "(this Collection)" : String.valueOf(e);
+            Attribute a = it.next();
+            StringBuilder render = new StringBuilder();
+            if (a == null) {
+                render.append("null");
+            } else {
+                a.nodeString(render, format, mapper);
+            }
+            String next = render.toString();
             int used = sb.length() - start;
             if (next.length() + used > TO_STRING_LIMIT) {
                 sb.append(next, 0, Math.max(0, TO_STRING_LIMIT - used));
@@ -96,7 +116,12 @@ public abstract class NodeUtils {
         }
     }
 
-    private static void unlimitedToString(StringBuilder sb, Collection<? extends Attribute> c) {
+    private static void unlimitedToString(
+        StringBuilder sb,
+        Collection<? extends Attribute> c,
+        Node.NodeStringFormat format,
+        NodeStringMapper mapper
+    ) {
         sb.append('[');
         boolean first = true;
         for (Attribute s : c) {
@@ -106,7 +131,7 @@ public abstract class NodeUtils {
             if (s == null) {
                 sb.append("null");
             } else {
-                s.nodeString(sb, Node.NodeStringFormat.FULL);
+                s.nodeString(sb, format, mapper);
             }
             first = false;
         }

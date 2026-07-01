@@ -132,6 +132,18 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertTrue(s.matches(".*initial_anomaly_score.:18\\.12.*"));
         assertTrue(s.matches(".*anomaly_score.:14\\.15.*"));
         assertTrue(s.matches(".*raw_anomaly_score.:19\\.19.*"));
+        assertNotNull("event.ingested must be set on bucket influencer", bi.getEventIngested());
+    }
+
+    public void testPersistBucketSetsEventIngested() {
+        Bucket bucket = new Bucket(JOB_ID, new Date(), 600);
+        bucket.setAnomalyScore(10.0);
+        // No records → no copy is made, setEventIngested is called on the original bucket object
+        assertNull(bucket.getEventIngested());
+
+        persister.bulkPersisterBuilder(JOB_ID).persistBucket(bucket).executeRequest();
+
+        assertNotNull("event.ingested must be set on bucket after persist", bucket.getEventIngested());
     }
 
     public void testPersistRecords() {
@@ -186,6 +198,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertTrue(s.matches(".*partition_field_value.:.partValue.*"));
         assertTrue(s.matches(".*over_field_name.:.overName.*"));
         assertTrue(s.matches(".*over_field_value.:.overValue.*"));
+        assertNotNull("event.ingested must be set on record after persist", r1.getEventIngested());
     }
 
     public void testPersistInfluencers() {
@@ -209,6 +222,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertTrue(s.matches(".*influencer_field_value.:.infValue1.*"));
         assertTrue(s.matches(".*initial_influencer_score.:55\\.5.*"));
         assertTrue(s.matches(".*influencer_score.:16\\.0.*"));
+        assertNotNull("event.ingested must be set on influencer after persist", inf.getEventIngested());
     }
 
     public void testExecuteRequest_ClearsBulkRequest() {

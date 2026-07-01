@@ -137,13 +137,13 @@ public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
     }
 
     @Override
-    public LongRangeBlock filter(boolean mayContainDuplicates, int... positions) {
+    public LongRangeBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         LongRangeBlock result = null;
         LongBlock newFromBlock = null;
         LongBlock newToBlock = null;
         try {
-            newFromBlock = fromBlock.filter(mayContainDuplicates, positions);
-            newToBlock = toBlock.filter(mayContainDuplicates, positions);
+            newFromBlock = fromBlock.filter(mayContainDuplicates, positions, offset, length);
+            newToBlock = toBlock.filter(mayContainDuplicates, positions, offset, length);
             result = new LongRangeArrayBlock(newFromBlock, newToBlock);
             return result;
         } finally {

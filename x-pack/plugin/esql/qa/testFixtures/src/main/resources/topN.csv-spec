@@ -116,6 +116,8 @@ Mary              |Sluis            |[-7.82, 3.48, 8.73, 10.35]
 ;
 
 sortingOnNumbersFromStrings
+skip_flattened_rewrite: field_extract_multivalue_null
+request_stored: skip
 from employees 
 | eval long_from_string = to_long(salary_change.keyword) 
 | sort long_from_string asc nulls last, emp_no 
@@ -135,7 +137,7 @@ null              |Swan             |-8.46                       |-8.46         
 Sanjiv            |Zschoche         |[-7.67, -3.25]              |[-3.25, -7.67]               |[-3, -8]             |10053
 ;
 
-sortingOnSwappedFields#[skip:-8.13.3, reason:fixed in 8.13]
+sortingOnSwappedFields
 FROM employees
 | EVAL name = last_name, last_name = first_name, first_name = name
 | WHERE first_name > "B" AND last_name IS NOT NULL
@@ -157,7 +159,7 @@ Brattka      | Charlene          | Brattka
 Bridgland    | Patricio          | Bridgland
 ;
 
-sortingOnSwappedFieldsNoKeep#[skip:-8.13.3, reason:fixed in 8.13]
+sortingOnSwappedFieldsNoKeep
 // Note that this test requires all fields to be returned in order to test a specific code path in physical planning
 FROM employees
 | EVAL name = first_name, first_name = last_name, last_name = name
@@ -184,4 +186,19 @@ network.bytes_in:long | @timestamp:datetime      | cluster:keyword | pod:keyword
 1009                  | 2024-05-10T00:20:03.000Z | staging         | two
 1007                  | 2024-05-10T00:19:48.000Z | prod            | two
 1006                  | 2024-05-10T00:13:50.000Z | qa              | one
+;
+
+
+topNLongRangeWildcardSort
+required_capability: date_range_field_type_v6
+required_capability: fix_topn_long_range_encoding
+
+// Exact query for https://github.com/elastic/elasticsearch/issues/150383.
+// The STATS makes the wildcard query result stable while still materializing
+// the long-range field through TopN.
+FROM mv_* | SORT decade | LIMIT 1000 | WHERE date_range IS NOT NULL | STATS MAX(decade)
+;
+
+MAX(decade):integer
+2000
 ;

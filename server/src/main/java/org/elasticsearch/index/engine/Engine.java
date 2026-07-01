@@ -100,6 +100,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
@@ -714,7 +715,7 @@ public abstract class Engine implements Closeable {
      */
     public abstract IndexResult index(Index index) throws IOException;
 
-    public List<IndexResult> indexBatch(List<Index> operations) throws IOException {
+    public List<IndexResult> indexBatch(List<Index> operations, SourceBatch batch) throws IOException {
         ArrayList<IndexResult> results = new ArrayList<>(operations.size());
         for (Index index : operations) {
             results.add(index(index));
@@ -944,7 +945,7 @@ public abstract class Engine implements Closeable {
             if (uncachedLookup) {
                 docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersionUncached(searcher.getIndexReader(), get.uid(), loadSeqNo);
             } else {
-                docIdAndVersion = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(searcher.getIndexReader(), get.uid(), loadSeqNo);
+                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), loadSeqNo);
             }
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
@@ -1161,6 +1162,16 @@ public abstract class Engine implements Closeable {
     }
 
     protected abstract ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope);
+
+    /**
+     * Returns whether this engine has performed a document-id lookup (resolving a document via its {@code _id} to its sequence number /
+     * version, as part of an update, delete, or versioned index operation) within the last {@code recencyThreshold}.
+     * <p>
+     * The default implementation returns {@code false}; engines that track id lookups should override this.
+     */
+    public boolean hasRecentIdLookup(TimeValue recencyThreshold) {
+        return false;
+    }
 
     boolean assertSearcherIsWarmedUp(String source, SearcherScope scope) {
         return true;

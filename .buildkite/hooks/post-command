@@ -22,6 +22,7 @@ if [[ -f build/task-status.json ]]; then
     "$WORKSPACE/build/task-status.json" \
     "$WORKSPACE/build/previous-task-status.json" \
     "$WORKSPACE/build/task-status-merged.json" \
+    "$WORKSPACE/build/.buildscan-id" \
     && mv "$WORKSPACE/build/task-status-merged.json" "$WORKSPACE/build/task-status.json"
 
   cd "$WORKSPACE/build"

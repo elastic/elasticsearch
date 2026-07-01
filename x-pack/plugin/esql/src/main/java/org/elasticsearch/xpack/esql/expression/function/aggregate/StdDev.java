@@ -41,10 +41,12 @@ public class StdDev extends AggregateFunction implements ToAggregator {
         .acrossSeries(StdDev::new)
         .description("Calculates the population standard deviation across the input vector.")
         .example("stddev(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("stddev");
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the population standard deviation of a numeric field.",
         description = "The population standard deviation of a numeric field.",
         type = FunctionType.AGGREGATE,
         examples = {

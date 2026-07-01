@@ -1,6 +1,4 @@
-//
 // CSV spec for IN and NOT IN subqueries
-//
 
 basicInSubquery
 required_capability: where_in_subquery_without_view
@@ -329,6 +327,7 @@ emp_no:integer | first_name:keyword
 
 inSubqueryWithInSubqueryInsideFromSubqueryWithLookupJoin
 required_capability: where_in_subquery_without_view
+required_capability: join_lookup_v12
 
 FROM 
   (FROM employees
@@ -647,6 +646,7 @@ emp_no:integer | first_name:keyword | language_name:keyword
 ;
 
 enrichBeforeInSubquery
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: where_in_subquery_without_view
 
 FROM employees
@@ -666,6 +666,7 @@ emp_no:integer | language_name:keyword
 ;
 
 enrichInsideInSubquery
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: where_in_subquery_without_view
 
 FROM employees
@@ -689,6 +690,7 @@ emp_no:integer | first_name:keyword | languages:integer
 ;
 
 enrichInsideNotInSubquery
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: where_in_subquery_without_view
 
 FROM employees
@@ -712,6 +714,7 @@ emp_no:integer | first_name:keyword | languages:integer
 ;
 
 enrichAfterNotInSubquery
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: where_in_subquery_without_view
 
 FROM employees
@@ -2032,10 +2035,6 @@ emp_no:integer | first_name:keyword | salary:integer
 10027          | Divier             | 73851
 ;
 
-//
-// KNN function combined with IN/NOT IN subquery
-//
-
 knnBeforeInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: knn_function_v5
@@ -2123,8 +2122,6 @@ olive
 teal
 ;
 
-// null related tests
-// if there are null on the left hand side of IN or IN subquery, the row will be filtered out regardless of the right hand side value.
 nullOnBothSidesOfInSubqueryHashJoin
 required_capability: where_in_subquery_without_view
 
@@ -2142,7 +2139,6 @@ c:long | gender:keyword
 nullOnBothSidesOfInSubqueryFilter
 required_capability: where_in_subquery_without_view
 
-// emp_no=10010 has gender=null
 FROM employees
 | WHERE gender IN (FROM employees | WHERE emp_no IN (10001, 10002, 10010) | KEEP gender)
 | STATS c = COUNT(*) BY gender
@@ -2168,7 +2164,6 @@ c:long | gender:keyword
 57     | M
 ;
 
-// if there are null on the right hand side of NOT IN or NOT IN subquery, the row will be filtered out regardless of the left hand side value.
 nullOnBothSidesOfNotInSubqueryHashJoin
 required_capability: where_in_subquery_without_view
 
@@ -2184,7 +2179,6 @@ c:long | languages:integer
 nullOnBothSidesOfNotInSubqueryFilter
 required_capability: where_in_subquery_without_view
 
-// emp_no=10020 has languages=null
 FROM employees
 | WHERE languages NOT IN (FROM employees | WHERE emp_no IN (10001, 10003, 10005, 10006, 10020) | KEEP languages)
 | STATS c = COUNT(*) BY languages
@@ -2206,16 +2200,6 @@ FROM employees
 c:long | languages:integer
 ;
 
-// -- complex disjunctive IN/NOT IN subqueries mixed with AND/OR and other predicates --
-//
-// These exercise the LeftSemiJoin rewrite for InSubquery expressions that are nested under
-// arbitrary boolean shapes (AND inside OR, OR inside AND, NOT, multi-way OR). The plan stacks
-// one LeftSemiJoin per InSubquery and lets the standard expression engine evaluate the
-// surrounding AND/OR/NOT — including SQL three-valued logic when NULLs are involved.
-
-// (IN sub1 AND salary > 60000) OR (NOT IN sub2 AND gender == "F")
-// Branch A picks rows whose emp_no is in the sub1 set (languages == 1) AND salary > 60000.
-// Branch B picks rows not in sub2 (salary > 50000) AND gender == "F".
 disjunctiveInSubqueriesEachUnderAnd
 required_capability: where_in_subquery_without_view
 
@@ -2245,9 +2229,6 @@ emp_no:integer | gender:keyword | languages:integer | salary:integer
 10079          | F              | 2                 | 32263
 ;
 
-// (IN sub1 OR languages == 1) AND (NOT IN sub2 OR salary > 65000)
-// Conjunction of two disjunctions, each containing an IN/NOT IN subquery — the LeftSemiJoin
-// approach evaluates each mark separately and the outer AND/OR machinery composes the result.
 conjunctionOfDisjunctiveInSubqueries
 required_capability: where_in_subquery_without_view
 
@@ -2276,9 +2257,6 @@ emp_no:integer | gender:keyword | languages:integer | salary:integer
 10099          | F              | 2                 | 73578
 ;
 
-// emp_no <= 10020 AND NOT (emp_no IN sub1 AND salary > 60000)
-// NOT applied to a conjunction containing an IN subquery; combined with a normal predicate.
-// The IN subquery inside NOT(...) lifts to a LeftSemiJoin and NOT is evaluated by the engine.
 negatedConjunctionWithInSubquery
 required_capability: where_in_subquery_without_view
 
@@ -2310,9 +2288,6 @@ emp_no:integer | gender:keyword | languages:integer | salary:integer
 10020          | M              | null              | 40031
 ;
 
-// emp_no IN sub1 OR (gender == "F" AND (salary > 70000 OR emp_no NOT IN sub2))
-// Three boolean operators above the second InSubquery (OR > AND > OR > NOT IN); each of the
-// two subqueries becomes its own LeftSemiJoin and the resulting expression is evaluated as-is.
 deeplyNestedDisjunctiveInSubqueries
 required_capability: where_in_subquery_without_view
 
@@ -2339,9 +2314,6 @@ emp_no:integer | gender:keyword | languages:integer | salary:integer
 10099          | F              | 2                 | 73578
 ;
 
-// (IN sub1 AND gender == "M") OR (IN sub2 AND salary > 70000) OR (NOT IN sub3 AND gender == "F")
-// Three disjuncts, each containing an IN/NOT IN subquery wrapped in AND with an extra predicate.
-// Produces three LeftSemiJoin nodes stacked below a single Filter that ORs the three marks.
 threeWayDisjunctiveInSubqueriesWithPredicates
 required_capability: where_in_subquery_without_view
 
@@ -2372,18 +2344,10 @@ emp_no:integer | gender:keyword | languages:integer | salary:integer
 10086          | M              | 1                 | 68547
 ;
 
-// =====================================================================
-// IN / NOT IN subqueries whose source command is ROW.
-// All gated on the `subquery_with_row` capability, which is dev-only.
-// =====================================================================
-
 inSubqueryWithRowAsSource
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
-// Plain ROW as the IN-subquery source: the right side is a single scalar
-// position carrying the literal value, so the IN check matches exactly the
-// one employee whose emp_no equals that value.
 FROM employees
 | WHERE emp_no IN (ROW x = 10001)
 | SORT emp_no
@@ -2398,8 +2362,6 @@ notInSubqueryWithRowAsSource
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
-// NOT IN with a single-value ROW: the right side is a non-null literal, so
-// ANTI semantics keep every row except the one matching the ROW value.
 FROM employees
 | WHERE emp_no NOT IN (ROW x = 10001)
 | SORT emp_no
@@ -2417,8 +2379,6 @@ inSubqueryWithRowAsSourceAndWhereInside
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
-// WHERE filter inside the ROW subquery is satisfied by the literal, so the
-// row survives and the outer IN behaves like the basic case.
 FROM employees
 | WHERE emp_no IN (ROW x = 10001 | WHERE x > 0)
 | SORT emp_no
@@ -2433,9 +2393,6 @@ inSubqueryWithRowAsSourceFilteredOutByInsideWhere
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
-// WHERE filter inside the ROW subquery is unsatisfiable for the literal,
-// so the ROW produces no rows and the IN-subquery output is empty -> no
-// outer rows survive.
 FROM employees
 | WHERE emp_no IN (ROW x = 10001 | WHERE x > 99999)
 | SORT emp_no
@@ -2449,8 +2406,6 @@ inSubqueryWithRowAsSourceAndEvalInside
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
-// EVAL inside the ROW subquery folds the literal expression to 10001,
-// which is then used as the right-side IN value.
 FROM employees
 | WHERE emp_no IN (ROW x = 1 | EVAL x = x + 10000)
 | SORT emp_no
@@ -2465,11 +2420,6 @@ inSubqueryWithRowAsSourceAndMultipleProcessingCommands
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
-// Several processing commands chained inside the ROW subquery: the ROW
-// declares two fields, EVAL rewrites one to a matching employee id, KEEP
-// trims the projection down to that single column, and LIMIT caps the
-// (already single) row count. The IN-subquery sees a single-column,
-// single-row right side with value 10001.
 FROM employees
 | WHERE emp_no IN (ROW x = 1, y = 2
                    | EVAL x = x + 10000
@@ -2487,9 +2437,6 @@ inSubqueryWithMultipleFieldRowAsSourceAndKeep
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
-// Multi-field ROW projected down to one column via KEEP. The KEEP guarantees
-// the IN-subquery's single-column requirement; the dropped `y` is invisible
-// to the outer query.
 FROM employees
 | WHERE emp_no IN (ROW x = 10001, y = 10002 | KEEP x)
 | SORT emp_no
@@ -2504,11 +2451,6 @@ inSubqueryWithMultivalueRowAsSourceAndMvExpand
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
-// Multivalue ROW followed by MV_EXPAND: the single multivalue position is
-// expanded into three single-value rows before the SemiJoin sees the right
-// side, so each value contributes a usable match key. Without MV_EXPAND the
-// multivalue position would be canonicalized to NULL on the right and no
-// outer row would match.
 FROM employees
 | WHERE emp_no IN (ROW x = [10001, 10002, 10003] | MV_EXPAND x)
 | SORT emp_no
@@ -2525,9 +2467,6 @@ inSubqueryWithMultipleRowsAsSource
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
-// Multiple ROW subqueries fanned out through a FROM. Each ROW declares the
-// same column name and type so the UnionAll output keeps a single emp_no
-// column carrying all three synthesised values.
 FROM employees
 | WHERE emp_no IN (FROM (ROW emp_no = 10001),
                         (ROW emp_no = 10002),
@@ -2546,10 +2485,6 @@ inSubqueryWithMultipleRowsAsSourceWithProcessingCommandsEach
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
-// Multiple ROW subqueries each carrying its own inner pipeline. The first
-// branch's EVAL rewrites emp_no to 10001; the second branch's WHERE is
-// satisfied by the literal and keeps 10002. Both branches union into a
-// single-column right side carrying {10001, 10002}.
 FROM employees
 | WHERE emp_no IN (FROM (ROW emp_no = 1 | EVAL emp_no = emp_no + 10000),
                         (ROW emp_no = 10002 | WHERE emp_no > 0))
@@ -2566,9 +2501,6 @@ inSubqueryWithIndexPatternMixedWithRow
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
-// Mix of an index pattern and a ROW subquery inside the IN-subquery body:
-// the union of employees and the synthesised ROW is filtered down to
-// {10001, 99999}; only the value that exists in employees produces a match.
 FROM employees
 | WHERE emp_no IN (FROM employees, (ROW emp_no = 99999)
                    | WHERE emp_no == 10001 OR emp_no == 99999
@@ -2585,10 +2517,6 @@ inSubqueryWithFromSubqueryMixedWithRow
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
-// Mix of a FROM subquery and a ROW subquery inside the IN-subquery body.
-// The FROM subquery contributes the 8 high-salary employees, the ROW adds
-// the synthetic 99999 (which matches no employee); the outer IN therefore
-// keeps exactly the high-salary employees.
 FROM employees
 | WHERE emp_no IN (FROM (FROM employees | WHERE salary > 70000),
                         (ROW emp_no = 99999)
@@ -2612,10 +2540,6 @@ inSubqueryWithIndexPatternAndFromSubqueryAndRow
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
-// All three FROM-source flavours combined inside the IN-subquery body: an
-// index pattern, a FROM subquery, and a ROW subquery. The outer WHERE on
-// the union narrows the right-side to {10097..10100, 99999}; only the four
-// employees whose emp_no falls in that range survive.
 FROM employees
 | WHERE emp_no IN (FROM employees,
                         (FROM employees | WHERE salary > 70000),
@@ -2637,9 +2561,6 @@ inSubqueryWithRowAsSourceAndStatsAfter
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
-// Processing command (STATS) attached to the outer query after the IN
-// subquery with ROW source: the IN matches exactly one row, so the count
-// is 1.
 FROM employees
 | WHERE emp_no IN (ROW x = 10001)
 | STATS cnt = COUNT(*)
@@ -2653,9 +2574,6 @@ inSubqueryWithRowAsSourceAndEvalAfter
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
-// EVAL after the IN-subquery applies to the matching outer rows. The IN
-// keeps three employees and the outer EVAL derives a `decade` value for
-// each that is then projected alongside emp_no.
 FROM employees
 | WHERE emp_no IN (FROM (ROW emp_no = 10001),
                         (ROW emp_no = 10002),
@@ -2675,9 +2593,6 @@ inSubqueryWithRowAsSourceConjunctiveWithOtherPredicate
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
-// IN subquery with ROW source AND-ed with a regular predicate. The ROW's
-// MV_EXPAND produces three candidate ids; the AND with `gender == "M"`
-// further restricts the output to male employees only.
 FROM employees
 | WHERE emp_no IN (ROW x = [10001, 10002, 10003] | MV_EXPAND x)
     AND gender == "M"
@@ -2694,10 +2609,6 @@ inSubqueryWithRowAsSourceDisjunctiveWithOtherPredicate
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
-// IN subquery with ROW source OR-ed with a regular predicate. The ROW
-// adds emp_no=10001 to the set otherwise selected by `salary > 74000`,
-// which exercises the LeftSemiJoin rewrite that handles InSubquery under
-// a disjunction.
 FROM employees
 | WHERE emp_no IN (ROW x = 10001) OR salary > 74000
 | SORT emp_no
@@ -2715,9 +2626,6 @@ nestedInSubqueryWithRowAsSourceInsideRowAsSourceSubquery
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 
-// Nested IN-subquery where the inner WHERE-IN also uses a ROW as its
-// source. The inner ROW provides a literal x=1 that is used to filter
-// the outer employees subquery's rows.
 FROM employees
 | WHERE emp_no IN (
     FROM employees
@@ -2854,8 +2762,6 @@ emp_no:integer
 inSubqueryMetadataIndexTautology
 required_capability: where_in_subquery_without_view
 
-// _index of every employees row is "employees", and the subquery emits
-// "employees" for every row, so the IN check is satisfied by all rows.
 FROM employees METADATA _index
 | WHERE _index IN (FROM employees METADATA _index | KEEP _index)
 | KEEP emp_no, _index
@@ -2915,415 +2821,4 @@ FROM employees, employees_incompatible METADATA _index
 
 c:long | _index:keyword
 100    | employees_incompatible
-;
-
-tsCommandInsideInSubquery
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-TS k8s
-| WHERE cluster IN (TS k8s
-                    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-                    | WHERE max_bytes > 10000
-                    | KEEP cluster)
-| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-| SORT cluster
-;
-
-max_bytes:long | cluster:keyword
-10277          | prod
-10797          | qa
-;
-
-tsCommandInsideNotInSubquery
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-TS k8s
-| WHERE cluster NOT IN (TS k8s
-                        | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-                        | WHERE max_bytes > 10000
-                        | KEEP cluster)
-| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-| SORT cluster
-;
-
-max_bytes:long | cluster:keyword
-7403           | staging
-;
-
-tsCommandWithFilterInsideInSubquery
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-TS k8s
-| WHERE pod IN (TS k8s
-                | WHERE pod != "one"
-                | STATS max_bytes = max(to_long(network.total_bytes_in)) BY pod
-                | WHERE max_bytes > 10500
-                | KEEP pod)
-| STATS max_bytes = max(to_long(network.total_bytes_in)) BY pod
-| SORT pod
-;
-
-max_bytes:long | pod:keyword
-10797          | three
-;
-
-tsCommandWithFilterInsideNotInSubquery
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-TS k8s
-| WHERE cluster NOT IN (TS k8s
-                        | WHERE cluster != "staging"
-                        | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-                        | WHERE max_bytes > 10500
-                        | KEEP cluster)
-| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-| SORT cluster
-;
-
-max_bytes:long | cluster:keyword
-10277          | prod
-7403           | staging
-;
-
-tsCommandWithEvalInsideInSubquery
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-TS k8s
-| WHERE cluster IN (TS k8s
-                    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-                    | EVAL high = max_bytes > 10500
-                    | WHERE high
-                    | KEEP cluster)
-| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-| SORT cluster
-;
-
-max_bytes:long | cluster:keyword
-10797          | qa
-;
-
-tsCommandWithBucketAndRateInsideInSubquery
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-required_capability: rate_with_interpolation_v2
-
-TS k8s
-| WHERE cluster IN (TS k8s
-                    | WHERE cluster == "prod"
-                    | STATS r = max(rate(network.total_bytes_in)) BY tb = bucket(@timestamp, 5minute), cluster
-                    | KEEP cluster)
-| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-| SORT cluster
-;
-
-max_bytes:long | cluster:keyword
-10277          | prod
-;
-
-tsCommandInsideInSubqueryConjunctive
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-TS k8s
-| WHERE cluster IN (TS k8s
-                    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-                    | WHERE max_bytes > 10000
-                    | KEEP cluster)
-    AND pod == "two"
-| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-| SORT cluster
-;
-
-max_bytes:long | cluster:keyword
-10277          | prod
-8568           | qa
-;
-
-tsCommandInsideInSubqueryDisjunctive
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-TS k8s
-| WHERE cluster NOT IN (TS k8s
-                        | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-                        | WHERE max_bytes > 10000
-                        | KEEP cluster)
-     OR cluster == "qa"
-| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-| SORT cluster
-;
-
-max_bytes:long | cluster:keyword
-10797          | qa
-7403           | staging
-;
-
-nestedTsCommandInsideInSubquery
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-TS k8s
-| WHERE cluster IN (
-    TS k8s
-    | WHERE cluster IN (TS k8s
-                        | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-                        | WHERE max_bytes > 10000
-                        | KEEP cluster)
-    | STATS m = max(to_long(network.total_bytes_in)) BY cluster
-    | KEEP cluster
-  )
-| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-| SORT cluster
-;
-
-max_bytes:long | cluster:keyword
-10277          | prod
-10797          | qa
-;
-
-constantClusterInTsSubqueryExists
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-TS k8s
-| WHERE "qa" IN (TS k8s
-                 | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-                 | WHERE max_bytes > 10500
-                 | KEEP cluster)
-| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-| SORT cluster
-;
-
-max_bytes:long | cluster:keyword
-10277          | prod
-10797          | qa
-7403           | staging
-;
-
-constantClusterNotInTsSubqueryExists
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-TS k8s
-| WHERE "qa" NOT IN (TS k8s
-                     | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-                     | WHERE max_bytes > 10500
-                     | KEEP cluster)
-| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-| SORT cluster
-;
-
-max_bytes:long | cluster:keyword
-;
-
-rowOuterWithTsInSubquery
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-ROW cluster = "qa"
-| WHERE cluster IN (TS k8s
-                    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-                    | WHERE max_bytes > 10500
-                    | KEEP cluster)
-;
-
-cluster:keyword
-qa
-;
-
-fromMainClientIpInTsSubquery
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-FROM sample_data
-| WHERE client_ip IN (TS k8s
-                      | STATS m = max(to_long(network.total_bytes_in)) BY client.ip
-                      | KEEP client.ip)
-| SORT @timestamp
-| KEEP @timestamp, client_ip
-;
-
-@timestamp:datetime | client_ip:ip
-;
-
-fromMainClientIpNotInTsSubquery
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-FROM sample_data
-| WHERE client_ip NOT IN (TS k8s
-                          | STATS m = max(to_long(network.total_bytes_in)) BY client.ip
-                          | KEEP client.ip)
-| STATS cnt = COUNT(*)
-;
-
-cnt:long
-7
-;
-
-fromMainEvalClusterInTsSubquery
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-FROM employees
-| EVAL env = "qa"
-| WHERE env IN (TS k8s
-                | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-                | WHERE max_bytes > 10500
-                | KEEP cluster)
-| STATS cnt = COUNT(*)
-;
-
-cnt:long
-100
-;
-
-fromMainEvalClusterNotInTsSubquery
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-FROM employees
-| EVAL env = "qa"
-| WHERE env NOT IN (TS k8s
-                    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-                    | WHERE max_bytes > 10500
-                    | KEEP cluster)
-| STATS cnt = COUNT(*)
-;
-
-cnt:long
-0
-;
-
-constantStringFromMainInTsSubquery
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-FROM employees
-| WHERE "staging" IN (TS k8s
-                      | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-                      | WHERE max_bytes < 8000
-                      | KEEP cluster)
-| STATS cnt = COUNT(*)
-;
-
-cnt:long
-100
-;
-
-fromMainEvalBytesInTsSubquery
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-FROM employees
-| EVAL b = to_long(10797)
-| WHERE b IN (TS k8s
-              | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-              | KEEP max_bytes)
-| STATS cnt = COUNT(*)
-;
-
-cnt:long
-100
-;
-
-fromMainEvalBytesNotInTsSubquery
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-FROM employees
-| EVAL b = to_long(99999)
-| WHERE b NOT IN (TS k8s
-                  | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-                  | KEEP max_bytes)
-| STATS cnt = COUNT(*)
-;
-
-cnt:long
-100
-;
-
-fromMainInTsSubqueryConjunctive
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-FROM employees
-| EVAL env = "qa"
-| WHERE env IN (TS k8s
-                | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-                | WHERE max_bytes > 10500
-                | KEEP cluster)
-    AND salary > 70000
-| STATS cnt = COUNT(*)
-;
-
-cnt:long
-8
-;
-
-fromMainInTsSubqueryDisjunctive
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-FROM employees
-| EVAL env = "prod"
-| WHERE env IN (TS k8s
-                | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-                | WHERE max_bytes > 10500
-                | KEEP cluster)
-     OR salary > 74000
-| STATS cnt = COUNT(*)
-;
-
-cnt:long
-3
-;
-
-fromMainWithFilterInsideTsSubquery
-required_capability: where_in_subquery_without_view
-required_capability: subquery_with_ts
-required_capability: ts_command_v0
-
-FROM employees
-| EVAL env = "prod"
-| WHERE env IN (TS k8s
-                | WHERE pod == "two"
-                | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
-                | WHERE max_bytes > 10000
-                | KEEP cluster)
-| SORT emp_no
-| KEEP emp_no, first_name
-| LIMIT 3
-;
-
-emp_no:integer | first_name:keyword
-10001          | Georgi
-10002          | Bezalel
-10003          | Parto
 ;

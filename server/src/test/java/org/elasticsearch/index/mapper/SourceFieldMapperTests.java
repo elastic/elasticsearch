@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
@@ -677,7 +677,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         MapperService mapperService = createMapperService(settings, mapping(b -> {
             b.startObject("kwd");
             b.field("type", "keyword");
-            b.startObject("doc_values").field("cardinality", "low").endObject();
             b.endObject();
         }));
 
@@ -687,8 +686,13 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         // Build a modified Lucene document: keep the _ignored_source blob but change kwd doc values to "docvalues_value".
         List<IndexableField> modified = new ArrayList<>();
         for (IndexableField field : parsed.rootDoc()) {
-            if (field instanceof SortedSetDocValuesField && field.name().equals("kwd")) {
-                modified.add(new SortedSetDocValuesField("kwd", new BytesRef("docvalues_value")));
+            if (field instanceof MultiValuedBinaryDocValuesField && field.name().equals("kwd")) {
+                var replacement = new MultiValuedBinaryDocValuesField.SeparateCount(
+                    "kwd",
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
+                replacement.add(new BytesRef("docvalues_value"));
+                modified.add(replacement);
             } else {
                 modified.add(field);
             }
@@ -706,6 +710,136 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 assertThat(source.internalSourceRef().utf8ToString(), equalTo("{\"kwd\":\"blob_value\"}"));
             }
         });
+    }
+
+    /**
+     * Verifies that in columnar_stored mode a nested field round-trips: the source blob is materialized at index time
+     * from the in-memory document tree (children reconstructed by parent-pointer match), and read back from the blob.
+     */
+    public void testColumnarStoredSourceNestedRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("comments");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                {
+                    b.startObject("message").field("type", "keyword").endObject();
+                    b.startObject("votes").field("type", "long").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument parsed = mapperService.documentMapper().parse(source(b -> {
+            b.startArray("comments");
+            b.startObject().field("message", "first").field("votes", 3).endObject();
+            b.startObject().field("message", "second").field("votes", 7).endObject();
+            b.endArray();
+        }));
+
+        // addDocuments indexes the nested children followed by the root as a block; the root is the last doc.
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(parsed.docs()), unwrapped -> {
+            // The nested source loader builds a parent bitset, which needs a shard-wrapped reader (as in production).
+            DirectoryReader reader = wrapInMockESDirectoryReader(unwrapped);
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            LeafReaderContext leaf = reader.leaves().get(0);
+            int rootDocId = parsed.docs().size() - 1;
+            int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
+            SourceLoader.Leaf sourceLeaf = loader.leaf(leaf.reader(), docIds);
+            LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
+            sfLoader.advanceTo(rootDocId);
+            Source source = sourceLeaf.source(sfLoader, rootDocId);
+            assertThat(
+                source.internalSourceRef().utf8ToString(),
+                equalTo("{\"comments\":[{\"message\":\"first\",\"votes\":3},{\"message\":\"second\",\"votes\":7}]}")
+            );
+        });
+    }
+
+    /**
+     * Verifies that a multi-valued leaf inside a nested object preserves array order in columnar_stored mode too: the
+     * offsets recorded per child document are reconstructed when the index-time blob is materialized.
+     */
+    public void testColumnarStoredSourceNestedLeafArrayRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("comments");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                b.startObject("stars").field("type", "long").endObject();
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument parsed = mapperService.documentMapper().parse(source(b -> {
+            b.startArray("comments");
+            b.startObject().array("stars", 50, 10, 30).endObject();
+            b.startObject().array("stars", 20, 40).endObject();
+            b.endArray();
+        }));
+
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(parsed.docs()), unwrapped -> {
+            DirectoryReader reader = wrapInMockESDirectoryReader(unwrapped);
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            LeafReaderContext leaf = reader.leaves().get(0);
+            int rootDocId = parsed.docs().size() - 1;
+            int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
+            SourceLoader.Leaf sourceLeaf = loader.leaf(leaf.reader(), docIds);
+            LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
+            sfLoader.advanceTo(rootDocId);
+            Source source = sourceLeaf.source(sfLoader, rootDocId);
+            assertThat(source.internalSourceRef().utf8ToString(), equalTo("{\"comments\":[{\"stars\":[50,10,30]},{\"stars\":[20,40]}]}"));
+        });
+    }
+
+    /**
+     * Verifies that in columnar_stored mode, {@code postParse} removes the per-field fallback fields used only for
+     * synthetic-source reconstruction once the whole-document blob has been written to {@code _ignored_source}.
+     */
+    public void testColumnarStoredPrunesFallbackFields() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("num");
+            b.field("type", "integer");
+            b.field("ignore_malformed", true);
+            b.endObject();
+            b.startObject("kwd");
+            b.field("type", "keyword");
+            b.field("ignore_above", 3);
+            b.endObject();
+        }));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("num", "not_a_number");
+            b.field("kwd", "long_ignored_value");
+        }));
+        LuceneDocument rootDoc = doc.rootDoc();
+        // Fallback fields for synthetic-source reconstruction must have been pruned
+        assertNull("._ignore_malformed field should have been pruned", rootDoc.getField("num._ignore_malformed"));
+        assertNull("._ignore_malformed.counts field should have been pruned", rootDoc.getField("num._ignore_malformed.counts"));
+        assertNull("._original field should have been pruned", rootDoc.getField("kwd._original"));
+        assertNull("._original.counts field should have been pruned", rootDoc.getField("kwd._original.counts"));
+        // The whole-document _ignored_source blob and the queryable _ignored meta-field must still be present
+        assertNotNull("_ignored_source blob must still be present", rootDoc.getField(IgnoredSourceFieldMapper.NAME));
+        assertNotNull("_ignored meta-field must still be present", rootDoc.getField(IgnoredFieldMapper.NAME));
     }
 
     public void testRecoverySourceWithLogs() throws IOException {

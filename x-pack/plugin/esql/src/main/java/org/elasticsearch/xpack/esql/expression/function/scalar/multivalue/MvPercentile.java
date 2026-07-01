@@ -64,6 +64,7 @@ public class MvPercentile extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = { "double", "integer", "long" },
+        briefSummary = "Calculates the percentile of all values in a multi-value field.",
         description = "Converts a multivalued field into a single valued field containing "
             + "the value at which a certain percentage of observed values occur.",
         examples = @Example(file = "mv_percentile", tag = "example")

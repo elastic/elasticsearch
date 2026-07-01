@@ -13,8 +13,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
+import org.junit.After;
 import org.junit.ClassRule;
 
 import java.io.ByteArrayInputStream;
@@ -117,9 +118,8 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -634,7 +634,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         return service;
     }
 
-    private static class MalformedGetRequest extends LegacyActionRequest {
+    private static class MalformedGetRequest extends UntypedActionRequest {
         private final String otherIndexId;
 
         MalformedGetRequest(String otherIndexId) {

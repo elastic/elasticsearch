@@ -1540,11 +1540,40 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    /**
+     * Like {@link #geoShapeCases(Supplier)} but rejects geometries with more than {@code maxPoints}
+     * vertices. Use this when the operation under test has a JVM-stack-depth sensitivity to geometry
+     * complexity (e.g. recursive JTS simplification algorithms).
+     */
+    public static List<TypedDataSupplier> geoShapeCases(Supplier<Boolean> hasAlt, int maxPoints) {
+        return List.of(
+            new TypedDataSupplier(
+                "<geo_shape>",
+                () -> GEO.asWkb(GeometryTestUtils.randomGeometryWithoutCircle(hasAlt.get(), maxPoints)),
+                DataType.GEO_SHAPE
+            )
+        );
+    }
+
     public static List<TypedDataSupplier> cartesianShapeCases(Supplier<Boolean> hasAlt) {
         return List.of(
             new TypedDataSupplier(
                 "<cartesian_shape>",
                 () -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(hasAlt.get())),
+                DataType.CARTESIAN_SHAPE
+            )
+        );
+    }
+
+    /**
+     * Like {@link #cartesianShapeCases(Supplier)} but rejects geometries with more than
+     * {@code maxPoints} vertices.
+     */
+    public static List<TypedDataSupplier> cartesianShapeCases(Supplier<Boolean> hasAlt, int maxPoints) {
+        return List.of(
+            new TypedDataSupplier(
+                "<cartesian_shape>",
+                () -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(hasAlt.get(), maxPoints)),
                 DataType.CARTESIAN_SHAPE
             )
         );
@@ -1683,7 +1712,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return List.of(new TypedDataSupplier("<random date range>", TestCaseSupplier::randomDateRange, DataType.DATE_RANGE));
     }
 
-    static LongRangeBlockBuilder.LongRange randomDateRange() {
+    public static LongRangeBlockBuilder.LongRange randomDateRange() {
         var from = randomMillisUpToYear9999();
         var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
         return new LongRangeBlockBuilder.LongRange(from, to);
@@ -2603,6 +2632,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         boolean serverless
     ) {
         return new AppliesTo(lifeCycle, version, description, serverless);
+    }
+
+    /**
+     * Builds a transform that applies {@code preview} to a {@link TypedDataSupplier} and marks it as serverless preview.
+     */
+    public static Function<TypedDataSupplier, TypedDataSupplier> previewTransform(FunctionAppliesTo preview) {
+        return s -> s.withAppliesTo(preview).withPreview();
     }
 
     private record AppliesTo(FunctionAppliesToLifecycle lifeCycle, String version, String description, boolean serverless)

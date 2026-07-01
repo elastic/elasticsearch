@@ -74,6 +74,7 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
 
     @FunctionInfo(
         returnType = "date",
+        briefSummary = "Parses a string into a date using the specified format.",
         description = "Returns a date by parsing the second argument using the format specified in the first argument.",
         examples = @Example(file = "docs", tag = "dateParse")
     )

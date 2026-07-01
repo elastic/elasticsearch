@@ -1,28 +1,6 @@
-ProjectExec[[result{r}#0, step{r}#1]]
-\_LimitExec[10000[INTEGER],null]
+ProjectExec[[result{r}#0, step{r}#1 AS step#2]]
+\_LimitExec[1000[INTEGER],null]
   \_FilterExec[ISNOTNULL(result{r}#0)]
-    \_EvalExec[[TODOUBLE(step{r}#1) / 1000.0[DOUBLE] AS result#2, TODOUBLE(result{r}#2) AS result#0]]
-      \_FilterExec[step{r}#1 >= 1715299380000[DATETIME] AND step{r}#1 <= 1715299380000[DATETIME]]
-        \_AggregateExec[[step{r}#1],[step{r}#1],SINGLE,[step{r}#1],null]
-          \_TimeSeriesAggregateExec[[_tsid{m}#3, step{r}#1],[step{r}#1 AS step#1],FINAL,[_tsid{m}#3, step{r}#1],null,BUCKET(@timestamp{f}#4,PT5M[TIME_DURATION]),BUCKET(@timestamp{f}#4,PT5M[TIME_DURATION])]
-            \_ExchangeExec[[_tsid{m}#3, step{r}#1],true]
-              \_TimeSeriesAggregateExec[[_tsid{m}#3, step{r}#1],[step{r}#1 AS step#1],INITIAL,[_tsid{m}#3, step{r}#1],8,BUCKET(@timestamp{f}#4,PT5M[TIME_DURATION]),BUCKET(@timestamp{f}#4,PT5M[TIME_DURATION])]
-                \_FieldExtractExec[_tsid{m}#3]<[],[],[]>
-                  \_EvalExec[[BUCKET(@timestamp{f}#4,PT5M[TIME_DURATION]) AS step#1]]
-                    \_FieldExtractExec[@timestamp{f}#4]<[],[],[]>
-                      \_EsQueryExec[k8s], indexMode[standard], [_doc{f}#5], limit[], sort[] estimatedRowSize[36] queryBuilderAndTags [[QueryBuilderAndTags[query={
-  "esql_single_value" : {
-    "field" : "@timestamp",
-    "next" : {
-      "range" : {
-        "@timestamp" : {
-          "gte" : "2024-05-09T23:58:00.000Z",
-          "lte" : "2024-05-10T00:03:00.000Z",
-          "format" : "strict_date_optional_time",
-          "boost" : 0.0
-        }
-      }
-    },
-    "source" : "PROMQL index=k8s time=\"2024-05-10T00:03:00.000Z\" result=(time())@1:1"
-  }
-}, tags=[]]]]
+    \_EvalExec[[TODOUBLE(step{r}#1) / 1000.0[DOUBLE] AS result#0]]
+      \_MvExpandExec[[1715299380000][DATETIME] AS step#2,step{r}#1]
+        \_LocalSourceExec[[step{r}#2],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=1715299380000]]]}]

@@ -529,6 +529,10 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 return lazyDelegate().histogramValue();
             }
 
+            @Override
+            public DocIdSetIterator docIdIterator() {
+                return delegate.docIdIterator();
+            }
         };
     }
 
@@ -840,6 +844,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 public int nextDoc() throws IOException {
                     if (valueCounts != null) {
                         currentDocId = valueCounts.nextDoc();
+                    } else {
+                        currentDocId = DocIdSetIterator.NO_MORE_DOCS;
                     }
                     return currentDocId;
                 }
@@ -848,6 +854,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 public int advance(int target) throws IOException {
                     if (valueCounts != null) {
                         currentDocId = valueCounts.advance(target);
+                    } else {
+                        currentDocId = DocIdSetIterator.NO_MORE_DOCS;
                     }
                     return currentDocId;
                 }
@@ -872,8 +880,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
         @Override
         public ExponentialHistogram histogramValue() throws IOException {
-            if (currentDocId == -1) {
-                throw new IllegalStateException("No histogram present for current document");
+            if (currentDocId == -1 || currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
+                throw new IllegalStateException("No histogram present for current document id");
             }
             boolean histoPresent = histoDocValues.advanceExact(currentDocId);
             boolean zeroThresholdPresent = zeroThresholds.advanceExact(currentDocId);
@@ -913,8 +921,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
         @Override
         public double sumValue() throws IOException {
-            if (currentDocId == -1) {
-                throw new IllegalStateException("No histogram present for current document");
+            if (currentDocId == -1 || currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
+                throw new IllegalStateException("No histogram present for current document id");
             }
             if (valueSums == null || valueSums.advanceExact(currentDocId) == false) {
                 // empty histogram, must have sum of 0.0
@@ -925,8 +933,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
         @Override
         public double minValue() throws IOException {
-            if (currentDocId == -1) {
-                throw new IllegalStateException("No histogram present for current document");
+            if (currentDocId == -1 || currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
+                throw new IllegalStateException("No histogram present for current document id");
             }
             if (valueMinima == null || valueMinima.advanceExact(currentDocId) == false) {
                 // empty histogram
@@ -937,8 +945,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
         @Override
         public double maxValue() throws IOException {
-            if (currentDocId == -1) {
-                throw new IllegalStateException("No histogram present for current document");
+            if (currentDocId == -1 || currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
+                throw new IllegalStateException("No histogram present for current document id");
             }
             if (valueMaxima == null || valueMaxima.advanceExact(currentDocId) == false) {
                 // empty histogram

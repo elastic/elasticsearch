@@ -97,6 +97,7 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
+import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
 import java.io.IOException;
@@ -923,8 +924,13 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             var blobsAfterReleasingScroll = listBlobsWithAbsolutePath(shardCommitsContainer);
             assertThat(Sets.intersection(blobsUsedForScroll, blobsAfterReleasingScroll), empty());
         });
-        // responses from newCommitNotification must be received
-        assertThat(countNewCommitNotifications.get(), greaterThan(newCommitNotificationsBeforeReleasingScroll));
+
+        // For most cases we expect at least one additional newCommitNotification response after releasing the scroll.
+        // Except for the close/open case, where notifications induced by the forced flush (in
+        // TransportVerifyShardBeforeCloseAction.executeShardOperation) may race with the search shard closing and may not be counted.
+        if (testCase != TestSearchScrollCase.COMMITS_OF_SCROLL_DELETED_AFTER_INDEX_CLOSED_AND_OPENED) {
+            assertThat(countNewCommitNotifications.get(), greaterThan(newCommitNotificationsBeforeReleasingScroll));
+        }
 
         if (testCase == TestSearchScrollCase.COMMITS_DROPPED_AFTER_SCROLL_CLOSES_AND_INDEXING_INACTIVITY) {
             // The last notification response should no longer contain blobs used for scroll
@@ -1045,7 +1051,12 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
 
     public void testDeleteIndexAfterRecovery() throws Exception {
         startMasterOnlyNode();
-        final var indexNodeA = startIndexNode();
+        // This test exposes a race between index deletion and relocation described in #150474.
+        // In production commit files are eventually deleted by `StaleIndicesGCService` so we enable it in the test too.
+        final var indexNodeSettings = nodeSettings().put(ObjectStoreGCTask.GC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .build();
+
+        final var indexNodeA = startIndexNode(indexNodeSettings);
         final var searchNodeA = startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
@@ -1053,7 +1064,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         var totalIndexedDocs = indexDocsAndFlush(indexName);
         var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNodeA, 0);
 
-        startIndexNode();
+        startIndexNode(indexNodeSettings);
         startSearchNode();
         ensureStableCluster(5);
         final var excludeIndexOrSearchNode = randomBoolean();

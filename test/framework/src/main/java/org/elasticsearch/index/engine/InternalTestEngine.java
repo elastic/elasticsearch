@@ -12,6 +12,7 @@ package org.elasticsearch.index.engine;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.sourcebatch.SourceBatch;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,7 +54,7 @@ class InternalTestEngine extends InternalEngine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(List<Index> operations) throws IOException {
+    public List<IndexResult> indexBatch(List<Index> operations, SourceBatch batch) throws IOException {
         for (Index index : operations) {
             if (index.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 idToMaxSeqNo.compute(index.id(), (id, existing) -> {
@@ -67,7 +68,7 @@ class InternalTestEngine extends InternalEngine {
                 });
             }
         }
-        return super.indexBatch(operations);
+        return super.indexBatch(operations, batch);
     }
 
     @Override

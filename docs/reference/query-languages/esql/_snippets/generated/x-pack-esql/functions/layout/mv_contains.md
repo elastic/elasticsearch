@@ -4,6 +4,10 @@
 stack: preview 9.2.0
 ```
 
+
+:::{include} ../briefSummary/mv_contains.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/mv_contains.svg

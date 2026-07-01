@@ -4,6 +4,10 @@
 stack: preview 9.1.0
 ```
 
+
+:::{include} ../briefSummary/round_to.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/round_to.svg

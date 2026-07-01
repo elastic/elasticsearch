@@ -63,6 +63,7 @@ public class DateUnitCount extends EsqlConfigurationFunction {
 
     @FunctionInfo(
         returnType = "long",
+        briefSummary = "Counts how many smaller time units fit within a larger time unit for a date.",
         description = "Counts how many `to_unit` values are contained in a single `from_unit` period for `date`.",
         examples = @Example(
             description = "Count the number of days in February for a timestamp using explicit units.",

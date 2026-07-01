@@ -35,6 +35,7 @@ public class MatchOperator extends Match implements ConfigurationAware {
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
+        briefSummary = "Performs a match query on the specified field using the : operator.",
         description = """
             Use the match operator (`:`) to perform a <<query-dsl-match-query,match query>> on the specified field.
             Using `:` is equivalent to using the `match` query in the Elasticsearch Query DSL.

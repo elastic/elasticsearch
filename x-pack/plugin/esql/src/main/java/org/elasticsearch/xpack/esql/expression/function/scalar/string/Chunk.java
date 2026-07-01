@@ -72,6 +72,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
         returnType = "keyword",
         preview = true,
+        briefSummary = "Splits a text field into smaller chunks.",
         description = """
             Use `CHUNK` to split a text field into smaller chunks.""",
         detailedDescription = """

@@ -1258,7 +1258,12 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 if (response.getFailedShards() != 0) {
                     final AssertionError assertionError = new AssertionError("[" + response.getFailedShards() + "] shard failures");
                     for (DefaultShardOperationFailedException shardFailure : response.getShardFailures()) {
-                        if (ExceptionsHelper.unwrap(shardFailure.getCause(), MergePolicy.MergeAbortedException.class) == null) {
+                        // Remote MergeAbortedException is serialized as IOException so that we also check the message
+                        if (ExceptionsHelper.unwrapCausesAndSuppressed(
+                            shardFailure.getCause(),
+                            t -> t instanceof MergePolicy.MergeAbortedException
+                                || (t.getMessage() != null && t.getMessage().contains("merge is aborted"))
+                        ).isEmpty()) {
                             assertionError.addSuppressed(new ElasticsearchException(shardFailure.toString(), shardFailure.getCause()));
                         }
                     }
@@ -1805,7 +1810,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
 
         // We would like to make the relocation flush stuck due to object store failures so we enable failures only for the new generation.
         // Later, while the flush keeps repeating the upload, we issue the ingestion that will linger until the relocation failure.
-        long newGen = statelessCommitServiceA.getMaxGenerationToUploadForFlush(indexShard.shardId()) + 1;
+        long newGen = statelessCommitServiceA.getMaxPendingOrUploadedGeneration(indexShard.shardId()) + 1;
         setNodeRepositoryFailureStrategy(indexNodeA, false, true, Map.of(OperationPurpose.INDICES, ".*stateless_commit_" + newGen + ".*"));
 
         var indexNodeB = startIndexNode(indexNodeSettings);
@@ -1821,7 +1826,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         );
 
         // Wait until the hollow flushed commit appears for upload
-        assertBusy(() -> assertThat(statelessCommitServiceA.getMaxGenerationToUploadForFlush(indexShard.shardId()), equalTo(newGen)));
+        assertBusy(() -> assertThat(statelessCommitServiceA.getMaxPendingOrUploadedGeneration(indexShard.shardId()), equalTo(newGen)));
 
         // Index more docs, which will complete after the relocation failure and after unhollowing the shard
         logger.debug("--> indexing {} docs", numDocs);

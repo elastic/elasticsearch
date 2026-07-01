@@ -5,6 +5,10 @@ stack: preview 9.2.0
 serverless: preview
 ```
 
+
+:::{include} ../briefSummary/to_aggregate_metric_double.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/to_aggregate_metric_double.svg

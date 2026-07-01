@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -99,7 +100,8 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static TestAnalyzer metricsAnalyzer() {
         return analyzerWithEnrichPolicies().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
             .addIndex("tdigest_timeseries_index", "tdigest_timeseries_index-mappings.json", IndexMode.TIME_SERIES)
-            .addK8s();
+            .addK8s()
+            .minimumTransportVersion(DimensionValues.DIMENSION_VALUES_VERSION);
     }
 
     protected static TestAnalyzer multiIndexAnalyzer() {

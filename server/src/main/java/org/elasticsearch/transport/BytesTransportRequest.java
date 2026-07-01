@@ -52,9 +52,9 @@ public class BytesTransportRequest extends AbstractTransportRequest implements B
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBytesReference(bytes);
+    public final void writeTo(StreamOutput out) {
+        assert false : "should not be called";
+        throw new UnsupportedOperationException("writeTo() should not be used");
     }
 
     @Override

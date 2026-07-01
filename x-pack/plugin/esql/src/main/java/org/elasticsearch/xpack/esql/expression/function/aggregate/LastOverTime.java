@@ -52,12 +52,15 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(LastOverTime.class)
         .ternary(LastOverTime::new)
+        .capabilities("flattened")
         .name("last_over_time");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeries(LastOverTime::new)
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
         .description("Returns the most recent value of each time series in the specified time range.")
         .example("last_over_time(http_requests_total[1h])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.FIRST_LAST_NOTE)
         .name("last_over_time");
 
     private final Expression timestamp;
@@ -65,7 +68,19 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
     // TODO: support all types
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        returnType = { "long", "integer", "double", "_tsid", "exponential_histogram", "tdigest", "date", "date_nanos", "ip", "keyword" },
+        returnType = {
+            "long",
+            "integer",
+            "double",
+            "_tsid",
+            "exponential_histogram",
+            "tdigest",
+            "date",
+            "date_nanos",
+            "flattened",
+            "ip",
+            "keyword" },
+        briefSummary = "Calculates the latest value of a field over a time window.",
         description = "Calculates the latest value of a field, where recency determined by the `@timestamp` field.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
@@ -88,6 +103,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
                 "tdigest",
                 "date",
                 "date_nanos",
+                "flattened",
                 "ip",
                 "keyword",
                 "text", },
@@ -154,6 +170,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
                 || dt == DataType.TDIGEST
                 || dt == DataType.DATETIME
                 || dt == DataType.DATE_NANOS
+                || dt == DataType.FLATTENED
                 || dt == DataType.KEYWORD
                 || dt == DataType.TEXT
                 || dt == DataType.IP,
@@ -175,7 +192,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
             case INTEGER, COUNTER_INTEGER -> new LastIntByTimestampAggregatorFunctionSupplier();
             case DOUBLE, COUNTER_DOUBLE -> new LastDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new LastFloatByTimestampAggregatorFunctionSupplier();
-            case TSID_DATA_TYPE, IP, KEYWORD, TEXT -> new LastBytesRefByTimestampAggregatorFunctionSupplier();
+            case FLATTENED, TSID_DATA_TYPE, IP, KEYWORD, TEXT -> new LastBytesRefByTimestampAggregatorFunctionSupplier();
             case EXPONENTIAL_HISTOGRAM -> new LastExponentialHistogramByTimestampAggregatorFunctionSupplier();
             case TDIGEST -> new LastTDigestByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);

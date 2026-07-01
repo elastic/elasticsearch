@@ -123,4 +123,17 @@ public class ApproximationGoldenTests extends GoldenTestCase {
                      (WHERE sv >= 100 | STATS count = COUNT(), sum = SUM(sv))
             """, STAGES);
     }
+
+    // Regression for local-stage pruning of _fork sort key — see PruneConstantSortKeysFromOrderBy.
+    public void testForkWithStatsInJustOneBranch() {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+        runGoldenTest("""
+            SET approximation={"rows":10000};
+            FROM many_numbers
+              | FORK (STATS count = COUNT())
+                     (KEEP sv)
+              | SORT _fork, sv
+              | LIMIT 5
+            """, STAGES);
+    }
 }

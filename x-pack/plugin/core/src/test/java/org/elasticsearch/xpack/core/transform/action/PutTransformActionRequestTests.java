@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction.Request;
@@ -47,5 +48,16 @@ public class PutTransformActionRequestTests extends AbstractWireSerializingTrans
         }
 
         return new Request(config, deferValidation, timeout);
+    }
+
+    @Override
+    protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
+        // SourceConfig has version-gated fields (projectRouting, indicesOptions); delegate to the shared
+        // TransformConfig helper that drops them for older versions so the BWC baseline matches the wire round-trip.
+        return new Request(
+            TransformConfigTests.mutateForVersion(instance.getConfig(), version),
+            instance.isDeferValidation(),
+            instance.ackTimeout()
+        );
     }
 }

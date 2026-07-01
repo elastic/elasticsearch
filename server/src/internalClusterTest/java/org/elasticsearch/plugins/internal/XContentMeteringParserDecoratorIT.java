@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
@@ -109,8 +110,8 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public java.util.List<IndexResult> indexBatch(java.util.List<Index> operations) throws IOException {
-                    List<IndexResult> results = super.indexBatch(operations);
+                public List<IndexResult> indexBatch(List<Index> operations, SourceBatch batch) throws IOException {
+                    List<IndexResult> results = super.indexBatch(operations, batch);
                     for (Index op : operations) {
                         reportDocumentSize(op.parsedDoc());
                     }

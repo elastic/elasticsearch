@@ -56,6 +56,7 @@ public class ToBoolean extends AbstractConvertFunction {
 
     @FunctionInfo(
         returnType = "boolean",
+        briefSummary = "Converts a value to a boolean.",
         description = """
             Converts an input value to a boolean value.
             A string value of `true` will be case-insensitive converted to the Boolean `true`.

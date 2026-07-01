@@ -134,6 +134,7 @@ public class DateDiff extends EsqlConfigurationFunction {
 
     @FunctionInfo(
         returnType = "integer",
+        briefSummary = "Returns the difference between two timestamps in the specified unit.",
         description = """
             Subtracts the `startTimestamp` from the `endTimestamp` and returns the difference in multiples of `unit`.
             If `startTimestamp` is later than the `endTimestamp`, negative values are returned.""",

@@ -100,7 +100,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
                 new EsPhysicalOperationProviders.DefaultShardContext(0, () -> {}, createMockContext(), AliasFilter.EMPTY)
             ),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            () -> 0L
         );
         for (TestCase testCase : testCases) {
             EsQueryExec queryExec = new EsQueryExec(
@@ -220,7 +221,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             FoldContext.small(),
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            () -> 0L
         );
         ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
         assertThat(loaderAndConverter.loader(), equalTo(ConstantNull.INSTANCE));
@@ -252,114 +254,12 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             FoldContext.small(),
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            () -> 0L
         );
         ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
         assertThat(loaderAndConverter.loader(), instanceOf(BytesRefsFromOrdsBlockLoader.class));
         ensureNoWarnings();
-    }
-
-    public void testTemporalityWithMissingField() throws IOException {
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
-            createMapperService(
-                tsdbSettings("missing_temporality"),
-                mapping(
-                    b -> b.startObject("@timestamp")
-                        .field("type", "date")
-                        .endObject()
-                        .startObject("host")
-                        .field("type", "keyword")
-                        .field("time_series_dimension", true)
-                        .endObject()
-                )
-            ),
-            null
-        );
-        var shardContext = new EsPhysicalOperationProviders.DefaultShardContext(
-            0,
-            new NoOpReleasable(),
-            searchExecutionContext,
-            AliasFilter.EMPTY
-        );
-        var provider = new EsPhysicalOperationProviders(
-            FoldContext.small(),
-            new IndexedByShardIdFromSingleton<>(shardContext),
-            null,
-            PlannerSettings.DEFAULTS
-        );
-        assertThat(temporalityLoader(provider).loader(), equalTo(ConstantNull.INSTANCE));
-        ensureNoWarnings();
-    }
-
-    public void testTemporalityFieldMustBeKeyword() throws IOException {
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
-            createMapperService(
-                tsdbSettings("metric_temporality"),
-                mapping(
-                    b -> b.startObject("@timestamp")
-                        .field("type", "date")
-                        .endObject()
-                        .startObject("metric_temporality")
-                        .field("type", "long")
-                        .field("time_series_dimension", true)
-                        .endObject()
-                )
-            ),
-            null
-        );
-        var shardContext = new EsPhysicalOperationProviders.DefaultShardContext(
-            0,
-            new NoOpReleasable(),
-            searchExecutionContext,
-            AliasFilter.EMPTY
-        );
-        var provider = new EsPhysicalOperationProviders(
-            FoldContext.small(),
-            new IndexedByShardIdFromSingleton<>(shardContext),
-            null,
-            PlannerSettings.DEFAULTS
-        );
-        assertThat(temporalityLoader(provider).loader(), equalTo(ConstantNull.INSTANCE));
-        assertWarnings(
-            "Line -1:-1: warnings during evaluation of []. Only first 20 failures recorded.",
-            "Line -1:-1: java.lang.IllegalArgumentException: configured temporality field [metric_temporality] has type [long], expected "
-                + "[keyword]; assuming default temporality for all values"
-        );
-    }
-
-    public void testTemporalityFieldMustBeDimension() throws IOException {
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
-            createMapperService(
-                tsdbSettings("metric_temporality"),
-                mapping(
-                    b -> b.startObject("@timestamp")
-                        .field("type", "date")
-                        .endObject()
-                        .startObject("metric_temporality")
-                        .field("type", "keyword")
-                        .endObject()
-                )
-            ),
-            null
-        );
-        var shardContext = new EsPhysicalOperationProviders.DefaultShardContext(
-            0,
-            new NoOpReleasable(),
-            searchExecutionContext,
-            AliasFilter.EMPTY
-        );
-        var provider = new EsPhysicalOperationProviders(
-            FoldContext.small(),
-            new IndexedByShardIdFromSingleton<>(shardContext),
-            null,
-            PlannerSettings.DEFAULTS
-        );
-        assertThat(temporalityLoader(provider).loader(), equalTo(ConstantNull.INSTANCE));
-        assertWarnings(
-            "Line -1:-1: warnings during evaluation of []. Only first 20 failures recorded.",
-            "Line -1:-1: java.lang.IllegalArgumentException: configured temporality field [metric_temporality] must be a time-series "
-                + "dimension; assuming default temporality for all values"
-        );
     }
 
     /**

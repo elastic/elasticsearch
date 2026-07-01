@@ -46,7 +46,9 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeries(Delta::new)
         .description("Calculates the difference between the first and last value of each time series in a range vector.")
+        .extendedDescription(PromqlFunctionDefinition.GAUGE_FAMILY_BEHAVIOR)
         .example("delta(cpu_temp_celsius[2h])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("delta");
 
     private final Expression timestamp;
@@ -54,6 +56,7 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
+        briefSummary = "Calculates the absolute change of a gauge field in a time window.",
         description = "Calculates the absolute change of a gauge field in a time window.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),

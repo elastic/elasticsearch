@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -54,6 +56,11 @@ import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
  * performed by methods in this class.
  */
 public final class IndexLifecycleTransition {
+    // Maximum size of an error's "message" field when converting an exception to JSON for a step_info
+    public static int MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH = 256;
+    // Maximum number of suppressed exceptions to keep when converting an exception to JSON for a step_info
+    public static int MAXIMUM_STEP_INFO_SUPPRESSED_EXCEPTIONS = 2;
+
     private static final Logger logger = LogManager.getLogger(IndexLifecycleTransition.class);
 
     /**
@@ -181,7 +188,11 @@ public final class IndexLifecycleTransition {
         LifecycleExecutionState.Builder failedState = LifecycleExecutionState.builder(nextStepState);
         failedState.setFailedStep(currentStep.name());
         failedState.setStepInfo(Strings.toString(((builder, params) -> {
-            ElasticsearchException.generateThrowableXContent(builder, EMPTY_PARAMS, cause);
+            ElasticsearchException.generateThrowableXContent(
+                builder,
+                EMPTY_PARAMS,
+                maybeTruncateException(cause, MAXIMUM_STEP_INFO_SUPPRESSED_EXCEPTIONS)
+            );
             return builder;
         })));
         Step failedStep = stepLookupFunction.apply(idxMeta, currentStep);
@@ -202,6 +213,79 @@ public final class IndexLifecycleTransition {
         }
 
         return project.withLifecycleState(idxMeta.getIndex(), failedState.build());
+    }
+
+    /**
+     * Take an exception that we're about to stick into the step_info for a policy, and recursively
+     * truncate the messages of the exceptions, the causes, and the suppressed exceptions. These
+     * messages are truncated to be no longer than {@link #MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH}.
+     * If there are multiple suppressed exceptions, only {@link #MAXIMUM_STEP_INFO_SUPPRESSED_EXCEPTIONS}
+     * are kept. This returns potentially a different exception type than what was passed in,
+     * however, the exception that is return has an overridden name so that we preserve the name
+     * when it is converted to JSON.
+     *
+     * @param maxCauses the maximum depth to recurse into causes. Once it reaches 0 then further causes are discarded.
+     */
+    public static @Nullable Throwable maybeTruncateException(@Nullable Throwable error, int maxCauses) {
+        if (error == null) {
+            return null;
+        }
+        // Short circuit if we've hit the max number of clauses, ignoring everything except for the name and message of this cause
+        if (maxCauses <= 0) {
+            return new ElasticsearchException(truncateWithExplanation(error.getMessage())) {
+                @Override
+                protected String getExceptionName() {
+                    // Override to use original exception name
+                    return getExceptionName(error);
+                }
+            };
+        }
+        // We don't know what kind of error we've seen, but we still need to be able to truncate it,
+        // so convert it to an ElasticsearchException that "pretends" to have the same name as the
+        // original exception (the class isn't used in the stringification, so nothing is lost).
+        ElasticsearchException newError = new ElasticsearchException(
+            truncateWithExplanation(error.getMessage()),
+            maybeTruncateException(error.getCause(), maxCauses - 1)
+        ) {
+            @Override
+            protected String getExceptionName() {
+                // Override to use original exception name. We discard the type,
+                // but that's okay, because the name is what is used when converting it to JSON.
+                return getExceptionName(error);
+            }
+        };
+        // Truncate and limit the suppressed exceptions
+        Arrays.stream(error.getSuppressed()).limit(MAXIMUM_STEP_INFO_SUPPRESSED_EXCEPTIONS).forEach(suppressed -> {
+            Throwable newSuppressed = maybeTruncateException(suppressed, maxCauses - 1);
+            if (newSuppressed != null) {
+                newError.addSuppressed(newSuppressed);
+            }
+        });
+        // If it's an ElasticsearchException, try to truncate any long metadata
+        if (error instanceof ElasticsearchException ee) {
+            for (String key : ee.getMetadataKeys()) {
+                if (ee.getMetadata(key) != null) {
+                    newError.addMetadata(key, ee.getMetadata(key).stream().map(IndexLifecycleTransition::truncateWithExplanation).toList());
+                }
+            }
+        }
+        return newError;
+    }
+
+    /**
+     * Truncate a string to {@link #MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH},
+     * appending "... (~N chars truncated)" to the end if truncation happens.
+     */
+    private static String truncateWithExplanation(String input) {
+        if (input == null || input.length() <= MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH) {
+            return input;
+        }
+        final int roughNumberOfCharsTruncated = input.length() - MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH;
+        final String truncationExplanation = "... (~" + roughNumberOfCharsTruncated + " chars truncated)";
+        final String truncated = Strings.cleanTruncate(input, MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH - truncationExplanation.length())
+            + truncationExplanation;
+        assert truncated.length() <= MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH : "truncation didn't work";
+        return truncated;
     }
 
     /**
@@ -463,7 +547,7 @@ public final class IndexLifecycleTransition {
 
         notChanged &= Strings.isNullOrEmpty(newSettings.removeAndGet(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
         notChanged &= Strings.isNullOrEmpty(newSettings.removeAndGet(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.getKey()));
-        notChanged &= Strings.isNullOrEmpty(newSettings.removeAndGet(LifecycleSettings.LIFECYCLE_SKIP_SETTING.getKey()));
+        notChanged &= Strings.isNullOrEmpty(newSettings.removeAndGet(IndexMetadata.LIFECYCLE_SKIP_SETTING.getKey()));
         notChanged &= Strings.isNullOrEmpty(newSettings.removeAndGet(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey()));
         long newSettingsVersion = notChanged ? indexMetadata.getSettingsVersion() : 1 + indexMetadata.getSettingsVersion();
 

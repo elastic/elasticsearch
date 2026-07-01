@@ -3,6 +3,7 @@
 
 
 without_single_dimension
+skip_flattened_rewrite: without_unsupported
 required_capability: esql_without_grouping
 // tag::docsWithoutSingleDimension[]
 TS k8s
@@ -21,6 +22,7 @@ total_cost:double | _timeseries:keyword
 
 
 without_multiple_dimensions
+skip_flattened_rewrite: without_unsupported
 required_capability: esql_without_grouping
 // tag::docsWithoutMultipleDimensions[]
 TS k8s
@@ -63,6 +65,7 @@ total_cost:double | _timeseries:keyword
 
 
 without_with_tbucket
+skip_flattened_rewrite: without_unsupported
 required_capability: esql_without_grouping
 required_capability: tbucket
 // tag::docsWithoutWithTbucket[]
@@ -82,6 +85,7 @@ total_cost:double | _timeseries:keyword                                      | t
 
 
 without_avg
+skip_flattened_rewrite: without_unsupported
 required_capability: esql_without_grouping
 TS k8s 
 | STATS avg_cost = avg(network.cost) BY WITHOUT(pod, region) 
@@ -95,6 +99,7 @@ avg_cost:double        | _timeseries:keyword
 
 
 without_max
+skip_flattened_rewrite: without_unsupported
 required_capability: esql_without_grouping
 TS k8s 
 | STATS max_cost = max(network.cost) BY WITHOUT(pod, region) 

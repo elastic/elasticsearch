@@ -72,6 +72,7 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "version" },
+        briefSummary = "Returns the minimum value from multiple columns.",
         description = "Returns the minimum value from multiple columns. "
             + "This is similar to <<esql-mv_min>> except it is intended to run on multiple columns at once.",
         examples = @Example(file = "math", tag = "least")

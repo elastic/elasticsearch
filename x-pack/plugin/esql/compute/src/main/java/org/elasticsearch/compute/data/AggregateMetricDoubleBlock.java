@@ -18,7 +18,12 @@ import java.util.List;
 public sealed interface AggregateMetricDoubleBlock extends Block permits AggregateMetricDoubleArrayBlock, ConstantNullBlock {
 
     @Override
-    AggregateMetricDoubleBlock filter(boolean mayContainDuplicates, int... positions);
+    AggregateMetricDoubleBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default AggregateMetricDoubleBlock filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     AggregateMetricDoubleBlock keepMask(BooleanVector mask);

@@ -65,6 +65,7 @@ public class ToGauge extends AbstractConvertFunction {
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.5.0") },
         returnType = { "long", "integer", "double", "aggregate_metric_double" },
+        briefSummary = "Converts a counter value to its gauge numeric equivalent.",
         description = """
             Converts a counter value to its gauge (plain numeric) equivalent. The output type is determined by the input:
             `counter_long` converts to `long`, `counter_integer` to `integer`, and `counter_double` to `double`.

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.AbstractStringPattern;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.AutomataMatch;
@@ -71,10 +72,15 @@ abstract class RegexMatch<P extends AbstractStringPattern> extends org.elasticse
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(name()).append("(");
-        field().nodeString(sb, format);
-        sb.append(", \"").append(pattern().pattern()).append("\", ").append(caseInsensitive()).append(")");
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        // The pattern renders itself (wildcard / regex / list), routing its literal content through
+        // the mapper and supplying its own quoting. Identity rendering is byte-identical for single
+        // patterns; multi-pattern lists render every element rather than a flattened first.
+        sb.append(name()).append('(');
+        field().nodeString(sb, format, mapper);
+        sb.append(", ");
+        pattern().nodeString(sb, format, mapper);
+        sb.append(", ").append(caseInsensitive()).append(')');
     }
 
     void serializeCaseInsensitivity(StreamOutput out) throws IOException {

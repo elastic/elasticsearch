@@ -49,9 +49,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * {@code onNext(ByteBuffer)} chunk directly into the destination at the running offset. That
  * collapses three SDK-internal copies into a single chunk-to-direct-buffer copy.
  *
- * <p><b>Synchronization:</b> the {@link AsyncResponseTransformer} contract guarantees that no two
- * methods on this class or on its {@link Subscriber} are invoked concurrently, so no locking is
- * required.
+ * <p><b>Synchronization:</b> Reactive Streams serializes the {@link Subscriber}'s own signals, but
+ * {@link #exceptionOccurred} is a transformer-level callback outside that ordering and can race the
+ * terminal subscriber signal (e.g. the SDK drops the publisher on a transport error). The shared
+ * destination buffer is therefore an {@link AtomicReference} and the terminal-state fields {@code volatile}.
  *
  * <p><b>Retries:</b> the SDK calls {@link #prepare()} again on each retry, so a fresh destination
  * buffer is allocated for every attempt. Stale state from a previous attempt is not reused.
@@ -259,7 +260,12 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
             // double-close. The destination ByteBuffer's position/limit set above is observable
             // through drb.buffer() since they share the same NIO view.
             DirectReadBuffer transferred = destinationBuf.getAndSet(null);
-            resultFuture.complete(transferred);
+            // If exceptionOccurred raced ahead and already failed the future, complete() returns false and we
+            // hold the buffer's only reference — release it rather than orphan its memory. A null transferred
+            // means releaseOnFailure won that race and already failed the future, so there is nothing to do.
+            if (transferred != null && resultFuture.complete(transferred) == false) {
+                transferred.close();
+            }
         }
 
         void releaseOnFailure() {

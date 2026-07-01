@@ -94,8 +94,8 @@ final class FileListCompactor {
         String[] colNames = pm.partitionColumns().keySet().toArray(new String[0]);
         int numCols = colNames.length;
 
-        Map<String, Short>[] colValMaps = new Map[numCols];
-        List<String>[] colValLists = new List[numCols];
+        Map<String, Short>[] colValMaps = (Map<String, Short>[]) new Map<?, ?>[numCols];
+        List<String>[] colValLists = (List<String>[]) new List<?>[numCols];
         for (int c = 0; c < numCols; c++) {
             colValMaps[c] = new HashMap<>();
             colValLists[c] = new ArrayList<>();

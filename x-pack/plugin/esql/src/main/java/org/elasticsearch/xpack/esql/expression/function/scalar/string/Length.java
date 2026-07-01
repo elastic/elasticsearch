@@ -39,6 +39,7 @@ public class Length extends UnaryScalarFunction implements BlockLoaderExpression
 
     @FunctionInfo(
         returnType = "integer",
+        briefSummary = "Returns the character length of a string.",
         description = "Returns the character length of a string.",
         note = "All strings are in UTF-8, so a single character can use multiple bytes.",
         examples = @Example(file = "eval", tag = "length")

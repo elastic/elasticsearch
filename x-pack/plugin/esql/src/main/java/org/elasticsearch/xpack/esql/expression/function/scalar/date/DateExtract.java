@@ -53,6 +53,7 @@ public class DateExtract extends EsqlConfigurationFunction {
 
     @FunctionInfo(
         returnType = "long",
+        briefSummary = "Extracts parts of a date, like year, month, day, hour.",
         description = "Extracts parts of a date, like year, month, day, hour.",
         examples = {
             @Example(file = "date", tag = "dateExtract"),

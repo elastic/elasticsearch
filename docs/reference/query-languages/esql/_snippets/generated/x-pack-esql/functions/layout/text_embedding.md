@@ -4,6 +4,10 @@
 stack: ga 9.4.0, preview 9.3.0
 ```
 
+
+:::{include} ../briefSummary/text_embedding.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/text_embedding.svg

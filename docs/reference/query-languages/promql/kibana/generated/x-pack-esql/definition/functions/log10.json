@@ -20,6 +20,5 @@
   "examples" : [
     "log10(http_requests_total)"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

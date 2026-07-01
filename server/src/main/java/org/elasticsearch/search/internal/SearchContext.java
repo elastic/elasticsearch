@@ -125,6 +125,15 @@ public abstract class SearchContext implements Releasable {
      */
     public abstract void preProcess();
 
+    /**
+     * Returns the number of bytes read by forked search worker threads while executing this context's query.
+     * The caller is responsible for folding this value into the overall directory metrics. Returns {@code 0}
+     * when no worker threads were used (e.g. single-slice execution) or directory metrics are disabled.
+     */
+    public long getWorkerThreadsBytesRead() {
+        return 0L;
+    }
+
     /** Automatically apply all required filters to the given query such as
      *  alias filters, types filters, etc. */
     public abstract Query buildFilteredQuery(Query query);

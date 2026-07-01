@@ -99,7 +99,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
 
         // subproject2 partially failed — exclude the 2 successful tests
         result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
-        result.output.contains("excluding 2 successful tests")
+        result.output.contains("excluding 0 successful suites and 2 successful tests")
         testNotExecuted(result.output, "SubProject2TestClazz1 > someTest1")
         testNotExecuted(result.output, "SubProject2TestClazz1 > someTest2")
         testExecuted(result.output, "SubProject2TestClazz2 > someTest1")
@@ -117,7 +117,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         def result = gradleRunner("test", "--warning-mode", "all").build()
         then:
         result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
-        result.output.contains("excluding 1 successful tests")
+        result.output.contains("excluding 0 successful suites and 1 successful tests")
         testNotExecuted(result.output, "SubProject2TestClazz2 > someTest1")
         testExecuted(result.output, "SubProject2TestClazz2 > someTest2")
         // Other classes in the same task still run
@@ -140,8 +140,14 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
     def "rejects oversized failed-test-history file"() {
         given:
         simpleTestSetup()
-        def largeContent = '{"successfulTasks":["' + ('x'.multiply(10 * 1024 * 1024)) + '"]}'
-        file(".failed-test-history.json") << largeContent
+        // The size check runs before JSON parsing, so content validity is irrelevant here. Write a file
+        // just over the 100MB cap in 1MB chunks to avoid allocating the whole payload in memory.
+        file(".failed-test-history.json").withOutputStream { out ->
+            byte[] chunk = new byte[1024 * 1024]
+            for (int i = 0; i < 101; i++) {
+                out.write(chunk)
+            }
+        }
 
         when:
         def result = gradleRunner("test", "--warning-mode", "all").buildAndFail()

@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.is;
 public class AmazonBedrockCompletionTaskSettingsTests extends AbstractBWCWireSerializationTestCase<AmazonBedrockCompletionTaskSettings> {
 
     public void testFromMap_ReturnsEmptySettings_WhenTheMapIsEmpty() {
-        var settings = AmazonBedrockCompletionTaskSettings.fromMap(new HashMap<>(Map.of()));
+        var settings = AmazonBedrockCompletionTaskSettings.fromMap(new HashMap<>());
         assertThat(settings, is(AmazonBedrockCompletionTaskSettings.EMPTY_SETTINGS));
     }
 

@@ -1,0 +1,19 @@
+area: ES|QL
+breaking:
+  area: ES|QL
+  details: "In previous versions `FUSE` merged rows with matching `key_columns` by\
+    \ keeping all distinct values for each passthrough column. Now `FUSE` selects\
+    \ the first non-null value for each passthrough column, or null in the absence\
+    \ of a value. `FUSE` now supports passing through all field types except `aggregate_metric_double`,\
+    \ `histogram`, and `date_range`."
+  impact: This has no impact if passthrough columns come from the same document with
+    identical column values across fork branches. Queries that relied on `FUSE` collecting
+    multiple distinct values for a passthrough column will need to aggregate those
+    values separately.
+  notable: false
+  title: Rewire FUSE to use FIRST for passthrough columns
+issues:
+ - 141596
+pr: 150220
+summary: Rewire FUSE to use FIRST for passthrough columns
+type: breaking

@@ -92,6 +92,8 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
         }
         """;
 
+    private static boolean columnarEnabled;
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(InternalSettingsPlugin.class, XPackPlugin.class, LogsDBPlugin.class, DataStreamsPlugin.class);
@@ -99,23 +101,24 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
+        columnarEnabled = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
         return Settings.builder()
             .put(super.nodeSettings())
             .put("cluster.logsdb.enabled", "true")
+            .put("cluster.logsdb_columnar.enabled", columnarEnabled)
             .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             .build();
     }
 
     public void testStandard() throws Exception {
-        String dataStreamName = "k8s";
+        String dataStreamName = "logs-k8s-prod";
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
-        String indexMode = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean() ? "logsdb_columnar" : "logsdb";
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName + "*"))
                 .template(
                     new Template(
-                        indexSettings(4, 0).put("index.mode", indexMode).put("index.sort.field", "message,k8s.pod.uid,@timestamp").build(),
+                        indexSettings(4, 0).put("index.sort.field", "message,k8s.pod.uid,@timestamp").build(),
                         new CompressedXContent(MAPPING_TEMPLATE),
                         null
                     )
@@ -128,15 +131,14 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
     }
 
     public void testRouteOnSortFields() throws Exception {
-        String dataStreamName = "k8s";
+        String dataStreamName = "logs-k8s-prod";
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName + "*"))
                 .template(
                     new Template(
-                        indexSettings(4, 0).put("index.mode", "logsdb")
-                            .put("index.sort.field", "message,k8s.pod.uid,@timestamp")
+                        indexSettings(4, 0).put("index.sort.field", "message,k8s.pod.uid,@timestamp")
                             .put("index.logsdb.route_on_sort_fields", true)
                             .build(),
                         new CompressedXContent(MAPPING_TEMPLATE),
@@ -187,6 +189,7 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
         ).actionGet();
         final Settings settings = getSettingsResponse.getIndexToSettings().get(indexName);
         assertEquals("message,k8s.pod.uid,@timestamp", settings.get("index.sort.field"));
+        assertEquals(columnarEnabled ? "logsdb_columnar" : "logsdb", settings.get("index.mode"));
         if (routeOnSortFields) {
             assertEquals("[message, k8s.pod.uid]", settings.get("index.routing_path"));
             assertEquals("true", settings.get("index.logsdb.route_on_sort_fields"));

@@ -49,6 +49,7 @@ public class ToCartesianShape extends AbstractConvertFunction {
 
     @FunctionInfo(
         returnType = "cartesian_shape",
+        briefSummary = "Converts a value to a cartesian_shape.",
         description = """
             Converts an input value to a `cartesian_shape` value.
             A string will only be successfully converted if it respects the

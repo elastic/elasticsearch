@@ -90,11 +90,20 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             {
               "persistent": {
                 "logger.org.elasticsearch.xpack.ml.inference": "INFO",
+                "logger.org.elasticsearch.xpack.ml.inference.assignments": null,
                 "logger.org.elasticsearch.xpack.ml.process": "INFO",
                 "logger.org.elasticsearch.xpack.ml.action": "INFO"
               }
             }
             """);
+        request.setOptions(request.getOptions().toBuilder().setWarningsHandler(warnings -> {
+            for (String warning : warnings) {
+                if (warning.equals(LOGGER_CHILD_OVERRIDE_DEPRECATION_WARNING) == false) {
+                    return true;
+                }
+            }
+            return false;
+        }).build());
         client().performRequest(request);
     }
 

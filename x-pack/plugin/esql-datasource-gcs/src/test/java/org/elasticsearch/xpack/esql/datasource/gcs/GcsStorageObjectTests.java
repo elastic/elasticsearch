@@ -144,8 +144,9 @@ public class GcsStorageObjectTests extends ESTestCase {
     public void testNewStreamWithNegativeLengthThrows() {
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> obj.newStream(0, -1));
-        assertEquals("length must be non-negative, got: -1", e.getMessage());
+        // -1 is now the READ_TO_END open-ended sentinel; a different non-positive length is still invalid.
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> obj.newStream(0, -2));
+        assertEquals("length must be positive or READ_TO_END, got: -2", e.getMessage());
     }
 
     public void testNewStreamOpensReader() throws IOException {
@@ -197,6 +198,13 @@ public class GcsStorageObjectTests extends ESTestCase {
         assertTrue(e.getMessage().contains("Failed to read object from"));
     }
 
+    public void testNewStreamClassifies503AsThrottling() {
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(503, "Service Unavailable"));
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "k", StoragePath.of("gs://my-bucket/k"));
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, obj::newStream);
+        assertTrue("503 is throttling", e.throttling());
+    }
+
     public void testNewStreamMapsRetryableStorageExceptionToUnavailable() {
         // A retryable transport status (here 503) becomes ExternalUnavailableException (mapped to 503).
         when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(503, "Service Unavailable"));
@@ -206,6 +214,79 @@ public class GcsStorageObjectTests extends ESTestCase {
 
         ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, obj::newStream);
         assertTrue(e.getMessage().contains("GCS store unavailable"));
+    }
+
+    public void testNewStreamClassifies429AsThrottling() {
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(429, "Too Many Requests"));
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "k", StoragePath.of("gs://my-bucket/k"));
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, obj::newStream);
+        assertTrue("429 is throttling", e.throttling());
+    }
+
+    public void testNewStreamClassifies500AsTransientNotThrottling() {
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(500, "Internal Error"));
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "k", StoragePath.of("gs://my-bucket/k"));
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, obj::newStream);
+        assertFalse("500 is transient but not throttling", e.throttling());
+    }
+
+    public void testNewStreamClassifies403AsNonTransient() {
+        // 403 is not a retryable status, so it stays a plain IOException (the external source operator maps it to a
+        // client-class 400) rather than the retryable ExternalUnavailableException. expectThrows(IOException.class)
+        // already proves it is not ExternalUnavailableException — the unavailable type is not an IOException subtype.
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(403, "Forbidden"));
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "k", StoragePath.of("gs://my-bucket/k"));
+        IOException e = expectThrows(IOException.class, obj::newStream);
+        assertTrue("403 wraps as a plain read failure", e.getMessage().contains("Failed to read object from"));
+    }
+
+    // The GCS ReadChannel never lets a StorageException escape the stream: BaseStorageReadChannel.read catches it
+    // and rethrows it wrapped in a plain IOException (its cause). These tests feed that real wrapped shape, not a
+    // raw StorageException, so they actually exercise the path a live read produces. The wrapper re-types the
+    // IOException as an (unchecked) ExternalUnavailableException, reading the throttle flag off the StorageException
+    // cause when present.
+    public void testMidReadStorageExceptionRetypedAsThrottling() throws IOException {
+        InputStream faulting = new InputStream() {
+            private int n = 0;
+
+            @Override
+            public int read() throws IOException {
+                if (n++ < 1) {
+                    return 'x';
+                }
+                throw new IOException(new StorageException(503, "mid-read drop"));
+            }
+        };
+        GcsTransientTypingInputStream wrapped = new GcsTransientTypingInputStream(faulting, StoragePath.of("gs://b/k"));
+        assertEquals('x', wrapped.read());
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, wrapped::read);
+        assertTrue("a 503 surfaced mid-read is throttling", e.throttling());
+    }
+
+    public void testMidReadNon503StorageExceptionIsTransientNotThrottling() {
+        InputStream faulting = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException(new StorageException(500, "mid-read error"));
+            }
+        };
+        GcsTransientTypingInputStream wrapped = new GcsTransientTypingInputStream(faulting, StoragePath.of("gs://b/k"));
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, wrapped::read);
+        assertFalse("500 mid-read is transient but not throttling", e.throttling());
+    }
+
+    public void testMidReadPlainTransportIOExceptionIsTransientNotThrottling() {
+        // A transport drop with no StorageException cause (a bare IOException) is still re-typed transient so the
+        // resume engages; it is just not throttling.
+        InputStream faulting = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException("connection reset");
+            }
+        };
+        GcsTransientTypingInputStream wrapped = new GcsTransientTypingInputStream(faulting, StoragePath.of("gs://b/k"));
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, wrapped::read);
+        assertFalse("a plain transport IOException is transient but not throttling", e.throttling());
     }
 
     public void testLengthFetchesMetadataOnce() throws IOException {

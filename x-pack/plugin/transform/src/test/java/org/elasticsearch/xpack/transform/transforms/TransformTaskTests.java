@@ -37,7 +37,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -63,6 +62,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.xpack.transform.DefaultTransformExtension;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -213,12 +213,14 @@ public class TransformTaskTests extends ESTestCase {
 
     private TransformServices transformServices(Clock clock, TransformAuditor auditor, ThreadPool threadPool) {
         var transformsConfigManager = new InMemoryTransformConfigManager();
+        var cloudCredentialManager = mock(TransformCloudCredentialManager.class);
+        when(cloudCredentialManager.wrapWithPersistedIfPresent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
         var transformsCheckpointService = new TransformCheckpointService(
             clock,
-            Settings.EMPTY,
-            StubLinkedProjectConfigService.INSTANCE,
             transformsConfigManager,
-            auditor
+            auditor,
+            mock(CrossProjectModeDecider.class),
+            cloudCredentialManager
         );
         return new TransformServices(
             transformsConfigManager,
@@ -228,7 +230,8 @@ public class TransformTaskTests extends ESTestCase {
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
             projectId -> false,
-            mock(ProjectResolver.class)
+            mock(ProjectResolver.class),
+            mock(TransformCloudCredentialManager.class)
         );
     }
 
@@ -869,4 +872,5 @@ public class TransformTaskTests extends ESTestCase {
     private static TransformTaskParams createTransformTaskParams(String transformId) {
         return new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, TimeValue.timeValueSeconds(10), false);
     }
+
 }

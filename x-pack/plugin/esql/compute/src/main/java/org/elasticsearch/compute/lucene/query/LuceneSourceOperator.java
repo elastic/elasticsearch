@@ -7,12 +7,11 @@
 
 package org.elasticsearch.compute.lucene.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -20,7 +19,11 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -35,6 +38,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -42,6 +46,8 @@ import org.elasticsearch.logging.Logger;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static org.apache.lucene.search.ScoreMode.COMPLETE;
 import static org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES;
@@ -55,11 +61,12 @@ import static org.elasticsearch.compute.lucene.query.LuceneSliceQueue.Partitioni
 public class LuceneSourceOperator extends LuceneOperator {
     private static final Logger log = LogManager.getLogger(LuceneSourceOperator.class);
 
-    private int currentPagePos = 0;
     private int remainingDocs;
     private final Limiter limiter;
 
-    private IntVector.Builder docsBuilder;
+    private final IntArrayPool docIdsPool;
+    private int[] docIds;
+    private int currentPagePos = 0;
     private DoubleVector.Builder scoreBuilder;
     private final LeafCollector leafCollector;
     private final int minPageSize;
@@ -78,7 +85,9 @@ public class LuceneSourceOperator extends LuceneOperator {
             int taskConcurrency,
             int maxPageSize,
             int limit,
-            boolean needsScore
+            boolean needsScore,
+            LongSupplier directoryBytesRead,
+            int minDocsPerSlice
         ) {
             super(
                 shardContexts,
@@ -91,7 +100,9 @@ public class LuceneSourceOperator extends LuceneOperator {
                 taskConcurrency,
                 limit,
                 needsScore,
-                shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES
+                shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES,
+                directoryBytesRead,
+                minDocsPerSlice
             );
             this.refCounteds = shardContexts;
             this.maxPageSize = maxPageSize;
@@ -101,7 +112,16 @@ public class LuceneSourceOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneSourceOperator(refCounteds, driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter, needsScore);
+            return new LuceneSourceOperator(
+                refCounteds,
+                driverContext.blockFactory(),
+                maxPageSize,
+                sliceQueue,
+                limit,
+                limiter,
+                needsScore,
+                directoryBytesRead
+            );
         }
 
         public int maxPageSize() {
@@ -141,39 +161,77 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
 
         /**
-         * Select the {@link PartitioningStrategy} based on the {@link Query}.
+         * Select the {@link PartitioningStrategy} based on the (already rewritten) {@link Query}.
          * <ul>
+         *     <li>{@link MatchNoDocsQuery} at the root → {@link PartitioningStrategy#SHARD} (minimal overhead for an empty result).</li>
+         *     <li>{@link MatchAllDocsQuery} at the root → {@link PartitioningStrategy#DOC} (cheap scorer, maximize CPU usage).</li>
          *     <li>
-         *         If the {@linkplain Query} matches <strong>no</strong> documents then this will
-         *         use the {@link PartitioningStrategy#SHARD} strategy so we minimize the overhead
-         *         of finding nothing.
-         *     </li>
-         *     <li>
-         *         If the {@linkplain Query} matches <strong>all</strong> documents then this will
-         *         use the {@link PartitioningStrategy#DOC} strategy because the overhead of using
-         *         that strategy for {@link MatchAllDocsQuery} is very low, and we need as many CPUs
-         *         as we can get to process all the documents.
-         *     </li>
-         *     <li>
-         *         Otherwise use the {@link PartitioningStrategy#SEGMENT} strategy because it's
-         *         overhead is generally low.
+         *         Otherwise walk the full query tree (including compound clauses such as
+         *         {@code BooleanQuery}, {@code IndexOrDocValuesQuery}, and {@code MUST_NOT} branches)
+         *         via a {@link QueryVisitor}. If any sub-query is costly to build a scorer for
+         *         (point ranges, multi-term wrappers — see {@link #isCostlyToBuildScorer}), pick
+         *         {@link PartitioningStrategy#SEGMENT}; else {@link PartitioningStrategy#DOC}.
          *     </li>
          * </ul>
          */
         private static PartitioningStrategy highSpeedAutoStrategy(Query query) {
             Query unwrapped = unwrapQuery(query);
             log.trace("highSpeedAutoStrategy {} {}", query, unwrapped);
-            return switch (unwrapped) {
-                case BooleanQuery bq -> highSpeedAutoStrategyForBoolean(bq);
-                case MatchAllDocsQuery q -> DOC;
-                case MatchNoDocsQuery q -> SHARD;
-                case IndexOrDocValuesQuery q -> highSpeedAutoStrategy(q.getIndexQuery());
-                default -> costlyToBuildScorer(unwrapped) ? SEGMENT : DOC;
-            };
+            if (unwrapped instanceof MatchAllDocsQuery) {
+                return DOC;
+            }
+            if (unwrapped instanceof MatchNoDocsQuery) {
+                return SHARD;
+            }
+            return containsCostlyClause(query) ? SEGMENT : DOC;
+        }
+
+        /**
+         * Walk the full query tree and return {@code true} if any sub-query is costly to build a
+         * scorer for. Uses a {@link QueryVisitor}, so this handles arbitrary nesting:
+         * {@code BooleanQuery} (incl. {@code MUST_NOT} clauses), {@code IndexOrDocValuesQuery},
+         * {@code DisjunctionMaxQuery}, and any other compound structure that Lucene knows how to
+         * walk via {@link Query#visit}.
+         */
+        static boolean containsCostlyClause(Query query) {
+            boolean[] found = { false };
+            query.visit(new QueryVisitor() {
+                @Override
+                public void consumeTerms(Query q, Term... terms) {
+                    if (isCostlyToBuildScorer(q)) {
+                        found[0] = true;
+                    }
+                }
+
+                @Override
+                public void consumeTermsMatching(Query q, String field, Supplier<ByteRunAutomaton> automaton) {
+                    if (isCostlyToBuildScorer(q)) {
+                        found[0] = true;
+                    }
+                }
+
+                @Override
+                public void visitLeaf(Query q) {
+                    if (isCostlyToBuildScorer(q)) {
+                        found[0] = true;
+                    }
+                }
+
+                @Override
+                public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                    if (isCostlyToBuildScorer(parent)) {
+                        found[0] = true;
+                    }
+                    // Visit every branch including MUST_NOT — a costly negated clause still has to be
+                    // resolved at scorer-build time, so it should still steer us to SEGMENT.
+                    return this;
+                }
+            });
+            return found[0];
         }
 
         // copied from UsageTrackingQueryCachingPolicy
-        private static boolean costlyToBuildScorer(Query query) {
+        static boolean isCostlyToBuildScorer(Query query) {
             if (query instanceof MultiTermQuery || query instanceof PointRangeQuery || query instanceof PointInSetQuery) {
                 return true;
             }
@@ -200,19 +258,6 @@ public class LuceneSourceOperator extends LuceneOperator {
                 }
             }
         }
-
-        /**
-         * Select the {@link PartitioningStrategy} for a {@link BooleanQuery}.
-         */
-        private static PartitioningStrategy highSpeedAutoStrategyForBoolean(BooleanQuery query) {
-            for (BooleanClause c : query) {
-                var strategy = highSpeedAutoStrategy(c.query());
-                if (strategy != DOC) {
-                    return strategy;
-                }
-            }
-            return DOC;
-        }
     }
 
     @SuppressWarnings("this-escape")
@@ -223,16 +268,16 @@ public class LuceneSourceOperator extends LuceneOperator {
         LuceneSliceQueue sliceQueue,
         int limit,
         Limiter limiter,
-        boolean needsScore
+        boolean needsScore,
+        LongSupplier directoryBytesRead
     ) {
-        super(refCounteds, blockFactory, maxPageSize, sliceQueue);
+        super(refCounteds, blockFactory, maxPageSize, sliceQueue, directoryBytesRead);
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
         this.limiter = limiter;
         int estimatedSize = Math.min(limit, maxPageSize);
         boolean success = false;
         try {
-            this.docsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
             if (needsScore) {
                 scoreBuilder = blockFactory.newDoubleVectorBuilder(estimatedSize);
                 this.leafCollector = new ScoringCollector();
@@ -240,6 +285,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 scoreBuilder = null;
                 this.leafCollector = new LimitingCollector();
             }
+            this.docIdsPool = new IntArrayPool(blockFactory.breaker());
             success = true;
         } finally {
             if (success == false) {
@@ -256,8 +302,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         public void collect(int doc) throws IOException {
             if (remainingDocs > 0) {
                 --remainingDocs;
-                docsBuilder.appendInt(doc);
-                currentPagePos++;
+                docIds[currentPagePos++] = doc;
             } else {
                 throw new CollectionTerminatedException();
             }
@@ -300,6 +345,9 @@ public class LuceneSourceOperator extends LuceneOperator {
             if (scorer == null) {
                 return null;
             }
+            if (docIds == null) {
+                docIds = docIdsPool.getOrAllocate(maxPageSize);
+            }
             final int remainingDocsStart = remainingDocs = limiter.remaining();
             try {
                 scorer.scoreNextRange(
@@ -329,8 +377,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                     int shardId = scorer.shardContext().index();
                     shard = blockFactory.newConstantIntVector(shardId, currentPagePos);
                     leaf = blockFactory.newConstantIntVector(scorer.leafReaderContext().ord, currentPagePos);
-                    docs = buildDocsVector(currentPagePos);
-                    docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
+                    docs = buildDocsVector();
                     int b = 0;
                     blocks[b++] = new DocVector(refCounteds, shard, leaf, docs, DocVector.config().singleSegmentNonDecreasing(true))
                         .asBlock();
@@ -357,20 +404,13 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
     }
 
-    private IntVector buildDocsVector(int upToPositions) {
-        final IntVector docs = docsBuilder.build();
-        assert docs.getPositionCount() >= upToPositions : docs.getPositionCount() + " < " + upToPositions;
-        if (docs.getPositionCount() == upToPositions) {
-            return docs;
-        }
-        try (docs) {
-            try (var slice = blockFactory.newIntVectorFixedBuilder(upToPositions)) {
-                for (int i = 0; i < upToPositions; i++) {
-                    slice.appendInt(docs.getInt(i));
-                }
-                return slice.build();
-            }
-        }
+    private IntVector buildDocsVector() {
+        final var docIds = this.docIds;
+        this.docIds = null;
+        final var arrayPool = this.docIdsPool; // avoid holding reference to this
+        final IntVector docs = blockFactory.newIntArrayVector(docIds, currentPagePos);
+        docs.attachReleasable(() -> arrayPool.put(docIds));
+        return docs;
     }
 
     private DoubleVector buildScoresVector(int upToPositions) {
@@ -402,11 +442,47 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @Override
     public void additionalClose() {
-        Releasables.close(docsBuilder, scoreBuilder);
+        Releasables.close(scoreBuilder, docIdsPool);
     }
 
     @Override
     protected void describe(StringBuilder sb) {
         sb.append(", remainingDocs = ").append(remainingDocs);
+    }
+
+    private static class IntArrayPool implements Releasable {
+        private int[] pool;
+        private long usedBytes;
+        private final CircuitBreaker breaker;
+
+        IntArrayPool(CircuitBreaker breaker) {
+            this.breaker = breaker;
+        }
+
+        int[] getOrAllocate(int size) {
+            int[] arr = this.pool;
+            this.pool = null;
+            if (arr == null || arr.length < size) {
+                final long newBytes = RamUsageEstimator.alignObjectSize(
+                    (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Integer.BYTES * size
+                );
+                if (newBytes > usedBytes) {
+                    breaker.addEstimateBytesAndMaybeBreak(newBytes - usedBytes, "int[]");
+                    usedBytes = newBytes;
+                }
+                arr = new int[size];
+            }
+            return arr;
+        }
+
+        void put(int[] arr) {
+            // the pool can be tolerated with races, where we just allocate a new array
+            this.pool = arr;
+        }
+
+        @Override
+        public void close() {
+            breaker.addWithoutBreaking(-usedBytes);
+        }
     }
 }

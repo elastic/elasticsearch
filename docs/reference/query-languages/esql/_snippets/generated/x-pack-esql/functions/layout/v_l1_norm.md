@@ -4,6 +4,10 @@
 stack: preview 9.3.0, ga 9.4.0
 ```
 
+
+:::{include} ../briefSummary/v_l1_norm.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/v_l1_norm.svg

@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -43,7 +44,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         .filter(DataType::isRepresentable)
         .filter(t -> t != DataType.DOC_DATA_TYPE)
         .filter(t -> t != DataType.TSID_DATA_TYPE)
-        .filter(t -> t != DataType.DATE_RANGE) // TODO(pr/133309): implement
+        .filter(t -> t != DataType.DATE_RANGE || EsqlCapabilities.Cap.CASE_DATE_RANGE.isEnabled())
         .toList();
 
     /**

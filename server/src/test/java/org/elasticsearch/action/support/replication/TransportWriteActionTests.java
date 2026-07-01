@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -23,7 +24,9 @@ import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -34,10 +37,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -46,15 +52,24 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -65,20 +80,26 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -91,8 +112,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportWriteActionTests extends ESTestCase {
-
     private static ThreadPool threadPool;
+    private static ThreadPool writeThreadPool;
 
     private final ProjectId projectId = randomProjectIdOrDefault();
     private ClusterService clusterService;
@@ -101,6 +122,7 @@ public class TransportWriteActionTests extends ESTestCase {
     @BeforeClass
     public static void beforeClass() {
         threadPool = new TestThreadPool("ShardReplicationTests");
+        writeThreadPool = new TestThreadPool("CancellableTransportWriteAction");
     }
 
     @Before
@@ -123,7 +145,9 @@ public class TransportWriteActionTests extends ESTestCase {
     @AfterClass
     public static void afterClass() {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        ThreadPool.terminate(writeThreadPool, 10, TimeUnit.SECONDS);
         threadPool = null;
+        writeThreadPool = null;
     }
 
     <T> void assertListenerThrows(String msg, PlainActionFuture<T> listener, Class<?> klass) throws InterruptedException {
@@ -139,7 +163,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.NONE); // The default, but we'll set it anyway just to be explicit
         TestAction testAction = new TestAction();
-        testAction.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
+        testAction.shardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
             result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
             assertNotNull(listener.response);
@@ -154,7 +178,7 @@ public class TransportWriteActionTests extends ESTestCase {
         request.setRefreshPolicy(RefreshPolicy.NONE); // The default, but we'll set it anyway just to be explicit
         TestAction testAction = new TestAction();
         final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = new PlainActionFuture<>();
-        testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
+        testAction.shardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<ActionResponse.Empty> listener = new CapturingActionListener<>();
         result.runPostReplicaActions(listener.map(ignore -> ActionResponse.Empty.INSTANCE));
@@ -168,7 +192,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         TestAction testAction = new TestAction();
-        testAction.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
+        testAction.shardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
             result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
 
@@ -193,7 +217,7 @@ public class TransportWriteActionTests extends ESTestCase {
         request.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         TestAction testAction = new TestAction();
         final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = new PlainActionFuture<>();
-        testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
+        testAction.shardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<ActionResponse.Empty> listener = new CapturingActionListener<>();
         result.runPostReplicaActions(listener.map(ignore -> ActionResponse.Empty.INSTANCE));
@@ -213,7 +237,7 @@ public class TransportWriteActionTests extends ESTestCase {
         request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
 
         TestAction testAction = new TestAction();
-        testAction.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
+        testAction.shardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
             result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
             assertNull(listener.response); // Haven't really responded yet
@@ -240,7 +264,7 @@ public class TransportWriteActionTests extends ESTestCase {
         request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         TestAction testAction = new TestAction();
         final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = new PlainActionFuture<>();
-        testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
+        testAction.shardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<ActionResponse.Empty> listener = new CapturingActionListener<>();
         result.runPostReplicaActions(listener.map(ignore -> ActionResponse.Empty.INSTANCE));
@@ -259,7 +283,7 @@ public class TransportWriteActionTests extends ESTestCase {
 
     public void testDocumentFailureInShardOperationOnPrimary() {
         final var listener = SubscribableListener.<Exception>newForked(
-            l -> new TestAction(true, randomBoolean()).dispatchedShardOperationOnPrimary(
+            l -> new TestAction(true, randomBoolean()).shardOperationOnPrimary(
                 new TestRequest(),
                 indexShard,
                 ActionTestUtils.assertNoSuccessListener(l::onResponse)
@@ -273,7 +297,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         TestAction testAction = new TestAction(randomBoolean(), true);
         final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = new PlainActionFuture<>();
-        testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
+        testAction.shardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<ActionResponse.Empty> listener = new CapturingActionListener<>();
         result.runPostReplicaActions(listener.map(ignore -> ActionResponse.Empty.INSTANCE));
@@ -300,7 +324,8 @@ public class TransportWriteActionTests extends ESTestCase {
             transportService,
             clusterService,
             shardStateAction,
-            threadPool
+            threadPool,
+            (service, ignore) -> EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
@@ -398,8 +423,184 @@ public class TransportWriteActionTests extends ESTestCase {
         }
     }
 
-    private class TestAction extends TransportWriteAction<TestRequest, TestRequest, TestResponse> {
+    @TestLogging(
+        value = "org.elasticsearch.action.support.replication.TransportWriteActionTests.TestCancellableAction:DEBUG",
+        reason = "capture cancellation diagnostics in MockLog"
+    )
+    public void testCancelTransportWriteAction() throws InterruptedException {
+        AtomicInteger taskSubmitted = new AtomicInteger(0);
+        AtomicInteger taskExecuted = new AtomicInteger(0);
+        AtomicBoolean blockOnSubmit = new AtomicBoolean(false);
+        CountDownLatch waitForCancellation = new CountDownLatch(1);
+        EsThreadPoolExecutor testExecutor = new PrioritizedEsThreadPoolExecutor(
+            "CancellableTransportWriteActionTest",
+            1,
+            1,
+            0L,
+            TimeUnit.MILLISECONDS,
+            daemonThreadFactory(Settings.EMPTY, "write_thread"),
+            writeThreadPool.getThreadContext(),
+            writeThreadPool.scheduler()
+        ) {
+            @Override
+            protected void beforeExecute(Thread t, Runnable r) {
+                taskSubmitted.incrementAndGet();
+                if (blockOnSubmit.get()) {
+                    try {
+                        if (waitForCancellation.await(2, TimeUnit.SECONDS) == false) {
+                            fail("timed out waiting for cancellation");
+                        }
+                    } catch (InterruptedException e) {
+                        fail(e);
+                    }
+                }
+                super.beforeExecute(t, r);
+            }
+        };
 
+        var currentState = clusterService.state();
+        setState(
+            clusterService,
+            ClusterState.builder(currentState)
+                .metadata(
+                    Metadata.builder(currentState.metadata())
+                        .put(
+                            ProjectMetadata.builder(projectId)
+                                .put(
+                                    IndexMetadata.builder("test")
+                                        .settings(
+                                            Settings.builder()
+                                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                                .put(IndexMetadata.SETTING_INDEX_UUID, "test")
+                                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                                        )
+                                        .build(),
+                                    false
+                                )
+                        )
+                )
+                .build()
+        );
+
+        var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        TestCancellableAction testAction = new TestCancellableAction(
+            Settings.EMPTY,
+            "internal:test",
+            new TransportService(
+                Settings.EMPTY,
+                mock(Transport.class),
+                TransportWriteActionTests.threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                x -> null,
+                null,
+                Collections.emptySet()
+            ),
+            TransportWriteActionTests.this.clusterService,
+            null,
+            TransportWriteActionTests.threadPool,
+            (service, ignore) -> testExecutor,
+            taskExecuted
+        );
+
+        // Pre-submission cancellation: task cancelled before handlePrimaryRequest dispatches to executor
+        TestRequest request = new TestRequest();
+        CancellableTask task = (CancellableTask) taskManager.register(randomIdentifier(), randomIdentifier(), request);
+        taskManager.cancel(task, "test", () -> {});
+
+        PlainActionFuture<TestResponse> preSubmissionFuture = new PlainActionFuture<>();
+        try (var mockLog = MockLog.capture(TestCancellableAction.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Pre Submission Cancellation",
+                    TestCancellableAction.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "is cancelled pre-submission."
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "No Post Submission Cancellation",
+                    TestCancellableAction.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "is cancelled post-submission."
+                )
+            );
+
+            testAction.handlePrimaryRequest(
+                new TransportReplicationAction.ConcreteShardRequest<>(request, "dummy-allocation-id", 1L),
+                createChannel(preSubmissionFuture),
+                task
+            );
+
+            mockLog.assertAllExpectationsMatched();
+            assertThat("task must not reach the executor", taskSubmitted.get(), is(0));
+            assertThat(taskExecuted.get(), is(0));
+            assertListenerThrows("expected cancellation", preSubmissionFuture, TaskCancelledException.class);
+        }
+
+        // Post-submission cancellation: task cancelled after dispatch to executor but before doRun executes
+        request = new TestRequest();
+        task = (CancellableTask) taskManager.register(randomIdentifier(), randomIdentifier(), request);
+        blockOnSubmit.set(true);
+
+        PlainActionFuture<TestResponse> postSubmissionFuture = new PlainActionFuture<>();
+        try (var mockLog = MockLog.capture(TestCancellableAction.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Post Submission Cancellation",
+                    TestCancellableAction.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "is cancelled post-submission."
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "No Pre Submission Cancellation",
+                    TestCancellableAction.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "is cancelled pre-submission."
+                )
+            );
+
+            testAction.handlePrimaryRequest(
+                new TransportReplicationAction.ConcreteShardRequest<>(request, "dummy-allocation-id", 1L),
+                createChannel(postSubmissionFuture),
+                task
+            );
+            // Cancel while the task is queued in the executor waiting on the latch
+            taskManager.cancel(task, "test", () -> {});
+            waitForCancellation.countDown();
+
+            mockLog.awaitAllExpectationsMatched();
+            assertThat("task must have been submitted to executor", taskSubmitted.get(), is(1));
+            assertThat(taskExecuted.get(), is(0));
+            assertListenerThrows("expected cancellation", postSubmissionFuture, TaskCancelledException.class);
+        }
+
+        testExecutor.shutdown();
+    }
+
+    private TransportChannel createChannel(PlainActionFuture<TestResponse> future) {
+        return new TransportChannel() {
+            @Override
+            public String getProfileName() {
+                return "";
+            }
+
+            @Override
+            public void sendResponse(TransportResponse response) {
+                future.onResponse((TestResponse) response);
+            }
+
+            @Override
+            public void sendResponse(Exception exception) {
+                future.onFailure(exception);
+            }
+        };
+    }
+
+    private class TestAction extends TransportWriteAction<TestRequest, TestRequest, TestResponse> {
         private final boolean withDocumentFailureOnPrimary;
         private final boolean withDocumentFailureOnReplica;
 
@@ -446,7 +647,8 @@ public class TransportWriteActionTests extends ESTestCase {
             TransportService transportService,
             ClusterService clusterService,
             ShardStateAction shardStateAction,
-            ThreadPool threadPool
+            ThreadPool threadPool,
+            BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction
         ) {
             super(
                 settings,
@@ -459,7 +661,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 new ActionFilters(new HashSet<>()),
                 TestRequest::new,
                 TestRequest::new,
-                (service, ignore) -> EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                executorFunction,
                 PrimaryActionExecution.RejectOnOverload,
                 new IndexingPressure(settings),
                 EmptySystemIndices.INSTANCE,
@@ -476,7 +678,7 @@ public class TransportWriteActionTests extends ESTestCase {
         }
 
         @Override
-        protected void dispatchedShardOperationOnPrimary(
+        protected void shardOperationOnPrimary(
             TestRequest request,
             IndexShard primary,
             ActionListener<PrimaryResult<TestRequest, TestResponse>> listener
@@ -498,7 +700,7 @@ public class TransportWriteActionTests extends ESTestCase {
         }
 
         @Override
-        protected void dispatchedShardOperationOnReplica(TestRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+        protected void shardOperationOnReplica(TestRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
             ActionListener.completeWith(listener, () -> {
                 final WriteReplicaResult<TestRequest> replicaResult;
                 if (withDocumentFailureOnReplica) {
@@ -508,6 +710,34 @@ public class TransportWriteActionTests extends ESTestCase {
                 }
                 return replicaResult;
             });
+        }
+    }
+
+    public class TestCancellableAction extends TestAction {
+        private AtomicInteger taskExecuted;
+
+        protected TestCancellableAction(
+            Settings settings,
+            String actionName,
+            TransportService transportService,
+            ClusterService clusterService,
+            ShardStateAction shardStateAction,
+            ThreadPool threadPool,
+            BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction,
+            AtomicInteger taskExecuted
+        ) {
+            super(settings, actionName, transportService, clusterService, shardStateAction, threadPool, executorFunction);
+            this.taskExecuted = taskExecuted;
+        }
+
+        @Override
+        protected void shardOperationOnPrimary(
+            TestRequest request,
+            IndexShard primary,
+            ActionListener<PrimaryResult<TestRequest, TestResponse>> listener
+        ) {
+            taskExecuted.incrementAndGet();
+            super.shardOperationOnPrimary(request, primary, listener);
         }
     }
 
@@ -556,7 +786,7 @@ public class TransportWriteActionTests extends ESTestCase {
             count.incrementAndGet();
             callback.onResponse(count::decrementAndGet);
             return null;
-        }).when(indexShard).acquirePrimaryOperationPermit(anyActionListener(), any(Executor.class), any());
+        }).when(indexShard).acquirePrimaryOperationPermit(anyActionListener(), any(Executor.class), anyBoolean());
         doAnswer(invocation -> {
             long term = (Long) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")

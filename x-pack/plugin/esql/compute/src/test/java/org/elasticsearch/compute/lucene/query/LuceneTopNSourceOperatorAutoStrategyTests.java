@@ -18,13 +18,13 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.search.DocValueFormat;
@@ -108,7 +108,7 @@ public class LuceneTopNSourceOperatorAutoStrategyTests extends ESTestCase {
     public void testKeywordSortScanDominantPicksDoc() throws IOException {
         ShardContext ctx = context(null, null);
         // kw has no points, no congruent index sort, and a MatchAll cost (NUM_DOCS) above the threshold.
-        assertThat(pick(ctx, new MatchAllDocsQuery(), "kw", 1), equalTo(DOC));
+        assertThat(pick(ctx, Queries.ALL_DOCS_INSTANCE, "kw", 1), equalTo(DOC));
     }
 
     // --- pickStrategy: points-indexed sort field -> SEGMENT ---
@@ -116,7 +116,7 @@ public class LuceneTopNSourceOperatorAutoStrategyTests extends ESTestCase {
     public void testPointsSortFieldPicksSegment() throws IOException {
         ShardContext ctx = context(null, null);
         // num has a points index -> the sort prunes via the BKD tree, DOC would break it.
-        assertThat(pick(ctx, new MatchAllDocsQuery(), "num", 1), equalTo(SEGMENT));
+        assertThat(pick(ctx, Queries.ALL_DOCS_INSTANCE, "num", 1), equalTo(SEGMENT));
     }
 
     // --- pickStrategy: sort congruent with the index sort -> SEGMENT ---
@@ -125,7 +125,7 @@ public class LuceneTopNSourceOperatorAutoStrategyTests extends ESTestCase {
         Sort sort = new Sort(new SortField("kw", SortField.Type.STRING));
         ShardContext ctx = context(sort, sortAndFormats(sort));
         // kw has no points, but the search sort equals the index sort -> Lucene early-terminates.
-        assertThat(pick(ctx, new MatchAllDocsQuery(), "kw", 1), equalTo(SEGMENT));
+        assertThat(pick(ctx, Queries.ALL_DOCS_INSTANCE, "kw", 1), equalTo(SEGMENT));
     }
 
     public void testSortNotCongruentWithIndexSortPicksDoc() throws IOException {
@@ -133,7 +133,7 @@ public class LuceneTopNSourceOperatorAutoStrategyTests extends ESTestCase {
         // Index sorted by kw, but the query sorts by a different (reverse) order -> not congruent.
         Sort searchSort = new Sort(new SortField("kw", SortField.Type.STRING, true));
         ShardContext ctx = context(indexSort, sortAndFormats(searchSort));
-        assertThat(pick(ctx, new MatchAllDocsQuery(), "kw", 1), equalTo(DOC));
+        assertThat(pick(ctx, Queries.ALL_DOCS_INSTANCE, "kw", 1), equalTo(DOC));
     }
 
     // --- pickStrategy: low-cost query -> SEGMENT ---
@@ -148,7 +148,7 @@ public class LuceneTopNSourceOperatorAutoStrategyTests extends ESTestCase {
     public void testHighCostQueryPicksDoc() throws IOException {
         ShardContext ctx = context(null, null);
         // MatchAll matches every doc; above the (tiny) threshold -> DOC.
-        assertThat(pick(ctx, new MatchAllDocsQuery(), "kw", NUM_DOCS / 2), equalTo(DOC));
+        assertThat(pick(ctx, Queries.ALL_DOCS_INSTANCE, "kw", NUM_DOCS / 2), equalTo(DOC));
     }
 
     // --- autoStrategy wrapper: _score and non-field sorts -> SEGMENT ---
@@ -187,6 +187,6 @@ public class LuceneTopNSourceOperatorAutoStrategyTests extends ESTestCase {
     }
 
     private static Query query() {
-        return new MatchAllDocsQuery();
+        return Queries.ALL_DOCS_INSTANCE;
     }
 }

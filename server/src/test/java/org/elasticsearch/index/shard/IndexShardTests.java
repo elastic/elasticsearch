@@ -3746,7 +3746,7 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardRecoveryNotCancellableException.class,
             () -> target.requestRecoveryCancellation(cause)
         );
-        assertThat(e.getMessage(), containsString("unable to direct cancel recovery for shard"));
+        assertThat(e.getMessage(), containsString("Unable to direct cancel recovery for shard"));
 
         proceedWithDone.countDown();
         safeJoin(recoveryThread);

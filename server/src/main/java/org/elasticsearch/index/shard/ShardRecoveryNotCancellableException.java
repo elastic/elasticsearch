@@ -15,6 +15,6 @@ package org.elasticsearch.index.shard;
 public class ShardRecoveryNotCancellableException extends Exception {
 
     public ShardRecoveryNotCancellableException(ShardId shardId, String reason) {
-        super("unable to direct cancel recovery for shard " + shardId + " for reason: " + reason);
+        super("Unable to direct cancel recovery for shard " + shardId + " for reason: " + reason);
     }
 }

@@ -29,7 +29,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
-import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
+import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -128,7 +128,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
                 newRouting,
                 IndexShardTestCase.NOOP_GCP_SYNCER,
                 RetentionLeaseSyncer.EMPTY,
-                new CompositeRecoverySchedulingListener()
+                RecoverySchedulingListener.NOOP
             );
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(5, counter.get());
@@ -180,7 +180,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
                 newRouting,
                 IndexShardTestCase.NOOP_GCP_SYNCER,
                 RetentionLeaseSyncer.EMPTY,
-                new CompositeRecoverySchedulingListener()
+                RecoverySchedulingListener.NOOP
             );
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();

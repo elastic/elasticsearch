@@ -72,7 +72,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         throttlingRecoveryService = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
             clusterService,
-            new CompositeRecoverySchedulingListener()
+            RecoverySchedulingListener.NOOP
         );
         action = new TransportCancelRecoveriesAction(
             MockUtils.setupTransportServiceWithThreadpoolExecutor(),

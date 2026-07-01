@@ -2013,8 +2013,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /// Requests cancellation of a recovery that is not yet completed.
     ///
     /// In `CREATED` state the flag is stored and checked when the recovery begins.
-    /// In `RECOVERING` state, `StoreRecovery` checks via [#ensureRecoveryNotCancelled] at phase boundaries for
-    /// non-PEER recoveries. For PEER recoveries the flag is checked immediately after [#markAsRecovering].
+    /// In `RECOVERING` state, `StoreRecovery` checks via [#ensureRecoveryNotCancelled] at phase boundaries for on-PEER
+    /// recoveries. For PEER recoveries the flag is checked immediately after [#markAsRecovering].
     /// To cancel an active PEER recovery transfer, use [RecoveriesCollection#directCancelRecovery] instead.
     ///
     /// @throws IndexShardNotRecoveringException if the shard is not in `CREATED` or `RECOVERING` state
@@ -2053,15 +2053,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /// Must only be called from within the active recovery sequence [StoreRecovery] phase boundaries (non-PEER
     /// recoveries). On throw, invokes the [RecoverySchedulingListener] (which may increment the relevant cancellation
     /// metrics). Callers must not call this method again after it has thrown, to avoid double-counting the
-    /// cancellation. They should instead let the exception propagate up the call stack, or to catch it solely to
-    /// forward it unchanged (e.g. via `onFailure`).
+    /// cancellation. They should instead let the exception propagate up the call stack, or catch it to forward it unchanged
+    /// or wrapped (preserving it as the cause), e.g. via `onFailure`.
     public void ensureRecoveryNotCancelled() throws RecoveryCancelledException {
-        final var recoveryState = recoveryState();
-        assert recoveryState != null : "ensureRecoveryNotCancelled should only be called while recovery is active";
-        assert recoveryState.getRecoverySource() != null : "recovery source should not be null";
+        final RecoveryState currentRecoveryState = recoveryState;
+        assert currentRecoveryState != null : "ensureRecoveryNotCancelled should only be called while recovery is active";
+        assert currentRecoveryState.getRecoverySource() != null : "recovery source should not be null";
         final RecoveryCancelledException cancellation = recoveryCancellationRequest;
         if (cancellation != null) {
-            recoverySchedulingListener.onStartedRecoveryCancelled(recoveryState.getRecoverySource().getType(), RecoveryRole.TARGET);
+            recoverySchedulingListener.onStartedRecoveryCancelled(currentRecoveryState.getRecoverySource().getType(), RecoveryRole.TARGET);
             throw cancellation;
         }
     }

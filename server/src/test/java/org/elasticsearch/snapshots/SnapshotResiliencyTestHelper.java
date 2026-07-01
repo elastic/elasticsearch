@@ -127,6 +127,7 @@ import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
+import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
@@ -650,11 +651,7 @@ public class SnapshotResiliencyTestHelper {
                 );
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
 
-                throttlingRecoveryService = new ThrottlingRecoveryService(
-                    threadPool,
-                    clusterService,
-                    new CompositeRecoverySchedulingListener()
-                );
+                throttlingRecoveryService = new ThrottlingRecoveryService(threadPool, clusterService, RecoverySchedulingListener.NOOP);
 
                 indicesService = new IndicesServiceBuilder().settings(settings)
                     .pluginsService(pluginsService)
@@ -712,7 +709,7 @@ public class SnapshotResiliencyTestHelper {
                     recoverySettings,
                     clusterService,
                     snapshotFilesProvider,
-                    new CompositeRecoverySchedulingListener()
+                    RecoverySchedulingListener.NOOP
                 );
 
                 final ActionFilters actionFilters = new ActionFilters(emptySet());

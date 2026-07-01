@@ -150,7 +150,12 @@ final class RequestXContent {
     }
 
     private static <T> void declareRootAlias(ObjectParser<EsqlQueryRequest, ?> parser, QuerySettingDef<T> def, String aliasName) {
-        parser.declareField((p, request, c) -> request.set(def, def.readFromJson(p)), new ParseField(aliasName), VALUE_OBJECT_ARRAY);
+        parser.declareField((p, request, c) -> {
+            // Deprecation warns on every surface a setting can arrive — including this legacy top-level alias,
+            // which is where the BWC-aliased settings are most commonly supplied.
+            QuerySettings.warnIfDeprecated(def);
+            request.set(def, def.readFromJson(p));
+        }, new ParseField(aliasName), VALUE_OBJECT_ARRAY);
     }
 
     private static void parseSettingsObject(XContentParser p, EsqlQueryRequest request) throws IOException {
@@ -185,6 +190,8 @@ final class RequestXContent {
             try {
                 value = def.readFromJson(p);
             } catch (IOException e) {
+                // Propagate low-level parse/IO failures unwrapped; only reader-thrown validation errors below
+                // get turned into a friendly "Failed to parse value" message.
                 throw e;
             } catch (Exception e) {
                 throw new XContentParseException(

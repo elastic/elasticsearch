@@ -240,7 +240,8 @@ public class Configuration implements Writeable {
     private static ResolvedSettings synthesizeResolvedFromLegacy(ZoneId zoneId, @Nullable ApproximationSettings approximation) {
         ResolvedSettings result = ResolvedSettings.EMPTY;
         if (zoneId != null) {
-            result = result.withOverride(QuerySettings.TIME_ZONE, zoneId.normalized());
+            // withOverride canonicalizes (TIME_ZONE normalizes), so no explicit .normalized() is needed here.
+            result = result.withOverride(QuerySettings.TIME_ZONE, zoneId);
         }
         if (approximation != null) {
             result = result.withOverride(QuerySettings.APPROXIMATION, approximation);

@@ -48,7 +48,9 @@ public final class ResolvedSettings implements Writeable {
             if (def != null) {
                 StreamInput valueIn = valueBytes.streamInput();
                 valueIn.setTransportVersion(in.getTransportVersion());
-                v.put(def, def.readValue(valueIn));
+                // Canonicalize on read too, so all three construction paths (resolve, withOverride, wire-read)
+                // store one shape — a peer that wrote before a canonicalizer existed can't smuggle in an odd form.
+                v.put(def, def.canonicalize(def.readValue(valueIn)));
             }
         }
         this.values = Map.copyOf(v);

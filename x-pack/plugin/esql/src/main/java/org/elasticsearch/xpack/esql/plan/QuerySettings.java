@@ -197,11 +197,10 @@ public final class QuerySettings {
 
     private static ZoneId parseZoneId(String tz) {
         try {
-            // Normalize so a fixed-offset zone (e.g. "UTC", "+00:00", "Z") collapses to its ZoneOffset. This preserves
-            // the behavior Configuration had before settings moved into ResolvedSettings (it always called
-            // zi.normalized()): downstream code such as Kql/QueryString option emission compares against
-            // ZoneOffset.UTC, and cross-node configs must compare equal whether built fresh or synthesized from a
-            // legacy wire frame. Non-fixed zones (e.g. "Europe/Madrid") are returned unchanged.
+            // Normalize so a fixed-offset zone (e.g. "UTC", "+00:00", "Z") collapses to its ZoneOffset. TIME_ZONE's
+            // canonicalizer normalizes again on every write into a resolved view; this call normalizes the value at
+            // the request level, before resolution, so the top-level-vs-settings{} duplicate check compares canonical
+            // forms ("UTC" and "Z" are the same zone). Non-fixed zones (e.g. "Europe/Madrid") are returned unchanged.
             return ZoneId.of(tz).normalized();
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid time zone [" + tz + "]");
@@ -336,7 +335,7 @@ public final class QuerySettings {
     }
 
     /**
-     * The registered settings whose names match the supplied snapshot/serverless environment.
+     * The registered settings whose availability matches the supplied snapshot/serverless environment.
      */
     public static List<QuerySettingDef<?>> applicableIn(boolean isSnapshot, boolean isServerless) {
         List<QuerySettingDef<?>> out = new ArrayList<>();

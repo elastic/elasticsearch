@@ -400,7 +400,7 @@ public final class QuerySettingDef<T> {
 
         /**
          * Deployment marker for serverless-only settings. Unlike {@link #withSnapshotOnly()} this is NOT a
-         * parse/resolve gate — it only drives telemetry/docs ({@link QuerySettings#applicableIn}). A serverless-only
+         * parse/resolve gate — it only drives telemetry ({@link QuerySettings#applicableIn}). A serverless-only
          * setting that must be hard-rejected on a stateful cluster enforces that through its {@link #withValidator}
          * (as {@code project_routing} does via its cross-project check).
          */

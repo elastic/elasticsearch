@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
@@ -458,6 +460,8 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
      */
     private TranslationResult translateNode(LogicalPlan node, LogicalPlan currentPlan, TranslationContext ctx) {
         return switch (node) {
+            case AcrossSeriesAggregate agg when agg.definition().functionType() == FunctionType.ACROSS_SERIES_REDUCTION ->
+                translateAcrossSeriesReduction(agg, currentPlan, ctx);
             case AcrossSeriesAggregate agg -> translateAcrossSeriesAggregate(agg, currentPlan, ctx);
             case HistogramQuantile histogramQuantile -> translateHistogramQuantile(histogramQuantile, currentPlan, ctx);
             case ScalarConversionFunction scalar -> translateScalarConversion(scalar, currentPlan, ctx);
@@ -520,7 +524,53 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         return new TranslationResult(resultPlan, getValueOutput(resultPlan), childResult.pendingFilter(), synthesizedAttributes);
     }
 
+    private TranslationResult translateAcrossSeriesReduction(AcrossSeriesAggregate agg, LogicalPlan currentPlan, TranslationContext ctx) {
+        if (agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT) {
+            throw new VerificationException("PromQL function [{}] does not yet support [without]", agg.functionName());
+        }
+        TranslationResult aggregated = translateAcrossSeriesAggregate(agg, currentPlan, ctx);
+        if (aggregated.constFolded()) {
+            return aggregated;
+        }
+        LogicalPlan wrapped = wrapWithTopNBy(agg, aggregated.plan(), ctx);
+        return new TranslationResult(wrapped, getValueOutput(wrapped), aggregated.pendingFilter(), aggregated.synthesizedAttributes());
+    }
+
+    /**
+     * Ranks the already-collapsed per-series rows and keeps the top {@code k} within the query's step - and, for
+     * {@code by}, within each partition of the demanded labels, resolved against what the collapse actually
+     * produced (see {@link #getSynthesizedAttributes}'s passthrough demand).
+     */
+    private static LogicalPlan wrapWithTopNBy(AcrossSeriesAggregate agg, LogicalPlan resultPlan, TranslationContext ctx) {
+        Expression value = getValueOutput(resultPlan);
+        var groupings = new ArrayList<Expression>();
+        groupings.add(ctx.stepAttr());
+        if (agg.grouping() == AcrossSeriesAggregate.Grouping.BY) {
+            for (Attribute label : agg.groupings()) {
+                Attribute resolved = findAttributeByLabelName(resultPlan.output(), canonicalName(label));
+                groupings.add(resolved != null ? resolved : label);
+            }
+        }
+        var order = List.of(new Order(agg.source(), value, Order.OrderDirection.DESC, Order.NullsPosition.LAST));
+        Expression k = new ToInteger(agg.source(), agg.parameters().getFirst());
+        return new TopNBy(agg.source(), resultPlan, order, k, groupings);
+    }
+
+    /**
+     * Order-statistic functions ({@code topk}) rank and select whole series rather than reducing them, so - unlike
+     * every other {@code AcrossSeriesAggregate} - their grouping must NOT fold down to concrete labels the way a
+     * reducing aggregate's would: doing so would collapse the very rows {@code topk} needs to rank among before
+     * {@link #wrapWithTopNBy} ever gets a chance to run. They therefore always synthesize the full identity, exactly
+     * as an empty {@code without ()} would. A {@code by} clause additionally demands its labels as passthrough
+     * columns (see {@link SynthesizedAttributes#keep}) so {@link #wrapWithTopNBy} can partition the
+     * ranking by them without narrowing the identity (only {@code by}/{@code none} reach here -
+     * {@link #translateAcrossSeriesReduction} rejects {@code without} before this runs).
+     */
     private static SynthesizedAttributes getSynthesizedAttributes(AcrossSeriesAggregate agg, TranslationResult childResult) {
+        if (agg.definition().functionType() == FunctionType.ACROSS_SERIES_REDUCTION) {
+            var identity = SynthesizedAttributes.foldExcluding(List.of(), childResult.synthesizedAttributes());
+            return agg.grouping() == AcrossSeriesAggregate.Grouping.BY ? identity.keep(agg.groupings()) : identity;
+        }
         return switch (agg.grouping()) {
             case BY -> SynthesizedAttributes.foldIncluding(agg.output(), childResult.synthesizedAttributes());
             case WITHOUT -> SynthesizedAttributes.foldExcluding(agg.groupings(), childResult.synthesizedAttributes());
@@ -528,7 +578,11 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         };
     }
 
+    /** See {@link #getSynthesizedAttributes}: order-statistic functions never narrow what the child must produce. */
     private static InheritedAttributes getInheritedAttributes(AcrossSeriesAggregate agg, TranslationContext ctx) {
+        if (agg.definition().functionType() == FunctionType.ACROSS_SERIES_REDUCTION) {
+            return InheritedAttributes.unconstrained();
+        }
         return switch (agg.grouping()) {
             case BY -> ctx.inheritedAttributes().limitedTo(agg.groupings());
             case WITHOUT -> ctx.inheritedAttributes().excluding(agg.groupings());
@@ -1057,6 +1111,17 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             }
         }
 
+        // Order-statistic functions (topk) demand specific labels resolved as concrete columns alongside the full
+        // `_timeseries` identity, so a `by` clause can partition the ranking without narrowing away the identity the
+        // winning series need to keep. Added as plain grouping/aggregate attributes, same as the
+        // `translation.groupings()` loop above: TranslateTimeSeriesAggregate applies the DimensionValues/pack/unpack
+        // treatment to any plain-attribute grouping key generically - it must not be pre-wrapped here, or it becomes
+        // a disallowed nested aggregate. See SynthesizedAttributes#withPassthrough.
+        for (Attribute label : translation.passthrough()) {
+            groupings.add(label);
+            aggregates.add(label);
+        }
+
         return new TimeSeriesAggregate(source, plan, groupings, aggregates, null, ctx.time(), TimeSeriesAggregate.Origin.PROMQL_COMMAND);
     }
 
@@ -1297,9 +1362,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
     private static boolean canCreateStepBucket(PromqlCommand cmd) {
         if (cmd.timestamp() == null || cmd.timestamp().resolved() == false) {
-            if (cmd.isRangeQuery() && cmd.buckets() != null && cmd.buckets().value() != null) {
-                return false;
-            }
+            return !cmd.isRangeQuery() || cmd.buckets() == null || cmd.buckets().value() == null;
         }
         return true;
     }

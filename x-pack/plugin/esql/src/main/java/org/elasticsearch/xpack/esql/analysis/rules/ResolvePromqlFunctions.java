@@ -115,7 +115,8 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
 
         AcrossSeriesAggregate.Grouping grouping = unresolved.grouping();
         if (grouping != null) {
-            if (metadata.functionType() != FunctionType.ACROSS_SERIES_AGGREGATION) {
+            if (metadata.functionType() != FunctionType.ACROSS_SERIES_AGGREGATION
+                && metadata.functionType() != FunctionType.ACROSS_SERIES_REDUCTION) {
                 throw new VerificationException(
                     List.of(
                         Failure.fail(
@@ -131,7 +132,7 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
         }
 
         return switch (metadata.functionType()) {
-            case ACROSS_SERIES_AGGREGATION -> new AcrossSeriesAggregate(
+            case ACROSS_SERIES_AGGREGATION, ACROSS_SERIES_REDUCTION -> new AcrossSeriesAggregate(
                 unresolved.source(),
                 child,
                 metadata,

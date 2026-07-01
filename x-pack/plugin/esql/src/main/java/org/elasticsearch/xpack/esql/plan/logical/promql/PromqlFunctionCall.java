@@ -131,6 +131,6 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
 
     @Override
     public final PromqlDataType returnType() {
-        return functionType().outputType();
+        return functionType().outputType;
     }
 }

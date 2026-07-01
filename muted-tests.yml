@@ -815,3 +815,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.PatternTextRollingUpgradeIT
   method: testIndexing
   issue: https://github.com/elastic/elasticsearch/issues/152652
+- class: org.elasticsearch.xpack.logsdb.MatchOnlyTextRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/152653

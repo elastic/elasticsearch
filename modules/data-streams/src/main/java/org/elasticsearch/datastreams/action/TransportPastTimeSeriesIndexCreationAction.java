@@ -416,6 +416,15 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                     continue;
                 }
 
+                /*
+                  Determining the new index time boundaries
+                  - If the gap between the previous and next indices could be covered by a single index, we use these boundaries
+                  - Otherwise, we jump backwards steps of size `indexIntervalMillis` from the next index's start time until we
+                    find the time window that would cover our new timestamp. For example, we try to cover timestamp 2026-06-17T02:02:02Z
+                    in a data stream that has one index [2026-06-19T09:12:00Z, 2026-06-21T14:34:02Z); the algorithm will jump 2
+                    time windows [2026-06-18T09:12:00Z, 2026-06-19TT09:12:00Z), [2026-06-17T09:12:00Z, 2026-06-18TT09:12:00Z), and
+                    it will create [2026-06-16T09:12:00Z, 2026-06-17TT09:12:00Z).
+                 */
                 long indexStart;
                 long indexEnd;
                 if (previousIndex != null
@@ -424,9 +433,8 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                     indexEnd = nextIndex.start();
                 } else {
                     // Jump backward in interval-sized windows anchored to nextIndex.start().
-                    // k is the zero-based slot index counting back from nextIndex: slot 0 = [next-D, next), slot 1 = [next-2D, next-D), …
-                    long k = (nextIndex.start() - ts - 1) / indexIntervalMillis;
-                    indexEnd = nextIndex.start() - k * indexIntervalMillis;
+                    long numberOfJumps = (nextIndex.start() - ts - 1) / indexIntervalMillis;
+                    indexEnd = nextIndex.start() - numberOfJumps * indexIntervalMillis;
                     indexStart = indexEnd - indexIntervalMillis;
                     if (previousIndex != null) {
                         indexStart = Math.max(indexStart, previousIndex.end());

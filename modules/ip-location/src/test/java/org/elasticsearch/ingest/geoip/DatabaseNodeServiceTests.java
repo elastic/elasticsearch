@@ -186,6 +186,9 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     private ClusterService clusterService;
     private ProjectId projectId;
     private ProjectResolver projectResolver;
+    // Backs the eager-download supplier handed to DatabaseNodeService; toggled per-test. Defaults to false so
+    // existing tests keep exercising the consumer-gated retrieval path.
+    private volatile boolean eagerDownload = false;
 
     private final Collection<Releasable> toRelease = new CopyOnWriteArrayList<>();
 
@@ -220,7 +223,8 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             configDatabases,
             Runnable::run,
             clusterService,
-            projectResolver
+            projectResolver,
+            () -> eagerDownload
         );
         databaseNodeService.initialize("nodeId", resourceWatcherService);
     }
@@ -298,6 +302,60 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.toList(), empty());
         }
+    }
+
+    /**
+     * With {@code ingest.geoip.downloader.eager.download} enabled, an ingest-capable node must retrieve and load
+     * downloaded databases locally even when no {@link IpLocationConsumer} is registered (i.e. before any geoip
+     * pipeline exists).
+     */
+    public void testCheckDatabases_eagerDownloadRetrievesOnIngestNodeWithoutConsumer() throws Exception {
+        String databaseName = "GeoIP2-City.mmdb";
+        String md5 = mockSearches(databaseName, 5, 14);
+        PersistentTasksCustomMetadata tasksCustomMetadata = geoIpDownloaderTask(
+            projectId,
+            databaseName,
+            new GeoIpTaskState.Metadata(10, 5, 14, md5, System.currentTimeMillis())
+        );
+
+        // No IpLocationDownloadConsumers custom at all: without eager downloading nothing would be retrieved.
+        ClusterState state = createClusterState(projectId, tasksCustomMetadata);
+
+        // Precondition: eager off + no consumer -> the node does not retrieve the database.
+        databaseNodeService.checkDatabases(state);
+        assertThat(databaseNodeService.getDatabaseReaderLazyLoader(projectId, databaseName), nullValue());
+        verify(projectClient, never()).search(any());
+
+        // Eager download makes the ingest-capable node retrieve and load the database even without a registered consumer.
+        eagerDownload = true;
+        databaseNodeService.checkDatabases(state);
+        assertThat(databaseNodeService.getDatabaseReaderLazyLoader(projectId, databaseName), notNullValue());
+        verify(projectClient, times(CHUNKS_PER_DATABASE)).search(any());
+    }
+
+    /**
+     * Eager downloading only warms ingest-capable nodes. A master-only node must not retrieve databases even
+     * with {@code eager.download} enabled, since it never runs ingest pipelines.
+     */
+    public void testCheckDatabases_eagerDownloadDoesNotRetrieveOnMasterOnlyNode() throws Exception {
+        String databaseName = "GeoIP2-City.mmdb";
+        String md5 = mockSearches(databaseName, 5, 14);
+        PersistentTasksCustomMetadata tasksCustomMetadata = geoIpDownloaderTask(
+            projectId,
+            databaseName,
+            new GeoIpTaskState.Metadata(10, 5, 14, md5, System.currentTimeMillis())
+        );
+
+        DiscoveryNodes masterOnlyNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("_id1").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build())
+            .localNodeId("_id1")
+            .build();
+        ClusterState state = createClusterState(projectId, tasksCustomMetadata, masterOnlyNodes, null);
+
+        eagerDownload = true;
+        databaseNodeService.checkDatabases(state);
+        assertThat(databaseNodeService.getDatabaseReaderLazyLoader(projectId, databaseName), nullValue());
+        verify(projectClient, never()).search(any());
     }
 
     public void testCheckDatabases_dontCheckDatabaseWhenNoDatabasesIndex() throws Exception {

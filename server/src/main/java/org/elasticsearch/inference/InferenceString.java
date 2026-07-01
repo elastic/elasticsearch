@@ -41,8 +41,8 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     private static final Pattern DATA_URI_PATTERN = Pattern.compile("^data:.*/.*;base64,");
 
     public static final String TYPE_FIELD = "type";
-    static final String FORMAT_FIELD = "format";
-    static final String VALUE_FIELD = "value";
+    public static final String FORMAT_FIELD = "format";
+    public static final String VALUE_FIELD = "value";
 
     public static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
         InferenceString.class.getSimpleName(),

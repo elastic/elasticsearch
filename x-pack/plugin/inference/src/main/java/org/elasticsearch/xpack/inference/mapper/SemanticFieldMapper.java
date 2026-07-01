@@ -30,8 +30,10 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.BinaryDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
+import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -45,6 +47,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -58,6 +61,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
@@ -543,8 +547,8 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                     chunkingSettings.getValue(),
                     indexOptions.getValue(),
                     inferenceField,
-                    // the semantic field's columnar source support is added in a follow-up, so it does not store its input yet
-                    false,
+                    // the semantic field always stores its input in doc values (written and read only under synthetic source or columnar)
+                    true,
                     meta.getValue()
                 ),
                 builderParams,
@@ -676,18 +680,91 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
     }
 
     @Override
+    protected boolean supportsParsingObject() {
+        // A semantic value can be an object (an InferenceString, e.g. a base64 data URI image), so the field parses it itself rather
+        // than have it flattened into dotted sub-fields under subobjects:false (which columnar index modes use).
+        return true;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        // Value parsing is handled by parseCreateFieldFromContext
-        context.parser().skipChildren();
+        // The inference results are parsed separately (via parseCreateFieldFromContext); here we only persist the field's original
+        // input value(s) so that _source can be rebuilt from doc values in synthetic-source and columnar indices.
+        if (storeOriginalValueForSyntheticSource(context) == false) {
+            context.parser().skipChildren();
+        }
+    }
+
+    /**
+     * Stores the current field value in the internal binary doc values store when {@code _source} is reconstructed from doc values.
+     * Returns {@code true} if the value was consumed (and stored), {@code false} if the caller should handle the value itself.
+     */
+    private boolean storeOriginalValueForSyntheticSource(DocumentParserContext context) throws IOException {
+        if (storesOriginalValuesInDocValues() == false) {
+            return false;
+        }
+        if (context.mappingLookup().isSourceSynthetic() == false && context.mappingLookup().isSourceColumnarStored() == false) {
+            return false;
+        }
+        final XContentParser parser = context.parser();
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return false;
+        }
+        // A semantic value is either raw text or an InferenceString object (e.g. a base64 data URI image). Parse the object directly
+        // from the token stream (the document parser does not support map()).
+        final Object value = parser.currentToken() == XContentParser.Token.START_OBJECT
+            ? InferenceString.PARSER.parse(parser, null)
+            : parser.text();
+        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+            context.doc(),
+            SemanticTextField.getOriginalValuesFieldName(fullPath()),
+            SemanticOriginalValueEncoder.encode(value),
+            MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED,
+            indexCreatedVersion
+        );
+        return true;
     }
 
     /**
      * Whether this field stores its original input value(s) in an internal binary doc values store rather than {@code _source}.
-     * The {@code semantic} field does not yet - its columnar source support is added in a follow-up; {@code semantic_text} overrides
-     * this to gate on the index version.
+     * The base {@code semantic} field always does; the value is only written and read under synthetic source or columnar.
+     * Subclasses override this to gate on the index version when older indices kept the input in {@code _source}, as
+     * {@code semantic_text} does.
      */
     protected boolean storesOriginalValuesInDocValues() {
-        return false;
+        return true;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (storesOriginalValuesInDocValues()) {
+            // _source is rebuilt from a single loader over the original input column only. The field's internal inference sub-fields
+            // (the inference object, chunks, embeddings, offsets) are sub-mappers exposed via iterator() - like multi-fields, they are
+            // not object-tree children, so synthetic source never reconstructs them into _source (_inference_fields is added
+            // separately at fetch). columnar_stored runs this same loader at ingest, so it omits them identically.
+            final String fieldName = SemanticTextField.getOriginalValuesFieldName(fullPath());
+            return new SyntheticSourceSupport.Native(
+                () -> new CompositeSyntheticFieldLoader(
+                    leafName(),
+                    fullPath(),
+                    new BinaryDocValuesSyntheticFieldLoaderLayer(fieldName, indexCreatedVersion) {
+                        @Override
+                        protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                            writeOriginalValue(b, value);
+                        }
+                    }
+                )
+            );
+        }
+        return super.syntheticSourceSupport();
+    }
+
+    /**
+     * Writes a single stored original value back to {@code _source} when it is rebuilt from doc values. The base {@code semantic} field
+     * decodes the encoder's binary form (text or a data URI object); {@code semantic_text} overrides this to write its raw UTF-8 input.
+     */
+    protected void writeOriginalValue(XContentBuilder b, BytesRef value) throws IOException {
+        SemanticOriginalValueEncoder.decodeAndWrite(value, b);
     }
 
     protected SemanticTextField.ParserContext getParserContext(DocumentParserContext context) {
@@ -975,9 +1052,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
         /** Decodes a value stored in the binary doc-values store into its {@code _source} form; {@code semantic} uses the encoder. */
         protected CheckedFunction<BytesRef, Object, IOException> inputDecoder() {
-            // semantic_text overrides this with its UTF-8 decoder; the semantic field does not store its input in doc values yet
-            // (its columnar source support, with the binary decoder, is added in a follow-up), so this must never be reached.
-            throw new UnsupportedOperationException("the semantic field does not store its original input in doc values yet");
+            return SemanticOriginalValueEncoder::decode;
         }
 
         protected ValueFetcher valueFetcher(MappedFieldType.BlockLoaderContext blContext) {

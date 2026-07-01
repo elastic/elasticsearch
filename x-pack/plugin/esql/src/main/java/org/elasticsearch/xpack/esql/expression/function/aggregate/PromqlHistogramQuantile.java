@@ -52,7 +52,9 @@ public class PromqlHistogramQuantile extends AggregateFunction implements ToAggr
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .histogramBinary(PromqlFunctionDefinition.QUANTILE, (source, target, ctx, extraParams) -> {
             if (target.resolved() == false || target.dataType().isHistogram() == false) {
-                throw new IllegalStateException("histogram_quantile for classic histograms should have a special handling in the planner");
+                throw new IllegalStateException(
+                    "histogram_quantile for classic histograms should have been replaced with PromqlHistogramQuantile by the planner"
+                );
             }
 
             Expression quantile = extraParams.getFirst();

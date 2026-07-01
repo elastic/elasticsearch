@@ -110,13 +110,8 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
     }
 
     static DatasetMapping randomMapping() {
-        DatasetMapping.Mappings mappings = randomBoolean() ? null : randomMappings();
-        String idField = randomBoolean() ? null : randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
-        // assemble() returns null when everything is absent; force at least one piece so we always get a mapping
-        if (mappings == null && idField == null) {
-            mappings = randomMappings();
-        }
-        return DatasetMapping.assemble(mappings, idField);
+        // assemble() returns null when mappings is absent; always produce a mappings block so we get a non-null mapping.
+        return DatasetMapping.assemble(randomMappings());
     }
 
     private static DatasetMapping.Mappings randomMappings() {
@@ -129,7 +124,8 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
             properties.put("col_" + i, new DatasetFieldMapping(type, path));
         }
         Boolean sourceEnabled = randomBoolean() ? null : randomBoolean();
-        return new DatasetMapping.Mappings(dynamic, properties, sourceEnabled);
+        String idPath = randomBoolean() ? null : randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        return new DatasetMapping.Mappings(dynamic, properties, sourceEnabled, idPath);
     }
 
     private static Map<String, Object> randomSettings() {
@@ -282,7 +278,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
         Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("when", new DatasetFieldMapping("date", "ts"));
         properties.put("status", new DatasetFieldMapping("integer", null));
-        var mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), "request_id");
+        var mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties, null, "request_id"));
         var dataset = new Dataset(
             "access_logs",
             new DataSourceReference("my-s3"),
@@ -300,16 +296,15 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
         assertEquals(dataset, deserialized);
         assertEquals(DatasetMapping.Dynamic.FALSE, deserialized.mapping().mappings().dynamic());
         assertEquals("ts", deserialized.mapping().mappings().properties().get("when").path());
-        assertEquals("request_id", deserialized.mapping().idField());
+        assertEquals("request_id", deserialized.mapping().mappings().idPath());
     }
 
-    public void testXContentRoundTripRoleOnlyNoMappings() throws IOException {
-        // id_field with no mappings block — the orthogonality case (works under inference)
-        var mapping = new DatasetMapping(null, "request_id");
+    public void testXContentRoundTripIdPathOnlyNoProperties() throws IOException {
+        // _id.path with an otherwise-empty mappings block — the id-source is a meta-field, so it rides a mappings wrapper.
+        var mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of(), null, "request_id"));
         var dataset = new Dataset("events", new DataSourceReference("s3"), "s3://b/*.ndjson", null, Map.of(), mapping);
         assertExplicitXContentRoundTrip(dataset);
-        assertNull(dataset.mapping().mappings());
-        assertEquals("request_id", dataset.mapping().idField());
+        assertEquals("request_id", dataset.mapping().mappings().idPath());
     }
 
     private void assertExplicitXContentRoundTrip(Dataset dataset) throws IOException {

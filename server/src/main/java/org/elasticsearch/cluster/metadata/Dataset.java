@@ -52,7 +52,6 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
     private static final ParseField DESCRIPTION = new ParseField("description");
     private static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField MAPPINGS = new ParseField("mappings");
-    private static final ParseField ID_FIELD = new ParseField("id_field");
 
     /** Gates the optional {@link DatasetMapping} (declared mapping + role designations) on the wire. */
     private static final TransportVersion DATASET_DECLARED_SCHEMA = TransportVersion.fromName("dataset_declared_schema");
@@ -67,7 +66,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
             (String) args[2],
             (String) args[3],
             args[4] != null ? (Map<String, Object>) args[4] : Map.of(),
-            DatasetMapping.assemble((DatasetMapping.Mappings) args[5], (String) args[6])
+            DatasetMapping.assemble((DatasetMapping.Mappings) args[5])
         )
     );
 
@@ -80,9 +79,8 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         PARSER.declareString(ConstructingObjectParser.constructorArg(), RESOURCE);
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
-        // Declared mapping: an optional `mappings` block plus the orthogonal top-level `id_field` role.
+        // Declared mapping: an optional `mappings` block (columns + the `_source`/`_id` meta-fields).
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DatasetMapping.parseMappings(p), MAPPINGS);
-        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), ID_FIELD);
     }
 
     private final String name;

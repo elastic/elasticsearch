@@ -260,7 +260,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", null));
         properties.put("name", new DatasetFieldMapping("keyword", null));
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), null);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
         assertAcked(
             client().execute(
@@ -302,7 +302,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         // declared type override AND the inferred remainder.
         java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("emp_no", new DatasetFieldMapping("long", null));
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties), null);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
         assertAcked(
             client().execute(
@@ -343,7 +343,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", "emp_no"));
         properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), null);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
         assertAcked(
             client().execute(
@@ -382,7 +382,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         // Non-strict declaration that renames emp_no -> id (and retypes to LONG); first_name is left to inference.
         java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", "emp_no"));
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties), null);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
         assertAcked(
             client().execute(
@@ -420,7 +420,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         // the base relation, so both columns carry the same value and the read path is untouched.
         java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("emp_no", new DatasetFieldMapping("long", null, "emp_copy"));
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties), null);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
         assertAcked(
             client().execute(
@@ -465,7 +465,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", "emp_no"));
         properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), null);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
         assertAcked(
             client().execute(
@@ -503,7 +503,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", "emp_no"));
         properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), null);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
         assertAcked(
             client().execute(
@@ -542,7 +542,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         // Non-strict over NDJSON: emp_no renamed to id (retyped LONG); first_name inferred and read by its own JSON key.
         java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", "emp_no"));
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties), null);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
         assertAcked(
             client().execute(
@@ -578,7 +578,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("emp_no", new DatasetFieldMapping("integer", null));
         // _source.enabled: false -> METADATA _source must be rejected, not returned as a silently-null column.
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties, false), null);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties, false));
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
@@ -686,7 +686,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("emp_no", new DatasetFieldMapping("keyword", "first_name")); // emp_no <- physical first_name (text)
         properties.put("first_name", new DatasetFieldMapping("long", "emp_no"));     // first_name <- physical emp_no (num)
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties), null);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
@@ -703,10 +703,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             )
         );
         try (
-            var response = run(
-                syncEsqlQueryRequest("FROM employees_swap | SORT first_name | KEEP emp_no, first_name | LIMIT 10"),
-                TIMEOUT
-            )
+            var response = run(syncEsqlQueryRequest("FROM employees_swap | SORT first_name | KEEP emp_no, first_name | LIMIT 10"), TIMEOUT)
         ) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
@@ -722,7 +719,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         // copy_to a LIST of targets: emp_no is copied to both emp_a and emp_b (one EVAL alias per target).
         java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("emp_no", new DatasetFieldMapping("long", null, java.util.List.of("emp_a", "emp_b")));
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties), null);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
@@ -763,7 +760,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         // it passes; the query must reject rather than let the EVAL silently overwrite first_name with a copy of emp_no.
         java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("emp_no", new DatasetFieldMapping("long", null, "first_name")); // target == an inferred column
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties), null);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
@@ -796,7 +793,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", "emp_no"));
         properties.put("comp", new DatasetFieldMapping("integer", "salary", "comp2")); // move salary->comp, copy to comp2
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), null);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
@@ -837,7 +834,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
         properties.put("comp", new DatasetFieldMapping("integer", "salary"));
         properties.put("dept_code", new DatasetFieldMapping("keyword", "dept.code")); // flattened nested path
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), null);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
@@ -938,7 +935,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", null));
         properties.put("name", new DatasetFieldMapping("keyword", null));
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), null);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
@@ -975,7 +972,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
         properties.put("emp_no", new DatasetFieldMapping("long", null)); // retype only; first_name inferred
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties), null);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,

@@ -623,9 +623,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                             "keyword",
                             randomBoolean() ? null : randomAlphaOfLength(4)
                         )
-                    )
-                ),
-                randomBoolean() ? null : randomAlphaOfLength(5)
+                    ),
+                    randomBoolean() ? null : randomBoolean(),
+                    randomBoolean() ? null : randomAlphaOfLength(5)
+                )
             );
         }
 

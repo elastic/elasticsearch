@@ -82,27 +82,36 @@ public final class DatasetMapping implements Writeable {
      *                      rows. {@code null} means unset — the default ({@code true}, source available). Mirrors the
      *                      core {@code _source} mapping's {@code enabled}, restricted to the read-applicable knob.
      */
-    public record Mappings(Dynamic dynamic, Map<String, DatasetFieldMapping> properties, @Nullable Boolean sourceEnabled)
-        implements
-            Writeable {
+    public record Mappings(
+        Dynamic dynamic,
+        Map<String, DatasetFieldMapping> properties,
+        @Nullable Boolean sourceEnabled,
+        @Nullable String idPath
+    ) implements Writeable {
 
         public Mappings {
             Objects.requireNonNull(dynamic, "dynamic must not be null");
             properties = properties == null ? Map.of() : Collections.unmodifiableMap(properties);
         }
 
-        /** Back-compat convenience: a mappings block with no {@code _source} knob (source enabled by default). */
+        /** Convenience: a mappings block with no meta-field knobs ({@code _source}, {@code _id}). */
         public Mappings(Dynamic dynamic, Map<String, DatasetFieldMapping> properties) {
-            this(dynamic, properties, null);
+            this(dynamic, properties, null, null);
+        }
+
+        /** Convenience: a mappings block with a {@code _source} knob but no {@code _id.path}. */
+        public Mappings(Dynamic dynamic, Map<String, DatasetFieldMapping> properties, @Nullable Boolean sourceEnabled) {
+            this(dynamic, properties, sourceEnabled, null);
         }
 
         Mappings(StreamInput in) throws IOException {
             // The whole DatasetMapping is gated by the dataset_declared_schema transport version (see Dataset), which is
-            // unreleased — so every field, including _source.enabled, ships in that one version; no separate gate needed.
+            // unreleased — so every field (incl. _source.enabled and _id.path) ships in that one version; no separate gate.
             this(
                 in.readEnum(Dynamic.class),
                 in.readOrderedMap(StreamInput::readString, DatasetFieldMapping::new),
-                in.readOptionalBoolean()
+                in.readOptionalBoolean(),
+                in.readOptionalString()
             );
         }
 
@@ -111,6 +120,7 @@ public final class DatasetMapping implements Writeable {
             out.writeEnum(dynamic);
             out.writeMap(properties, (o, v) -> v.writeTo(o));
             out.writeOptionalBoolean(sourceEnabled);
+            out.writeOptionalString(idPath);
         }
 
         /** {@code _source.enabled} resolved to its effective value: {@code true} (available) unless explicitly disabled. */
@@ -123,48 +133,44 @@ public final class DatasetMapping implements Writeable {
     private static final String PROPERTIES = "properties";
     private static final String SOURCE = "_source";
     private static final String ENABLED = "enabled";
+    private static final String ID = "_id";
+    private static final String PATH = "path";
 
     @Nullable
     private final Mappings mappings;
-    @Nullable
-    private final String idField;
 
-    public DatasetMapping(@Nullable Mappings mappings, @Nullable String idField) {
+    public DatasetMapping(@Nullable Mappings mappings) {
         this.mappings = mappings;
-        this.idField = idField;
     }
 
     public DatasetMapping(StreamInput in) throws IOException {
         this.mappings = in.readOptionalWriteable(Mappings::new);
-        this.idField = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(mappings);
-        out.writeOptionalString(idField);
     }
 
     /**
-     * Builds a {@link DatasetMapping} from the parsed top-level pieces, or {@code null} when none are present (a
-     * dataset with no declared schema). Used by {@link Dataset#PARSER}. The timestamp is <b>not</b> a role here: a
-     * time axis is declared as an ordinary rename to {@code @timestamp} (e.g.
-     * {@code "@timestamp": {"type":"date","source":"ts"}}), which the stack recognizes by name — no designation.
+     * Builds a {@link DatasetMapping} from the parsed {@code mappings} block, or {@code null} when it is absent (a
+     * dataset with no declared schema). Used by {@link Dataset#PARSER}. All declaration surfaces — column
+     * {@code properties}, and the meta-fields {@code _source} and {@code _id} — live inside {@code mappings}, so a
+     * dataset that only sets, say, {@code _id.path} still needs a {@code mappings} wrapper (exactly as an index does
+     * for {@code _source.enabled}).
      */
     @Nullable
-    public static DatasetMapping assemble(@Nullable Mappings mappings, @Nullable String idField) {
-        if (mappings == null && idField == null) {
-            return null;
-        }
-        return new DatasetMapping(mappings, idField);
+    public static DatasetMapping assemble(@Nullable Mappings mappings) {
+        return mappings == null ? null : new DatasetMapping(mappings);
     }
 
-    /** Parses the {@code mappings} object ({@code dynamic} + {@code properties}) into a {@link Mappings}. */
+    /** Parses the {@code mappings} object ({@code dynamic}, {@code properties}, {@code _source}, {@code _id}). */
     public static Mappings parseMappings(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         Dynamic dynamic = Dynamic.TRUE;
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         Boolean sourceEnabled = null;
+        String idPath = null;
         String field = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -197,14 +203,29 @@ public final class DatasetMapping implements Writeable {
                         sourceEnabled = parser.booleanValue();
                     }
                 }
+            } else if (ID.equals(field)) {
+                // _id: { path: <column> } — the id-source column, a meta-field mirroring the index _id/alias path.
+                // Only [path] is supported (identity from a column); any other key is rejected.
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+                XContentParser.Token t;
+                while ((t = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (t == XContentParser.Token.FIELD_NAME) {
+                        String key = parser.currentName();
+                        if (PATH.equals(key) == false) {
+                            throw new IllegalArgumentException("unknown [_id] field [" + key + "]; only [path] is supported");
+                        }
+                    } else {
+                        idPath = parser.text();
+                    }
+                }
             } else {
                 throw new IllegalArgumentException("unknown mappings field [" + field + "]");
             }
         }
-        return new Mappings(dynamic, properties, sourceEnabled);
+        return new Mappings(dynamic, properties, sourceEnabled, idPath);
     }
 
-    /** Emits the flat {@code mappings}/{@code id_field} keys into an already-open dataset object. */
+    /** Emits the {@code mappings} block (incl. the {@code _source} and {@code _id} meta-fields) into an open dataset object. */
     public void toXContentFragment(XContentBuilder builder) throws IOException {
         if (mappings != null) {
             builder.startObject("mappings");
@@ -220,10 +241,10 @@ public final class DatasetMapping implements Writeable {
             if (mappings.sourceEnabled() != null) {
                 builder.startObject(SOURCE).field(ENABLED, mappings.sourceEnabled()).endObject();
             }
+            if (mappings.idPath() != null) {
+                builder.startObject(ID).field(PATH, mappings.idPath()).endObject();
+            }
             builder.endObject();
-        }
-        if (idField != null) {
-            builder.field("id_field", idField);
         }
     }
 
@@ -232,26 +253,21 @@ public final class DatasetMapping implements Writeable {
         return mappings;
     }
 
-    @Nullable
-    public String idField() {
-        return idField;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DatasetMapping that = (DatasetMapping) o;
-        return Objects.equals(mappings, that.mappings) && Objects.equals(idField, that.idField);
+        return Objects.equals(mappings, that.mappings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(mappings, idField);
+        return Objects.hash(mappings);
     }
 
     @Override
     public String toString() {
-        return "DatasetMapping[mappings=" + mappings + ", idField=" + idField + "]";
+        return "DatasetMapping[mappings=" + mappings + "]";
     }
 }

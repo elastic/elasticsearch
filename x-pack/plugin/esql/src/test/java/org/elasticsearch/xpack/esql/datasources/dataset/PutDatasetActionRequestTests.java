@@ -181,26 +181,22 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
         if (randomBoolean()) {
             return null;
         }
-        DatasetMapping.Mappings mappings = null;
-        if (randomBoolean()) {
-            Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
-            int n = between(0, 3);
-            for (int i = 0; i < n; i++) {
-                props.put(
-                    "c" + i,
-                    new DatasetFieldMapping(
-                        randomFrom("keyword", "long", "integer", "double", "boolean", "date"),
-                        randomBoolean() ? null : randomAlphaOfLength(4).toLowerCase(Locale.ROOT)
-                    )
-                );
-            }
-            mappings = new DatasetMapping.Mappings(randomFrom(DatasetMapping.Dynamic.values()), props);
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        int n = between(0, 3);
+        for (int i = 0; i < n; i++) {
+            props.put(
+                "c" + i,
+                new DatasetFieldMapping(
+                    randomFrom("keyword", "long", "integer", "double", "boolean", "date"),
+                    randomBoolean() ? null : randomAlphaOfLength(4).toLowerCase(Locale.ROOT)
+                )
+            );
         }
-        String id = randomBoolean() ? null : randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        if (mappings == null && id == null) {
-            id = "row_id";
-        }
-        return DatasetMapping.assemble(mappings, id);
+        String idPath = randomBoolean() ? null : randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        Boolean sourceEnabled = randomBoolean() ? null : randomBoolean();
+        return DatasetMapping.assemble(
+            new DatasetMapping.Mappings(randomFrom(DatasetMapping.Dynamic.values()), props, sourceEnabled, idPath)
+        );
     }
 
     private static Map<String, Object> randomSettings() {

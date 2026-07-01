@@ -27,7 +27,7 @@ import java.util.TreeSet;
  *   <li>every declared {@code type} resolves to a type the external readers can actually produce
  *       (the {@link #DECLARABLE_TYPES} whitelist — declaring {@code ip}/{@code geo_point}/etc. is rejected
  *       until the readers grow them);</li>
- *   <li>under strict mode ({@code dynamic: false}) the {@code id_field} must point at a declared column —
+ *   <li>under strict mode ({@code dynamic: false}) the {@code _id.path} column must be declared —
  *       nothing is inferred to satisfy it.</li>
  * </ul>
  *
@@ -87,7 +87,7 @@ public final class DeclaredSchemaValidator {
                 }
             }
             boolean strict = mappings.dynamic() == DatasetMapping.Dynamic.FALSE;
-            validateRole("id_field", mapping.idField(), mappings, strict);
+            validateRole("_id", mappings.idPath(), mappings, strict);
         }
     }
 

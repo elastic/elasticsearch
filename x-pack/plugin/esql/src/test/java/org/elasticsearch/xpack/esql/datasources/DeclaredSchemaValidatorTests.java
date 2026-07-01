@@ -19,8 +19,8 @@ import java.util.Map;
 
 public class DeclaredSchemaValidatorTests extends ESTestCase {
 
-    private static DatasetMapping mapping(Dynamic dynamic, Map<String, DatasetFieldMapping> props, String id) {
-        return new DatasetMapping(new Mappings(dynamic, props), id);
+    private static DatasetMapping mapping(Dynamic dynamic, Map<String, DatasetFieldMapping> props, String idPath) {
+        return new DatasetMapping(new Mappings(dynamic, props, null, idPath));
     }
 
     private static Map<String, DatasetFieldMapping> props(Object... pairs) {
@@ -40,7 +40,7 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
         // normal 1:1 move/read and the target is a new output column.
         Map<String, DatasetFieldMapping> copyTo = new LinkedHashMap<>();
         copyTo.put("ts", new DatasetFieldMapping("date", null, "@timestamp"));
-        DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, copyTo), null)); // no throw
+        DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, copyTo))); // no throw
     }
 
     public void testTwoSourcesOntoOnePhysicalRejected() {
@@ -50,7 +50,7 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
         sameSource.put("b", new DatasetFieldMapping("keyword", "x"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.FALSE, sameSource), null))
+            () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.FALSE, sameSource)))
         );
         assertTrue(e.getMessage(), e.getMessage().contains("physical column [x]"));
     }
@@ -62,7 +62,7 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
         clash.put("status", new DatasetFieldMapping("integer", null));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, clash), null))
+            () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, clash)))
         );
         assertTrue(e.getMessage(), e.getMessage().contains("copy_to target [status]"));
     }
@@ -72,7 +72,7 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
         // by-name readers). Only the type vocabulary is checked here.
         Map<String, DatasetFieldMapping> withRename = new LinkedHashMap<>();
         withRename.put("id", new DatasetFieldMapping("long", "emp_no"));
-        DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, withRename), null)); // no throw
+        DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, withRename))); // no throw
     }
 
     /**
@@ -117,17 +117,18 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> DeclaredSchemaValidator.validate(mapping(Dynamic.FALSE, props("a", "keyword"), "missing_id"))
         );
-        assertTrue(e.getMessage(), e.getMessage().contains("id_field"));
+        assertTrue(e.getMessage(), e.getMessage().contains("_id"));
         assertTrue(e.getMessage(), e.getMessage().contains("not declared"));
     }
 
     public void testNonStrictDefersUndeclaredRoleColumn() {
-        // id_field references a column not in properties — under non-strict it may come from inference, so PUT allows it.
+        // _id.path references a column not in properties — under non-strict it may come from inference, so PUT allows it.
         DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("a", "keyword"), "inferred_id"));
     }
 
-    public void testRoleOnlyNoMappingsIsValid() {
-        // id_field with no mappings block at all — orthogonal role designation, deferred to query time.
-        DeclaredSchemaValidator.validate(new DatasetMapping(null, "row_id"));
+    public void testIdPathWithNoPropertiesIsValid() {
+        // _id.path with an otherwise-empty mappings block (no properties) — non-strict, so the id column is deferred to
+        // query-time resolution. (The id-source is a meta-field inside mappings, so it always rides a mappings wrapper.)
+        DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of(), null, "row_id")));
     }
 }

@@ -109,15 +109,26 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
         }
     }
 
-    public void testAssembleReturnsNullWhenAllAbsent() {
-        assertNull(DatasetMapping.assemble(null, null));
+    public void testAssembleReturnsNullWhenMappingsAbsent() {
+        assertNull(DatasetMapping.assemble(null));
     }
 
-    public void testAssembleNonNullWithOnlyIdField() {
-        DatasetMapping mapping = DatasetMapping.assemble(null, "request_id");
-        assertNotNull(mapping);
-        assertNull(mapping.mappings());
-        assertEquals("request_id", mapping.idField());
+    public void testIdPathParsesAndDefaults() throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"dynamic\":\"true\",\"_id\":{\"path\":\"request_id\"}}")) {
+            parser.nextToken();
+            DatasetMapping.Mappings m = DatasetMapping.parseMappings(parser);
+            assertEquals("request_id", m.idPath());
+        }
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"dynamic\":\"true\"}")) {
+            parser.nextToken();
+            assertNull("absent _id leaves idPath unset", DatasetMapping.parseMappings(parser).idPath());
+        }
+        // Only [path] is supported under _id; other keys are rejected.
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"_id\":{\"type\":\"keyword\"}}")) {
+            parser.nextToken();
+            Exception e = expectThrows(Exception.class, () -> DatasetMapping.parseMappings(parser));
+            assertThat(e.getMessage(), containsString("_id"));
+        }
     }
 
     public void testDynamicRejectsUnknownValue() {
@@ -130,7 +141,7 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
         props.put("when", new DatasetFieldMapping("date", "ts"));
         props.put("amount", new DatasetFieldMapping("double", null));
         DatasetMapping.Mappings mappings = new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props);
-        DatasetMapping mapping = new DatasetMapping(mappings, null);
+        DatasetMapping mapping = new DatasetMapping(mappings);
         DatasetMapping copy = copyInstance(mapping);
         assertEquals(mapping, copy);
         assertEquals("ts", copy.mappings().properties().get("when").path());

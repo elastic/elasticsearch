@@ -54,7 +54,6 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         private static final ParseField DESCRIPTION = new ParseField("description");
         private static final ParseField SETTINGS = new ParseField("settings");
         private static final ParseField MAPPINGS = new ParseField("mappings");
-        private static final ParseField ID_FIELD = new ParseField("id_field");
 
         /** Gates the optional {@link DatasetMapping} on the request wire (mixed-version upgrade). */
         private static final TransportVersion DATASET_DECLARED_SCHEMA = TransportVersion.fromName("dataset_declared_schema");
@@ -73,7 +72,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
                 (String) args[1],
                 (String) args[2],
                 (Map<String, Object>) args[3],
-                DatasetMapping.assemble((DatasetMapping.Mappings) args[4], (String) args[5])
+                DatasetMapping.assemble((DatasetMapping.Mappings) args[4])
             )
         );
 
@@ -83,7 +82,6 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DatasetMapping.parseMappings(p), MAPPINGS);
-            PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), ID_FIELD);
         }
 
         public static Request fromXContent(XContentParser parser, TimeValue masterNodeTimeout, TimeValue ackTimeout, String name)

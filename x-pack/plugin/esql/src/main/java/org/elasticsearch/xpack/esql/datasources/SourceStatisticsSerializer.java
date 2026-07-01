@@ -44,7 +44,8 @@ public final class SourceStatisticsSerializer {
     /** Number of files matched by the glob pattern; useful for observability and debugging. */
     public static final String STATS_FILE_COUNT = "_stats.file_count";
     public static final String STATS_COL_PREFIX = "_stats.columns.";
-    // Package-private: the only off-class consumer is StatFolds, in this package.
+    // Package-private: consumed by the *Key helpers here and by SplitStats.of/toMap (the round-trip between the
+    // flat keys and the compact model), all within this package.
     static final String NULL_COUNT_SUFFIX = ".null_count";
     static final String VALUE_COUNT_SUFFIX = ".value_count";
     static final String MIN_SUFFIX = ".min";

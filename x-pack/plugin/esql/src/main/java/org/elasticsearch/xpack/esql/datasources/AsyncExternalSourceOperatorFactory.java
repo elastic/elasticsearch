@@ -171,6 +171,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     // at the last mile via PhysicalNames, so readers stay rename-agnostic. Empty when the dataset declares no rename.
     private final Map<String, String> renames;
     /**
+     * Declared {@code _id.path} (the logical name of the data column whose value supplies each row's {@code _id}), or
+     * {@code null} when the dataset declares no {@code mappings._id.path}. When set and {@code _id} is projected,
+     * {@link VirtualColumnIterator} stamps {@code _id} from that column instead of the synthetic (file+row-position)
+     * identity. Threaded to the iterator alongside {@code idPrefix}.
+     */
+    @Nullable
+    private final String idPath;
+    /**
      * File last-modified epoch-millis used to materialise {@code _version} on the single-file
      * producer paths ({@link #startSyncWrapperRead} / {@link #startNativeAsyncRead} /
      * {@link #consumePagesInBackground}). {@code null} when the caller did not supply an mtime
@@ -279,6 +287,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         Map<String, Object> partitionValues,
         @Nullable String datasetName,
         Map<String, String> renames,
+        @Nullable String idPath,
         @Nullable Long lastModifiedMillis,
         @Nullable BlockFactory producerBlockFactory,
         ExternalSliceQueue sliceQueue,
@@ -375,6 +384,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
         this.datasetName = datasetName;
         this.renames = renames == null ? Map.of() : renames;
+        this.idPath = idPath;
         this.lastModifiedMillis = lastModifiedMillis;
         this.producerBlockFactory = producerBlockFactory;
         this.sliceQueue = sliceQueue;
@@ -455,6 +465,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private String datasetName;
         private Map<String, String> renames = Map.of();
         @Nullable
+        private String idPath;
+        @Nullable
         private Long lastModifiedMillis;
         @Nullable
         private BlockFactory producerBlockFactory;
@@ -529,6 +541,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         /** Declared logical-&gt;physical column renames; applied to reader-facing names at the last mile. */
         public Builder renames(Map<String, String> renames) {
             this.renames = renames == null ? Map.of() : renames;
+            return this;
+        }
+
+        /**
+         * Declared {@code _id.path} (the logical name of the data column that supplies each row's {@code _id}), or
+         * {@code null} when the dataset declares no {@code mappings._id.path}. When set, {@link VirtualColumnIterator}
+         * stamps {@code _id} from that column instead of the synthetic (file+row-position) identity.
+         */
+        public Builder idPath(@Nullable String idPath) {
+            this.idPath = idPath;
             return this;
         }
 
@@ -643,6 +665,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 partitionValues,
                 datasetName,
                 renames,
+                idPath,
                 lastModifiedMillis,
                 producerBlockFactory,
                 sliceQueue,
@@ -927,7 +950,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             partitionColumnNames,
             partitionValuesForFile,
             producerBlockFactory(driverContext),
-            idPrefix
+            idPrefix,
+            idPath
         );
     }
 

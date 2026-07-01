@@ -97,7 +97,20 @@ public class ExternalSourceResolver {
      */
     public static final String CONFIG_DECLARED_RENAMES = "_declared_renames";
 
-    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_SCHEMA_RESOLUTION, DATASOURCE_CONFIG_KEY, CONFIG_DECLARED_RENAMES);
+    /**
+     * Config key carrying a declared mapping's {@code _id.path} (a single logical column name, {@code String}). Consumed
+     * on the data node by {@link VirtualColumnIterator}, which stamps each row's {@code _id} from that column's value
+     * instead of the synthetic (file+row-position) identity. Injected by {@code resolve} only when the mapping declares
+     * {@code mappings._id.path}; absent otherwise, in which case the synthetic {@code _id} path is used unchanged.
+     */
+    public static final String CONFIG_DECLARED_ID_PATH = "_declared_id_path";
+
+    public static final Set<String> CONFIG_KEYS = Set.of(
+        CONFIG_SCHEMA_RESOLUTION,
+        DATASOURCE_CONFIG_KEY,
+        CONFIG_DECLARED_RENAMES,
+        CONFIG_DECLARED_ID_PATH
+    );
 
     private static final int MAX_PARALLEL_METADATA_READS = 16;
 
@@ -291,6 +304,14 @@ public class ExternalSourceResolver {
                     if (renames.isEmpty() == false) {
                         config = new HashMap<>(config);
                         config.put(CONFIG_DECLARED_RENAMES, renames);
+                    }
+                    // Carry the declared _id.path (logical column name) so the data node stamps _id from that column
+                    // rather than the synthetic (file+row-position) identity. Consumed by VirtualColumnIterator.
+                    DatasetMapping.Mappings declaredMappings2 = declaredMapping == null ? null : declaredMapping.mappings();
+                    String idPath = declaredMappings2 == null ? null : declaredMappings2.idPath();
+                    if (idPath != null) {
+                        config = new HashMap<>(config);
+                        config.put(CONFIG_DECLARED_ID_PATH, idPath);
                     }
                     // null => legacy eager for every path; non-null => eager only for listed paths.
                     boolean requiresStats = pathsRequiringStats == null || pathsRequiringStats.contains(path);

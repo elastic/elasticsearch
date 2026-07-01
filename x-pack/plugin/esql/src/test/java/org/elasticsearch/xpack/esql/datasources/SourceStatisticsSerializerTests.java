@@ -258,6 +258,54 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         );
     }
 
+    /**
+     * Per-extremum independence: a fragment whose MIN is NaN (unmergeable) but whose MAX is finite must poison
+     * ONLY the min. The two extrema carry independent servability -- the max still serves. Characterization test
+     * pinning current behavior before the fold is refactored to carry servability as a compact-model bit.
+     */
+    public void testMergeStatisticsPoisonedMinLeavesMaxServable() {
+        Map<String, Object> nanMinFragment = new HashMap<>();
+        nanMinFragment.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+        nanMinFragment.put(SourceStatisticsSerializer.columnNullCountKey("v"), 0L);
+        nanMinFragment.put(SourceStatisticsSerializer.columnMinKey("v"), Double.NaN);
+        nanMinFragment.put(SourceStatisticsSerializer.columnMaxKey("v"), 8.0);
+
+        Map<String, Object> finiteFragment = new HashMap<>();
+        finiteFragment.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+        finiteFragment.put(SourceStatisticsSerializer.columnNullCountKey("v"), 0L);
+        finiteFragment.put(SourceStatisticsSerializer.columnMinKey("v"), 5.0);
+        finiteFragment.put(SourceStatisticsSerializer.columnMaxKey("v"), 9.0);
+
+        Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(List.of(nanMinFragment, finiteFragment), false);
+        assertNotNull(merged);
+        // MIN poisoned by the NaN operand -> value cleared, marker set.
+        assertNull("NaN min poisons the min value", merged.get(SourceStatisticsSerializer.columnMinKey("v")));
+        assertEquals(Boolean.TRUE, merged.get(SourceStatisticsSerializer.columnMinUnservableKey("v")));
+        // MAX folds independently (8.0, 9.0 both finite) -> serves 9.0, no marker.
+        assertEquals("max is independent of the poisoned min", 9.0, merged.get(SourceStatisticsSerializer.columnMaxKey("v")));
+        assertNull("max is NOT marked unservable", merged.get(SourceStatisticsSerializer.columnMaxUnservableKey("v")));
+        // COUNT-family unaffected by an extremum taint.
+        assertEquals(0L, merged.get(SourceStatisticsSerializer.columnNullCountKey("v")));
+    }
+
+    /**
+     * A summed size of zero is NOT emitted -- it matches the "no file reported a size" contract, so downstream
+     * reads it as unknown rather than a real zero-byte file. Characterization test for the zero-size cleanup branch.
+     */
+    public void testMergeStatisticsOmitsZeroTotalSize() {
+        Map<String, Object> a = new HashMap<>();
+        a.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+        a.put(SourceStatisticsSerializer.STATS_SIZE_BYTES, 0L);
+        Map<String, Object> b = new HashMap<>();
+        b.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 20L);
+        b.put(SourceStatisticsSerializer.STATS_SIZE_BYTES, 0L);
+
+        Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(List.of(a, b), false);
+        assertNotNull(merged);
+        assertEquals(30L, merged.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertFalse("a zero total size is not emitted", merged.containsKey(SourceStatisticsSerializer.STATS_SIZE_BYTES));
+    }
+
     public void testMergeStatisticsAddsImplicitNullsForAbsentColumns() {
         // File A: 100 rows, has bonus with 5 explicit nulls.
         Map<String, Object> a = new HashMap<>();

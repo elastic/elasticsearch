@@ -764,7 +764,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
 
     private static CountDownLatch shardCancelledFailureReceivedLatch(MockTransportService transportService, ShardId shardId) {
         final var shardFailureReceivedLatch = new CountDownLatch(1);
-        transportService.addRequestHandlingBehavior("internal:cluster/shard/failure", (handler, request, channel, task) -> {
+        transportService.addRequestHandlingBehavior(ShardStateAction.SHARD_FAILED_ACTION_NAME, (handler, request, channel, task) -> {
             if (request instanceof ShardStateAction.FailedShardEntry failedShard) {
                 if (failedShard.getShardId().equals(shardId)
                     && ExceptionsHelper.unwrap(failedShard.getFailure(), RecoveryCancelledException.class) != null) {

@@ -2013,7 +2013,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /// Requests cancellation of a recovery that is not yet completed.
     ///
     /// In `CREATED` state the flag is stored and checked when the recovery begins.
-    /// In `RECOVERING` state, `StoreRecovery` checks via [#ensureRecoveryNotCancelled] at phase boundaries for on-PEER
+    /// In `RECOVERING` state, `StoreRecovery` checks via [#ensureRecoveryNotCancelled] at phase boundaries for non-PEER
     /// recoveries. For PEER recoveries the flag is checked immediately after [#markAsRecovering].
     /// To cancel an active PEER recovery transfer, use [RecoveriesCollection#directCancelRecovery] instead.
     ///

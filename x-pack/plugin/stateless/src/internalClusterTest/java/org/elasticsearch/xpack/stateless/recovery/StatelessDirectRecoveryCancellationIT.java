@@ -83,6 +83,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(masterNode, shardId);
 
+        waitNoPendingTasksOnAll();
         final var clusterService = internalCluster().getInstance(ClusterService.class, targetNode);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
@@ -135,7 +136,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
     private static CountDownLatch shardCancelledFailureReceivedLatch(String node, ShardId shardId) {
         final var shardFailureReceivedLatch = new CountDownLatch(1);
         MockTransportService.getInstance(node)
-            .addRequestHandlingBehavior("internal:cluster/shard/failure", (handler, request, channel, task) -> {
+            .addRequestHandlingBehavior(ShardStateAction.SHARD_FAILED_ACTION_NAME, (handler, request, channel, task) -> {
                 if (request instanceof ShardStateAction.FailedShardEntry failedShard) {
                     if (failedShard.getShardId().equals(shardId)
                         && ExceptionsHelper.unwrap(failedShard.getFailure(), RecoveryCancelledException.class) != null) {

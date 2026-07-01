@@ -35,9 +35,9 @@ public class MatchOperator extends Match implements ConfigurationAware {
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
-        briefSummary = "Performs a match query on the specified field using the : operator.",
+        briefSummary = "Performs a match query on the specified field or expression using the : operator.",
         description = """
-            Use the match operator (`:`) to perform a <<query-dsl-match-query,match query>> on the specified field.
+            Use the match operator (`:`) to perform a <<query-dsl-match-query,match query>> on the specified field or expression.
             Using `:` is equivalent to using the `match` query in the Elasticsearch Query DSL.
 
             The match operator is equivalent to the <<esql-match,match function>>.
@@ -72,12 +72,12 @@ public class MatchOperator extends Match implements ConfigurationAware {
         @Param(
             name = "field",
             type = { "keyword", "text", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
-            description = "Field that the query will target."
+            description = "Field or expression that the query will target."
         ) Expression field,
         @Param(
             name = "query",
             type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
-            description = "Value to find in the provided field."
+            description = "Value to find in the provided field or expression."
         ) Expression matchQuery,
         Configuration configuration
     ) {

@@ -74,7 +74,7 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
             new ModelConfigurations(inferenceId, taskType, JinaAIService.NAME, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
-            serviceSettings.getCommonSettings(),
+            serviceSettings,
             Objects.requireNonNullElse(ServiceUtils.createOptionalUri(uri), buildUri("JinaAI", DEFAULT_URI_BUILDER::build))
         );
     }
@@ -90,7 +90,7 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
             config,
             secrets,
             (DefaultSecretSettings) secrets.getSecretSettings(),
-            ((BaseJinaAIEmbeddingsServiceSettings) config.getServiceSettings()).getCommonSettings(),
+            (BaseJinaAIEmbeddingsServiceSettings) config.getServiceSettings(),
             buildUri("JinaAI", DEFAULT_URI_BUILDER::build)
         );
     }

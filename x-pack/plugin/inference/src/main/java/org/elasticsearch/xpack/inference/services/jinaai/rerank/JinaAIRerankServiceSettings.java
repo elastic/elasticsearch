@@ -7,67 +7,57 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai.rerank;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 
-public class JinaAIRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, JinaAIRateLimitServiceSettings {
+/**
+ * Service settings for the JinaAI rerank task. Rerank adds no settings of its own beyond the common {@link JinaAIServiceSettings}
+ * fields (model identity and rate limiting).
+ */
+public class JinaAIRerankServiceSettings extends JinaAIServiceSettings {
     public static final String NAME = "jinaai_rerank_service_settings";
 
-    public static JinaAIRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        var validationException = new ValidationException();
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(
+        false,
+        ConfigurationParseContext.REQUEST
+    );
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(
+        true,
+        ConfigurationParseContext.PERSISTENT
+    );
 
-        var commonServiceSettings = JinaAICommonServiceSettings.fromMap(map, context, validationException);
-
-        validationException.throwIfValidationErrorsExist();
-        return new JinaAIRerankServiceSettings(commonServiceSettings);
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
+        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
+            ModelConfigurations.SERVICE_SETTINGS,
+            ignoreUnknownFields,
+            () -> new Builder(context)
+        );
+        JinaAIServiceSettings.declareCommonFields(parser);
+        return parser;
     }
 
-    private final JinaAICommonServiceSettings commonSettings;
+    public static JinaAIRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
+        return JinaAIServiceSettings.fromMap(map, context, parser);
+    }
 
-    public JinaAIRerankServiceSettings(JinaAICommonServiceSettings commonSettings) {
-        this.commonSettings = commonSettings;
+    public JinaAIRerankServiceSettings(String modelId, @Nullable RateLimitSettings rateLimitSettings) {
+        super(modelId, rateLimitSettings);
     }
 
     public JinaAIRerankServiceSettings(StreamInput in) throws IOException {
-        this.commonSettings = new JinaAICommonServiceSettings(in);
-    }
-
-    public JinaAICommonServiceSettings getCommonSettings() {
-        return commonSettings;
-    }
-
-    @Override
-    public JinaAIRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-
-        var updatedCommonServiceSettings = commonSettings.updateCommonServiceSettings(serviceSettings, validationException);
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new JinaAIRerankServiceSettings(updatedCommonServiceSettings);
-    }
-
-    @Override
-    public String modelId() {
-        return commonSettings.modelId();
-    }
-
-    @Override
-    public RateLimitSettings rateLimitSettings() {
-        return commonSettings.rateLimitSettings();
+        super(in);
     }
 
     @Override
@@ -76,41 +66,43 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-
-        builder = commonSettings.toXContentFragment(builder, params);
-
-        builder.endObject();
-        return builder;
+    public JinaAIRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            return Update.PARSER.apply(xParser, null).mergeInto(this);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse JinaAI rerank service settings update", e);
+        }
     }
 
-    @Override
-    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        commonSettings.toXContentFragmentOfExposedFields(builder, params);
-        return builder;
+    /**
+     * Builds a {@link JinaAIRerankServiceSettings} from the common JinaAI fields. Rerank adds no settings of its own.
+     */
+    static class Builder extends JinaAIServiceSettings.Builder<JinaAIRerankServiceSettings> {
+
+        Builder(ConfigurationParseContext context) {
+            super(context);
+        }
+
+        @Override
+        protected JinaAIRerankServiceSettings build(String modelId, RateLimitSettings rateLimitSettings) {
+            return new JinaAIRerankServiceSettings(modelId, rateLimitSettings);
+        }
     }
 
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
-    }
+    /**
+     * Parses an update request, which may only contain the mutable {@code rate_limit} field. Including any immutable field (such as
+     * {@code model_id}) causes the strict parser to reject the request.
+     */
+    private static class Update extends JinaAIServiceSettings.CommonUpdate {
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        commonSettings.writeTo(out);
-    }
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        JinaAIRerankServiceSettings that = (JinaAIRerankServiceSettings) o;
-        return Objects.equals(commonSettings, that.commonSettings);
-    }
+        static {
+            JinaAIServiceSettings.declareCommonUpdatableFields(PARSER);
+        }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(commonSettings);
+        public JinaAIRerankServiceSettings mergeInto(JinaAIRerankServiceSettings existing) {
+            return new JinaAIRerankServiceSettings(existing.modelId(), mergedRateLimitSettings(existing));
+        }
     }
 }

@@ -46,6 +46,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
@@ -103,8 +104,8 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MULTIMODAL_MODEL;
-import static org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS;
-import static org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettingsTests.buildServiceSettingsMap;
+import static org.elasticsearch.xpack.inference.services.jinaai.AbstractJinaAIServiceSettingsTests.buildServiceSettingsMap;
+import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.BaseJinaAIEmbeddingsServiceSettingsTests.getMapOfCommonEmbeddingSettings;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.BaseJinaAIEmbeddingsServiceSettingsTests.getMapOfMinimalEmbeddingSettings;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
@@ -330,8 +331,10 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var config = getRequestConfigMap(serviceSettings, getSecretSettingsMap("secret"));
 
-            var failureListener = getModelListenerForStatusException(
-                "Configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
+            // Service settings are parsed by a strict ObjectParser, which rejects unknown fields itself.
+            var failureListener = getModelListenerForException(
+                XContentParseException.class,
+                "[service_settings] unknown field [extra_key]"
             );
             service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, randomFrom(service.supportedTaskTypes()), config, failureListener);
         }
@@ -344,8 +347,10 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var config = getRequestConfigMap(serviceSettings, getSecretSettingsMap("secret"));
 
-            var failureListener = getModelListenerForStatusException(
-                "Configuration contains settings [{multimodal_model=true}] unknown to the [jinaai] service"
+            // text_embedding is non-multimodal, so multimodal_model is not a valid request field and the strict parser rejects it.
+            var failureListener = getModelListenerForException(
+                XContentParseException.class,
+                "[service_settings] unknown field [multimodal_model]"
             );
             service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TEXT_EMBEDDING, config, failureListener);
         }
@@ -404,8 +409,10 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var config = getRequestConfigMap(getMapOfMinimalEmbeddingSettings("model"), secretSettingsMap);
 
-            var failureListener = getModelListenerForStatusException(
-                "Configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
+            // Secrets are colocated with service settings in a request, so the strict service-settings parser rejects the unknown key.
+            var failureListener = getModelListenerForException(
+                XContentParseException.class,
+                "[service_settings] unknown field [extra_key]"
             );
             service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, randomFrom(service.supportedTaskTypes()), config, failureListener);
         }
@@ -2098,6 +2105,13 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         return ActionListener.wrap((model) -> fail("Model parsing should have failed"), e -> {
             assertThat(e, instanceOf(ElasticsearchStatusException.class));
             assertThat(e.getMessage(), is(expectedMessage));
+        });
+    }
+
+    private static ActionListener<Model> getModelListenerForException(Class<?> exceptionClass, String expectedMessage) {
+        return ActionListener.wrap((model) -> fail("Model parsing should have failed"), e -> {
+            assertThat(e, instanceOf(exceptionClass));
+            assertThat(e.getMessage(), containsString(expectedMessage));
         });
     }
 

@@ -573,6 +573,81 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         );
     }
 
+    /**
+     * Verifies that {@code modifyDataStream} treats a selector-suffixed name (e.g. {@code my-ds::failures}) as a
+     * literal data stream name and fails with "not found", rather than silently routing the operation to the
+     * failure store.
+     * <p>
+     * This bypasses {@link org.elasticsearch.action.datastreams.ModifyDataStreamsAction.Request#validate()}, which
+     * is the real gate that rejects selectors before they reach the service on the actual request path.
+     * The purpose here is to test the service's lower-level behavior: it is selector-agnostic and the caller is
+     * responsible for validating/stripping selectors before invoking it.
+     */
+    public void testSelectorInDataStreamNameTreatedAsLiteralName() {
+        final long epochMillis = System.currentTimeMillis();
+        final String dataStreamName = randomAlphaOfLength(5);
+        Metadata.Builder mb = Metadata.builder();
+
+        IndexMetadata backingIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping(generateMapping("@timestamp"))
+            .build();
+        mb.put(backingIndex, false);
+        mb.put(DataStreamTestHelper.newInstance(dataStreamName, List.of(backingIndex.getIndex())));
+
+        final IndexMetadata standaloneIndex = IndexMetadata.builder(randomAlphaOfLength(6))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping(generateMapping("@timestamp"))
+            .build();
+        mb.put(standaloneIndex, false);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("dummy")).metadata(mb.build()).build();
+
+        String indexName = standaloneIndex.getIndex().getName();
+
+        {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> MetadataDataStreamsService.modifyDataStream(
+                    clusterState,
+                    List.of(DataStreamAction.addBackingIndex(dataStreamName + "::failures", indexName)),
+                    this::getMapperService,
+                    Settings.EMPTY
+                )
+            );
+            assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "::failures] not found"));
+        }
+        {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> MetadataDataStreamsService.modifyDataStream(
+                    clusterState,
+                    List.of(DataStreamAction.addBackingIndex(dataStreamName + "::data", indexName)),
+                    this::getMapperService,
+                    Settings.EMPTY
+                )
+            );
+            assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "::data] not found"));
+        }
+        {
+            DataStreamAction action = DataStreamAction.addBackingIndex(dataStreamName + "::failures", indexName);
+            action.setFailureStore(true);
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> MetadataDataStreamsService.modifyDataStream(
+                    clusterState,
+                    List.of(action),
+                    this::getMapperService,
+                    Settings.EMPTY
+                )
+            );
+            assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "::failures] not found"));
+        }
+    }
+
     private MapperService getMapperService(IndexMetadata im) {
         try {
             String mapping = im.mapping().source().toString();

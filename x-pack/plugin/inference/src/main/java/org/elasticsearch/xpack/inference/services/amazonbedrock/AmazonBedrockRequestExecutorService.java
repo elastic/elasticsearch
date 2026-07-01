@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorService;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
@@ -26,9 +27,10 @@ public class AmazonBedrockRequestExecutorService extends RequestExecutorService 
         ThreadPool threadPool,
         CountDownLatch startupLatch,
         RequestExecutorServiceSettings settings,
-        AmazonBedrockExecuteOnlyRequestSender requestSender
+        AmazonBedrockExecuteOnlyRequestSender requestSender,
+        CircuitBreaker circuitBreaker
     ) {
-        super(threadPool, startupLatch, settings, requestSender, null);
+        super(threadPool, startupLatch, settings, requestSender, circuitBreaker);
         this.requestSender = requestSender;
     }
 

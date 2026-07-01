@@ -70,7 +70,8 @@ public class AmazonBedrockRequestSender implements Sender {
                 serviceComponents.threadPool(),
                 startCompleted,
                 executorServiceSettings,
-                requestSender
+                requestSender,
+                serviceComponents.circuitBreaker()
             );
 
             bedrockRequestSender = new AmazonBedrockRequestSender(serviceComponents.threadPool(), executorService, startCompleted);

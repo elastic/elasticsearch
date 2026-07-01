@@ -35,6 +35,13 @@ steps:
   # ── Run pi-agent ─────────────────────────────────────────────────────────────
   - label: ":robot_face: Pi — :workflow:"
     key: pi-run
+    # Serialise the whole pipeline to one run at a time. The agent sessions share
+    # a single LiteLLM service-account key, and per-session cost is measured as a
+    # /key/info spend delta — concurrent runs would contaminate each other's
+    # delta. concurrency_method: ordered keeps queued builds in submission order.
+    concurrency: 1
+    concurrency_group: "elasticsearch-agentic-workflow/pi-run"
+    concurrency_method: ordered
     timeout_in_minutes: 60
     env:
       USE_PI_AGENT: "true"

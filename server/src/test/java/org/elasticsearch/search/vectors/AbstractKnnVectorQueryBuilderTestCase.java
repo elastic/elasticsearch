@@ -178,11 +178,6 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         return indexType.equals("bbq_hnsw") || indexType.equals("bbq_flat");
     }
 
-    /** Wraps {@code query} with {@code filter}, unless there is no filter to apply. */
-    private static Query withFilter(DenseVectorQuery query, Query filter) {
-        return filter == null ? query : new FilteredDenseVectorQuery(query, filter);
-    }
-
     protected RescoreVectorBuilder randomBBQRescoreVectorBuilder() {
         return new RescoreVectorBuilder(randomBoolean() ? DEFAULT_OVERSAMPLE : randomFloatBetween(1.0f, 10.0f, false));
     }
@@ -281,8 +276,8 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         };
 
         Query bruteForceVectorQueryBuilt = switch (elementType()) {
-            case BIT, BYTE -> withFilter(new DenseVectorQuery.Bytes(resolvedVector.asByteVector(), VECTOR_FIELD), filterQuery);
-            case FLOAT, BFLOAT16 -> withFilter(new DenseVectorQuery.Floats(resolvedVector.asFloatVector(), VECTOR_FIELD), filterQuery);
+            case BIT, BYTE -> new DenseVectorQuery.Bytes(resolvedVector.asByteVector(), VECTOR_FIELD).filteredBy(filterQuery);
+            case FLOAT, BFLOAT16 -> new DenseVectorQuery.Floats(resolvedVector.asFloatVector(), VECTOR_FIELD).filteredBy(filterQuery);
         };
 
         if (query instanceof VectorSimilarityQuery vectorSimilarityQuery) {

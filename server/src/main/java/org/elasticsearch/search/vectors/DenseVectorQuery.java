@@ -96,6 +96,11 @@ public abstract class DenseVectorQuery extends Query {
         return denseVectorWeight(boost, null);
     }
 
+    /** Wraps this query with {@code filter}, or returns this query unchanged if {@code filter} is null. */
+    public Query filteredBy(Query filter) {
+        return filter != null ? new FilteredDenseVectorQuery(this, filter) : this;
+    }
+
     /**
      * Builds the weight that scores this query's vectors, restricted to documents that also match
      * {@code filterWeight} when non-null. {@link FilteredDenseVectorQuery} supplies the filterWeight;

@@ -26,7 +26,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
-import org.elasticsearch.search.vectors.FilteredDenseVectorQuery;
 import org.junit.AssumptionViolatedException;
 
 /**
@@ -116,7 +115,7 @@ public abstract class BaseFlatQuantizedKnnVectorsFormatTestCase extends BaseQuan
                     IndexSearcher searcher = new IndexSearcher(reader);
                     float[] queryVector = randomVector(dims);
                     Query filter = new TermQuery(new Term("category", "filtered"));
-                    Query q = new FilteredDenseVectorQuery(new DenseVectorQuery.Floats(queryVector, fieldName), filter);
+                    Query q = new DenseVectorQuery.Floats(queryVector, fieldName).filteredBy(filter);
                     TopDocs collectedDocs = searcher.search(q, numFiltered);
                     assertEquals(numFiltered, collectedDocs.totalHits.value());
                     assertEquals(numFiltered, collectedDocs.scoreDocs.length);

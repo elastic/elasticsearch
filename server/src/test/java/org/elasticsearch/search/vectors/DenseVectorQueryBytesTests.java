@@ -22,7 +22,7 @@ public class DenseVectorQueryBytesTests extends AbstractDenseVectorQueryTestCase
 
     @Override
     Query getDenseVectorQuery(String field, float[] query, Query filter) {
-        return new FilteredDenseVectorQuery(new DenseVectorQuery.Bytes(toBytes(query), field), filter);
+        return new DenseVectorQuery.Bytes(toBytes(query), field).filteredBy(filter);
     }
 
     private static byte[] toBytes(float[] query) {

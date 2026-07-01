@@ -22,7 +22,7 @@ public class DenseVectorQueryFloatsTests extends AbstractDenseVectorQueryTestCas
 
     @Override
     Query getDenseVectorQuery(String field, float[] query, Query filter) {
-        return new FilteredDenseVectorQuery(new DenseVectorQuery.Floats(query, field), filter);
+        return new DenseVectorQuery.Floats(query, field).filteredBy(filter);
     }
 
     @Override

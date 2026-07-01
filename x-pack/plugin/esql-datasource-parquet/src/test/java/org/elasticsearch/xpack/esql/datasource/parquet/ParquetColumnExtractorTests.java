@@ -581,6 +581,59 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Gather-path regression for #152592: the first-visited bucket's decoded block is all-null for
+     * a projected nullable column and a later bucket has values. {@code stitchAndGather} then
+     * concatenates a {@code ConstantNullBlock} (from the null-leading bucket) with a typed block;
+     * resolving the builder type from the first bucket would poison a {@code ConstantNullBlock}
+     * builder and throw. This is the random-access (LOOKUP-style) path that only "worked" before by
+     * luck of bucket ordering.
+     */
+    public void testExtractNullLeadingBucketGather() throws IOException {
+        int rows = 2000;
+        byte[] data = writeNullLeadingMultiRowGroupFile(rows);
+        StorageObject so = createStorageObject(data);
+        ParquetMetadata footer;
+        try (
+            ParquetFileReader fr = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(so, blockFactory.arrowAllocator()),
+                PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
+            )
+        ) {
+            footer = fr.getFooter();
+        }
+        // Multiple row groups are required so position 0 (a null row, first row group -> first
+        // visited bucket) and the last valued row land in different buckets, producing the
+        // null-leading concatenation the fix targets.
+        assertTrue("expected multiple row groups, got " + footer.getBlocks().size(), footer.getBlocks().size() >= 2);
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        // localPositions ordered {null-first, valued-later} so the all-null bucket is visited (and
+        // concatenated) before the valued bucket.
+        long nullPos = 0;
+        long valuePos = rows - 1;
+        long[] positions = { nullPos, valuePos };
+        try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, footer)) {
+            try (Block intBlock = extractor.extract("opt_int", positions, blockFactory)) {
+                assertEquals(2, intBlock.getPositionCount());
+                assertTrue("null-leading position must decode null", intBlock.isNull(0));
+                IntBlock ints = (IntBlock) intBlock;
+                assertFalse(ints.isNull(1));
+                assertEquals((int) valuePos, ints.getInt(ints.getFirstValueIndex(1)));
+            }
+            try (Block strBlock = extractor.extract("opt_str", positions, blockFactory)) {
+                assertEquals(2, strBlock.getPositionCount());
+                assertTrue("null-leading position must decode null", strBlock.isNull(0));
+                BytesRefBlock strs = (BytesRefBlock) strBlock;
+                assertFalse(strs.isNull(1));
+                assertEquals(
+                    "row-" + valuePos,
+                    strs.getBytesRef(strs.getFirstValueIndex(1), new org.apache.lucene.util.BytesRef()).utf8ToString()
+                );
+            }
+        }
+    }
+
     // -----------------------------------------------------------------------------------------
     // Fixtures
     // -----------------------------------------------------------------------------------------
@@ -595,6 +648,35 @@ public class ParquetColumnExtractorTests extends ESTestCase {
             }
             return groups;
         }, /* rowGroupBytes = */ 64 * 1024 * 1024L);
+    }
+
+    /**
+     * Two optional columns (int, string) where the first half of the rows are null and the rest
+     * carry values ({@code opt_int = r}, {@code opt_str = "row-r"}). A small row-group budget forces
+     * multiple row groups so a null row (position 0) and a valued row (last position) land in
+     * different buckets — the setup {@link #testExtractNullLeadingBucketGather} needs to produce a
+     * null-leading concatenation.
+     */
+    private byte[] writeNullLeadingMultiRowGroupFile(int rows) throws IOException {
+        MessageType schema = Types.buildMessage()
+            .optional(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("opt_int")
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("opt_str")
+            .named("null_leading");
+        return writeFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>(rows);
+            for (int i = 0; i < rows; i++) {
+                Group g = factory.newGroup();
+                if (i >= rows / 2) {
+                    g.add("opt_int", i);
+                    g.add("opt_str", Binary.fromString("row-" + i));
+                }
+                groups.add(g);
+            }
+            return groups;
+        }, /* rowGroupBytes = */ 1024L);
     }
 
     /** Same shape as {@link #writeIntFile} but with a small row-group budget so the writer

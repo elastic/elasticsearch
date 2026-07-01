@@ -48,7 +48,7 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
             clustersPerNeighborhood,
             soarLambda
         );
-        KMeansResult<V> serialResult = hkmeansSerial.cluster(vectors, targetSize);
+        var serialResult = hkmeansSerial.cluster(vectors, targetSize);
         assertKMeansResultValid(serialResult, nVectors, nClusters);
 
         int[] serialClusterSizes = new int[serialResult.centroids().length];
@@ -69,7 +69,7 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
                 clustersPerNeighborhood,
                 soarLambda
             );
-            KMeansResult<V> concurrentResult = hkmeansConcurrent.cluster(vectors, targetSize);
+            var concurrentResult = hkmeansConcurrent.cluster(vectors, targetSize);
             assertKMeansResultValid(concurrentResult, nVectors, nClusters);
 
             int[] concurrentClusterSizes = new int[concurrentResult.centroids().length];
@@ -103,7 +103,7 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
             random().nextFloat(0.5f, 1.5f)
         );
 
-        KMeansResult<V> result = hkmeans.cluster(vectors, targetSize);
+        var result = hkmeans.cluster(vectors, targetSize);
         assertKMeansResultValid(result, nVectors, -1);
     }
 
@@ -145,7 +145,7 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
                 soarLambda
             );
 
-            KMeansResult<V> result = hkmeans.cluster(vectors, targetSize);
+            var result = hkmeans.cluster(vectors, targetSize);
 
             int[] assignments = result.assignments();
             int[] soarAssignments = result.soarAssignments();
@@ -174,7 +174,7 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
 
     // ---- Helpers ----
 
-    protected static <V> void assertKMeansResultValid(KMeansResult<V> result, int nVectors, int expectedClusters) {
+    protected static <V> void assertKMeansResultValid(KMeansWithOverspill<V> result, int nVectors, int expectedClusters) {
         V[] centroids = result.centroids();
         int[] assignments = result.assignments();
         int[] soarAssignments = result.soarAssignments();
@@ -197,7 +197,7 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
         for (int count : counts) {
             assertTrue("Empty cluster found", count > 0);
         }
-        assertArrayEquals(counts, result.clusterCounts());
+        assertArrayEquals(counts, result.result().clusterCounts());
 
         if (centroids.length > 1 && centroids.length < nVectors) {
             assertEquals(nVectors, soarAssignments.length);

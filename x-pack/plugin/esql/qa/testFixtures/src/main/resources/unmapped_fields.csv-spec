@@ -952,6 +952,44 @@ null            | null                     | 99
 42              | 43                       | null
 ;
 
+// An IN-subquery lowers to a semi-join; with load the unmapped field used as the IN's left key is materialized from _source on
+// the left input, so it filters like any real column. #142033 / PR #151750.
+loadUnmappedFieldAsInSubqueryLeftKey
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: where_in_subquery_without_view
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message)
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword | unmapped_message:keyword
+42              | 43
+;
+
+// The same unmapped left key against an IN-subquery whose RHS is itself a subquery-in-FROM union.
+loadUnmappedFieldAsInSubqueryLeftKeyWithSubqueryUnionRhs
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: where_in_subquery_without_view
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| WHERE unmapped_message IN
+    (FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP unmapped_message),
+          (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.3!" | KEEP unmapped_message)
+     | KEEP unmapped_message)
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | 43
+Connected to 10.1.0.3! | Disconnected from 10.1.0.3
+;
+
 // A field cast to different numeric types in sibling subqueries resolves to UNSUPPORTED (cross-branch
 // autocast is not done), but the query still runs and INLINE STATS counts every unioned row.
 loadUnmappedFieldTypeConflictAcrossSubqueriesIsUnsupported

@@ -41,6 +41,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -177,7 +179,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         // TODO: this will need to be revisited for non-lookup joining or scenarios where we won't want extraction from specific sources
         if (plan.anyMatch(p -> p instanceof UnionAll)) {
             // Outer references only: a name already surfaced by a branch resolves through the union output. #142033
-            Set<String> surfacedByAnyBranch = unionBranchOutputNames(plan);
+            Set<String> surfacedByAnyBranch = mainSpineUnionBranchOutputNames(plan);
             LinkedHashSet<UnresolvedAttribute> outerReferences = new LinkedHashSet<>();
             for (UnresolvedAttribute ua : unresolved) {
                 if (surfacedByAnyBranch.contains(ua.name()) == false) {
@@ -201,17 +203,31 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     }
 
     /**
-     * The names output to the union by any {@link UnionAll} branch. A name not surfaced here (e.g. referenced only to be
-     * dropped/renamed away) is treated as an outer reference and broadcast-loaded into every branch. See #142033.
+     * Names surfaced by {@link UnionAll} branches on the main (left) pipeline of {@code plan}. A join's right side is an
+     * independent subquery scope (e.g. the RHS of an {@code IN} subquery) and is NOT traversed: its transient branch outputs
+     * must not suppress broadcast-loading of an outer reference belonging to a sibling union. See #142033 / PR #151750.
      */
-    private static Set<String> unionBranchOutputNames(LogicalPlan plan) {
+    private static Set<String> mainSpineUnionBranchOutputNames(LogicalPlan plan) {
         Set<String> names = new HashSet<>();
-        plan.forEachDown(UnionAll.class, ua -> {
+        collectMainSpineUnionBranchOutputNames(plan, names);
+        return names;
+    }
+
+    private static void collectMainSpineUnionBranchOutputNames(LogicalPlan plan, Set<String> names) {
+        if (plan instanceof UnionAll ua) {
+            // Outermost union's direct branch outputs only; nested unions are rejected downstream by checkNestedUnionAlls.
             for (LogicalPlan branch : ua.children()) {
                 names.addAll(Expressions.names(branch.output()));
             }
-        });
-        return names;
+            return;
+        }
+        if (plan instanceof Join join) {
+            collectMainSpineUnionBranchOutputNames(join.left(), names); // right side is an independent subquery scope
+            return;
+        }
+        for (LogicalPlan child : plan.children()) {
+            collectMainSpineUnionBranchOutputNames(child, names);
+        }
     }
 
     private static List<FieldAttribute> fieldsToLoad(Set<UnresolvedAttribute> unresolved, List<String> exclude) {
@@ -405,12 +421,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         if (node instanceof LookupJoin lj) {
             Set<String> leftOutputNames = new HashSet<>(Expressions.names(lj.left().output()));
             Set<String> rightOutputNames = new HashSet<>(Expressions.names(lj.right().output()));
-            // Unresolved left keys not found in the left child → load candidates.
-            for (Attribute lf : lj.config().leftFields()) {
-                if (lf instanceof UnresolvedAttribute ua && leftOutputNames.contains(ua.name()) == false) {
-                    sink.accept(ua);
-                }
-            }
+            collectUnresolvedLeftKeys(lj, leftOutputNames, sink);
             // joinOnConditions UAs not found in either child → load candidates.
             Expression conds = lj.config().joinOnConditions();
             if (conds != null) {
@@ -421,6 +432,9 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
                 });
             }
             // Unresolved right keys are intentionally ignored — a query that references them is invalid and will fail verification.
+        } else if (node instanceof AbstractSubqueryJoin sj) {
+            // RHS surfaces the same single-column name, so the generic else-branch would mask an unmapped IN left key. #142033
+            collectUnresolvedLeftKeys(sj, new HashSet<>(Expressions.names(sj.left().output())), sink);
         } else {
             Set<String> childOutputNames = new HashSet<>();
             for (LogicalPlan child : node.children()) {
@@ -434,6 +448,18 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
                         sink.accept(ua);
                     }
                 });
+            }
+        }
+    }
+
+    /**
+     * Unresolved {@code leftFields} of a {@link Join} whose name is absent from the left child's output → {@code _source} load
+     * candidates. Left keys must resolve against the left side only (mirrors {@code ResolveRefs} join resolution).
+     */
+    private static void collectUnresolvedLeftKeys(Join join, Set<String> leftOutputNames, Consumer<UnresolvedAttribute> sink) {
+        for (Attribute lf : join.config().leftFields()) {
+            if (lf instanceof UnresolvedAttribute ua && leftOutputNames.contains(ua.name()) == false) {
+                sink.accept(ua);
             }
         }
     }

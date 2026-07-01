@@ -3046,8 +3046,7 @@ message:keyword        | upper:keyword              | len:integer
 Connected to 10.1.0.3! | DISCONNECTED FROM 10.1.0.3 | 26
 ;
 
-// A field surfaced by the subquery-in-FROM branches can be filtered by a WHERE ... IN (view subquery); using an unmapped
-// field directly as the IN's left key is not yet supported (#142033 / PR #151750 review).
+// A field surfaced by the subquery-in-FROM branches can be filtered by a WHERE ... IN (view subquery). #142033 / PR #151750.
 loadViewInSubqueryAfterSubqueryInFrom
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching

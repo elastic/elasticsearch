@@ -16,7 +16,6 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
-import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansWithOverspill;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.logging.LogManager;

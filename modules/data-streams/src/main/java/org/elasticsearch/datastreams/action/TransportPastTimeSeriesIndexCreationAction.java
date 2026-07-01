@@ -376,7 +376,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                 throw new IllegalStateException(
                     "Cannot create past TSDB backing index for data stream ["
                         + dataStreamName
-                        + "] because it requires to have yet at least one time series backing index. Please rollover first."
+                        + "] because it has no time series backing index. Please rollover first."
                 );
             }
             CoveredTimeWindow previousIndex = null;

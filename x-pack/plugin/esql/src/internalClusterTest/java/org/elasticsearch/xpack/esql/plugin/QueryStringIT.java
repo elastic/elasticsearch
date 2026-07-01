@@ -276,6 +276,28 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("line 3:3: [QSTR] function cannot be used after LOOKUP"));
     }
 
+    public void testQstrAfterInlineStats() {
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE qstr("content: fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after INLINE"));
+    }
+
+    public void testQstrAfterGroupedInlineStats() {
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id) BY id
+            | WHERE qstr("content: fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after INLINE"));
+    }
+
     public void testWhereFalseBeforeInlineStatsWithQstr() {
         var query = """
             FROM test

@@ -1403,6 +1403,8 @@ public class EsqlSession {
         );
     }
 
+    private static final Set<String> COORDINATOR_LOOKUP_SCOPE = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+
     private void preAnalyzeLookupIndex(
         IndexPattern lookupIndexPattern,
         LogicalPlan plan,
@@ -1420,22 +1422,36 @@ public class EsqlSession {
         );
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.
-        executionInfo.queryProfile().incFieldCapsCalls();
         var lookupIndexScope = EsqlCCSUtils.onlyRunning(
             executionInfo,
             computeLookupJoinIndexScope(plan, localPattern, result.indexResolution())
         );
+        var fields = result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames;
+        executionInfo.queryProfile().incFieldCapsCalls();
         indexResolver.resolveLookupIndices(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(lookupIndexScope, localPattern),
-            result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
+            fields,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
             // remote lookup indices in the field caps request - but the coordinating cluster must be considered, too!
             // The main index resolution should already have taken the version of the coordinating cluster into account and this should
             // be reflected in result.minimumTransportVersion().
             result.minimumTransportVersion(),
-            listener.map(
-                indexResolution -> receiveLookupIndexResolution(result, lookupIndexScope, localPattern, executionInfo, indexResolution)
-            )
+            listener.delegateFailureAndWrap((l, indexResolution) -> {
+                if (indexResolution.isValid() || lookupIndexScope.equals(COORDINATOR_LOOKUP_SCOPE)) {
+                    l.onResponse(receiveLookupIndexResolution(result, lookupIndexScope, localPattern, executionInfo, indexResolution));
+                } else {
+                    // if remote lookup join index resolution failed, retrying local only resolution for coordinator lookup join
+                    executionInfo.queryProfile().incFieldCapsCalls();
+                    indexResolver.resolveLookupIndices(
+                        localPattern,
+                        fields,
+                        result.minimumTransportVersion(),
+                        l.map(
+                            retriedIndexResolution -> receiveLookupIndexResolution(result, COORDINATOR_LOOKUP_SCOPE, localPattern, executionInfo, retriedIndexResolution)
+                        )
+                    );
+                }
+            })
         );
     }
 

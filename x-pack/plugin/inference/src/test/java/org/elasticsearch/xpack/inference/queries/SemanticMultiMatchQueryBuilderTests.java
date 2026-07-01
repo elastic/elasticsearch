@@ -14,6 +14,7 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -51,7 +52,7 @@ public class SemanticMultiMatchQueryBuilderTests extends MapperServiceTestCase {
     public static void startModelRegistry() {
         threadPool = new TestThreadPool(SemanticMultiMatchQueryBuilderTests.class.getName());
         var clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool));
+        modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool), new FeatureService(List.of()));
         modelRegistry.clusterChanged(new ClusterChangedEvent("init", clusterService.state(), clusterService.state()) {
             @Override
             public boolean localNodeMaster() {

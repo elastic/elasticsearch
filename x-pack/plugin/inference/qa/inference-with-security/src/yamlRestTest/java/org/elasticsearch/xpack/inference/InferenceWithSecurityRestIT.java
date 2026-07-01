@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -34,6 +35,9 @@ public class InferenceWithSecurityRestIT extends ESClientYamlSuiteTestCase {
     private static final String INFERENCE_USERNAME = "inference_user";
     private static final String INFERENCE_PASSWORD = "inference_user_password";
 
+    private static final String MONITOR_INFERENCE_USERNAME = "monitor_inference_user";
+    private static final String MONITOR_INFERENCE_PASSWORD = "monitor_inference_password";
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .systemProperty("tests.seed", System.getProperty("tests.seed"))
@@ -42,7 +46,9 @@ public class InferenceWithSecurityRestIT extends ESClientYamlSuiteTestCase {
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD)    // admin user for setup and teardown
         .user(INFERENCE_USERNAME, INFERENCE_PASSWORD, "monitor_only_user", false)
+        .user(MONITOR_INFERENCE_USERNAME, MONITOR_INFERENCE_PASSWORD, "monitor_inference_only_user", false)
         .plugin("inference-service-test")
+        .feature(FeatureFlag.INFERENCE_REGION_POLICY)
         .distribution(DistributionType.DEFAULT)
         .build();
 

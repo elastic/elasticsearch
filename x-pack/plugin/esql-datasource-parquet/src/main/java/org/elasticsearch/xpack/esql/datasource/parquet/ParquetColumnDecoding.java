@@ -14,16 +14,18 @@ import org.apache.parquet.io.api.GroupConverter;
 import org.apache.parquet.io.api.PrimitiveConverter;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
 /**
  * Shared Parquet decode helpers used by both the baseline {@code ParquetColumnIterator}
  * and {@link OptimizedParquetColumnIterator}. Centralises list-column decoding,
- * timestamp conversion, UUID formatting, and other utilities so that bug fixes in one
- * decode path are automatically reflected in the other.
+ * timestamp conversion, UUID formatting, {@code unsigned_long} sign-flip encoding, and other utilities so that bug
+ * fixes in one decode path are automatically reflected in the other.
  */
 final class ParquetColumnDecoding {
 
@@ -42,6 +44,38 @@ final class ParquetColumnDecoding {
             };
         }
         return raw;
+    }
+
+    /**
+     * Returns the multiplier needed to convert a Parquet TIME_* value to nanoseconds.
+     * TIME_MICROS values are stored as microseconds and must be multiplied by 1_000;
+     * TIME_MILLIS and TIME_NANOS are stored in their final unit (ms handled as INTEGER, ns as-is).
+     */
+    static long timeNanoMultiplier(LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+        return time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS ? 1_000L : 1L;
+    }
+
+    // ---- Unsigned long encoding ----
+
+    /**
+     * Sign-flip-encodes a raw {@code unsigned_long} value ({@code value ^ 2^63}) into ESQL's sortable signed
+     * representation, mirroring the indexing path. ESQL stores {@code unsigned_long} inside a signed {@code LongBlock}
+     * in this form so signed-long ordering matches unsigned ordering, and every value-output surface decodes it back on
+     * the way out. Every Parquet read producer of an {@code unsigned_long} block must therefore route its INT64 values
+     * through this method. Shared so the baseline, optimized, and list read paths cannot drift.
+     */
+    static long encodeUnsignedLong(long value) {
+        return NumericUtils.asLongUnsigned(value);
+    }
+
+    /**
+     * Applies {@link #encodeUnsignedLong(long)} to the first {@code count} values in place. Null slots within the range
+     * hold undefined bits but are masked out by the caller, so encoding them is harmless.
+     */
+    static void encodeUnsignedLongInPlace(long[] values, int count) {
+        for (int i = 0; i < count; i++) {
+            values[i] = encodeUnsignedLong(values[i]);
+        }
     }
 
     // ---- UUID formatting ----
@@ -112,7 +146,17 @@ final class ParquetColumnDecoding {
         int maxDef = info.maxDefLevel();
         return switch (elementType) {
             case INTEGER -> readListIntColumn(cr, maxDef, rows, blockFactory);
-            case LONG -> readListLongColumn(cr, maxDef, rows, blockFactory);
+            case LONG -> {
+                if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
+                    // TIME_MILLIS: physical INT32 widened to long (raw ms value, no unit conversion)
+                    yield readListInt32AsLongColumn(cr, maxDef, rows, blockFactory);
+                }
+                long multiplier = info.logicalType() instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time
+                    ? timeNanoMultiplier(time)
+                    : 1L;
+                yield readListLongColumn(cr, maxDef, rows, blockFactory, multiplier);
+            }
+            case UNSIGNED_LONG -> readListUnsignedLongColumn(cr, maxDef, rows, blockFactory);
             case DOUBLE -> readListDoubleColumn(cr, maxDef, rows, blockFactory);
             case BOOLEAN -> readListBooleanColumn(cr, maxDef, rows, blockFactory);
             case KEYWORD, TEXT -> readListBytesRefColumn(cr, maxDef, rows, blockFactory);
@@ -178,9 +222,36 @@ final class ParquetColumnDecoding {
         }
     }
 
-    private static Block readListLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+    private static Block readListLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory, long multiplier) {
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendLong(cr.getLong());
+            Runnable appender = multiplier == 1
+                ? () -> builder.appendLong(cr.getLong())
+                : () -> builder.appendLong(cr.getLong() * multiplier);
+            for (int row = 0; row < rows; row++) {
+                readListRow(cr, maxDef, builder, appender);
+            }
+            return builder.build();
+        }
+    }
+
+    private static Block readListInt32AsLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+        try (var builder = blockFactory.newLongBlockBuilder(rows)) {
+            Runnable appender = () -> builder.appendLong(cr.getInteger());
+            for (int row = 0; row < rows; row++) {
+                readListRow(cr, maxDef, builder, appender);
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * Reads a LIST of {@code unsigned_long} (Parquet INT64 with {@code intType(64, false)}) into a {@code LongBlock}.
+     * Each element is sign-flip-encoded ({@code value ^ 2^63}) on the way in, mirroring the scalar read path and the
+     * indexing path, so the always-decoding output edge produces the true unsigned value.
+     */
+    private static Block readListUnsignedLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+        try (var builder = blockFactory.newLongBlockBuilder(rows)) {
+            Runnable appender = () -> builder.appendLong(encodeUnsignedLong(cr.getLong()));
             for (int row = 0; row < rows; row++) {
                 readListRow(cr, maxDef, builder, appender);
             }

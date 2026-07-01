@@ -43,7 +43,7 @@ import java.io.IOException;
 final class ES95NumericFieldWriter implements NumericFieldWriter {
 
     private static final TSDBDocValuesBlockWriter BLOCK_WRITER = new TSDBDocValuesBlockWriter();
-    private static final FieldContextResolver NO_INFO_RESOLVER = (name, bs) -> new FieldContext(bs, name, null, null);
+    private static final FieldContextResolver NO_INFO_RESOLVER = (name, bs) -> new FieldContext(bs, name, null, null, null, false);
 
     private final NumericWriteContext ctx;
     private final PipelineConfigResolver resolver;

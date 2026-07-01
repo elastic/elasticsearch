@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -69,6 +70,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1972,6 +1975,62 @@ public class FileSplitProviderTests extends ESTestCase {
         public InputStream decompressRange(StorageObject object, long blockStart, long nextBlockStart) {
             return new ByteArrayInputStream(new byte[0]);
         }
+    }
+
+    public void testCancellationAbortsDiscoveryMidLoop() {
+        // Five files processed sequentially (no executor). The cancellation signal flips true partway
+        // through, so discovery must throw and stop polling rather than processing every file.
+        StorageEntry e1 = new StorageEntry(StoragePath.of("s3://b/a.parquet"), 100, Instant.EPOCH);
+        StorageEntry e2 = new StorageEntry(StoragePath.of("s3://b/b.parquet"), 100, Instant.EPOCH);
+        StorageEntry e3 = new StorageEntry(StoragePath.of("s3://b/c.parquet"), 100, Instant.EPOCH);
+        StorageEntry e4 = new StorageEntry(StoragePath.of("s3://b/d.parquet"), 100, Instant.EPOCH);
+        StorageEntry e5 = new StorageEntry(StoragePath.of("s3://b/e.parquet"), 100, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(e1, e2, e3, e4, e5), "s3://b/*.parquet");
+
+        // The supplier is polled once before the loop and once per file at the top of processFileForSplits.
+        // It reports cancelled starting at the 4th poll, so only the first two files are processed.
+        AtomicInteger polls = new AtomicInteger();
+        BooleanSupplier cancel = () -> polls.incrementAndGet() > 3;
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            Map.of(),
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            ExternalSchema.EMPTY,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            cancel
+        );
+
+        expectThrows(TaskCancelledException.class, () -> provider.discoverSplits(ctx));
+        // Polling stopped as soon as cancellation was observed (4 polls), well short of the 6 it would take
+        // to process all five files, proving discovery short-circuited.
+        assertEquals(4, polls.get());
+    }
+
+    public void testNotCancelledProcessesAllFiles() {
+        StorageEntry e1 = new StorageEntry(StoragePath.of("s3://b/a.parquet"), 100, Instant.EPOCH);
+        StorageEntry e2 = new StorageEntry(StoragePath.of("s3://b/b.parquet"), 100, Instant.EPOCH);
+        StorageEntry e3 = new StorageEntry(StoragePath.of("s3://b/c.parquet"), 100, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(e1, e2, e3), "s3://b/*.parquet");
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            Map.of(),
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            ExternalSchema.EMPTY,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false
+        );
+
+        assertEquals(3, provider.discoverSplits(ctx).splits().size());
     }
 
     // -- helpers --

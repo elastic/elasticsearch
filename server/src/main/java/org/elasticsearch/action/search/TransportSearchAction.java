@@ -956,28 +956,28 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     ccsClusterInfoUpdate(searchResponse, clusters, clusterAlias, shouldSkipOnFailure);
                     SearchProfileResults profile = getSearchProfileResults(searchResponse, searchCoordinatorContext);
 
-                    ActionListener.respondAndRelease(
-                        listener,
-                        new SearchResponse(
-                            searchResponse.getHits(),
-                            searchResponse.getAggregations(),
-                            searchResponse.getSuggest(),
-                            searchResponse.isTimedOut(),
-                            searchResponse.isTerminatedEarly(),
-                            profile,
-                            searchResponse.getNumReducePhases(),
-                            searchResponse.getScrollId(),
-                            searchResponse.getTotalShards(),
-                            searchResponse.getSuccessfulShards(),
-                            searchResponse.getSkippedShards(),
-                            timeProvider.buildTookInMillis(),
-                            searchResponse.getShardFailures(),
-                            clusters,
-                            searchResponse.pointInTimeId(),
-                            null,
-                            null
-                        )
+                    SearchResponse mergedResponse = new SearchResponse(
+                        searchResponse.getHits(),
+                        searchResponse.getAggregations(),
+                        searchResponse.getSuggest(),
+                        searchResponse.isTimedOut(),
+                        searchResponse.isTerminatedEarly(),
+                        profile,
+                        searchResponse.getNumReducePhases(),
+                        searchResponse.getScrollId(),
+                        searchResponse.getTotalShards(),
+                        searchResponse.getSuccessfulShards(),
+                        searchResponse.getSkippedShards(),
+                        timeProvider.buildTookInMillis(),
+                        searchResponse.getShardFailures(),
+                        clusters,
+                        searchResponse.pointInTimeId(),
+                        null,
+                        null
                     );
+                    // propagate the directory metrics reported by the remote cluster so the header reflects the remote's bytes read
+                    mergedResponse.setDirectoryMetrics(searchResponse.getDirectoryMetrics());
+                    ActionListener.respondAndRelease(listener, mergedResponse);
                 }
 
                 @Override

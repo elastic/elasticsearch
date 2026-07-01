@@ -267,6 +267,28 @@ FROM cooking_blog
 
 This query searches the title field to match at least 2 of the 3 terms: "fluffy", "pancakes", or "breakfast".
 
+### Search computed values
+
+```{applies_to}
+stack: preview 9.5
+serverless: preview
+```
+
+`MATCH` can search expressions that are not backed by an index. For example,
+you can search a column produced by `EVAL`:
+
+```esql
+FROM cooking_blog
+| EVAL summary = CONCAT(title, " by ", author)
+| WHERE MATCH(summary, "pancakes")
+| KEEP title, author
+| LIMIT 1000
+```
+
+Because `summary` is not an indexed field, `MATCH` evaluates by scanning
+values row by row. This is useful for searching computed data, but may be
+slower than searching an indexed field on large datasets.
+
 ### Search for exact phrases
 
 When you need to find documents containing an exact sequence of words, use the `MATCH_PHRASE` function:

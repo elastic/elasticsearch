@@ -32,6 +32,12 @@ Full text functions are significantly more performant for text search use cases
 on large data sets than using pattern matching or regular expressions with
 `LIKE` or `RLIKE`.
 
+{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+[`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md) can also search expressions that are not backed by an index,
+such as computed columns produced by `EVAL` or `STATS`.
+When an expression is not indexed, the search evaluates by scanning values,
+which may be slower than searching an indexed field.
+
 See [full text search limitations](/reference/query-languages/esql/limitations.md#esql-limitations-full-text-search)
 for information on the limitations of full text search.
 

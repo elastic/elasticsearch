@@ -201,6 +201,7 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.SharedComponentRegistry;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
@@ -1087,7 +1088,8 @@ class NodeConstruction {
             crossProjectModeDecider,
             taskLifecycleManager,
             dlmErrorStore,
-            ipLocationService
+            ipLocationService,
+            new SharedComponentRegistry()
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {

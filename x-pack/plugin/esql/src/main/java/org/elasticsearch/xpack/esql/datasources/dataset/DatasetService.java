@@ -29,7 +29,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
-import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
@@ -121,9 +120,8 @@ public class DatasetService {
             }
         }
         // Shape-only validation of the declared mapping (no file I/O): declarable types + role-designation references.
+        // A `source` column rename is honored by all formats (translation is centralized at the reader boundary).
         DeclaredSchemaValidator.validate(request.mapping());
-        // A `source` column rename is only honored by the wired formats (csv/tsv/ndjson); reject it for others at PUT.
-        DeclaredSchemaValidator.validateRenameFormat(request.mapping(), FormatNameResolver.resolve(validatedSettings, request.resource()));
         return new Dataset(
             request.name(),
             new DataSourceReference(request.dataSource()),

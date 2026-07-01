@@ -54,13 +54,6 @@ public final class DeclaredSchemaValidator {
 
     private static final Set<DataType> DATE_TYPES = Set.of(DataType.DATETIME, DataType.DATE_NANOS);
 
-    /**
-     * Formats whose readers honor a {@code source} column rename today: the text formats read positionally (the logical
-     * name labels the position) and NDJSON resolves the physical name as the JSON key. The columnar by-name readers
-     * (parquet/orc) are not wired yet, so a rename on those is rejected at PUT rather than silently null-filling.
-     */
-    static final Set<String> RENAME_SUPPORTED_FORMATS = Set.of("csv", "tsv", "ndjson");
-
     public static void validate(DatasetMapping mapping) {
         if (mapping == null) {
             return;
@@ -73,31 +66,6 @@ public final class DeclaredSchemaValidator {
             boolean strict = mappings.dynamic() == DatasetMapping.Dynamic.FALSE;
             validateRole("timestamp_field", mapping.timestampField(), mappings, strict, true);
             validateRole("id_field", mapping.idField(), mappings, strict, false);
-        }
-    }
-
-    /**
-     * Reject a {@code source} column rename for a format whose reader does not yet honor it (parquet/orc), so the user
-     * gets a clear PUT-time error instead of silent nulls at query time. {@code format} is the resolved format name
-     * (see {@link FormatNameResolver#resolve}); a null/unknown format is treated as unsupported for rename.
-     */
-    public static void validateRenameFormat(DatasetMapping mapping, String format) {
-        if (mapping == null || mapping.mappings() == null) {
-            return;
-        }
-        boolean hasRename = mapping.mappings().properties().values().stream().anyMatch(f -> f.source() != null);
-        if (hasRename == false) {
-            return;
-        }
-        String normalized = format == null ? null : format.toLowerCase(Locale.ROOT);
-        // Short-circuit on null before contains(): an immutable Set.of(...) throws NPE on a null query.
-        if (normalized == null || RENAME_SUPPORTED_FORMATS.contains(normalized) == false) {
-            throw new IllegalArgumentException(
-                "column rename via [source] is not yet supported for format ["
-                    + format
-                    + "]; supported formats are "
-                    + new TreeSet<>(RENAME_SUPPORTED_FORMATS)
-            );
         }
     }
 

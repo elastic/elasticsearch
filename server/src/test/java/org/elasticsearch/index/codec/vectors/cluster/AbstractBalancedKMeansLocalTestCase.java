@@ -93,10 +93,10 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
 
         KMeansIntermediate<V> kMeansIntermediate = new KMeansIntermediate<>(centroids, assignments, i -> assignmentOrdinals[i]);
         KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, sampleSize, maxIterations);
-        kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+        var result = kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
 
         assertEquals(nClusters, centroids.length);
-        assertNotNull(kMeansIntermediate.soarAssignments());
+        assertNotNull(result.soarAssignments());
         assertCentroidsAreZero(centroids);
     }
 
@@ -135,10 +135,10 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
 
         KMeansIntermediate<V> kMeansIntermediate = new KMeansIntermediate<>(centroids, assignments, i -> assignmentOrdinals[i]);
         KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, sampleSize, maxIterations);
-        kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+        var result = kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
 
         assertEquals(nClusters, centroids.length);
-        assertNotNull(kMeansIntermediate.soarAssignments());
+        assertNotNull(result.soarAssignments());
     }
 
 }

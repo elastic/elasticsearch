@@ -59,10 +59,23 @@ public final class FormatNameResolver {
     private FormatNameResolver() {}
 
     /**
-     * Normalizes a raw {@code format} config value into a usable format name, or returns {@code null}
+     * Normalizes a raw {@code format} value to its canonical stored form — {@code trim()} then
+     * {@code toLowerCase(Locale.ROOT)} — or {@code null} when the value is absent. This is the single
+     * source of the normalization, so the create-time storage representation and the query-time
+     * resolution cannot drift. Unlike {@link #parseExplicitFormat} it does <em>not</em> collapse the
+     * {@link #FORMAT_AUTO} sentinel: the CRUD validator stores {@code auto} verbatim so it round-trips,
+     * whereas the read path treats it as "infer from the extension".
+     */
+    @Nullable
+    public static String normalizeFormatValue(Object raw) {
+        return raw == null ? null : raw.toString().trim().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Resolves a raw {@code format} config value into a usable format name, or returns {@code null}
      * when the value means "infer from the resource extension" (blank, or the {@link #FORMAT_AUTO}
-     * sentinel). Normalization is {@code trim().toLowerCase(Locale.ROOT)}, matching how the query
-     * path reads stored values, so a value accepted here resolves identically at query time.
+     * sentinel). Normalizes via {@link #normalizeFormatValue}, so a value accepted here resolves
+     * identically at query time.
      *
      * <p>This is the single source of truth for {@code format} sentinel handling. Both the CRUD
      * validator ({@code FileDataSourceValidator.explicitFormat}) and the query-time resolvers
@@ -70,11 +83,8 @@ public final class FormatNameResolver {
      */
     @Nullable
     public static String parseExplicitFormat(Object raw) {
-        if (raw == null) {
-            return null;
-        }
-        String name = raw.toString().trim().toLowerCase(Locale.ROOT);
-        if (name.isEmpty() || name.equals(FORMAT_AUTO)) {
+        String name = normalizeFormatValue(raw);
+        if (name == null || name.isEmpty() || name.equals(FORMAT_AUTO)) {
             return null;
         }
         return name;

@@ -238,7 +238,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         // SchemaCacheKey string at query time.
         Object rawFormat = settings.get(FormatNameResolver.CONFIG_FORMAT);
         if (rawFormat != null && acceptedFields.contains(FormatNameResolver.CONFIG_FORMAT)) {
-            String normalized = rawFormat.toString().trim().toLowerCase(Locale.ROOT);
+            String normalized = FormatNameResolver.normalizeFormatValue(rawFormat);
             if (normalized.isEmpty() == false) {
                 result.put(FormatNameResolver.CONFIG_FORMAT, normalized);
             }

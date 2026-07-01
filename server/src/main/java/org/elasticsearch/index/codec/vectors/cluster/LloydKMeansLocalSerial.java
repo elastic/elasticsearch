@@ -54,13 +54,13 @@ class LloydKMeansLocalSerial<V> extends LloydKMeansLocal<V> {
     }
 
     @Override
-    protected void assignSpilled(
+    protected int[] assignSpilled(
         ClusteringVectorValues<V> vectors,
         KMeansIntermediate<V> kmeansIntermediate,
         NeighborHood[] neighborhoods,
         float soarLambda
     ) throws IOException {
-        assignSpilledSlice(vectors, ops, kmeansIntermediate, neighborhoods, soarLambda, 0, vectors.size());
+        return assignSpilledSlice(vectors, ops, kmeansIntermediate, neighborhoods, soarLambda);
     }
 
     @Override

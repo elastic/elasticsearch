@@ -74,6 +74,9 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
+        // EncryptionService binding for the always-registered data-source CRUD actions (see AbstractEsqlIntegTestCase).
+        // Must precede the ESQL plugin: EsqlPlugin.createComponents reads EncryptionServiceRegistry, populated by this stub.
+        plugins.add(org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin.class);
         plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
         plugins.add(EsqlAsyncActionIT.LocalStateEsqlAsync.class); // allows the async_search DELETE action
         plugins.add(CrossClusterAsyncQueryIT.InternalExchangePlugin.class);
@@ -81,8 +84,6 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         plugins.add(FailingPauseFieldPlugin.class);
         plugins.add(FailingFieldPlugin.class);
         plugins.add(CrossClusterAsyncQueryIT.CountingPauseFieldPlugin.class);
-        // EncryptionService binding for the always-registered data-source CRUD actions (see AbstractEsqlIntegTestCase).
-        plugins.add(org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin.class);
         return plugins;
     }
 

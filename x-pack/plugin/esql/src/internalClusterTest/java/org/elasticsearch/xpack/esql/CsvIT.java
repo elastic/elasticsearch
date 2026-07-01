@@ -297,9 +297,9 @@ public class CsvIT extends ESTestCase {
             "node_",
             List.of(
                 getTestTransportPlugin(),
-                EsqlTestPlugin.class,
                 // EncryptionService binding for the always-registered data-source CRUD actions.
                 TestEncryptionServicePlugin.class,
+                EsqlTestPlugin.class,
                 AggregateMetricMapperPlugin.class,
                 AnalyticsPlugin.class,
                 CommonAnalysisPlugin.class,

@@ -124,15 +124,15 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
+            // Must precede the ESQL plugin: EsqlPlugin.createComponents reads EncryptionServiceRegistry, populated by this stub.
+            TestEncryptionServicePlugin.class,
             EsqlPluginWithEnterpriseOrTrialLicense.class,
             MapperExtrasPlugin.class,
             VersionFieldPlugin.class,
             UnsignedLongMapperPlugin.class,
             SpatialPlugin.class,
             AnalyticsPlugin.class,
-            AggregateMetricMapperPlugin.class,
-            // EsqlPlugin's TransportPutDataSourceAction requires an EncryptionService at injection time.
-            TestEncryptionServicePlugin.class
+            AggregateMetricMapperPlugin.class
         );
     }
 

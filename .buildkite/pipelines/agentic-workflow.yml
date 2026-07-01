@@ -49,7 +49,10 @@ steps:
     agents:
       provider:       gcp
       image:          family/elasticsearch-ubuntu-2404
-      machineType:    n4-standard-16
+      # The pi-run agent is an I/O-bound orchestrator (LLM/gh/git calls); it does
+      # NOT build Elasticsearch — reproduction runs on its own n4-standard-64 job.
+      # 4 vCPU is plenty; the full-history mirror checkout is the only heavy step.
+      machineType:    n4-standard-4
       diskType:       hyperdisk-balanced
       buildDirectory: /dev/shm/bk
     retry:

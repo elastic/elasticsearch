@@ -3695,8 +3695,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     /**
      * Direct coverage of {@link ParquetColumnDecoding#decodeTemporalStat} for the timestamp[nanos]
-     * and INT96 branches, which parquet-mr does not always emit footer statistics for (so they are
-     * hard to exercise via a written file). Also pins date32/micros/millis and the non-temporal
+     * and TIME_* branches, which parquet-mr does not always emit footer statistics for (so they are
+     * hard to exercise via a written file). Also pins date32/micros/millis, the INT96 opt-out (its
+     * footer stats are not chronological, so the helper must return null), and the non-temporal
      * null fall-through.
      */
     public void testDecodeTemporalStatHelper() {
@@ -3721,11 +3722,32 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .named("ns");
         assertEquals(Long.valueOf(millis), ParquetColumnDecoding.decodeTemporalStat(millis * 1_000_000, tsNanos));
 
-        // INT96: 12 bytes LE = 8-byte nanos-of-day + 4-byte Julian day. Midnight → nanos 0.
+        // TIME must mirror the scan path: TIME_MILLIS (physical INT32) stays raw ms; TIME_MICROS
+        // scales x1_000 to nanos; TIME_NANOS is as-is.
+        long midMillis = 12 * 3_600_000L; // 12:00:00 of a day
+        PrimitiveType timeMillis = Types.required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("tm");
+        assertEquals(Long.valueOf(midMillis), ParquetColumnDecoding.decodeTemporalStat((int) midMillis, timeMillis));
+
+        long midMicros = midMillis * 1_000L;
+        PrimitiveType timeMicros = Types.required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("tu");
+        assertEquals(Long.valueOf(midMicros * 1_000L), ParquetColumnDecoding.decodeTemporalStat(midMicros, timeMicros));
+
+        long midNanos = midMillis * 1_000_000L;
+        PrimitiveType timeNanos = Types.required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("tn");
+        assertEquals(Long.valueOf(midNanos), ParquetColumnDecoding.decodeTemporalStat(midNanos, timeNanos));
+
+        // INT96 footer min/max are compared as unsigned little-endian bytes, not chronologically, so
+        // the helper must opt out (return null) and let the query fall back to a scan.
         int julianDay = (int) (days + 2_440_588);
         byte[] int96 = ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN).putLong(0L).putInt(julianDay).array();
         PrimitiveType int96Type = Types.required(PrimitiveType.PrimitiveTypeName.INT96).named("i96");
-        assertEquals(Long.valueOf(millis), ParquetColumnDecoding.decodeTemporalStat(Binary.fromConstantByteArray(int96), int96Type));
+        assertNull(ParquetColumnDecoding.decodeTemporalStat(Binary.fromConstantByteArray(int96), int96Type));
 
         // Non-temporal types return null so the caller falls through to other normalization.
         PrimitiveType plainInt = Types.required(PrimitiveType.PrimitiveTypeName.INT32).named("n");

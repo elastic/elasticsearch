@@ -45,6 +45,11 @@ import static org.hamcrest.Matchers.equalTo;
  * Verifies that ungrouped MIN/MAX over temporal columns in Parquet files return
  * epoch-millis values that match the scan-path decode, not raw physical units
  * (days, microseconds). Covers date32, timestamp[us], and timestamp[ms].
+ * <p>
+ * The {@code EsqlEnterpriseWithDatasourceExtensions}/{@code nodePlugins()}/{@code createOutputFile}
+ * boilerplate mirrors the other {@code ExternalParquet*IT} suites (e.g. {@link ExternalParquetCountPushdownIT});
+ * there is no shared base for these {@code EXTERNAL "file://..."} tests, so the pattern is duplicated for
+ * consistency rather than extracted here.
  */
 public class ExternalParquetTemporalAggregatePushdownIT extends AbstractEsqlIntegTestCase {
 

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.column.ColumnReader;
-import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.io.api.Converter;
 import org.apache.parquet.io.api.GroupConverter;
 import org.apache.parquet.io.api.PrimitiveConverter;
@@ -79,9 +78,17 @@ final class ParquetColumnDecoding {
     }
 
     /**
-     * Decodes a Parquet footer stat value to epoch-millis for temporal types.
-     * Returns a boxed {@code Long} for date32 / timestamp / INT96, or {@code null}
-     * when the type is not temporal (caller falls through to other normalization).
+     * Decodes a Parquet footer stat value into the same representation the scan path produces, so
+     * pushed-down MIN/MAX match a scan:
+     * <ul>
+     *   <li>date32 -&gt; epoch-millis</li>
+     *   <li>timestamp -&gt; epoch-millis (unit-scaled)</li>
+     *   <li>time -&gt; raw milliseconds for TIME_MILLIS (physical INT32), nanoseconds otherwise</li>
+     * </ul>
+     * Returns {@code null} when the type is not one of the above (caller falls through to other
+     * normalization). INT96 is deliberately excluded: its footer min/max are compared by parquet-mr
+     * as unsigned little-endian bytes (nanos-of-day in the low bytes), so they are not chronological
+     * and cannot be trusted for MIN/MAX pushdown — returning {@code null} forces a scan instead.
      */
     static Long decodeTemporalStat(Object value, PrimitiveType type) {
         LogicalTypeAnnotation logical = type.getLogicalTypeAnnotation();
@@ -91,11 +98,12 @@ final class ParquetColumnDecoding {
         if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
             return convertTimestampToMillis(((Number) value).longValue(), logical);
         }
-        if (type.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
-            if (value instanceof Binary bin) {
-                byte[] bytes = bin.getBytes();
-                return int96ToEpochMillis(bytes, 0, bytes.length);
-            }
+        if (logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+            long raw = ((Number) value).longValue();
+            // Mirror the scan path: TIME_MILLIS (physical INT32) stays raw ms; TIME_MICROS/NANOS
+            // scale to nanoseconds via timeNanoMultiplier. Signed comparison of these physical
+            // values is chronological, so footer min/max ordering is preserved.
+            return type.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32 ? raw : raw * timeNanoMultiplier(time);
         }
         return null;
     }

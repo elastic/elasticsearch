@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 
@@ -93,6 +94,12 @@ public class PlanExecutor {
         this.analysisRegistry = analysisRegistry;
     }
 
+    /**
+     * @param externalSourceExecutor Executor for {@link ExternalSourceResolver} work — glob expansion, footer reads,
+     *                               schema reconciliation. Must not be the SEARCH pool: a wildcard external query
+     *                               would otherwise starve regular ES searches and other ES|QL queries. Production
+     *                               wiring passes {@code esql_worker}.
+     */
     public void esql(
         EsqlQueryRequest request,
         String sessionId,
@@ -105,14 +112,16 @@ public class PlanExecutor {
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
         TransportActionServices services,
+        Executor externalSourceExecutor,
         BooleanSupplier cancellation,
         ActionListener<Versioned<Result>> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
-        // Create ExternalSourceResolver for Iceberg/Parquet resolution
-        // Use the same executor as for searches to avoid blocking
+        // Resolution (glob expansion, footer reads, schema reconciliation) runs on the caller-supplied
+        // executor rather than the SEARCH pool, so a wildcard external query cannot starve regular ES
+        // searches or other ES|QL queries.
         final ExternalSourceResolver externalSourceResolver = new ExternalSourceResolver(
-            services.transportService().getThreadPool().executor(org.elasticsearch.threadpool.ThreadPool.Names.SEARCH),
+            externalSourceExecutor,
             dataSourceModule,
             services.clusterService().getSettings(),
             cacheService,

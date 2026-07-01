@@ -839,3 +839,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.StandardToLogsDbIndexModeRollingUpgradeIT
   method: testIndexing
   issue: https://github.com/elastic/elasticsearch/issues/152662
+- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
+  method: testStress
+  issue: https://github.com/elastic/elasticsearch/issues/152671

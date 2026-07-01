@@ -1,0 +1,161 @@
+---
+setup:
+  # Start each test from a known-empty set of pipelines so the count/aggregate assertions are deterministic
+  # regardless of anything left behind by earlier test files sharing this cluster.
+  - do:
+      ingest.delete_pipeline:
+        id: "*"
+        ignore: 404
+
+---
+teardown:
+  # Reset the limits back to their defaults so they do not leak into other tests.
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            ingest.pipeline.max_pipelines: null
+            ingest.pipeline.max_pipeline_size: null
+            ingest.pipeline.max_total_metadata_size: null
+  - do:
+      ingest.delete_pipeline:
+        id: "*"
+        ignore: 404
+
+---
+"Pipeline exceeding max_pipeline_size is rejected":
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            ingest.pipeline.max_pipeline_size: "50b"
+  - match: { acknowledged: true }
+
+  # The request body is well over 50 bytes, so it is rejected before it is even stored.
+  - do:
+      catch: /max_pipeline_size/
+      ingest.put_pipeline:
+        id: "too_big"
+        body: >
+          {
+            "description": "this description alone is comfortably larger than fifty bytes and must be rejected",
+            "processors": [
+              {
+                "set": { "field": "field2", "value": "_value" }
+              }
+            ]
+          }
+
+  # A tiny pipeline is still accepted once the limit is raised.
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            ingest.pipeline.max_pipeline_size: null
+  - do:
+      ingest.put_pipeline:
+        id: "small"
+        body: >
+          {
+            "processors": [
+              {
+                "set": { "field": "field2", "value": "_value" }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+---
+"Number of pipelines is bounded by max_pipelines":
+  # Create a pipeline first, under the default (high) limit, then lower the cap below the current count. This keeps the test
+  # independent of any managed pipelines the cluster may already have.
+  - do:
+      ingest.put_pipeline:
+        id: "first_pipeline"
+        body: >
+          {
+            "processors": [
+              {
+                "set": { "field": "field2", "value": "_value" }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            ingest.pipeline.max_pipelines: 1
+  - match: { acknowledged: true }
+
+  # A new pipeline would exceed the maximum count and is rejected.
+  - do:
+      catch: /max_pipelines/
+      ingest.put_pipeline:
+        id: "second_pipeline"
+        body: >
+          {
+            "processors": [
+              {
+                "set": { "field": "field2", "value": "_value" }
+              }
+            ]
+          }
+
+  # Updating an existing pipeline does not increase the count, so it is still allowed at the limit.
+  - do:
+      ingest.put_pipeline:
+        id: "first_pipeline"
+        body: >
+          {
+            "description": "updated",
+            "processors": [
+              {
+                "set": { "field": "field2", "value": "_value" }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+---
+"Aggregate pipeline metadata size is bounded by max_total_metadata_size":
+  - do:
+      ingest.put_pipeline:
+        id: "existing_pipeline"
+        body: >
+          {
+            "processors": [
+              {
+                "set": { "field": "field2", "value": "_value" }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  # Lower the aggregate limit below what is already stored; adding a new pipeline would push the total over it.
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            ingest.pipeline.max_total_metadata_size: "1b"
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /max_total_metadata_size/
+      ingest.put_pipeline:
+        id: "another_pipeline"
+        body: >
+          {
+            "processors": [
+              {
+                "set": { "field": "field2", "value": "_value" }
+              }
+            ]
+          }
+
+  # The pipeline that already existed continues to work even though the cluster is now over the limit.
+  - do:
+      ingest.get_pipeline:
+        id: "existing_pipeline"
+  - match: { existing_pipeline.processors.0.set.field: "field2" }

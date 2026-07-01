@@ -81,6 +81,21 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         assertThat(serialized.getConfig(), anEmptyMap());
     }
 
+    public void testSerializedSizeInBytes() throws IOException {
+        PipelineConfiguration configuration = new PipelineConfiguration(
+            "1",
+            new BytesArray("""
+                {"description": "blah", "processors": [{"set": {"field": "f", "value": "v"}}]}""".getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON
+        );
+        // The reported size matches the number of bytes writeTo actually produces...
+        BytesStreamOutput out = new BytesStreamOutput();
+        configuration.writeTo(out);
+        assertThat(configuration.serializedSizeInBytes(), equalTo((long) out.bytes().length()));
+        // ...and is stable across calls (it is memoized on this immutable object).
+        assertThat(configuration.serializedSizeInBytes(), equalTo((long) out.bytes().length()));
+    }
+
     public void testMetaSerialization() throws IOException {
         String configJson = """
             {"description": "blah", "_meta" : {"foo": "bar"}}""";

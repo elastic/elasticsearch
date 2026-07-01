@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
@@ -78,6 +79,10 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
 
     private final String id;
     private final Map<String, Object> config;
+    // Lazily-computed serialized size. This class is immutable, so the size is stable once computed. Memoized because the size is summed
+    // across all pipelines on every pipeline creation, and recomputing it (which walks the whole config) on each request would burden the
+    // master.
+    private volatile long serializedSize = -1;
 
     public PipelineConfiguration(String id, Map<String, Object> config) {
         this.id = Objects.requireNonNull(id);
@@ -189,6 +194,26 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
         final Map<String, Object> configForTransport = configForTransport(transportVersion);
         out.writeString(id);
         out.writeGenericMap(configForTransport);
+    }
+
+    /**
+     * Returns the number of bytes this pipeline occupies when serialized. The size is measured without materializing the serialized form,
+     * so that even an oversized pipeline does not cause a large allocation here. The result is memoized (this class is immutable) so that
+     * summing the size across all pipelines on every pipeline creation does not repeatedly walk the whole config on the master. Used to
+     * bound both a single pipeline and the aggregate size of all stored pipelines in the cluster state.
+     */
+    public long serializedSizeInBytes() {
+        long size = serializedSize;
+        if (size == -1) {
+            try (CountingStreamOutput out = new CountingStreamOutput()) {
+                writeTo(out);
+                size = out.position();
+            } catch (IOException e) {
+                throw new IllegalStateException("unable to compute the size of ingest pipeline [" + id + "]", e);
+            }
+            serializedSize = size;
+        }
+        return size;
     }
 
     @Override

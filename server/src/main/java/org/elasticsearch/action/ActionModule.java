@@ -986,7 +986,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCancelTasksAction(nodesInCluster));
 
         // Ingest API
-        registerHandler.accept(new RestPutPipelineAction());
+        registerHandler.accept(new RestPutPipelineAction(clusterSettings));
         registerHandler.accept(new RestGetPipelineAction());
         registerHandler.accept(new RestDeletePipelineAction());
         registerHandler.accept(new RestSimulatePipelineAction());

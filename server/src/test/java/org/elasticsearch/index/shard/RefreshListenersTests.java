@@ -443,7 +443,7 @@ public class RefreshListenersTests extends ESTestCase {
                         }
                         listener.assertNoError();
 
-                        Engine.Get get = new Engine.Get(false, false, threadId);
+                        Engine.Get get = new Engine.Get(false, false, threadId, Uid.encodeId(threadId));
                         MapperService mapperService = EngineTestCase.createMapperService();
                         try (
                             Engine.GetResult getResult = engine.get(

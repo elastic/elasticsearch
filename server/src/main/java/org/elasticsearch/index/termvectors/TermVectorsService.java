@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentParser;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -84,7 +85,12 @@ public class TermVectorsService {
 
         try (
             Engine.GetResult get = indexShard.get(
-                new Engine.Get(request.realtime(), false, request.id()).version(request.version()).versionType(request.versionType()),
+                new Engine.Get(
+                    request.realtime(),
+                    false,
+                    request.id(),
+                    IdFieldMapper.encodeIdentity(indexShard.indexSettings().isSliceEnabled(), request.id(), request.routing())
+                ).version(request.version()).versionType(request.versionType()),
                 request.getSplitShardCountSummary()
             );
             Engine.Searcher searcher = indexShard.acquireExternalSearcher("term_vector", request.getSplitShardCountSummary())

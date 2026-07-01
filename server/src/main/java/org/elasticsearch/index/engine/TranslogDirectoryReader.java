@@ -60,6 +60,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SliceIdFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
@@ -198,7 +199,11 @@ final class TranslogDirectoryReader extends DirectoryReader {
         boolean rootDocOnly,
         Translog.Index operation
     ) {
-        final String id = Uid.decodeId(operation.uid());
+        // operation.uid() is the compound identity term for a slice index (Uid.encodeCompoundId) or a plain
+        // encodeId for a non-slice index. Extract the user-visible id accordingly so the re-parse feeds the
+        // mapper the correct plain id (the mapper rebuilds all three _id terms from id + routing).
+        final boolean sliceEnabled = engineConfig.getIndexSettings().isSliceEnabled();
+        final String id = sliceEnabled ? SliceIdFieldMapper.decodeCompoundId(operation.uid()) : Uid.decodeId(operation.uid());
         final ParsedDocument parsedDocs = documentParser.parseDocument(
             new SourceToParse(id, operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()),
             mappingLookup
@@ -356,6 +361,9 @@ final class TranslogDirectoryReader extends DirectoryReader {
             this.engineConfig = engineConfig;
             this.onSegmentCreated = onSegmentCreated;
             this.directory = directory;
+            // A realtime GET seeks the engine identity term, which is operation.uid() — the compound identity bytes for
+            // a slice index, or the plain encodeId for a non-slice index. Translog.Index now carries the compound uid
+            // directly (built by prepareIndex → encodeIdentity), so no reconstruction is needed.
             this.uid = operation.uid();
         }
 
@@ -552,8 +560,11 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 visitor.stringField(FAKE_ROUTING_FIELD, operation.routing());
             }
             if (visitor.needsField(FAKE_ID_FIELD) == StoredFieldVisitor.Status.YES) {
-                final byte[] id = new byte[uid.length];
-                System.arraycopy(uid.bytes, uid.offset, id, 0, uid.length);
+                // The stored _id is always the plain encodeId(id) (operation.uid()), even when the seek term (this.uid)
+                // is the slice compound.
+                final BytesRef plainUid = operation.uid();
+                final byte[] id = new byte[plainUid.length];
+                System.arraycopy(plainUid.bytes, plainUid.offset, id, 0, plainUid.length);
                 visitor.binaryField(FAKE_ID_FIELD, id);
             }
         }

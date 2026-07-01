@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.replication.StaleRequestException;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -194,7 +196,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         currentMetric.inc();
         final long now = System.nanoTime();
         try {
-            var engineGet = new Engine.Get(realtime, realtime, id).version(version)
+            final BytesRef uid = IdFieldMapper.encodeIdentity(indexSettings.isSliceEnabled(), id, routing);
+            var engineGet = new Engine.Get(realtime, realtime, id, uid).version(version)
                 .versionType(versionType)
                 .setIfSeqNo(ifSeqNo)
                 .setIfPrimaryTerm(ifPrimaryTerm);
@@ -274,6 +277,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
     public GetResult getFromTranslog(
         String id,
+        String routing,
         String[] gFields,
         boolean realtime,
         long version,
@@ -285,7 +289,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     ) throws IOException {
         return doGet(
             id,
-            null,
+            routing,
             gFields,
             realtime,
             version,
@@ -300,10 +304,16 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         );
     }
 
-    public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm, FetchSourceContext fetchSourceContext) throws IOException {
+    public GetResult getForUpdate(
+        String id,
+        @Nullable String routing,
+        long ifSeqNo,
+        long ifPrimaryTerm,
+        FetchSourceContext fetchSourceContext
+    ) throws IOException {
         return doGet(
             id,
-            null,
+            routing,
             new String[] { RoutingFieldMapper.NAME },
             true,
             Versions.MATCH_ANY,

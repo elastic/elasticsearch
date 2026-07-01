@@ -66,7 +66,7 @@ public class UpdateHelper {
             throw new UpdateNotSupportedException(indexShard.shardId());
         }
         final GetResult getResult = indexShard.getService()
-            .getForUpdate(request.id(), request.ifSeqNo(), request.ifPrimaryTerm(), fetchSourceContext);
+            .getForUpdate(request.id(), request.routing(), request.ifSeqNo(), request.ifPrimaryTerm(), fetchSourceContext);
         return prepare(indexShard, request, getResult, nowInMillis);
     }
 

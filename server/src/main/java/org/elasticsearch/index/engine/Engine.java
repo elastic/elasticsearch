@@ -2172,10 +2172,17 @@ public abstract class Engine implements Closeable {
         private long ifSeqNo = UNASSIGNED_SEQ_NO;
         private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
-        public Get(boolean realtime, boolean readFromTranslog, String id) {
+        Get(boolean realtime, boolean readFromTranslog, String id) {
             this.realtime = realtime;
             this.id = id;
             this.uid = Uid.encodeId(id);
+            this.readFromTranslog = readFromTranslog;
+        }
+
+        public Get(boolean realtime, boolean readFromTranslog, String id, BytesRef uid) {
+            this.realtime = realtime;
+            this.id = id;
+            this.uid = uid;
             this.readFromTranslog = readFromTranslog;
         }
 

@@ -24,6 +24,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
@@ -111,12 +112,14 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SliceIdFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
@@ -1120,8 +1123,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // whether mappings were provided or not.
             doc.addDynamicMappingsUpdate(Mapping.emptyCompressed());
         }
+        final BytesRef uid = IdFieldMapper.encodeIdentity(mapperService.getIndexSettings().isSliceEnabled(), doc.id(), source.routing());
         return new Engine.Index(
-            Uid.encodeId(doc.id()),
+            uid,
             doc,
             seqNo,
             primaryTerm,
@@ -1275,6 +1279,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long ifSeqNo,
         long ifPrimaryTerm
     ) throws IOException {
+        return applyDeleteOperationOnPrimary(version, id, null, versionType, ifSeqNo, ifPrimaryTerm);
+    }
+
+    public Engine.DeleteResult applyDeleteOperationOnPrimary(
+        long version,
+        String id,
+        @Nullable String routing,
+        VersionType versionType,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) throws IOException {
         assert versionType.validateVersionForWrites(version);
         return applyDeleteOperation(
             getEngine(),
@@ -1282,6 +1297,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             getOperationPrimaryTerm(),
             version,
             id,
+            routing,
             versionType,
             ifSeqNo,
             ifPrimaryTerm,
@@ -1289,13 +1305,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
-    public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long opPrimaryTerm, long version, String id) throws IOException {
+    public Engine.DeleteResult applyDeleteOperationOnReplica(
+        long seqNo,
+        long opPrimaryTerm,
+        long version,
+        String id,
+        @Nullable String routing
+    ) throws IOException {
         return applyDeleteOperation(
             getEngine(),
             seqNo,
             opPrimaryTerm,
             version,
             id,
+            routing,
             null,
             UNASSIGNED_SEQ_NO,
             0,
@@ -1309,6 +1332,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long opPrimaryTerm,
         long version,
         String id,
+        @Nullable String routing,
         @Nullable VersionType versionType,
         long ifSeqNo,
         long ifPrimaryTerm,
@@ -1320,7 +1344,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try {
             Engine.Delete delete = indexingOperationListeners.preDelete(
                 shardId,
-                prepareDelete(id, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm)
+                prepareDelete(
+                    id,
+                    routing,
+                    mapperService.getIndexSettings().isSliceEnabled(),
+                    seqNo,
+                    opPrimaryTerm,
+                    version,
+                    versionType,
+                    origin,
+                    ifSeqNo,
+                    ifPrimaryTerm
+                )
             );
             final Engine.DeleteResult result;
             try {
@@ -1341,6 +1376,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public static Engine.Delete prepareDelete(
         String id,
+        @Nullable String routing,
+        boolean sliceEnabled,
         long seqNo,
         long primaryTerm,
         long version,
@@ -1350,7 +1387,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long ifPrimaryTerm
     ) {
         long startTime = System.nanoTime();
-        return new Engine.Delete(id, Uid.encodeId(id), seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
+        BytesRef uid = IdFieldMapper.encodeIdentity(sliceEnabled, id, routing);
+        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
+    }
+
+    public static Engine.Delete prepareDelete(
+        String id,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
+        return prepareDelete(id, null, false, seqNo, primaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
     }
 
     public Engine.GetResult get(Engine.Get get, SplitShardCountSummary splitShardCountSummary) {
@@ -2226,6 +2277,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         switch (operation.opType()) {
             case INDEX -> {
                 final Translog.Index index = (Translog.Index) operation;
+                // The translog Index uid is the compound identity term for a slice index (encodeCompoundId) or the plain
+                // encodeId for a non-slice index. Extract the user-visible id and routing in the same way for both.
+                final boolean sliceEnabled = mapperService.getIndexSettings().isSliceEnabled();
+                final String indexId = sliceEnabled ? SliceIdFieldMapper.decodeCompoundId(index.uid()) : Uid.decodeId(index.uid());
+                assert sliceEnabled == false || index.routing() != null
+                    : "slice-enabled index replayed an index op for id [" + indexId + "] without routing";
                 // we set canHaveDuplicates to true all the time such that we de-optimze the translog case and ensure that all
                 // autoGeneratedID docs that are coming from the primary are updated correctly.
                 result = applyIndexOperation(
@@ -2239,22 +2296,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     index.getAutoGeneratedIdTimestamp(),
                     true,
                     origin,
-                    new SourceToParse(
-                        Uid.decodeId(index.uid()),
-                        index.source(),
-                        XContentHelper.xContentType(index.source()),
-                        index.routing()
-                    )
+                    new SourceToParse(indexId, index.source(), XContentHelper.xContentType(index.source()), index.routing())
                 );
             }
             case DELETE -> {
                 final Translog.Delete delete = (Translog.Delete) operation;
+                // The translog Delete uid is the compound identity term for a slice index (encodeCompoundId) or the plain
+                // encodeId for a non-slice index — symmetric with the INDEX case above.
+                final boolean sliceEnabled = mapperService.getIndexSettings().isSliceEnabled();
+                final String id = sliceEnabled ? SliceIdFieldMapper.decodeCompoundId(delete.uid()) : Uid.decodeId(delete.uid());
+                final String routing = sliceEnabled ? SliceIdFieldMapper.sliceFromCompoundId(delete.uid()) : null;
                 result = applyDeleteOperation(
                     engine,
                     delete.seqNo(),
                     delete.primaryTerm(),
                     delete.version(),
-                    Uid.decodeId(delete.uid()),
+                    id,
+                    routing,
                     versionType,
                     UNASSIGNED_SEQ_NO,
                     0,

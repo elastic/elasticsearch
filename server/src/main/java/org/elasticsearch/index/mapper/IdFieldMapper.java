@@ -16,6 +16,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -35,9 +36,15 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_id";
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(mappingParserContext -> {
-        var indexMode = mappingParserContext.getIndexSettings().getMode();
-        if (indexMode == IndexMode.TIME_SERIES) {
+        var indexSettings = mappingParserContext.getIndexSettings();
+        if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
             return new ConstantBuilder(TsidExtractingIdFieldMapper.INSTANCE);
+        } else if (indexSettings.isSliceEnabled()) {
+            // A slice-enabled index composes with columnar _id: follow the index's columnar default for where the plain
+            // id lives (binary doc values vs a stored field). The slice search/compound terms are indexed either way.
+            return new ConstantBuilder(
+                indexSettings.isUseColumnarIdByDefault() ? SliceIdFieldMapper.COLUMNAR : SliceIdFieldMapper.DOCUMENT
+            );
         } else {
             boolean useColumnarIdByDefault = mappingParserContext.getIndexSettings().isUseColumnarIdByDefault();
             return new ProvidedIdFieldMapper.Builder(useColumnarIdByDefault);
@@ -104,6 +111,28 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
      */
     public static Field standardIdField(BytesRef uid, Field.Store stored) {
         return new StringField(NAME, uid, stored);
+    }
+
+    /**
+     * Resolve the identity term bytes — the {@code _id} term used for uniqueness/versioning/GET/delete (i.e.
+     * {@link org.elasticsearch.index.engine.Engine.Operation#uid()}). This is the single
+     * source of truth for the encoding.
+     */
+    public static BytesRef encodeIdentity(boolean sliceEnabled, String id, @Nullable String routing) {
+        if (sliceEnabled && routing == null) {
+            throw new IllegalArgumentException("unable to create _id as slice is enabled but _slice is null");
+        }
+        return sliceEnabled ? SliceIdFieldMapper.encodeCompoundId(id, routing) : Uid.encodeId(id);
+    }
+
+    /**
+     * Decode the user-visible plain {@code _id} string from the bytes that are stored in the {@code _id} stored field
+     * or binary doc value. For a slice-enabled index the stored bytes are the compound identity term
+     * ({@link SliceIdFieldMapper#encodeCompoundId(String, String)}); for a non-slice index they are the plain
+     * {@link Uid#encodeId(String)} bytes. This is the symmetric counterpart of {@link #encodeIdentity}.
+     */
+    public static String decodeIdentity(boolean sliceEnabled, BytesRef storedBytes) {
+        return sliceEnabled ? SliceIdFieldMapper.decodeCompoundId(storedBytes) : Uid.decodeId(storedBytes);
     }
 
     /**

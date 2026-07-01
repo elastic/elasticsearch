@@ -159,7 +159,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             as well as other field types like keyword, boolean, dates, and numeric types.
             When Match is used on a <<semantic-text, semantic_text>> field, it will perform a semantic query on the field.
 
-            {applies_to}`stack: ga 9.5`
+            {applies_to}`stack: preview 9.5`
             `MATCH` can also search expressions that are not backed by an index, such as
             computed columns produced by `EVAL`, `STATS`, or other commands.
             When the target is not an indexed field, the search evaluates by scanning

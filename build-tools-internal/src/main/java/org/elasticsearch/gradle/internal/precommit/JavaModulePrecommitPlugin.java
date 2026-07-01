@@ -9,10 +9,12 @@
 
 package org.elasticsearch.gradle.internal.precommit;
 
+import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
@@ -28,9 +30,20 @@ public class JavaModulePrecommitPlugin extends PrecommitPlugin {
             SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
             t.dependsOn(mainSourceSet.getClassesTaskName());
             t.getSrcDirs().set(project.provider(() -> mainSourceSet.getAllSource().getSrcDirs()));
-            t.setClasspath(project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME));
             t.setClassesDirs(mainSourceSet.getOutput().getClassesDirs());
             t.setResourcesDirs(mainSourceSet.getOutput().getResourcesDir());
+
+            // Wire module-resolution inputs for plugin projects that bundle their own jars.
+            // BasePluginBuildPlugin registers "resolveableCompileOnly" (a resolvable mirror of
+            // compileOnly) for every ES plugin. When present, bundled jars = runtimeClasspath
+            // minus resolveableCompileOnly, mirroring the formula in BasePluginBuildPlugin.createBundleSpec.
+            var configs = project.getConfigurations();
+            var provided = configs.findByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
+            if (provided != null) {
+                FileCollection runtime = configs.getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME);
+                t.setBundledClasspath(runtime.minus(provided));
+                t.setProvidedClasspath(provided);
+            }
         });
         return task;
     }

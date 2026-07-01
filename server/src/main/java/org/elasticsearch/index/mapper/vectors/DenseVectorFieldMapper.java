@@ -639,12 +639,60 @@ public class DenseVectorFieldMapper extends FieldMapper {
      * {@link DenseVectorQuery.Floats#rawScored}.
      */
     sealed interface ResolvedVector permits ResolvedVector.Floats, ResolvedVector.Bytes {
-        record Floats(float[] values, boolean denormalize) implements ResolvedVector {}
+
+        /** Builds the indexed exact-KNN query: codec-bound when {@code useQuantized}, else raw-scored. */
+        Query createExactKnnQuery(String field, VectorSimilarityFunction function, boolean useQuantized);
+
+        /** Builds the exact-KNN query for a non-indexed (index:false) field, scored from binary doc values. */
+        Query createDocValuesExactKnnQuery(
+            String field,
+            VectorSimilarityFunction function,
+            ElementType elementType,
+            IndexVersion indexVersion
+        );
+
+        record Floats(float[] values, boolean denormalize) implements ResolvedVector {
+            @Override
+            public Query createExactKnnQuery(String field, VectorSimilarityFunction function, boolean useQuantized) {
+                return useQuantized
+                    ? DenseVectorQuery.Floats.codecScored(values, field)
+                    : DenseVectorQuery.Floats.rawScored(values, field, function, denormalize);
+            }
+
+            @Override
+            public Query createDocValuesExactKnnQuery(
+                String field,
+                VectorSimilarityFunction function,
+                ElementType elementType,
+                IndexVersion indexVersion
+            ) {
+                return new DenseVectorQuery.DocValuesFloats(values, field, function, elementType, indexVersion);
+            }
+        }
 
         // isBit lets callers that must treat bit vectors differently (e.g. never raw-scoring them with a
         // VectorSimilarityFunction) use a `when isBit` guard on this single case, instead of a separate sealed
         // variant — callers that don't care (doc values, where BYTE and BIT behave identically) just ignore it.
-        record Bytes(byte[] values, boolean isBit) implements ResolvedVector {}
+        record Bytes(byte[] values, boolean isBit) implements ResolvedVector {
+            @Override
+            public Query createExactKnnQuery(String field, VectorSimilarityFunction function, boolean useQuantized) {
+                // BIT has no separate quantized representation — codec scorer is always raw Hamming distance,
+                // so it must never take the raw-VectorSimilarityFunction path that BYTE otherwise would.
+                return (isBit || useQuantized)
+                    ? DenseVectorQuery.Bytes.codecScored(values, field)
+                    : DenseVectorQuery.Bytes.rawScored(values, field, function);
+            }
+
+            @Override
+            public Query createDocValuesExactKnnQuery(
+                String field,
+                VectorSimilarityFunction function,
+                ElementType elementType,
+                IndexVersion indexVersion
+            ) {
+                return new DenseVectorQuery.DocValuesBytes(values, field, function, isBit, indexVersion);
+            }
+        }
     }
 
     public abstract static class Element {
@@ -703,6 +751,40 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean isOverridden,
             boolean isNormalized
         );
+
+        /** Resolves, validates, and builds the indexed exact-KNN query in one call; see {@link #resolveAndValidate}. */
+        Query createExactKnnQuery(
+            VectorData queryVector,
+            Integer dims,
+            VectorSimilarity effectiveSimilarity,
+            boolean isOverridden,
+            boolean isNormalized,
+            VectorSimilarityFunction function,
+            boolean useQuantized,
+            String field
+        ) {
+            return resolveAndValidate(queryVector, dims, effectiveSimilarity, isOverridden, isNormalized).createExactKnnQuery(
+                field,
+                function,
+                useQuantized
+            );
+        }
+
+        /** Resolves, validates, and builds the doc-values exact-KNN query in one call; see {@link #resolveAndValidate}. */
+        Query createDocValuesExactKnnQuery(
+            VectorData queryVector,
+            Integer dims,
+            VectorSimilarity effectiveSimilarity,
+            String field,
+            IndexVersion indexVersion
+        ) {
+            return resolveAndValidate(queryVector, dims, effectiveSimilarity, false, false).createDocValuesExactKnnQuery(
+                field,
+                effectiveSimilarity.rawVectorSimilarityFunction(),
+                elementType(),
+                indexVersion
+            );
+        }
 
         public abstract void writeValues(ByteBuffer byteBuffer, float[] values);
 
@@ -3232,24 +3314,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
             final VectorSimilarityFunction function = isSimilarityOverridden
                 ? effectiveSimilarity.rawVectorSimilarityFunction()
                 : effectiveSimilarity.vectorSimilarityFunction(indexVersionCreated, element.elementType());
-            ResolvedVector resolved = element.resolveAndValidate(
+            return element.createExactKnnQuery(
                 resolvedQueryVector,
                 dims,
                 effectiveSimilarity,
                 isSimilarityOverridden,
-                isNormalized()
+                isNormalized(),
+                function,
+                useQuantized,
+                name()
             );
-            return switch (resolved) {
-                case ResolvedVector.Floats(float[] queryVector, boolean denormalize) -> useQuantized
-                    ? DenseVectorQuery.Floats.codecScored(queryVector, name())
-                    : DenseVectorQuery.Floats.rawScored(queryVector, name(), function, denormalize);
-                // BIT has no separate quantized representation — codec scorer is always raw Hamming distance,
-                // so it must never take the raw-VectorSimilarityFunction path that BYTE otherwise would.
-                case ResolvedVector.Bytes(byte[] queryVector, boolean isBit) when isBit -> createExactKnnBitQuery(queryVector, null);
-                case ResolvedVector.Bytes(byte[] queryVector, boolean isBit) -> useQuantized
-                    ? DenseVectorQuery.Bytes.codecScored(queryVector, name())
-                    : DenseVectorQuery.Bytes.rawScored(queryVector, name(), function);
-            };
         }
 
         /**
@@ -3260,38 +3334,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
          * similarity. Bit vectors are scored by Hamming distance (their only metric), matching the indexed path.
          */
         private Query createDocValuesExactKnnQuery(VectorData resolvedQueryVector, VectorSimilarity effectiveSimilarity) {
-            // No override/normalization concept for doc-values fields (they're never indexed), and BIT's
-            // effectiveSimilarity is always L2_NORM here, so the BYTE and BIT arms below share one query shape.
-            ResolvedVector resolved = element.resolveAndValidate(resolvedQueryVector, dims, effectiveSimilarity, false, false);
-            return switch (resolved) {
-                // Doc-values fields never denormalize (that concept only applies to the KNN-indexed path).
-                case ResolvedVector.Floats(float[] queryVector, boolean denormalize) -> new DenseVectorQuery.DocValuesFloats(
-                    queryVector,
-                    name(),
-                    effectiveSimilarity.rawVectorSimilarityFunction(),
-                    element.elementType(),
-                    indexVersionCreated
-                );
-                // BYTE and BIT share this arm: DocValuesBytes's scorer branches on isBit internally to compute
-                // Hamming distance for bit vectors.
-                case ResolvedVector.Bytes(byte[] queryVector, boolean isBit) -> new DenseVectorQuery.DocValuesBytes(
-                    queryVector,
-                    name(),
-                    effectiveSimilarity.rawVectorSimilarityFunction(),
-                    isBit,
-                    indexVersionCreated
-                );
-            };
+            return element.createDocValuesExactKnnQuery(resolvedQueryVector, dims, effectiveSimilarity, name(), indexVersionCreated);
         }
 
         public boolean isNormalized() {
             return indexVersionCreated.onOrAfter(NORMALIZE_COSINE) && VectorSimilarity.COSINE.equals(similarity);
-        }
-
-        // Both callers pass a vector already validated by element.resolveAndValidate, so no dimension check here.
-        private Query createExactKnnBitQuery(byte[] queryVector, Query filter) {
-            // Bit vectors have no VectorSimilarityFunction; the codec scorer always computes Hamming distance.
-            return DenseVectorQuery.Bytes.codecScored(queryVector, name()).filteredBy(filter);
         }
 
         private static float[] normalizeQueryVector(float[] queryVector, float squaredMagnitude) {
@@ -3452,7 +3499,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         ) {
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
-                var exactKnnQuery = createExactKnnBitQuery(queryVector, filter);
+                // Bit vectors have no VectorSimilarityFunction; the codec scorer always computes Hamming distance.
+                Query exactKnnQuery = DenseVectorQuery.Bytes.codecScored(queryVector, name()).filteredBy(filter);
                 knnQuery = parentFilter != null ? new DiversifyingParentBlockQuery(parentFilter, exactKnnQuery) : exactKnnQuery;
             } else {
                 knnQuery = parentFilter != null

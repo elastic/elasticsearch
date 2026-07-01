@@ -241,7 +241,9 @@ public class EsqlParser {
             }
 
             return result.apply(
-                new AstBuilder(new ExpressionBuilder.ParsingContext(params, metrics, inferenceSettings, null, config.grokMatcherWatchdog())),
+                new AstBuilder(
+                    new ExpressionBuilder.ParsingContext(params, metrics, inferenceSettings, null, config.grokMatcherWatchdog())
+                ),
                 tree
             );
         } catch (StackOverflowError e) {

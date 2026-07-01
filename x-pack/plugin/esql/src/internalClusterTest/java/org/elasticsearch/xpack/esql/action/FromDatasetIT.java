@@ -179,7 +179,9 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         "employees_rename_keep",
         "employees_ndjson_rename_strict",
         "employees_ndjson_rename_nonstrict",
-        "employees_parquet_rename"
+        "employees_parquet_rename",
+        "employees_source_disabled",
+        "employees_source_enabled"
     );
 
     /**
@@ -519,6 +521,53 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             assertThat(rows, hasSize(3));
             assertThat(rows.get(0).get(0), equalTo(1L));
             assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+        }
+    }
+
+    public void testSourceDisabledRejectsMetadataSource() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("emp_no", new DatasetFieldMapping("integer", null));
+        // _source.enabled: false -> METADATA _source must be rejected, not returned as a silently-null column.
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties, false),
+            null,
+            null
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_source_disabled",
+                    "local_ds",
+                    csvFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        Exception ex = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM employees_source_disabled METADATA _source | LIMIT 1"), TIMEOUT)
+        );
+        assertCauseMessageContains(ex, "[_source] is not available");
+    }
+
+    public void testSourceEnabledByDefaultAllowsMetadataSource() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // No _source knob -> available by default; METADATA _source resolves to a column (not rejected).
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees_source_enabled", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM employees_source_enabled METADATA _source | KEEP _source | LIMIT 1"), TIMEOUT)) {
+            assertThat(response.columns().get(0).name(), equalTo("_source"));
         }
     }
 

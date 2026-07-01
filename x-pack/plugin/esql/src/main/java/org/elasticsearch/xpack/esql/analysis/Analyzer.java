@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -655,6 +656,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (existing.contains(name)) {
                     continue;
                 }
+                // _source.enabled: false — the dataset opted out of a synthetic _source, so reject the request loudly
+                // rather than returning a silently-null column.
+                if (ExternalMetadataColumns.SOURCE.equals(name) && sourceDisabled(plan)) {
+                    throw new IllegalArgumentException(
+                        "[_source] is not available: it is disabled (_source.enabled: false) for this dataset"
+                    );
+                }
                 DataType type = MetadataAttribute.dataType(name);
                 if (type == null) {
                     type = FileMetadataColumns.COLUMNS.get(name);
@@ -677,6 +685,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> resolvedSchema = enriched == null ? baseSchema : List.copyOf(enriched);
             List<? extends NamedExpression> unresolvedList = unresolved == null ? List.of() : List.copyOf(unresolved);
             return new MetadataBindResult(resolvedSchema, unresolvedList);
+        }
+
+        private static boolean sourceDisabled(UnresolvedExternalRelation plan) {
+            var mapping = plan.mapping();
+            return mapping != null && mapping.mappings() != null && mapping.mappings().sourceAvailable() == false;
         }
 
         private String extractTablePath(Expression tablePath) {

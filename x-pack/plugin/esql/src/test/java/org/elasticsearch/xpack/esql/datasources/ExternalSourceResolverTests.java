@@ -532,6 +532,265 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    // ===== Deferred eager-stats (requiresStats gating) tests =====
+
+    /**
+     * Defer path (non-cacheable): a multi-file FFW resolve with an empty (non-null)
+     * {@code pathsRequiringStats} set reads only the anchor footer (1 metadata read), keeps
+     * {@code STATS_FILE_COUNT}, and marks stats partial — exactly the state the failed-aggregation
+     * fallback produces, so downstream consumers already handle it.
+     */
+    public void testFirstFileWinsDefersFooterReadsWhenStatsNotRequired() throws Exception {
+        AtomicInteger metadataReads = new AtomicInteger();
+        ExternalSourceResolution resolution = resolveFfwWithRequirement(threeFileStats(), metadataReads, Set.of(), null);
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(GLOB);
+        assertNotNull(resolved);
+        assertEquals("defer must read only the anchor footer", 1, metadataReads.get());
+        Map<String, Object> meta = resolved.metadata().sourceMetadata();
+        assertEquals("deferred stats must be partial", Boolean.TRUE, meta.get(SourceStatisticsSerializer.STATS_PARTIAL));
+        assertEquals("file count is preserved on defer", 3L, meta.get(SourceStatisticsSerializer.STATS_FILE_COUNT));
+        // The anchor's own (single-file) stats remain embedded, but STATS_PARTIAL flags them as not
+        // representative of the whole glob, so downstream never consumes them as global stats
+        // (see testDeferredMetadataNeverConsumedAsGlobalStats). They are NOT the aggregated total.
+        assertEquals("anchor-only row count, not the 6000 aggregate", 1000L, meta.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+    }
+
+    /**
+     * Eager path (non-cacheable): when the path is in {@code pathsRequiringStats}, every file footer
+     * is read (anchor schema + N stats reads) and the aggregated global stats are complete
+     * (no {@code STATS_PARTIAL}).
+     */
+    public void testFirstFileWinsEagerlyReadsFootersWhenStatsRequired() throws Exception {
+        AtomicInteger metadataReads = new AtomicInteger();
+        ExternalSourceResolution resolution = resolveFfwWithRequirement(threeFileStats(), metadataReads, Set.of(GLOB), null);
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(GLOB);
+        assertNotNull(resolved);
+        // anchor schema read (1) + per-file stats reads across all 3 files (3) = 4.
+        assertEquals("eager must read the anchor footer plus all file footers", 4, metadataReads.get());
+        Map<String, Object> meta = resolved.metadata().sourceMetadata();
+        assertNull("eager stats are complete, not partial", meta.get(SourceStatisticsSerializer.STATS_PARTIAL));
+        assertEquals("aggregated row count across all files", 6000L, meta.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertEquals("file count is stamped on eager too", 3L, meta.get(SourceStatisticsSerializer.STATS_FILE_COUNT));
+    }
+
+    /**
+     * Legacy {@code null} overload: a {@code null} {@code pathsRequiringStats} keeps the original
+     * eager-for-every-path behavior, so all footers are read regardless of query shape.
+     */
+    public void testFirstFileWinsLegacyNullSetReadsAllFooters() throws Exception {
+        AtomicInteger metadataReads = new AtomicInteger();
+        ExternalSourceResolution resolution = resolveFfwWithRequirement(threeFileStats(), metadataReads, null, null);
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(GLOB);
+        assertNotNull(resolved);
+        assertEquals("legacy null set is eager for all paths", 4, metadataReads.get());
+        Map<String, Object> meta = resolved.metadata().sourceMetadata();
+        assertNull("legacy eager stats are complete", meta.get(SourceStatisticsSerializer.STATS_PARTIAL));
+        assertEquals(6000L, meta.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+    }
+
+    /**
+     * Defer path (cacheable): only the anchor schema is loaded (1 cold load). The per-file stats
+     * loop is skipped entirely.
+     */
+    public void testFirstFileWinsDeferCacheableLoadsAnchorOnly() throws Exception {
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, threeFileListing()), threeFileSchemas());
+            ExternalSourceResolver resolver = buildStatsResolver(provider, threeFileStats(), null, cacheService);
+
+            ExternalSourceResolution resolution = resolveFfw(resolver, Set.of());
+            ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(GLOB);
+            assertNotNull(resolved);
+            assertEquals("defer loads only the anchor schema", 1, provider.schemaCallCount.get());
+            assertEquals(Boolean.TRUE, resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL));
+        }
+    }
+
+    /**
+     * Eager path (cacheable, cold): the anchor schema plus every other file is loaded once
+     * (N cold loads, anchor reused from cache in the stats loop). Aggregated stats are complete.
+     */
+    public void testFirstFileWinsEagerCacheableColdLoadsAllFiles() throws Exception {
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, threeFileListing()), threeFileSchemas());
+            ExternalSourceResolver resolver = buildStatsResolver(provider, threeFileStats(), null, cacheService);
+
+            ExternalSourceResolution resolution = resolveFfw(resolver, Set.of(GLOB));
+            ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(GLOB);
+            assertNotNull(resolved);
+            assertEquals("eager cold-loads all 3 file schemas exactly once", 3, provider.schemaCallCount.get());
+            Map<String, Object> meta = resolved.metadata().sourceMetadata();
+            assertNull(meta.get(SourceStatisticsSerializer.STATS_PARTIAL));
+            assertEquals(6000L, meta.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        }
+    }
+
+    /**
+     * Anchor-stats invariant: deferred metadata is {@code STATS_PARTIAL == true} and
+     * {@link SplitStats#resolveEffectiveStats} over empty splits returns {@code null} — proving the
+     * anchor-only stats are never consumed as global stats downstream.
+     */
+    public void testDeferredMetadataNeverConsumedAsGlobalStats() throws Exception {
+        AtomicInteger metadataReads = new AtomicInteger();
+        ExternalSourceResolution resolution = resolveFfwWithRequirement(threeFileStats(), metadataReads, Set.of(), null);
+
+        Map<String, Object> meta = resolution.resolvedSource(GLOB).metadata().sourceMetadata();
+        assertEquals(Boolean.TRUE, meta.get(SourceStatisticsSerializer.STATS_PARTIAL));
+        assertNull(
+            "deferred (partial) anchor stats must not resolve as global split stats",
+            SplitStats.resolveEffectiveStats(List.of(), meta)
+        );
+    }
+
+    /**
+     * Regression: the UNION_BY_NAME / STRICT reconciliation path must read every file regardless of
+     * {@code pathsRequiringStats} — it needs all schemas to build the unified schema and cannot
+     * defer. An empty (defer-everything) set must not change its behavior.
+     */
+    public void testReconciliationPathReadsAllFilesRegardlessOfStatsRequirement() throws Exception {
+        for (FormatReader.SchemaResolution strategy : List.of(
+            FormatReader.SchemaResolution.UNION_BY_NAME,
+            FormatReader.SchemaResolution.STRICT
+        )) {
+            AtomicInteger metadataReads = new AtomicInteger();
+            // empty pathsRequiringStats would defer under FFW; the reconciliation path ignores it.
+            ExternalSourceResolution resolution = resolveFfwWithRequirement(threeFileStats(), metadataReads, Set.of(), strategy);
+
+            ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(GLOB);
+            assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
+            assertEquals("[" + strategy + "] reconciliation must read all files", 3, metadataReads.get());
+            Map<String, Object> meta = resolved.metadata().sourceMetadata();
+            assertNull("[" + strategy + "] reconciliation stats are complete", meta.get(SourceStatisticsSerializer.STATS_PARTIAL));
+            assertEquals("[" + strategy + "] aggregated row count", 6000L, meta.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        }
+    }
+
+    // ----- helpers for the requiresStats tests -----
+
+    private static final String GLOB = "s3://bucket/data/*.parquet";
+    private static final String PREFIX = "s3://bucket/data/";
+
+    private static Map<String, List<Attribute>> threeFileSchemas() {
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", schema);
+        schemasByPath.put("s3://bucket/data/b.parquet", schema);
+        schemasByPath.put("s3://bucket/data/c.parquet", schema);
+        return schemasByPath;
+    }
+
+    private static Map<String, Long> threeFileRowCounts() {
+        Map<String, Long> rowCounts = new HashMap<>();
+        rowCounts.put("s3://bucket/data/a.parquet", 1000L);
+        rowCounts.put("s3://bucket/data/b.parquet", 2000L);
+        rowCounts.put("s3://bucket/data/c.parquet", 3000L);
+        return rowCounts;
+    }
+
+    private record ThreeFileStats(Map<String, List<Attribute>> schemas, Map<String, Long> rowCounts) {}
+
+    private static ThreeFileStats threeFileStats() {
+        return new ThreeFileStats(threeFileSchemas(), threeFileRowCounts());
+    }
+
+    private static List<StorageEntry> threeFileListing() {
+        return List.of(
+            entry("s3://bucket/data/a.parquet", 100),
+            entry("s3://bucket/data/b.parquet", 200),
+            entry("s3://bucket/data/c.parquet", 300)
+        );
+    }
+
+    private static Settings cacheEnabledSettings() {
+        return Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", true)
+            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+    }
+
+    /**
+     * Non-cacheable FFW resolve that counts footer reads (format-reader metadata calls) and threads a
+     * {@code pathsRequiringStats} set through the new 5-arg {@code resolve} overload.
+     */
+    private ExternalSourceResolution resolveFfwWithRequirement(
+        ThreeFileStats stats,
+        AtomicInteger metadataReadCounter,
+        Set<String> pathsRequiringStats,
+        FormatReader.SchemaResolution strategy
+    ) throws Exception {
+        StubStorageProvider storageProvider = new StubStorageProvider(Map.of(PREFIX, threeFileListing()), stats.schemas());
+        ExternalSourceResolver resolver = buildStatsResolver(storageProvider, stats, metadataReadCounter, null);
+        Map<String, Object> config = configFor(strategy == null ? FormatReader.SchemaResolution.FIRST_FILE_WINS : strategy);
+        return resolveFfwWithConfig(resolver, pathsRequiringStats, config);
+    }
+
+    private ExternalSourceResolution resolveFfw(ExternalSourceResolver resolver, Set<String> pathsRequiringStats) {
+        return resolveFfwWithConfig(resolver, pathsRequiringStats, configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+    }
+
+    private ExternalSourceResolution resolveFfwWithConfig(
+        ExternalSourceResolver resolver,
+        Set<String> pathsRequiringStats,
+        Map<String, Object> config
+    ) {
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(GLOB), Map.of(GLOB, new HashMap<>(config)), null, pathsRequiringStats, future);
+        return future.actionGet();
+    }
+
+    /**
+     * Builds a resolver around a stats-returning format reader. When {@code metadataReadCounter} is
+     * non-null, every footer read (format-reader metadata call) is counted.
+     */
+    private ExternalSourceResolver buildStatsResolver(
+        StorageProvider storageProvider,
+        ThreeFileStats stats,
+        AtomicInteger metadataReadCounter,
+        ExternalSourceCacheService cacheService
+    ) {
+        StubFormatReaderWithStats formatReader = new StubFormatReaderWithStats(stats.schemas(), stats.rowCounts(), metadataReadCounter);
+
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("parquet", ".parquet"));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("parquet", (s, bf) -> formatReader);
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(),
+            () -> false
+        );
+
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, cacheService);
+    }
+
     // ===== GenericFileList threading tests =====
 
     public void testMultiFileResolutionReturnsGenericFileList() throws Exception {
@@ -2314,14 +2573,27 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         private final Map<String, List<Attribute>> schemasByPath;
         private final Map<String, Long> rowCountsByPath;
+        private final AtomicInteger metadataReadCounter;
 
         StubFormatReaderWithStats(Map<String, List<Attribute>> schemasByPath, Map<String, Long> rowCountsByPath) {
+            this(schemasByPath, rowCountsByPath, null);
+        }
+
+        StubFormatReaderWithStats(
+            Map<String, List<Attribute>> schemasByPath,
+            Map<String, Long> rowCountsByPath,
+            AtomicInteger metadataReadCounter
+        ) {
             this.schemasByPath = schemasByPath;
             this.rowCountsByPath = rowCountsByPath;
+            this.metadataReadCounter = metadataReadCounter;
         }
 
         @Override
         public SourceMetadata metadata(StorageObject object) {
+            if (metadataReadCounter != null) {
+                metadataReadCounter.incrementAndGet();
+            }
             String path = object.path().toString();
             List<Attribute> schema = schemasByPath.get(path);
             if (schema == null) {

@@ -12,6 +12,7 @@ products:
 
 These endpoints run under the `/_prometheus/` prefix.
 They are intended for Prometheus-compatible tooling such as Grafana data sources, autocompletion, variable queries, and similar clients.
+To connect Grafana to {{es}}, see [Use {{es}} as a Prometheus data source in Grafana](promql-grafana.md).
 
 These APIs only consider metric data stored in [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS).
 
@@ -23,6 +24,7 @@ Every path has two forms:
 - Explicit index expression: `/_prometheus/{index}/api/v1/<path>`
 
 The `{index}` segment is an {{es}} index expression (for example, `metrics-generic.prometheus-*`) that restricts which indices are considered in the query.
+Index aliases are also accepted; when using an alias, API key privileges must be granted on the alias name, not the underlying index names.
 This can reduce latency on clusters that contain many large time series data streams when you query a subset of indices.
 
 When you omit `{index}` in the path, qualifying indices are identified through the default index expression `metrics-*`.
@@ -241,4 +243,5 @@ Server errors (HTTP 5xx) and timeout responses reflect operational failures insi
 - [Prometheus query API](https://prometheus.io/docs/prometheus/latest/querying/api/)
 - [Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md)
 - [`PROMQL` command ({{esql}})](/reference/query-languages/esql/commands/promql.md)
+- [Use {{es}} as a Prometheus data source in Grafana](promql-grafana.md)
 - [Limitations](promql-limitations.md)

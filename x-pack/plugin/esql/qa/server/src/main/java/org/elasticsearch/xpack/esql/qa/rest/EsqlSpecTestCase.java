@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
 import org.elasticsearch.xpack.esql.telemetry.TookMetrics;
+import org.elasticsearch.xpack.esql.view.RestPutViewAction;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -203,6 +204,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 }
                 return null;
             });
+            // Skip view-group tests entirely when the cluster cannot support views: views are not loaded,
+            // so running them would fail with "index not found" rather than giving a meaningful skip.
+            if ("views".equals(groupName)) {
+                assumeTrue(
+                    "Cluster does not support views (" + RestPutViewAction.VIEWS_PUT_SERVERLESS_SCOPE + " capability absent)",
+                    supportsViews()
+                );
+            }
         } else {
             deleteViews(adminClient());
             VIEWS.reset();

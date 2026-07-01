@@ -107,7 +107,9 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
             tryDirectCancelStartedRecovery(shardId, allocationId);
         } catch (IndexNotFoundException | ShardNotFoundException | IndexShardNotRecoveringException e) {
             logger.debug(
-                "unable to directly cancel recovery of shard {} with allocation {}, cancellation stored for later: {}",
+                "unable to directly cancel recovery of shard {} with allocation {}, "
+                    + "cancellation recorded in ThrottlingRecoveryService in case the shard is still being created "
+                    + "and reaches the queue afterwards: {}",
                 shardId,
                 allocationId,
                 e

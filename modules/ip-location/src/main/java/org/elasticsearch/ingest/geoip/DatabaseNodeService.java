@@ -77,6 +77,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -122,6 +123,10 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
     private final Consumer<Runnable> genericExecutor;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
+    // Whether eager downloading is configured. When true, ingest-capable nodes retrieve and load databases locally
+    // even before any pipeline registers an IpLocationConsumer, mirroring the downloader's eager behavior
+    // (see GeoIpDownloader).
+    private final Supplier<Boolean> eagerDownloadSupplier;
 
     // package-private so tests can install instrumented inner maps that expose race windows.
     // Use with caution, especially make sure that updates to the inner maps are serialized with modifications of the outer map,
@@ -135,7 +140,8 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
         GeoIpCache cache,
         Consumer<Runnable> genericExecutor,
         ClusterService clusterService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        Supplier<Boolean> eagerDownloadSupplier
     ) {
         this(
             environment.tmpDir(),
@@ -144,7 +150,8 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
             new ConfigDatabases(environment, cache),
             genericExecutor,
             clusterService,
-            projectResolver
+            projectResolver,
+            eagerDownloadSupplier
         );
     }
 
@@ -157,6 +164,19 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
         ClusterService clusterService,
         ProjectResolver projectResolver
     ) {
+        this(tmpDir, client, cache, configDatabases, genericExecutor, clusterService, projectResolver, () -> false);
+    }
+
+    DatabaseNodeService(
+        Path tmpDir,
+        Client client,
+        GeoIpCache cache,
+        ConfigDatabases configDatabases,
+        Consumer<Runnable> genericExecutor,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        Supplier<Boolean> eagerDownloadSupplier
+    ) {
         this.client = client;
         this.cache = cache;
         this.geoipTmpBaseDirectory = tmpDir.resolve("geoip-databases");
@@ -164,6 +184,7 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
         this.genericExecutor = genericExecutor;
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
+        this.eagerDownloadSupplier = eagerDownloadSupplier;
     }
 
     public void initialize(String nodeId, ResourceWatcherService resourceWatcher) throws IOException {
@@ -303,7 +324,24 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
             logger.trace("skipping checkDatabases: local node not yet available in cluster state");
             return;
         }
+        // Eager downloading keeps ingest-capable nodes' databases retrieved and loaded locally even before any
+        // pipeline registers an IpLocationConsumer, mirroring the downloader's `eager || hasConsumers` behavior.
+        //
+        // Note on the eager -> non-eager transition: if eager was the *only* reason a database was loaded (no
+        // consumer was ever registered, so the consumers custom is absent) and eager is later turned off, the loaded
+        // databases are intentionally preserved rather than dropped. We cannot prune them here, because the only
+        // signal available in that case is `consumers == null`, which is deliberately overloaded as the rolling-upgrade
+        // "preserve" state (see the three-state comment below) -- pruning on absent would risk silently degrading
+        // ingest mid-upgrade, and a single cluster state can't distinguish "eager was the only reason" from
+        // "the master hasn't written the custom metadata yet". The footprint is bounded to the fixed set of databases, and the
+        // per-node tmp directory is wiped on startup. The normal paths still reclaim them once they apply: a consumer
+        // registered then removed (consumers present+empty -> dropProjectAndShutdown), project removal, or node restart.
+        boolean eagerOnIngestNode = eagerDownloadSupplier.get() && localNode.isIngestNode();
         state.forEachProject(projectState -> {
+            if (eagerOnIngestNode) {
+                checkDatabases(projectState);
+                return;
+            }
             // Three-state read semantic for IpLocationDownloadConsumers:
             // absent -> the cluster state doesn't yet carry consumer tracking for this project (e.g. during
             // a rolling upgrade from a version that didn't write this custom). Preserve any

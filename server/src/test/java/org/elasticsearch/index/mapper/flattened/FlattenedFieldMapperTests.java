@@ -2382,7 +2382,8 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                     true,
                     List.of(),
                     false,
-                    FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+                    FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+                    false
                 );
 
                 // when: load from first segment which has the flattened field
@@ -2447,7 +2448,8 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                     true,
                     List.of(),
                     true,
-                    FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+                    FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+                    false
                 );
 
                 // when: load from first segment which has ignored values
@@ -2478,7 +2480,8 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                 false,
                 List.of(),
                 true,
-                FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+                FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+                false
             )
         );
         assertThat(e.getMessage(), containsString("storeIgnoredFieldsInBinaryDocValues requires usesBinaryDocValues"));

@@ -35,7 +35,7 @@ import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.Sep
  * The decision is made independently per leaf, so mixed indices benefit from the fast path where
  * available.
  */
-public final class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQuery {
+public class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQuery {
 
     private final BytesRef term;
 

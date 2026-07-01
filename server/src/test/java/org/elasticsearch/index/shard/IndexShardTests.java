@@ -3726,11 +3726,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         @Override
                         public void markAsDone() {
                             handoverComplete.countDown();
-                            try {
-                                assertTrue(proceedWithDone.await(10, TimeUnit.SECONDS));
-                            } catch (InterruptedException e) {
-                                throw new AssertionError(e);
-                            }
+                            safeAwait(proceedWithDone);
                             super.markAsDone();
                         }
                     },
@@ -3742,7 +3738,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         });
         recoveryThread.start();
-        assertTrue(handoverComplete.await(10, TimeUnit.SECONDS));
+        safeAwait(handoverComplete);
 
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         final RecoveryCancelledException cause = new RecoveryCancelledException(target.shardId(), null, localNode);
@@ -3753,7 +3749,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(e.getMessage(), containsString("unable to direct cancel recovery for shard"));
 
         proceedWithDone.countDown();
-        recoveryThread.join(10_000L);
+        safeJoin(recoveryThread);
         closeShards(source, target);
     }
 

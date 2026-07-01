@@ -82,19 +82,8 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
     @Before
     public void resetPluginGates() {
         // So that a failed test cannot corrupt subsequent ones.
-        TestRecoveryBlockerPlugin.beforeRecoveryGate.drainPermits();
-        TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
-        TestRecoveryBlockerPlugin.beforeRecoveryEntered.drainPermits();
-        TestRecoveryBlockerPlugin.afterRecoveryGate.drainPermits();
-        TestRecoveryBlockerPlugin.afterRecoveryGate.release();
-        TestRecoveryBlockerPlugin.afterRecoveryEntered.drainPermits();
-        TestRecoveryBlockerPlugin.beforeShardCreatedGate.drainPermits();
-        TestRecoveryBlockerPlugin.beforeShardCreatedGate.release();
-        TestRecoveryBlockerPlugin.beforeShardCreatedEntered.drainPermits();
-        TestRecoveryBlockerPlugin.latestCreatedShard.set(null);
-        BlockingFsRepositoryPlugin.restoreHasStarted.drainPermits();
-        BlockingFsRepositoryPlugin.proceedWithRestore.drainPermits();
-        BlockingFsRepositoryPlugin.proceedWithRestore.release();
+        TestRecoveryBlockerPlugin.reset();
+        BlockingFsRepositoryPlugin.reset();
     }
 
     @Override
@@ -110,12 +99,12 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var indexName = randomIndexName();
 
         // Block the EMPTY_STORE recovery
-        assertTrue(TestRecoveryBlockerPlugin.beforeRecoveryGate.tryAcquire(10, TimeUnit.SECONDS));
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryGate);
 
         prepareCreate(indexName).setSettings(indexSettings(1, 0).build()).execute();
 
         // Wait for recovery to be blocked
-        assertTrue(TestRecoveryBlockerPlugin.beforeRecoveryEntered.tryAcquire(10, TimeUnit.SECONDS));
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
 
         disableAllocation();
@@ -163,11 +152,11 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         assertAcked(indicesAdmin().prepareClose(indexName));
 
         // Block the EXISTING_STORE recovery
-        assertTrue(TestRecoveryBlockerPlugin.beforeRecoveryGate.tryAcquire(10, TimeUnit.SECONDS));
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryGate);
 
         indicesAdmin().prepareOpen(indexName).execute();
 
-        assertTrue(TestRecoveryBlockerPlugin.beforeRecoveryEntered.tryAcquire(10, TimeUnit.SECONDS));
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
         disableAllocation();
 
@@ -216,11 +205,11 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
 
         // Block the LOCAL_SHARDS recovery
-        assertTrue(TestRecoveryBlockerPlugin.beforeRecoveryGate.tryAcquire(10, TimeUnit.SECONDS));
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryGate);
 
         ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
 
-        assertTrue(TestRecoveryBlockerPlugin.beforeRecoveryEntered.tryAcquire(10, TimeUnit.SECONDS));
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
         disableAllocation();
 
@@ -274,11 +263,11 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         assertAcked(indicesAdmin().prepareDelete(indexName));
 
         // Block the SNAPSHOT recovery
-        assertTrue(TestRecoveryBlockerPlugin.beforeRecoveryGate.tryAcquire(10, TimeUnit.SECONDS));
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryGate);
 
         clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(false).execute();
 
-        assertTrue(TestRecoveryBlockerPlugin.beforeRecoveryEntered.tryAcquire(30, TimeUnit.SECONDS));
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
         disableAllocation();
 
@@ -332,10 +321,12 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         assertAcked(indicesAdmin().prepareDelete(indexName));
 
         // Pause restore inside restoreShard
-        assertTrue(BlockingFsRepositoryPlugin.proceedWithRestore.tryAcquire(10, TimeUnit.SECONDS));
+        safeAcquire(BlockingFsRepositoryPlugin.proceedWithRestore);
         clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(false).execute();
-        assertTrue(BlockingFsRepositoryPlugin.restoreHasStarted.tryAcquire(30, TimeUnit.SECONDS));
+
+        safeAcquire(BlockingFsRepositoryPlugin.restoreHasStarted);
         BlockingFsRepositoryPlugin.restoreHasStarted.release();
+
         disableAllocation();
 
         final var index = resolveIndex(indexName);
@@ -698,12 +689,12 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var targetNode = internalCluster().startNode();
 
         // Block inside afterIndexShardRecovery. At that point isPrimaryMode=true but state is still RECOVERING.
-        assertTrue(TestRecoveryBlockerPlugin.afterRecoveryGate.tryAcquire(10, TimeUnit.SECONDS));
+        safeAcquire(TestRecoveryBlockerPlugin.afterRecoveryGate);
 
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, sourceNode, targetNode));
 
         // Wait until target is blocked
-        assertTrue(TestRecoveryBlockerPlugin.afterRecoveryEntered.tryAcquire(10, TimeUnit.SECONDS));
+        safeAcquire(TestRecoveryBlockerPlugin.afterRecoveryEntered);
         TestRecoveryBlockerPlugin.afterRecoveryEntered.release();
         disableAllocation();
 
@@ -751,10 +742,10 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var node = internalCluster().startNode();
         final var indexName = randomIndexName();
 
-        assertTrue(TestRecoveryBlockerPlugin.afterRecoveryGate.tryAcquire(10, TimeUnit.SECONDS));
+        safeAcquire(TestRecoveryBlockerPlugin.afterRecoveryGate);
         prepareCreate(indexName).setSettings(indexSettings(1, 0).build()).execute();
 
-        assertTrue(TestRecoveryBlockerPlugin.afterRecoveryEntered.tryAcquire(10, TimeUnit.SECONDS));
+        safeAcquire(TestRecoveryBlockerPlugin.afterRecoveryEntered);
         TestRecoveryBlockerPlugin.afterRecoveryEntered.release();
 
         final var index = resolveIndex(indexName);
@@ -790,11 +781,11 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var indexName = randomIndexName();
 
         // Block before the primary shard is created
-        assertTrue(TestRecoveryBlockerPlugin.beforeShardCreatedGate.tryAcquire(10, TimeUnit.SECONDS));
+        safeAcquire(TestRecoveryBlockerPlugin.beforeShardCreatedGate);
 
         prepareCreate(indexName).setSettings(indexSettings(1, 0).build()).execute();
 
-        assertTrue(TestRecoveryBlockerPlugin.beforeShardCreatedEntered.tryAcquire(10, TimeUnit.SECONDS));
+        safeAcquire(TestRecoveryBlockerPlugin.beforeShardCreatedEntered);
         TestRecoveryBlockerPlugin.beforeShardCreatedEntered.release();
 
         final var latestShard = TestRecoveryBlockerPlugin.latestCreatedShard.get();
@@ -864,6 +855,12 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         static final Semaphore restoreHasStarted = new Semaphore(0);
         static final Semaphore proceedWithRestore = new Semaphore(1);
 
+        static void reset() {
+            restoreHasStarted.drainPermits();
+            proceedWithRestore.drainPermits();
+            proceedWithRestore.release();
+        }
+
         @Override
         public Map<String, Repository.Factory> getRepositories(
             Environment env,
@@ -895,13 +892,9 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
                         ActionListener<Void> listener
                     ) {
                         restoreHasStarted.release();
-                        try {
-                            assertTrue(proceedWithRestore.tryAcquire(10, TimeUnit.SECONDS));
-                            proceedWithRestore.release();
-                            assertTrue(restoreHasStarted.tryAcquire(10, TimeUnit.SECONDS));
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
+                        safeAcquire(proceedWithRestore);
+                        proceedWithRestore.release();
+                        safeAcquire(restoreHasStarted);
                         super.restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState, listener);
                     }
                 }
@@ -920,20 +913,30 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         static final Semaphore beforeShardCreatedEntered = new Semaphore(0);
         static AtomicReference<ShardRouting> latestCreatedShard = new AtomicReference<>();
 
+        static void reset() {
+            beforeRecoveryGate.drainPermits();
+            beforeRecoveryGate.release();
+            beforeRecoveryEntered.drainPermits();
+            afterRecoveryGate.drainPermits();
+            afterRecoveryGate.release();
+            afterRecoveryEntered.drainPermits();
+            beforeShardCreatedGate.drainPermits();
+            beforeShardCreatedGate.release();
+            beforeShardCreatedEntered.drainPermits();
+            latestCreatedShard.set(null);
+        }
+
         @Override
         public void onIndexModule(IndexModule indexModule) {
             indexModule.addIndexEventListener(new IndexEventListener() {
                 @Override
                 public void beforeIndexShardCreated(ShardRouting routing, Settings indexSettings) {
-                    try {
-                        latestCreatedShard.set(routing);
-                        beforeShardCreatedEntered.release();
-                        assertTrue(beforeShardCreatedGate.tryAcquire(10, TimeUnit.SECONDS));
-                        beforeShardCreatedGate.release();
-                        assertTrue(beforeShardCreatedEntered.tryAcquire(10, TimeUnit.SECONDS));
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    latestCreatedShard.set(routing);
+                    beforeShardCreatedEntered.release();
+                    safeAcquire(beforeShardCreatedGate);
+                    beforeShardCreatedGate.release();
+                    safeAcquire(beforeShardCreatedEntered);
+
                 }
 
                 @Override
@@ -943,15 +946,11 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
                         listener.onResponse(null);
                         return;
                     }
-                    try {
-                        beforeRecoveryEntered.release();
-                        assertTrue(beforeRecoveryGate.tryAcquire(10, TimeUnit.SECONDS));
-                        beforeRecoveryGate.release();
-                        assertTrue(beforeRecoveryEntered.tryAcquire(10, TimeUnit.SECONDS));
-                        listener.onResponse(null);
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    beforeRecoveryEntered.release();
+                    safeAcquire(beforeRecoveryGate);
+                    beforeRecoveryGate.release();
+                    safeAcquire(beforeRecoveryEntered);
+                    listener.onResponse(null);
                 }
 
                 @Override
@@ -960,15 +959,11 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
                         listener.onResponse(null);
                         return;
                     }
-                    try {
-                        afterRecoveryEntered.release();
-                        assertTrue(afterRecoveryGate.tryAcquire(10, TimeUnit.SECONDS));
-                        afterRecoveryGate.release();
-                        assertTrue(afterRecoveryEntered.tryAcquire(10, TimeUnit.SECONDS));
-                        listener.onResponse(null);
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    afterRecoveryEntered.release();
+                    safeAcquire(afterRecoveryGate);
+                    afterRecoveryGate.release();
+                    safeAcquire(afterRecoveryEntered);
+                    listener.onResponse(null);
                 }
             });
         }

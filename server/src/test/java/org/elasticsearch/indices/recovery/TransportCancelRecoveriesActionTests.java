@@ -36,7 +36,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.MockUtils;
-import org.junit.After;
 
 import java.util.List;
 import java.util.Set;
@@ -83,11 +82,6 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             mock(PeerRecoveryTargetService.class),
             throttlingRecoveryService
         );
-    }
-
-    @After
-    public void tearDown() throws Exception {
-        super.tearDown();
     }
 
     public void testActionResponseIncludesAllCancelledRecoveriesInQueue() throws Exception {

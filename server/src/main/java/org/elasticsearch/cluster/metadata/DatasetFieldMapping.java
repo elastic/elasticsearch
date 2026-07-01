@@ -32,23 +32,23 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * One declared column inside a dataset's {@link DatasetMapping} {@code properties} block — the value
  * of a {@code "logical_name": { ... }} entry.
  *
- * <p>Carries the declared {@code type}, an optional {@code source} (the physical column name in the file,
- * when the logical name differs — a rename at the reader boundary), and an optional {@code copy_to} (another
- * logical column that receives a copy of this column's value).
+ * <p>Both name-remapping keys mirror the index mapping so the dataset mapping is a subset of it: {@code path} is a
+ * <em>move</em> (rename) — the physical column name the value is read from, as the index {@code alias} field's
+ * {@code path} names its underlying field; {@code copy_to} is a <em>copy</em> — further logical columns that also
+ * receive this column's value, exactly like the index {@code copy_to}.
  *
- * <p><b>Move vs copy.</b> {@code source} is a <em>move</em>: the physical column becomes this one logical
- * column (the physical name is consumed, 1:1) — a read-path rename. {@code copy_to} is a <em>copy</em>: this
- * column keeps its own value <em>and</em> the named target also gets that value — e.g.
- * {@code "ts": {"type":"date","copy_to":"@timestamp"}} keeps {@code ts} and adds a {@code @timestamp} column.
- * A copy is not a second read: it is materialized as an {@code EVAL target = source} above the external relation
- * (in the ES|QL analyzer), so it works for every format and never touches the read path. The two compose: a
- * moved column may itself {@code copy_to} a further target.
+ * <p><b>Move vs copy.</b> {@code path} is a <em>move</em>: the physical column becomes this one logical column
+ * (the physical name is consumed, 1:1) — a read-path rename. {@code copy_to} keeps this column's own value
+ * <em>and</em> gives the named target(s) that value — e.g. {@code "@timestamp": {"type":"date","path":"ts"}}
+ * renames {@code ts}, while {@code "user_id": {"type":"keyword","copy_to":"actor"}} keeps {@code user_id} and adds
+ * {@code actor}. A copy is not a second read: it is materialized as an {@code EVAL target = <this column>} above the
+ * external relation (in the ES|QL analyzer), so it works for every format and never touches the read path.
  *
- * <p><b>Binding caveat for text (CSV/TSV) sources:</b> non-strict resolution binds a declared column to the
- * file column of the same physical name (from the header), but strict resolution ({@code dynamic: false})
- * reads no file and binds <em>positionally</em> — declared order must match the file's column order, and a
- * {@code source} name is not cross-checked against a header. So the same declaration can bind to different
- * data under strict vs non-strict for a text file; columnar formats (parquet/orc) bind by name in both modes.
+ * <p><b>Binding caveat for text (CSV/TSV):</b> non-strict resolution binds a declared column to the file column of
+ * the same physical name (from the header), but strict resolution ({@code dynamic: false}) reads no file and binds
+ * <em>positionally</em> — declared order must match the file's column order, and a {@code path} is not cross-checked
+ * against a header. So the same declaration can bind to different data under strict vs non-strict for a text file;
+ * columnar formats (parquet/orc) bind by name in both modes.
  *
  * <p><b>Type is a plain String here on purpose.</b> {@link Dataset} lives in {@code server} and must not
  * depend on the ES|QL {@code DataType} enum (an x-pack type). The String is validated against the set of
@@ -58,7 +58,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public final class DatasetFieldMapping implements Writeable, ToXContentObject {
 
     private static final ParseField TYPE = new ParseField("type");
-    private static final ParseField SOURCE = new ParseField("source");
+    private static final ParseField PATH = new ParseField("path");
     private static final ParseField COPY_TO = new ParseField("copy_to");
 
     @SuppressWarnings("unchecked")
@@ -70,7 +70,7 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareString(constructorArg(), TYPE);
-        PARSER.declareString(optionalConstructorArg(), SOURCE);
+        PARSER.declareString(optionalConstructorArg(), PATH);
         // copy_to accepts a single string or an array of strings (mirrors core ES copy_to).
         PARSER.declareField(optionalConstructorArg(), (p, c) -> parseStringOrStringArray(p), COPY_TO, ObjectParser.ValueType.STRING_ARRAY);
     }
@@ -88,23 +88,23 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
 
     private final String type;
     @Nullable
-    private final String source;
+    private final String path;
     /** Logical columns that receive a copy of this column's value ({@code copy_to}); empty when none, never null. */
     private final List<String> copyTo;
 
     /** Convenience: a column with no {@code copy_to}. */
-    public DatasetFieldMapping(String type, @Nullable String source) {
-        this(type, source, List.of());
+    public DatasetFieldMapping(String type, @Nullable String path) {
+        this(type, path, List.of());
     }
 
     /** Convenience: a single {@code copy_to} target. */
-    public DatasetFieldMapping(String type, @Nullable String source, @Nullable String copyTo) {
-        this(type, source, copyTo == null ? List.of() : List.of(copyTo));
+    public DatasetFieldMapping(String type, @Nullable String path, @Nullable String copyTo) {
+        this(type, path, copyTo == null ? List.of() : List.of(copyTo));
     }
 
-    public DatasetFieldMapping(String type, @Nullable String source, @Nullable List<String> copyTo) {
+    public DatasetFieldMapping(String type, @Nullable String path, @Nullable List<String> copyTo) {
         this.type = Objects.requireNonNull(type, "field mapping type must not be null");
-        this.source = source;
+        this.path = path;
         this.copyTo = copyTo == null ? List.of() : List.copyOf(copyTo);
     }
 
@@ -112,14 +112,14 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
         // Reached only under the dataset_declared_schema transport version (the whole DatasetMapping is gated),
         // which is unreleased — so copy_to ships in that one version with no separate gate.
         this.type = in.readString();
-        this.source = in.readOptionalString();
+        this.path = in.readOptionalString();
         this.copyTo = in.readStringCollectionAsList();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(type);
-        out.writeOptionalString(source);
+        out.writeOptionalString(path);
         out.writeStringCollection(copyTo);
     }
 
@@ -131,8 +131,8 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(TYPE.getPreferredName(), type);
-        if (source != null) {
-            builder.field(SOURCE.getPreferredName(), source);
+        if (path != null) {
+            builder.field(PATH.getPreferredName(), path);
         }
         if (copyTo.isEmpty() == false) {
             builder.field(COPY_TO.getPreferredName(), copyTo);
@@ -148,8 +148,8 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
 
     /** The physical column name in the file, or {@code null} when the logical name equals the physical name. */
     @Nullable
-    public String source() {
-        return source;
+    public String path() {
+        return path;
     }
 
     /** Logical columns that receive a copy of this column's value ({@code copy_to}); empty when none, never null. */
@@ -162,19 +162,19 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DatasetFieldMapping that = (DatasetFieldMapping) o;
-        return type.equals(that.type) && Objects.equals(source, that.source) && copyTo.equals(that.copyTo);
+        return type.equals(that.type) && Objects.equals(path, that.path) && copyTo.equals(that.copyTo);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, source, copyTo);
+        return Objects.hash(type, path, copyTo);
     }
 
     @Override
     public String toString() {
         return "DatasetFieldMapping[type="
             + type
-            + (source != null ? ", source=" + source : "")
+            + (path != null ? ", path=" + path : "")
             + (copyTo.isEmpty() ? "" : ", copyTo=" + copyTo)
             + "]";
     }

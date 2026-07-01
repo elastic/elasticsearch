@@ -125,8 +125,8 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
         Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>(count);
         for (int i = 0; i < count; i++) {
             String type = randomFrom("keyword", "long", "integer", "double", "boolean", "date");
-            String source = randomBoolean() ? null : randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-            properties.put("col_" + i, new DatasetFieldMapping(type, source));
+            String path = randomBoolean() ? null : randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+            properties.put("col_" + i, new DatasetFieldMapping(type, path));
         }
         Boolean sourceEnabled = randomBoolean() ? null : randomBoolean();
         return new DatasetMapping.Mappings(dynamic, properties, sourceEnabled);
@@ -299,7 +299,7 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
         Dataset deserialized = new Dataset(out.bytes().streamInput());
         assertEquals(dataset, deserialized);
         assertEquals(DatasetMapping.Dynamic.FALSE, deserialized.mapping().mappings().dynamic());
-        assertEquals("ts", deserialized.mapping().mappings().properties().get("when").source());
+        assertEquals("ts", deserialized.mapping().mappings().properties().get("when").path());
         assertEquals("request_id", deserialized.mapping().idField());
     }
 

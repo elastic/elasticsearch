@@ -42,11 +42,11 @@ public final class DeclaredSchemaResolver {
 
     /**
      * Expand a {@code mappings} block into its declared <b>base</b> logical columns, keyed by logical name in
-     * declaration order. A property contributes exactly one column ({@code source} is a <em>move</em>: physical =
-     * source, or the logical name when unset), so this is a 1:1 physical↔logical mapping.
+     * declaration order. A property contributes exactly one column ({@code path} is a <em>move</em>: physical =
+     * path, or the logical name when unset), so this is a 1:1 physical↔logical mapping.
      *
      * <p>A {@code copy_to} target is deliberately NOT expanded here: a copy is materialized as an {@code EVAL
-     * target = source} projected above the external relation (see {@code Analyzer.ResolveExternalRelations}), reusing
+     * target = <this column>} projected above the external relation (see {@code Analyzer.ResolveExternalRelations}), reusing
      * the plan's projection/pushdown/cast machinery. Keeping copies out of the read/reconciliation schema is what lets
      * every format get copy for free and leaves the read path untouched.
      */
@@ -55,7 +55,7 @@ public final class DeclaredSchemaResolver {
         for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
             String logical = e.getKey();
             DatasetFieldMapping f = e.getValue();
-            String physical = f.source() != null ? f.source() : logical;
+            String physical = f.path() != null ? f.path() : logical;
             cols.put(logical, new ColSpec(physical, resolveType(logical, f.type())));
         }
         return cols;
@@ -80,7 +80,7 @@ public final class DeclaredSchemaResolver {
     }
 
     /**
-     * Logical&rarr;physical name map for the columns that declare a {@code source} move (logical name &ne; physical
+     * Logical&rarr;physical name map for the columns that declare a {@code path} move (logical name &ne; physical
      * name). Empty when nothing renames. The map is 1:1 (a physical is claimed by at most one logical — validation
      * enforces it), so its {@link PhysicalNames#inverse} is well-defined. A {@code copy_to} is NOT in this map — it is
      * an {@code EVAL} above the relation, never a read-path rename. {@link PhysicalNames} uses this at the last-mile
@@ -104,7 +104,7 @@ public final class DeclaredSchemaResolver {
      * Result of a non-strict overlay: the user-facing {@code output} (declared columns renamed to their logical
      * name and retyped, undeclared columns untouched) and the per-file {@code fileSchema} the reader resolves against
      * the file. Both carry <b>logical</b> names — the operator's projection/column-mapping code stays in logical names
-     * and never sees the physical names; a {@code source} rename is applied at the reader-facing boundary via
+     * and never sees the physical names; a {@code path} rename is applied at the reader-facing boundary via
      * {@link PhysicalNames} (physical names then reach by-name readers; text readers read positionally). The two lists
      * pair position-for-position.
      */
@@ -163,7 +163,7 @@ public final class DeclaredSchemaResolver {
             }
         }
         // A move whose logical name collides with a surviving (undeclared) inferred column would produce two output
-        // columns with the same name (declare logical `y` with source `x` when the file also has an undeclared `y`).
+        // columns with the same name (declare logical `y` with path `x` when the file also has an undeclared `y`).
         // Reject against the authoritative unified schema (lenient == false); PUT cannot catch this — it needs the file.
         if (lenient == false) {
             Set<String> seen = new HashSet<>(output.size());
@@ -175,7 +175,7 @@ public final class DeclaredSchemaResolver {
                 }
             }
         }
-        // Both lists carry LOGICAL names; a `source` move is physicalized at the reader boundary via PhysicalNames, so
+        // Both lists carry LOGICAL names; a `path` move is physicalized at the reader boundary via PhysicalNames, so
         // the operator and reconciliation never see physical names.
         return new Overlaid(output, output);
     }

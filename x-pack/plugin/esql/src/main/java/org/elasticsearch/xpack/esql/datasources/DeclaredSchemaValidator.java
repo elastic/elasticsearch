@@ -33,7 +33,7 @@ import java.util.TreeSet;
  *
  * <p>What is deliberately <b>not</b> checked here (deferred to first-query mapping resolution, because PUT does no
  * I/O and the files may not exist yet): that a role designation pointing at an <i>inferred</i> column exists; that
- * a declared {@code source}/type matches the physical file; per-format narrowing (e.g. {@code unsigned_long} is
+ * a declared {@code path}/type matches the physical file; per-format narrowing (e.g. {@code unsigned_long} is
  * Parquet-only) — the producing format is authoritative at read time.
  */
 public final class DeclaredSchemaValidator {
@@ -58,7 +58,7 @@ public final class DeclaredSchemaValidator {
         }
         DatasetMapping.Mappings mappings = mapping.mappings();
         if (mappings != null) {
-            // Physical-name uniqueness for the read (move) columns: a column's physical name is its `source`, or its
+            // Physical-name uniqueness for the read (move) columns: a column's physical name is its `path`, or its
             // logical name. Two columns resolving to one physical break the 1:1 read-path rename, so reject. (A COPY is
             // NOT a shared physical: `copy_to` is materialized as an EVAL above the relation, so it never touches the
             // read path — only the OUTPUT name must be unique, checked below.)
@@ -68,7 +68,7 @@ public final class DeclaredSchemaValidator {
                 validateType(e.getKey(), e.getValue().type());
                 outputNames.add(e.getKey()); // property keys are unique by JSON-object semantics
                 String logical = e.getKey();
-                String physical = e.getValue().source() != null ? e.getValue().source() : logical;
+                String physical = e.getValue().path() != null ? e.getValue().path() : logical;
                 String clash = physicalToLogical.putIfAbsent(physical, logical);
                 if (clash != null) {
                     throw new IllegalArgumentException(

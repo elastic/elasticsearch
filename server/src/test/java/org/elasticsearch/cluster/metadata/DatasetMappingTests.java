@@ -133,7 +133,7 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
         DatasetMapping mapping = new DatasetMapping(mappings, null);
         DatasetMapping copy = copyInstance(mapping);
         assertEquals(mapping, copy);
-        assertEquals("ts", copy.mappings().properties().get("when").source());
+        assertEquals("ts", copy.mappings().properties().get("when").path());
         assertEquals(java.util.List.of("when", "amount"), java.util.List.copyOf(copy.mappings().properties().keySet()));
     }
 }

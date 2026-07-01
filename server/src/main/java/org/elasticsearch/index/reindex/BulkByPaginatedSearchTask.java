@@ -12,6 +12,8 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -69,9 +71,11 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
     // if task is a slice, RelocationOrigin won't be correct because it won't be the leader here, but it's overridden in the leader state
     private final ResumeInfo.RelocationOrigin relocationOrigin;
     private final RelocationProgress relocationProgress = new RelocationProgress();
+    private final SubscribableListener<TaskResult> completionListener = new SubscribableListener<>();
     private volatile LeaderBulkByPaginatedSearchTaskState leaderState;
     private volatile WorkerBulkByPaginatedSearchTaskState workerState;
     private volatile boolean relocationRequested = false;
+    private volatile Exception taskFailure;
 
     public BulkByPaginatedSearchTask(
         TaskId taskId,
@@ -105,6 +109,7 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
 
     @Override
     public TaskResult result(DiscoveryNode node, Exception error) throws IOException {
+        final TaskResult taskResult;
         if (ExceptionsHelper.unwrap(error, TaskCancelledException.class) instanceof TaskCancelledException taskCancelledException) {
             TaskInfo taskInfo = taskInfo(node.getId(), true);
             // task might not actually be cancelled at this point, but rather be in the process of cancelling
@@ -144,10 +149,12 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
                 taskInfo.originalTaskId(),
                 taskInfo.originalStartTimeMillis()
             );
-            return new TaskResult(cancelledTaskInfo, error);
+            taskResult = new TaskResult(cancelledTaskInfo, error);
         } else {
-            return super.result(node, error);
+            taskResult = super.result(node, error);
         }
+        completionListener.onResponse(taskResult);
+        return taskResult;
     }
 
     /**
@@ -298,6 +305,30 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
      */
     public boolean isRelocationRequested() {
         return relocationRequested;
+    }
+
+    /**
+     * Set the exception that caused the failure and wake up any delayed prepare-bulk-request tasks. They should
+     * fail with the provided exception.
+     *
+     * @param failure The exception to fail with
+     * @param listener A listener that will be completed when the task result is set
+     */
+    public void wakeUpAndFail(Exception failure, ActionListener<TaskResult> listener) {
+        this.taskFailure = failure;
+        if (isWorker()) {
+            this.workerState.rethrottle(Float.POSITIVE_INFINITY);
+        }
+        completionListener.addListener(listener);
+    }
+
+    /**
+     * Has this task failed with an exception already?
+     * @return the exception that failed the task or null if the task has not failed
+     */
+    @Nullable
+    public Exception getTaskFailure() {
+        return taskFailure;
     }
 
     /**

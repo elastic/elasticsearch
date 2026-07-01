@@ -340,12 +340,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:k8s-timeseries-count-distinct-over-time.valuesNull}
   issue: https://github.com/elastic/elasticsearch/issues/150188
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testReindexTaskRelocatesOnNodeShutdown
-  issue: https://github.com/elastic/elasticsearch/issues/150294
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testReindexTaskFailsWhenDataNodeIsShuttingDownAndTaskDoesNotFinishInTime
-  issue: https://github.com/elastic/elasticsearch/issues/150295
 - class: org.elasticsearch.index.reindex.ReindexRequestTests
   method: testDestSliceRejectedWhenFeatureFlagDisabled
   issue: https://github.com/elastic/elasticsearch/issues/152507

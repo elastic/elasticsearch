@@ -64,10 +64,18 @@ public class ShutdownPrepareService {
         Setting.Property.NodeScope
     );
 
+    /**
+     * How long we'll wait for the non-relocatable reindexing tasks to fail before
+     * we proceed with shutdown. This should not be very long because we've already timed out
+     * waiting for the tasks to relocate.
+     */
+    private static final TimeValue REINDEXING_FAILURE_TIMEOUT = TimeValue.timeValueSeconds(3);
+
     private static final Logger logger = LogManager.getLogger(ShutdownPrepareService.class);
 
     private final TimeValue maxTimeout;
     private final TerminationHandler terminationHandler;
+    private final TransportService transportService;
     private final List<ShutdownHook> hooks = new ArrayList<>();
     private volatile boolean isShuttingDown = false;
 
@@ -80,6 +88,7 @@ public class ShutdownPrepareService {
     ) {
         this.maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(settings);
         this.terminationHandler = terminationHandler;
+        this.transportService = transportService;
 
         final var reindexTimeout = MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(settings);
         addShutdownHook("http-server-transport-stop", httpServerTransport::close);
@@ -188,7 +197,8 @@ public class ShutdownPrepareService {
         Sleeper sleeper,
         String taskName,
         TaskManager taskManager,
-        @Nullable Consumer<Task> taskNotifier
+        @Nullable Consumer<Task> taskNotifier,
+        @Nullable Consumer<List<Task>> onTimeout
     ) {
         long millisWaited = 0;
         Set<Long> tasksNotified = new HashSet<>();
@@ -211,6 +221,9 @@ public class ShutdownPrepareService {
                 millisWaited += AWAIT_TASKS_POLL_INTERVAL.millis();
                 if (TimeValue.ZERO.equals(timeout) == false && millisWaited >= timeout.millis()) {
                     logger.warn("timed out after waiting [{}] for [{}] {} tasks to finish", timeout, tasksRemaining.size(), taskName);
+                    if (onTimeout != null) {
+                        onTimeout.accept(tasksRemaining);
+                    }
                     return false;
                 }
                 logger.debug(
@@ -231,7 +244,7 @@ public class ShutdownPrepareService {
     }
 
     private void awaitSearchTasksComplete(TimeValue asyncSearchTimeout, TaskManager taskManager) {
-        awaitTasksComplete(asyncSearchTimeout, new Sleeper(), TransportSearchAction.NAME, taskManager, null);
+        awaitTasksComplete(asyncSearchTimeout, new Sleeper(), TransportSearchAction.NAME, taskManager, null, null);
     }
 
     private void relocateReindexTasksAndAwaitComplete(TimeValue asyncReindexTimeout, TaskManager taskManager) {
@@ -240,7 +253,32 @@ public class ShutdownPrepareService {
             new Sleeper(),
             ReindexAction.NAME,
             taskManager,
-            task -> maybeRequestRelocationForBulkByPaginatedSearch(task, taskManager)
+            task -> maybeRequestRelocationForBulkByPaginatedSearch(task, taskManager),
+            tasks -> {
+                // Fail any reindex tasks that could not be relocated, wait for a limited time for
+                // them to return a failure result before proceeding with shutdown.
+                final var nodeClosedException = new NodeClosedException(transportService.getLocalNode());
+                final var tasksFailedFuture = new PlainActionFuture<Void>();
+                try (RefCountingListener refCountingListener = new RefCountingListener(tasksFailedFuture)) {
+                    tasks.forEach(t -> {
+                        if (t instanceof BulkByPaginatedSearchTask bulkByPaginatedSearchTask) {
+                            bulkByPaginatedSearchTask.wakeUpAndFail(nodeClosedException, refCountingListener.acquire().map(result -> null));
+                        } else {
+                            assert false : "unexpected task type: " + t.getClass();
+                        }
+                    });
+                }
+                try {
+                    tasksFailedFuture.get(REINDEXING_FAILURE_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                } catch (TimeoutException t) {
+                    logger.warn("timed out while failing relocated reindex tasks");
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    logger.warn("interrupted while failing relocated reindex tasks", e);
+                } catch (ExecutionException e) {
+                    logger.warn("unexpected exception while failing relocated reindex tasks", e);
+                }
+            }
         );
     }
 

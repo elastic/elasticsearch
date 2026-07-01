@@ -1611,9 +1611,6 @@ public abstract class FieldMapper extends Mapper {
                         builder.field(name, true);
                     } else {
                         builder.startObject(name);
-                        if (includeDefaults) {
-                            builder.field("cardinality", value.cardinality().toString());
-                        }
                         builder.field(multiValueParameter.name, value.multiValue);
                         builder.endObject();
                     }

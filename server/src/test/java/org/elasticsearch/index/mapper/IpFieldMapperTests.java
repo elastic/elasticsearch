@@ -613,18 +613,20 @@ public class IpFieldMapperTests extends MapperTestCase {
 
     public void testHighCardinalityAllowedForIndexSortField() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // LOGSDB_COLUMNAR (strict columnar) defaults doc values to high cardinality; cardinality is not user-configurable.
         Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.name())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "field")
             .build();
         // cardinality: high is now valid for index sort fields.
         MapperService ms = createMapperService(settings, mapping(b -> {
             b.startObject("field");
             b.field("type", "ip");
-            b.startObject("doc_values").field("cardinality", "high").endObject();
             b.endObject();
         }));
-        assertNotNull(ms.fieldType("field"));
+        var ft = (IpFieldMapper.IpFieldType) ms.fieldType("field");
+        assertNotNull(ft);
+        assertTrue(ft.usesBinaryDocValues());
     }
 
     public void testColumnarArrayOrderRoundTrip() throws IOException {

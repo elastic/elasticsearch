@@ -1,15 +1,25 @@
 ---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.keyword.columnar_default_high_cardinality" ]
+      reason: "columnar mode keyword fields default to high-cardinality doc values"
+
+---
 # Tests for index sort on keyword fields with cardinality:high.
 #
 # High-cardinality keyword fields use BinaryDocValues (MultiValuedBinaryDocValuesField).
 # MultiValuedBinaryDocValuesSortField sorts by the minimum value across a document's
 # values, consistent with how SortedSetSortField behaves with a MIN selector.
+#
+# columnar mode is used so the sort field actually defaults to high cardinality;
+# cardinality is not user-configurable via doc_values.cardinality.
 
 "Index sort on high cardinality keyword field - single values":
-
-  - requires:
-      cluster_features: ["mapper.doc_values.multi_value"]
-      reason: "doc_values.cardinality is gated behind the extended_doc_values_options feature flag"
 
   - do:
       indices.create:
@@ -18,14 +28,13 @@
           settings:
             number_of_shards: 1
             refresh_interval: -1
+            index.mode: columnar
             index.sort.field: name
             routing.rebalance.enable: "none"
           mappings:
             properties:
               name:
                 type: keyword
-                doc_values:
-                  cardinality: high
 
   - do:
       cluster.health:
@@ -80,10 +89,6 @@
 ---
 "Index sort on high cardinality keyword field - mixed single and multi values":
 
-  - requires:
-      cluster_features: ["mapper.doc_values.multi_value"]
-      reason: "doc_values.cardinality is gated behind the extended_doc_values_options feature flag"
-
   - do:
       indices.create:
         index: test_mixed
@@ -91,14 +96,13 @@
           settings:
             number_of_shards: 1
             refresh_interval: -1
+            index.mode: columnar
             index.sort.field: name
             routing.rebalance.enable: "none"
           mappings:
             properties:
               name:
                 type: keyword
-                doc_values:
-                  cardinality: high
 
   - do:
       cluster.health:
@@ -163,10 +167,6 @@
 ---
 "Index sort on high cardinality keyword field - explicit mode=min":
 
-  - requires:
-      cluster_features: ["mapper.doc_values.multi_value"]
-      reason: "doc_values.cardinality is gated behind the extended_doc_values_options feature flag"
-
   - do:
       indices.create:
         index: test_mode_min
@@ -174,6 +174,7 @@
           settings:
             number_of_shards: 1
             refresh_interval: -1
+            index.mode: columnar
             index.sort.field: name
             index.sort.mode: min
             routing.rebalance.enable: "none"
@@ -181,8 +182,6 @@
             properties:
               name:
                 type: keyword
-                doc_values:
-                  cardinality: high
 
   - do:
       cluster.health:
@@ -247,10 +246,6 @@
 ---
 "Index sort on high cardinality keyword field - explicit mode=max":
 
-  - requires:
-      cluster_features: ["mapper.doc_values.multi_value"]
-      reason: "doc_values.cardinality is gated behind the extended_doc_values_options feature flag"
-
   - do:
       indices.create:
         index: test_mode_max
@@ -258,6 +253,7 @@
           settings:
             number_of_shards: 1
             refresh_interval: -1
+            index.mode: columnar
             index.sort.field: name
             index.sort.mode: max
             routing.rebalance.enable: "none"
@@ -265,8 +261,6 @@
             properties:
               name:
                 type: keyword
-                doc_values:
-                  cardinality: high
 
   - do:
       cluster.health:

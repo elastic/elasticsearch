@@ -291,12 +291,24 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     /**
+     * Maximum number of in-flight per-file metadata (footer) reads a single multi-file resolution may have
+     * outstanding, passed to {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver} as its fan-out
+     * bound. Sized to the {@link #externalSourceExecutor()} pool's max ({@code esql_worker.getMax()}) so that a wide
+     * wildcard discovery cannot exceed the pool it runs on: footer reads are async (the worker is released across the
+     * read), so this caps concurrent in-flight reads rather than pinning that many threads. Kept alongside
+     * {@link #externalSourceExecutor()} so the executor and its fan-out bound stay wired to the same pool.
+     */
+    protected int externalSourceConcurrency() {
+        return threadPool.info(externalSourceExecutorName()).getMax();
+    }
+
+    /**
      * Name of the thread pool backing {@link #externalSourceExecutor()}. Extracted so unit tests can pin the wiring
      * without needing a live {@link ThreadPool}. Must not resolve to {@link ThreadPool.Names#SEARCH}: a single
      * wildcard external query previously consumed nearly the entire SEARCH pool during resolution, starving unrelated
      * searches and other ES|QL queries.
      */
-    static String externalSourceExecutorName() {
+    public static String externalSourceExecutorName() {
         return ESQL_WORKER_THREAD_POOL_NAME;
     }
 
@@ -393,6 +405,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             planRunner,
             services,
             externalSourceExecutor(),
+            externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
                 recordCCSTelemetry(task, executionInfo, request, null);

@@ -245,6 +245,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     runPhase,
                     MOCK_TRANSPORT_ACTION_SERVICES,
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    1,
                     () -> false,
                     new ActionListener<>() {
                         @Override
@@ -285,6 +286,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     runPhase,
                     MOCK_TRANSPORT_ACTION_SERVICES,
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    1,
                     () -> false,
                     new ActionListener<>() {
                         @Override
@@ -634,6 +636,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 runPhase,
                 MOCK_TRANSPORT_ACTION_SERVICES,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                1,
                 () -> false,
                 listener
             );

@@ -41,6 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -554,6 +555,68 @@ public class RetryableStorageObjectTests extends ESTestCase {
         );
         assertThat("a read-path retry MUST move the read-scoped storage.retries.total", readRetries, hasSize(1));
         assertThat("the read-path retry counts exactly once", readRetries.get(0).getLong(), equalTo(1L));
+    }
+
+    /**
+     * B1 scope-invariant tripwire, terminal-give-up case: a metadata op ({@code length()}) whose transient fault
+     * NEVER clears exhausts its retry budget and gives up terminally, yet must publish NONE of the read-scoped
+     * registry metrics — not {@code storage.retries.total}, not {@code storage.errors.total}, not
+     * {@code storage.read_stall.duration}. It stays off the registry only because {@code length}/{@code lastModified}/
+     * {@code exists} pass {@code RetryTelemetry.NONE} (so the give-up records no error / read-stall) and route their
+     * retries through {@code addRetryProfileOnly} (so no {@code storage.retries.total}). This is the exact tripwire that
+     * catches a future edit swapping those ops' {@code RetryTelemetry.NONE} back to {@code storageTelemetry}: that swap
+     * would fire {@code recordTerminalFailure} on the give-up and move {@code storage.errors.total} +
+     * {@code storage.read_stall.duration}, reddening the assertions below.
+     * <p>
+     * Direct invariant assertion: after the give-up, {@code storage.retries.total == 0} AND
+     * {@code storage.requests.total == 0} — a metadata op never bumps requests, so the {@code retries &le; requests}
+     * scope invariant holds as {@code 0 &le; 0}. The retries still surface in the per-query profile snapshot
+     * (pre-existing behaviour), which is where a metadata retry is legitimately visible. Uses a real
+     * {@link RecordingMeterRegistry}-backed holder (no mocks).
+     */
+    public void testMetadataOpGiveUpStaysOffRegistry() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+
+        // length() throws a transient fault on EVERY attempt, so the small (1-retry) budget is exhausted and the
+        // metadata op gives up terminally. Integer.MAX_VALUE failures-before-success == never recovers.
+        MetadataFailingStorageObject metadataDelegate = new MetadataFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            new SocketTimeoutException("read timed out"),
+            Integer.MAX_VALUE,
+            4096L
+        );
+        RetryableStorageObject metadataObj = new RetryableStorageObject(metadataDelegate, new RetryPolicy(1, 1, 10));
+        metadataObj.attachMetrics(metrics, "s3");
+
+        // One retry is spent (initial attempt + 1 retry) and then it gives up, surfacing the transient fault.
+        expectThrows(IOException.class, metadataObj::length);
+
+        // NONE of the read-scoped registry metrics may move for a metadata-op terminal give-up.
+        List<Measurement> retries = measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_RETRIES_TOTAL);
+        List<Measurement> requests = measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL);
+        assertThat("a metadata-op give-up must not move storage.retries.total", retries, hasSize(0));
+        assertThat("a metadata op never bumps storage.requests.total", requests, hasSize(0));
+        assertThat(
+            "a metadata-op give-up must not record a storage error (RetryTelemetry.NONE swallows it)",
+            measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL),
+            hasSize(0)
+        );
+        assertThat(
+            "a metadata-op give-up must not record a read-stall on the read-scoped histogram",
+            measurements(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION),
+            hasSize(0)
+        );
+
+        // Direct invariant: retries (0) <= requests (0) holds, computed from the registry totals.
+        long retriesTotal = retries.stream().mapToLong(Measurement::getLong).sum();
+        long requestsTotal = requests.stream().mapToLong(Measurement::getLong).sum();
+        assertEquals("registry storage.retries.total is 0 after a metadata give-up", 0L, retriesTotal);
+        assertEquals("registry storage.requests.total is 0 for a metadata op", 0L, requestsTotal);
+        assertThat("the retries <= requests scope invariant holds as 0 <= 0", retriesTotal, lessThanOrEqualTo(requestsTotal));
+
+        // ...but the retry IS still visible in the per-query profile snapshot (pre-existing profile behaviour).
+        assertEquals("the metadata retry is still visible in the profile snapshot", 1L, metadataObj.metrics().retryCount());
     }
 
     private static List<Measurement> measurements(RecordingMeterRegistry registry, InstrumentType type, String name) {

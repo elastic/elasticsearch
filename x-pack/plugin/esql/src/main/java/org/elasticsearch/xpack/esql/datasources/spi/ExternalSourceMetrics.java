@@ -44,7 +44,13 @@ public final class ExternalSourceMetrics {
     /** Automatic retries issued by the cross-provider retry decorator. */
     public static final String STORAGE_RETRIES_TOTAL = "es.esql.datasources.storage.retries.total";
 
-    /** Object-store reads that exhausted the retry policy and gave up with a terminal failure. */
+    /**
+     * Object-store reads that exhausted the retry policy and gave up with a terminal failure.
+     * <p>
+     * Word choice is deliberate: {@code errors} here (object-store read give-up) and {@code failures} on
+     * {@link #DISCOVERY_FAILURES_TOTAL} (discovery/resolution failure) name two distinct event classes and must not
+     * be "unified" into one term — they match the source issue's taxonomy.
+     */
     public static final String STORAGE_ERRORS_TOTAL = "es.esql.datasources.storage.errors.total";
 
     /** Object-store reads whose terminal failure was a provider throttling / rate-limit response. */
@@ -78,18 +84,19 @@ public final class ExternalSourceMetrics {
     public static final String QUERY_TIME_TO_FIRST_ROW = "es.esql.datasources.query.time_to_first_row.histogram";
 
     /**
-     * Wall time of external-source discovery resolution for one query, in milliseconds. This is resolve time
-     * INCLUDING listing cache hits: on a cache hit the underlying glob expansion / listing is skipped, so the
-     * sample is a near-zero resolve time paired with the cached file/byte counts. It is therefore a resolve-cost
-     * quantity, not a pure listing-latency quantity — a bimodal distribution (cheap hits, expensive misses) is
-     * expected.
+     * Wall time of external-source discovery resolution per resolved path, in milliseconds. Recorded once per
+     * discovery pass, so a query with multiple comma-separated paths records several observations (not one per
+     * query). This is resolve time INCLUDING listing cache hits: on a cache hit the underlying glob expansion /
+     * listing is skipped, so the sample is a near-zero resolve time paired with the cached file/byte counts. It is
+     * therefore a resolve-cost quantity, not a pure listing-latency quantity — a bimodal distribution (cheap hits,
+     * expensive misses) is expected.
      */
     public static final String DISCOVERY_DURATION = "es.esql.datasources.discovery.duration.histogram";
 
-    /** Number of files discovered by external-source listing for one query. */
+    /** Number of files discovered by external-source listing per resolved path (a query may resolve several). */
     public static final String DISCOVERY_FILES_SCANNED = "es.esql.datasources.discovery.files_scanned.histogram";
 
-    /** Estimated bytes across the files discovered by external-source listing for one query. */
+    /** Estimated bytes across the files discovered by external-source listing per resolved path (a query may resolve several). */
     public static final String DISCOVERY_BYTES_SCANNED = "es.esql.datasources.discovery.bytes_scanned.histogram";
 
     /** External-source discovery attempts that failed to resolve. */
@@ -506,6 +513,9 @@ public final class ExternalSourceMetrics {
             case "wasb", "wasbs", "azure" -> "azure";
             case "http", "https" -> "http";
             case "file" -> "file";
+            // Open default (pass unknown schemes through lower-cased) is acceptable here because scheme is
+            // provider-registered — a closed set in practice, not user-supplied — so the SCHEME_ATTRIBUTE dimension
+            // cardinality stays bounded even though this branch does not enumerate every value.
             default -> lower;
         };
     }

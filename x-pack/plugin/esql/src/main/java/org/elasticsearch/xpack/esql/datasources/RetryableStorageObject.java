@@ -72,6 +72,10 @@ class RetryableStorageObject implements StorageObject {
 
         @Override
         public void onComplete(long totalBackoffMillis) {
+            // Read-stall is recorded once per retryPolicy.execute(...) call, so a single logical range read that
+            // resumes N times (each resume re-drives execute for the re-open) emits N observations. Intentional:
+            // each observation has matching requests — it's a per-attempt backoff histogram, not a per-logical-read
+            // metric.
             retryCounters.addReadStall(totalBackoffMillis);
         }
     };

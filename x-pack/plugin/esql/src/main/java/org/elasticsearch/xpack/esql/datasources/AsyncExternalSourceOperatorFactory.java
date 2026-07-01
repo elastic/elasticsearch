@@ -1943,13 +1943,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * scheme is the only, low-cardinality, dimension. This guard wraps the non-record {@code attachMetrics} /
      * {@code path()} calls, so it stays (the record methods self-guard separately).
      * <p>
-     * <b>Attach-ordering contract:</b> the sink is attached AFTER the final metadata probe
-     * ({@code length}/{@code lastModified}/{@code exists}) but BEFORE the first byte is read, so the read-scoped
-     * {@code storage.*} registry metrics count only reads. Metadata ops must therefore never feed the registry sink:
-     * on a retryable provider {@code RetryableStorageObject} passes {@code RetryPolicy.RetryTelemetry.NONE} and routes
-     * their retries through the profile-only counter, so a metadata retry/error/stall cannot leak past
-     * {@code storage.requests.total} (retries/errors/read_stall &le; requests). Moving this attach before a metadata
-     * probe would reintroduce that leak.
+     * <b>Attach ordering vs the scope invariant:</b> the sink is attached before the first READ so read requests are
+     * counted, but attach ordering relative to metadata probes is NOT what keeps the read-scoped {@code storage.*}
+     * registry metrics read-only. Some metadata probes actually run AFTER attach (the COUNT(*) macro-split
+     * {@code fileReader.metadata()} and {@code ParallelParsingCoordinator}'s opening {@code storageObject.length()}),
+     * so the real guard is profile-only routing of metadata ops, not attach ordering: on a retryable provider
+     * {@code RetryableStorageObject} runs {@code length}/{@code lastModified}/{@code exists} with
+     * {@code RetryPolicy.RetryTelemetry.NONE} and routes their retries through the profile-only counter, so a metadata
+     * retry/error/stall never feeds the registry sink and cannot leak past {@code storage.requests.total}
+     * (retries/errors/read_stall &le; requests) regardless of when the probe fires relative to this attach.
      */
     private void attachStorageMetrics(StorageObject obj) {
         try {

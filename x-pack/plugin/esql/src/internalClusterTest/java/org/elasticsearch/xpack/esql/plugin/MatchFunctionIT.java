@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -22,6 +23,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.CoreMatchers.containsString;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -429,6 +431,165 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
                 )
             );
         }
+    }
+
+    public void testMatchRuntimeEvalWithOptionsThrowsError() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
+        var query = """
+            FROM test
+            | EVAL new_content = to_text(concat(content, " extra"))
+            | WHERE match(new_content, "fox", {"analyzer": "standard"})
+            | KEEP new_content
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        assertThat(
+            error.getMessage(),
+            containsString("Options are not supported for [MATCH] function call on non-index-mapped field [new_content]")
+        );
+    }
+
+    public void testMatchRuntimeRowWithOptionsThrowsError() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
+        var query = """
+            ROW content = to_text("This is a brown fox")
+            | WHERE match(content, "fox AND brown", {"operator": "AND"})
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        assertThat(
+            error.getMessage(),
+            containsString("Options are not supported for [MATCH] function call on non-index-mapped field [content]")
+        );
+    }
+
+    public void testMatchRuntimeEvalWithIncompatibleLongValueThrowsError() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
+        var query = """
+            FROM test
+            | EVAL new_id = to_long(id)
+            | WHERE match(new_id, "not_a_number")
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        assertEquals(
+            "Found 1 problem\n"
+                + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([long]) of non-index-mapped field [new_id]",
+            error.getMessage()
+        );
+    }
+
+    public void testMatchRuntimeRowWithIncompatibleIpValueThrowsError() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
+        var query = """
+            ROW my_ip = to_ip("192.168.1.1")
+            | WHERE match(my_ip, "not_an_ip")
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        assertEquals(
+            "Found 1 problem\n"
+                + "line 2:22: [MATCH] query value [\"not_an_ip\"] does not match the type ([ip]) of non-index-mapped field [my_ip]",
+            error.getMessage()
+        );
+    }
+
+    public void testMatchRuntimeEvalWithIncompatibleIntegerValueThrowsError() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
+        var query = """
+            FROM test
+            | EVAL new_id = to_integer(id)
+            | WHERE match(new_id, "not_a_number")
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        assertEquals(
+            "Found 1 problem\n"
+                + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([integer]) of non-index-mapped field [new_id]",
+            error.getMessage()
+        );
+    }
+
+    public void testMatchRuntimeEvalWithIncompatibleDoubleValueThrowsError() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
+        var query = """
+            FROM test
+            | EVAL new_id = to_double(id)
+            | WHERE match(new_id, "not_a_number")
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        assertEquals(
+            "Found 1 problem\n"
+                + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([double]) of non-index-mapped field [new_id]",
+            error.getMessage()
+        );
+    }
+
+    public void testMatchRuntimeEvalWithIncompatibleUnsignedLongValueThrowsError() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
+        var query = """
+            FROM test
+            | EVAL new_id = to_unsigned_long(id)
+            | WHERE match(new_id, "not_a_number")
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        assertEquals(
+            "Found 1 problem\n"
+                + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([unsigned_long]) of non-index-mapped field "
+                + "[new_id]",
+            error.getMessage()
+        );
+    }
+
+    public void testMatchRuntimeRowWithIncompatibleDatetimeValueThrowsError() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
+        var query = """
+            ROW my_date = to_datetime("2024-01-01")
+            | WHERE match(my_date, "not_a_date")
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        assertEquals(
+            "Found 1 problem\n"
+                + "line 2:24: [MATCH] query value [\"not_a_date\"] does not match the type ([datetime]) of non-index-mapped field [my_date]",
+            error.getMessage()
+        );
+    }
+
+    public void testMatchRuntimeRowWithIncompatibleDateNanosValueThrowsError() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
+        var query = """
+            ROW my_date = to_date_nanos("2024-01-01")
+            | WHERE match(my_date, "not_a_date")
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        assertEquals(
+            "Found 1 problem\n"
+                + "line 2:24: [MATCH] query value [\"not_a_date\"] does not match the type ([date_nanos]) of non-index-mapped field "
+                + "[my_date]",
+            error.getMessage()
+        );
     }
 
     static void createAndPopulateIndex(Consumer<String[]> ensureYellow) {

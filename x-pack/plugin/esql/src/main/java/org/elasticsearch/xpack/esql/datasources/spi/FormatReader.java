@@ -111,6 +111,25 @@ public interface FormatReader extends Closeable {
 
     SourceMetadata metadata(StorageObject object) throws IOException;
 
+    /**
+     * Asynchronously resolves metadata for the given storage object.
+     * <p>
+     * The default wraps the synchronous {@link #metadata(StorageObject)} in the provided executor,
+     * mirroring {@link #readAsync}. Formats whose footer/metadata read can be issued without holding
+     * an executor thread across the network round-trip (e.g. Parquet via
+     * {@link StorageObject#readBytesAsync}) should override this so that a wide discovery fan-out is
+     * bounded by an in-flight permit rather than by the number of executor threads it pins.
+     */
+    default void metadataAsync(StorageObject object, Executor executor, ActionListener<SourceMetadata> listener) {
+        executor.execute(() -> {
+            try {
+                listener.onResponse(metadata(object));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
     default List<Attribute> schema(StorageObject object) throws IOException {
         return metadata(object).schema();
     }

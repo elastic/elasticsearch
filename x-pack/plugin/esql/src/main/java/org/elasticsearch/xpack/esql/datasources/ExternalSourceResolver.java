@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -27,17 +28,18 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
-import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -45,6 +47,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  * Resolver for external data sources (Iceberg tables, Parquet files, etc.).
@@ -84,7 +88,15 @@ public class ExternalSourceResolver {
 
     public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_SCHEMA_RESOLUTION, DATASOURCE_CONFIG_KEY);
 
-    private static final int MAX_PARALLEL_METADATA_READS = 16;
+    /**
+     * Default cap on the number of in-flight per-file metadata reads during a multi-file discovery
+     * when a caller does not supply one. Production wires the {@code esql_worker} pool size here (via
+     * {@code PlanExecutor}/{@code TransportEsqlQueryAction}) so the fan-out is bounded by an in-flight
+     * permit equal to the pool size; because footer reads are async (released across the network
+     * round-trip), that permit does not translate into that many pinned threads. Kept only as a
+     * fallback for the constructors used by tests and by callers that do not thread the pool size.
+     */
+    static final int DEFAULT_METADATA_READ_CONCURRENCY = 16;
 
     /**
      * Returns a config suitable for passing to a storage provider: merges the {@link #DATASOURCE_CONFIG_KEY}
@@ -133,10 +145,21 @@ public class ExternalSourceResolver {
     private final DataSourceModule dataSourceModule;
     private final Settings settings;
     private final ExternalSourceCacheService cacheService;
+    private final int metadataReadConcurrency;
 
     /** Coordinator-side accessor used by EsqlSession to reconcile data-node-captured source stats post-query. */
     public ExternalSourceCacheService cacheService() {
         return cacheService;
+    }
+
+    /** Maximum in-flight per-file metadata reads for a multi-file discovery. Visible for wiring tests. */
+    public int metadataReadConcurrency() {
+        return metadataReadConcurrency;
+    }
+
+    /** Executor the discovery fan-out runs on. Visible for wiring/isolation tests. */
+    public Executor executor() {
+        return executor;
     }
 
     public ExternalSourceResolver(Executor executor, DataSourceModule dataSourceModule) {
@@ -153,10 +176,28 @@ public class ExternalSourceResolver {
         Settings settings,
         @Nullable ExternalSourceCacheService cacheService
     ) {
+        this(executor, dataSourceModule, settings, cacheService, DEFAULT_METADATA_READ_CONCURRENCY);
+    }
+
+    /**
+     * @param metadataReadConcurrency maximum number of in-flight per-file metadata reads during a
+     *            multi-file discovery. Production passes the {@code esql_worker} pool size.
+     */
+    public ExternalSourceResolver(
+        Executor executor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        @Nullable ExternalSourceCacheService cacheService,
+        int metadataReadConcurrency
+    ) {
+        if (metadataReadConcurrency < 1) {
+            throw new IllegalArgumentException("metadataReadConcurrency must be >= 1, got: " + metadataReadConcurrency);
+        }
         this.executor = executor;
         this.dataSourceModule = dataSourceModule;
         this.settings = settings;
         this.cacheService = cacheService;
+        this.metadataReadConcurrency = metadataReadConcurrency;
     }
 
     public void resolve(
@@ -178,52 +219,81 @@ public class ExternalSourceResolver {
             return;
         }
 
-        executor.execute(() -> {
-            try {
-                Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());
-
-                for (String path : paths) {
-                    Map<String, Object> config = pathConfigs.getOrDefault(path, Map.of());
-                    List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(path) : null;
-                    boolean hivePartitioning = isHivePartitioningEnabled(config);
-
-                    try {
-                        ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(path, config, hints, hivePartitioning);
-                        resolved.put(path, resolvedSource);
-                        LOGGER.debug("Successfully resolved external source: {}", path);
-                    } catch (IllegalArgumentException | UnsupportedOperationException e) {
-                        LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-                        listener.onFailure(e);
-                        return;
-                    } catch (Exception e) {
-                        LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-                        String exceptionMessage = e.getMessage();
-                        String errorDetail = exceptionMessage != null ? exceptionMessage : e.getClass().getSimpleName();
-                        String errorMessage = String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, errorDetail);
-                        listener.onFailure(new ElasticsearchException(errorMessage, e));
-                        return;
-                    }
-                }
-
-                listener.onResponse(new ExternalSourceResolution(resolved));
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        // Kick off the (listener-driven) per-path resolution on the resolver executor. The initial
+        // dispatch performs any cheap synchronous prep (glob expansion) and then hands off to async
+        // footer reads, so the executor thread is not held across the network round-trips.
+        Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());
+        executor.execute(() -> resolveNextPath(paths, 0, pathConfigs, filterHints, resolved, listener));
     }
 
-    private ExternalSourceResolution.ResolvedSource resolveSource(
+    /**
+     * Resolves {@code paths[index]} asynchronously, then chains to the next path on success. Paths
+     * are resolved sequentially so the accumulation map needs no synchronization and the first
+     * failure short-circuits the rest — mirroring the previous synchronous loop's semantics.
+     */
+    private void resolveNextPath(
+        List<String> paths,
+        int index,
+        Map<String, Map<String, Object>> pathConfigs,
+        @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        Map<String, ExternalSourceResolution.ResolvedSource> resolved,
+        ActionListener<ExternalSourceResolution> listener
+    ) {
+        if (index == paths.size()) {
+            listener.onResponse(new ExternalSourceResolution(resolved));
+            return;
+        }
+        String path = paths.get(index);
+        Map<String, Object> config = pathConfigs.getOrDefault(path, Map.of());
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(path) : null;
+        boolean hivePartitioning = isHivePartitioningEnabled(config);
+
+        resolveSource(path, config, hints, hivePartitioning, ActionListener.wrap(resolvedSource -> {
+            resolved.put(path, resolvedSource);
+            LOGGER.debug("Successfully resolved external source: {}", path);
+            resolveNextPath(paths, index + 1, pathConfigs, filterHints, resolved, listener);
+        }, e -> listener.onFailure(mapResolveFailure(path, e))));
+    }
+
+    /**
+     * Reproduces the previous loop's error contract: {@link IllegalArgumentException} and
+     * {@link UnsupportedOperationException} (client-caused) propagate unwrapped, while any other
+     * failure is wrapped in an {@link ElasticsearchException} carrying the path and detail.
+     */
+    private static RuntimeException mapResolveFailure(String path, Exception e) {
+        if (e instanceof IllegalArgumentException || e instanceof UnsupportedOperationException) {
+            LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+            return (RuntimeException) e;
+        }
+        LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+        String detail = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+        return new ElasticsearchException(String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, detail), e);
+    }
+
+    private void resolveSource(
         String path,
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        boolean hivePartitioning
-    ) throws Exception {
+        boolean hivePartitioning,
+        ActionListener<ExternalSourceResolution.ResolvedSource> listener
+    ) {
         LOGGER.debug("Resolving external source: path=[{}]", path);
-
-        if (GlobExpander.isMultiFile(path)) {
-            return resolveMultiFileSource(path, config, hints, hivePartitioning);
+        try {
+            if (GlobExpander.isMultiFile(path)) {
+                resolveMultiFileSource(path, config, hints, hivePartitioning, listener);
+            } else {
+                resolveSingleFileSource(path, config, listener);
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
+    }
 
+    private void resolveSingleFileSource(
+        String path,
+        Map<String, Object> config,
+        ActionListener<ExternalSourceResolution.ResolvedSource> listener
+    ) throws Exception {
         /*
          * A concrete one-entry FileList is required so {@link org.elasticsearch.xpack.esql.datasources.FileSplitProvider}
          * can discover block-aligned splits for compressed files (e.g. .json.bz2). UNRESOLVED lists skip split discovery,
@@ -266,7 +336,7 @@ public class ExternalSourceResolver {
         );
         // Single-file: degenerate case of the general flow — one-entry schemaMap, identity mapping.
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, fileSchema);
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
+        listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap));
     }
 
     private static Map<StoragePath, SchemaReconciliation.FileSchemaInfo> singleEntrySchemaMap(
@@ -280,11 +350,12 @@ public class ExternalSourceResolver {
         return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(schema), identityMapping, null));
     }
 
-    private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(
+    private void resolveMultiFileSource(
         String path,
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        boolean hivePartitioning
+        boolean hivePartitioning,
+        ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);
@@ -301,7 +372,8 @@ public class ExternalSourceResolver {
             if (raw.fileCount() == 0) {
                 throw new IllegalArgumentException("Glob pattern matched no files: " + path);
             }
-            return resolveMultiFileWithReconciliation(raw, config, schemaResolution, cacheable);
+            resolveMultiFileWithReconciliation(raw, config, schemaResolution, cacheable, listener);
+            return;
         }
 
         FileList listing;
@@ -329,7 +401,7 @@ public class ExternalSourceResolver {
         StoragePath anchorPath = listing.path(anchor);
         long anchorMtime = listing.lastModifiedMillis(anchor);
 
-        ExternalSourceMetadata extMetadata;
+        ExternalSourceMetadata anchorMetadata;
         if (cacheable) {
             String formatType = detectFormatType(anchorPath);
             SchemaCacheKey schemaKey = SchemaCacheKey.build(anchorPath.toString(), anchorMtime, formatType, config);
@@ -337,13 +409,14 @@ public class ExternalSourceResolver {
                 return SchemaCacheEntry.from(resolveSingleSource(anchorPath.toString(), config));
             });
             List<Attribute> schema = schemaEntry.toAttributes();
-            extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
+            anchorMetadata = buildMetadataFromCache(schemaEntry, schema, config);
         } else {
             SourceMetadata metadata = resolveSingleSource(anchorPath.toString(), config);
-            extMetadata = wrapAsExternalSourceMetadata(metadata, config);
+            anchorMetadata = wrapAsExternalSourceMetadata(metadata, config);
         }
 
-        extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
+        final FileList finalListing = listing;
+        final ExternalSourceMetadata baseMetadata = enrichWithFileCount(anchorMetadata, listing.fileCount());
         if (listing.fileCount() > 1) {
             // For multi-file FIRST_FILE_WINS, read all files' metadata in parallel during Phase 1
             // to aggregate statistics across all files. This allows aggregate pushdown
@@ -355,57 +428,84 @@ public class ExternalSourceResolver {
             // Phase 2 still runs, so the per-file footer is read twice (once here, once during
             // split discovery). The cost is generally acceptable because:
             // - the cacheable path consults the schema cache, so repeat resolves are free;
-            // - the non-cacheable path reads footers in parallel up to MAX_PARALLEL_METADATA_READS;
+            // - the non-cacheable path reads footers with an async fan-out bounded by an in-flight
+            // permit (metadataReadConcurrency), releasing the pool thread across each footer read;
             // - the aggregated stats unlock skipping Phase 2 entirely for pushable aggregates
             // (see ComputeService#canSkipSplitDiscovery), which dominates the savings.
             // We don't gate this on the query (which isn't known here) — see issue #148086 for the
             // design notes.
-            Map<String, Object> aggregatedStats = cacheable
-                ? readAndAggregateAllFileStatsWithCache(listing, config)
-                : readAndAggregateAllFileStats(listing, config);
-            if (aggregatedStats != null) {
-                // Replace anchor-only stats with globally-aggregated stats.
-                // Preserve all non-stats keys from the current extMetadata (e.g. file_count, config).
-                Map<String, Object> current = extMetadata.sourceMetadata();
-                Map<String, Object> merged = current != null ? new HashMap<>(current) : new HashMap<>();
-                merged.putAll(aggregatedStats);
-                // Do NOT add STATS_PARTIAL — stats are now complete across all files.
-                merged.remove(SourceStatisticsSerializer.STATS_PARTIAL);
-                final Map<String, Object> finalMerged = Map.copyOf(merged);
-                final ExternalSourceMetadata baseMetadata = extMetadata;
-                extMetadata = new ExternalSourceMetadata() {
-                    @Override
-                    public String location() {
-                        return baseMetadata.location();
-                    }
-
-                    @Override
-                    public List<Attribute> schema() {
-                        return baseMetadata.schema();
-                    }
-
-                    @Override
-                    public String sourceType() {
-                        return baseMetadata.sourceType();
-                    }
-
-                    @Override
-                    public Map<String, Object> sourceMetadata() {
-                        return finalMerged;
-                    }
-
-                    @Override
-                    public Map<String, Object> config() {
-                        return baseMetadata.config();
-                    }
-                };
+            ActionListener<Map<String, Object>> statsListener = ActionListener.wrap(aggregatedStats -> {
+                try {
+                    ExternalSourceMetadata withStats = applyFirstFileWinsAggregatedStats(baseMetadata, aggregatedStats);
+                    listener.onResponse(finishFirstFileWins(finalListing, withStats));
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }, listener::onFailure);
+            if (cacheable) {
+                readAndAggregateAllFileStatsWithCache(listing, config, statsListener);
             } else {
-                // Could not aggregate stats (some files lacked statistics) — mark as partial
-                // so the optimizer does not rely on incomplete sourceMetadata stats.
-                extMetadata = markStatsAsPartial(extMetadata);
+                readAndAggregateAllFileStats(listing, config, statsListener);
             }
+        } else {
+            listener.onResponse(finishFirstFileWins(finalListing, baseMetadata));
         }
+    }
 
+    /**
+     * Overlays globally-aggregated statistics onto the anchor metadata for the FIRST_FILE_WINS path.
+     * When {@code aggregatedStats} is {@code null} (some file lacked statistics or a read failed) the
+     * stats are marked partial so the optimizer does not rely on incomplete aggregations.
+     */
+    private static ExternalSourceMetadata applyFirstFileWinsAggregatedStats(
+        ExternalSourceMetadata baseMetadata,
+        @Nullable Map<String, Object> aggregatedStats
+    ) {
+        if (aggregatedStats == null) {
+            return markStatsAsPartial(baseMetadata);
+        }
+        // Replace anchor-only stats with globally-aggregated stats.
+        // Preserve all non-stats keys from the current extMetadata (e.g. file_count, config).
+        Map<String, Object> current = baseMetadata.sourceMetadata();
+        Map<String, Object> merged = current != null ? new HashMap<>(current) : new HashMap<>();
+        merged.putAll(aggregatedStats);
+        // Do NOT add STATS_PARTIAL — stats are now complete across all files.
+        merged.remove(SourceStatisticsSerializer.STATS_PARTIAL);
+        final Map<String, Object> finalMerged = Map.copyOf(merged);
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return baseMetadata.location();
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return baseMetadata.schema();
+            }
+
+            @Override
+            public String sourceType() {
+                return baseMetadata.sourceType();
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return finalMerged;
+            }
+
+            @Override
+            public Map<String, Object> config() {
+                return baseMetadata.config();
+            }
+        };
+    }
+
+    /**
+     * Completes the FIRST_FILE_WINS path once per-file stats (if any) have been folded into
+     * {@code extMetadata}: enriches the schema with partition and file-metadata columns and pins the
+     * anchor's data-only schema for every file via an identity-mapped schemaMap. Purely CPU-bound.
+     */
+    private ExternalSourceResolution.ResolvedSource finishFirstFileWins(FileList listing, ExternalSourceMetadata extMetadata) {
         // Capture pre-enrichment schema: partition columns are added by VirtualColumnIterator
         // at read time, so per-file readSchema must NOT include them.
         List<Attribute> dataOnlySchema = extMetadata.schema();
@@ -531,85 +631,169 @@ public class ExternalSourceResolver {
         };
     }
 
-    private ExternalSourceResolution.ResolvedSource resolveMultiFileWithReconciliation(
+    private void resolveMultiFileWithReconciliation(
         FileList fileList,
         Map<String, Object> config,
         FormatReader.SchemaResolution schemaResolution,
-        boolean cacheable
-    ) throws Exception {
+        boolean cacheable,
+        ActionListener<ExternalSourceResolution.ResolvedSource> listener
+    ) {
         long startNanos = System.nanoTime();
-        Map<StoragePath, SourceMetadata> allMetadata = readAllFileMetadata(fileList, config, cacheable);
-        long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
+        readAllFileMetadata(fileList, config, cacheable, ActionListener.wrap(allMetadata -> {
+            try {
+                long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
+                LOGGER.debug("Schema reconciliation [{}]: scanned {} files in {}ms", schemaResolution, allMetadata.size(), durationMs);
 
-        LOGGER.debug("Schema reconciliation [{}]: scanned {} files in {}ms", schemaResolution, allMetadata.size(), durationMs);
+                StoragePath firstFile = fileList.path(0);
+                SchemaReconciliation.Result result;
+                if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
+                    result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
+                } else {
+                    result = SchemaReconciliation.reconcileUnionByName(allMetadata);
+                }
 
-        StoragePath firstFile = fileList.path(0);
-        SchemaReconciliation.Result result;
-        if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
-            result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
-        } else {
-            result = SchemaReconciliation.reconcileUnionByName(allMetadata);
-        }
+                List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
+                SourceMetadata firstMeta = allMetadata.get(firstFile);
+                // Aggregate from the per-file metadata already fetched by readAllFileMetadata —
+                // no second cache or storage hit per file.
+                Map<String, Object> aggregatedStats = aggregateFileStatistics(allMetadata.values());
+                ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats);
 
-        List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
-        SourceMetadata firstMeta = allMetadata.get(firstFile);
-        // Aggregate from the per-file metadata already fetched by readAllFileMetadata —
-        // no second cache or storage hit per file.
-        Map<String, Object> aggregatedStats = aggregateFileStatistics(allMetadata.values());
-        ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats);
+                // Mirror the FFW invariants: file count enables canSkipSplitDiscovery; partial-stats
+                // marking is gated on fileCount > 1 (single-file globs have no "other file" missing stats).
+                extMetadata = enrichWithFileCount(extMetadata, fileList.fileCount());
+                if (aggregatedStats == null && fileList.fileCount() > 1) {
+                    extMetadata = markStatsAsPartial(extMetadata);
+                }
 
-        // Mirror the FFW invariants: file count enables canSkipSplitDiscovery; partial-stats
-        // marking is gated on fileCount > 1 (single-file globs have no "other file" missing stats).
-        extMetadata = enrichWithFileCount(extMetadata, fileList.fileCount());
-        if (aggregatedStats == null && fileList.fileCount() > 1) {
-            extMetadata = markStatsAsPartial(extMetadata);
-        }
+                PartitionMetadata partitionMetadata = fileList.partitionMetadata();
+                if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
+                    extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
+                }
 
-        PartitionMetadata partitionMetadata = fileList.partitionMetadata();
-        if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
-            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
-        }
+                extMetadata = enrichSchemaWithFileMetadataColumns(extMetadata);
 
-        extMetadata = enrichSchemaWithFileMetadataColumns(extMetadata);
-
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap);
+                Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
+                listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        }, listener::onFailure));
     }
 
-    /** Per-file metadata, in parallel. When {@code cacheable} is true, each resolve goes through
-     *  the schema cache (keyed on path + mtime) so warm queries against the same paths hit cache. */
-    private Map<StoragePath, SourceMetadata> readAllFileMetadata(FileList fileList, Map<String, Object> config, boolean cacheable)
-        throws Exception {
+    /**
+     * Per-file metadata, read with an async fan-out bounded by {@link #metadataReadConcurrency}
+     * in-flight reads (see {@link #gatherPerFile}). When {@code cacheable} is true each resolve
+     * peeks the schema cache (keyed on path + mtime) and, on a miss, resolves asynchronously and
+     * stores the result so warm queries against the same paths hit cache. The result preserves the
+     * file order of {@code fileList}.
+     */
+    private void readAllFileMetadata(
+        FileList fileList,
+        Map<String, Object> config,
+        boolean cacheable,
+        ActionListener<Map<StoragePath, SourceMetadata>> listener
+    ) {
         int fileCount = fileList.fileCount();
-        List<Integer> indices = new ArrayList<>(fileCount);
-        for (int i = 0; i < fileCount; i++) {
-            indices.add(i);
-        }
-
-        List<Map.Entry<StoragePath, SourceMetadata>> entries = BoundedParallelGather.gather(indices, i -> {
-            StoragePath filePath = fileList.path(i);
-            SourceMetadata meta = cacheable
-                ? cachedResolveSingleSource(filePath, fileList.lastModifiedMillis(i), config)
-                : resolveSingleSource(filePath.toString(), config);
-            return Map.entry(filePath, meta);
-        }, MAX_PARALLEL_METADATA_READS, executor);
-
-        Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
-        for (Map.Entry<StoragePath, SourceMetadata> entry : entries) {
-            result.put(entry.getKey(), entry.getValue());
-        }
-        return result;
+        gatherPerFile(fileList, config, cacheable, ActionListener.wrap(perFile -> {
+            Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
+            for (int i = 0; i < fileCount; i++) {
+                result.put(fileList.path(i), perFile.get(i));
+            }
+            listener.onResponse(result);
+        }, listener::onFailure));
     }
 
-    /** Cache-aware single-file resolve. Mirrors the FFW path — exceptions propagate (no catch). */
-    private SourceMetadata cachedResolveSingleSource(StoragePath filePath, long mtime, Map<String, Object> config) throws Exception {
+    /**
+     * Runs an async, bounded fan-out over every file in {@code fileList}, resolving each file's
+     * {@link SourceMetadata} and returning results in file order. Concurrency is capped at
+     * {@link #metadataReadConcurrency} in-flight reads via {@link ThrottledIterator}; because the
+     * per-file resolve is itself async (the footer read is released across the network round-trip),
+     * that permit bounds in-flight reads rather than pinning that many executor threads. The first
+     * failure is propagated to {@code listener} and short-circuits the remaining files.
+     */
+    private void gatherPerFile(
+        FileList fileList,
+        Map<String, Object> config,
+        boolean cacheable,
+        ActionListener<List<SourceMetadata>> listener
+    ) {
+        int fileCount = fileList.fileCount();
+        AtomicReferenceArray<SourceMetadata> results = new AtomicReferenceArray<>(fileCount);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        Iterator<Integer> indices = indexIterator(fileCount);
+        ThrottledIterator.run(indices, (releasable, i) -> {
+            if (failure.get() != null) {
+                // A previous file already failed — drain the remaining items without issuing reads.
+                releasable.close();
+                return;
+            }
+            ActionListener<SourceMetadata> itemListener = ActionListener.runAfter(
+                ActionListener.wrap(meta -> results.set(i, meta), e -> failure.compareAndSet(null, e)),
+                releasable::close
+            );
+            // ThrottledIterator's itemConsumer must not throw: an escaped exception would leave this
+            // item's ref permanently held (its releasable never closed) and onCompletion would never
+            // fire — a hang. A synchronous throw from the resolve dispatch (e.g. a factory that rejects
+            // the executor submission or throws before completing the listener) is therefore funnelled
+            // into itemListener.onFailure so runAfter(..., releasable::close) always runs.
+            try {
+                StoragePath filePath = fileList.path(i);
+                // Length + mtime come from the directory listing: thread them through so the factory
+                // can build the storage object without a synchronous existence/HEAD probe on the
+                // executor thread before the async footer read.
+                ListingHint hint = new ListingHint(fileList.size(i), fileList.lastModifiedMillis(i));
+                if (cacheable) {
+                    cachedResolveSingleSourceAsync(filePath, hint, config, itemListener);
+                } else {
+                    resolveSingleSourceAsync(filePath.toString(), hint, config, itemListener);
+                }
+            } catch (Exception e) {
+                itemListener.onFailure(e);
+            }
+        }, metadataReadConcurrency, () -> {
+            Exception e = failure.get();
+            if (e != null) {
+                listener.onFailure(e);
+                return;
+            }
+            List<SourceMetadata> out = new ArrayList<>(fileCount);
+            for (int i = 0; i < fileCount; i++) {
+                out.add(results.get(i));
+            }
+            listener.onResponse(out);
+        }, executor, e -> {
+            // A continuation was rejected/failed (e.g. executor shutdown): record it so onCompletion
+            // surfaces the failure rather than returning a partially-populated result.
+            failure.compareAndSet(null, e);
+        });
+    }
+
+    /**
+     * Cache-aware async single-file resolve for the multi-file fan-out. Peeks the schema cache and,
+     * on a miss, resolves asynchronously (without pinning a thread across the footer read) and stores
+     * the result. Unlike the single-file {@code getOrComputeSchema} path this does not coalesce
+     * concurrent misses for the same key, which is acceptable here because each fan-out file is
+     * distinct; see {@link ExternalSourceCacheService#getSchemaIfPresent}.
+     */
+    private void cachedResolveSingleSourceAsync(
+        StoragePath filePath,
+        ListingHint hint,
+        Map<String, Object> config,
+        ActionListener<SourceMetadata> listener
+    ) {
         String formatType = detectFormatType(filePath);
-        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, config);
-        SchemaCacheEntry entry = cacheService.getOrComputeSchema(
-            schemaKey,
-            k -> SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config))
-        );
-        return buildMetadataFromCache(entry, entry.toAttributes(), config);
+        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), hint.lastModifiedMillis(), formatType, config);
+        SchemaCacheEntry cached = cacheService.getSchemaIfPresent(schemaKey);
+        if (cached != null) {
+            listener.onResponse(buildMetadataFromCache(cached, cached.toAttributes(), config));
+            return;
+        }
+        resolveSingleSourceAsync(filePath.toString(), hint, config, listener.map(meta -> {
+            SchemaCacheEntry entry = SchemaCacheEntry.from(meta);
+            cacheService.putSchema(schemaKey, entry);
+            return buildMetadataFromCache(entry, entry.toAttributes(), config);
+        }));
     }
 
     /**
@@ -637,65 +821,47 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Reads metadata from all files in {@code listing} in parallel (bounded concurrency)
-     * via {@link BoundedParallelGather}, then aggregates statistics across all files.
-     * Returns a merged flat stats map, or {@code null} if any file fails or lacks statistics.
-     * Errors reading individual files are logged at DEBUG and cause the method to return {@code null}
-     * (the caller will then mark stats as partial instead of using incomplete aggregations).
+     * Reads metadata from all files in {@code listing} with an async fan-out bounded by
+     * {@link #metadataReadConcurrency} in-flight reads, then aggregates statistics across all files.
+     * Completes with a merged flat stats map, or {@code null} if any file fails or lacks statistics.
+     * A read failure is logged at DEBUG and completes with {@code null} (the caller then marks stats
+     * as partial instead of using incomplete aggregations) — it never propagates as a failure.
      */
-    @Nullable
-    private Map<String, Object> readAndAggregateAllFileStats(FileList listing, Map<String, Object> config) {
-        int fileCount = listing.fileCount();
-        List<StoragePath> paths = new ArrayList<>(fileCount);
-        for (int i = 0; i < fileCount; i++) {
-            paths.add(listing.path(i));
-        }
-        List<SourceMetadata> allMeta;
-        try {
-            allMeta = BoundedParallelGather.gather(
-                paths,
-                filePath -> resolveSingleSource(filePath.toString(), config),
-                MAX_PARALLEL_METADATA_READS,
-                executor
-            );
-        } catch (Exception e) {
+    private void readAndAggregateAllFileStats(FileList listing, Map<String, Object> config, ActionListener<Map<String, Object>> listener) {
+        gatherPerFile(listing, config, false, ActionListener.wrap(allMeta -> listener.onResponse(aggregateFileStatistics(allMeta)), e -> {
             LOGGER.debug(() -> "Failed to read per-file stats in parallel, will use partial stats: " + e.getMessage());
-            return null;
-        }
-        return aggregateFileStatistics(allMeta);
+            listener.onResponse(null);
+        }));
     }
 
     /**
-     * Cache-aware variant of {@link #readAndAggregateAllFileStats}.
-     * Uses the schema cache (keyed by path + mtime) for each file so that repeated
-     * multi-file resolves do not re-read footers unnecessarily.
-     * Returns {@code null} if any file cannot be resolved or lacks statistics.
+     * Cache-aware variant of {@link #readAndAggregateAllFileStats}. Peeks the schema cache (keyed by
+     * path + mtime) for each file and resolves misses asynchronously, so repeated multi-file resolves
+     * do not re-read footers unnecessarily. Completes with {@code null} if any file cannot be resolved
+     * or lacks statistics.
      */
-    @Nullable
-    private Map<String, Object> readAndAggregateAllFileStatsWithCache(FileList listing, Map<String, Object> config) {
+    private void readAndAggregateAllFileStatsWithCache(
+        FileList listing,
+        Map<String, Object> config,
+        ActionListener<Map<String, Object>> listener
+    ) {
         int fileCount = listing.fileCount();
-        List<Map<String, Object>> perFileStats = new ArrayList<>(fileCount);
-        for (int i = 0; i < fileCount; i++) {
-            StoragePath filePath = listing.path(i);
-            long mtime = listing.lastModifiedMillis(i);
-            String formatType = detectFormatType(filePath);
-            SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, config);
-            try {
-                SchemaCacheEntry entry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                    return SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config));
-                });
-                Map<String, Object> fileMeta = entry.safeMetadata();
+        gatherPerFile(listing, config, true, ActionListener.wrap(allMeta -> {
+            List<Map<String, Object>> perFileStats = new ArrayList<>(fileCount);
+            for (SourceMetadata meta : allMeta) {
+                Map<String, Object> fileMeta = meta.sourceMetadata();
                 if (fileMeta == null || fileMeta.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false) {
                     // This file has no statistics — cannot produce accurate global stats.
-                    return null;
+                    listener.onResponse(null);
+                    return;
                 }
                 perFileStats.add(fileMeta);
-            } catch (Exception e) {
-                LOGGER.debug(() -> "Failed to get cached stats for [" + filePath + "], will use partial stats: " + e.getMessage());
-                return null;
             }
-        }
-        return SourceStatisticsSerializer.mergeStatistics(perFileStats);
+            listener.onResponse(SourceStatisticsSerializer.mergeStatistics(perFileStats));
+        }, e -> {
+            LOGGER.debug(() -> "Failed to get cached stats in parallel, will use partial stats: " + e.getMessage());
+            listener.onResponse(null);
+        }));
     }
 
     private ExternalSourceMetadata buildUnifiedMetadata(
@@ -824,6 +990,117 @@ public class ExternalSourceResolver {
                 + sources
                 + "]."
         );
+    }
+
+    /**
+     * Async counterpart of {@link #resolveSingleSource}: performs the same early scheme validation and
+     * factory selection, then routes to {@link ExternalSourceFactory#resolveMetadataAsync} so a
+     * file-based factory can issue the footer read without pinning an executor thread across the
+     * network round-trip. The error contract matches the synchronous path: an
+     * {@link UnsupportedSchemeException} for an unsupported scheme, the last factory failure wrapped in
+     * an {@link IllegalArgumentException} when one or more factories claimed the path but failed, or an
+     * {@link UnsupportedOperationException} when no factory can handle the path.
+     */
+    private void resolveSingleSourceAsync(
+        String path,
+        @Nullable ListingHint hint,
+        Map<String, Object> config,
+        ActionListener<SourceMetadata> listener
+    ) {
+        try {
+            StoragePath parsed = StoragePath.of(path);
+            DataSourceCapabilities capabilities = dataSourceModule.capabilities();
+            if (capabilities != null && capabilities.supportsScheme(parsed.scheme()) == false) {
+                listener.onFailure(
+                    new UnsupportedSchemeException(
+                        "Unsupported storage scheme [" + parsed.scheme() + "]. Supported: " + capabilities.supportedSchemesString()
+                    )
+                );
+                return;
+            }
+        } catch (UnsupportedSchemeException e) {
+            listener.onFailure(e);
+            return;
+        } catch (IllegalArgumentException e) {
+            // Path parsing failed -- let the factory iteration handle it
+        }
+
+        List<ExternalSourceFactory> candidates = new ArrayList<>();
+        for (ExternalSourceFactory factory : dataSourceModule.sourceFactories().values()) {
+            if (factory.canHandle(path)) {
+                candidates.add(factory);
+            }
+        }
+        resolveWithFactory(path, hint, config, candidates, 0, null, listener);
+    }
+
+    /**
+     * Tries each candidate factory in order, falling back to the next on failure. Mirrors the
+     * synchronous loop in {@link #resolveSingleSource}: records the last failure so that, once all
+     * candidates are exhausted, it reports either that wrapped failure or (when no factory claimed the
+     * path) an {@link UnsupportedOperationException}.
+     */
+    private void resolveWithFactory(
+        String path,
+        @Nullable ListingHint hint,
+        Map<String, Object> config,
+        List<ExternalSourceFactory> candidates,
+        int index,
+        @Nullable Exception lastFailure,
+        ActionListener<SourceMetadata> listener
+    ) {
+        if (index == candidates.size()) {
+            if (lastFailure != null) {
+                listener.onFailure(new IllegalArgumentException("Failed to resolve metadata for [" + path + "]", lastFailure));
+            } else {
+                var sources = String.join(", ", dataSourceModule.sourceFactories().keySet());
+                listener.onFailure(
+                    new UnsupportedOperationException(
+                        "No handler found for source at path ["
+                            + path
+                            + "]. "
+                            + "Please ensure the appropriate data source plugin is installed. "
+                            + "Known handlers: ["
+                            + sources
+                            + "]."
+                    )
+                );
+            }
+            return;
+        }
+        ExternalSourceFactory factory = candidates.get(index);
+        try {
+            factory.resolveMetadataAsync(path, hint, config, executor, ActionListener.wrap(listener::onResponse, e -> {
+                LOGGER.debug("Factory [{}] claimed path [{}] but failed: {}", factory.type(), path, e.getMessage());
+                resolveWithFactory(path, hint, config, candidates, index + 1, e, listener);
+            }));
+        } catch (Exception e) {
+            // A factory that throws synchronously (rather than completing the listener) must not abort
+            // the whole resolve: mirror the synchronous resolveSingleSource loop and fall through to the
+            // next candidate, carrying this failure as the last error.
+            LOGGER.debug("Factory [{}] claimed path [{}] but threw synchronously: {}", factory.type(), path, e.getMessage());
+            resolveWithFactory(path, hint, config, candidates, index + 1, e, listener);
+        }
+    }
+
+    /** Sequential {@code 0..count} iterator for {@link ThrottledIterator}; avoids a stream in production code. */
+    private static Iterator<Integer> indexIterator(int count) {
+        return new Iterator<>() {
+            private int next = 0;
+
+            @Override
+            public boolean hasNext() {
+                return next < count;
+            }
+
+            @Override
+            public Integer next() {
+                if (next >= count) {
+                    throw new java.util.NoSuchElementException();
+                }
+                return next++;
+            }
+        };
     }
 
     /**

@@ -92,6 +92,28 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
+     * Returns a cached schema entry, or {@code null} on a miss (or when the cache is disabled).
+     * Unlike {@link #getOrComputeSchema}, this never invokes a loader — it is the peek half of the
+     * async resolve path, which fetches on a miss without holding an executor thread and then stores
+     * the result via {@link #putSchema}. This trades strict thundering-herd coalescing (two
+     * concurrent misses for the same key may both fetch) for the ability to resolve asynchronously.
+     */
+    public SchemaCacheEntry getSchemaIfPresent(SchemaCacheKey key) {
+        if (enabled == false) {
+            return null;
+        }
+        return schemaCache.get(key);
+    }
+
+    /** Stores a schema entry. No-op when the cache is disabled. Pairs with {@link #getSchemaIfPresent}. */
+    public void putSchema(SchemaCacheKey key, SchemaCacheEntry entry) {
+        if (enabled == false) {
+            return;
+        }
+        schemaCache.put(key, entry);
+    }
+
+    /**
      * Returns a cached file listing or stores the provided one. The loader is only invoked
      * on a cache miss. When the cache is disabled, the loader is called directly (bypassing the cache).
      */

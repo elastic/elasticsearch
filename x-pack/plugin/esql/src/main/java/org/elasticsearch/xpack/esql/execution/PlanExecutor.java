@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
@@ -28,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionReg
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
@@ -87,6 +90,29 @@ public class PlanExecutor {
         this.cacheService = cacheService;
     }
 
+    /**
+     * Builds the {@link ExternalSourceResolver} used for external (Iceberg/Parquet) discovery, wired to
+     * run on the {@code esql_worker} pool with its multi-file metadata fan-out bounded by that pool's
+     * size. Extracted so the wiring — executor isolation (off {@code SEARCH}) and
+     * {@code metadataReadConcurrency == esql_worker.getMax()} — is testable without standing up the
+     * full query path. See {@link #esql} for why the pool size is a safe in-flight bound.
+     */
+    static ExternalSourceResolver createExternalSourceResolver(
+        ThreadPool threadPool,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        ExternalSourceCacheService cacheService
+    ) {
+        int esqlWorkerPoolSize = threadPool.info(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME).getMax();
+        return new ExternalSourceResolver(
+            threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
+            dataSourceModule,
+            settings,
+            cacheService,
+            esqlWorkerPoolSize
+        );
+    }
+
     public void esql(
         EsqlQueryRequest request,
         String sessionId,
@@ -101,10 +127,19 @@ public class PlanExecutor {
         ActionListener<Versioned<Result>> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
-        // Create ExternalSourceResolver for Iceberg/Parquet resolution
-        // Use the same executor as for searches to avoid blocking
-        final ExternalSourceResolver externalSourceResolver = new ExternalSourceResolver(
-            services.transportService().getThreadPool().executor(org.elasticsearch.threadpool.ThreadPool.Names.SEARCH),
+        // Create ExternalSourceResolver for Iceberg/Parquet resolution.
+        // Run discovery on the esql_worker pool (same pool that drives execution) and bound the
+        // per-query multi-file metadata fan-out to that pool's size: because footer reads are async
+        // (the pool thread is released across the network round-trip) the permit caps in-flight reads
+        // rather than pinning that many threads, so a wide discovery cannot starve execution.
+        // NOTE: this release-across-the-read guarantee holds for storage backends with native async
+        // reads (e.g. S3). Backends whose readBytesAsync is an executor-backed sync read (local, GCS)
+        // still occupy a worker thread for the duration of each footer read; the permit bounds how
+        // many do so at once, and re-homing those blocking reads off esql_worker is handled by the
+        // follow-up concurrency-fairness work rather than here.
+        final ThreadPool threadPool = services.transportService().getThreadPool();
+        final ExternalSourceResolver externalSourceResolver = createExternalSourceResolver(
+            threadPool,
             dataSourceModule,
             services.clusterService().getSettings(),
             cacheService

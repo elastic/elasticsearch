@@ -11,6 +11,7 @@ package org.elasticsearch.foreign.processor.model;
 
 import org.elasticsearch.foreign.Critical;
 import org.elasticsearch.foreign.Function;
+import org.elasticsearch.foreign.Guard;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,15 +19,19 @@ import java.util.List;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic.Kind;
+
+import static org.elasticsearch.foreign.processor.model.ModelUtil.annotationClassValue;
+import static org.elasticsearch.foreign.processor.model.ModelUtil.classifyType;
+import static org.elasticsearch.foreign.processor.model.ModelUtil.describeSignature;
+import static org.elasticsearch.foreign.processor.model.ModelUtil.findAnnotationMirror;
+import static org.elasticsearch.foreign.processor.model.ModelUtil.findPublicStaticMethod;
 
 /**
  * Models a single {@code @Function}-annotated method on a {@code @LibrarySpecification} interface.
@@ -38,6 +43,7 @@ import javax.tools.Diagnostic.Kind;
  * @param isCritical whether the method is annotated with {@code @Critical}
  * @param fallbackAdapterClassName fully-qualified name of the JDK 21 {@code @Critical} fallback adapter class,
  *        or {@code null} if none was specified
+ * @param guard the {@code @Guard} model, or {@code null} if no guard is present
  */
 public record MethodModel(
     String methodName,
@@ -45,8 +51,14 @@ public record MethodModel(
     NativeType returnType,
     List<NativeType> paramTypes,
     boolean isCritical,
-    String fallbackAdapterClassName
+    String fallbackAdapterClassName,
+    GuardModel guard
 ) {
+
+    /** Returns {@code true} if this method has a {@code @Guard} annotation. */
+    public boolean hasGuard() {
+        return guard != null;
+    }
 
     /** Name of the static {@code MethodHandle} field generated for this method in the {@code $Impl} class. */
     public String methodHandleFieldName() {
@@ -100,36 +112,17 @@ public record MethodModel(
             }
         }
 
-        return new MethodModel(methodName, function.value(), returnType, paramTypes, isCritical, fallbackAdapter);
-    }
+        GuardModel guardModel = null;
+        Guard guardAnnotation = method.getAnnotation(Guard.class);
+        if (guardAnnotation != null) {
+            AnnotationMirror guardMirror = findAnnotationMirror(method, "org.elasticsearch.foreign.Guard");
+            guardModel = GuardModel.from(method, guardMirror, guardAnnotation.checkerMethod(), paramTypes, messager, env.getTypeUtils());
+            if (guardModel == null) {
+                return null;
+            }
+        }
 
-    /**
-     * Returns the {@link NativeType} for a {@link TypeMirror}, or {@code null} if the type is not
-     * supported. {@link NativeType#STRING} is returned for {@code java.lang.String} and validity in
-     * a given position (e.g. return-only) is enforced at the call site.
-     */
-    private static NativeType classifyType(TypeMirror mirror) {
-        if (mirror.getKind() == TypeKind.VOID) {
-            return NativeType.VOID;
-        }
-        if (mirror.getKind() == TypeKind.DECLARED) {
-            String fqn = ((TypeElement) ((DeclaredType) mirror).asElement()).getQualifiedName().toString();
-            return switch (fqn) {
-                case "java.lang.foreign.MemorySegment" -> NativeType.ADDRESS;
-                case "java.lang.String" -> NativeType.STRING;
-                default -> null;
-            };
-        }
-        return switch (mirror.getKind()) {
-            case INT -> NativeType.INT;
-            case LONG -> NativeType.LONG;
-            case SHORT -> NativeType.SHORT;
-            case BYTE -> NativeType.BYTE;
-            case BOOLEAN -> NativeType.BOOLEAN;
-            case FLOAT -> NativeType.FLOAT;
-            case DOUBLE -> NativeType.DOUBLE;
-            default -> null;
-        };
+        return new MethodModel(methodName, function.value(), returnType, paramTypes, isCritical, fallbackAdapter, guardModel);
     }
 
     /**
@@ -194,42 +187,6 @@ public record MethodModel(
         return adapterFqn;
     }
 
-    private static AnnotationMirror findAnnotationMirror(ExecutableElement method, String annotationFqn) {
-        for (AnnotationMirror mirror : method.getAnnotationMirrors()) {
-            TypeElement annotationType = (TypeElement) mirror.getAnnotationType().asElement();
-            if (annotationType.getQualifiedName().contentEquals(annotationFqn)) {
-                return mirror;
-            }
-        }
-        return null;
-    }
-
-    private static TypeMirror annotationClassValue(AnnotationMirror mirror, String attribute) {
-        for (var entry : mirror.getElementValues().entrySet()) {
-            if (entry.getKey().getSimpleName().contentEquals(attribute)) {
-                return entry.getValue().getValue() instanceof TypeMirror tm ? tm : null;
-            }
-        }
-        return null;
-    }
-
-    private static ExecutableElement findPublicStaticMethod(TypeElement type, String methodName) {
-        for (var enclosed : type.getEnclosedElements()) {
-            if (enclosed.getKind() != ElementKind.METHOD) {
-                continue;
-            }
-            ExecutableElement m = (ExecutableElement) enclosed;
-            if (m.getSimpleName().contentEquals(methodName) == false) {
-                continue;
-            }
-            var modifiers = m.getModifiers();
-            if (modifiers.contains(Modifier.PUBLIC) && modifiers.contains(Modifier.STATIC)) {
-                return m;
-            }
-        }
-        return null;
-    }
-
     private static boolean signatureMatches(ExecutableElement adapter, List<NativeType> originalParams, NativeType originalReturn) {
         var params = adapter.getParameters();
         if (params.size() != originalParams.size() + 1) {
@@ -251,17 +208,5 @@ public record MethodModel(
             return false;
         }
         return ((TypeElement) ((DeclaredType) mirror).asElement()).getQualifiedName().contentEquals("java.lang.invoke.MethodHandle");
-    }
-
-    private static String describeSignature(ExecutableElement method) {
-        StringBuilder sb = new StringBuilder("(");
-        boolean first = true;
-        for (var p : method.getParameters()) {
-            if (first == false) sb.append(", ");
-            sb.append(p.asType());
-            first = false;
-        }
-        sb.append(") -> ").append(method.getReturnType());
-        return sb.toString();
     }
 }

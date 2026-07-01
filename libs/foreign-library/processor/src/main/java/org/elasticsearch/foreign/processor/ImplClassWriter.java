@@ -9,6 +9,7 @@
 
 package org.elasticsearch.foreign.processor;
 
+import org.elasticsearch.foreign.processor.model.GuardModel;
 import org.elasticsearch.foreign.processor.model.LibraryModel;
 import org.elasticsearch.foreign.processor.model.MethodModel;
 import org.elasticsearch.foreign.processor.model.NativeType;
@@ -222,6 +223,9 @@ class ImplClassWriter {
 
     private static void emitNativeFunctionMethod(ClassBuilder cb, ClassDesc generatedDesc, MethodModel nm) {
         cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm), ClassFile.ACC_PUBLIC, code -> {
+            if (nm.hasGuard()) {
+                emitGuardCheck(code, nm);
+            }
             boolean hasStringParams = nm.paramTypes().contains(NativeType.STRING);
             if (hasStringParams) {
                 emitNativeFunctionMethodWithStringParams(code, generatedDesc, nm);
@@ -351,6 +355,25 @@ class ImplClassWriter {
             case ADDRESS, STRING -> cb.aload(slot);
             default -> throw new AssertionError("Cannot load type: " + type);
         }
+    }
+
+    /**
+     * Emits a direct {@code invokestatic} call to the {@code @Guard} checker method before the
+     * native call. The checker returns {@code void} and throws on failure.
+     */
+    private static void emitGuardCheck(CodeBuilder cb, MethodModel nm) {
+        GuardModel guard = nm.guard();
+        List<ClassDesc> paramDescs = new ArrayList<>();
+        for (var paramType : nm.paramTypes()) {
+            paramDescs.add(javaClassDesc(paramType));
+        }
+        MethodTypeDesc checkerDesc = MethodTypeDesc.of(CD_void, paramDescs);
+
+        int slot = 1; // slot 0 = this
+        for (var paramType : nm.paramTypes()) {
+            slot += emitLoadParam(cb, paramType, slot);
+        }
+        cb.invokestatic(ClassDesc.of(guard.checkerClassName()), guard.checkerMethodName(), checkerDesc);
     }
 
     /**

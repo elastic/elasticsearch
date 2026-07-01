@@ -55,7 +55,10 @@ public class SingletonIntBuilderTests extends ComputeTestCase {
         Integer[] values = new Integer[] { 10, 20, 30, 40 };
 
         int count = 1000;
-        try (Directory directory = newDirectory()) {
+        try (
+            Directory directory = newDirectory();
+            var perFieldFactory = new PerFieldBlockLoaderFactory(factory, new PerFieldBlockLoaderFactory.NullBlockPool(factory))
+        ) {
             try (IndexWriter indexWriter = createIndexWriter(directory)) {
                 for (int i = 0; i < count; i++) {
                     Integer v = values[i % values.length];
@@ -66,7 +69,7 @@ public class SingletonIntBuilderTests extends ComputeTestCase {
             try (IndexReader reader = DirectoryReader.open(directory)) {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     var docValues = ctx.reader().getNumericDocValues("field");
-                    try (SingletonIntBuilder builder = new SingletonIntBuilder(ctx.reader().numDocs(), factory)) {
+                    try (var builder = new SingletonIntBuilder(ctx.reader().numDocs(), perFieldFactory)) {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
                             assertThat(docValues.advanceExact(i), equalTo(true));
                             long value = docValues.longValue();
@@ -91,7 +94,11 @@ public class SingletonIntBuilderTests extends ComputeTestCase {
 
     public void testMoreValues() throws IOException {
         int count = 1_000;
-        try (Directory directory = newDirectory()) {
+        BlockFactory blockFactory = blockFactory();
+        try (
+            Directory directory = newDirectory();
+            var perFieldFactory = new PerFieldBlockLoaderFactory(blockFactory, new PerFieldBlockLoaderFactory.NullBlockPool(blockFactory))
+        ) {
             try (IndexWriter indexWriter = createIndexWriter(directory)) {
                 for (int i = 0; i < count; i++) {
                     indexWriter.addDocument(List.of(new NumericDocValuesField("field", i)));
@@ -103,7 +110,7 @@ public class SingletonIntBuilderTests extends ComputeTestCase {
                 LeafReader leafReader = reader.leaves().get(0).reader();
                 var docValues = leafReader.getNumericDocValues("field");
                 int offset = 850;
-                try (SingletonIntBuilder builder = new SingletonIntBuilder(count - offset, blockFactory())) {
+                try (var builder = new SingletonIntBuilder(count - offset, perFieldFactory)) {
                     for (int i = offset; i < leafReader.maxDoc(); i++) {
                         assertThat(docValues.advanceExact(i), equalTo(true));
                         long value = docValues.longValue();

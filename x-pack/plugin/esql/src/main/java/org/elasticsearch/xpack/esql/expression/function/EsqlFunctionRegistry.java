@@ -131,6 +131,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.ToRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.NetworkDirection;
@@ -581,6 +582,7 @@ public class EsqlFunctionRegistry {
                 ToIntegerSurrogate.DEFINITION,
                 ToLongSurrogate.DEFINITION,
                 ToRadians.DEFINITION,
+                ToRange.DEFINITION,
                 ToString.DEFINITION,
                 ToTDigest.DEFINITION,
                 ToTimeDuration.DEFINITION,

@@ -1255,7 +1255,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assertFalse("ignore_malformed is not supported by [wildcard] field", ignoreMalformed);
         // createSytheticSourceMapperService uses standard mode, which stores ignored values in stored fields (no sorting)
-        return new WildcardSyntheticSourceSupport(false);
+        return new WildcardSyntheticSourceSupport(false, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        assertFalse("ignore_malformed is not supported by [wildcard] field", ignoreMalformed);
+        return new WildcardSyntheticSourceSupport(false, true);
     }
 
     static class WildcardSyntheticSourceSupport implements SyntheticSourceSupport {
@@ -1263,9 +1269,16 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         private final boolean allIgnored = ignoreAbove != null && rarely();
         private final String nullValue = usually() ? null : randomAlphaOfLength(2);
         private final boolean sortIgnoredValues;
+        private final boolean isColumnar;
 
-        WildcardSyntheticSourceSupport(boolean sortIgnoredValues) {
+        WildcardSyntheticSourceSupport(boolean sortIgnoredValues, boolean isColumnar) {
             this.sortIgnoredValues = sortIgnoredValues;
+            this.isColumnar = isColumnar;
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return isColumnar;
         }
 
         @Override
@@ -1286,10 +1299,14 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                 }
             });
 
+            // TODO update wildcard to use UNSORTED in columnar mode: https://github.com/elastic/elasticsearch/issues/152414
+            // Currently wildcard always uses SORTED_UNIQUE ordering: values are always deduplicated and sorted.
             List<String> outList = new ArrayList<>(new HashSet<>(docValuesValues));
             Collections.sort(outList);
 
-            if (sortIgnoredValues) {
+            // in columnar mode, ignored values are stored in sorted binary doc values
+            boolean sortIgnored = isColumnar || sortIgnoredValues;
+            if (sortIgnored) {
                 // binary doc values deduplicate and sort values
                 List<String> sortedExtraValues = new ArrayList<>(new HashSet<>(ignoredValues));
                 Collections.sort(sortedExtraValues);

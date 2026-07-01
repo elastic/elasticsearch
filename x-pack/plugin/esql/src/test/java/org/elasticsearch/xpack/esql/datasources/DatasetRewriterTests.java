@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -122,14 +123,15 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
-        // First child: UnresolvedRelation for the non-dataset index
-        assertThat(union.children().get(0), instanceOf(UnresolvedRelation.class));
-        UnresolvedRelation indexBranch = (UnresolvedRelation) union.children().get(0);
-        assertThat(indexBranch.indexPattern().indexPattern(), equalTo("some_idx"));
-        // Second child: UnresolvedExternalRelation for the dataset
-        assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
-        UnresolvedExternalRelation datasetBranch = (UnresolvedExternalRelation) union.children().get(1);
+        // Dataset branches precede the index branch under the unified rail.
+        // First child: UnresolvedExternalRelation for the dataset
+        assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
+        UnresolvedExternalRelation datasetBranch = (UnresolvedExternalRelation) union.children().get(0);
         assertThat(tablePathString(datasetBranch), equalTo("s3://logs/"));
+        // Second child: UnresolvedRelation for the non-dataset index
+        assertThat(union.children().get(1), instanceOf(UnresolvedRelation.class));
+        UnresolvedRelation indexBranch = (UnresolvedRelation) union.children().get(1);
+        assertThat(indexBranch.indexPattern().indexPattern(), equalTo("some_idx"));
     }
 
     public void testMixedMultipleIndicesAndDatasetsProducesUnionAll() {
@@ -146,9 +148,9 @@ public class DatasetRewriterTests extends ESTestCase {
         UnionAll union = (UnionAll) rewritten;
         // 1 index branch + 2 dataset branches = 3 children
         assertThat(union.children(), hasSize(3));
-        assertThat(union.children().get(0), instanceOf(UnresolvedRelation.class));
+        assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
         assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
-        assertThat(union.children().get(2), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(union.children().get(2), instanceOf(UnresolvedRelation.class));
     }
 
     public void testIndexModeNonStandardRejected() {
@@ -296,8 +298,8 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
-        assertThat(union.children().get(0), instanceOf(UnresolvedRelation.class));
-        assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(union.children().get(1), instanceOf(UnresolvedRelation.class));
     }
 
     public void testWildcardSpanningIndicesAndDatasetsProducesUnionAll() {
@@ -313,8 +315,8 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll union = (UnionAll) rewritten;
         assertThat(union.children(), hasSize(2));
-        assertThat(union.children().get(0), instanceOf(UnresolvedRelation.class));
-        assertThat(union.children().get(1), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(union.children().get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(union.children().get(1), instanceOf(UnresolvedRelation.class));
     }
 
     public void testWildcardMatchingDatasetUnderCpsPreservesRemoteHalf() {
@@ -346,16 +348,136 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
     }
 
-    public void testExplicitDatasetNameUnderCpsNotPreserved() {
-        // An exact (non-wildcard) dataset name is fully handled by its external relation — there is no wildcard to
-        // expand against linked projects, so nothing is preserved even with CPS on.
+    public void testExplicitDatasetNameUnderCpsEmitsShadow() {
+        // An exact (non-wildcard) dataset name has no wildcard to re-emit, so its remote half would never reach
+        // field-caps. Under CPS the rewriter emits a DatasetShadowRelation sibling next to the dataset's external
+        // relation (inside a plain UnionAll) so the lenient linked pass can federate a remote index of the same name —
+        // the dataset analog of ViewResolver's OPTIONAL-shadow branch. The unmatched shadow is later stripped by the
+        // analyzer, returning to the bare external shape; matched, it survives as a sibling EsRelation.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_dataset", ds));
 
         LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("logs_dataset"), project, Set.of("logs_dataset"));
 
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = rewritten.children();
+        assertThat(children, hasSize(2));
+        assertThat(children.get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(children.get(1), instanceOf(DatasetShadowRelation.class));
+        DatasetShadowRelation shadow = (DatasetShadowRelation) children.get(1);
+        assertThat(shadow.datasetName(), equalTo("logs_dataset"));
+        assertThat(shadow.linkedIndexPattern().pattern().indexPattern(), equalTo("logs_dataset"));
+    }
+
+    public void testExplicitDatasetNameWithoutCpsEmitsNoShadow() {
+        // Same query, CPS off (the shipped config today): the dataset replaces the relation outright, no shadow.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_dataset", ds));
+
+        LogicalPlan rewritten = rewriteWithAuthorized(relationOf("logs_dataset"), project, Set.of("logs_dataset"));
+
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+    }
+
+    public void testExplicitDatasetShadowCarriesTrailingExclusions() {
+        // The shadow's pattern is the exact name plus the relation's trailing exclusions, so the remote half honors the
+        // same exclusions the local FROM did — mirroring ViewResolver.collectExclusionsAfterPosition.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
+
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("logs_a,-stale-*"), project, Set.of("logs_a"));
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = rewritten.children();
+        // external(logs_a) + shadow(logs_a,-stale-*); the exclusion-only relation has no positive wildcard so no
+        // UnresolvedRelation is preserved.
+        assertThat(children, hasSize(2));
+        assertThat(children.get(0), instanceOf(UnresolvedExternalRelation.class));
+        DatasetShadowRelation shadow = (DatasetShadowRelation) children.get(1);
+        assertThat(shadow.linkedIndexPattern().pattern().indexPattern(), equalTo("logs_a,-stale-*"));
+    }
+
+    public void testMultipleExactDatasetNamesUnderCpsEmitShadowEach() {
+        // FROM ds1,ds2 (both exact) under CPS: two externals + two shadows in one UnionAll.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds2", ds2));
+
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("ds1,ds2"), project, Set.of("ds1", "ds2"));
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = rewritten.children();
+        assertThat(children, hasSize(4));
+        long externalCount = children.stream().filter(c -> c instanceof UnresolvedExternalRelation).count();
+        long shadowCount = children.stream().filter(c -> c instanceof DatasetShadowRelation).count();
+        assertThat(externalCount, equalTo(2L));
+        assertThat(shadowCount, equalTo(2L));
+    }
+
+    public void testInterleavedExclusionAppliesPositionallyToShadows() {
+        // FROM ds1,-x,ds2 — exclusions are positional (ES applies them left-to-right): -x precedes ds2, so only ds1's
+        // shadow carries it. (A global sweep would wrongly narrow ds2's shadow with -x too.)
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds2", ds2));
+
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("ds1,-x,ds2"), project, Set.of("ds1", "ds2"));
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        Set<String> shadowPatterns = rewritten.children()
+            .stream()
+            .filter(c -> c instanceof DatasetShadowRelation)
+            .map(c -> ((DatasetShadowRelation) c).linkedIndexPattern().pattern().indexPattern())
+            .collect(java.util.stream.Collectors.toSet());
+        assertThat(shadowPatterns, equalTo(Set.of("ds1,-x", "ds2")));
+    }
+
+    public void testHeterogeneousFromUnderCpsEmitsShadowForDataset() {
+        // A heterogeneous FROM (local index + local dataset) under CPS must run the same
+        // non-remotable-abstraction rail as a dataset-only FROM. The dataset's exact name gets a DatasetShadowRelation
+        // so a remote index of the same name reads both and a remote dataset/view of the same name fails. Before the
+        // unification the heterogeneous path returned before the CPS rail, silently skipping the dataset's remote check.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_dataset", ds), Set.of("some_idx"));
+
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("some_idx,logs_dataset"), project, Set.of("logs_dataset"));
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = rewritten.children();
+        // external(logs_dataset) + index branch(some_idx) + shadow(logs_dataset)
+        assertThat(children, hasSize(3));
+        assertThat(children.get(0), instanceOf(UnresolvedExternalRelation.class));
+        assertThat(children.get(1), instanceOf(UnresolvedRelation.class));
+        assertThat(((UnresolvedRelation) children.get(1)).indexPattern().indexPattern(), equalTo("some_idx"));
+        assertThat(children.get(2), instanceOf(DatasetShadowRelation.class));
+        assertThat(((DatasetShadowRelation) children.get(2)).datasetName(), equalTo("logs_dataset"));
+    }
+
+    public void testExactDatasetShadowsDoNotConsumeTheRewriteCap() {
+        // The rewrite-time cap counts real reads (datasets + index branch), not the speculative shadows. A shadow
+        // strips when its exact name has no remote namesake (the common case), so it must not eat the per-FROM budget.
+        // Five exact datasets under CPS = 5 externals + 5 shadows = 10 UnionAll children but only 5 real reads, so it
+        // must NOT be rejected at rewrite -- otherwise the shadows would silently halve the dataset budget.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Map<String, Dataset> datasets = new HashMap<>();
+        for (int i = 0; i < 5; i++) {
+            datasets.put("ds" + i, new Dataset("ds" + i, new DataSourceReference("s3_parent"), "s3://" + i + "/", null, Map.of()));
+        }
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), datasets);
+
+        LogicalPlan rewritten = rewriteWithAuthorizedCps(relationOf("ds0,ds1,ds2,ds3,ds4"), project, datasets.keySet());
+
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        assertThat(union.children(), hasSize(10)); // 5 externals + 5 shadows
+        assertThat(union.children().stream().filter(c -> c instanceof DatasetShadowRelation).count(), equalTo(5L));
     }
 
     public void testNonStringSettingsArePreservedThroughCarrier() {
@@ -481,8 +603,8 @@ public class DatasetRewriterTests extends ESTestCase {
 
         VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("logs_*"), project));
         assertThat(ex.getMessage(), containsString("FROM [logs_*]"));
-        assertThat(ex.getMessage(), containsString("matched 9 datasets"));
-        assertThat(ex.getMessage(), containsString("current limit is 8"));
+        assertThat(ex.getMessage(), containsString("resolved to 9 branches"));
+        assertThat(ex.getMessage(), containsString("the current limit of 8"));
         assertThat(ex.getMessage(), containsString("Narrow the pattern"));
     }
 

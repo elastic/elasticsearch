@@ -7,6 +7,16 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.parquet.conf.PlainParquetConfiguration;
+import org.apache.parquet.example.data.Group;
+import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.hadoop.ParquetWriter;
+import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.io.OutputFile;
+import org.apache.parquet.io.PositionOutputStream;
+import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.MessageTypeParser;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
@@ -21,6 +31,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
@@ -34,6 +45,7 @@ import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -110,6 +122,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         plugins.add(HttpDataSourcePlugin.class);
         plugins.add(CsvDataSourcePlugin.class);
         plugins.add(NdJsonDataSourcePlugin.class);
+        plugins.add(ParquetDataSourcePlugin.class);
         plugins.add(TestDataSourcePlugin.class);
         return plugins;
     }
@@ -165,7 +178,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         "employees_rename_nonstrict",
         "employees_rename_keep",
         "employees_ndjson_rename_strict",
-        "employees_ndjson_rename_nonstrict"
+        "employees_ndjson_rename_nonstrict",
+        "employees_parquet_rename"
     );
 
     /**
@@ -506,6 +520,168 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             assertThat(rows.get(0).get(0), equalTo(1L));
             assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
         }
+    }
+
+    public void testParquetRenameProjectsRenamedColumns() throws Exception {
+        putParquetRenameDataset("employees_parquet_rename", writeParquetRenameFixture());
+        try (var response = run(syncEsqlQueryRequest("FROM employees_parquet_rename | KEEP id, name | SORT id | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("id"));
+            assertThat(columns.get(1).name(), equalTo("name"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1L));                 // physical emp_no under logical id
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice")); // physical first_name under logical name
+        }
+    }
+
+    public void testParquetRenameFilterPushdownOnRenamedColumn() throws Exception {
+        // WHERE on the renamed `comp` (physical salary) exercises the pushed-filter surface — a mistranslated predicate
+        // would silently drop/keep the wrong rows (parquet pushes the predicate down to row-group/stats).
+        putParquetRenameDataset("employees_parquet_rename", writeParquetRenameFixture());
+        try (var response = run(syncEsqlQueryRequest("FROM employees_parquet_rename | WHERE comp > 150 | SORT id | LIMIT 10"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2)); // Bob (200), Carol (300)
+            assertThat(rows.get(0).get(0), equalTo(2L));
+            assertThat(rows.get(1).get(0), equalTo(3L));
+        }
+    }
+
+    public void testParquetRenameAggregateOnRenamedColumn() throws Exception {
+        // MAX/MIN on the renamed `comp` exercise the aggregate-stats surface (parquet answers these from footer stats
+        // keyed by the physical column name).
+        putParquetRenameDataset("employees_parquet_rename", writeParquetRenameFixture());
+        try (var response = run(syncEsqlQueryRequest("FROM employees_parquet_rename | STATS mx = MAX(comp), mn = MIN(comp)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(300));
+            assertThat(((Number) rows.get(0).get(1)).intValue(), equalTo(100));
+        }
+    }
+
+    public void testParquetRenameTopNOnRenamedSortKey() throws Exception {
+        putParquetRenameDataset("employees_parquet_rename", writeParquetRenameFixture());
+        try (var response = run(syncEsqlQueryRequest("FROM employees_parquet_rename | SORT comp DESC | KEEP id | LIMIT 2"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(3L)); // Carol comp=300
+            assertThat(rows.get(1).get(0), equalTo(2L)); // Bob comp=200
+        }
+    }
+
+    public void testParquetRenameFromDottedFlattenedPath() throws Exception {
+        // The physical column is the flattened nested path `dept.code`; the mapping renames it to the flat logical
+        // `dept_code`. Proves a dotted (nested-flattened) physical name rides the same rename as an opaque whole string.
+        putParquetRenameDataset("employees_parquet_rename", writeParquetRenameFixture());
+        try (var response = run(syncEsqlQueryRequest("FROM employees_parquet_rename | KEEP id, dept_code | SORT id | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(1).name(), equalTo("dept_code"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(1).toString(), equalTo("ENG"));   // read from nested dept.code
+            assertThat(rows.get(2).get(1).toString(), equalTo("OPS"));
+        }
+    }
+
+    private void putParquetRenameDataset(String name, Path parquet) {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        java.util.Map<String, DatasetFieldMapping> properties = new java.util.LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", "emp_no"));
+        properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
+        properties.put("comp", new DatasetFieldMapping("integer", "salary"));
+        properties.put("dept_code", new DatasetFieldMapping("keyword", "dept.code")); // flattened nested path
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties), null, null);
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    name,
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+    }
+
+    private Path writeParquetRenameFixture() throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType(
+            "message employees { required int64 emp_no; required binary first_name (UTF8); required int32 salary;"
+                + " required group dept { required binary code (UTF8); } }"
+        );
+        String[] names = { "Alice", "Bob", "Carol" };
+        int[] salaries = { 100, 200, 300 };
+        String[] deptCodes = { "ENG", "SAL", "OPS" };
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int i = 0; i < names.length; i++) {
+                Group g = factory.newGroup();
+                g.add("emp_no", (long) (i + 1));
+                g.add("first_name", names[i]);
+                g.add("salary", salaries[i]);
+                g.addGroup("dept").add("code", deptCodes[i]);
+                writer.write(g);
+            }
+        }
+        Path tempFile = createTempDir().resolve("employees.parquet");
+        Files.write(tempFile, baos.toByteArray());
+        return tempFile;
+    }
+
+    private static OutputFile createOutputFile(ByteArrayOutputStream baos) {
+        return new OutputFile() {
+            @Override
+            public PositionOutputStream create(long blockSizeHint) {
+                return new PositionOutputStream() {
+                    private long position = 0;
+
+                    @Override
+                    public long getPos() {
+                        return position;
+                    }
+
+                    @Override
+                    public void write(int b) {
+                        baos.write(b);
+                        position++;
+                    }
+
+                    @Override
+                    public void write(byte[] b, int off, int len) {
+                        baos.write(b, off, len);
+                        position += len;
+                    }
+                };
+            }
+
+            @Override
+            public PositionOutputStream createOrOverwrite(long blockSizeHint) {
+                return create(blockSizeHint);
+            }
+
+            @Override
+            public boolean supportsBlockSize() {
+                return false;
+            }
+
+            @Override
+            public long defaultBlockSize() {
+                return 0;
+            }
+        };
     }
 
     public void testStrictDeclaredSchemaOverMultiFileGlob() throws Exception {

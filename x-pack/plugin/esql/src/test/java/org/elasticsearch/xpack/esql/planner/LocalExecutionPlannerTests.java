@@ -641,6 +641,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             ByteSizeValue.ofMb(1),
             between(1, 10000),
             randomDoubleBetween(0.1, 1.0, true),
+            PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.getDefault(Settings.EMPTY),
             between(0, 1000),
             MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE,
             MappedFieldType.BlockLoaderContext.DEFAULT_SCRIPT_BYTE_SIZE,

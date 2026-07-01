@@ -617,6 +617,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             && outputRounding != null
             && internalRounding != null
             && outputRounding.getUnprepared().equals(internalRounding.getUnprepared()) == false;
+        var pragmas = context.queryPragmas();
+        int targetChunkRows = pragmas.timeSeriesTargetChunkRows(plannerSettings.timeSeriesTargetChunkRows());
         return new TimeSeriesAggregationOperator.Factory(
             internalRounding,
             ts.timeBucket() != null && ts.timeBucket().dataType() == DataType.DATE_NANOS,
@@ -624,7 +626,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             aggregatorMode,
             aggregatorFactories,
             context.pageSize(ts, ts.estimatedRowSize()),
-            needsOutputFiltering ? outputRounding : null
+            needsOutputFiltering ? outputRounding : null,
+            targetChunkRows
         );
     }
 

@@ -24,12 +24,12 @@ import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link LastTDigestByTimestampAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link AllLastTDigestByLongAggregator}.
  * This class is generated. Edit {@code GroupingAggregatorImplementer} instead.
  */
-public final class LastTDigestByTimestampGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class AllLastTDigestByLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("timestamps", ElementType.LONG),
+      new IntermediateStateDesc("sortKeys", ElementType.LONG),
       new IntermediateStateDesc("values", ElementType.TDIGEST),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
@@ -39,10 +39,10 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
 
   private final DriverContext driverContext;
 
-  LastTDigestByTimestampGroupingAggregatorFunction(List<Integer> channels,
+  AllLastTDigestByLongGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
     this.channels = channels;
-    this.state = LastTDigestByTimestampAggregator.initGrouping(driverContext);
+    this.state = AllLastTDigestByLongAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
   }
 
@@ -59,7 +59,7 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     TDigestBlock tdigestBlock = page.getBlock(channels.get(0));
-    LongBlock timestampBlock = page.getBlock(channels.get(1));
+    LongBlock sortKeyBlock = page.getBlock(channels.get(1));
     if (tdigestBlock.areAllValuesNull()) {
       /*
        * All values are null so we can skip processing this block. But we
@@ -69,7 +69,7 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
       state.enableGroupIdTracking(seenGroupIds);
       return null;
     }
-    if (timestampBlock.areAllValuesNull()) {
+    if (sortKeyBlock.areAllValuesNull()) {
       /*
        * All values are null so we can skip processing this block. But we
        * still need to track that some groups may not have been seen
@@ -78,23 +78,23 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
       state.enableGroupIdTracking(seenGroupIds);
       return null;
     }
-    LongVector timestampVector = timestampBlock.asVector();
-    if (timestampVector == null) {
-      maybeEnableGroupIdTracking(seenGroupIds, tdigestBlock, timestampBlock);
+    LongVector sortKeyVector = sortKeyBlock.asVector();
+    if (sortKeyVector == null) {
+      maybeEnableGroupIdTracking(seenGroupIds, tdigestBlock, sortKeyBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, tdigestBlock, timestampBlock);
+          addRawInput(positionOffset, groupIds, tdigestBlock, sortKeyBlock);
         }
 
         @Override
         public void add(int positionOffset, IntBigArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, tdigestBlock, timestampBlock);
+          addRawInput(positionOffset, groupIds, tdigestBlock, sortKeyBlock);
         }
 
         @Override
         public void add(int positionOffset, IntVector groupIds) {
-          addRawInput(positionOffset, groupIds, tdigestBlock, timestampBlock);
+          addRawInput(positionOffset, groupIds, tdigestBlock, sortKeyBlock);
         }
 
         @Override
@@ -105,17 +105,17 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
     return new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, tdigestBlock, timestampVector);
+        addRawInput(positionOffset, groupIds, tdigestBlock, sortKeyVector);
       }
 
       @Override
       public void add(int positionOffset, IntBigArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, tdigestBlock, timestampVector);
+        addRawInput(positionOffset, groupIds, tdigestBlock, sortKeyVector);
       }
 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
-        addRawInput(positionOffset, groupIds, tdigestBlock, timestampVector);
+        addRawInput(positionOffset, groupIds, tdigestBlock, sortKeyVector);
       }
 
       @Override
@@ -125,7 +125,7 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
   }
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, TDigestBlock tdigestBlock,
-      LongBlock timestampBlock) {
+      LongBlock sortKeyBlock) {
     TDigestHolder tdigestScratch = new TDigestHolder();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -135,7 +135,7 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
       if (tdigestBlock.isNull(valuesPosition)) {
         continue;
       }
-      if (timestampBlock.isNull(valuesPosition)) {
+      if (sortKeyBlock.isNull(valuesPosition)) {
         continue;
       }
       int groupStart = groups.getFirstValueIndex(groupPosition);
@@ -146,11 +146,11 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
         int tdigestEnd = tdigestStart + tdigestBlock.getValueCount(valuesPosition);
         for (int tdigestOffset = tdigestStart; tdigestOffset < tdigestEnd; tdigestOffset++) {
           TDigestHolder tdigestValue = tdigestBlock.getTDigestHolder(tdigestOffset, tdigestScratch);
-          int timestampStart = timestampBlock.getFirstValueIndex(valuesPosition);
-          int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
-          for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
-            long timestampValue = timestampBlock.getLong(timestampOffset);
-            LastTDigestByTimestampAggregator.combine(state, groupId, tdigestValue, timestampValue);
+          int sortKeyStart = sortKeyBlock.getFirstValueIndex(valuesPosition);
+          int sortKeyEnd = sortKeyStart + sortKeyBlock.getValueCount(valuesPosition);
+          for (int sortKeyOffset = sortKeyStart; sortKeyOffset < sortKeyEnd; sortKeyOffset++) {
+            long sortKeyValue = sortKeyBlock.getLong(sortKeyOffset);
+            AllLastTDigestByLongAggregator.combine(state, groupId, tdigestValue, sortKeyValue);
           }
         }
       }
@@ -158,7 +158,7 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
   }
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, TDigestBlock tdigestBlock,
-      LongVector timestampVector) {
+      LongVector sortKeyVector) {
     TDigestHolder tdigestScratch = new TDigestHolder();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -169,12 +169,12 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        long timestampValue = timestampVector.getLong(valuesPosition);
+        long sortKeyValue = sortKeyVector.getLong(valuesPosition);
         int tdigestStart = tdigestBlock.getFirstValueIndex(valuesPosition);
         int tdigestEnd = tdigestStart + tdigestBlock.getValueCount(valuesPosition);
         for (int tdigestOffset = tdigestStart; tdigestOffset < tdigestEnd; tdigestOffset++) {
           TDigestHolder tdigestValue = tdigestBlock.getTDigestHolder(tdigestOffset, tdigestScratch);
-          LastTDigestByTimestampAggregator.combine(state, groupId, tdigestValue, timestampValue);
+          AllLastTDigestByLongAggregator.combine(state, groupId, tdigestValue, sortKeyValue);
         }
       }
     }
@@ -183,8 +183,8 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     assert channels.size() == intermediateBlockCount();
-    Block timestampsUncast = page.getBlock(channels.get(0));
-    if (timestampsUncast.areAllValuesNull()) {
+    Block sortKeysUncast = page.getBlock(channels.get(0));
+    if (sortKeysUncast.areAllValuesNull()) {
       /*
        * All values are null so we can skip processing this block.
        * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
@@ -196,7 +196,7 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
        */
       return;
     }
-    LongVector timestamps = ((LongBlock) timestampsUncast).asVector();
+    LongVector sortKeys = ((LongBlock) sortKeysUncast).asVector();
     Block valuesUncast = page.getBlock(channels.get(1));
     if (valuesUncast.areAllValuesNull()) {
       /*
@@ -225,7 +225,7 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == seen.getPositionCount();
+    assert sortKeys.getPositionCount() == values.getPositionCount() && sortKeys.getPositionCount() == seen.getPositionCount();
     TDigestHolder valuesScratch = new TDigestHolder();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -236,13 +236,13 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        LastTDigestByTimestampAggregator.combineIntermediate(state, groupId, timestamps.getLong(valuesPosition), values.getTDigestHolder(values.getFirstValueIndex(valuesPosition), valuesScratch), seen.getBoolean(valuesPosition));
+        AllLastTDigestByLongAggregator.combineIntermediate(state, groupId, sortKeys.getLong(valuesPosition), values, seen.getBoolean(valuesPosition), valuesPosition);
       }
     }
   }
 
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, TDigestBlock tdigestBlock,
-      LongBlock timestampBlock) {
+      LongBlock sortKeyBlock) {
     TDigestHolder tdigestScratch = new TDigestHolder();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -252,7 +252,7 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
       if (tdigestBlock.isNull(valuesPosition)) {
         continue;
       }
-      if (timestampBlock.isNull(valuesPosition)) {
+      if (sortKeyBlock.isNull(valuesPosition)) {
         continue;
       }
       int groupStart = groups.getFirstValueIndex(groupPosition);
@@ -263,11 +263,11 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
         int tdigestEnd = tdigestStart + tdigestBlock.getValueCount(valuesPosition);
         for (int tdigestOffset = tdigestStart; tdigestOffset < tdigestEnd; tdigestOffset++) {
           TDigestHolder tdigestValue = tdigestBlock.getTDigestHolder(tdigestOffset, tdigestScratch);
-          int timestampStart = timestampBlock.getFirstValueIndex(valuesPosition);
-          int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
-          for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
-            long timestampValue = timestampBlock.getLong(timestampOffset);
-            LastTDigestByTimestampAggregator.combine(state, groupId, tdigestValue, timestampValue);
+          int sortKeyStart = sortKeyBlock.getFirstValueIndex(valuesPosition);
+          int sortKeyEnd = sortKeyStart + sortKeyBlock.getValueCount(valuesPosition);
+          for (int sortKeyOffset = sortKeyStart; sortKeyOffset < sortKeyEnd; sortKeyOffset++) {
+            long sortKeyValue = sortKeyBlock.getLong(sortKeyOffset);
+            AllLastTDigestByLongAggregator.combine(state, groupId, tdigestValue, sortKeyValue);
           }
         }
       }
@@ -275,7 +275,7 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
   }
 
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, TDigestBlock tdigestBlock,
-      LongVector timestampVector) {
+      LongVector sortKeyVector) {
     TDigestHolder tdigestScratch = new TDigestHolder();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -286,12 +286,12 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        long timestampValue = timestampVector.getLong(valuesPosition);
+        long sortKeyValue = sortKeyVector.getLong(valuesPosition);
         int tdigestStart = tdigestBlock.getFirstValueIndex(valuesPosition);
         int tdigestEnd = tdigestStart + tdigestBlock.getValueCount(valuesPosition);
         for (int tdigestOffset = tdigestStart; tdigestOffset < tdigestEnd; tdigestOffset++) {
           TDigestHolder tdigestValue = tdigestBlock.getTDigestHolder(tdigestOffset, tdigestScratch);
-          LastTDigestByTimestampAggregator.combine(state, groupId, tdigestValue, timestampValue);
+          AllLastTDigestByLongAggregator.combine(state, groupId, tdigestValue, sortKeyValue);
         }
       }
     }
@@ -300,8 +300,8 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     assert channels.size() == intermediateBlockCount();
-    Block timestampsUncast = page.getBlock(channels.get(0));
-    if (timestampsUncast.areAllValuesNull()) {
+    Block sortKeysUncast = page.getBlock(channels.get(0));
+    if (sortKeysUncast.areAllValuesNull()) {
       /*
        * All values are null so we can skip processing this block.
        * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
@@ -313,7 +313,7 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
        */
       return;
     }
-    LongVector timestamps = ((LongBlock) timestampsUncast).asVector();
+    LongVector sortKeys = ((LongBlock) sortKeysUncast).asVector();
     Block valuesUncast = page.getBlock(channels.get(1));
     if (valuesUncast.areAllValuesNull()) {
       /*
@@ -342,7 +342,7 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == seen.getPositionCount();
+    assert sortKeys.getPositionCount() == values.getPositionCount() && sortKeys.getPositionCount() == seen.getPositionCount();
     TDigestHolder valuesScratch = new TDigestHolder();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -353,20 +353,20 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        LastTDigestByTimestampAggregator.combineIntermediate(state, groupId, timestamps.getLong(valuesPosition), values.getTDigestHolder(values.getFirstValueIndex(valuesPosition), valuesScratch), seen.getBoolean(valuesPosition));
+        AllLastTDigestByLongAggregator.combineIntermediate(state, groupId, sortKeys.getLong(valuesPosition), values, seen.getBoolean(valuesPosition), valuesPosition);
       }
     }
   }
 
   private void addRawInput(int positionOffset, IntVector groups, TDigestBlock tdigestBlock,
-      LongBlock timestampBlock) {
+      LongBlock sortKeyBlock) {
     TDigestHolder tdigestScratch = new TDigestHolder();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       if (tdigestBlock.isNull(valuesPosition)) {
         continue;
       }
-      if (timestampBlock.isNull(valuesPosition)) {
+      if (sortKeyBlock.isNull(valuesPosition)) {
         continue;
       }
       int groupId = groups.getInt(groupPosition);
@@ -374,28 +374,28 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
       int tdigestEnd = tdigestStart + tdigestBlock.getValueCount(valuesPosition);
       for (int tdigestOffset = tdigestStart; tdigestOffset < tdigestEnd; tdigestOffset++) {
         TDigestHolder tdigestValue = tdigestBlock.getTDigestHolder(tdigestOffset, tdigestScratch);
-        int timestampStart = timestampBlock.getFirstValueIndex(valuesPosition);
-        int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
-        for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
-          long timestampValue = timestampBlock.getLong(timestampOffset);
-          LastTDigestByTimestampAggregator.combine(state, groupId, tdigestValue, timestampValue);
+        int sortKeyStart = sortKeyBlock.getFirstValueIndex(valuesPosition);
+        int sortKeyEnd = sortKeyStart + sortKeyBlock.getValueCount(valuesPosition);
+        for (int sortKeyOffset = sortKeyStart; sortKeyOffset < sortKeyEnd; sortKeyOffset++) {
+          long sortKeyValue = sortKeyBlock.getLong(sortKeyOffset);
+          AllLastTDigestByLongAggregator.combine(state, groupId, tdigestValue, sortKeyValue);
         }
       }
     }
   }
 
   private void addRawInput(int positionOffset, IntVector groups, TDigestBlock tdigestBlock,
-      LongVector timestampVector) {
+      LongVector sortKeyVector) {
     TDigestHolder tdigestScratch = new TDigestHolder();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
-      long timestampValue = timestampVector.getLong(valuesPosition);
+      long sortKeyValue = sortKeyVector.getLong(valuesPosition);
       int tdigestStart = tdigestBlock.getFirstValueIndex(valuesPosition);
       int tdigestEnd = tdigestStart + tdigestBlock.getValueCount(valuesPosition);
       for (int tdigestOffset = tdigestStart; tdigestOffset < tdigestEnd; tdigestOffset++) {
         TDigestHolder tdigestValue = tdigestBlock.getTDigestHolder(tdigestOffset, tdigestScratch);
-        LastTDigestByTimestampAggregator.combine(state, groupId, tdigestValue, timestampValue);
+        AllLastTDigestByLongAggregator.combine(state, groupId, tdigestValue, sortKeyValue);
       }
     }
   }
@@ -403,8 +403,8 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     assert channels.size() == intermediateBlockCount();
-    Block timestampsUncast = page.getBlock(channels.get(0));
-    if (timestampsUncast.areAllValuesNull()) {
+    Block sortKeysUncast = page.getBlock(channels.get(0));
+    if (sortKeysUncast.areAllValuesNull()) {
       /*
        * All values are null so we can skip processing this block.
        * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
@@ -416,7 +416,7 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
        */
       return;
     }
-    LongVector timestamps = ((LongBlock) timestampsUncast).asVector();
+    LongVector sortKeys = ((LongBlock) sortKeysUncast).asVector();
     Block valuesUncast = page.getBlock(channels.get(1));
     if (valuesUncast.areAllValuesNull()) {
       /*
@@ -445,12 +445,12 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == seen.getPositionCount();
+    assert sortKeys.getPositionCount() == values.getPositionCount() && sortKeys.getPositionCount() == seen.getPositionCount();
     TDigestHolder valuesScratch = new TDigestHolder();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      LastTDigestByTimestampAggregator.combineIntermediate(state, groupId, timestamps.getLong(valuesPosition), values.getTDigestHolder(values.getFirstValueIndex(valuesPosition), valuesScratch), seen.getBoolean(valuesPosition));
+      AllLastTDigestByLongAggregator.combineIntermediate(state, groupId, sortKeys.getLong(valuesPosition), values, seen.getBoolean(valuesPosition), valuesPosition);
     }
   }
 
@@ -465,7 +465,7 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, TDigestBlock tdigestBlock,
-      LongBlock timestampBlock) {
+      LongBlock sortKeyBlock) {
     if (tdigestBlock.mayHaveNulls()) {
       /*
        * Some values in the block are null so some group ids may not
@@ -474,7 +474,7 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
        */
       state.enableGroupIdTracking(seenGroupIds);
     }
-    if (timestampBlock.mayHaveNulls()) {
+    if (sortKeyBlock.mayHaveNulls()) {
       /*
        * Some values in the block are null so some group ids may not
        * be seen. We need to track which ones so we can initialize
@@ -507,7 +507,7 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
 
   private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = LastTDigestByTimestampAggregator.evaluateFinal(state, selectedInPage, ctx);
+    blocks[offset] = AllLastTDigestByLongAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

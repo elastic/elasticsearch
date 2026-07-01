@@ -11,37 +11,37 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link LastTDigestByTimestampAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link AllLastTDigestByIntAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class LastTDigestByTimestampAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public LastTDigestByTimestampAggregatorFunctionSupplier() {
+public final class AllLastTDigestByIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  public AllLastTDigestByIntAggregatorFunctionSupplier() {
   }
 
   @Override
   public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
-    return LastTDigestByTimestampAggregatorFunction.intermediateStateDesc();
+    return AllLastTDigestByIntAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return LastTDigestByTimestampGroupingAggregatorFunction.intermediateStateDesc();
+    return AllLastTDigestByIntGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public LastTDigestByTimestampAggregatorFunction aggregator(DriverContext driverContext,
+  public AllLastTDigestByIntAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new LastTDigestByTimestampAggregatorFunction(driverContext, channels);
+    return new AllLastTDigestByIntAggregatorFunction(driverContext, channels);
   }
 
   @Override
-  public LastTDigestByTimestampGroupingAggregatorFunction groupingAggregator(
+  public AllLastTDigestByIntGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return new LastTDigestByTimestampGroupingAggregatorFunction(channels, driverContext);
+    return new AllLastTDigestByIntGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return LastTDigestByTimestampAggregator.describe();
+    return AllLastTDigestByIntAggregator.describe();
   }
 }

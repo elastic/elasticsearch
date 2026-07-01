@@ -348,7 +348,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             return state;
         }
 
-        // Visible for testing
+        // Package-visible for testing
         static ClusterState executeTask(
             ClusterState clusterState,
             ProjectResolver projectResolver,
@@ -382,6 +382,8 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             CoveredTimeWindow previousIndex = null;
 
             for (long ts : timestamps) {
+                // We need to reload the data stream metadata to have the latest generation
+                dataStream = updatedClusterState.projectState(projectResolver.getProjectId()).metadata().dataStreams().get(dataStreamName);
                 Instant timestampInstant = Instant.ofEpochMilli(ts);
                 if (ts > requestStartTime) {
                     rejectedTimestamps.put(

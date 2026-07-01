@@ -55,7 +55,7 @@ import static org.mockito.Mockito.when;
 public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
 
     private static final String DATA_STREAM = "my-tsdb";
-    private static final long INDEX_DURATION_MILLIS = TimeValue.timeValueDays(1).millis();
+    private static final long INDEX_INTERVAL_MILLIS = TimeValue.timeValueDays(1).millis();
 
     private ProjectId projectId;
     private MetadataCreateDataStreamService createDataStreamService;
@@ -225,7 +225,7 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
 
     public void testFillGapBetweenIndices() throws Exception {
         Instant now = Instant.now();
-        // Smaller gap than index duration
+        // Smaller gap than index interval
         {
             Instant previousEndTime = Instant.parse("2024-06-17T02:02:02Z");
             Instant nextStartTime = Instant.parse("2024-06-17T23:02:02Z");
@@ -245,7 +245,7 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
             assertThat(im.getTimeSeriesEnd(), is(nextStartTime));
         }
 
-        // Larger gap than index duration
+        // Larger gap than an index interval but within the threshold
         {
             Instant previousEndTime = Instant.parse("2024-06-17T02:02:02Z");
             Instant nextStartTime = Instant.parse("2024-06-18T05:02:02Z");
@@ -262,6 +262,31 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
             assertThat(result.covered(), containsInAnyOrder(Instant.ofEpochMilli(ts)));
             IndexMetadata im = result.state().projectState(projectId).metadata().index(result.createdNames.getFirst());
             assertThat(im.getTimeSeriesStart(), is(previousEndTime));
+            assertThat(im.getTimeSeriesEnd(), is(nextStartTime));
+        }
+
+        // Larger gap than the index interval AND the threshold
+        {
+            Instant previousEndTime = Instant.parse("2024-06-17T02:02:02Z");
+            Instant nextStartTime = Instant.parse("2024-06-18T15:02:02Z");
+            ClusterState clusterState = stateWithExisting(
+                List.of(
+                    Tuple.tuple(Instant.parse("2024-06-16T07:02:02Z"), previousEndTime),
+                    Tuple.tuple(nextStartTime, Instant.parse("2024-06-19T22:02:02Z"))
+                ),
+                now
+            );
+            Instant ts1 = Instant.parse("2024-06-17T02:02:02Z");
+            Instant ts2 = Instant.parse("2024-06-18T14:02:02Z");
+            TaskResult result = run(clusterState, ts1.toEpochMilli(), ts2.toEpochMilli());
+            assertThat(result.covered(), containsInAnyOrder(ts1, ts2));
+            assertThat(result.createdNames.size(), equalTo(2));
+            IndexMetadata im = result.state().projectState(projectId).metadata().index(result.createdNames.getFirst());
+            assertThat(im.getTimeSeriesStart(), is(previousEndTime));
+            Instant indexSplit = nextStartTime.minusMillis(INDEX_INTERVAL_MILLIS);
+            assertThat(im.getTimeSeriesEnd(), is(indexSplit));
+            im = result.state().projectState(projectId).metadata().index(result.createdNames.get(1));
+            assertThat(im.getTimeSeriesStart(), is(indexSplit));
             assertThat(im.getTimeSeriesEnd(), is(nextStartTime));
         }
     }
@@ -289,7 +314,7 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
                 new ArrayList<>(),
                 new HashSet<>(),
                 new HashMap<>(),
-                INDEX_DURATION_MILLIS,
+                INDEX_INTERVAL_MILLIS,
                 -1,
                 Instant.now().toEpochMilli()
             )
@@ -322,7 +347,7 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
                 new ArrayList<>(),
                 new HashSet<>(),
                 new HashMap<>(),
-                INDEX_DURATION_MILLIS,
+                INDEX_INTERVAL_MILLIS,
                 -1L,
                 Instant.now().toEpochMilli()
             )
@@ -354,7 +379,7 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
                 new ArrayList<>(),
                 new HashSet<>(),
                 new HashMap<>(),
-                INDEX_DURATION_MILLIS,
+                INDEX_INTERVAL_MILLIS,
                 -1L,
                 Instant.now().toEpochMilli()
             )
@@ -388,7 +413,7 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
                 new ArrayList<>(),
                 new HashSet<>(),
                 new HashMap<>(),
-                INDEX_DURATION_MILLIS,
+                INDEX_INTERVAL_MILLIS,
                 -1L,
                 Instant.now().toEpochMilli()
             )
@@ -480,7 +505,7 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
             createdNames,
             covered,
             rejectedTimestamps,
-            INDEX_DURATION_MILLIS,
+            INDEX_INTERVAL_MILLIS,
             eligibleWriteWindowStart,
             Instant.now().toEpochMilli()
         );

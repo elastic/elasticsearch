@@ -322,8 +322,8 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
 
     public void testArrayOrderDuplicatesPreserved() throws IOException {
         // Document-order duplicates must be preserved; the producer must not deduplicate.
-        TreeMap<String, List<BytesRef>> slots = new TreeMap<>();
-        slots.put("x", List.of(new BytesRef("b"), new BytesRef("a"), new BytesRef("b")));
+        TreeMap<String, List<String>> slots = new TreeMap<>();
+        slots.put("x", List.of("b", "a", "b"));
         final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
             new FlattenedFieldSyntheticWriterHelper.ArrayOrderKeyedValueProducer(slots, new TreeMap<>()),
             List.of()
@@ -333,8 +333,8 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
 
     public void testArrayOrderNullSlotsInline() throws IOException {
         // null elements in the slot list must produce JSON nulls inline.
-        TreeMap<String, List<BytesRef>> slots = new TreeMap<>();
-        slots.put("a", Arrays.asList(new BytesRef("v1"), null, new BytesRef("v2")));
+        TreeMap<String, List<String>> slots = new TreeMap<>();
+        slots.put("a", Arrays.asList("v1", null, "v2"));
         final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
             new FlattenedFieldSyntheticWriterHelper.ArrayOrderKeyedValueProducer(slots, new TreeMap<>()),
             List.of()
@@ -344,10 +344,10 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
 
     public void testArrayOrderIgnoredValuesTailAppended() throws IOException {
         // Slot values appear first in document order; ignored (ignore_above) values are appended after.
-        TreeMap<String, List<BytesRef>> slots = new TreeMap<>();
-        slots.put("k", List.of(new BytesRef("slot1"), new BytesRef("slot2")));
-        TreeMap<String, List<BytesRef>> ignored = new TreeMap<>();
-        ignored.put("k", List.of(new BytesRef("ignored1")));
+        TreeMap<String, List<String>> slots = new TreeMap<>();
+        slots.put("k", List.of("slot1", "slot2"));
+        TreeMap<String, List<String>> ignored = new TreeMap<>();
+        ignored.put("k", List.of("ignored1"));
         final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
             new FlattenedFieldSyntheticWriterHelper.ArrayOrderKeyedValueProducer(slots, ignored),
             List.of()
@@ -357,12 +357,12 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
 
     public void testArrayOrderKeyMerge() throws IOException {
         // Keys present only in slots, only in ignored, or in both must all appear in ascending key order.
-        TreeMap<String, List<BytesRef>> slots = new TreeMap<>();
-        slots.put("a", List.of(new BytesRef("slot_a")));
-        slots.put("b", List.of(new BytesRef("slot_b")));
-        TreeMap<String, List<BytesRef>> ignored = new TreeMap<>();
-        ignored.put("b", List.of(new BytesRef("ignored_b")));
-        ignored.put("c", List.of(new BytesRef("ignored_c")));
+        TreeMap<String, List<String>> slots = new TreeMap<>();
+        slots.put("a", List.of("slot_a"));
+        slots.put("b", List.of("slot_b"));
+        TreeMap<String, List<String>> ignored = new TreeMap<>();
+        ignored.put("b", List.of("ignored_b"));
+        ignored.put("c", List.of("ignored_c"));
         final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
             new FlattenedFieldSyntheticWriterHelper.ArrayOrderKeyedValueProducer(slots, ignored),
             List.of()

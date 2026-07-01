@@ -248,15 +248,14 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         TreeSet<BytesRef> ignoredKeyedValues = collectIgnoredValues();
 
         if (usesArrayOrderBinaryDocValues) {
-            TreeMap<String, List<BytesRef>> slotsByKey = (docValues instanceof DocumentOrderKeyedFlattenedDocValues dv)
+            TreeMap<String, List<String>> slotsByKey = (docValues instanceof DocumentOrderKeyedFlattenedDocValues dv)
                 ? dv.slotsByKey
                 : new TreeMap<>();
-            TreeMap<String, List<BytesRef>> ignoredByKey = new TreeMap<>();
+            TreeMap<String, List<String>> ignoredByKey = new TreeMap<>();
             if (ignoredKeyedValues != null) {
                 for (BytesRef kv : ignoredKeyedValues) {
                     String key = FlattenedFieldParser.extractKey(kv).utf8ToString();
-                    ignoredByKey.computeIfAbsent(key, k -> new ArrayList<>())
-                        .add(BytesRef.deepCopyOf(FlattenedFieldParser.extractValue(kv)));
+                    ignoredByKey.computeIfAbsent(key, k -> new ArrayList<>()).add(FlattenedFieldParser.extractValue(kv).utf8ToString());
                 }
             }
             return new FlattenedFieldSyntheticWriterHelper.ArrayOrderKeyedValueProducer(slotsByKey, ignoredByKey);
@@ -447,7 +446,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
          * Slots grouped by key in document order; a {@code null} element represents a null slot.
          * Populated on each call to {@link #advanceToDoc}.
          */
-        private final TreeMap<String, List<BytesRef>> slotsByKey = new TreeMap<>();
+        private final TreeMap<String, List<String>> slotsByKey = new TreeMap<>();
         private int totalSlotCount;
 
         DocumentOrderKeyedFlattenedDocValues(BinaryDocValues binary, NumericDocValues counts) {
@@ -493,7 +492,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
                     int valueAbsOffset = slotKeyAbsStart + keyLen + 1;
                     in.setPosition(valueAbsOffset + valueLen);
                     slotsByKey.computeIfAbsent(key, k -> new ArrayList<>())
-                        .add(BytesRef.deepCopyOf(new BytesRef(bytes.bytes, valueAbsOffset, valueLen)));
+                        .add(new BytesRef(bytes.bytes, valueAbsOffset, valueLen).utf8ToString());
                 }
             }
         }

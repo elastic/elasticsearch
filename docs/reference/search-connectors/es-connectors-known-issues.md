@@ -177,6 +177,15 @@ The connector service has the following known issues:
     **Fix**: [elastic/connectors#4078](https://github.com/elastic/connectors/pull/4078), shipped in 8.19.17, 9.3.6, 9.4.3, and 9.5.0.
 
 
+* **Outlook connector syncs intermittently fail with `NO_CERTIFICATE_OR_CRL_FOUND` when SSL is enabled**
+
+    With SSL enabled, the connector wrote the configured CA to a fixed file on disk (`outlook_cert.cer`) shared across the process. Concurrent or overlapping syncs raced on it, causing an intermittent `SSLError: [X509] no certificate or crl found (NO_CERTIFICATE_OR_CRL_FOUND)` that aborted syncs with no configuration change between runs.
+
+    **Affected versions**: 8.11.0–8.19.17, 9.0.0–9.3.6, and 9.4.0–9.4.2. On-prem Exchange with SSL enabled only.
+
+    **Fix**: [elastic/connectors#4094](https://github.com/elastic/connectors/pull/4094), shipped in 8.19.18, 9.3.7, 9.4.3, and 9.5.0.
+
+
 ## Individual connector known issues [es-connectors-known-issues-specific]
 
 Individual connectors may have additional known issues. Refer to [each connector’s reference documentation](/reference/search-connectors/index.md) for connector-specific known issues.

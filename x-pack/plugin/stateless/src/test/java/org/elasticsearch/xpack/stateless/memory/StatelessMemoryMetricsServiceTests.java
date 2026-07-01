@@ -257,7 +257,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         service.getShardMemoryMetrics().put(onlyShard.shardId(), metricsWithWrongReporter);
 
         final Map<String, Long> perNode = service.getPerNodeMemoryMetrics(clusterState);
-        final long deltaForShard = computeShardHeapUsageForNodeEstimate(service, metricsWithWrongReporter) + service.computeIndexHeapUsage(
+        final long deltaForShard = service.computeShardHeapUsage(metricsWithWrongReporter) + service.computeIndexHeapUsage(
             metricsWithWrongReporter
         ) - metricsWithWrongReporter.getPostingsInMemoryBytes();
         assertThat(perNode.get(onlyShard.currentNodeId()) - perNode.get(nodeWithoutShard.getId()), equalTo(deltaForShard));
@@ -324,17 +324,6 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             metricShardNodeId,
             System.nanoTime()
         );
-    }
-
-    private static long computeShardHeapUsageForNodeEstimate(
-        StatelessMemoryMetricsService service,
-        StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics
-    ) {
-        if (service.isSelfReportedShardMemoryOverheadEnabled()
-            && shardMemoryMetrics.getShardMemoryOverheadBytes() != UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES) {
-            return shardMemoryMetrics.getShardMemoryOverheadBytes();
-        }
-        return service.estimateShardMemoryUsageInBytes(shardMemoryMetrics) + shardMemoryMetrics.getPostingsInMemoryBytes();
     }
 
     /**
@@ -508,26 +497,4 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         return result;
     }
 
-    private static Map<ShardId, ShardMappingSize> withPointsInMemoryBytes(
-        Map<ShardId, ShardMappingSize> metrics,
-        long pointsInMemoryBytes
-    ) {
-        final Map<ShardId, ShardMappingSize> result = new HashMap<>();
-        metrics.forEach(
-            (shardId, shardMappingSize) -> result.put(
-                shardId,
-                new ShardMappingSize(
-                    shardMappingSize.mappingSizeInBytes(),
-                    shardMappingSize.numSegments(),
-                    shardMappingSize.totalFields(),
-                    shardMappingSize.postingsInMemoryBytes(),
-                    shardMappingSize.liveDocsBytes(),
-                    pointsInMemoryBytes,
-                    shardMappingSize.shardMemoryOverheadBytes(),
-                    shardMappingSize.nodeId()
-                )
-            )
-        );
-        return result;
-    }
 }

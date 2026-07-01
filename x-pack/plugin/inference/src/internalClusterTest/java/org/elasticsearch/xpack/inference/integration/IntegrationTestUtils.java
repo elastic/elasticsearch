@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -62,14 +63,16 @@ public class IntegrationTestUtils {
     }
 
     public static void deleteInferenceEndpoint(Client client, TaskType taskType, String inferenceId) {
-        assertAcked(
-            safeGet(
+        try {
+            assertAcked(
                 client.execute(
                     DeleteInferenceEndpointAction.INSTANCE,
                     new DeleteInferenceEndpointAction.Request(inferenceId, taskType, true, false)
-                )
-            )
-        );
+                ).actionGet(TEST_REQUEST_TIMEOUT)
+            );
+        } catch (ResourceNotFoundException e) {
+            // The inference endpoint does not exist; nothing to delete.
+        }
     }
 
     public static void deleteIndex(Client client, String indexName) {

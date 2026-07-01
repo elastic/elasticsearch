@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -135,16 +136,19 @@ public class EvictionPolicyTests extends ESTestCase {
             }
 
             @Override
-            public boolean canEvict(CacheRegion<TimestampKey> region, CacheRegion<TimestampKey> incoming) {
-                boolean regionIsRecent = isRecent(region.key());
-                if (regionIsRecent && recentCount.get() > recentQuota) {
-                    return true;
-                }
-                if (regionIsRecent == false && oldCount.get() > oldQuota) {
-                    return true;
-                }
-                // No tier is over quota — relax: evict within same tier as incoming
-                return regionIsRecent == isRecent(incoming.key());
+            public Predicate<CacheRegion<TimestampKey>> createPredicate(CacheRegion<TimestampKey> incoming) {
+                final boolean incomingIsRecent = isRecent(incoming.key());
+                return region -> {
+                    boolean regionIsRecent = isRecent(region.key());
+                    if (regionIsRecent && recentCount.get() > recentQuota) {
+                        return true;
+                    }
+                    if (regionIsRecent == false && oldCount.get() > oldQuota) {
+                        return true;
+                    }
+                    // No tier is over quota — relax: evict within same tier as incoming
+                    return regionIsRecent == incomingIsRecent;
+                };
             }
 
             @Override
@@ -264,11 +268,12 @@ public class EvictionPolicyTests extends ESTestCase {
         // "newer wins": evict the existing region only if it is not newer than the incoming data.
         final var policy = new EvictionPolicy<TestKey>() {
             @Override
-            public boolean canEvict(CacheRegion<TestKey> region, CacheRegion<TestKey> incoming) {
+            public Predicate<CacheRegion<TestKey>> createPredicate(CacheRegion<TestKey> incoming) {
                 if (incoming.timestampMillis() == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
                     fail("incoming region must have a known timestamp in this test case");
                 }
-                return region.timestampMillis() <= incoming.timestampMillis();
+                final long incomingTimestamp = incoming.timestampMillis();
+                return region -> region.timestampMillis() <= incomingTimestamp;
             }
 
             @Override

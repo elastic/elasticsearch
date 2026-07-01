@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -148,7 +149,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
             field.put("runtime_field_foo", settings);
             builder.setRuntimeMappings(field);
         }
-        if (randomBoolean() && DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled()) {
+        if (randomBoolean() && CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled()) {
             builder.setProjectRouting(randomAlphaOfLength(20));
         }
         return builder.build();
@@ -541,7 +542,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
     }
 
     public void testApplyWithProjectRouting() {
-        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
         String newProjectRouting = "_alias:prod-*";
 

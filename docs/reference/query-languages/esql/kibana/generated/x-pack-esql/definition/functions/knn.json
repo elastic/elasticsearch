@@ -16,7 +16,10 @@
           "name" : "query",
           "type" : "dense_vector",
           "optional" : false,
-          "description" : "Vector value to find top nearest neighbours for."
+          "description" : "Vector value to find top nearest neighbours for.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -41,7 +44,10 @@
           "name" : "query",
           "type" : "dense_vector",
           "optional" : false,
-          "description" : "Vector value to find top nearest neighbours for."
+          "description" : "Vector value to find top nearest neighbours for.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",

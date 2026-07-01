@@ -56,4 +56,16 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         String asm = bytecode("int[] a = new int[] {1, 2, 3}; return 1;", 1024 * 1024L);
         assertThat(asm, containsString("AllocationGuard"));
     }
+
+    public void testNoCounterBytecodeForRuntimeArraysWhenDisabled() {
+        // Runtime-sized arrays (1-D and multi-dim) take a separate emission path; it too must be clean when off.
+        String asm = bytecode("int n = 3; int[][] a = new int[n][n]; return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testPreCheckEmittedForRuntimeArrayWhenEnabled() {
+        String asm = bytecode("int n = 3; int[] a = new int[n]; return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
 }

@@ -1971,3 +1971,90 @@ from employees
 emp_no:integer | hire_date:date             | monthName:keyword
 10004          | 1986-12-01T00:00:00.000Z   | November
 ;
+
+dateFormatFormatFieldDateConstant
+required_capability: string_literal_auto_casting
+
+FROM date_extract_fields
+| WHERE date_part == "day_of_month"
+| EVAL df = DATE_FORMAT(format_val, "1989-06-02T00:00:00.000Z")
+| KEEP df
+;
+
+df:keyword
+1989-06-02
+;
+
+dateFormatFormatFieldDateField
+required_capability: string_literal_auto_casting
+
+FROM date_extract_fields
+| WHERE date_part == "day_of_month"
+| EVAL df = DATE_FORMAT(format_val, date_val)
+| KEEP df
+;
+
+df:keyword
+2022-05-06
+;
+
+dateParseFormatFieldStringConstant
+FROM date_extract_fields
+| WHERE date_part == "day_of_month"
+| EVAL b = date_parse(format_val, "2023-02-01")
+| KEEP b
+;
+
+b:datetime
+2023-02-01T00:00:00.000Z
+;
+
+dateParseFormatFieldStringField
+FROM date_extract_fields
+| WHERE date_part == "day_of_month"
+| EVAL b = date_parse(format_val, date_string)
+| KEEP b
+;
+
+b:datetime
+2023-02-01T00:00:00.000Z
+;
+
+dateUnitCountInnerFieldOuterConstant
+required_capability: esql_date_unit_count_fn
+
+FROM date_extract_fields
+| WHERE date_part == "day_of_month"
+| EVAL days = DATE_UNIT_COUNT(inner_val, "month", date_val)
+| KEEP days
+;
+
+days:long
+31
+;
+
+dateUnitCountInnerConstantOuterField
+required_capability: esql_date_unit_count_fn
+
+FROM date_extract_fields
+| WHERE date_part == "day_of_month"
+| EVAL days = DATE_UNIT_COUNT("day", outer_val, date_val)
+| KEEP days
+;
+
+days:long
+31
+;
+
+dateUnitCountInnerFieldOuterField
+required_capability: esql_date_unit_count_fn
+
+FROM date_extract_fields
+| WHERE date_part == "day_of_month"
+| EVAL days = DATE_UNIT_COUNT(inner_val, outer_val, date_val)
+| KEEP days
+;
+
+days:long
+31
+;

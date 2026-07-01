@@ -359,6 +359,50 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         assertTrue(unionByName.formatConfig().contains("schema_resolution=union_by_name"));
     }
 
+    /**
+     * The mode changes record boundaries, null-ness ({@code \N}) and values on the same bytes,
+     * so queries differing only in mode must never share a schema-cache entry or a stats
+     * fingerprint.
+     */
+    public void testSchemaCacheKeySeparatesModes() {
+        SchemaCacheKey base = SchemaCacheKey.build("s3://b/f.tsv", 1000L, ".tsv", Map.of("format", "tsv", "header_row", true));
+        SchemaCacheKey quoted = SchemaCacheKey.build(
+            "s3://b/f.tsv",
+            1000L,
+            ".tsv",
+            Map.of("format", "tsv", "header_row", true, "mode", "quoted")
+        );
+        SchemaCacheKey escaped = SchemaCacheKey.build(
+            "s3://b/f.tsv",
+            1000L,
+            ".tsv",
+            Map.of("format", "tsv", "header_row", true, "mode", "escaped")
+        );
+        assertNotEquals(base.formatConfig(), quoted.formatConfig());
+        assertNotEquals(base.formatConfig(), escaped.formatConfig());
+        assertNotEquals(quoted.formatConfig(), escaped.formatConfig());
+        assertTrue(quoted.formatConfig().contains("mode=quoted"));
+        assertTrue(escaped.formatConfig().contains("mode=escaped"));
+    }
+
+    /**
+     * Bare {@code multi_value_syntax: brackets} resolves the mode to quoted on a no-quote
+     * baseline (and selects the bracket-aware record scanner everywhere), so two configs differing
+     * only in this key can interpret the same bytes with different record boundaries — they must
+     * not share a schema-cache entry or a stats fingerprint.
+     */
+    public void testSchemaCacheKeySeparatesMultiValueSyntax() {
+        SchemaCacheKey base = SchemaCacheKey.build("s3://b/f.tsv", 1000L, ".tsv", Map.of("format", "tsv", "header_row", true));
+        SchemaCacheKey brackets = SchemaCacheKey.build(
+            "s3://b/f.tsv",
+            1000L,
+            ".tsv",
+            Map.of("format", "tsv", "header_row", true, "multi_value_syntax", "brackets")
+        );
+        assertNotEquals(base.formatConfig(), brackets.formatConfig());
+        assertTrue(brackets.formatConfig().contains("multi_value_syntax=brackets"));
+    }
+
     public void testReconcileSourceStatsDiscriminatesOnConfigFingerprint() throws Exception {
         // Two queries over the SAME file under different WITH options produce two distinct
         // SchemaCacheEntry records that share (path, mtime) but differ on formatConfig. Each

@@ -174,8 +174,7 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_CPS_KEY_CLEARED =
         "Internal cloud API key cleared on datafeed update with non-cloud credentials";
     public static final String JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED =
-        "CPS migration: project_routing defaulted to [_alias:_origin] to preserve local search scope. Use the update API to change"
-            + " the scope.";
+        "CPS migration: project_routing defaulted to [{0}] to preserve local search scope. Use the update API to change the scope.";
     public static final String JOB_AUDIT_IDLE_JOB_CLOSED = "Job closed automatically during maintenance: datafeed was stopped"
         + " and no data was received for [{0}]. To change the idle timeout,"
         + " adjust the [xpack.ml.idle_job_auto_close_timeout] setting"

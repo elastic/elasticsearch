@@ -44,17 +44,17 @@ class BalancedOTKMeansLocalSerial<V> extends BalancedOTKMeansLocal<V> {
     }
 
     @Override
-    protected void assignSpilled(
+    protected int[] assignSpilled(
         ClusteringVectorValues<V> vectors,
         KMeansIntermediate<V> kmeansIntermediate,
         NeighborHood[] neighborhoods,
         float soarLambda
     ) throws IOException {
-        assignSpilledSlice(vectors, ops, kmeansIntermediate, neighborhoods, soarLambda, 0, vectors.size());
+        return assignSpilledSlice(vectors, ops, kmeansIntermediate, neighborhoods, soarLambda);
     }
 
     @Override
     protected NeighborHood[] computeNeighborhoods(V[] centroids, int clustersPerNeighborhood) throws IOException {
-        return NeighborHood.computeNeighborhoods(ops.toFloatCentroids(centroids), clustersPerNeighborhood);
+        return NeighborHood.computeNeighborhoods(ops, centroids, clustersPerNeighborhood);
     }
 }

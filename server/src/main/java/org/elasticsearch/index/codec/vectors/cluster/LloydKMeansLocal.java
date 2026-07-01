@@ -47,7 +47,7 @@ abstract class LloydKMeansLocal<V> extends KMeansLocal<V> {
     ) throws IOException;
 
     /** assign to each vector the soar assignment */
-    protected abstract void assignSpilled(
+    protected abstract int[] assignSpilled(
         ClusteringVectorValues<V> vectors,
         KMeansIntermediate<V> kmeansIntermediate,
         NeighborHood[] neighborhoods,
@@ -82,17 +82,18 @@ abstract class LloydKMeansLocal<V> extends KMeansLocal<V> {
             centroidChangedSlices[i] = new FixedBitSet(centroids.length);
         }
         int[] centroidCounts = new int[centroids.length];
+        CentroidOps.AccumulatorState<V> accumulatorState = ops.newAccumulatorState(centroids, k, vectors.dimension());
         for (int i = 0; i < maxIterations; i++) {
             // This is potentially sampled, so we need to translate ordinals
             if (stepLloyd(sampledVectors, ordTranslator, centroids, centroidChangedSlices, assignments, neighborhoods)) {
                 CentroidAssignment.updateCentroids(
                     sampledVectors,
-                    ops,
                     centroids,
                     ordTranslator,
                     centroidChangedSlices,
                     centroidCounts,
-                    assignments
+                    assignments,
+                    accumulatorState
                 );
             } else {
                 break;
@@ -104,12 +105,12 @@ abstract class LloydKMeansLocal<V> extends KMeansLocal<V> {
             if (stepLloyd(vectors, i -> i, centroids, centroidChangedSlices, assignments, neighborhoods)) {
                 CentroidAssignment.updateCentroids(
                     sampledVectors,
-                    ops,
                     centroids,
                     ordTranslator,
                     centroidChangedSlices,
                     centroidCounts,
-                    assignments
+                    assignments,
+                    accumulatorState
                 );
             }
         }

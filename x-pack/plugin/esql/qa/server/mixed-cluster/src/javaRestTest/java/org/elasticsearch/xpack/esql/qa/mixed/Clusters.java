@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.mixed;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -26,6 +27,14 @@ public class Clusters {
         boolean isDetachedVersion = System.getProperty("tests.bwc.refspec.main") != null;
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
+            // The columnar index mode is behind a feature flag and isn't supported across mixed node versions, so disable it here to
+            // keep its tests out of upgrade clusters. Only set it on nodes that know the flag: older BWC nodes predate it and would
+            // fail to start with an unknown property. The property is ignored once the flag is removed.
+            .systemProperty(
+                "es.columnar_index_mode_feature_flag_enabled",
+                () -> "false",
+                spec -> spec.getVersion().onOrAfter(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG.from)
+            )
             .withNode(node -> node.version(oldVersionString, isDetachedVersion))
             .withNode(node -> node.version(Version.CURRENT))
             .withNode(node -> node.version(oldVersionString, isDetachedVersion))
@@ -33,7 +42,11 @@ public class Clusters {
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
-            .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"));
+            .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
+            .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
+            .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
+            .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
+            .setting("ingest.geoip.downloader.enabled", "false");
         if (supportRetryOnShardFailures(oldVersion) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }

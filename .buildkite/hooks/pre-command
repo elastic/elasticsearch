@@ -2,6 +2,14 @@
 
 set -euo pipefail
 
+# Windows agents (cygwin/msys) run hooks via PowerShell; this hook is Linux-only.
+# Uploaded test-reproduction steps that target Windows handle their own setup via
+# run-script.ps1 and do not need anything from this hook.
+if [[ "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == msys* ]]; then
+  echo "pre-command: Windows agent detected — skipping Linux-only hook setup."
+  exit 0
+fi
+
 if [[ "${USE_IPV6_TESTING:-}" == "true" ]]; then
   # Ensure that `localhost` resolves to only `::1`
   sudo bash -c 'echo "::1   localhost" | cat - /etc/hosts > temp_file && mv temp_file /etc/hosts'
@@ -111,7 +119,7 @@ if [[ "${USE_PI_AGENT:-}" == "true" ]]; then
   export PATH="${HOME}/.local/bin:${PATH}"
 
   # Bootstrap pi-agent if not already cached on this agent.
-  PI_AGENT_TAG="${PI_AGENT_TAG:-pi-agent-v1.0.3}"
+  PI_AGENT_TAG="${PI_AGENT_TAG:-pi-agent-v1.0.4}"
   PI_AGENT_DIR="${HOME}/.local/pi-agent"
 
   if [[ ! -x "${PI_AGENT_DIR}/bin/pi-agent.js" ]]; then

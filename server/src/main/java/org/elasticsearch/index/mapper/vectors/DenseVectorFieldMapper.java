@@ -96,6 +96,7 @@ import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.FilteredDenseVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.PostFilterKnnQuery;
@@ -3199,7 +3200,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     yield new DenseVectorQuery.Floats(
                         queryVector,
                         name(),
-                        null,
                         effectiveSimilarity.rawVectorSimilarityFunction(),
                         element.elementType(),
                         indexVersionCreated
@@ -3215,7 +3215,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     yield new DenseVectorQuery.Bytes(
                         queryVector,
                         name(),
-                        null,
                         effectiveSimilarity.rawVectorSimilarityFunction(),
                         ElementType.BYTE,
                         indexVersionCreated
@@ -3226,7 +3225,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 case BIT -> {
                     byte[] queryVector = resolvedQueryVector.asByteVector();
                     element.checkDimensions(dims, queryVector.length);
-                    yield new DenseVectorQuery.Bytes(queryVector, name(), null, null, ElementType.BIT, indexVersionCreated);
+                    yield new DenseVectorQuery.Bytes(queryVector, name(), null, ElementType.BIT, indexVersionCreated);
                 }
             };
         }
@@ -3235,9 +3234,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return indexVersionCreated.onOrAfter(NORMALIZE_COSINE) && VectorSimilarity.COSINE.equals(similarity);
         }
 
+        /** Wraps {@code inner} with {@code filter}, unless there is no filter to apply. */
+        private static Query withFilter(DenseVectorQuery inner, Query filter) {
+            return filter == null ? inner : new FilteredDenseVectorQuery(inner, filter);
+        }
+
         private Query createExactKnnBitQuery(byte[] queryVector, Query filter) {
             element.checkDimensions(dims, queryVector.length);
-            return new DenseVectorQuery.Bytes(queryVector, name(), filter);
+            return withFilter(new DenseVectorQuery.Bytes(queryVector, name()), filter);
         }
 
         private Query createExactKnnByteQuery(byte[] queryVector, VectorSimilarity effectiveSimilarity, VectorSimilarityFunction function) {
@@ -3246,7 +3250,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
                 element.checkVectorMagnitude(effectiveSimilarity, ByteElement.errorElementsAppender(queryVector), squaredMagnitude);
             }
-            return new DenseVectorQuery.Bytes(queryVector, name(), null, function);
+            return new DenseVectorQuery.Bytes(queryVector, name(), function);
         }
 
         private Query createExactKnnFloatQuery(
@@ -3269,7 +3273,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             // A non-cosine override on a normalized-cosine field must score against the original (denormalized) vectors.
             boolean denormalize = isOverridden && isNormalized() && effectiveSimilarity != VectorSimilarity.COSINE;
-            return new DenseVectorQuery.Floats(queryVector, name(), null, function, denormalize);
+            return new DenseVectorQuery.Floats(queryVector, name(), function, denormalize);
         }
 
         private static float[] normalizeQueryVector(float[] queryVector, float squaredMagnitude) {
@@ -3472,7 +3476,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
-                Query exactKnnQuery = new DenseVectorQuery.Bytes(queryVector, name(), filter);
+                Query exactKnnQuery = withFilter(new DenseVectorQuery.Bytes(queryVector, name()), filter);
                 knnQuery = parentFilter != null ? new DiversifyingParentBlockQuery(parentFilter, exactKnnQuery) : exactKnnQuery;
             } else {
                 knnQuery = parentFilter != null
@@ -3539,7 +3543,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
-                Query exactKnnQuery = new DenseVectorQuery.Floats(queryVector, name(), filter);
+                Query exactKnnQuery = withFilter(new DenseVectorQuery.Floats(queryVector, name()), filter);
                 knnQuery = parentFilter != null ? new DiversifyingParentBlockQuery(parentFilter, exactKnnQuery) : exactKnnQuery;
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);

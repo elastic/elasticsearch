@@ -17,8 +17,6 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocAndFloatFeatureBuffer;
@@ -26,8 +24,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
@@ -52,7 +48,8 @@ import java.util.Objects;
 
 /**
  * Exact knn query. Will iterate and score all documents that have the provided dense vector field in
- * the index. An optional filter restricts scoring to documents that also match that query.
+ * the index. This query never filters on its own; {@link FilteredDenseVectorQuery} wraps an instance of
+ * this class to additionally restrict scoring to documents that match a filter query.
  *
  * <p>Each subclass takes an optional {@link VectorSimilarityFunction}, which selects one of three modes:
  * <ul>
@@ -84,11 +81,9 @@ import java.util.Objects;
 public abstract class DenseVectorQuery extends Query {
 
     protected final String field;
-    protected final Query filter;
 
-    public DenseVectorQuery(String field, Query filter) {
+    public DenseVectorQuery(String field) {
         this.field = field;
-        this.filter = filter;
     }
 
     @Override
@@ -97,16 +92,16 @@ public abstract class DenseVectorQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        if (filter != null && filter.getClass() != MatchAllDocsQuery.class) {
-            BooleanQuery booleanQuery = new BooleanQuery.Builder().add(filter, BooleanClause.Occur.FILTER).build();
-            Query rewritten = searcher.rewrite(booleanQuery);
-            return rewritten.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
-        } else {
-            // If the filter is a match all docs query, we can skip it
-            return null;
-        }
+    public final Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+        return denseVectorWeight(boost, null);
     }
+
+    /**
+     * Builds the weight that scores this query's vectors, restricted to documents that also match
+     * {@code filterWeight} when non-null. {@link FilteredDenseVectorQuery} supplies the filterWeight;
+     * the unfiltered {@link #createWeight} path above passes {@code null}.
+     */
+    abstract DenseVectorWeight denseVectorWeight(float boost, Weight filterWeight) throws IOException;
 
     abstract static class DenseVectorWeight extends Weight {
         private final String field;
@@ -182,7 +177,7 @@ public abstract class DenseVectorQuery extends Query {
 
         @Override
         public boolean isCacheable(LeafReaderContext leafReaderContext) {
-            return true;
+            return true; // todo fix for doc values dependencies
         }
     }
 
@@ -202,23 +197,16 @@ public abstract class DenseVectorQuery extends Query {
          * Codec-bound scoring (uses {@code FloatVectorValues.scorer(query)}). On quantized fields
          * this scores against the quantized representation.
          */
-        public Floats(float[] query, String field, Query filter) {
-            this(query, field, filter, null, null, null, false);
+        public Floats(float[] query, String field) {
+            this(query, field, null, null, null, false);
         }
 
         /**
          * Scores a non-indexed (index:false) field from binary doc values, decoding each document's vector
          * (per {@code elementType}) and applying {@code function}. Use only when the field has no KNN values.
          */
-        public Floats(
-            float[] query,
-            String field,
-            Query filter,
-            VectorSimilarityFunction function,
-            ElementType elementType,
-            IndexVersion indexVersion
-        ) {
-            this(query, field, filter, function, elementType, indexVersion, false);
+        public Floats(float[] query, String field, VectorSimilarityFunction function, ElementType elementType, IndexVersion indexVersion) {
+            this(query, field, function, elementType, indexVersion, false);
         }
 
         /**
@@ -226,20 +214,19 @@ public abstract class DenseVectorQuery extends Query {
          * {@code <field>._magnitude} NumericDocValues to reconstruct original vectors from unit-normalized
          * KNN storage before applying {@code function}.
          */
-        public Floats(float[] query, String field, Query filter, VectorSimilarityFunction function, boolean denormalize) {
-            this(query, field, filter, function, null, null, denormalize);
+        public Floats(float[] query, String field, VectorSimilarityFunction function, boolean denormalize) {
+            this(query, field, function, null, null, denormalize);
         }
 
         private Floats(
             float[] query,
             String field,
-            Query filter,
             VectorSimilarityFunction function,
             ElementType elementType,
             IndexVersion indexVersion,
             boolean denormalize
         ) {
-            super(field, filter);
+            super(field);
             this.query = query;
             this.function = function;
             this.docValuesElementType = elementType;
@@ -261,21 +248,7 @@ public abstract class DenseVectorQuery extends Query {
         }
 
         @Override
-        public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-            if (filter == null) return this;
-            Query rewritten = indexSearcher.rewrite(filter);
-            if (rewritten == filter) {
-                return this;
-            } else if (rewritten.getClass() == MatchNoDocsQuery.class) {
-                return rewritten;
-            } else {
-                return new Floats(query, field, rewritten, function, docValuesElementType, docValuesIndexVersion, denormalize);
-            }
-        }
-
-        @Override
-        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-            Weight filterWeight = super.createWeight(searcher, scoreMode, boost);
+        DenseVectorWeight denseVectorWeight(float boost, Weight filterWeight) {
             return new DenseVectorWeight(Floats.this, boost, filterWeight) {
                 @Override
                 VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException {
@@ -314,7 +287,6 @@ public abstract class DenseVectorQuery extends Query {
             Floats other = (Floats) o;
             return Objects.equals(field, other.field)
                 && Objects.deepEquals(query, other.query)
-                && Objects.equals(filter, other.filter)
                 && function == other.function
                 && docValuesElementType == other.docValuesElementType
                 && Objects.equals(docValuesIndexVersion, other.docValuesIndexVersion)
@@ -323,7 +295,7 @@ public abstract class DenseVectorQuery extends Query {
 
         @Override
         public int hashCode() {
-            return Objects.hash(field, Arrays.hashCode(query), filter, function, docValuesElementType, docValuesIndexVersion, denormalize);
+            return Objects.hash(field, Arrays.hashCode(query), function, docValuesElementType, docValuesIndexVersion, denormalize);
         }
 
         /** Decodes each document's float vector from binary doc values and applies {@code function}. */
@@ -418,8 +390,8 @@ public abstract class DenseVectorQuery extends Query {
         /**
          * Codec-bound scoring (uses {@code ByteVectorValues.scorer(query)}).
          */
-        public Bytes(byte[] query, String field, Query filter) {
-            this(query, field, filter, null);
+        public Bytes(byte[] query, String field) {
+            this(query, field, null);
         }
 
         /**
@@ -428,8 +400,8 @@ public abstract class DenseVectorQuery extends Query {
          * raw primitive); when it differs, scoring iterates {@code vectorValue(ord)} and applies
          * {@code function.compare(query, raw)} directly. Pass {@code null} to use the codec scorer.
          */
-        public Bytes(byte[] query, String field, Query filter, VectorSimilarityFunction function) {
-            this(query, field, filter, function, null, null);
+        public Bytes(byte[] query, String field, VectorSimilarityFunction function) {
+            this(query, field, function, null, null);
         }
 
         /**
@@ -437,15 +409,8 @@ public abstract class DenseVectorQuery extends Query {
          * document's vector. {@code byte} fields apply {@code function}; {@code bit} fields score by Hamming
          * distance. Use only when the field has no KNN values.
          */
-        public Bytes(
-            byte[] query,
-            String field,
-            Query filter,
-            VectorSimilarityFunction function,
-            ElementType elementType,
-            IndexVersion indexVersion
-        ) {
-            super(field, filter);
+        public Bytes(byte[] query, String field, VectorSimilarityFunction function, ElementType elementType, IndexVersion indexVersion) {
+            super(field);
             this.query = query;
             this.function = function;
             this.docValuesElementType = elementType;
@@ -466,21 +431,7 @@ public abstract class DenseVectorQuery extends Query {
         }
 
         @Override
-        public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-            if (filter == null) return this;
-            Query rewritten = indexSearcher.rewrite(filter);
-            if (rewritten.getClass() == MatchNoDocsQuery.class) {
-                return rewritten;
-            } else if (rewritten == filter) {
-                return this;
-            } else {
-                return new Bytes(query, field, rewritten, function, docValuesElementType, docValuesIndexVersion);
-            }
-        }
-
-        @Override
-        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-            Weight filterWeight = super.createWeight(searcher, scoreMode, boost);
+        DenseVectorWeight denseVectorWeight(float boost, Weight filterWeight) {
             return new DenseVectorWeight(Bytes.this, boost, filterWeight) {
                 @Override
                 VectorScorer vectorScorer(LeafReaderContext leafReaderContext) throws IOException {
@@ -514,7 +465,6 @@ public abstract class DenseVectorQuery extends Query {
             Bytes other = (Bytes) o;
             return Objects.equals(field, other.field)
                 && Objects.deepEquals(query, other.query)
-                && Objects.equals(filter, other.filter)
                 && function == other.function
                 && docValuesElementType == other.docValuesElementType
                 && Objects.equals(docValuesIndexVersion, other.docValuesIndexVersion);
@@ -522,7 +472,7 @@ public abstract class DenseVectorQuery extends Query {
 
         @Override
         public int hashCode() {
-            return Objects.hash(field, Arrays.hashCode(query), filter, function, docValuesElementType, docValuesIndexVersion);
+            return Objects.hash(field, Arrays.hashCode(query), function, docValuesElementType, docValuesIndexVersion);
         }
 
         /**

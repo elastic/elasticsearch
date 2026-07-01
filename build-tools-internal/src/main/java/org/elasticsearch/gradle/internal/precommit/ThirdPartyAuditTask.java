@@ -69,6 +69,7 @@ import static org.gradle.api.JavaVersion.VERSION_23;
 import static org.gradle.api.JavaVersion.VERSION_24;
 import static org.gradle.api.JavaVersion.VERSION_25;
 import static org.gradle.api.JavaVersion.VERSION_26;
+import static org.gradle.api.JavaVersion.VERSION_27;
 
 @CacheableTask
 public abstract class ThirdPartyAuditTask extends DefaultTask {
@@ -399,7 +400,8 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
                 || isJavaVersion(VERSION_23)
                 || isJavaVersion(VERSION_24)
                 || isJavaVersion(VERSION_25)
-                || isJavaVersion(VERSION_26)) {
+                || isJavaVersion(VERSION_26)
+                || isJavaVersion(VERSION_27)) {
                 spec.jvmArgs("--add-modules", "jdk.incubator.vector");
             }
             spec.jvmArgs("-Xmx1g");

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -433,7 +434,10 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     @Override
     protected void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
         super.fieldVerifier(plan, function, field, failures);
-        if (isRuntimeSearch() && options() != null) {
+        if (isRuntimeSearch() == false) {
+            return;
+        }
+        if (options() != null) {
             failures.add(
                 Failure.fail(
                     field,
@@ -441,6 +445,33 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
                 )
             );
         }
+        // The query value can only be converted to the field's runtime type once it has been folded down to a
+        // Literal; if it hasn't yet (e.g. pre-optimization), this check is skipped here and retried once
+        // postOptimizationPlanVerification runs.
+        if (query() instanceof Literal) {
+            try {
+                verifyRuntimeQueryValue();
+            } catch (InvalidArgumentException | IllegalArgumentException e) {
+                failures.add(
+                    Failure.fail(
+                        query(),
+                        "[MATCH] query value [{}] does not match the type ([{}]) of non-index-mapped field [{}]",
+                        query().sourceText(),
+                        field.dataType().typeName(),
+                        field.sourceText()
+                    )
+                );
+            }
+        }
+    }
+
+    /**
+     * Verifies that the (foldable) query value can be converted to the runtime field's type, throwing if not.
+     * Only used for {@link #isRuntimeSearch()}. The converted value itself is discarded here; it's recomputed
+     * (cheaply, since the query value is a constant) by {@link #runtimeQueryValue()} when building the evaluator.
+     */
+    private void verifyRuntimeQueryValue() {
+        runtimeQueryValue();
     }
 
     @Override
@@ -450,18 +481,39 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             return super.toEvaluator(toEvaluator);
         }
 
+        Object queryValue = runtimeQueryValue();
+        return switch (PlannerUtils.toElementType(field.dataType())) {
+            case BYTES_REF -> {
+                if (field.dataType() == TEXT) {
+                    yield new MatchTextEvaluator.Factory(source(), toEvaluator.apply(field()), (String) queryValue, new StandardAnalyzer());
+                }
+                yield new MatchBytesRefEvaluator.Factory(
+                    source(),
+                    toEvaluator.apply(field()),
+                    (BytesRef) queryValue,
+                    context -> new BytesRef()
+                );
+            }
+            case BOOLEAN -> new MatchBooleanEvaluator.Factory(source(), toEvaluator.apply(field()), (Boolean) queryValue);
+            case DOUBLE -> new MatchDoubleEvaluator.Factory(source(), toEvaluator.apply(field()), (Double) queryValue);
+            case LONG -> new MatchLongEvaluator.Factory(source(), toEvaluator.apply(field()), (Long) queryValue);
+            case INT -> new MatchIntegerEvaluator.Factory(source(), toEvaluator.apply(field()), (Integer) queryValue);
+            default -> throw EsqlIllegalArgumentException.illegalDataType(dataType());
+        };
+    }
+
+    /**
+     * Converts the (foldable) query value into an object of the appropriate type to match against the runtime field,
+     * throwing if the value cannot be converted to the field's type. Only used for {@link #isRuntimeSearch()}.
+     */
+    private Object runtimeQueryValue() {
         Object queryObject = Foldables.queryAsObject(query(), sourceText());
         String queryString = queryObject instanceof BytesRef bytesRef ? bytesRef.utf8ToString() : null;
 
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case BYTES_REF -> {
                 if (field.dataType() == TEXT) {
-                    yield new MatchTextEvaluator.Factory(
-                        source(),
-                        toEvaluator.apply(field()),
-                        queryAsObject().toString(),
-                        new StandardAnalyzer()
-                    );
+                    yield queryAsObject().toString();
                 }
 
                 assert queryObject instanceof BytesRef;
@@ -471,24 +523,10 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
                 if (field.dataType() == VERSION && DataType.isString(query().dataType())) {
                     queryObject = EsqlDataTypeConverter.stringToVersion(queryString);
                 }
-
-                yield new MatchBytesRefEvaluator.Factory(
-                    source(),
-                    toEvaluator.apply(field()),
-                    (BytesRef) queryObject,
-                    context -> new BytesRef()
-                );
+                yield queryObject;
             }
-            case BOOLEAN -> new MatchBooleanEvaluator.Factory(
-                source(),
-                toEvaluator.apply(field()),
-                queryString != null ? EsqlDataTypeConverter.stringToBoolean(queryString) : (Boolean) queryObject
-            );
-            case DOUBLE -> new MatchDoubleEvaluator.Factory(
-                source(),
-                toEvaluator.apply(field()),
-                queryString != null ? EsqlDataTypeConverter.stringToDouble(queryString) : ((Number) queryObject).doubleValue()
-            );
+            case BOOLEAN -> queryString != null ? EsqlDataTypeConverter.stringToBoolean(queryString) : (Boolean) queryObject;
+            case DOUBLE -> queryString != null ? EsqlDataTypeConverter.stringToDouble(queryString) : ((Number) queryObject).doubleValue();
             case LONG -> {
                 if (field().dataType() == UNSIGNED_LONG) {
                     if (queryString != null) {
@@ -517,13 +555,9 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
                 if (false == queryObject instanceof Long) {
                     throw EsqlIllegalArgumentException.illegalDataType(query().dataType());
                 }
-                yield new MatchLongEvaluator.Factory(source(), toEvaluator.apply(field()), (Long) queryObject);
+                yield queryObject;
             }
-            case INT -> new MatchIntegerEvaluator.Factory(
-                source(),
-                toEvaluator.apply(field()),
-                queryString != null ? EsqlDataTypeConverter.stringToInt(queryString) : ((Number) queryObject).intValue()
-            );
+            case INT -> queryString != null ? EsqlDataTypeConverter.stringToInt(queryString) : ((Number) queryObject).intValue();
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType());
         };
     }

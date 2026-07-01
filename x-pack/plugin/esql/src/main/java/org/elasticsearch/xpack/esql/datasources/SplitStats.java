@@ -41,12 +41,13 @@ import java.util.Objects;
 public final class SplitStats implements org.elasticsearch.xpack.esql.datasources.spi.SplitStats, Writeable {
 
     /**
-     * Gates the per-column {@code valueCount} on the wire. {@link SplitStats} is serialized under
-     * {@code FileSplit}'s {@code ESQL_SPLIT_STATS_COMPACT} gate; this newer field is read/written only when
-     * both peers support it, otherwise it defaults to {@code -1} (= "not available", COUNT(col) falls back to
-     * {@code rowCount - nullCount}). Reuses this PR's transport version — both the warm-aggregate profile and
-     * this {@code valueCount} wire addition ship together, so one version marks both (a TV name may gate
-     * fields in more than one class).
+     * Gates the per-column {@code valueCount} AND the per-column {@code minServable}/{@code maxServable} markers on
+     * the wire. {@link SplitStats} is serialized under {@code FileSplit}'s {@code ESQL_SPLIT_STATS_COMPACT} gate;
+     * these newer fields are read/written only when both peers support this version, otherwise {@code valueCount}
+     * defaults to {@code -1} (COUNT(col) falls back to {@code rowCount - nullCount}) and the servability markers
+     * default to {@code true} (servable) -- both the pre-marker behaviors. Reuses this PR's transport version: the
+     * warm-aggregate profile, the {@code valueCount} wire addition, and these markers all ship together, so one
+     * version marks all of them (a TV name may gate fields in more than one class).
      */
     static final TransportVersion ESQL_SPLIT_STATS_VALUE_COUNT = TransportVersion.fromName("esql_external_warm_aggregate_profile");
 
@@ -62,7 +63,9 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         new long[0],
         new Object[0],
         new Object[0],
-        new long[0]
+        new long[0],
+        new boolean[0],
+        new boolean[0]
     );
 
     private final long rowCount;
@@ -74,6 +77,16 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
     private final Object[] mins;
     private final Object[] maxs;
     private final long[] sizesBytes;
+    /**
+     * Per-column servability of the extremum: {@code false} = the min/max was POISONED during a fold (incompatible
+     * types / NaN across sub-units) and must NOT be served -- distinct from "no value" (an all-null or unharvested
+     * column, where the value is simply absent). Carrying this explicitly makes {@link SplitStats} a lossless
+     * superset of the flat {@code _stats.*} map: the {@code .min_unservable}/{@code .max_unservable} markers the
+     * coordinator fold sets survive a round-trip through the compact form, instead of being silently dropped and
+     * indistinguishable from "no value". Defaults to {@code true} (servable) everywhere the marker is absent.
+     */
+    private final boolean[] minServable;
+    private final boolean[] maxServable;
 
     SplitStats(
         long rowCount,
@@ -84,7 +97,9 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         long[] valueCounts,
         Object[] mins,
         Object[] maxs,
-        long[] sizesBytes
+        long[] sizesBytes,
+        boolean[] minServable,
+        boolean[] maxServable
     ) {
         this.rowCount = rowCount;
         this.sizeInBytes = sizeInBytes;
@@ -95,6 +110,8 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         this.mins = mins;
         this.maxs = maxs;
         this.sizesBytes = sizesBytes;
+        this.minServable = minServable;
+        this.maxServable = maxServable;
     }
 
     public SplitStats(StreamInput in) throws IOException {
@@ -112,6 +129,8 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         this.mins = new Object[colCount];
         this.maxs = new Object[colCount];
         this.sizesBytes = new long[colCount];
+        this.minServable = new boolean[colCount];
+        this.maxServable = new boolean[colCount];
         boolean withValueCount = in.getTransportVersion().supports(ESQL_SPLIT_STATS_VALUE_COUNT);
         for (int i = 0; i < colCount; i++) {
             int segLen = in.readVInt();
@@ -120,7 +139,17 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
                 columnSegmentOrdinals[i][j] = in.readVInt();
             }
             nullCounts[i] = in.readZLong();
-            valueCounts[i] = withValueCount ? in.readZLong() : -1L;
+            if (withValueCount) {
+                valueCounts[i] = in.readZLong();
+                minServable[i] = in.readBoolean();
+                maxServable[i] = in.readBoolean();
+            } else {
+                // Old peer: no value count, no servability markers -- a poisoned extremum arrived as an absent
+                // value (the pre-marker behavior), so "servable" is the correct default (the value is what governs).
+                valueCounts[i] = -1L;
+                minServable[i] = true;
+                maxServable[i] = true;
+            }
             if (in.readBoolean()) {
                 mins[i] = in.readGenericValue();
             }
@@ -150,6 +179,8 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             out.writeZLong(nullCounts[i]);
             if (withValueCount) {
                 out.writeZLong(valueCounts[i]);
+                out.writeBoolean(minServable[i]);
+                out.writeBoolean(maxServable[i]);
             }
             if (mins[i] != null) {
                 out.writeBoolean(true);
@@ -227,16 +258,16 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         return valueCounts[col];
     }
 
-    /** Returns the min value for the column, or {@code null} if unknown. */
+    /** Returns the min value for the column, or {@code null} if unknown or poisoned (unservable). */
     @Nullable
     public Object min(int col) {
-        return mins[col];
+        return minServable[col] ? mins[col] : null;
     }
 
-    /** Returns the max value for the column, or {@code null} if unknown. */
+    /** Returns the max value for the column, or {@code null} if unknown or poisoned (unservable). */
     @Nullable
     public Object max(int col) {
-        return maxs[col];
+        return maxServable[col] ? maxs[col] : null;
     }
 
     /** Returns size in bytes for the column, or {@code -1} if unknown. */
@@ -325,20 +356,20 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         return findColumn(name) >= 0;
     }
 
-    /** Returns the min value for the column with the given name, or {@code null} if not found. */
+    /** Returns the min value for the column with the given name, or {@code null} if not found or poisoned (unservable). */
     @Override
     @Nullable
     public Object columnMin(String name) {
         int col = findColumn(name);
-        return col >= 0 ? mins[col] : null;
+        return (col >= 0 && minServable[col]) ? mins[col] : null;
     }
 
-    /** Returns the max value for the column with the given name, or {@code null} if not found. */
+    /** Returns the max value for the column with the given name, or {@code null} if not found or poisoned (unservable). */
     @Override
     @Nullable
     public Object columnMax(String name) {
         int col = findColumn(name);
-        return col >= 0 ? maxs[col] : null;
+        return (col >= 0 && maxServable[col]) ? maxs[col] : null;
     }
 
     /** Returns the size in bytes for the column with the given name, or {@code -1} if not found. */
@@ -451,10 +482,16 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             if (valueCounts[i] >= 0) {
                 map.put(SourceStatisticsSerializer.columnValueCountKey(name), valueCounts[i]);
             }
-            if (mins[i] != null) {
+            // Servable + present -> write the value; poisoned -> write the marker (mutually exclusive, matching
+            // the coordinator fold's convention where a poisoned extremum drops the value and sets the marker).
+            if (minServable[i] == false) {
+                map.put(SourceStatisticsSerializer.columnMinUnservableKey(name), Boolean.TRUE);
+            } else if (mins[i] != null) {
                 map.put(SourceStatisticsSerializer.columnMinKey(name), mins[i]);
             }
-            if (maxs[i] != null) {
+            if (maxServable[i] == false) {
+                map.put(SourceStatisticsSerializer.columnMaxUnservableKey(name), Boolean.TRUE);
+            } else if (maxs[i] != null) {
                 map.put(SourceStatisticsSerializer.columnMaxKey(name), maxs[i]);
             }
             if (sizesBytes[i] >= 0) {
@@ -523,9 +560,15 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             if (min != null) {
                 builder.min(ordinal, min);
             }
+            if (Boolean.TRUE.equals(stats.get(SourceStatisticsSerializer.MIN_UNSERVABLE_SUFFIX))) {
+                builder.minUnservable(ordinal);
+            }
             Object max = stats.get(".max");
             if (max != null) {
                 builder.max(ordinal, max);
+            }
+            if (Boolean.TRUE.equals(stats.get(SourceStatisticsSerializer.MAX_UNSERVABLE_SUFFIX))) {
+                builder.maxUnservable(ordinal);
             }
             Object csb = stats.get(".size_bytes");
             if (csb instanceof Number) {
@@ -585,7 +628,9 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             && Arrays.equals(valueCounts, that.valueCounts)
             && Arrays.deepEquals(mins, that.mins)
             && Arrays.deepEquals(maxs, that.maxs)
-            && Arrays.equals(sizesBytes, that.sizesBytes);
+            && Arrays.equals(sizesBytes, that.sizesBytes)
+            && Arrays.equals(minServable, that.minServable)
+            && Arrays.equals(maxServable, that.maxServable);
     }
 
     @Override
@@ -598,6 +643,8 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         result = 31 * result + Arrays.deepHashCode(mins);
         result = 31 * result + Arrays.deepHashCode(maxs);
         result = 31 * result + Arrays.hashCode(sizesBytes);
+        result = 31 * result + Arrays.hashCode(minServable);
+        result = 31 * result + Arrays.hashCode(maxServable);
         return result;
     }
 
@@ -619,6 +666,8 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         private final List<Long> valueCountsList = new ArrayList<>();
         private final List<Object> minsList = new ArrayList<>();
         private final List<Object> maxsList = new ArrayList<>();
+        private final List<Boolean> minServableList = new ArrayList<>();
+        private final List<Boolean> maxServableList = new ArrayList<>();
         private final List<Long> sizesBytesList = new ArrayList<>();
         private final Map<String, Integer> segmentIndex = new LinkedHashMap<>();
         private final Map<String, Integer> columnNameToOrdinal = new LinkedHashMap<>();
@@ -655,6 +704,8 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             valueCountsList.add(-1L);
             minsList.add(null);
             maxsList.add(null);
+            minServableList.add(Boolean.TRUE);
+            maxServableList.add(Boolean.TRUE);
             sizesBytesList.add(-1L);
             return ordinal;
         }
@@ -699,6 +750,18 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             return this;
         }
 
+        /** Marks the column's MIN as poisoned (unservable): a fold found it incompatible, so it must not be served. */
+        public Builder minUnservable(int columnOrdinal) {
+            minServableList.set(columnOrdinal, Boolean.FALSE);
+            return this;
+        }
+
+        /** Marks the column's MAX as poisoned (unservable): a fold found it incompatible, so it must not be served. */
+        public Builder maxUnservable(int columnOrdinal) {
+            maxServableList.set(columnOrdinal, Boolean.FALSE);
+            return this;
+        }
+
         public SplitStats build() {
             if (rowCount < 0) {
                 throw new IllegalArgumentException("rowCount must be set (>= 0) before building");
@@ -711,14 +774,18 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             Object[] mn = new Object[colCount];
             Object[] mx = new Object[colCount];
             long[] sb = new long[colCount];
+            boolean[] mnServable = new boolean[colCount];
+            boolean[] mxServable = new boolean[colCount];
             for (int i = 0; i < colCount; i++) {
                 nc[i] = nullCountsList.get(i);
                 vc[i] = valueCountsList.get(i);
                 mn[i] = minsList.get(i);
                 mx[i] = maxsList.get(i);
                 sb[i] = sizesBytesList.get(i);
+                mnServable[i] = minServableList.get(i);
+                mxServable[i] = maxServableList.get(i);
             }
-            return new SplitStats(rowCount, sizeInBytes, segs, colSegOrdinals, nc, vc, mn, mx, sb);
+            return new SplitStats(rowCount, sizeInBytes, segs, colSegOrdinals, nc, vc, mn, mx, sb, mnServable, mxServable);
         }
     }
 }

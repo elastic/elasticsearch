@@ -135,6 +135,83 @@ public class SplitStatsTests extends ESTestCase {
         assertEquals(270L, new SplitStats(cur.bytes().streamInput()).columnValueCount("tags"));
     }
 
+    public void testUnservableExtremumReadsNullButDistinguishesFromNoData() {
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
+        int poisoned = b.addColumn("poisoned", 0L, null, null, 400);
+        b.minUnservable(poisoned);
+        b.maxUnservable(poisoned);
+        b.addColumn("nodata", 0L, null, null, 400); // no extremum, but NOT poisoned
+        SplitStats stats = b.build();
+
+        // Both read as null through the accessor...
+        assertNull(stats.columnMin("poisoned"));
+        assertNull(stats.columnMax("poisoned"));
+        assertNull(stats.columnMin("nodata"));
+
+        // ...but the flat map distinguishes them: the poisoned column carries the marker, no-data does not.
+        Map<String, Object> map = stats.toMap();
+        assertEquals(Boolean.TRUE, map.get(SourceStatisticsSerializer.columnMinUnservableKey("poisoned")));
+        assertEquals(Boolean.TRUE, map.get(SourceStatisticsSerializer.columnMaxUnservableKey("poisoned")));
+        assertNull(map.get(SourceStatisticsSerializer.columnMinKey("poisoned")));
+        assertNull(map.get(SourceStatisticsSerializer.columnMinUnservableKey("nodata")));
+    }
+
+    public void testUnservableMarkerRoundTripsThroughMap() {
+        // The compact form is now a lossless superset of the flat map: a .min_unservable marker survives of()->toMap().
+        Map<String, Object> input = new HashMap<>();
+        input.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        input.put(SourceStatisticsSerializer.columnNullCountKey("ts"), 0L);
+        input.put(SourceStatisticsSerializer.columnMaxKey("ts"), 5000L);            // max servable
+        input.put(SourceStatisticsSerializer.columnMinUnservableKey("ts"), Boolean.TRUE); // min poisoned
+
+        SplitStats stats = SplitStats.of(input);
+        assertNotNull(stats);
+        assertNull("poisoned min reads null", stats.columnMin("ts"));
+        assertEquals("servable max still served", 5000L, stats.columnMax("ts"));
+
+        Map<String, Object> out = stats.toMap();
+        assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("ts")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMinKey("ts")));
+        assertEquals(5000L, out.get(SourceStatisticsSerializer.columnMaxKey("ts")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMaxUnservableKey("ts")));
+    }
+
+    public void testUnservableMarkerSurvivesWireRoundTrip() throws IOException {
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
+        int c = b.addColumn("c", 0L, null, 90, 400); // min poisoned, max servable
+        b.minUnservable(c);
+        SplitStats stats = b.build();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        stats.writeTo(out);
+        SplitStats back = new SplitStats(out.bytes().streamInput());
+
+        assertEquals("compact wire form preserves the servability markers", stats, back);
+        assertNull("poisoned min stays unservable across the wire", back.columnMin("c"));
+        assertEquals("servable max survives", 90, back.columnMax("c"));
+    }
+
+    public void testUnservableMarkerWireGatedByTransportVersion() throws IOException {
+        // Like valueCount, the servability markers ship under the warm-aggregate TV. An older peer (that still
+        // serializes SplitStats under ESQL_SPLIT_STATS_COMPACT) must not see them; the extremum then defaults to
+        // servable. This is safe: the coordinator fold drops a poisoned value BEFORE building SplitStats, so in
+        // production a poisoned extremum reaches an old peer as an absent value (already a safe-miss) regardless.
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
+        int c = b.addColumn("c", 0L, 10, 90, 400);
+        b.minUnservable(c);
+        SplitStats stats = b.build();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(FileSplit.ESQL_SPLIT_STATS_COMPACT); // predates the marker gate
+        stats.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(FileSplit.ESQL_SPLIT_STATS_COMPACT);
+        SplitStats back = new SplitStats(in);
+
+        assertEquals("marker not sent to old peer -> min defaults servable", 10, back.columnMin("c"));
+        assertEquals("non-gated fields still round-trip at the older version", 90, back.columnMax("c"));
+    }
+
     public void testBulkAddColumn() {
         SplitStats.Builder builder = new SplitStats.Builder().rowCount(500).sizeInBytes(10000);
         int ord = builder.addColumn("score", 5L, 0.0, 100.0, 2000);

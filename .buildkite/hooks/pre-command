@@ -119,7 +119,7 @@ if [[ "${USE_PI_AGENT:-}" == "true" ]]; then
   export PATH="${HOME}/.local/bin:${PATH}"
 
   # Bootstrap pi-agent if not already cached on this agent.
-  PI_AGENT_TAG="${PI_AGENT_TAG:-pi-agent-v1.0.16}"
+  PI_AGENT_TAG="${PI_AGENT_TAG:-pi-agent-v1.0.17}"
   PI_AGENT_DIR="${HOME}/.local/pi-agent"
 
   # Always fetch the admin token — used for bootstrap AND to give pi-agent

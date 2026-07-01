@@ -28,7 +28,7 @@ import java.util.Objects;
 /**
  * Service that provides compatibility strategies for task settings based on the task type and feature availability.
  */
-public class CompletionsCompatibilityService {
+public class CompletionCompatibilityService {
 
     public static final String REASONING_FIELD_UNSUPPORTED_MESSAGE =
         "The reasoning field in task_settings is not supported by all nodes in the cluster; "
@@ -36,7 +36,7 @@ public class CompletionsCompatibilityService {
 
     private final InferenceFeatureService featureService;
 
-    public CompletionsCompatibilityService(InferenceFeatureService featureService) {
+    public CompletionCompatibilityService(InferenceFeatureService featureService) {
         this.featureService = Objects.requireNonNull(featureService);
     }
 

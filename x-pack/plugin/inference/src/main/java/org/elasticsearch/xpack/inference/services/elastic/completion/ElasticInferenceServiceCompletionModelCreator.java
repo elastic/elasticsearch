@@ -16,7 +16,7 @@ import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModelCreator;
-import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionsCompatibilityService;
+import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService;
 
 import java.util.Map;
 import java.util.Objects;
@@ -28,14 +28,14 @@ import java.util.Objects;
 public class ElasticInferenceServiceCompletionModelCreator extends ElasticInferenceServiceModelCreator<
     ElasticInferenceServiceCompletionModel> {
 
-    private final CompletionsCompatibilityService completionsCompatibilityService;
+    private final CompletionCompatibilityService completionCompatibilityService;
 
     public ElasticInferenceServiceCompletionModelCreator(
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-        CompletionsCompatibilityService completionsCompatibilityService
+        CompletionCompatibilityService completionCompatibilityService
     ) {
         super(elasticInferenceServiceComponents);
-        this.completionsCompatibilityService = Objects.requireNonNull(completionsCompatibilityService);
+        this.completionCompatibilityService = Objects.requireNonNull(completionCompatibilityService);
     }
 
     @Override
@@ -50,7 +50,7 @@ public class ElasticInferenceServiceCompletionModelCreator extends ElasticInfere
         ConfigurationParseContext context,
         @Nullable EndpointMetadata endpointMetadata
     ) {
-        var effectiveTaskSettings = completionsCompatibilityService.getTaskSettingsStrategy(taskType)
+        var effectiveTaskSettings = completionCompatibilityService.getTaskSettingsStrategy(taskType)
             .createTaskSettings(taskSettings, context);
 
         return new ElasticInferenceServiceCompletionModel(

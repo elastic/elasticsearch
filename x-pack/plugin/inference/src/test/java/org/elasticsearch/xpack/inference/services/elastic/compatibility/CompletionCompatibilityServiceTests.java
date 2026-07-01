@@ -35,7 +35,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.EFFO
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.SUMMARY_FIELD;
 import static org.elasticsearch.xpack.inference.InferenceFeatures.INFERENCE_ELASTIC_REASONING_TASK_SETTINGS;
-import static org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionsCompatibilityService.REASONING_FIELD_UNSUPPORTED_MESSAGE;
+import static org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService.REASONING_FIELD_UNSUPPORTED_MESSAGE;
 import static org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelTests.createModel;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class CompletionsCompatibilityServiceTests extends ESTestCase {
+public class CompletionCompatibilityServiceTests extends ESTestCase {
 
     private static final String INFERENCE_ENTITY_ID = "test-id";
     private static final String MODEL_ID = "test-model";
@@ -62,7 +62,7 @@ public class CompletionsCompatibilityServiceTests extends ESTestCase {
 
     // clusterCompatibility(...) checks the ClusterState passed in, not the ClusterService's own state, so an arbitrary
     // ClusterService state is used to build the compatibility service under test for these cases.
-    private final CompletionsCompatibilityService compatibilityService = createCompatibilityService(true);
+    private final CompletionCompatibilityService compatibilityService = createCompatibilityService(true);
 
     public void testClusterCompatibility_NonChatCompletionTaskType_NonEmptyReasoning_FeatureAbsent_ReturnsUnsupported() {
         var taskType = randomValueOtherThanMany(
@@ -138,7 +138,7 @@ public class CompletionsCompatibilityServiceTests extends ESTestCase {
     public void testGetTaskSettingsStrategy_FeatureAbsent_ReturnsEnforceEmptyTaskSettingsStrategy() {
         var strategy = createCompatibilityService(false).getTaskSettingsStrategy(randomFrom(TaskType.values()));
 
-        assertThat(strategy, instanceOf(CompletionsCompatibilityService.EnforceEmptyTaskSettingsStrategy.class));
+        assertThat(strategy, instanceOf(CompletionCompatibilityService.EnforceEmptyTaskSettingsStrategy.class));
     }
 
     public void testEnforceEmptyTaskSettingsStrategy_CreateTaskSettings_EmptyMap_ReturnsEmptyTaskSettings() {
@@ -172,7 +172,7 @@ public class CompletionsCompatibilityServiceTests extends ESTestCase {
     public void testGetTaskSettingsStrategy_FeaturePresent_ChatCompletion_ReturnsReasoningTaskSettingsStrategy() {
         var strategy = createCompatibilityService(true).getTaskSettingsStrategy(TaskType.CHAT_COMPLETION);
 
-        assertThat(strategy, instanceOf(CompletionsCompatibilityService.ReasoningTaskSettingsStrategy.class));
+        assertThat(strategy, instanceOf(CompletionCompatibilityService.ReasoningTaskSettingsStrategy.class));
     }
 
     public void testReasoningTaskSettingsStrategy_CreateTaskSettings_ReturnsChatCompletionTaskSettings() {
@@ -186,7 +186,7 @@ public class CompletionsCompatibilityServiceTests extends ESTestCase {
     public void testGetTaskSettingsStrategy_FeaturePresent_NonChatCompletion_ReturnsImmutableEmptyTaskSettingsStrategy() {
         var strategy = createCompatibilityService(true).getTaskSettingsStrategy(TaskType.COMPLETION);
 
-        assertThat(strategy, instanceOf(CompletionsCompatibilityService.ImmutableEmptyTaskSettingsStrategy.class));
+        assertThat(strategy, instanceOf(CompletionCompatibilityService.ImmutableEmptyTaskSettingsStrategy.class));
     }
 
     public void testImmutableEmptyTaskSettingsStrategy_CreateTaskSettings_ReturnsImmutableEmptyTaskSettings() {
@@ -197,10 +197,10 @@ public class CompletionsCompatibilityServiceTests extends ESTestCase {
         assertThat(taskSettings, sameInstance(ImmutableEmptyTaskSettings.INSTANCE));
     }
 
-    private static CompletionsCompatibilityService createCompatibilityService(boolean hasReasoningFeature) {
+    private static CompletionCompatibilityService createCompatibilityService(boolean hasReasoningFeature) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState(hasReasoningFeature));
-        return new CompletionsCompatibilityService(new InferenceFeatureService(clusterService, FEATURE_SERVICE));
+        return new CompletionCompatibilityService(new InferenceFeatureService(clusterService, FEATURE_SERVICE));
     }
 
     private static ClusterState clusterState(boolean hasReasoningFeature) {

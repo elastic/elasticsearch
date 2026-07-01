@@ -30,7 +30,7 @@ import static org.elasticsearch.inference.completion.ReasoningTests.randomReason
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.EFFORT_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.SUMMARY_FIELD;
-import static org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionsCompatibilityService.REASONING_FIELD_UNSUPPORTED_MESSAGE;
+import static org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService.REASONING_FIELD_UNSUPPORTED_MESSAGE;
 import static org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings.EIS_REASONING_TASK_SETTINGS_ADDED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;

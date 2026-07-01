@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
-import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionsCompatibilityService;
+import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService;
 import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
 
 import java.util.HashMap;
@@ -135,7 +135,7 @@ public class ElasticInferenceServiceCompletionModelCreatorTests extends ESTestCa
         var inferenceFeatureService = new InferenceFeatureService(clusterService, FEATURE_SERVICE);
         return new ElasticInferenceServiceCompletionModelCreator(
             ElasticInferenceServiceComponents.of(URL),
-            new CompletionsCompatibilityService(inferenceFeatureService)
+            new CompletionCompatibilityService(inferenceFeatureService)
         );
     }
 

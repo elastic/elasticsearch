@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenceServiceActionCreator;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
-import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionsCompatibilityService;
+import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelCreator;
@@ -108,7 +108,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(SPARSE_EMBEDDING, COMPLETION, TEXT_EMBEDDING);
 
     private final CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory;
-    private final CompletionsCompatibilityService completionsCompatibilityService;
+    private final CompletionCompatibilityService completionCompatibilityService;
     private ElasticInferenceServiceActionCreator actionCreator;
 
     public static ElasticInferenceService create(
@@ -124,7 +124,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             elasticInferenceServiceSettings,
             context,
             ccmAuthApplierFactory,
-            new CompletionsCompatibilityService(context.inferenceFeatureService())
+            new CompletionCompatibilityService(context.inferenceFeatureService())
         );
     }
 
@@ -134,21 +134,21 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
         InferenceServiceExtension.InferenceServiceFactoryContext context,
         CCMAuthenticationApplierFactory ccmAuthApplierFactory,
-        CompletionsCompatibilityService completionsCompatibilityService
+        CompletionCompatibilityService completionCompatibilityService
     ) {
         super(
             factory,
             serviceComponents,
             context.clusterService(),
-            initModelCreators(elasticInferenceServiceSettings, completionsCompatibilityService)
+            initModelCreators(elasticInferenceServiceSettings, completionCompatibilityService)
         );
         this.ccmAuthenticationApplierFactory = ccmAuthApplierFactory;
-        this.completionsCompatibilityService = completionsCompatibilityService;
+        this.completionCompatibilityService = completionCompatibilityService;
     }
 
     private static Map<TaskType, ModelCreator<? extends ElasticInferenceServiceModel>> initModelCreators(
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
-        CompletionsCompatibilityService completionsCompatibilityService
+        CompletionCompatibilityService completionCompatibilityService
     ) {
         var elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
             elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
@@ -156,7 +156,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         var denseEmbeddingsModelCreator = new ElasticInferenceServiceDenseEmbeddingsModelCreator(elasticInferenceServiceComponents);
         var completionModelCreator = new ElasticInferenceServiceCompletionModelCreator(
             elasticInferenceServiceComponents,
-            completionsCompatibilityService
+            completionCompatibilityService
         );
         return Map.of(
             TaskType.TEXT_EMBEDDING,
@@ -274,7 +274,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             );
         }
 
-        return completionsCompatibilityService.clusterCompatibility(state, (ElasticInferenceServiceModel) model);
+        return completionCompatibilityService.clusterCompatibility(state, (ElasticInferenceServiceModel) model);
     }
 
     @Override

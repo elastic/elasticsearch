@@ -75,7 +75,7 @@ public class DataSourceService {
     ) {
         this.clusterService = clusterService;
         this.validatorsByType = Map.copyOf(validatorsByType);
-        this.encryptionService = Objects.requireNonNull(encryptionService, "encryption service must not be null");
+        this.encryptionService = Objects.requireNonNull(encryptionService, "encryptionService");
         this.taskQueue = clusterService.createTaskQueue(
             "update-esql-data-source-metadata",
             Priority.NORMAL,

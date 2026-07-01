@@ -349,7 +349,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPutDatafeedWithSecurityAndSecondaryAuthShouldGrantUnderSecondaryPrincipal() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", true).build();
 
@@ -426,7 +426,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPutDatafeed_MintsWhenCpsEnabledAndCloudCallerWithoutRouting() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
         Settings settings = cpsWithSecurityEnabledSettings();
 
@@ -498,7 +498,7 @@ public class DatafeedManagerTests extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testPutDatafeed_PropagatesFailureWhenDownstreamFailsAfterGrant() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
         Settings settings = cpsWithSecurityEnabledSettings();
 
@@ -559,7 +559,7 @@ public class DatafeedManagerTests extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testUpdateDatafeed_PropagatesFailureWhenUpdateConfigFails() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
@@ -613,7 +613,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPutDatafeedWithCpsCredential_PropagatesFailureAndLogsErrorWhenGrantFails() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
         Settings settings = cpsWithSecurityEnabledSettings();
 
@@ -671,7 +671,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testUpdateDatafeedWithCpsCredential_PropagatesFailureAndLogsErrorWhenGrantFails() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
@@ -847,7 +847,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testUpdateDatafeedNoopShouldNotRekey() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
@@ -918,7 +918,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testUpdateWithoutCloudCredentialClearsExistingCloudInternalCredential() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
@@ -974,7 +974,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testUpdateWithoutCloudCredentialDoesNotStaticallyRejectProjectRouting() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
@@ -1031,7 +1031,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testRevokeFailureEmitsRevocationFailedAudit() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
@@ -1083,7 +1083,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testProbeFailureAbortsUpdateWithoutMint() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
@@ -1137,7 +1137,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testProbeReturnsOkWithSecurityClusterFailureAbortsUpdateWithoutMint() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
@@ -1191,7 +1191,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testProbeUsesMergedConfigNotStoredConfig() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
@@ -1249,7 +1249,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testProbePassesThenPersistFailsTriggersRevoke() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
@@ -1380,7 +1380,7 @@ public class DatafeedManagerTests extends ESTestCase {
     }
 
     public void testCurrentCallerCredentialWithSecondaryAuthShouldExtractFromSecondaryContext() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", true).build();
         CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
@@ -1472,7 +1472,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testUpdateDatafeedFirstTimeMigrationShouldDefaultProjectRoutingToOrigin() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
@@ -1513,7 +1513,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testUpdateDatafeedFirstTimeMigrationShouldNotOverrideExistingProjectRouting() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
@@ -1558,7 +1558,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testUpdateDatafeedFirstTimeMigrationShouldHonourExplicitProjectRoutingInUpdate() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
@@ -1603,7 +1603,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testUpdateDatafeedAlreadyMigratedShouldNotDefaultRoutingOnRekey() {
-        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);

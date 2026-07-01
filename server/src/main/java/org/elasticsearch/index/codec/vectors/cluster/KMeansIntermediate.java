@@ -19,22 +19,18 @@ import org.apache.lucene.util.hnsw.IntToIntFunction;
 class KMeansIntermediate<V> extends KMeansResult<V> {
     private final IntToIntFunction assignmentOrds;
 
-    private KMeansIntermediate(V[] centroids, int[] assignments, IntToIntFunction assignmentOrds, int[] soarAssignments) {
-        super(centroids, assignments, soarAssignments);
+    KMeansIntermediate(V[] centroids, int[] assignments, IntToIntFunction assignmentOrds) {
+        super(centroids, assignments);
         assert assignmentOrds != null;
         this.assignmentOrds = assignmentOrds;
     }
 
-    KMeansIntermediate(V[] centroids, int[] assignments, IntToIntFunction assignmentOrdinals) {
-        this(centroids, assignments, assignmentOrdinals, new int[0]);
-    }
-
     public static <V> KMeansIntermediate<V> empty(CentroidOps<V> ops) {
-        return new KMeansIntermediate<>(ops.newCentroidArray(0, 0), new int[0], i -> i, new int[0]);
+        return new KMeansIntermediate<>(ops.newCentroidArray(0, 0), new int[0], i -> i);
     }
 
     KMeansIntermediate(V[] centroids, int[] assignments) {
-        this(centroids, assignments, i -> i, new int[0]);
+        this(centroids, assignments, i -> i);
     }
 
     public int ordToDoc(int ord) {

@@ -9,18 +9,34 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
+import org.elasticsearch.foreign.Function;
+import org.elasticsearch.foreign.LibrarySpecification;
+import org.elasticsearch.foreign.Platform;
+
+import java.lang.foreign.MemorySegment;
+
+/**
+ * FFM binding for the macOS sandbox API.
+ *
+ * <p>Both symbols are resolved from the system/default lookup (no dylib to load).
+ */
+@LibrarySpecification(unavailableOn = { Platform.LINUX_X64, Platform.LINUX_AARCH64, Platform.WINDOWS_X64 })
 public interface MacCLibrary {
-    interface ErrorReference {}
-
-    ErrorReference newErrorReference();
 
     /**
-     * maps to sandbox_init(3), since Leopard
+     * Initializes the macOS Seatbelt sandbox with the given profile file path and flags.
+     * On failure, writes a pointer to an error string into {@code errorbuf}.
+     *
+     * @see <a href="x-man-page://3/sandbox_init">sandbox_init(3)</a>
      */
-    int sandbox_init(String profile, long flags, ErrorReference errorbuf);
+    @Function("sandbox_init")
+    int sandbox_init(String profile, long flags, MemorySegment errorbuf);
 
     /**
-     * releases memory when an error occurs during initialization (e.g. syntax bug)
+     * Releases the error string buffer allocated by {@code sandbox_init} on failure.
+     *
+     * @see <a href="x-man-page://3/sandbox_init">sandbox_init(3)</a>
      */
-    void sandbox_free_error(ErrorReference errorbuf);
+    @Function("sandbox_free_error")
+    void sandbox_free_error(MemorySegment errstr);
 }

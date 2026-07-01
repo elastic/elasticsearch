@@ -758,7 +758,9 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             arg.description(),
             false,
             arg.variadic(),
-            arg.targetDataType()
+            arg.hint(),
+            arg.targetDataType(),
+            arg.appliesTo()
         );
     }
 }

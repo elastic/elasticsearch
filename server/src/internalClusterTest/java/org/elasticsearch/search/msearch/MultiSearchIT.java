@@ -323,7 +323,7 @@ public class MultiSearchIT extends ESIntegTestCase {
         assertThat(ex.getMessage(), Matchers.is("[routing] and [_slice] cannot be combined in the same _msearch request"));
     }
 
-    public void testSliceEnabledIndexRequiresSliceAndRejectsRoutingInExecution() throws Exception {
+    public void testSliceEnabledIndexDefaultsToAllAndRejectsRoutingInExecution() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createIndex("slice-enabled", Settings.builder().put("index.slice.enabled", true).put("number_of_shards", 1).build());
         ensureGreen("slice-enabled");
@@ -340,11 +340,7 @@ public class MultiSearchIT extends ESIntegTestCase {
         );
         assertResponse(client().multiSearch(request), response -> {
             assertThat(response.getResponses().length, equalTo(2));
-            assertTrue(response.getResponses()[0].isFailure());
-            assertThat(
-                response.getResponses()[0].getFailure().getMessage(),
-                containsString("[_slice] is required when [index.slice.enabled] is true")
-            );
+            assertFalse(response.getResponses()[0].isFailure());
             assertTrue(response.getResponses()[1].isFailure());
             assertThat(
                 response.getResponses()[1].getFailure().getMessage(),

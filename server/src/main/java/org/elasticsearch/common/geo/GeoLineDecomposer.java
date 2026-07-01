@@ -76,6 +76,11 @@ class GeoLineDecomposer {
 
         double shift = 0;
         int i = 1;
+        // Tracks dateline crossings for the current segment (same i). Resets when i advances.
+        // A legitimate geographic line segment can cross the dateline at most once; allowing a generous
+        // limit here guards against extreme coordinate values causing effectively-infinite loops while
+        // still permitting deliberately-unwrapped multi-revolution paths in tests and edge cases.
+        int segmentCrossings = 0;
         while (i < lons.length) {
             // Check where the line is going east (+1), west (-1) or directly north/south (0)
             int direction = Double.compare(lons[i], lons[i - 1]);
@@ -94,6 +99,14 @@ class GeoLineDecomposer {
                 shift = newShift;
                 double t = intersection(lons[i - 1] + shift, lons[i] + shift);
                 if (Double.isNaN(t) == false) {
+                    segmentCrossings++;
+                    if (segmentCrossings > 10_000) {
+                        throw new IllegalArgumentException(
+                            "Longitude value ["
+                                + lons[i]
+                                + "] is out of valid range for geo_shape; consider normalizing coordinates to [-180, 180]"
+                        );
+                    }
                     // Found intersection, all previous segments are now part of the linestring
                     double[] partLons = Arrays.copyOfRange(lons, offset, i + 1);
                     double[] partLats = Arrays.copyOfRange(lats, offset, i + 1);
@@ -104,6 +117,7 @@ class GeoLineDecomposer {
                     collector.add(new Line(partLons, partLats));
                 } else {
                     // Didn't find intersection - just continue checking
+                    segmentCrossings = 0;
                     i++;
                 }
             }

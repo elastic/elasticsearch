@@ -45,6 +45,11 @@ public class SystemMetrics extends AbstractLifecycleComponent {
     private static final List<MemoryPoolMXBean> MEMORY_POOL_MX_BEANS = ManagementFactory.getMemoryPoolMXBeans();
     private static final AllocatedBytesMetrics ALLOCATED_BYTES_METRICS = new AllocatedBytesMetrics();
 
+    // The APM Java agent reported every metric below into the shared "metrics-apm.internal-*" data stream.
+    private static final String INTERNAL_DATASET_KEY = "data_stream.dataset";
+    private static final String INTERNAL_DATASET_VALUE = "apm.internal";
+    private static final Map<String, Object> INTERNAL_DATASET = Map.of(INTERNAL_DATASET_KEY, INTERNAL_DATASET_VALUE);
+
     private final MeterRegistry registry;
     private final boolean emitOTelMetrics;
     private final List<AutoCloseable> metrics = new ArrayList<>();
@@ -90,7 +95,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "jvm.memory.heap.used",
                 "The amount of used heap memory in bytes.",
                 "By",
-                () -> new LongWithAttributes(MEMORY_BEAN.getHeapMemoryUsage().getUsed())
+                () -> new LongWithAttributes(MEMORY_BEAN.getHeapMemoryUsage().getUsed(), INTERNAL_DATASET)
             )
         );
         metrics.add(
@@ -98,13 +103,14 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "jvm.memory.heap.committed",
                 "The amount of heap memory in bytes that is committed for the JVM to use.",
                 "By",
-                () -> new LongWithAttributes(MEMORY_BEAN.getHeapMemoryUsage().getCommitted())
+                () -> new LongWithAttributes(MEMORY_BEAN.getHeapMemoryUsage().getCommitted(), INTERNAL_DATASET)
             )
         );
         registerLongGaugeUnlessNegative(
             "jvm.memory.heap.max",
             "The maximum amount of heap memory in bytes that can be used for memory management.",
             "By",
+            INTERNAL_DATASET,
             () -> MEMORY_BEAN.getHeapMemoryUsage().getMax()
         );
         metrics.add(
@@ -112,7 +118,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "jvm.memory.non_heap.used",
                 "The amount of used non-heap memory in bytes.",
                 "By",
-                () -> new LongWithAttributes(MEMORY_BEAN.getNonHeapMemoryUsage().getUsed())
+                () -> new LongWithAttributes(MEMORY_BEAN.getNonHeapMemoryUsage().getUsed(), INTERNAL_DATASET)
             )
         );
         metrics.add(
@@ -120,13 +126,14 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "jvm.memory.non_heap.committed",
                 "The amount of non-heap memory in bytes that is committed for the JVM to use.",
                 "By",
-                () -> new LongWithAttributes(MEMORY_BEAN.getNonHeapMemoryUsage().getCommitted())
+                () -> new LongWithAttributes(MEMORY_BEAN.getNonHeapMemoryUsage().getCommitted(), INTERNAL_DATASET)
             )
         );
         registerLongGaugeUnlessNegative(
             "jvm.memory.non_heap.max",
             "The maximum amount of non-heap memory in bytes that can be used for memory management.",
             "By",
+            INTERNAL_DATASET,
             () -> MEMORY_BEAN.getNonHeapMemoryUsage().getMax()
         );
         registerPoolGauges("jvm.memory.heap.pool", MemoryType.HEAP);
@@ -141,7 +148,12 @@ public class SystemMetrics extends AbstractLifecycleComponent {
         metrics.add(registry.registerLongsGauge(prefix + ".used", "The amount of memory in bytes used by this pool.", "By", () -> {
             var result = new ArrayList<LongWithAttributes>(pools.size());
             for (MemoryPoolMXBean pool : pools) {
-                result.add(new LongWithAttributes(pool.getUsage().getUsed(), Map.of("name", pool.getName())));
+                result.add(
+                    new LongWithAttributes(
+                        pool.getUsage().getUsed(),
+                        Map.of("name", pool.getName(), INTERNAL_DATASET_KEY, INTERNAL_DATASET_VALUE)
+                    )
+                );
             }
             return result;
         }));
@@ -153,7 +165,12 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 () -> {
                     var result = new ArrayList<LongWithAttributes>(pools.size());
                     for (MemoryPoolMXBean pool : pools) {
-                        result.add(new LongWithAttributes(pool.getUsage().getCommitted(), Map.of("name", pool.getName())));
+                        result.add(
+                            new LongWithAttributes(
+                                pool.getUsage().getCommitted(),
+                                Map.of("name", pool.getName(), INTERNAL_DATASET_KEY, INTERNAL_DATASET_VALUE)
+                            )
+                        );
                     }
                     return result;
                 }
@@ -169,7 +186,9 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                     for (MemoryPoolMXBean pool : pools) {
                         long max = pool.getUsage().getMax();
                         if (max >= 0) {
-                            result.add(new LongWithAttributes(max, Map.of("name", pool.getName())));
+                            result.add(
+                                new LongWithAttributes(max, Map.of("name", pool.getName(), INTERNAL_DATASET_KEY, INTERNAL_DATASET_VALUE))
+                            );
                         }
                     }
                     return result;
@@ -187,33 +206,32 @@ public class SystemMetrics extends AbstractLifecycleComponent {
             return;
         }
 
-        metrics.add(registry.registerLongsAsyncCounter("jvm.gc.count", "The total number of collections that have occurred.", "1", () -> {
+        metrics.add(registry.registerLongsGauge("jvm.gc.count", "The total number of collections that have occurred.", "1", () -> {
             var measurements = new ArrayList<LongWithAttributes>(beans.size());
             for (GarbageCollectorMXBean bean : beans) {
                 long count = bean.getCollectionCount();
                 if (count >= 0) {
-                    measurements.add(new LongWithAttributes(count, Map.of("name", bean.getName())));
+                    measurements.add(
+                        new LongWithAttributes(count, Map.of("name", bean.getName(), INTERNAL_DATASET_KEY, INTERNAL_DATASET_VALUE))
+                    );
                 }
             }
             return measurements;
         }));
 
         metrics.add(
-            registry.registerLongsAsyncCounter(
-                "jvm.gc.time",
-                "The approximate accumulated collection elapsed time in milliseconds.",
-                "ms",
-                () -> {
-                    var measurements = new ArrayList<LongWithAttributes>(beans.size());
-                    for (GarbageCollectorMXBean bean : beans) {
-                        long timeMs = bean.getCollectionTime();
-                        if (timeMs >= 0) {
-                            measurements.add(new LongWithAttributes(timeMs, Map.of("name", bean.getName())));
-                        }
+            registry.registerLongsGauge("jvm.gc.time", "The approximate accumulated collection elapsed time in milliseconds.", "ms", () -> {
+                var measurements = new ArrayList<LongWithAttributes>(beans.size());
+                for (GarbageCollectorMXBean bean : beans) {
+                    long timeMs = bean.getCollectionTime();
+                    if (timeMs >= 0) {
+                        measurements.add(
+                            new LongWithAttributes(timeMs, Map.of("name", bean.getName(), INTERNAL_DATASET_KEY, INTERNAL_DATASET_VALUE))
+                        );
                     }
-                    return measurements;
                 }
-            )
+                return measurements;
+            })
         );
 
         metrics.add(
@@ -234,7 +252,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "jvm.thread.count",
                 "The current number of live threads including both daemon and non-daemon threads.",
                 "{thread}",
-                () -> new LongWithAttributes(THREAD_BEAN.getThreadCount())
+                () -> new LongWithAttributes(THREAD_BEAN.getThreadCount(), INTERNAL_DATASET)
             )
         );
     }
@@ -246,12 +264,14 @@ public class SystemMetrics extends AbstractLifecycleComponent {
             "jvm.fd.used",
             "The number of opened file descriptors. As previously emitted by APM Agent.",
             "{file_descriptor}",
+            INTERNAL_DATASET,
             ProcessProbe::getOpenFileDescriptorCount
         );
         registerLongGaugeUnlessNegative(
             "jvm.fd.max",
             "The maximum number of opened file descriptors. As previously emitted by APM Agent.",
             "{file_descriptor}",
+            INTERNAL_DATASET,
             ProcessProbe::getMaxFileDescriptorCount
         );
         if (emitOTelMetrics) {
@@ -259,12 +279,14 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "jvm.file_descriptor.count",
                 "Number of open file descriptors as reported by the JVM.",
                 "{file_descriptor}",
+                Map.of(),
                 ProcessProbe::getOpenFileDescriptorCount
             );
             registerLongGaugeUnlessNegative(
                 "jvm.file_descriptor.limit",
                 "Measure of max open file descriptors as reported by the JVM.",
                 "{file_descriptor}",
+                Map.of(),
                 ProcessProbe::getMaxFileDescriptorCount
             );
         }
@@ -279,7 +301,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "system.memory.actual.free",
                 "Actual free memory in bytes.",
                 "By",
-                () -> new LongWithAttributes(OsProbe.getInstance().getActualFreePhysicalMemorySize())
+                () -> new LongWithAttributes(OsProbe.getInstance().getActualFreePhysicalMemorySize(), INTERNAL_DATASET)
             )
         );
         metrics.add(
@@ -287,13 +309,14 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "system.memory.total",
                 "Total memory.",
                 "By",
-                () -> new LongWithAttributes(OsProbe.getInstance().getTotalPhysicalMemorySize())
+                () -> new LongWithAttributes(OsProbe.getInstance().getTotalPhysicalMemorySize(), INTERNAL_DATASET)
             )
         );
         registerLongGaugeUnlessNegative(
             "system.process.memory.size",
             "The total virtual memory the process has.",
             "By",
+            INTERNAL_DATASET,
             ProcessProbe::getTotalVirtualMemorySize
         );
     }
@@ -304,7 +327,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "system.process.cgroup.memory.mem.usage.bytes",
                 "Memory usage in current cgroup slice.",
                 "By",
-                () -> new LongWithAttributes(OsProbe.getInstance().getCgroupMemoryUsageInBytes().orElse(0L))
+                () -> new LongWithAttributes(OsProbe.getInstance().getCgroupMemoryUsageInBytes().orElse(0L), INTERNAL_DATASET)
             )
         );
         metrics.add(
@@ -312,7 +335,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "system.process.cgroup.memory.mem.limit.bytes",
                 "Memory limit for current cgroup slice.",
                 "By",
-                () -> new LongWithAttributes(OsProbe.getInstance().getCgroupMemoryLimitInBytes().orElse(0L))
+                () -> new LongWithAttributes(OsProbe.getInstance().getCgroupMemoryLimitInBytes().orElse(0L), INTERNAL_DATASET)
             )
         );
     }
@@ -325,23 +348,29 @@ public class SystemMetrics extends AbstractLifecycleComponent {
             if (cpuLoad < 0) {
                 return List.of();
             }
-            return List.of(new DoubleWithAttributes(cpuLoad));
+            return List.of(new DoubleWithAttributes(cpuLoad, INTERNAL_DATASET));
         }));
         metrics.add(registry.registerDoublesGauge("system.process.cpu.total.norm.pct", "Process CPU usage as a ratio.", "1", () -> {
             double cpuLoad = ProcessProbe.getProcessCpuLoad();
             if (cpuLoad < 0) {
                 return List.of();
             }
-            return List.of(new DoubleWithAttributes(cpuLoad));
+            return List.of(new DoubleWithAttributes(cpuLoad, INTERNAL_DATASET));
         }));
     }
 
-    private void registerLongGaugeUnlessNegative(String name, String description, String unit, LongSupplier supplier) {
+    private void registerLongGaugeUnlessNegative(
+        String name,
+        String description,
+        String unit,
+        Map<String, Object> attributes,
+        LongSupplier supplier
+    ) {
         long initial = supplier.getAsLong();
         if (initial < 0) {
             return;
         }
-        metrics.add(registry.registerLongGauge(name, description, unit, () -> new LongWithAttributes(supplier.getAsLong())));
+        metrics.add(registry.registerLongGauge(name, description, unit, () -> new LongWithAttributes(supplier.getAsLong(), attributes)));
     }
 
     private static final class AllocatedBytesMetrics {
@@ -354,7 +383,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
             if (sunThreadInfo == null) {
                 if (SunThreadInfo.INSTANCE.isThreadAllocatedMemorySupported() == false
                     || SunThreadInfo.INSTANCE.isThreadAllocatedMemoryEnabled() == false) {
-                    return new LongWithAttributes(0);
+                    return new LongWithAttributes(0, INTERNAL_DATASET);
                 }
                 this.sunThreadInfo = SunThreadInfo.INSTANCE;
             }
@@ -365,7 +394,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                     total += allocated;
                 }
             }
-            return new LongWithAttributes(total);
+            return new LongWithAttributes(total, INTERNAL_DATASET);
         }
     }
 }

@@ -38,7 +38,7 @@ public class OtelMetricsIT extends AbstractMetricsIT {
     public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
         .systemProperty("telemetry.otel.metrics.enabled", "true")
         .systemProperty("telemetry.metrics.otel_jvm.enabled", "true")
-        .setting("telemetry.export.endpoint", () -> "http://" + recordingApmServer.getHttpAddress())
+        .setting("telemetry.export.endpoint", () -> recordingApmServer.getGrpcEndpoint())
         .setting("telemetry.export.interval", "1000ms")
         .setting("telemetry.export.send_timeout", "200ms")
         .setting("telemetry.metrics.buffer.disk_size", "0b")

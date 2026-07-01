@@ -5,23 +5,17 @@ config:
   allow-labels: ":StorageEngine/PromQL"
   trigger-phrase: '.*run\W+elasticsearch-ci/promql-compliance-bench.*'
 env:
-  PROMCHECK_VER: "0.5"
+  PROMCHECK_VER: "0.5.4"
   PROMCHECK_TEST_INSTANCE_TIMEOUT: "900"
 steps:
-  - label: ":prometheus: promcheck-lang-compliance:test"
-    key: promql-compliance-bench-100
+  - label: ":prometheus: promcheck-grafana-compliance:test"
+    key: promql-compliance-bench-grafana
     command: |
       if ! command -v uv >/dev/null 2>&1; then
         curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh
         export PATH="$${HOME}/.local/bin:$${PATH}"
       fi
-      if [[ -n "$${TESTS_SEED:-}" ]]; then
-        export PROMCHECK_SEED="$${TESTS_SEED}"
-      else
-        export PROMCHECK_SEED="$${BUILDKITE_PULL_REQUEST:?BUILDKITE_PULL_REQUEST is required}"
-      fi
-      buildkite-agent meta-data set "tests-seed-$${BUILDKITE_JOB_ID}" "$${PROMCHECK_SEED}"
-      .buildkite/scripts/promql-compliance-bench.sh grafana_dashboards_100_distinct_queries
+      .buildkite/scripts/promql-compliance-bench.sh promql_test_queries-grafana
     timeout_in_minutes: 120
     retry:
       automatic:

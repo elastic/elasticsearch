@@ -42,7 +42,6 @@ dependencies {
   implementation "com.squareup.okhttp3:okhttp-jvm:5.3.2"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-common:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-otlp-common:${otelVersion}"
-  runtimeOnly "io.opentelemetry:opentelemetry-exporter-sender-jdk:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:${otelVersion}"
   runtimeOnly "co.elastic.apm:elastic-apm-agent-java8:1.55.6"
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -42,7 +43,9 @@ import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
@@ -60,6 +63,7 @@ public class PlanExecutor {
     private final EsqlQueryLog queryLog;
     private final DataSourceModule dataSourceModule;
     private final ExternalSourceCacheService cacheService;
+    private final AnalysisRegistry analysisRegistry;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -72,7 +76,8 @@ public class PlanExecutor {
         EsqlFunctionRegistry functionRegistry,
         PromqlFunctionRegistry promqlFunctionRegistry,
         EsqlParser parser,
-        ExternalSourceCacheService cacheService
+        ExternalSourceCacheService cacheService,
+        AnalysisRegistry analysisRegistry
     ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
@@ -86,8 +91,15 @@ public class PlanExecutor {
         this.queryLog = queryLog;
         this.dataSourceModule = dataSourceModule;
         this.cacheService = cacheService;
+        this.analysisRegistry = analysisRegistry;
     }
 
+    /**
+     * @param externalSourceExecutor Executor for {@link ExternalSourceResolver} work — glob expansion, footer reads,
+     *                               schema reconciliation. Must not be the SEARCH pool: a wildcard external query
+     *                               would otherwise starve regular ES searches and other ES|QL queries. Production
+     *                               wiring passes {@code esql_worker}.
+     */
     public void esql(
         EsqlQueryRequest request,
         String sessionId,
@@ -100,16 +112,20 @@ public class PlanExecutor {
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
         TransportActionServices services,
+        Executor externalSourceExecutor,
+        BooleanSupplier cancellation,
         ActionListener<Versioned<Result>> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
-        // Create ExternalSourceResolver for Iceberg/Parquet resolution
-        // Use the same executor as for searches to avoid blocking
+        // Resolution (glob expansion, footer reads, schema reconciliation) runs on the caller-supplied
+        // executor rather than the SEARCH pool, so a wildcard external query cannot starve regular ES
+        // searches or other ES|QL queries.
         final ExternalSourceResolver externalSourceResolver = new ExternalSourceResolver(
-            services.transportService().getThreadPool().executor(org.elasticsearch.threadpool.ThreadPool.Names.SEARCH),
+            externalSourceExecutor,
             dataSourceModule,
             services.clusterService().getSettings(),
-            cacheService
+            cacheService,
+            cancellation
         );
         final var session = new EsqlSession(
             sessionId,
@@ -124,6 +140,7 @@ public class PlanExecutor {
             preAnalyzer,
             functionRegistry,
             promqlFunctionRegistry,
+            analysisRegistry,
             mapper,
             verifier,
             metrics,

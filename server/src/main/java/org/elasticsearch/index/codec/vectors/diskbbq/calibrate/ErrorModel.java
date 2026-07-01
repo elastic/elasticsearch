@@ -498,7 +498,42 @@ public final class ErrorModel {
 
         return new QuantizationErrorStdModel(params);
     }
+/**
+ * Sorts {@code idx[0..len)} into a permutation of {@code 0..len-1} such that
+ * {@code keys[idx[i]]} is non-increasing (descending).
+ */
+private static void sortIndicesByKeysDescending(double[] keys, int[] idx, int len) {
+    if (len < 2) {
+        if (len == 1) {
+            idx[0] = 0;
+        }
+        return;
+    }
+    for (int i = 0; i < len; i++) {
+        idx[i] = i;
+    }
+    new IntroSorter() {
+        double pivot;
 
+        @Override
+        protected void swap(int i, int j) {
+            int tmp = idx[i];
+            idx[i] = idx[j];
+            idx[j] = tmp;
+        }
+
+        @Override
+        protected void setPivot(int i) {
+            pivot = keys[idx[i]];
+        }
+
+        @Override
+        protected int comparePivot(int j) {
+            // descending: pivot > keys[idx[j]] means pivot should come first
+            return Double.compare(keys[idx[j]], pivot);
+        }
+    }.sort(0, len);
+}
     /**
      * Sorts {@code idx[0..len)} into a permutation of {@code 0..len-1} such that
      * {@code keys[idx[i]]} is non-increasing (descending).

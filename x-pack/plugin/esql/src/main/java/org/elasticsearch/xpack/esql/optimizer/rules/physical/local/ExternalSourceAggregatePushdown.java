@@ -13,7 +13,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -392,7 +391,7 @@ public final class ExternalSourceAggregatePushdown {
      * any alias mapping from intermediate {@code EvalExec}/{@code ProjectExec} nodes, and
      * the filter condition from any intermediate {@code FilterExec}.
      */
-    record ExternalSourceInfo(ExternalSourceExec externalExec, AttributeMap<Expression> aliasReplacedBy, Expression filterCondition) {}
+    record ExternalSourceInfo(ExternalSourceExec externalExec, AliasResolution aliasReplacedBy, Expression filterCondition) {}
 
     /**
      * Light-weight projection of {@link #extractExternalSource(PhysicalPlan)} that returns just the
@@ -423,30 +422,30 @@ public final class ExternalSourceAggregatePushdown {
             if (ext.pushedFilter() != null) {
                 return null;
             }
-            return new ExternalSourceInfo(ext, AttributeMap.emptyAttributeMap(), null);
+            return new ExternalSourceInfo(ext, AliasResolution.EMPTY, null);
         }
         if (child instanceof EvalExec evalExec && evalExec.child() instanceof ExternalSourceExec ext) {
             if (ext.pushedFilter() != null) {
                 return null;
             }
-            return new ExternalSourceInfo(ext, PushFiltersToSource.getAliasReplacedBy(evalExec), null);
+            return new ExternalSourceInfo(ext, AliasResolution.of(evalExec), null);
         }
         if (child instanceof ProjectExec projectExec && projectExec.child() instanceof ExternalSourceExec ext) {
             if (ext.pushedFilter() != null) {
                 return null;
             }
-            return new ExternalSourceInfo(ext, PushFiltersToSource.getAliasReplacedBy(projectExec), null);
+            return new ExternalSourceInfo(ext, AliasResolution.of(projectExec), null);
         }
         if (child instanceof FilterExec filterExec) {
             PhysicalPlan filterChild = filterExec.child();
             if (filterChild instanceof ExternalSourceExec ext) {
-                return new ExternalSourceInfo(ext, AttributeMap.emptyAttributeMap(), filterExec.condition());
+                return new ExternalSourceInfo(ext, AliasResolution.EMPTY, filterExec.condition());
             }
             if (filterChild instanceof EvalExec evalExec && evalExec.child() instanceof ExternalSourceExec ext) {
-                return new ExternalSourceInfo(ext, PushFiltersToSource.getAliasReplacedBy(evalExec), filterExec.condition());
+                return new ExternalSourceInfo(ext, AliasResolution.of(evalExec), filterExec.condition());
             }
             if (filterChild instanceof ProjectExec projectExec && projectExec.child() instanceof ExternalSourceExec ext) {
-                return new ExternalSourceInfo(ext, PushFiltersToSource.getAliasReplacedBy(projectExec), filterExec.condition());
+                return new ExternalSourceInfo(ext, AliasResolution.of(projectExec), filterExec.condition());
             }
         }
         return null;

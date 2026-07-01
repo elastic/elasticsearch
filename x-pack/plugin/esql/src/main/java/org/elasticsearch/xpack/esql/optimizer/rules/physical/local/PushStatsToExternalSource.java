@@ -15,7 +15,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -81,7 +80,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
             return aggregateExec;
         }
         ExternalSourceExec externalExec = info.externalExec();
-        AttributeMap<Expression> aliasReplacedBy = info.aliasReplacedBy();
+        AliasResolution aliasReplacedBy = info.aliasReplacedBy();
         Expression filterCondition = info.filterCondition();
 
         // Consulting the format's implicit-nulls declaration requires the registry. Honor the
@@ -125,7 +124,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
 
         Expression filterForClassification = filterCondition;
         if (filterCondition != null && aliasReplacedBy.isEmpty() == false) {
-            filterForClassification = filterCondition.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
+            filterForClassification = filterCondition.transformDown(ReferenceAttribute.class, aliasReplacedBy::resolveExpression);
         }
 
         // SplitFilterClassifier reasons from file-level stats and treats columns physically absent from
@@ -165,7 +164,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
             }
             Expression aggExpr = ((Alias) agg).child();
             if (aliasReplacedBy.isEmpty() == false) {
-                aggExpr = aggExpr.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
+                aggExpr = aggExpr.transformDown(ReferenceAttribute.class, aliasReplacedBy::resolveExpression);
             }
             resolvedAggExprs.add(aggExpr);
         }

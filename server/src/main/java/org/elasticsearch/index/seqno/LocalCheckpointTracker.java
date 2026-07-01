@@ -167,7 +167,7 @@ public class LocalCheckpointTracker {
 
     /**
      * constructs a {@link SeqNoStats} object, using local state and the supplied global checkpoint
-     *
+     * <p>
      * This is needed to make sure the persisted local checkpoint and max seq no are consistent
      */
     public synchronized SeqNoStats getStats(final long globalCheckpoint) {

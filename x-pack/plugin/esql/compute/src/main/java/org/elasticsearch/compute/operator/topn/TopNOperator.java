@@ -11,6 +11,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -24,6 +25,7 @@ import org.elasticsearch.core.Releasables;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 /**
  * An operator that sorts "rows" of values by encoding the values to sort on, as bytes (using BytesRef). Each data type is encoded
@@ -39,6 +41,11 @@ import java.util.List;
 public class TopNOperator implements Operator, Accountable {
     static final byte SMALL_NULL = 0x01; // "null" representation for "nulls first"
     static final byte BIG_NULL = 0x02; // "null" representation for "nulls last"
+
+    public static final FeatureFlag PARALLEL_TOPN_FEATURE_FLAG = new FeatureFlag("parallel_topn");
+
+    /** Opts the operator into parallel workers; promotion is one-way once {@code promotionThresholdRows} is crossed. */
+    public record ParallelWorkerConfig(Executor executor, int workerCount, int maxInFlightPages, long promotionThresholdRows) {}
 
     public enum InputOrdering {
         SORTED,
@@ -147,11 +154,23 @@ public class TopNOperator implements Operator, Accountable {
         int maxPageRows,
         long jumboPageBytes,
         InputOrdering inputOrdering,
-        @Nullable SharedMinCompetitive.Supplier minCompetitive
+        @Nullable SharedMinCompetitive.Supplier minCompetitive,
+        @Nullable ParallelWorkerConfig parallelWorkerConfig
     ) implements OperatorFactory {
-        public TopNOperatorFactory
+        public TopNOperatorFactory(
+            int topCount,
+            List<ElementType> elementTypes,
+            List<TopNEncoder> encoders,
+            List<SortOrder> sortOrders,
+            int maxPageRows,
+            long jumboPageBytes,
+            InputOrdering inputOrdering,
+            @Nullable SharedMinCompetitive.Supplier minCompetitive
+        ) {
+            this(topCount, elementTypes, encoders, sortOrders, maxPageRows, jumboPageBytes, inputOrdering, minCompetitive, null);
+        }
 
-        {
+        public TopNOperatorFactory {
             for (ElementType e : elementTypes) {
                 if (e == null) {
                     throw new IllegalArgumentException("ElementType not known");
@@ -163,7 +182,7 @@ public class TopNOperator implements Operator, Accountable {
         public TopNOperator get(DriverContext driverContext) {
             return new TopNOperator(
                 driverContext.blockFactory(),
-                driverContext.breaker(),
+                driverContext.blockFactory().breaker(),
                 topCount,
                 elementTypes,
                 encoders,
@@ -171,7 +190,8 @@ public class TopNOperator implements Operator, Accountable {
                 maxPageRows,
                 jumboPageBytes,
                 inputOrdering,
-                minCompetitive
+                minCompetitive,
+                parallelWorkerConfig
             );
         }
 
@@ -194,6 +214,9 @@ public class TopNOperator implements Operator, Accountable {
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
 
+    @Nullable
+    private final ParallelWorkerConfig parallelWorkerConfig;
+
     /**
      * Maximum number of rows per output page.
      */
@@ -215,12 +238,15 @@ public class TopNOperator implements Operator, Accountable {
      */
     @Nullable
     private final SharedMinCompetitive minCompetitive;
+
+    @Nullable
+    private final SharedMinCompetitive.Supplier minCompetitiveSupplier;
     /**
      * How many times {@link #minCompetitive} was updated.
      */
     private int minCompetitiveUpdates;
 
-    private TopNQueue inputQueue;
+    TopNQueue inputQueue;
     private TopNRow spare;
 
     private ReleasableIterator<Page> output;
@@ -262,6 +288,34 @@ public class TopNOperator implements Operator, Accountable {
         InputOrdering inputOrdering,
         @Nullable SharedMinCompetitive.Supplier minCompetitiveSupplier
     ) {
+        this(
+            blockFactory,
+            breaker,
+            topCount,
+            elementTypes,
+            encoders,
+            sortOrders,
+            maxPageRows,
+            jumboPageBytes,
+            inputOrdering,
+            minCompetitiveSupplier,
+            null
+        );
+    }
+
+    private TopNOperator(
+        BlockFactory blockFactory,
+        CircuitBreaker breaker,
+        int topCount,
+        List<ElementType> elementTypes,
+        List<TopNEncoder> encoders,
+        List<SortOrder> sortOrders,
+        int maxPageRows,
+        long jumboPageBytes,
+        InputOrdering inputOrdering,
+        @Nullable SharedMinCompetitive.Supplier minCompetitiveSupplier,
+        @Nullable ParallelWorkerConfig parallelWorkerConfig
+    ) {
         TopNQueue inputQueue = null;
         SharedMinCompetitive minCompetitive = null;
         boolean success = false;
@@ -276,6 +330,7 @@ public class TopNOperator implements Operator, Accountable {
         }
         this.inputQueue = inputQueue;
         this.minCompetitive = minCompetitive;
+        this.minCompetitiveSupplier = minCompetitiveSupplier;
         this.blockFactory = blockFactory;
         this.breaker = breaker;
         this.maxPageRows = maxPageRows;
@@ -288,6 +343,7 @@ public class TopNOperator implements Operator, Accountable {
         for (SortOrder so : sortOrders) {
             channelInKey[so.channel] = true;
         }
+        this.parallelWorkerConfig = parallelWorkerConfig;
     }
 
     @Override
@@ -420,6 +476,32 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     @Override
+    public Operator tryPromote(DriverContext driverContext) {
+        if (parallelWorkerConfig == null) {
+            return this;
+        }
+        if (rowsReceived > parallelWorkerConfig.promotionThresholdRows()) {
+            return new ParallelTopNOperator(parallelWorkerConfig, driverContext, this);
+        }
+        return this;
+    }
+
+    TopNOperator spawnWorker(BlockFactory childBlockFactory) {
+        return new TopNOperator(
+            childBlockFactory,
+            childBlockFactory.breaker(),
+            inputQueue.topCount,
+            elementTypes,
+            encoders,
+            sortOrders,
+            maxPageRows,
+            jumboPageBytes,
+            inputOrdering,
+            minCompetitiveSupplier
+        );
+    }
+
+    @Override
     public void close() {
         Releasables.closeExpectNoException(
             /*
@@ -440,7 +522,8 @@ public class TopNOperator implements Operator, Accountable {
             output,
             minCompetitive
         );
-        // Aggressively null these so they can be GCed more quickly.
+        // Aggressively null these so they can be GCed more quickly, and so that close() is idempotent.
+        spare = null;
         inputQueue = null;
         output = null;
     }

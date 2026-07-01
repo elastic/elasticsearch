@@ -14,8 +14,6 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -55,8 +53,6 @@ import java.util.function.BooleanSupplier;
 import static org.elasticsearch.action.ActionListener.wrap;
 
 public class PlanExecutor {
-
-    private static final Logger logger = LogManager.getLogger(PlanExecutor.class);
 
     private final IndexResolver indexResolver;
     private final EsqlParser parser;
@@ -170,7 +166,14 @@ public class PlanExecutor {
         long begin
     ) {
         planTelemetryManager.publish(planTelemetry, true);
-        recordExternalSourceQuery(planTelemetry, ExternalSourceMetrics.OUTCOME_SUCCESS, System.nanoTime() - begin, x, null);
+        boolean partial = x != null && x.inner().completionInfo().partial();
+        recordExternalSourceQuery(
+            dataSourceModule.externalSourceMetrics(),
+            planTelemetry.externalSource(),
+            (System.nanoTime() - begin) / 1_000_000,
+            partial,
+            null
+        );
         queryLog.onQueryPhase(x, request.queryDescription());
         listener.onResponse(x);
     }
@@ -186,38 +189,49 @@ public class PlanExecutor {
         // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
         metrics.failed(clientId);
         planTelemetryManager.publish(planTelemetry, false);
-        boolean cancelled = ExceptionsHelper.unwrap(ex, TaskCancelledException.class) != null;
-        String outcome = cancelled ? ExternalSourceMetrics.OUTCOME_CANCELLED : ExternalSourceMetrics.OUTCOME_FAILURE;
-        recordExternalSourceQuery(planTelemetry, outcome, System.nanoTime() - begin, null, ex);
+        recordExternalSourceQuery(
+            dataSourceModule.externalSourceMetrics(),
+            planTelemetry.externalSource(),
+            (System.nanoTime() - begin) / 1_000_000,
+            false,
+            ex
+        );
         queryLog.onQueryFailure(request.queryDescription(), ex, System.nanoTime() - begin);
         listener.onFailure(ex);
     }
 
     /**
      * Publishes the per-query external-source coordinator metrics — but only when the query actually scanned an
-     * external source (an {@code ExternalRelation} was seen in the analyzed plan, flagged on {@code planTelemetry}).
-     * On success {@code result} carries the partial-results flag; on failure {@code failure} is inspected for a
-     * circuit-breaker trip. Best-effort: instrumentation failures never affect the query outcome.
+     * external source ({@code externalSource}: an {@code ExternalRelation} was seen in the analyzed plan, flagged on
+     * {@code PlanTelemetry}). The outcome is classified from {@code failure}: {@code null} → success; a
+     * {@link TaskCancelledException} anywhere in the cause chain → cancelled; anything else → failure. A failure that
+     * unwraps to a {@link CircuitBreakingException} additionally bumps {@code breaker.tripped}. Best-effort: the
+     * {@code recordX} methods self-guard, so an instrumentation failure never affects the query outcome.
+     * <p>
+     * Package-private and static (no coordinator state, only the sink) so the classification can be unit-tested
+     * directly against a real registry-backed {@link ExternalSourceMetrics}.
      */
-    private void recordExternalSourceQuery(
-        PlanTelemetry planTelemetry,
-        String outcome,
-        long durationNanos,
-        Versioned<Result> result,
-        Exception failure
+    static void recordExternalSourceQuery(
+        ExternalSourceMetrics externalSourceMetrics,
+        boolean externalSource,
+        long durationMillis,
+        boolean partial,
+        Throwable failure
     ) {
-        if (planTelemetry.externalSource() == false) {
+        if (externalSource == false) {
             return;
         }
-        try {
-            ExternalSourceMetrics externalSourceMetrics = dataSourceModule.externalSourceMetrics();
-            boolean partial = result != null && result.inner().completionInfo().partial();
-            externalSourceMetrics.recordQuery(outcome, durationNanos / 1_000_000, partial);
-            if (failure != null && ExceptionsHelper.unwrap(failure, CircuitBreakingException.class) != null) {
-                externalSourceMetrics.recordBreakerTripped();
-            }
-        } catch (Exception e) {
-            logger.trace("telemetry: external-source query metrics failed", e);
+        String outcome;
+        if (failure == null) {
+            outcome = ExternalSourceMetrics.OUTCOME_SUCCESS;
+        } else if (ExceptionsHelper.unwrap(failure, TaskCancelledException.class) != null) {
+            outcome = ExternalSourceMetrics.OUTCOME_CANCELLED;
+        } else {
+            outcome = ExternalSourceMetrics.OUTCOME_FAILURE;
+        }
+        externalSourceMetrics.recordQuery(outcome, durationMillis, partial);
+        if (failure != null && ExceptionsHelper.unwrap(failure, CircuitBreakingException.class) != null) {
+            externalSourceMetrics.recordBreakerTripped();
         }
     }
 

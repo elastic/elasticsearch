@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -33,8 +30,6 @@ import java.util.concurrent.atomic.LongAdder;
  * path is skipped entirely, so the profile-only behaviour is unchanged and allocation-free.
  */
 public final class StorageObjectMetricsCounters {
-
-    private static final Logger logger = LogManager.getLogger(StorageObjectMetricsCounters.class);
 
     private final LongAdder requestCount = new LongAdder();
     private final LongAdder requestNanos = new LongAdder();
@@ -71,14 +66,11 @@ public final class StorageObjectMetricsCounters {
         if (bytes > 0) {
             bytesRead.add(bytes);
         }
+        // Hot path: skip the publish (and its per-call work) entirely when no sink is attached — the unattached
+        // case stays allocation-free. The record method self-guards, so no try/catch is needed here.
         Sink s = sink;
         if (s.metrics() != ExternalSourceMetrics.NOOP) {
-            // Best-effort: an instrumentation failure must never break the read path.
-            try {
-                s.metrics().recordRequest(TimeUnit.NANOSECONDS.toMillis(Math.max(0L, durationNanos)), bytes, s.scheme());
-            } catch (Exception e) {
-                logger.trace("telemetry: recordRequest failed", e);
-            }
+            s.metrics().recordRequest(TimeUnit.NANOSECONDS.toMillis(Math.max(0L, durationNanos)), bytes, s.scheme());
         }
     }
 
@@ -87,27 +79,19 @@ public final class StorageObjectMetricsCounters {
         retryCount.increment();
         Sink s = sink;
         if (s.metrics() != ExternalSourceMetrics.NOOP) {
-            try {
-                s.metrics().recordRetry(s.scheme());
-            } catch (Exception e) {
-                logger.trace("telemetry: recordRetry failed", e);
-            }
+            s.metrics().recordRetry(s.scheme());
         }
     }
 
     /**
      * Records one object-store read that exhausted retries and gave up terminally. Telemetry-only: it does
      * not touch the profile snapshot (only request/retry/bytes counters surface there). No-op when no sink
-     * is attached; best-effort so an instrumentation failure never breaks the read path.
+     * is attached; the record method self-guards so an instrumentation failure never breaks the read path.
      */
     public void addError() {
         Sink s = sink;
         if (s.metrics() != ExternalSourceMetrics.NOOP) {
-            try {
-                s.metrics().recordError(s.scheme());
-            } catch (Exception e) {
-                logger.trace("telemetry: recordError failed", e);
-            }
+            s.metrics().recordError(s.scheme());
         }
     }
 
@@ -115,11 +99,7 @@ public final class StorageObjectMetricsCounters {
     public void addThrottled() {
         Sink s = sink;
         if (s.metrics() != ExternalSourceMetrics.NOOP) {
-            try {
-                s.metrics().recordThrottled(s.scheme());
-            } catch (Exception e) {
-                logger.trace("telemetry: recordThrottled failed", e);
-            }
+            s.metrics().recordThrottled(s.scheme());
         }
     }
 
@@ -133,11 +113,7 @@ public final class StorageObjectMetricsCounters {
         }
         Sink s = sink;
         if (s.metrics() != ExternalSourceMetrics.NOOP) {
-            try {
-                s.metrics().recordReadStall(millis, s.scheme());
-            } catch (Exception e) {
-                logger.trace("telemetry: recordReadStall failed", e);
-            }
+            s.metrics().recordReadStall(millis, s.scheme());
         }
     }
 

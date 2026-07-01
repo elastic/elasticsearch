@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Node-level holder for the ES|QL external-data-source operational metrics, published through the
@@ -32,7 +36,7 @@ public final class ExternalSourceMetrics {
     public static final String STORAGE_REQUESTS_TOTAL = "es.esql.datasources.storage.requests.total";
 
     /** Wall time of a single object-store read request, in milliseconds. */
-    public static final String STORAGE_REQUEST_DURATION = "es.esql.datasources.storage.requests.duration.histogram";
+    public static final String STORAGE_REQUESTS_DURATION = "es.esql.datasources.storage.requests.duration.histogram";
 
     /** Bytes returned by object-store reads, before decompression. */
     public static final String STORAGE_BYTES_READ_TOTAL = "es.esql.datasources.storage.bytes_read.total";
@@ -73,7 +77,13 @@ public final class ExternalSourceMetrics {
      */
     public static final String QUERY_TIME_TO_FIRST_ROW = "es.esql.datasources.query.time_to_first_row.histogram";
 
-    /** Wall time of external-source discovery (glob expansion / listing) for one query, in milliseconds. */
+    /**
+     * Wall time of external-source discovery resolution for one query, in milliseconds. This is resolve time
+     * INCLUDING listing cache hits: on a cache hit the underlying glob expansion / listing is skipped, so the
+     * sample is a near-zero resolve time paired with the cached file/byte counts. It is therefore a resolve-cost
+     * quantity, not a pure listing-latency quantity — a bimodal distribution (cheap hits, expensive misses) is
+     * expected.
+     */
     public static final String DISCOVERY_DURATION = "es.esql.datasources.discovery.duration.histogram";
 
     /** Number of files discovered by external-source listing for one query. */
@@ -91,8 +101,11 @@ public final class ExternalSourceMetrics {
     /** Wall time an external-source scan operator spent reading/parsing an object, in milliseconds. */
     public static final String PARSE_DURATION = "es.esql.datasources.parse.duration.histogram";
 
-    /** Number of splits scanned by an external-source scan operator. */
-    public static final String DISCOVERY_SPLITS_SCANNED = "es.esql.datasources.discovery.splits_scanned.histogram";
+    /**
+     * Number of splits scanned by an external-source scan operator. A scan/parse-phase quantity — the per-operator
+     * count of splits this scan actually processed — sibling of {@link #PARSE_ROWS_TOTAL} / {@link #PARSE_DURATION}.
+     */
+    public static final String PARSE_SPLITS_SCANNED = "es.esql.datasources.parse.splits_scanned.histogram";
 
     /** Reader-pool submissions rejected because the parsing executor was saturated. */
     public static final String READER_POOL_REJECTED_TOTAL = "es.esql.datasources.reader.pool.rejected.total";
@@ -126,6 +139,30 @@ public final class ExternalSourceMetrics {
      */
     public static final ExternalSourceMetrics NOOP = new ExternalSourceMetrics(MeterRegistry.NOOP);
 
+    private static final Logger logger = LogManager.getLogger(ExternalSourceMetrics.class);
+
+    /**
+     * Pre-built, immutable single-entry {@link #SCHEME_ATTRIBUTE} attribute maps for the closed canonical scheme
+     * set, so the common case (every provider we know) never allocates a fresh map per record call. Mirrors
+     * {@code ShardChangesObserver}'s pre-built per-value attribute maps and {@code RepositoriesMetrics}'s
+     * {@code createAttributesMap}. Looked up via {@link #schemeAttrs(String)}, which falls back to a freshly built
+     * map for the rare unknown scheme (thread-safe: immutable maps + {@code getOrDefault}, no {@code computeIfAbsent}
+     * mutating a shared map).
+     */
+    private static final Map<String, Map<String, Object>> SCHEME_ATTRIBUTES = List.of("s3", "gcs", "azure", "http", "file", "unknown")
+        .stream()
+        .collect(Collectors.toUnmodifiableMap(s -> s, s -> Map.of(SCHEME_ATTRIBUTE, s)));
+
+    /** Pre-built, immutable single-entry {@link #OUTCOME_ATTRIBUTE} attribute maps for the closed outcome set. */
+    private static final Map<String, Map<String, Object>> OUTCOME_ATTRIBUTES = Map.of(
+        OUTCOME_SUCCESS,
+        Map.of(OUTCOME_ATTRIBUTE, OUTCOME_SUCCESS),
+        OUTCOME_FAILURE,
+        Map.of(OUTCOME_ATTRIBUTE, OUTCOME_FAILURE),
+        OUTCOME_CANCELLED,
+        Map.of(OUTCOME_ATTRIBUTE, OUTCOME_CANCELLED)
+    );
+
     private final LongCounter requestsTotal;
     private final LongHistogram requestDuration;
     private final LongCounter bytesReadTotal;
@@ -144,7 +181,7 @@ public final class ExternalSourceMetrics {
     private final LongCounter discoveryFailuresTotal;
     private final LongCounter parseRowsTotal;
     private final LongHistogram parseDuration;
-    private final LongHistogram discoverySplitsScanned;
+    private final LongHistogram parseSplitsScanned;
     private final LongCounter readerPoolRejectedTotal;
     private final LongCounter breakerTrippedTotal;
 
@@ -156,7 +193,7 @@ public final class ExternalSourceMetrics {
             "unit"
         );
         this.requestDuration = meterRegistry.registerLongHistogram(
-            STORAGE_REQUEST_DURATION,
+            STORAGE_REQUESTS_DURATION,
             "Wall time of a single ES|QL external object-store read request",
             "ms"
         );
@@ -240,8 +277,8 @@ public final class ExternalSourceMetrics {
             "Wall time an ES|QL external-data-source scan operator spent reading and parsing an object",
             "ms"
         );
-        this.discoverySplitsScanned = meterRegistry.registerLongHistogram(
-            DISCOVERY_SPLITS_SCANNED,
+        this.parseSplitsScanned = meterRegistry.registerLongHistogram(
+            PARSE_SPLITS_SCANNED,
             "Splits scanned by an ES|QL external-data-source scan operator",
             "unit"
         );
@@ -259,35 +296,68 @@ public final class ExternalSourceMetrics {
 
     /**
      * Records one completed read request: increments the request count, adds the bytes read, and
-     * observes the request duration. {@code scheme} is the low-cardinality storage scheme dimension.
+     * observes the request duration. {@code scheme} is the raw storage scheme, canonicalised on lookup by
+     * {@link #schemeAttrs(String)}.
+     * <p>
+     * Best-effort: an instrumentation failure is swallowed (logged at {@code TRACE}) so it can never break the
+     * caller's read/query/producer path — every public {@code recordX} method self-guards this way.
      */
     public void recordRequest(long durationMillis, long bytes, String scheme) {
-        Map<String, Object> attributes = Map.of(SCHEME_ATTRIBUTE, scheme);
-        requestsTotal.incrementBy(1, attributes);
-        if (bytes > 0) {
-            bytesReadTotal.incrementBy(bytes, attributes);
+        try {
+            Map<String, Object> attributes = schemeAttrs(scheme);
+            requestsTotal.incrementBy(1, attributes);
+            if (bytes > 0) {
+                bytesReadTotal.incrementBy(bytes, attributes);
+            }
+            requestDuration.record(Math.max(0L, durationMillis), attributes);
+        } catch (Exception e) {
+            logger.trace("telemetry: recordRequest failed", e);
         }
-        requestDuration.record(Math.max(0L, durationMillis), attributes);
     }
 
-    /** Records one automatic retry against the given storage {@code scheme}. */
+    /** Records one automatic retry against the given storage {@code scheme}. Best-effort (self-guarded). */
     public void recordRetry(String scheme) {
-        retriesTotal.incrementBy(1, Map.of(SCHEME_ATTRIBUTE, scheme));
+        try {
+            retriesTotal.incrementBy(1, schemeAttrs(scheme));
+        } catch (Exception e) {
+            logger.trace("telemetry: recordRetry failed", e);
+        }
     }
 
-    /** Records one object-store read that exhausted retries and gave up terminally on the given {@code scheme}. */
+    /**
+     * Records one object-store read that exhausted retries and gave up terminally on the given {@code scheme}.
+     * Best-effort (self-guarded).
+     */
     public void recordError(String scheme) {
-        errorsTotal.incrementBy(1, Map.of(SCHEME_ATTRIBUTE, scheme));
+        try {
+            errorsTotal.incrementBy(1, schemeAttrs(scheme));
+        } catch (Exception e) {
+            logger.trace("telemetry: recordError failed", e);
+        }
     }
 
-    /** Records one object-store read whose terminal failure was a provider throttling response on the given {@code scheme}. */
+    /**
+     * Records one object-store read whose terminal failure was a provider throttling response on the given
+     * {@code scheme}. Best-effort (self-guarded).
+     */
     public void recordThrottled(String scheme) {
-        throttledTotal.incrementBy(1, Map.of(SCHEME_ATTRIBUTE, scheme));
+        try {
+            throttledTotal.incrementBy(1, schemeAttrs(scheme));
+        } catch (Exception e) {
+            logger.trace("telemetry: recordThrottled failed", e);
+        }
     }
 
-    /** Records the total time an object-store read spent in retry backoff on the given {@code scheme}, in milliseconds. */
+    /**
+     * Records the total time an object-store read spent in retry backoff on the given {@code scheme}, in
+     * milliseconds. Best-effort (self-guarded).
+     */
     public void recordReadStall(long millis, String scheme) {
-        readStallDuration.record(Math.max(0L, millis), Map.of(SCHEME_ATTRIBUTE, scheme));
+        try {
+            readStallDuration.record(Math.max(0L, millis), schemeAttrs(scheme));
+        } catch (Exception e) {
+            logger.trace("telemetry: recordReadStall failed", e);
+        }
     }
 
     /**
@@ -298,74 +368,121 @@ public final class ExternalSourceMetrics {
      * <p>
      * Attribution scope: this is only reached for queries whose ANALYZED plan contained an external source. A
      * query that fails during analysis (before the external-source flag is set) is not counted here; its discovery
-     * failure is captured by {@link #recordDiscoveryFailure()} / {@link #DISCOVERY_FAILURES_TOTAL}.
+     * failure is captured by {@link #recordDiscoveryFailure()} / {@link #DISCOVERY_FAILURES_TOTAL}. Best-effort
+     * (self-guarded).
      */
     public void recordQuery(String outcome, long durationMillis, boolean partial) {
-        Map<String, Object> attributes = Map.of(OUTCOME_ATTRIBUTE, outcome);
-        queriesTotal.incrementBy(1, attributes);
-        queryDuration.record(Math.max(0L, durationMillis), attributes);
-        if (OUTCOME_CANCELLED.equals(outcome)) {
-            queriesCancelledTotal.incrementBy(1);
-        }
-        if (partial) {
-            queriesPartialTotal.incrementBy(1);
+        try {
+            Map<String, Object> attributes = outcomeAttrs(outcome);
+            queriesTotal.incrementBy(1, attributes);
+            queryDuration.record(Math.max(0L, durationMillis), attributes);
+            if (OUTCOME_CANCELLED.equals(outcome)) {
+                queriesCancelledTotal.incrementBy(1);
+            }
+            if (partial) {
+                queriesPartialTotal.incrementBy(1);
+            }
+        } catch (Exception e) {
+            logger.trace("telemetry: recordQuery failed", e);
         }
     }
 
     /**
      * Records the time from an external-source scan operator's start to its first emitted page, in milliseconds,
-     * on the given storage {@code scheme}.
+     * on the given storage {@code scheme}. Best-effort (self-guarded).
      */
     public void recordTimeToFirstRow(long millis, String scheme) {
-        queryTimeToFirstRow.record(Math.max(0L, millis), schemeAttributes(scheme));
+        try {
+            queryTimeToFirstRow.record(Math.max(0L, millis), schemeAttrs(scheme));
+        } catch (Exception e) {
+            logger.trace("telemetry: recordTimeToFirstRow failed", e);
+        }
     }
 
     /**
      * Records one external-source discovery pass: its wall time, the file count and the estimated byte total, on
-     * the given storage {@code scheme}.
+     * the given storage {@code scheme}. Best-effort (self-guarded).
      */
     public void recordDiscovery(long durationMillis, long filesScanned, long bytesScanned, String scheme) {
-        Map<String, Object> attributes = schemeAttributes(scheme);
-        discoveryDuration.record(Math.max(0L, durationMillis), attributes);
-        discoveryFilesScanned.record(Math.max(0L, filesScanned), attributes);
-        discoveryBytesScanned.record(Math.max(0L, bytesScanned), attributes);
+        try {
+            Map<String, Object> attributes = schemeAttrs(scheme);
+            discoveryDuration.record(Math.max(0L, durationMillis), attributes);
+            discoveryFilesScanned.record(Math.max(0L, filesScanned), attributes);
+            discoveryBytesScanned.record(Math.max(0L, bytesScanned), attributes);
+        } catch (Exception e) {
+            logger.trace("telemetry: recordDiscovery failed", e);
+        }
     }
 
-    /** Records one external-source discovery attempt that failed to resolve. */
+    /** Records one external-source discovery attempt that failed to resolve. Best-effort (self-guarded). */
     public void recordDiscoveryFailure() {
-        discoveryFailuresTotal.incrementBy(1);
+        try {
+            discoveryFailuresTotal.incrementBy(1);
+        } catch (Exception e) {
+            logger.trace("telemetry: recordDiscoveryFailure failed", e);
+        }
     }
 
     /**
      * Records the rows parsed and the read/parse wall time of one external-source scan operator, in milliseconds,
-     * on the given storage {@code scheme}.
+     * on the given storage {@code scheme}. Best-effort (self-guarded).
      */
     public void recordParse(long rows, long parseDurationMillis, String scheme) {
-        Map<String, Object> attributes = schemeAttributes(scheme);
-        if (rows > 0) {
-            parseRowsTotal.incrementBy(rows, attributes);
+        try {
+            Map<String, Object> attributes = schemeAttrs(scheme);
+            if (rows > 0) {
+                parseRowsTotal.incrementBy(rows, attributes);
+            }
+            parseDuration.record(Math.max(0L, parseDurationMillis), attributes);
+        } catch (Exception e) {
+            logger.trace("telemetry: recordParse failed", e);
         }
-        parseDuration.record(Math.max(0L, parseDurationMillis), attributes);
     }
 
-    /** Records the number of splits scanned by one external-source scan operator, on the given storage {@code scheme}. */
+    /**
+     * Records the number of splits scanned by one external-source scan operator, on the given storage
+     * {@code scheme}. Best-effort (self-guarded).
+     */
     public void recordSplitsScanned(long splits, String scheme) {
-        discoverySplitsScanned.record(Math.max(0L, splits), schemeAttributes(scheme));
+        try {
+            parseSplitsScanned.record(Math.max(0L, splits), schemeAttrs(scheme));
+        } catch (Exception e) {
+            logger.trace("telemetry: recordSplitsScanned failed", e);
+        }
     }
 
-    /** Records one reader-pool submission rejected because the parsing executor was saturated. */
+    /** Records one reader-pool submission rejected because the parsing executor was saturated. Best-effort (self-guarded). */
     public void recordPoolRejected() {
-        readerPoolRejectedTotal.incrementBy(1);
+        try {
+            readerPoolRejectedTotal.incrementBy(1);
+        } catch (Exception e) {
+            logger.trace("telemetry: recordPoolRejected failed", e);
+        }
     }
 
-    /** Records one external-source read rejected by a circuit breaker. */
+    /** Records one external-source read rejected by a circuit breaker. Best-effort (self-guarded). */
     public void recordBreakerTripped() {
-        breakerTrippedTotal.incrementBy(1);
+        try {
+            breakerTrippedTotal.incrementBy(1);
+        } catch (Exception e) {
+            logger.trace("telemetry: recordBreakerTripped failed", e);
+        }
     }
 
-    /** Builds the single-entry {@link #SCHEME_ATTRIBUTE} attribute map, canonicalising the raw {@code scheme}. */
-    private static Map<String, Object> schemeAttributes(String scheme) {
-        return Map.of(SCHEME_ATTRIBUTE, canonicalScheme(scheme));
+    /**
+     * Single canonicalisation chokepoint: folds the raw {@code scheme} to its canonical token and returns the
+     * pre-built {@link #SCHEME_ATTRIBUTE} attribute map for it. The common case (a known provider) returns a
+     * shared immutable map with no allocation; the rare unknown scheme builds a fresh map. Thread-safe: immutable
+     * maps + {@code getOrDefault}, no {@code computeIfAbsent} on a shared map.
+     */
+    private static Map<String, Object> schemeAttrs(String scheme) {
+        String canonical = canonicalScheme(scheme);
+        return SCHEME_ATTRIBUTES.getOrDefault(canonical, Map.of(SCHEME_ATTRIBUTE, canonical));
+    }
+
+    /** Returns the pre-built {@link #OUTCOME_ATTRIBUTE} attribute map for {@code outcome} (a fresh map for any unknown). */
+    private static Map<String, Object> outcomeAttrs(String outcome) {
+        return OUTCOME_ATTRIBUTES.getOrDefault(outcome, Map.of(OUTCOME_ATTRIBUTE, outcome));
     }
 
     /**

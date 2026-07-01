@@ -18,8 +18,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
@@ -41,8 +39,6 @@ import java.util.Objects;
  * - {@link #isBlocked()} signals when waiting for data
  */
 public class AsyncExternalSourceOperator extends SourceOperator {
-
-    private static final Logger logger = LogManager.getLogger(AsyncExternalSourceOperator.class);
 
     private static final TransportVersion ESQL_CAPTURED_SOURCE_METADATA = TransportVersion.fromName("esql_captured_source_metadata");
 
@@ -79,12 +75,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             final var page = buffer.pollPage();
             if (page != null) {
                 if (pagesEmitted == 0) {
-                    // First page delivered: record time-to-first-row once. Best-effort — never break the read.
-                    try {
-                        externalSourceMetrics.recordTimeToFirstRow((startNanos - operatorStartNanos) / 1_000_000, scheme);
-                    } catch (Exception e) {
-                        logger.trace("telemetry: recordTimeToFirstRow failed", e);
-                    }
+                    // First page delivered: record time-to-first-row once. The record method self-guards (best-effort).
+                    externalSourceMetrics.recordTimeToFirstRow((startNanos - operatorStartNanos) / 1_000_000, scheme);
                 }
                 pagesEmitted++;
                 rowsEmitted += page.getPositionCount();
@@ -145,21 +137,23 @@ public class AsyncExternalSourceOperator extends SourceOperator {
      * driver guarantees a single close). Best-effort: an instrumentation failure must never break teardown.
      */
     private void recordParseAndSplits() {
-        try {
-            long splitsTotal = buffer.splitsTotal();
-            // Skip a scan that did no work (failed/empty open): recording parse/splits with all-zero values would
-            // seed the parse/splits/duration histograms with zero observations. Mirrors the read-stall millis<=0
-            // guard rationale — an empty scan is not a data point about parse throughput or split fan-out.
-            if (rowsEmitted == 0 && splitsTotal == 0) {
-                return;
-            }
-            FormatReaderStatus formatReaderStatus = buffer.formatReaderStatus();
-            long readNanos = formatReaderStatus == null ? 0L : formatReaderStatus.readNanos();
-            externalSourceMetrics.recordParse(rowsEmitted, readNanos / 1_000_000, scheme);
-            externalSourceMetrics.recordSplitsScanned(splitsTotal, scheme);
-        } catch (Exception e) {
-            logger.trace("telemetry: recordParse/recordSplitsScanned failed", e);
+        // Per-operator split count: this operator's own processed-split total, NOT buffer.splitsTotal() (which on
+        // the slice-queue path is the GLOBAL sliceQueue.totalSlices() shared across every parallel operator — using
+        // it would make each of N parallel operators record the whole-query total, inflating parse.splits_scanned).
+        // The single-file / multi-file paths run one operator instance, so splitsProcessed converges to the same
+        // value splitsTotal held there.
+        long splitsProcessed = buffer.splitsProcessed();
+        // Skip a scan that did no work (failed/empty open): recording parse/splits with all-zero values would
+        // seed the parse/splits/duration histograms with zero observations. Mirrors the read-stall millis<=0
+        // guard rationale — an empty scan is not a data point about parse throughput or split fan-out.
+        if (rowsEmitted == 0 && splitsProcessed == 0) {
+            return;
         }
+        FormatReaderStatus formatReaderStatus = buffer.formatReaderStatus();
+        long readNanos = formatReaderStatus == null ? 0L : formatReaderStatus.readNanos();
+        // Both record methods self-guard (best-effort): an instrumentation failure cannot break teardown.
+        externalSourceMetrics.recordParse(rowsEmitted, readNanos / 1_000_000, scheme);
+        externalSourceMetrics.recordSplitsScanned(splitsProcessed, scheme);
     }
 
     /**

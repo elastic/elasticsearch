@@ -658,12 +658,9 @@ public final class ParallelParsingCoordinator {
                     executor.execute(() -> parseSegment(idx, seg[0], seg[1]));
                     return;
                 } catch (RejectedExecutionException e) {
-                    // Best-effort telemetry: the parser pool refused this segment (saturated / shutting down).
-                    try {
-                        metrics.recordPoolRejected();
-                    } catch (Exception telemetryError) {
-                        logger.trace("telemetry: recordPoolRejected failed", telemetryError);
-                    }
+                    // Best-effort telemetry: the parser pool refused this segment (saturated / shutting down). The
+                    // record method self-guards, so no inner try/catch is needed here.
+                    metrics.recordPoolRejected();
                     firstError.compareAndSet(null, e);
                     finishSegment();
                     segIdx += maxConcurrentSegments;

@@ -39,6 +39,7 @@ import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -341,6 +342,101 @@ public class RetryableStorageObjectTests extends ESTestCase {
 
         assertThat(single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL).getLong(), equalTo(1L));
         assertThat(measurements(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION), hasSize(0));
+    }
+
+    /**
+     * Regression for the item #3 sync/async asymmetry. The sync driver ({@code RetryPolicy.execute}) only records a
+     * terminal storage error inside {@code catch (IOException | ExternalUnavailableException)}, but the async driver
+     * reaches {@code recordTerminalFailure} for ANY terminal fault. A storage error must mean a storage-classified
+     * fault, so a NON-storage terminal fault on the async path (here a {@link TaskCancelledException}; a
+     * {@code CircuitBreakingException} from a native-async provider takes the same path) must NOT bump
+     * {@code storage.errors} or {@code storage.throttled} — otherwise a breaker trip would double-surface as both a
+     * storage error and {@code breaker.tripped}. The listener is still completed with the fault (best-effort
+     * telemetry never strands it).
+     */
+    public void testAsyncNonStorageTerminalFaultDoesNotCountStorageError() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+
+        StoragePath path = StoragePath.of("s3://bucket/key");
+        // A native-async delegate whose read fails with a non-storage, non-transient fault, so the async driver
+        // gives up on the first attempt and records the terminal failure.
+        StorageObject delegate = new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Instant lastModified() {
+                return null;
+            }
+
+            @Override
+            public boolean exists() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StoragePath path() {
+                return path;
+            }
+
+            @Override
+            public int readBytes(long position, ByteBuffer target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long len,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                listener.onFailure(new TaskCancelledException("cancelled"));
+            }
+
+            @Override
+            public StorageObjectMetrics metrics() {
+                return new StorageObjectMetrics(0, 0, 0, 0);
+            }
+        };
+
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, new RetryPolicy(3, 5, 50));
+        obj.attachMetrics(metrics, "s3");
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        obj.readBytesAsync(
+            0,
+            4,
+            len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+            Runnable::run,
+            ActionListener.wrap(r -> fail("the read must not succeed"), failure::set)
+        );
+
+        assertThat("the listener must still receive the terminal fault", failure.get(), instanceOf(TaskCancelledException.class));
+        assertThat(
+            "a non-storage terminal fault must not count as a storage error",
+            measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL),
+            hasSize(0)
+        );
+        assertThat(
+            "a non-storage terminal fault must not count as a throttle",
+            measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL),
+            hasSize(0)
+        );
     }
 
     private static List<Measurement> measurements(RecordingMeterRegistry registry, InstrumentType type, String name) {

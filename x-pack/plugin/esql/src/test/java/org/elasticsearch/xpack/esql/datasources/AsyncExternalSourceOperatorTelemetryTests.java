@@ -49,15 +49,20 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
 
     /**
      * Drives one page through getOutput() then closes the operator, and asserts the four instruments the punch
-     * list names — time_to_first_row, parse.rows.total, parse.duration and discovery.splits_scanned — are all
-     * recorded carrying the canonicalised scheme ("s3a" folds to "s3").
+     * list names — time_to_first_row, parse.rows.total, parse.duration and parse.splits_scanned — are all
+     * recorded carrying the canonicalised scheme ("s3a" folds to "s3"). parse.splits_scanned reflects this
+     * operator's OWN processed-split count (splitsProcessed), not the global split total.
      */
     public void testGetOutputAndCloseRecordParseSplitsAndTtfrWithScheme() {
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
         ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
 
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
-        buffer.setSplitsTotal(3);
+        // This operator processed 3 splits itself; the global slice total is higher and must not be recorded here.
+        buffer.setSplitsTotal(10);
+        buffer.incSplitsProcessed();
+        buffer.incSplitsProcessed();
+        buffer.incSplitsProcessed();
         buffer.addPage(createTestPage(1, 5));
 
         AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, metrics, "s3a");
@@ -85,10 +90,63 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         Measurement parseDuration = single(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_DURATION);
         assertThat(parseDuration.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
 
-        // discovery.splits_scanned carries the split total plus the scheme.
-        Measurement splits = single(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.DISCOVERY_SPLITS_SCANNED);
+        // parse.splits_scanned carries this operator's processed-split count (3), NOT the global total (10), plus scheme.
+        Measurement splits = single(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_SPLITS_SCANNED);
         assertThat(splits.getLong(), equalTo(3L));
         assertThat(splits.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+    }
+
+    /**
+     * Regression for the item #1 correctness bug: on the slice-queue parallel path, {@code buffer.splitsTotal()} is
+     * the GLOBAL {@code sliceQueue.totalSlices()} shared across every parallel operator, while {@code splitsProcessed}
+     * is this operator's own tally. Recording the global total would make each of N parallel operators publish the
+     * whole-query split count, inflating {@code parse.splits_scanned}. This operator processes only 2 of 10 global
+     * splits, so it must record exactly 2 — never 10.
+     */
+    public void testSplitsScannedRecordsPerOperatorProcessedCountNotGlobalTotal() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        // Global slice total across all parallel operators is 10 (as ExternalSliceQueue#totalSlices would report)...
+        buffer.setSplitsTotal(10);
+        // ...but THIS operator only claimed and finished 2 of them.
+        buffer.incSplitsProcessed();
+        buffer.incSplitsProcessed();
+        buffer.addPage(createTestPage(1, 1));
+
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, metrics, "s3");
+        Page page = operator.getOutput();
+        assertNotNull(page);
+        page.releaseBlocks();
+        buffer.finish(true);
+        assertNull(operator.getOutput());
+        operator.close();
+
+        Measurement splits = single(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_SPLITS_SCANNED);
+        assertThat("must record this operator's processed splits (2), not the global total (10)", splits.getLong(), equalTo(2L));
+    }
+
+    /**
+     * Regression for the item #1 empty-scan guard: a scan that emitted no rows and processed no splits must NOT seed
+     * the parse/splits histograms — even when the GLOBAL split total is non-zero (which the old guard keyed on).
+     */
+    public void testEmptyScanWithNonZeroGlobalTotalStillSkips() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        // Global total is 10 but this operator did no work (no rows emitted, no splits processed).
+        buffer.setSplitsTotal(10);
+        buffer.finish(true);
+
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, metrics, "s3");
+        assertNull(operator.getOutput());
+        operator.close();
+
+        assertThat(measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.PARSE_ROWS_TOTAL), hasSize(0));
+        assertThat(measurements(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_DURATION), hasSize(0));
+        assertThat(measurements(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_SPLITS_SCANNED), hasSize(0));
     }
 
     /**
@@ -108,7 +166,7 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
 
         assertThat(measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.PARSE_ROWS_TOTAL), hasSize(0));
         assertThat(measurements(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_DURATION), hasSize(0));
-        assertThat(measurements(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.DISCOVERY_SPLITS_SCANNED), hasSize(0));
+        assertThat(measurements(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_SPLITS_SCANNED), hasSize(0));
         assertThat(measurements(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.QUERY_TIME_TO_FIRST_ROW), hasSize(0));
     }
 

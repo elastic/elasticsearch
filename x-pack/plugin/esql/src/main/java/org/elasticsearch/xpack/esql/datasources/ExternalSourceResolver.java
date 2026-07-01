@@ -188,24 +188,17 @@ public class ExternalSourceResolver {
 
     /**
      * Publishes one discovery pass (wall time + the discovered file count and estimated byte total) to node
-     * telemetry. Best-effort: an instrumentation failure must never fail resolution.
+     * telemetry. Best-effort: {@link ExternalSourceMetrics#recordDiscovery} self-guards, so an instrumentation
+     * failure never fails resolution.
      */
     private void recordDiscovery(FileList list, long startNanos, String scheme) {
-        try {
-            long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
-            metrics.recordDiscovery(durationMs, list.fileCount(), list.estimatedBytes(), scheme);
-        } catch (Exception e) {
-            LOGGER.trace("telemetry: recordDiscovery failed", e);
-        }
+        long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
+        metrics.recordDiscovery(durationMs, list.fileCount(), list.estimatedBytes(), scheme);
     }
 
-    /** Records one failed discovery/resolution attempt. Best-effort. */
+    /** Records one failed discovery/resolution attempt. Best-effort ({@link ExternalSourceMetrics#recordDiscoveryFailure} self-guards). */
     private void recordDiscoveryFailure() {
-        try {
-            metrics.recordDiscoveryFailure();
-        } catch (Exception e) {
-            LOGGER.trace("telemetry: recordDiscoveryFailure failed", e);
-        }
+        metrics.recordDiscoveryFailure();
     }
 
     /** Returns {@code true} when the originating query has been cancelled. Safe to call when no supplier is wired. */

@@ -42,7 +42,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         assertThat(bytes.getLong(), equalTo(2048L));
         assertThat(bytes.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
 
-        Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_REQUEST_DURATION);
+        Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_REQUESTS_DURATION);
         assertThat(duration.getLong(), equalTo(12L));
         assertThat(duration.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
     }
@@ -53,7 +53,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL).getLong(), equalTo(1L));
         // The bytes counter is not touched for a zero-byte read, so no measurement is recorded.
         assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL), hasSize(0));
-        assertThat(single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_REQUEST_DURATION).getLong(), equalTo(5L));
+        assertThat(single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_REQUESTS_DURATION).getLong(), equalTo(5L));
     }
 
     public void testRecordRetry() {
@@ -80,7 +80,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         // ...and the same events reach the registry, with nanos converted to ms and the scheme attribute set.
         assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL).getLong(), equalTo(1L));
         assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL).getLong(), equalTo(4096L));
-        Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_REQUEST_DURATION);
+        Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_REQUESTS_DURATION);
         assertThat(duration.getLong(), equalTo(7L));
         assertThat(duration.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("http"));
         assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_RETRIES_TOTAL).getLong(), equalTo(1L));
@@ -114,7 +114,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
 
     public void testNegativeDurationClampsToZero() {
         metrics.recordRequest(-3L, 1L, "file");
-        assertThat(single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_REQUEST_DURATION).getLong(), is(0L));
+        assertThat(single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_REQUESTS_DURATION).getLong(), is(0L));
     }
 
     public void testRecordError() {
@@ -218,7 +218,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
 
     public void testRecordSplitsScanned() {
         metrics.recordSplitsScanned(7L, "azure");
-        Measurement m = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.DISCOVERY_SPLITS_SCANNED);
+        Measurement m = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_SPLITS_SCANNED);
         assertThat(m.getLong(), equalTo(7L));
         assertThat(m.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("azure"));
     }

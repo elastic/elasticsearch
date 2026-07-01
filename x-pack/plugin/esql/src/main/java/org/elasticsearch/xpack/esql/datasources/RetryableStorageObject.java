@@ -77,17 +77,35 @@ class RetryableStorageObject implements StorageObject {
     };
 
     /**
-     * Records exactly one terminal give-up to node telemetry: a storage error, a throttled error when the fault
-     * was a provider throttle, and the cumulative backoff spent getting there as a read stall. Shared by the sync
-     * give-up ({@link #storageTelemetry}) and both async terminal branches (retry exhausted, and the
-     * scheduler-rejected retry). Each terminal path calls this once, so a single failure is never double-counted.
+     * Records exactly one terminal give-up to node telemetry: a storage error (only when the fault is a
+     * storage-classified fault — a transport {@link IOException} or an {@link ExternalUnavailableException}), a
+     * throttled error when that fault was a provider throttle, and — always, regardless of fault type — the
+     * cumulative backoff spent getting there as a read stall. Shared by the sync give-up ({@link #storageTelemetry})
+     * and both async terminal branches (retry exhausted, and the scheduler-rejected retry). Each terminal path
+     * calls this once, so a single failure is never double-counted.
      */
     private void recordTerminalFailure(Throwable failure, long backoffMillis) {
-        retryCounters.addError();
-        if (RetryPolicy.isThrottlingError(failure)) {
-            retryCounters.addThrottled();
+        try {
+            // A storage error is only a storage-classified fault: a transport IOException or the unchecked
+            // ExternalUnavailableException a provider raises. The sync driver (RetryPolicy.execute) already scopes
+            // its give-up telemetry to exactly these two types (it records inside catch (IOException |
+            // ExternalUnavailableException)); the async driver reaches here for ANY terminal fault, so gate here so
+            // both paths agree on the narrow definition. This also stops a CircuitBreakingException (native-async
+            // providers surface breaker trips through this path) double-surfacing as both storage.errors and
+            // breaker.tripped. The backoff was spent regardless of the fault type, so the read-stall is always
+            // recorded.
+            if (failure instanceof IOException || failure instanceof ExternalUnavailableException) {
+                retryCounters.addError();
+                if (RetryPolicy.isThrottlingError(failure)) {
+                    retryCounters.addThrottled();
+                }
+            }
+            retryCounters.addReadStall(backoffMillis);
+        } catch (Exception e) {
+            // Best-effort: recordTerminalFailure runs BEFORE listener.onFailure(...) on the async path and calls
+            // isThrottlingError (not itself guarded), so a throw here must never strand the listener.
+            logger.trace("telemetry: recordTerminalFailure failed", e);
         }
-        retryCounters.addReadStall(backoffMillis);
     }
 
     RetryableStorageObject(StorageObject delegate, RetryPolicy retryPolicy) {

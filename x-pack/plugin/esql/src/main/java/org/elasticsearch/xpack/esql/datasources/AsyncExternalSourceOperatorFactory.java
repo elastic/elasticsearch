@@ -1932,12 +1932,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /**
      * Publishes the just-opened object's read/retry events to the node {@link ExternalSourceMetrics}. The
      * sink stays attached to the object's counters for the rest of its life. Best-effort: an
-     * instrumentation failure must never break the producer loop. The storage scheme, normalised to one
-     * canonical token (s3/gcs/azure/http/file), is the only, low-cardinality, dimension.
+     * instrumentation failure must never break the producer loop. The raw storage scheme is stored on the sink;
+     * {@link ExternalSourceMetrics} folds it to one canonical token (s3/gcs/azure/http/file) on lookup, so the
+     * scheme is the only, low-cardinality, dimension. This guard wraps the non-record {@code attachMetrics} /
+     * {@code path()} calls, so it stays (the record methods self-guard separately).
      */
     private void attachStorageMetrics(StorageObject obj) {
         try {
-            obj.attachMetrics(externalSourceMetrics, ExternalSourceMetrics.canonicalScheme(obj.path().scheme()));
+            obj.attachMetrics(externalSourceMetrics, obj.path().scheme());
         } catch (Exception e) {
             logger.trace(() -> "telemetry: attachMetrics failed for " + obj, e);
         }

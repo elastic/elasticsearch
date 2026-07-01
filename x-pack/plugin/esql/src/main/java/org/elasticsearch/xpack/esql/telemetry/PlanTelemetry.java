@@ -56,6 +56,7 @@ public class PlanTelemetry {
         this.externalSource = externalSource;
     }
 
+    /** Whether the analyzed plan touched an ES|QL external data source; gates the external-source query metrics at completion. */
     public boolean externalSource() {
         return externalSource;
     }

@@ -998,6 +998,16 @@ setup:
           path: /_inference
           capabilities: [ default_elser_2 ]
 
+  # Deploy the default ELSER 2 endpoint up front with a generous timeout so the
+  # model download + deployment completes in a controlled step rather than racing
+  # against the index-time inference timeout (see #152439).
+  - do:
+      inference.inference:
+        inference_id: .elser-2-elasticsearch
+        timeout: "120s"
+        body:
+          input: "inference test"
+
   - do:
       indices.create:
         index: test-elser-2-default-index

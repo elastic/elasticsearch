@@ -111,12 +111,14 @@ public final class PhysicalNames {
     }
 
     /**
-     * A read plan for N:1 copies. {@code base} is the projected columns deduped by physical column (first-per-physical,
-     * so its physical names are distinct and safe to hand a reader); {@code index} maps each original projected column
-     * to its position in {@code base}. A pure move/rename (every projected column has a distinct physical) yields an
+     * A read plan for N:1 copies. {@code base} is the projected columns deduped by <b>physical</b> column (the first
+     * logical name seen for each distinct physical) — so its members are still <b>logical</b> names whose physicals are
+     * distinct; a caller MUST run {@code base} through {@link #translateNames} before handing it to a reader (a moved
+     * base entry's logical name is not the file's physical name). {@code index} maps each original projected column to
+     * its position in {@code base}. A pure move/rename (every projected column has a distinct physical) yields an
      * identity plan ({@code base} equals the projection, {@code index[i] == i}); a copy (two projected columns sharing
      * one physical) points the later at the earlier's base position, so the read happens once and the block is fanned
-     * out (zero-copy) to both output columns.
+     * out (zero-copy, via {@link FanOutIterator}) to both output columns.
      */
     public record FanOut(List<String> base, int[] index) {
         public boolean isIdentity() {

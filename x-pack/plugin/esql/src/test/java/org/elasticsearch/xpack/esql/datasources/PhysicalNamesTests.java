@@ -101,6 +101,17 @@ public class PhysicalNamesTests extends ESTestCase {
         assertArrayEquals(new int[] { 0, 1, 0 }, f.index()); // @timestamp fans out from base 0 (ts)
     }
 
+    public void testFanOutMovePlusCopyBaseIsLogicalAndMustPhysicalize() {
+        // Column b is MOVED from physical p AND copied to c. base holds the LOGICAL name b (not the physical p), and
+        // MUST be run through translateNames before reaching a reader — this is the contract the correctness gate flagged.
+        Map<String, String> renames = Map.of("b", "p", "c", "p"); // b -> p (move), c -> p (copy of b)
+        PhysicalNames.FanOut f = PhysicalNames.fanOut(List.of("b", "c"), renames);
+        assertFalse(f.isIdentity());
+        assertEquals(List.of("b"), f.base()); // logical b, deduped (c shares physical p) — NOT physical p
+        assertArrayEquals(new int[] { 0, 0 }, f.index());
+        assertEquals(List.of("p"), PhysicalNames.translateNames(f.base(), renames)); // physicalizes to p for the reader
+    }
+
     private static ReferenceAttribute ref(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, name, type);
     }

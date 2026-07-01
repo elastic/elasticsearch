@@ -25,8 +25,6 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
-
 public class GroqUnifiedChatCompletionRequest implements OutboundUnifiedCompletionRequest {
 
     private final UnifiedChatInput unifiedChatInput;
@@ -46,7 +44,6 @@ public class GroqUnifiedChatCompletionRequest implements OutboundUnifiedCompleti
         httpPost.setEntity(byteEntity);
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
 
         var org = model.getServiceSettings().organizationId();
         if (org != null) {
@@ -59,7 +56,13 @@ public class GroqUnifiedChatCompletionRequest implements OutboundUnifiedCompleti
             }
         }
 
-        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
+        model.secretsApplier()
+            .applyTo(
+                httpPost,
+                listener.delegateFailureAndWrap(
+                    (requestActionListener, req) -> requestActionListener.onResponse(new HttpRequest(req, getInferenceEntityId()))
+                )
+            );
     }
 
     @Override

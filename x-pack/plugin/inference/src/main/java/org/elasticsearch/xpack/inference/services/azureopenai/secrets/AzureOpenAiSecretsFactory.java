@@ -16,16 +16,19 @@ import org.elasticsearch.xpack.inference.common.secrets.NoopSecretsApplier;
 import org.elasticsearch.xpack.inference.common.secrets.SecretsApplier;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceSettings;
 
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.clientSecretRequiredError;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.REQUIRED_FIELDS;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.REQUIRED_FIELDS_DESCRIPTION;
 import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
-import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiOAuth2Secrets.USE_CLIENT_SECRET_ERROR;
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings.EXACTLY_ONE_SECRETS_FIELD_ERROR;
 
 /**
  * Factory for creating {@link SecretsApplier}s for the Azure OpenAI service based on the provided {@link AzureOpenAiSecretSettings}.
  */
 public final class AzureOpenAiSecretsFactory {
+
+    public static final String USE_CLIENT_SECRET_ERROR = clientSecretRequiredError(REQUIRED_FIELDS);
 
     private AzureOpenAiSecretsFactory() {}
 

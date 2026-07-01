@@ -155,7 +155,38 @@ public abstract class LuceneOperator extends SourceOperator {
             int limit,
             boolean needsScore,
             Function<ShardContext, ScoreMode> scoreModeFunction,
-            LongSupplier directoryBytesRead
+            LongSupplier directoryBytesRead,
+            int minDocsPerSlice
+        ) {
+            this(
+                contextsByShardId,
+                queryFunction,
+                dataPartitioning,
+                autoStrategy,
+                docThresholdForAutoStrategy,
+                taskConcurrency,
+                limit,
+                needsScore,
+                scoreModeFunction,
+                directoryBytesRead,
+                minDocsPerSlice,
+                LuceneSliceQueue.LeafSplitGuard.NEVER
+            );
+        }
+
+        protected Factory(
+            IndexedByShardId<? extends ShardContext> contextsByShardId,
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
+            DataPartitioning dataPartitioning,
+            Function<Query, LuceneSliceQueue.PartitioningStrategy> autoStrategy,
+            int docThresholdForAutoStrategy,
+            int taskConcurrency,
+            int limit,
+            boolean needsScore,
+            Function<ShardContext, ScoreMode> scoreModeFunction,
+            LongSupplier directoryBytesRead,
+            int minDocsPerSlice,
+            LuceneSliceQueue.LeafSplitGuard leafSplitGuard
         ) {
             this.directoryBytesRead = directoryBytesRead;
             this.limit = limit;
@@ -167,7 +198,9 @@ public abstract class LuceneOperator extends SourceOperator {
                 autoStrategy,
                 docThresholdForAutoStrategy,
                 taskConcurrency,
-                scoreModeFunction
+                scoreModeFunction,
+                leafSplitGuard,
+                minDocsPerSlice
             );
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
             this.needsScore = needsScore;
@@ -218,6 +251,9 @@ public abstract class LuceneOperator extends SourceOperator {
     protected void additionalClose() { /* Override this method to add any additional cleanup logic if needed */ }
 
     LuceneScorer getCurrentOrLoadNextScorer() {
+        if (doneCollecting) {
+            return null;
+        }
         for (;;) {
             SubscribableListener<Void> sliceBlocked = null;
             while (currentScorer == null || currentScorer.isDone()) {

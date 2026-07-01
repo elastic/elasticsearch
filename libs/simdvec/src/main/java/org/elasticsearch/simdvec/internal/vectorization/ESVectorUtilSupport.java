@@ -32,6 +32,12 @@ public interface ESVectorUtilSupport {
     /** Calculates the dot product of the given float arrays. */
     float dotProduct(float[] a, float[] b);
 
+    /** Calculates the dot product over {@code [offset, offset + length)}. */
+    float dotProduct(float[] a, float[] b, int offset, int length);
+
+    /** L2-normalizes {@code v[offset:offset + length)} in place. A zero prefix is a no-op. */
+    void l2Normalize(float[] v, int offset, int length);
+
     /** Returns the sum of squared differences of the two vectors. */
     float squareDistance(float[] a, float[] b);
 
@@ -43,6 +49,12 @@ public interface ESVectorUtilSupport {
 
     /** Calculates the dot product of the given byte arrays. */
     float dotProduct(byte[] a, byte[] b);
+
+    /** Calculates the dot product over {@code [offset, offset + length)}. */
+    float dotProduct(byte[] a, byte[] b, int offset, int length);
+
+    /** L2-normalizes {@code v[offset:offset + length)} in place using signed byte values as real components. */
+    void l2Normalize(byte[] v, int offset, int length);
 
     /** Returns the sum of squared differences of the two vectors. */
     float squareDistance(byte[] a, byte[] b);
@@ -100,7 +112,7 @@ public interface ESVectorUtilSupport {
 
     void squareDistanceBulk(
         float[] query,
-        int queryOffset,
+        int vectorOffset,
         float[] v0,
         float[] v1,
         float[] v2,
@@ -116,7 +128,7 @@ public interface ESVectorUtilSupport {
 
     void squareDistanceBulk(
         byte[] query,
-        int queryOffset,
+        int vectorOffset,
         byte[] v0,
         byte[] v1,
         byte[] v2,
@@ -171,6 +183,8 @@ public interface ESVectorUtilSupport {
     void linearCombination(float scaleOther, float[] other, float[] dest);
 
     void linearCombination(float scaleOther, byte[] other, float scaleDest, float[] dest);
+
+    void linearCombination(float scaleOther, byte[] other, float[] dest);
 
     float logSumExpNQT(float[] vector);
 

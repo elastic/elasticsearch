@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -40,6 +41,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_API_VERSION;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 
 public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceSettingsTests<CohereEmbeddingsServiceSettings> {
@@ -437,39 +439,102 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
         );
     }
 
-    public void testFromMap_GivenDimensionsIsNegativeInt() {
-        testFromMap_GivenExpectedParseException(
-            Map.of(ServiceFields.MODEL_ID, "test-model-id", ServiceFields.DIMENSIONS, randomNegativeInt()),
-            "dimensions",
-            "dimensions must be a positive integer"
+    public void testFromMap_InvalidSimilarity_ThrowsException() {
+        String invalidSimilarity = "abc";
+        var thrownException = expectThrows(
+            XContentParseException.class,
+            () -> CohereEmbeddingsServiceSettings.fromMap(
+                new HashMap<>(Map.of(ServiceFields.SIMILARITY, invalidSimilarity, ServiceFields.MODEL_ID, TEST_MODEL_ID)),
+                randomFrom(ConfigurationParseContext.values())
+            )
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            endsWith(Strings.format("[%s] failed to parse field [%s]", ModelConfigurations.SERVICE_SETTINGS, ServiceFields.SIMILARITY))
+        );
+        assertThat(
+            thrownException.getCause().getMessage(),
+            is(Strings.format("Invalid value [%s]; expected one of [cosine, dot_product, l2_norm]", invalidSimilarity))
         );
     }
 
-    public void testFromMap_GivenMaxInputTokensIsNegativeInt() {
-        testFromMap_GivenExpectedParseException(
-            Map.of(ServiceFields.MODEL_ID, "test-model-id", ServiceFields.MAX_INPUT_TOKENS, randomNegativeInt()),
-            "max_input_tokens",
-            "max_input_tokens must be a positive integer"
+    public void testFromMap_NegativeDimensions_ThrowsException() {
+        var negativeDimensions = randomNegativeInt();
+        assertFromMap_PositiveFieldSetToNonPositiveValue_ThrowsException(ServiceFields.DIMENSIONS, negativeDimensions);
+    }
+
+    public void testFromMap_ZeroDimensions_ThrowsException() {
+        var zeroDimensions = 0;
+        assertFromMap_PositiveFieldSetToNonPositiveValue_ThrowsException(ServiceFields.DIMENSIONS, zeroDimensions);
+    }
+
+    public void testFromMap_NegativeMaxInputTokens_ThrowsException() {
+        var negativeMaxTokens = randomNegativeInt();
+        assertFromMap_PositiveFieldSetToNonPositiveValue_ThrowsException(ServiceFields.MAX_INPUT_TOKENS, negativeMaxTokens);
+    }
+
+    public void testFromMap_ZeroMaxInputTokens_ThrowsException() {
+        var zeroMaxTokens = 0;
+        assertFromMap_PositiveFieldSetToNonPositiveValue_ThrowsException(ServiceFields.MAX_INPUT_TOKENS, zeroMaxTokens);
+    }
+
+    private static void assertFromMap_PositiveFieldSetToNonPositiveValue_ThrowsException(String fieldName, int value) {
+        var context = randomFrom(ConfigurationParseContext.values());
+        var e = expectThrows(
+            XContentParseException.class,
+            () -> CohereEmbeddingsServiceSettings.fromMap(Map.of(fieldName, value), context)
+        );
+        assertThat(
+            e.getMessage(),
+            endsWith(Strings.format("[%s] failed to parse field [%s]", ModelConfigurations.SERVICE_SETTINGS, fieldName))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            is(
+                Strings.format(
+                    "[%s] Invalid value [%d]. [%s] must be a positive integer",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    value,
+                    fieldName
+                )
+            )
         );
     }
 
-    public void testUpdate_GivenMaxInputTokensIsNegativeInt() {
+    public void testUpdate_NegativeMaxInputTokens_ThrowsException() {
+        assertUpdate_NonPositiveMaxInputTokens_ThrowsException(randomNegativeInt());
+    }
+
+    public void testUpdate_ZeroMaxInputTokens_ThrowsException() {
+        assertUpdate_NonPositiveMaxInputTokens_ThrowsException(0);
+    }
+
+    private void assertUpdate_NonPositiveMaxInputTokens_ThrowsException(int maxInputTokens) {
         CohereEmbeddingsServiceSettings instance = createTestInstance();
 
         var e = expectThrows(
             XContentParseException.class,
-            () -> instance.updateServiceSettings(Map.of(ServiceFields.MAX_INPUT_TOKENS, randomNegativeInt()))
+            () -> instance.updateServiceSettings(Map.of(ServiceFields.MAX_INPUT_TOKENS, maxInputTokens))
         );
 
-        assertThat(e.getMessage(), containsString("failed to parse field [max_input_tokens]"));
-        assertThat(e.getCause().getMessage(), containsString("max_input_tokens must be a positive integer"));
-    }
-
-    private void testFromMap_GivenExpectedParseException(Map<String, Object> serviceSettings, String field, String expectedMessage) {
-        final ConfigurationParseContext context = randomFrom(ConfigurationParseContext.values());
-        var e = expectThrows(XContentParseException.class, () -> CohereEmbeddingsServiceSettings.fromMap(serviceSettings, context));
-        assertThat(e.getMessage(), containsString("failed to parse field [" + field + "]"));
-        assertThat(e.getCause().getMessage(), containsString(expectedMessage));
+        assertThat(
+            e.getMessage(),
+            endsWith(
+                Strings.format("[%s] failed to parse field [%s]", ModelConfigurations.SERVICE_SETTINGS, ServiceFields.MAX_INPUT_TOKENS)
+            )
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            is(
+                Strings.format(
+                    "[%s] Invalid value [%d]. [%s] must be a positive integer",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    maxInputTokens,
+                    ServiceFields.MAX_INPUT_TOKENS
+                )
+            )
+        );
     }
 
     @Override

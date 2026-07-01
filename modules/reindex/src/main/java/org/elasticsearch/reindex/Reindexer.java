@@ -49,7 +49,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
@@ -126,14 +125,6 @@ public class Reindexer {
 
     private static final Logger logger = LogManager.getLogger(Reindexer.class);
 
-    /// Allows setting the system property `es.reindex.disable_pit_search` as an escape hatch to disable the use of PIT-based search, and
-    /// force the use of the legacy scroll-based search.
-    // TODO(#2715): Remove this when we're confident the PIT version works
-    private static final boolean DISABLE_PIT_SEARCH = Booleans.parseBooleanLenient(
-        System.getProperty("es.reindex.disable_pit_search"),
-        false
-    );
-
     private final ClusterService clusterService;
     private final ReindexSettings reindexSettings;
     private final ProjectResolver projectResolver;
@@ -144,7 +135,7 @@ public class Reindexer {
     @Nullable
     private final ReindexMetrics reindexMetrics;
     @Nullable
-    private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
+    private final BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics;
     private final TaskManager taskManager;
     private final TransportService transportService;
     private final ReindexRelocationNodePicker relocationNodePicker;
@@ -162,7 +153,7 @@ public class Reindexer {
         ScriptService scriptService,
         ReindexSslConfig reindexSslConfig,
         @Nullable ReindexMetrics reindexMetrics,
-        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         TransportService transportService,
         ReindexRelocationNodePicker relocationNodePicker,
         FeatureService featureService,
@@ -177,7 +168,7 @@ public class Reindexer {
         this.scriptService = scriptService;
         this.reindexSslConfig = reindexSslConfig;
         this.reindexMetrics = reindexMetrics;
-        this.bulkByScrollSearchContextMetrics = bulkByScrollSearchContextMetrics;
+        this.bulkByPaginatedSearchSearchContextMetrics = bulkByPaginatedSearchSearchContextMetrics;
         this.taskManager = transportService.getTaskManager(); // implicit null check
         this.transportService = transportService;
         this.relocationNodePicker = Objects.requireNonNull(relocationNodePicker);
@@ -255,7 +246,7 @@ public class Reindexer {
         Consumer<Version> workerAction = createWorkerAction(task, request, bulkClient, responseListener);
 
         // Point-in-time searching is disabled, so default to scroll
-        if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) == false || DISABLE_PIT_SEARCH) {
+        if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) == false) {
             executePaginatedSearch(task, request, responseListener, workerAction, null);
         }
         /**
@@ -314,7 +305,7 @@ public class Reindexer {
                 listener,
                 remoteVersion,
                 reindexShutdownGracePeriod,
-                bulkByScrollSearchContextMetrics,
+                bulkByPaginatedSearchSearchContextMetrics,
                 reindexSettings,
                 requestBreaker
             );
@@ -1000,7 +991,7 @@ public class Reindexer {
             ActionListener<BulkByPaginatedSearchResponse> listener,
             @Nullable Version remoteVersion,
             TimeValue maxTaskShutdownGracePeriod,
-            @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+            @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
             ReindexSettings reindexSettings,
             CircuitBreaker requestBreaker
         ) {
@@ -1022,8 +1013,8 @@ public class Reindexer {
                 scriptService,
                 sslConfig,
                 remoteVersion,
-                bulkByScrollSearchContextMetrics,
-                BulkByScrollSearchContextMetrics.TaskKind.REINDEX,
+                bulkByPaginatedSearchSearchContextMetrics,
+                BulkByPaginatedSearchSearchContextMetrics.TaskKind.REINDEX,
                 request.getRemoteInfo() != null,
                 maxTaskShutdownGracePeriod,
                 reindexSettings,
@@ -1049,7 +1040,7 @@ public class Reindexer {
         }
 
         @Override
-        protected PaginatedHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
+        protected PaginatedHitSource buildPaginatedSearchResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
             if (mainRequest.getRemoteInfo() != null) {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
@@ -1062,7 +1053,7 @@ public class Reindexer {
                         backoffPolicy,
                         threadPool,
                         worker::countSearchRetry,
-                        this::onScrollResponse,
+                        this::onPaginatedSearchResponse,
                         this::finishHim,
                         restClient,
                         remoteInfo,
@@ -1078,7 +1069,7 @@ public class Reindexer {
                     backoffPolicy,
                     threadPool,
                     worker::countSearchRetry,
-                    this::onScrollResponse,
+                    this::onPaginatedSearchResponse,
                     this::finishHim,
                     restClient,
                     remoteInfo,
@@ -1089,7 +1080,7 @@ public class Reindexer {
                     reindexSettings.getMemoryAccountingThresholdInBytes()
                 );
             }
-            return super.buildScrollableResultSource(backoffPolicy, searchRequest);
+            return super.buildPaginatedSearchResultSource(backoffPolicy, searchRequest);
         }
 
         @Override
@@ -1192,6 +1183,7 @@ public class Reindexer {
              * here on out operates on the index request rather than the template.
              */
             index.routing(mainRequest.getDestination().routing());
+            index.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
             index.setPipeline(mainRequest.getDestination().getPipeline());
             if (mainRequest.getDestination().opType() == DocWriteRequest.OpType.CREATE) {
                 index.opType(mainRequest.getDestination().opType());
@@ -1208,15 +1200,24 @@ public class Reindexer {
             String routingSpec = mainRequest.getDestination().routing();
             if (routingSpec == null) {
                 super.copyRouting(request, routing);
+                // Prevent saying "routing from slice" on empty routing on write, as this is invalid
+                request.setRoutingFromSlice(false);
                 return;
             }
             if (routingSpec.startsWith("=")) {
                 super.copyRouting(request, mainRequest.getDestination().routing().substring(1));
+                request.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
                 return;
             }
             switch (routingSpec) {
-                case "keep" -> super.copyRouting(request, routing);
-                case "discard" -> super.copyRouting(request, null);
+                case "keep" -> {
+                    super.copyRouting(request, routing);
+                    request.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
+                }
+                case "discard" -> {
+                    super.copyRouting(request, null);
+                    request.setRoutingFromSlice(false);
+                }
                 default -> throw new IllegalArgumentException("Unsupported routing command");
             }
         }
@@ -1276,8 +1277,9 @@ public class Reindexer {
                  * Its important that routing comes after parent in case you want to
                  * change them both.
                  */
-                if (metadata.routingChanged()) {
+                if (metadata.routingChangedWithSlice(request.isRoutingFromSlice())) {
                     request.setRouting(metadata.getRouting());
+                    request.setRoutingFromSlice(metadata.isRoutingFromSlice());
                 }
             }
         }

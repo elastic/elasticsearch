@@ -203,8 +203,6 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                         if (tsAgg.hasFilter() == false) {
                             throw new IllegalStateException("inline filter isn't propagated to time-series aggregation");
                         }
-                    } else if (tsAgg.hasFilter()) {
-                        throw new IllegalStateException("unexpected inline filter in time-series aggregation");
                     }
                     if (tsAgg.requiredTimeSeriesSource()) {
                         requiredTimeSeriesSource.set(Boolean.TRUE);

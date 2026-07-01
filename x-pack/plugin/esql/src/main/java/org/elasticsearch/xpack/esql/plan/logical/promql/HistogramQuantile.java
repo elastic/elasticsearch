@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROMETHEUS_LABELS_PREFIX;
+
 /**
  * Dedicated logical node for PromQL {@code histogram_quantile()} over classic histograms.
  * The function consumes the cumulative bucket counts identified by the {@code le} label and
@@ -26,7 +28,6 @@ import java.util.List;
  */
 public final class HistogramQuantile extends PromqlFunctionCall {
     public static final String LE_LABEL = "le";
-    private static final String PROMETHEUS_LABELS_PREFIX = "labels.";
 
     private final Expression quantile;
     private List<Attribute> output;

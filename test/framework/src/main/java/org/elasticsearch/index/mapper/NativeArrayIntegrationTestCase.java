@@ -43,6 +43,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
@@ -267,11 +268,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         var mapping = jsonBuilder().startObject().startObject("properties").startObject("field");
         minimalMapping(mapping);
         mapping.endObject().endObject().endObject();
-        verifySyntheticArray(arrays, mapping, "_id");
+        verifySyntheticArray(arrays, mapping);
     }
 
-    protected void verifySyntheticArray(Object[][] arrays, XContentBuilder mapping, String... expectedStoredFields) throws IOException {
-        verifySyntheticArray(arrays, arrays, mapping, expectedStoredFields);
+    protected void verifySyntheticArray(Object[][] arrays, XContentBuilder mapping) throws IOException {
+        verifySyntheticArray(arrays, arrays, mapping);
     }
 
     private XContentBuilder arrayToSource(Object obj) throws IOException {
@@ -284,12 +285,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         return source.endObject();
     }
 
-    protected void verifySyntheticArray(
-        Object[][] inputArrays,
-        Object[] expectedArrays,
-        XContentBuilder mapping,
-        String... expectedStoredFields
-    ) throws IOException {
+    protected void verifySyntheticArray(Object[][] inputArrays, Object[] expectedArrays, XContentBuilder mapping) throws IOException {
         assertThat(inputArrays.length, equalTo(expectedArrays.length));
 
         var indexService = createIndex(
@@ -329,7 +325,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 var document = reader.storedFields().document(i);
                 // Verify that there is no ignored source:
                 Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
-                assertThat(storedFieldNames, contains(expectedStoredFields));
+                if (isUseColumnarId(reader)) {
+                    assertThat(storedFieldNames, empty());
+                } else {
+                    assertThat(storedFieldNames, contains("_id"));
+                }
             }
             var fieldInfos = getFieldInfos(reader);
             var fieldInfo = fieldInfos.fieldInfo("field.offsets");
@@ -391,7 +391,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             for (int i = 0; i < documents.size(); i++) {
                 var document = reader.storedFields().document(i);
                 List<String> storedFieldNames = document.getFields().stream().map(IndexableField::name).toList();
-                assertThat(storedFieldNames, hasItem("_id"));
+                if (isUseColumnarId(reader)) {
+                    assertThat(storedFieldNames, empty());
+                } else {
+                    assertThat(storedFieldNames, hasItem("_id"));
+                }
 
                 // Verify that there is no offset field:
                 LeafReader leafReader = reader.leaves().get(0).reader();
@@ -457,7 +461,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 var document = reader.storedFields().document(i);
                 // Verify that there is no ignored source:
                 Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
-                assertThat(storedFieldNames, contains("_id"));
+                if (isUseColumnarId(reader)) {
+                    assertThat(storedFieldNames, empty());
+                } else {
+                    assertThat(storedFieldNames, contains("_id"));
+                }
             }
             var fieldInfos = getFieldInfos(reader);
             var fieldInfo = fieldInfos.fieldInfo("object.field.offsets");
@@ -501,5 +509,10 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             parser.nextToken(); // value token
             return XContentDataHelper.encodeToken(parser);
         }
+    }
+
+    private static boolean isUseColumnarId(DirectoryReader reader) {
+        FieldInfos fieldInfos = FieldInfos.getMergedFieldInfos(reader);
+        return fieldInfos.fieldInfo("_id").getDocValuesType() == DocValuesType.BINARY;
     }
 }

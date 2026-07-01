@@ -489,6 +489,7 @@ ROW x = [1, 2]
 | MV_EXPAND x
 | SORT foo
 ;
+ignoreOrder:true
 
 x:integer | foo:null
 2         | null

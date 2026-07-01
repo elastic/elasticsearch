@@ -12,11 +12,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
@@ -33,6 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.function.Function.identity;
 
@@ -46,13 +48,22 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
     TimeBasedCheckpointProvider(
         final Clock clock,
-        final ParentTaskAssigningClient client,
-        final RemoteClusterResolver remoteClusterResolver,
+        final Supplier<ThreadContext> threadContextSupplier,
+        final Supplier<Client> clientSupplier,
         final TransformConfigManager transformConfigManager,
         final TransformAuditor transformAuditor,
-        final TransformConfig transformConfig
+        final TransformConfig transformConfig,
+        final CrossProjectModeDecider crossProjectModeDecider
     ) {
-        super(clock, client, remoteClusterResolver, transformConfigManager, transformAuditor, transformConfig);
+        super(
+            clock,
+            threadContextSupplier,
+            clientSupplier,
+            transformConfigManager,
+            transformAuditor,
+            transformConfig,
+            crossProjectModeDecider
+        );
         timeSyncConfig = (TimeSyncConfig) transformConfig.getSyncConfig();
         alignTimestamp = createAlignTimestampFunction(transformConfig);
     }
@@ -74,7 +85,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
             .runtimeMappings(transformConfig.getSource().getRuntimeMappings())
             .query(queryBuilder);
         SearchRequest searchRequest = new SearchRequest(transformConfig.getSource().getIndex()).allowPartialSearchResults(false)
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+            .indicesOptions(checkpointIndicesOptions())
             .source(sourceBuilder);
         if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
             searchRequest.setProjectRouting(transformConfig.getSource().getProjectRouting());
@@ -85,7 +96,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            clientSupplier.get(),
             TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.wrap(r -> listener.onResponse(r.getHits().getTotalHits().value() > 0L), listener::onFailure)

@@ -16,7 +16,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -34,15 +33,15 @@ import static java.util.Collections.emptyList;
 public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
     private final String leafFieldName;
     private final String fullFieldName;
-    private final Collection<Layer> parts;
+    private final Layer[] parts;
     private boolean storedFieldLoadersHaveValues;
     private boolean docValuesLoadersHaveValues;
 
-    public CompositeSyntheticFieldLoader(String leafFieldName, String fullFieldName, Layer... parts) {
-        this(leafFieldName, fullFieldName, Arrays.asList(parts));
+    public CompositeSyntheticFieldLoader(String leafFieldName, String fullFieldName, Collection<Layer> parts) {
+        this(leafFieldName, fullFieldName, parts.toArray(Layer[]::new));
     }
 
-    public CompositeSyntheticFieldLoader(String leafFieldName, String fullFieldName, Collection<Layer> parts) {
+    public CompositeSyntheticFieldLoader(String leafFieldName, String fullFieldName, Layer... parts) {
         this.leafFieldName = leafFieldName;
         this.fullFieldName = fullFieldName;
         this.parts = parts;
@@ -52,32 +51,32 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
 
     @Override
     public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        return parts.stream().flatMap(Layer::storedFieldLoaders).map(e -> Map.entry(e.getKey(), new StoredFieldLoader() {
-            @Override
-            public void load(List<Object> newValues) {
-                storedFieldLoadersHaveValues = true;
-                e.getValue().load(newValues);
-            }
+        return Arrays.stream(parts).flatMap(Layer::storedFieldLoaders).map(e -> Map.entry(e.getKey(), newValues -> {
+            storedFieldLoadersHaveValues = true;
+            e.getValue().load(newValues);
         }));
     }
 
     @Override
     public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-        var loaders = new ArrayList<DocValuesLoader>(parts.size());
+        int i = 0;
+        var loaders = new DocValuesLoader[parts.length];
         for (var part : parts) {
             var partLoader = part.docValuesLoader(leafReader, docIdsInLeaf);
             if (partLoader != null) {
-                loaders.add(partLoader);
+                loaders[i++] = partLoader;
             }
         }
 
-        if (loaders.isEmpty()) {
+        if (i == 0) {
             return null;
         }
 
+        int size = i;
         return docId -> {
             boolean hasDocs = false;
-            for (var loader : loaders) {
+            for (int j = 0; j < size; j++) {
+                var loader = loaders[j];
                 hasDocs |= loader.advanceToDoc(docId);
             }
 
@@ -126,7 +125,9 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
     @Override
     public void reset() {
         softReset();
-        parts.forEach(SourceLoader.SyntheticFieldLoader::reset);
+        for (Layer part : parts) {
+            part.reset();
+        }
     }
 
     @Override
@@ -139,10 +140,11 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
      */
     public CompositeSyntheticFieldLoader mergedWith(CompositeSyntheticFieldLoader other) {
         if (other == null) {
-            return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, List.copyOf(parts));
+            return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, parts);
         }
-        List<Layer> mergedParts = new ArrayList<>(parts);
-        mergedParts.addAll(other.parts);
+        Layer[] mergedParts = new Layer[parts.length + other.parts.length];
+        System.arraycopy(parts, 0, mergedParts, 0, parts.length);
+        System.arraycopy(other.parts, 0, mergedParts, parts.length, other.parts.length);
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, mergedParts);
     }
 

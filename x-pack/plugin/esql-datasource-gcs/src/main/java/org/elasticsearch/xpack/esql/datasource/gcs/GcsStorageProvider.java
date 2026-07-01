@@ -69,6 +69,7 @@ public class GcsStorageProvider implements StorageProvider {
     private volatile Storage storage;
     private final GcsConfiguration config;
 
+    @SuppressWarnings("this-escape")
     public GcsStorageProvider(GcsConfiguration config) {
         this.config = config;
         // When explicit credentials, keyless auth, or anonymous mode are configured, build the client
@@ -106,6 +107,14 @@ public class GcsStorageProvider implements StorageProvider {
     }
 
     private Storage buildStorageClient(GcsConfiguration config) {
+        // Connection pooling: unlike S3 (Netty maxConcurrency) and Azure (reactor-netty ConnectionProvider), the
+        // google-cloud-storage client's default NetHttpTransport is backed by HttpURLConnection, whose
+        // http.maxConnections (default 5) bounds only the idle keep-alive cache — NOT the number of concurrent
+        // connections, which HttpURLConnection opens on demand. So GCS has no SDK-side pool cap. It does not need
+        // one: GCS reads are blocking, so they run on the dedicated esql_external_blocking_io thread pool (sized by
+        // esql.external.max_connections), which already bounds read concurrency. Sizing an SDK pool would mean
+        // swapping in ApacheHttpTransport + a PoolingHttpClientConnectionManager — a production dependency that
+        // neither this plugin nor repository-gcs carries (apache-httpclient is test-scope only there).
         try {
             if (config != null && config.isAnonymous()) {
                 StorageOptions.Builder builder = StorageOptions.getUnauthenticatedInstance().toBuilder();
@@ -173,10 +182,10 @@ public class GcsStorageProvider implements StorageProvider {
             return buildWorkloadIdentityCredentials();
         }
         throw new IllegalArgumentException(
-            "GCS data source requires credentials: provide WITH (credentials = '...'), "
-                + "WITH (access_token = '...') for short-lived OAuth credentials, "
-                + "configure keyless authentication settings, WITH (auth = 'none') for public buckets, "
-                + "or WITH (auth = 'workload_identity') to use Application Default Credentials (requires cluster setting)"
+            "GCS data source requires credentials: provide WITH {\"credentials\": \"...\"}, "
+                + "WITH {\"access_token\": \"...\"} for short-lived OAuth credentials, "
+                + "configure keyless authentication settings, WITH {\"auth\": \"none\"} for public buckets, "
+                + "or WITH {\"auth\": \"workload_identity\"} to use Application Default Credentials (requires cluster setting)"
         );
     }
 
@@ -291,8 +300,8 @@ public class GcsStorageProvider implements StorageProvider {
 
     private String credentialHint() {
         if (config == null || (config.isAnonymous() == false && config.hasCredentials() == false && config.hasKeylessAuth() == false)) {
-            return ". If accessing a public bucket, use WITH (auth = 'none'). "
-                + "Otherwise, provide credentials via WITH (credentials = '...'), configure keyless authentication settings, "
+            return ". If accessing a public bucket, use WITH {\"auth\": \"none\"}. "
+                + "Otherwise, provide credentials via WITH {\"credentials\": \"...\"}, configure keyless authentication settings, "
                 + "or set GOOGLE_APPLICATION_CREDENTIALS";
         }
         return "";

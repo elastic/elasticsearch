@@ -1,3 +1,11 @@
+config:
+  # Smart retry skips tests that already passed on a prior attempt, which is the
+  # opposite of what flakiness detection wants: the batch steps deliberately re-run
+  # tests many times to surface flakiness, and the bootstrap step below only
+  # orchestrates the sub-pipeline upload (it runs no Gradle tests). Opt out so
+  # injectAutoRetry (see .buildkite/scripts/pull-request/pipeline.ts) does not add
+  # an auto-retry block to this step.
+  auto-retry: false
 steps:
   - group: "flakiness-detection"
     steps:

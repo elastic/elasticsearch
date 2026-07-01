@@ -58,7 +58,9 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
     public void testCacheOnce() throws Exception {
         var dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig());
-        final int numDocs = 200;
+        // Needs at least two DOC slices on the single segment. With MIN_DOCS_PER_SLICE the
+        // smallest segment that splits in two at taskConcurrency=2 is around 5*MIN.
+        final int numDocs = LuceneSliceQueue.MIN_DOCS_PER_SLICE * 5;
         for (int d = 0; d < numDocs; d++) {
             writer.addDocument(new Document());
         }
@@ -131,7 +133,8 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
         blockedOnFirstRange.countDown();
         thread1.join(10_000);
         thread2.join(10_000);
-        assertThat(visited.get(), equalTo(200));
+        // The cache wrapper iterates the full leaf once to build the cached DocIdSet.
+        assertThat(visited.get(), equalTo(numDocs));
         reader.close();
         dir.close();
         QueryCacheStats cacheStats = indicesQueryCache.getStats(shard, () -> 0L);
@@ -256,7 +259,9 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
     public void testNullBulkScorerAfterCaching() throws Exception {
         var dir = newDirectory();
         var writer = new IndexWriter(dir, new IndexWriterConfig());
-        final int numDocs = 200;
+        // Needs at least two DOC slices on the single segment. With MIN_DOCS_PER_SLICE the
+        // smallest segment that splits in two at taskConcurrency=2 is around 5*MIN.
+        final int numDocs = LuceneSliceQueue.MIN_DOCS_PER_SLICE * 5;
         for (int d = 0; d < numDocs; d++) {
             writer.addDocument(new Document());
         }

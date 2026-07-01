@@ -101,7 +101,7 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        this.columnarEnabled = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        columnarEnabled = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
         return Settings.builder()
             .put(super.nodeSettings())
             .put("cluster.logsdb.enabled", "true")

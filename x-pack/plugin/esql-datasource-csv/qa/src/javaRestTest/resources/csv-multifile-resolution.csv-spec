@@ -1,16 +1,22 @@
 // CSV schema_resolution × multifile coverage on the employees_multifile_split fixture (3 files,
 // same schema). Relocated from external-multifile-resolution.csv-spec, which CsvFormatSpecIT no
 // longer loads under the new multi_value_syntax: none default (the bracket-MV columns misalign
-// on comma delimiter). Each query declares multi_value_syntax: brackets in the EXTERNAL WITH
+// on comma delimiter). Each query declares multi_value_syntax: brackets in the dataset WITH
 // clause so this spec carries its own contract.
+//
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. On dataset-capable
+// backends (S3) the harness registers the dataset and runs the FROM query verbatim; on the others it rebuilds
+// the equivalent EXTERNAL query. The dataset name encodes the WITH options (schema_resolution + brackets) so
+// the same name always carries the same settings.
 
 // ===== FIRST_FILE_WINS =====
 
 ffwCount
 required_capability: external_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_split_ffw_brackets: "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins", "multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins", "multi_value_syntax": "brackets"}
+FROM employees_multifile_split_ffw_brackets
 | STATS count = COUNT(*);
 
 count:long
@@ -20,8 +26,9 @@ count:long
 ffwFilterAndSort
 required_capability: external_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_split_ffw_brackets: "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins", "multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins", "multi_value_syntax": "brackets"}
+FROM employees_multifile_split_ffw_brackets
 | WHERE salary > 70000
 | KEEP emp_no, first_name, salary
 | SORT salary DESC
@@ -36,8 +43,9 @@ emp_no:integer | first_name:keyword | salary:integer
 ffwAggregateByGender
 required_capability: external_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_split_ffw_brackets: "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins", "multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins", "multi_value_syntax": "brackets"}
+FROM employees_multifile_split_ffw_brackets
 | STATS count = COUNT(*) BY gender
 | SORT gender;
 
@@ -50,8 +58,9 @@ count:long | gender:keyword
 ffwSalaryStats
 required_capability: external_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_split_ffw_brackets: "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins", "multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins", "multi_value_syntax": "brackets"}
+FROM employees_multifile_split_ffw_brackets
 | STATS avg_salary = AVG(salary), total = SUM(salary);
 
 avg_salary:double | total:long
@@ -63,8 +72,9 @@ avg_salary:double | total:long
 strictCount
 required_capability: external_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_split_strict_brackets: "{{employees_multifile_split}}" WITH {"schema_resolution": "strict", "multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "strict", "multi_value_syntax": "brackets"}
+FROM employees_multifile_split_strict_brackets
 | STATS count = COUNT(*);
 
 count:long
@@ -74,8 +84,9 @@ count:long
 strictFilterAndSort
 required_capability: external_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_split_strict_brackets: "{{employees_multifile_split}}" WITH {"schema_resolution": "strict", "multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "strict", "multi_value_syntax": "brackets"}
+FROM employees_multifile_split_strict_brackets
 | WHERE salary > 70000
 | KEEP emp_no, first_name, salary
 | SORT salary DESC
@@ -90,8 +101,9 @@ emp_no:integer | first_name:keyword | salary:integer
 strictAggregateByGender
 required_capability: external_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_split_strict_brackets: "{{employees_multifile_split}}" WITH {"schema_resolution": "strict", "multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "strict", "multi_value_syntax": "brackets"}
+FROM employees_multifile_split_strict_brackets
 | STATS count = COUNT(*) BY gender
 | SORT gender;
 
@@ -104,8 +116,9 @@ count:long | gender:keyword
 strictSalaryStats
 required_capability: external_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_split_strict_brackets: "{{employees_multifile_split}}" WITH {"schema_resolution": "strict", "multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "strict", "multi_value_syntax": "brackets"}
+FROM employees_multifile_split_strict_brackets
 | STATS avg_salary = AVG(salary), total = SUM(salary);
 
 avg_salary:double | total:long
@@ -116,8 +129,9 @@ avg_salary:double | total:long
 
 ubnCount
 required_capability: external_command
+dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+FROM employees_multifile_split_brackets
 | STATS count = COUNT(*);
 
 count:long
@@ -127,8 +141,9 @@ count:long
 ubnExplicitCount
 required_capability: external_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_split_ubn_brackets: "{{employees_multifile_split}}" WITH {"schema_resolution": "union_by_name", "multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "union_by_name", "multi_value_syntax": "brackets"}
+FROM employees_multifile_split_ubn_brackets
 | STATS count = COUNT(*);
 
 count:long
@@ -137,8 +152,9 @@ count:long
 
 ubnFilterAndSort
 required_capability: external_command
+dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+FROM employees_multifile_split_brackets
 | WHERE salary > 70000
 | KEEP emp_no, first_name, salary
 | SORT salary DESC
@@ -152,8 +168,9 @@ emp_no:integer | first_name:keyword | salary:integer
 
 ubnAggregateByGender
 required_capability: external_command
+dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+FROM employees_multifile_split_brackets
 | STATS count = COUNT(*) BY gender
 | SORT gender;
 
@@ -165,8 +182,9 @@ count:long | gender:keyword
 
 ubnSalaryStats
 required_capability: external_command
+dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 
-EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+FROM employees_multifile_split_brackets
 | STATS avg_salary = AVG(salary), total = SUM(salary);
 
 avg_salary:double | total:long

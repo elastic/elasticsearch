@@ -82,7 +82,7 @@ public final class StageFactory {
             case DELTA_STAGE -> new StageSpec.DeltaStage();
             case OFFSET_STAGE -> new StageSpec.OffsetStage();
             case GCD_STAGE -> new StageSpec.GcdStage();
-            case SPLIT_DELTA_STAGE -> new StageSpec.SplitDeltaStage(StageSpec.SplitDeltaStage.DEFAULT_K_MAX);
+            case SPLIT_DELTA_STAGE -> new StageSpec.SplitDeltaStage(StageSpec.SplitDeltaStage.MAX_K_MAX);
             case ALP_DOUBLE_STAGE -> new StageSpec.AlpDoubleStage();
             case BITPACK_PAYLOAD -> new StageSpec.BitPackPayload();
         };

@@ -436,7 +436,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                             assertThat(col, hasSize(1));
                             return addDocument(col.iterator().next());
                         }
-                    }, null, null, config);
+                    }, config);
                 }
             }
         }) {

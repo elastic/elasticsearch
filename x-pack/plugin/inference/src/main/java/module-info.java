@@ -38,6 +38,7 @@ module org.elasticsearch.inference {
     requires software.amazon.awssdk.services.sagemakerruntime;
     requires com.azure.identity;
     requires com.azure.core;
+    requires oauth2.oidc.sdk;
 
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;

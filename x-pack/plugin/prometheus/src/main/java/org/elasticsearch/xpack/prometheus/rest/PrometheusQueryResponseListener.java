@@ -246,7 +246,11 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
             writeMetricFromSeriesJson(builder, seriesJson);
         } else {
             for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
-                builder.field(columns.get(i).name(), values[i] != null ? values[i].toString() : "");
+                // Omit null labels (e.g. a null-filled missing BY label) rather than emitting "". PromQL distinguishes
+                // an absent label from one whose value is empty; this mirrors writeMetricFields on the _timeseries path.
+                if (values[i] != null) {
+                    builder.field(columns.get(i).name(), values[i].toString());
+                }
             }
         }
         builder.endObject(); // metric

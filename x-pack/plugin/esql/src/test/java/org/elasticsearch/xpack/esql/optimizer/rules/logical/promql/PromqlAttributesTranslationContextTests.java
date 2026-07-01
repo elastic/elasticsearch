@@ -63,14 +63,15 @@ public class PromqlAttributesTranslationContextTests extends ESTestCase {
         SynthesizedAttributes afterAvgWithout = SynthesizedAttributes.foldExcluding(List.of(REGION), leaf);
         SynthesizedAttributes afterWithout = SynthesizedAttributes.foldExcluding(List.of(POD), afterAvgWithout);
 
-        // innermost physical aggregate groups by _timeseries and drops every excluded dimension at once
+        // innermost physical aggregate groups by the full label set (the `_timeseries` identity) and drops every
+        // excluded dimension at once
         ResolvedAttributes innermost = afterAvgWithout.translateLeaf(demandForSelector.pathExclusions());
-        assertThat(names(innermost.groupings()), empty());
+        assertThat(names(innermost.groupings()), equalTo(Set.of("_timeseries")));
         assertThat(names(innermost.excludedDimensions()), equalTo(Set.of("pod", "region")));
 
-        // the outermost aggregate has nothing concrete left to group on
+        // the outermost aggregate still groups by the full label set (no concrete keys), i.e. `_timeseries`
         ResolvedAttributes outermost = afterWithout.translate(afterAvgWithout.declared());
-        assertThat(names(outermost.groupings()), empty());
+        assertThat(names(outermost.groupings()), equalTo(Set.of("_timeseries")));
         assertThat(names(outermost.absent()), empty());
     }
 
@@ -78,7 +79,7 @@ public class PromqlAttributesTranslationContextTests extends ESTestCase {
         // sum by(cluster,region) ( avg without(region) ( cpu_util ) ) -- region is null-filled at the top
 
         // descend: each aggregate narrows the demand handed to its child
-        InheritedAttributes demandForAvg = InheritedAttributes.unconstrained().including(List.of(CLUSTER, REGION));
+        InheritedAttributes demandForAvg = InheritedAttributes.unconstrained().limitedTo(List.of(CLUSTER, REGION));
         InheritedAttributes demandForSelector = demandForAvg.excluding(List.of(REGION));
 
         // ascend: the leaf reflects its demand, each aggregate folds its own grouping
@@ -106,7 +107,7 @@ public class PromqlAttributesTranslationContextTests extends ESTestCase {
 
         // descend: each aggregate narrows the demand handed to its child
         InheritedAttributes demandForSum = InheritedAttributes.unconstrained().excluding(List.of(CLUSTER));
-        InheritedAttributes demandForAvg = demandForSum.including(List.of(CLUSTER, REGION));
+        InheritedAttributes demandForAvg = demandForSum.limitedTo(List.of(CLUSTER, REGION));
         InheritedAttributes demandForSelector = demandForAvg.excluding(List.of(REGION));
 
         // ascend: the leaf reflects its demand, each aggregate folds its own grouping
@@ -115,10 +116,12 @@ public class PromqlAttributesTranslationContextTests extends ESTestCase {
         SynthesizedAttributes afterBy = SynthesizedAttributes.foldIncluding(List.of(CLUSTER, REGION), afterAvgWithout);
         SynthesizedAttributes afterWithout = SynthesizedAttributes.foldExcluding(List.of(CLUSTER), afterBy);
 
-        // the single bottom grouping must exclude both dimensions that any WITHOUT removed
+        // The intervening BY(cluster,region) clears the inherited exclusions, so only the WITHOUT(region) below the BY
+        // reaches the leaf; the outer WITHOUT(cluster) applies over the BY's concrete keys, not at the leaf. (This exact
+        // query - two WITHOUTs with a BY between - is rejected in practice; this only pins the algebra composition.)
         ResolvedAttributes innermost = afterAvgWithout.translateLeaf(demandForSelector.pathExclusions());
         assertThat(names(innermost.groupings()), equalTo(Set.of("cluster")));
-        assertThat(names(innermost.excludedDimensions()), equalTo(Set.of("cluster", "region")));
+        assertThat(names(innermost.excludedDimensions()), equalTo(Set.of("region")));
 
         ResolvedAttributes outermost = afterWithout.translate(afterBy.declared());
         assertThat(names(outermost.groupings()), empty());
@@ -130,16 +133,18 @@ public class PromqlAttributesTranslationContextTests extends ESTestCase {
 
         // descend: each aggregate narrows the demand handed to its child
         InheritedAttributes demandForAvg = InheritedAttributes.unconstrained().excluding(List.of(POD));
-        InheritedAttributes demandForSelector = demandForAvg.including(List.of(CLUSTER, POD));
+        InheritedAttributes demandForSelector = demandForAvg.limitedTo(List.of(CLUSTER, POD));
 
         // ascend: the leaf reflects its demand, each aggregate folds its own grouping
         SynthesizedAttributes leaf = demandForSelector.reflect();
         SynthesizedAttributes afterBy = SynthesizedAttributes.foldIncluding(List.of(CLUSTER, POD), leaf);
         SynthesizedAttributes afterWithout = SynthesizedAttributes.foldExcluding(List.of(POD), afterBy);
 
+        // The BY(cluster,pod) clears the inherited exclusions, so the leaf has none: the outer WITHOUT(pod) drops pod
+        // from the BY's concrete keys (handled at the outer aggregate), not via a leaf `_timeseries` exclusion.
         ResolvedAttributes innermost = afterBy.translateLeaf(demandForSelector.pathExclusions());
         assertThat(names(innermost.groupings()), equalTo(Set.of("cluster", "pod")));
-        assertThat(names(innermost.excludedDimensions()), equalTo(Set.of("pod")));
+        assertThat(names(innermost.excludedDimensions()), empty());
 
         ResolvedAttributes outermost = afterWithout.translate(afterBy.declared());
         assertThat(names(outermost.groupings()), equalTo(Set.of("cluster")));
@@ -150,8 +155,8 @@ public class PromqlAttributesTranslationContextTests extends ESTestCase {
         // sum by(cluster) ( avg by(cluster,pod) ( cpu_util ) )
 
         // descend: each aggregate narrows the demand handed to its child
-        InheritedAttributes demandForAvg = InheritedAttributes.unconstrained().including(List.of(CLUSTER));
-        InheritedAttributes demandForSelector = demandForAvg.including(List.of(CLUSTER, POD));
+        InheritedAttributes demandForAvg = InheritedAttributes.unconstrained().limitedTo(List.of(CLUSTER));
+        InheritedAttributes demandForSelector = demandForAvg.limitedTo(List.of(CLUSTER, POD));
 
         // ascend: the leaf reflects its demand, each aggregate folds its own grouping
         SynthesizedAttributes leaf = demandForSelector.reflect();
@@ -168,6 +173,21 @@ public class PromqlAttributesTranslationContextTests extends ESTestCase {
     }
 
     /**
+     * {@link InheritedAttributes#including} models a function-internal requirement such as {@code histogram_quantile}
+     * materializing the {@code le} bucket label: it <b>widens</b> the current scope with the extra labels (rather than
+     * replacing it like a {@code BY}) and records no exclusion, so the leaf groups by the union as concrete keys.
+     */
+    public void testIncludingWidensScope() {
+        // histogram_quantile over a raw bucket selector: identity {cluster, pod}, then materialize the bucket label.
+        Attribute le = attr("le");
+        InheritedAttributes demand = InheritedAttributes.unconstrained().limitedTo(List.of(CLUSTER, POD)).including(List.of(le));
+
+        ResolvedAttributes innermost = demand.reflect().translateLeaf(demand.pathExclusions());
+        assertThat(names(innermost.groupings()), equalTo(Set.of("cluster", "pod", "le")));
+        assertThat(innermost.excludedDimensions(), empty());
+    }
+
+    /**
      * Labels are a set keyed by field name, so two distinct {@link Attribute} instances sharing a name must collapse to
      * a single grouping key — never survive as duplicates in {@code grouping}, {@code output}, or the resolved
      * translation. Here a {@code BY} is given the same field name twice with different identities.
@@ -176,7 +196,7 @@ public class PromqlAttributesTranslationContextTests extends ESTestCase {
         Attribute clusterA = attr("cluster");
         Attribute clusterB = attr("cluster"); // same field name, different identity
 
-        InheritedAttributes demand = InheritedAttributes.unconstrained().including(List.of(clusterA, clusterB));
+        InheritedAttributes demand = InheritedAttributes.unconstrained().limitedTo(List.of(clusterA, clusterB));
         SynthesizedAttributes leaf = demand.reflect();
         SynthesizedAttributes by = SynthesizedAttributes.foldIncluding(List.of(clusterA, clusterB), leaf);
 
@@ -204,7 +224,7 @@ public class PromqlAttributesTranslationContextTests extends ESTestCase {
         Attribute regionA = attr("region");
         Attribute regionB = attr("region"); // same field name, different identity
 
-        InheritedAttributes demand = InheritedAttributes.unconstrained().including(List.of(regionA, regionB));
+        InheritedAttributes demand = InheritedAttributes.unconstrained().limitedTo(List.of(regionA, regionB));
         SynthesizedAttributes by = SynthesizedAttributes.foldIncluding(List.of(regionA, regionB), demand.reflect());
 
         // child exposes only cluster, so region is absent exactly once

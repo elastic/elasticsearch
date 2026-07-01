@@ -221,7 +221,7 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<Boolean> S3_TENACIOUS_RETRIES_ENABLED_SETTING = Setting.affixKeySetting(
         PREFIX,
         "tenacious_retries.enabled",
-        key -> Setting.boolSetting(key, false, Property.NodeScope)
+        key -> Setting.boolSetting(key, true, Property.NodeScope)
     );
 
     /** Whether to include the request body in the V4 signature even when unnecessary because HTTPS is in use. */

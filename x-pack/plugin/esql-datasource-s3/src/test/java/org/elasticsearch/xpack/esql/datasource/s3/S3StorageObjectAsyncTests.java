@@ -216,7 +216,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         S3Client syncClient = mock(S3Client.class);
         S3AsyncClient asyncClient = mock(S3AsyncClient.class);
 
-        S3StorageProvider provider = new S3StorageProvider(syncClient, asyncClient);
+        S3StorageProvider provider = S3StorageProvider.forTesting(syncClient, asyncClient);
         provider.close();
 
         verify(syncClient).close();
@@ -229,7 +229,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
 
         doThrow(new RuntimeException("sync close failed")).when(syncClient).close();
 
-        S3StorageProvider provider = new S3StorageProvider(syncClient, asyncClient);
+        S3StorageProvider provider = S3StorageProvider.forTesting(syncClient, asyncClient);
         expectThrows(RuntimeException.class, provider::close);
 
         verify(asyncClient).close();

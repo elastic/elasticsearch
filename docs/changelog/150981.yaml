@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 150981
+summary: Adds type to message on wrong mutation of attributes
+type: bug

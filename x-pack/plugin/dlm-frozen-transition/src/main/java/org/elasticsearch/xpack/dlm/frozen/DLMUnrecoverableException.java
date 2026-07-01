@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchException;
  * is in progress, there is no point retrying the operation.
  */
 public class DLMUnrecoverableException extends ElasticsearchException {
+    @SuppressWarnings("this-escape")
     public DLMUnrecoverableException(String indexName, String msg, Object... args) {
         super(msg, args);
         setIndex(indexName);

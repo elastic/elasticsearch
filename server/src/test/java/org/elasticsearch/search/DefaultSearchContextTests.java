@@ -84,6 +84,7 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -515,7 +516,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
     }
 
     public void testNewIdLoader() throws Exception {
-        try (DefaultSearchContext context = createDefaultSearchContext(Settings.EMPTY)) {
+        var mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject();
+        try (DefaultSearchContext context = createDefaultSearchContext(Settings.EMPTY, mapping)) {
             assertThat(context.newIdLoader(), instanceOf(IdLoader.StoredIdLoader.class));
             context.indexShard().getThreadPool().shutdown();
         }

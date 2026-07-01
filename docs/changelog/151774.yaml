@@ -1,0 +1,6 @@
+area: Infra/Core
+issues: []
+pr: 151774
+summary: Fix `NoSuchMethodError` in `JdkMacCLibrary.ErrorReference.toString` on JDK
+  22+
+type: bug

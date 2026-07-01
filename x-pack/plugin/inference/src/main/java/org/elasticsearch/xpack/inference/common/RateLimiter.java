@@ -56,6 +56,7 @@ public class RateLimiter {
     }
 
     // default for testing
+    @SuppressWarnings("this-escape")
     RateLimiter(double accumulatedTokensLimit, double tokensPerTimeUnit, TimeUnit unit, Sleeper sleeper, Clock clock) {
         this.sleeper = Objects.requireNonNull(sleeper);
         this.clock = Objects.requireNonNull(clock);

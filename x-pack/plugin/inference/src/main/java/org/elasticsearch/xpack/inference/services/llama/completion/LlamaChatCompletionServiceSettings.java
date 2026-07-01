@@ -7,42 +7,51 @@
 
 package org.elasticsearch.xpack.inference.services.llama.completion;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
+import org.elasticsearch.xpack.inference.services.llama.LlamaServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
-import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 
 /**
- * Represents the settings for a Llama chat completion service.
- * This class encapsulates the model ID, URI, and rate limit settings for the Llama chat completion service.
+ * Represents the settings for a Llama chat completion service. Extends {@link LlamaServiceSettings}, which carries the
+ * model ID, URI, and rate limit settings shared across all Llama tasks. Chat completion adds no settings of its own.
  */
-public class LlamaChatCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings {
+public class LlamaChatCompletionServiceSettings extends LlamaServiceSettings {
     public static final String NAME = "llama_completion_service_settings";
-    private static final TransportVersion ML_INFERENCE_LLAMA_ADDED = TransportVersion.fromName("ml_inference_llama_added");
-    // There is no default rate limit for Llama, so we set a reasonable default of 3000 requests per minute
-    protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
-    private final String modelId;
-    private final URI uri;
-    private final RateLimitSettings rateLimitSettings;
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false);
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
+
+    /**
+     * Creates an {@link ObjectParser} for the Llama chat completion service settings.
+     *
+     * @param ignoreUnknownFields whether the parser should tolerate unknown fields. This is {@code false} for request parsing (so that
+     *                            unexpected fields are rejected) and {@code true} for persisted configuration (so that fields written by
+     *                            other versions are tolerated).
+     * @return the parser
+     */
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
+            ModelConfigurations.SERVICE_SETTINGS,
+            ignoreUnknownFields,
+            Builder::new
+        );
+        LlamaServiceSettings.declareCommonFields(parser);
+        return parser;
+    }
 
     /**
      * Creates a new instance of LlamaChatCompletionServiceSettings from a map of settings.
@@ -50,34 +59,19 @@ public class LlamaChatCompletionServiceSettings extends FilteredXContentObject i
      * @param map the map containing the service settings
      * @param context the context for parsing configuration settings
      * @return a new instance of LlamaChatCompletionServiceSettings
-     * @throws ValidationException if required fields are missing or invalid
      */
     public static LlamaChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        var validationException = new ValidationException();
-
-        var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var uri = extractUri(map, URL, validationException);
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new LlamaChatCompletionServiceSettings(modelId, uri, rateLimitSettings);
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
+        return LlamaServiceSettings.fromMap(map, context, parser);
     }
 
     @Override
     public LlamaChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-
-        var extractedRateLimitSettings = RateLimitSettings.of(
-            serviceSettings,
-            this.rateLimitSettings,
-            validationException,
-            ConfigurationParseContext.REQUEST
-        );
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new LlamaChatCompletionServiceSettings(this.modelId, this.uri, extractedRateLimitSettings);
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            return Update.PARSER.apply(xParser, null).mergeInto(this);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse Llama chat completion service settings update", e);
+        }
     }
 
     /**
@@ -87,9 +81,7 @@ public class LlamaChatCompletionServiceSettings extends FilteredXContentObject i
      * @throws IOException if an I/O error occurs during reading
      */
     public LlamaChatCompletionServiceSettings(StreamInput in) throws IOException {
-        this.modelId = in.readString();
-        this.uri = createUri(in.readString());
-        this.rateLimitSettings = new RateLimitSettings(in);
+        super(in.readString(), createUri(in.readString()), new RateLimitSettings(in));
     }
 
     /**
@@ -100,20 +92,7 @@ public class LlamaChatCompletionServiceSettings extends FilteredXContentObject i
      * @param rateLimitSettings the rate limit settings for the service
      */
     public LlamaChatCompletionServiceSettings(String modelId, URI uri, @Nullable RateLimitSettings rateLimitSettings) {
-        this.modelId = modelId;
-        this.uri = uri;
-        this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
-    }
-
-    /**
-     * Constructs a new LlamaChatCompletionServiceSettings with the specified model ID and URL.
-     * The rate limit settings will be set to the default value.
-     *
-     * @param modelId the ID of the model
-     * @param url the URL of the service
-     */
-    public LlamaChatCompletionServiceSettings(String modelId, String url, @Nullable RateLimitSettings rateLimitSettings) {
-        this(modelId, createUri(url), rateLimitSettings);
+        super(modelId, uri, rateLimitSettings);
     }
 
     @Override
@@ -122,69 +101,38 @@ public class LlamaChatCompletionServiceSettings extends FilteredXContentObject i
     }
 
     @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return ML_INFERENCE_LLAMA_ADDED;
-    }
-
-    @Override
-    public String modelId() {
-        return this.modelId;
-    }
-
-    /**
-     * Returns the URI of the Llama chat completion service.
-     *
-     * @return the URI of the service
-     */
-    public URI uri() {
-        return this.uri;
-    }
-
-    /**
-     * Returns the rate limit settings for the Llama chat completion service.
-     *
-     * @return the rate limit settings
-     */
-    public RateLimitSettings rateLimitSettings() {
-        return this.rateLimitSettings;
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(modelId);
-        out.writeString(uri.toString());
-        rateLimitSettings.writeTo(out);
+        out.writeString(modelId());
+        out.writeString(uri().toString());
+        rateLimitSettings().writeTo(out);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        toXContentFragmentOfExposedFields(builder, params);
-        builder.endObject();
-        return builder;
+    /**
+     * Builds a {@link LlamaChatCompletionServiceSettings} from the common Llama fields, enforcing that the required
+     * {@code model_id} and {@code url} fields are present.
+     */
+    public static class Builder extends LlamaServiceSettings.Builder<LlamaChatCompletionServiceSettings> {
+
+        @Override
+        protected LlamaChatCompletionServiceSettings build(String modelId, URI uri, RateLimitSettings rateLimitSettings) {
+            return new LlamaChatCompletionServiceSettings(modelId, uri, rateLimitSettings);
+        }
     }
 
-    @Override
-    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MODEL_ID, modelId);
-        builder.field(URL, uri.toString());
-        rateLimitSettings.toXContent(builder, params);
+    /**
+     * Parses an update request, which may only contain the mutable {@code rate_limit} field. Including any immutable field (such as
+     * {@code model_id} or {@code url}) causes the strict parser to reject the request.
+     */
+    private static class Update extends LlamaServiceSettings.CommonUpdate {
 
-        return builder;
-    }
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        LlamaChatCompletionServiceSettings that = (LlamaChatCompletionServiceSettings) o;
-        return Objects.equals(modelId, that.modelId)
-            && Objects.equals(uri, that.uri)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
-    }
+        static {
+            LlamaServiceSettings.declareCommonUpdatableFields(PARSER);
+        }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(modelId, uri, rateLimitSettings);
+        public LlamaChatCompletionServiceSettings mergeInto(LlamaChatCompletionServiceSettings existing) {
+            return new LlamaChatCompletionServiceSettings(existing.modelId(), existing.uri(), mergedRateLimitSettings(existing));
+        }
     }
 }

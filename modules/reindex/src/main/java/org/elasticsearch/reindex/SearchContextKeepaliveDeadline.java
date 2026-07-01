@@ -58,7 +58,7 @@ public final class SearchContextKeepaliveDeadline {
     }
 
     /**
-     * Whether to increment {@link BulkByScrollSearchContextMetrics}. This is true when the search context has returned a
+     * Whether to increment {@link BulkByPaginatedSearchSearchContextMetrics}. This is true when the search context has returned a
      * {@link SearchContextMissingException} <i>and</i> the keep alive has expired. If the keep alive has not expired,
      * then the search context terminated under different conditions from which we had no control, such as relocation.
      */

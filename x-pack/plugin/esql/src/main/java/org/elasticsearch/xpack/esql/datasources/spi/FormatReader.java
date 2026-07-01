@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
@@ -51,7 +52,26 @@ public interface FormatReader extends Closeable {
         /** Require all files to share the exact same schema (modulo nullability). */
         STRICT,
         /** Merge schemas from all files by column name, with safe type widening. */
-        UNION_BY_NAME
+        UNION_BY_NAME;
+
+        /**
+         * Case-insensitive parse of a {@code schema_resolution} option value. This is the single
+         * definition of valid strategy names, shared by the query path
+         * ({@code ExternalSourceResolver.parseSchemaResolution}) and the dataset CRUD validator so
+         * the two cannot diverge.
+         *
+         * @throws IllegalArgumentException if {@code value} is not a recognised strategy
+         */
+        public static SchemaResolution parse(String value) {
+            return switch (value.toLowerCase(Locale.ROOT)) {
+                case "first_file_wins" -> FIRST_FILE_WINS;
+                case "strict" -> STRICT;
+                case "union_by_name" -> UNION_BY_NAME;
+                default -> throw new IllegalArgumentException(
+                    "Unknown schema_resolution value [" + value + "]. Valid values are: first_file_wins, strict, union_by_name"
+                );
+            };
+        }
     }
 
     /**
@@ -245,5 +265,17 @@ public interface FormatReader extends Closeable {
     default FormatReaderStatus statusSnapshot() {
         return null;
     }
+
+    /**
+     * Returns this reader's {@link RowPositionStrategy} — the dispatcher applies it polymorphically
+     * to wrap (or pass through) the reader's emitted page iterator so each page has the
+     * {@code _rowPosition} slot populated. Every reader must explicitly declare a strategy:
+     * a {@link PassThroughRowPositionStrategy} when the reader natively fills the slot in its own
+     * iterator (parquet-mr, ORC, CSV, NDJSON), a {@link NullSpliceRowPositionStrategy} when the
+     * reader has no row-position channel and the slot must surface NULL (parquet-rs), or a future
+     * strategy that injects the column from per-page reader state. There is no default — readers
+     * that "don't care" still participate, by returning {@link PassThroughRowPositionStrategy}.
+     */
+    RowPositionStrategy rowPositionStrategy();
 
 }

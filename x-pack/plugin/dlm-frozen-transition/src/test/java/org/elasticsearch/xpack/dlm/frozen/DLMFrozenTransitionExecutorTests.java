@@ -17,6 +17,8 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -33,8 +35,10 @@ import org.junit.Before;
 
 import java.io.Closeable;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -53,7 +57,14 @@ public class DLMFrozenTransitionExecutorTests extends ESTestCase {
     public void setup() throws Exception {
         super.setUp();
         this.threadPool = new TestThreadPool("test-dlm-frozen-transition-executor");
-        this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        Set<Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingSet.add(DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING);
+        this.clusterService = ClusterServiceUtils.createClusterService(
+            threadPool,
+            DiscoveryNodeUtils.create("node", "node"),
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, settingSet)
+        );
         this.clusterService.getMasterService().setClusterStatePublisher((event, publishListener, ackListener) -> {
             ClusterServiceUtils.setAllElapsedMillis(event);
             ackListener.onCommit(TimeValue.ZERO);

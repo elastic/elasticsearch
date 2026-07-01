@@ -1,0 +1,7 @@
+area: Machine Learning
+issues:
+ - 147686
+pr: 147688
+summary: Automatically repair ML anomaly results aliases pointing at a .reindexed-v7
+  index
+type: bug

@@ -1,0 +1,6 @@
+pr: 151152
+summary: Include `size` in `time_series` aggregation builder equality
+area: Aggregations
+type: bug
+issues:
+ - 151151

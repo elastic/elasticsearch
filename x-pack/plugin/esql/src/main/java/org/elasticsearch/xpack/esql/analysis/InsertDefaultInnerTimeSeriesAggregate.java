@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.PentaFunction;
-import org.elasticsearch.common.QuadFunction;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -147,12 +146,12 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
         Expression timestamp,
         Holder<Boolean> changed,
         Expression newField,
-        QuadFunction<Source, Expression, Expression, Expression, Expression> onTimestampSort,
+        PentaFunction<Source, Expression, Expression, Expression, Expression, Expression> onTimestampSort,
         PentaFunction<Source, Expression, Expression, Expression, Expression, Expression> onOtherSort
     ) {
         changed.set(true);
         var newSort = sort.semanticEquals(timestamp)
-            ? onTimestampSort.apply(sort.source(), sort, Literal.TRUE, AggregateFunction.NO_WINDOW)
+            ? onTimestampSort.apply(sort.source(), sort, Literal.TRUE, AggregateFunction.NO_WINDOW, timestamp)
             : onOtherSort.apply(sort.source(), sort, Literal.TRUE, AggregateFunction.NO_WINDOW, timestamp);
         return agg.replaceChildren(List.of(newField, agg.filter(), agg.window(), newSort));
     }

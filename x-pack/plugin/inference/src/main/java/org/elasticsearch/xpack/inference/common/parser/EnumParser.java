@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.common.parser;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
 
 import java.util.Arrays;
@@ -80,6 +81,24 @@ public final class EnumParser {
             String msg = Strings.format("Invalid value [%s]; expected one of %s", value, Arrays.toString(validValuesAsStrings));
             throw new IllegalArgumentException(msg);
         }
+    }
+
+    /**
+     * Converts a string into a {@link SimilarityMeasure}, intended to be used as the conversion function of an object parser's
+     * {@code declareString}. Delegates to {@link #parseFromStringInObjectParserContext} so that an unrecognized value yields a
+     * user-facing error listing the accepted values rather than the raw enum constant names.
+     *
+     * @param value the similarity value to parse
+     * @return the parsed {@link SimilarityMeasure}, or {@code null} if the value is null
+     */
+    @Nullable
+    public static SimilarityMeasure parseSimilarity(@Nullable String value) {
+        return parseFromStringInObjectParserContext(
+            value,
+            SimilarityMeasure::fromString,
+            EnumSet.allOf(SimilarityMeasure.class),
+            EnumSet.noneOf(SimilarityMeasure.class)
+        );
     }
 
     private EnumParser() {}

@@ -288,6 +288,11 @@ public final class DataSourceModule implements Closeable {
         return sourceFactories;
     }
 
+    /** The node-level external-source telemetry holder, or {@link ExternalSourceMetrics#NOOP} when no registry was supplied. */
+    public ExternalSourceMetrics externalSourceMetrics() {
+        return externalSourceMetrics;
+    }
+
     public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor) {
         return createOperatorFactoryRegistry(executor, executor);
     }

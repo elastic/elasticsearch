@@ -117,6 +117,155 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         assertThat(single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_REQUEST_DURATION).getLong(), is(0L));
     }
 
+    public void testRecordError() {
+        metrics.recordError("s3");
+        Measurement m = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL);
+        assertThat(m.getLong(), equalTo(1L));
+        assertThat(m.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+    }
+
+    public void testRecordThrottled() {
+        metrics.recordThrottled("gcs");
+        Measurement m = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL);
+        assertThat(m.getLong(), equalTo(1L));
+        assertThat(m.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("gcs"));
+    }
+
+    public void testRecordReadStall() {
+        metrics.recordReadStall(1200L, "azure");
+        Measurement m = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION);
+        assertThat(m.getLong(), equalTo(1200L));
+        assertThat(m.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("azure"));
+    }
+
+    public void testRecordReadStallClampsNegative() {
+        metrics.recordReadStall(-5L, "s3");
+        assertThat(single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION).getLong(), is(0L));
+    }
+
+    public void testRecordQuerySuccess() {
+        metrics.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 340L, false);
+
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        assertThat(total.getLong(), equalTo(1L));
+        assertThat(total.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE), equalTo("success"));
+        Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.QUERY_DURATION);
+        assertThat(duration.getLong(), equalTo(340L));
+        // The duration histogram carries the same outcome dimension as the counter, so latency can be split by outcome.
+        assertThat(duration.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE), equalTo("success"));
+        // Neither the cancelled nor the partial counter is touched for a plain success.
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_CANCELLED_TOTAL), hasSize(0));
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_PARTIAL_TOTAL), hasSize(0));
+    }
+
+    public void testRecordQueryCancelledAlsoBumpsCancelledCounter() {
+        metrics.recordQuery(ExternalSourceMetrics.OUTCOME_CANCELLED, 10L, false);
+
+        Measurement total = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL);
+        assertThat(total.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE), equalTo("cancelled"));
+        assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_CANCELLED_TOTAL).getLong(), equalTo(1L));
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_PARTIAL_TOTAL), hasSize(0));
+    }
+
+    public void testRecordQueryPartialAlsoBumpsPartialCounter() {
+        metrics.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 55L, true);
+
+        assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_PARTIAL_TOTAL).getLong(), equalTo(1L));
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_CANCELLED_TOTAL), hasSize(0));
+    }
+
+    public void testRecordTimeToFirstRow() {
+        metrics.recordTimeToFirstRow(42L, "s3");
+        Measurement m = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.QUERY_TIME_TO_FIRST_ROW);
+        assertThat(m.getLong(), equalTo(42L));
+        assertThat(m.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+    }
+
+    public void testRecordDiscovery() {
+        // Raw "s3a" folds to the canonical "s3" series inside the record method.
+        metrics.recordDiscovery(75L, 12L, 4096L, "s3a");
+        Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.DISCOVERY_DURATION);
+        assertThat(duration.getLong(), equalTo(75L));
+        assertThat(duration.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        Measurement files = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.DISCOVERY_FILES_SCANNED);
+        assertThat(files.getLong(), equalTo(12L));
+        assertThat(files.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        Measurement bytes = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.DISCOVERY_BYTES_SCANNED);
+        assertThat(bytes.getLong(), equalTo(4096L));
+        assertThat(bytes.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+    }
+
+    public void testRecordDiscoveryFailure() {
+        metrics.recordDiscoveryFailure();
+        assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.DISCOVERY_FAILURES_TOTAL).getLong(), equalTo(1L));
+    }
+
+    public void testRecordParse() {
+        metrics.recordParse(1000L, 88L, "gcs");
+        Measurement rows = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.PARSE_ROWS_TOTAL);
+        assertThat(rows.getLong(), equalTo(1000L));
+        assertThat(rows.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("gcs"));
+        Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_DURATION);
+        assertThat(duration.getLong(), equalTo(88L));
+        assertThat(duration.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("gcs"));
+    }
+
+    public void testRecordParseWithZeroRowsSkipsRowCounterButStillTimes() {
+        metrics.recordParse(0L, 9L, "file");
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.PARSE_ROWS_TOTAL), hasSize(0));
+        assertThat(single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_DURATION).getLong(), equalTo(9L));
+    }
+
+    public void testRecordSplitsScanned() {
+        metrics.recordSplitsScanned(7L, "azure");
+        Measurement m = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.DISCOVERY_SPLITS_SCANNED);
+        assertThat(m.getLong(), equalTo(7L));
+        assertThat(m.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("azure"));
+    }
+
+    public void testRecordPoolRejected() {
+        metrics.recordPoolRejected();
+        assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.READER_POOL_REJECTED_TOTAL).getLong(), equalTo(1L));
+    }
+
+    public void testRecordBreakerTripped() {
+        metrics.recordBreakerTripped();
+        assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.BREAKER_TRIPPED_TOTAL).getLong(), equalTo(1L));
+    }
+
+    public void testStorageCountersBridgeErrorThrottledAndStall() {
+        // The storage recorder (StorageObjectMetricsCounters) publishes the terminal give-up / throttle / stall
+        // events to the registry once a sink is attached, mirroring the request/retry bridge.
+        StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
+        counters.attach(metrics, "s3");
+        counters.addError();
+        counters.addThrottled();
+        counters.addReadStall(900L);
+
+        assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL).getLong(), equalTo(1L));
+        assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL).getLong(), equalTo(1L));
+        Measurement stall = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION);
+        assertThat(stall.getLong(), equalTo(900L));
+        assertThat(stall.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+    }
+
+    public void testStorageCountersSkipZeroStallAndEmitNothingWhenUnattached() {
+        StorageObjectMetricsCounters attached = new StorageObjectMetricsCounters();
+        attached.attach(metrics, "gcs");
+        // A read that never backed off records no stall (avoids flooding the histogram with zeros).
+        attached.addReadStall(0L);
+        assertThat(measurements(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION), hasSize(0));
+
+        // With no sink attached nothing reaches the registry.
+        StorageObjectMetricsCounters unattached = new StorageObjectMetricsCounters();
+        unattached.addError();
+        unattached.addThrottled();
+        unattached.addReadStall(50L);
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL), hasSize(0));
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL), hasSize(0));
+        assertThat(measurements(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION), hasSize(0));
+    }
+
     public void testCanonicalSchemeFoldsProviderAliases() {
         // The raw StoragePath scheme is what storage providers register; fold the aliases so one provider
         // is one metric series (s3a/s3n->s3, gs->gcs, wasb/wasbs->azure, https->http).

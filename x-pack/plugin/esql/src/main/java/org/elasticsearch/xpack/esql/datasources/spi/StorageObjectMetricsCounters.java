@@ -95,6 +95,52 @@ public final class StorageObjectMetricsCounters {
         }
     }
 
+    /**
+     * Records one object-store read that exhausted retries and gave up terminally. Telemetry-only: it does
+     * not touch the profile snapshot (only request/retry/bytes counters surface there). No-op when no sink
+     * is attached; best-effort so an instrumentation failure never breaks the read path.
+     */
+    public void addError() {
+        Sink s = sink;
+        if (s.metrics() != ExternalSourceMetrics.NOOP) {
+            try {
+                s.metrics().recordError(s.scheme());
+            } catch (Exception e) {
+                logger.trace("telemetry: recordError failed", e);
+            }
+        }
+    }
+
+    /** Records one object-store read whose terminal failure was a provider throttling response. Telemetry-only. */
+    public void addThrottled() {
+        Sink s = sink;
+        if (s.metrics() != ExternalSourceMetrics.NOOP) {
+            try {
+                s.metrics().recordThrottled(s.scheme());
+            } catch (Exception e) {
+                logger.trace("telemetry: recordThrottled failed", e);
+            }
+        }
+    }
+
+    /**
+     * Records the cumulative time an object-store read spent in retry backoff. Telemetry-only; skipped when the
+     * read never backed off ({@code millis <= 0}) so the histogram is not flooded with zero observations.
+     */
+    public void addReadStall(long millis) {
+        if (millis <= 0) {
+            return;
+        }
+        Sink s = sink;
+        if (s.metrics() != ExternalSourceMetrics.NOOP) {
+            try {
+                s.metrics().recordReadStall(millis, s.scheme());
+            } catch (Exception e) {
+                logger.trace("telemetry: recordReadStall failed", e);
+            }
+        }
+    }
+
     /** Returns an immutable snapshot of the current counter values. */
     public StorageObjectMetrics snapshot() {
         return new StorageObjectMetrics(requestCount.sum(), requestNanos.sum(), bytesRead.sum(), retryCount.sum());

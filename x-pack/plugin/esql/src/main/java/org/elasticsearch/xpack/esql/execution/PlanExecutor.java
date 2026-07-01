@@ -7,12 +7,17 @@
 
 package org.elasticsearch.xpack.esql.execution;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -24,6 +29,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
@@ -49,6 +55,8 @@ import java.util.function.BooleanSupplier;
 import static org.elasticsearch.action.ActionListener.wrap;
 
 public class PlanExecutor {
+
+    private static final Logger logger = LogManager.getLogger(PlanExecutor.class);
 
     private final IndexResolver indexResolver;
     private final EsqlParser parser;
@@ -146,7 +154,7 @@ public class PlanExecutor {
 
         var begin = System.nanoTime();
         ActionListener<Versioned<Result>> executeListener = wrap(
-            x -> onQuerySuccess(request, listener, x, planTelemetry),
+            x -> onQuerySuccess(request, listener, x, planTelemetry, begin),
             ex -> onQueryFailure(request, listener, ex, clientId, planTelemetry, begin)
         );
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
@@ -158,9 +166,11 @@ public class PlanExecutor {
         EsqlQueryRequest request,
         ActionListener<Versioned<Result>> listener,
         Versioned<Result> x,
-        PlanTelemetry planTelemetry
+        PlanTelemetry planTelemetry,
+        long begin
     ) {
         planTelemetryManager.publish(planTelemetry, true);
+        recordExternalSourceQuery(planTelemetry, ExternalSourceMetrics.OUTCOME_SUCCESS, System.nanoTime() - begin, x, null);
         queryLog.onQueryPhase(x, request.queryDescription());
         listener.onResponse(x);
     }
@@ -176,8 +186,39 @@ public class PlanExecutor {
         // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
         metrics.failed(clientId);
         planTelemetryManager.publish(planTelemetry, false);
+        boolean cancelled = ExceptionsHelper.unwrap(ex, TaskCancelledException.class) != null;
+        String outcome = cancelled ? ExternalSourceMetrics.OUTCOME_CANCELLED : ExternalSourceMetrics.OUTCOME_FAILURE;
+        recordExternalSourceQuery(planTelemetry, outcome, System.nanoTime() - begin, null, ex);
         queryLog.onQueryFailure(request.queryDescription(), ex, System.nanoTime() - begin);
         listener.onFailure(ex);
+    }
+
+    /**
+     * Publishes the per-query external-source coordinator metrics — but only when the query actually scanned an
+     * external source (an {@code ExternalRelation} was seen in the analyzed plan, flagged on {@code planTelemetry}).
+     * On success {@code result} carries the partial-results flag; on failure {@code failure} is inspected for a
+     * circuit-breaker trip. Best-effort: instrumentation failures never affect the query outcome.
+     */
+    private void recordExternalSourceQuery(
+        PlanTelemetry planTelemetry,
+        String outcome,
+        long durationNanos,
+        Versioned<Result> result,
+        Exception failure
+    ) {
+        if (planTelemetry.externalSource() == false) {
+            return;
+        }
+        try {
+            ExternalSourceMetrics externalSourceMetrics = dataSourceModule.externalSourceMetrics();
+            boolean partial = result != null && result.inner().completionInfo().partial();
+            externalSourceMetrics.recordQuery(outcome, durationNanos / 1_000_000, partial);
+            if (failure != null && ExceptionsHelper.unwrap(failure, CircuitBreakingException.class) != null) {
+                externalSourceMetrics.recordBreakerTripped();
+            }
+        } catch (Exception e) {
+            logger.trace("telemetry: external-source query metrics failed", e);
+        }
     }
 
     public IndexResolver indexResolver() {

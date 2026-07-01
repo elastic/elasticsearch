@@ -733,7 +733,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
             }
 
-            return new AsyncExternalSourceOperator(buffer);
+            return new AsyncExternalSourceOperator(buffer, externalSourceMetrics, path.scheme());
         } catch (Exception e) {
             releaseOperator();
             throw e;
@@ -2283,7 +2283,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     baseFileOffset,
                     maxConcurrentOpenSegments,
                     captureSink,
-                    maxRecordBytes
+                    maxRecordBytes,
+                    externalSourceMetrics
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {

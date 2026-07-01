@@ -76,6 +76,62 @@ PUT my-index-000001
 1. The `status_code` field has `doc_values` enabled by default.
 2. The `session_id` has `doc_values` disabled, but can still be queried.
 
+## Restricting fields to a single value [doc-values-multi-value]
+
+```{applies_to}
+stack: preview
+serverless: preview
+```
+
+By default, all fields allow multiple values per document. You can restrict a field to at most one value per document by setting `multi_value: false` in the `doc_values` object. If a document is indexed with more than one value for that field, the indexing request is rejected.
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "status_code": {
+        "type": "long",
+        "doc_values": {
+          "multi_value": false
+        }
+      }
+    }
+  }
+}
+```
+
+The index-level setting `index.mapping.doc_values.multi_value` controls the default for all fields in the index. It defaults to `true` (multiple values allowed).
+
+## Requiring a field to have a value [doc-values-nullability]
+
+```{applies_to}
+stack: preview
+serverless: preview
+```
+
+By default, all fields allow missing or null values. You can require a field to always carry a value by setting `nullability: false` in the `doc_values` object. If a document is indexed without a value for the field, or with an explicit `null`, the indexing request is rejected.
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "status_code": {
+        "type": "long",
+        "doc_values": {
+          "nullability": false
+        }
+      }
+    }
+  }
+}
+```
+
+If `null_value` is also defined on the field, it serves as a sentinel value for explicit `null` inputs. In that case, `nullability: false` only rejects documents where the field is entirely absent — an explicit `null` is substituted by the sentinel value and accepted.
+
+The index-level setting `index.mapping.doc_values.nullability` will control the default for all fields in the index. It will default to `true` (null values allowed).
+
 ## Multi-valued doc values note
 
 Elasticsearch supports storing multi-valued fields at index time. Multi-valued fields can be provided as a json array. However in the doc values format, the values aren't stored in the order as was provided at index time. Additionally, duplicates may be lost.
@@ -92,7 +148,7 @@ stack: ga 9.3
 Doc values skippers are an additional data structure on doc values fields that store summary information for multi-level blocks of documents (currently minimum value, maximum value and doc count).
 They can assist fast querying and aggregation over a field without the need for a terms or points index structure, significantly reducing its disk footprint. This is particularly true when the field in question is correlated with the index sort.  For example, timestamp filtered queries in time series indexes can use skippers to filter out large blocks of documents without having to inspect individual field values.
 
-Skippers can be enabled for all fields in an index that are marked as `docvalues=true` and `index=false` by using the index-level setting `index.mapping.use_doc_values_skippers`.  They are enabled by default for [`time_series indexes`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-mode).
+Skippers can be enabled for all fields in an index that are marked as `docvalues=true` and `index=false` by using the index-level setting `index.mapping.use_doc_values_skippers`.  They are enabled by default for [`time_series indexes`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-mode) and the columnar index modes.
 
 
 

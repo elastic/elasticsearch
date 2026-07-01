@@ -865,6 +865,18 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         ) {
             if (input.dataFormat() == DataFormat.BASE64) {
                 long decodedSize = base64BinarySize(input.value());
+                if (decodedSize == 0) {
+                    setInferenceResponseFailure(
+                        itemIndex,
+                        new ElasticsearchStatusException(
+                            "Input for field [{}] from source field [{}] has an empty base64 payload.",
+                            RestStatus.BAD_REQUEST,
+                            field,
+                            sourceField
+                        )
+                    );
+                    return -1;
+                }
                 if (decodedSize > maxBase64InputSizeInBytes) {
                     setInferenceResponseFailure(
                         itemIndex,

@@ -255,6 +255,36 @@ public class PromqlVerifierTests extends ESTestCase {
             );
     }
 
+    // PROMQL collapses to an aggregate, so a field after the pipe isn't nullified.
+    public void testNullifyMissingFieldOutsidePromqlFails() {
+        tsdb.error(
+            "PROMQL index=test step=5m v=(sum(network.bytes_in)) | EVAL x = does_not_exist",
+            containsString("Unknown column [does_not_exist]")
+        );
+    }
+
+    // A mapped field collapsed by PROMQL is just as unreferenceable after the pipe, so nullify treats missing no worse.
+    public void testMappedFieldOutsidePromqlFailsUnderNullify() {
+        tsdb.error(
+            "PROMQL index=test step=5m v=(sum(network.bytes_in)) | EVAL x = network.bytes_in",
+            containsString("Unknown column [network.bytes_in]")
+        );
+    }
+
+    // Same failure in default mode, so nullify changes nothing.
+    public void testMissingFieldOutsidePromqlFailsInDefaultMode() {
+        tsdb.unmappedResolution(UnmappedResolution.DEFAULT)
+            .error(
+                "PROMQL index=test step=5m v=(sum(network.bytes_in)) | EVAL x = does_not_exist",
+                containsString("Unknown column [does_not_exist]")
+            );
+    }
+
+    // nullify doesn't affect PROMQL's own handling of fields inside the command.
+    public void testNullifyMissingFieldInsidePromqlResolves() {
+        assertTrue(tsdb.query("PROMQL index=test step=5m sum(does_not_exist)").resolved());
+    }
+
     public void testCounterMetricWithUnsupportedFunction() {
         // network.bytes_in is a counter metric; avg_over_time auto-wraps counters with to_gauge()
         var plan = tsdb.query("PROMQL index=test step=5m avg_over_time(network.bytes_in[5m])");

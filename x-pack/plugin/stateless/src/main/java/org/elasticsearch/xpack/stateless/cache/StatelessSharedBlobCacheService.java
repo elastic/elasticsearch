@@ -305,7 +305,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             return pinnedWindowEvictionPolicy.getPinnedWindowDuration();
         }
 
-        final var error = "Method [getPinnedWindowDuration] is not supported on eviction policy [" + evictionPolicy.getClass() +']';
+        final var error = "Method [getPinnedWindowDuration] is not supported on eviction policy [" + evictionPolicy.getClass() + ']';
         assert false : error;
         throw new UnsupportedOperationException(error);
     }

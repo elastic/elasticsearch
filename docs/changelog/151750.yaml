@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 151750
+summary: "Unmapped_fields=\"load\" for views, subqueries and fork"
+type: enhancement

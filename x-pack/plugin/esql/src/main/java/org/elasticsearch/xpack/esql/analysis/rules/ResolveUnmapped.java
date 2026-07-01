@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -128,10 +129,16 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             List<FieldAttribute> fieldsToNullify = fieldsToNullify(unresolved, Expressions.names(esr.output()));
             return withAdditionalAttributesUnlessLookup(esr, fieldsToNullify);
         });
+        return nullifyNonEsRelationSources(transformed, unresolved);
+    }
 
-        // For non-EsRelation sources (Row, LocalRelation): insert Eval nodes with null assignments
-        // This handles cases like: ROW x = 1 | EVAL y = unmapped_field
-        transformed = transformed.transformUp(
+    /**
+     * Inserts {@code EVAL <name> = NULL} atop non-{@link EsRelation} sources (Row/LocalRelation) for every attribute in
+     * {@code unresolved}. EsRelation sources are handled separately (their output gains the fields directly). This handles cases
+     * like {@code ROW x = 1 | EVAL y = unmapped_field}.
+     */
+    private static LogicalPlan nullifyNonEsRelationSources(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
+        var transformed = plan.transformUp(
             n -> n instanceof UnaryPlan unary && unary.child() instanceof LeafPlan leaf && leaf instanceof EsRelation == false,
             p -> evalUnresolvedAtopUnary((UnaryPlan) p, nullAliases(unresolved))
         );
@@ -162,18 +169,49 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     }
 
     /**
-     * This method introduces field extractors - via "insisted", {@link PotentiallyUnmappedKeywordEsField} wrapped in
-     * {@link FieldAttribute} - for every attribute in {@code unresolved}, within the {@link EsRelation}s in the plan accessible from
-     * the given {@code plan}.
-     * <p>
-     * It also "patches" the introduced attributes through the plan, where needed (like through Fork/UntionAll).
+     * Inserts {@link PotentiallyUnmappedKeywordEsField} loaders (insisted keywords wrapped in {@link FieldAttribute}) for
+     * {@code unresolved} into the plan's {@link EsRelation}s, scope-aware across subqueries/views: an outer reference (surfaced by
+     * no {@link UnionAll} branch) is broadcast into all branches; an in-branch reference stays scoped to its own source. See #142033.
      */
     private static LogicalPlan load(LogicalPlan plan, Set<UnresolvedAttribute> unresolved) {
         // TODO: this will need to be revisited for non-lookup joining or scenarios where we won't want extraction from specific sources
+        if (plan.anyMatch(p -> p instanceof UnionAll)) {
+            // Outer references only: a name already surfaced by a branch resolves through the union output. #142033
+            Set<String> surfacedByAnyBranch = unionBranchOutputNames(plan);
+            LinkedHashSet<UnresolvedAttribute> outerReferences = new LinkedHashSet<>();
+            for (UnresolvedAttribute ua : unresolved) {
+                if (surfacedByAnyBranch.contains(ua.name()) == false) {
+                    outerReferences.add(ua);
+                }
+            }
+            return outerReferences.isEmpty() ? plan : loadIntoSources(plan, outerReferences);
+        }
+        return loadIntoSources(plan, unresolved);
+    }
+
+    /**
+     * Adds {@code _source} keyword loaders for {@code toLoad} to every non-LOOKUP {@link EsRelation} reachable from {@code plan};
+     * Row/LocalRelation sources can't load from {@code _source} and are left for {@code ResolveRefs#resolveFork} to null-fill.
+     */
+    private static LogicalPlan loadIntoSources(LogicalPlan plan, Set<UnresolvedAttribute> toLoad) {
         return plan.transformUp(EsRelation.class, esr -> {
-            List<FieldAttribute> fieldsToLoad = fieldsToLoad(unresolved, Expressions.names(esr.output()));
+            List<FieldAttribute> fieldsToLoad = fieldsToLoad(toLoad, Expressions.names(esr.output()));
             return withAdditionalAttributesUnlessLookup(esr, fieldsToLoad);
         });
+    }
+
+    /**
+     * The names output to the union by any {@link UnionAll} branch. A name not surfaced here (e.g. referenced only to be
+     * dropped/renamed away) is treated as an outer reference and broadcast-loaded into every branch. See #142033.
+     */
+    private static Set<String> unionBranchOutputNames(LogicalPlan plan) {
+        Set<String> names = new HashSet<>();
+        plan.forEachDown(UnionAll.class, ua -> {
+            for (LogicalPlan branch : ua.children()) {
+                names.addAll(Expressions.names(branch.output()));
+            }
+        });
+        return names;
     }
 
     private static List<FieldAttribute> fieldsToLoad(Set<UnresolvedAttribute> unresolved, List<String> exclude) {

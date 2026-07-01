@@ -98,7 +98,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             "missing references \\[.*\\]",
             // https://github.com/elastic/elasticsearch/issues/142026
             "column \\[.*\\] already resolved",
-            // https://github.com/elastic/elasticsearch/issues/142033, https://github.com/elastic/elasticsearch/issues/142026
+            // Subqueries, views and FORK are now supported with unmapped_fields="load" (#142033); this still matches the remaining
+            // restrictions: PROMQL and partially unmapped non-KEYWORD fields.
             "is not supported with unmapped_fields",
             "does not support full-text search function",
             "type \\[null\\] .* not supported",
@@ -107,8 +108,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // https://github.com/elastic/elasticsearch/issues/146036
             "argument of \\[.*\\] must be \\[unsupported\\], found value",
             // https://github.com/elastic/elasticsearch/issues/146074
-            "Input for REGISTERED_DOMAIN must be of type \\[string\\] but is \\[unsupported\\]",
-            "FORK is not supported with unmapped_fields=\\\"load\\\""
+            "Input for REGISTERED_DOMAIN must be of type \\[string\\] but is \\[unsupported\\]"
         )
     );
 

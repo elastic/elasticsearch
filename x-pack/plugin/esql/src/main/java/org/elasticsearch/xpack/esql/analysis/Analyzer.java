@@ -163,6 +163,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
@@ -1050,7 +1051,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Drop d -> resolveDrop(d, context.unmappedResolution());
                 case Rename r -> resolveRename(r, context.unmappedResolution());
                 case Keep k -> resolveKeep(k, context.unmappedResolution());
-                case Fork f -> resolveFork(f);
+                case Fork f -> resolveFork(f, context.unmappedResolution());
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
@@ -1554,12 +1555,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return translatable(expression, LucenePushdownPredicates.DEFAULT) != TranslationAware.Translatable.NO;
         }
 
-        private LogicalPlan resolveFork(Fork fork) {
+        private LogicalPlan resolveFork(Fork fork, UnmappedResolution unmappedResolution) {
             // we align the outputs of the sub plans such that they have the same columns
             boolean changed = false;
             List<LogicalPlan> newSubPlans = new ArrayList<>();
             List<Attribute> outputUnion = Fork.outputUnion(fork.children());
             List<String> forkColumns = outputUnion.stream().map(Attribute::name).toList();
+            // FORK branches share one source index, so load-align across them; subqueries/views (UnionAll) read independent
+            // sources and are handled in ResolveUnmapped. See #142033.
+            boolean loadAlignAcrossBranches = unmappedResolution == UnmappedResolution.LOAD && fork instanceof UnionAll == false;
+            Set<String> forkLoadableUnmappedKeywordNames = loadAlignAcrossBranches ? loadableUnmappedKeywordNames(fork) : Set.of();
 
             for (LogicalPlan logicalPlan : fork.children()) {
                 Source source = logicalPlan.source();
@@ -1573,7 +1578,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
 
-                List<Alias> aliases = missing.stream().map(attr -> {
+                List<Alias> aliases = new ArrayList<>(missing.size());
+                List<FieldAttribute> toLoad = new ArrayList<>();
+                for (Attribute attr : missing) {
+                    // A keyword loaded from _source in a sibling branch is loaded here too (not null-filled), unless this branch
+                    // can't surface it. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...) doesn't hide it. #142033
+                    if (loadAlignAcrossBranches
+                        && forkLoadableUnmappedKeywordNames.contains(attr.name())
+                        && branchCanSurfaceLoadedField(logicalPlan)) {
+                        toLoad.add(insistKeyword(attr));
+                        continue;
+                    }
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
                     // supported. This way we can add this missing column containing only null values to the fork branch output.
                     var attrType = attr.dataType() == UNSUPPORTED ? KEYWORD : attr.dataType();
@@ -1581,8 +1596,30 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         attrType = attrType.noCounter();
                     }
                     // use the current fork branch's source as the source of the alias, instead of the original FieldAttribute's source.
-                    return new Alias(source, attr.name(), new Literal(source, null, attrType));
-                }).toList();
+                    aliases.add(new Alias(source, attr.name(), new Literal(source, null, attrType)));
+                }
+
+                // load the unmapped keyword fields from this branch's own source relation so they surface in its output
+                if (toLoad.isEmpty() == false) {
+                    LogicalPlan withLoaded = logicalPlan.transformUp(EsRelation.class, esr -> {
+                        if (esr.indexMode() == IndexMode.LOOKUP) {
+                            return esr;
+                        }
+                        Set<String> existingNames = esr.outputSet().names();
+                        List<Attribute> newFields = new ArrayList<>(toLoad.size());
+                        for (FieldAttribute field : toLoad) {
+                            if (existingNames.contains(field.name()) == false) {
+                                newFields.add(field);
+                            }
+                        }
+                        return newFields.isEmpty() ? esr : esr.withAdditionalAttributes(newFields);
+                    });
+                    // mark changed only if the relation gained fields, else the fixed-point iteration never terminates
+                    if (withLoaded != logicalPlan) {
+                        logicalPlan = withLoaded;
+                        changed = true;
+                    }
+                }
 
                 // add the missing columns
                 if (aliases.size() > 0) {
@@ -1645,6 +1682,50 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> outputColumns
         ) {
             return unionAll instanceof UnionAll && outputColumns.isEmpty() && subquery.output().equals(NO_FIELDS);
+        }
+
+        /**
+         * Names loaded as unmapped keywords ({@link PotentiallyUnmappedKeywordEsField}) by any FORK branch's {@link EsRelation}.
+         * Scans the relations, not branch outputs, so a referencing generating command (EVAL/MV_EXPAND/...) can't hide the origin.
+         */
+        private static Set<String> loadableUnmappedKeywordNames(Fork fork) {
+            Set<String> names = new HashSet<>();
+            for (LogicalPlan branch : fork.children()) {
+                branch.forEachDown(EsRelation.class, esr -> {
+                    if (esr.indexMode() == IndexMode.LOOKUP) {
+                        return;
+                    }
+                    for (Attribute attr : esr.output()) {
+                        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
+                            names.add(fa.name());
+                        }
+                    }
+                });
+            }
+            return names;
+        }
+
+        /**
+         * Whether a keyword loaded at this branch's source would reach the branch output: true only if walking column-preserving
+         * unary plans from the root reaches a non-LOOKUP {@link EsRelation} (a Project/Aggregate in the way drops it).
+         */
+        private static boolean branchCanSurfaceLoadedField(LogicalPlan branch) {
+            LogicalPlan plan = branch;
+            while (true) {
+                if (plan instanceof EsRelation esRelation) {
+                    return esRelation.indexMode() != IndexMode.LOOKUP;
+                }
+                if (plan instanceof Project || plan instanceof Aggregate) {
+                    return false;
+                }
+                if (plan instanceof Join join && join.config().type() == JoinTypes.LEFT) {
+                    plan = join.left();
+                } else if (plan instanceof UnaryPlan unaryPlan) {
+                    plan = unaryPlan.child();
+                } else {
+                    return false;
+                }
+            }
         }
 
         private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput, AnalyzerContext context) {
@@ -3059,7 +3140,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, TypeConflictedField tcf) {
-            EsField field = new EsField(tcf.getName(), type, tcf.getProperties(), tcf.isAggregatable(), tcf.getTimeSeriesFieldType());
+            EsField field = new EsField(tcf.getName(), type, Map.of(), tcf.isAggregatable(), tcf.getTimeSeriesFieldType());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,
@@ -3118,10 +3199,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static Attribute cleanTypeConflicts(FieldAttribute fa) {
             EsField field = fa.field();
-            if (field instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
+            if (field instanceof TypeConflictedField tcf && tcf.isSingleTypePotentiallyUnmapped()) {
                 // IndexResolver records the field's actual mapped type (e.g., SHORT); widen it here so the implicit path surfaces the
                 // ESQL type (e.g., INTEGER), matching what an explicit cast would produce.
-                DataType type = tcf.types().iterator().next().widenSmallNumeric();
+                DataType type = tcf.singleMappedTypeWidened();
                 var restoredField = new EsField(tcf.getName(), type, tcf.getProperties(), false, tcf.getTimeSeriesFieldType());
                 // TODO: add test where not passing on the parent name fails the test
                 // TODO: add TS tests and tests with different time series field types
@@ -3288,8 +3369,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 return esRelation.transformExpressionsOnly(FieldAttribute.class, fa -> {
                     // We're looking for partially unmapped fields with exactly one mapped type, i.e.: two-legged PUNKs
-                    if (fa.field() instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
-                        DataType mappedType = tcf.types().iterator().next();
+                    if (fa.field() instanceof TypeConflictedField tcf && tcf.isSingleTypePotentiallyUnmapped()) {
+                        DataType mappedType = tcf.singleMappedType();
 
                         if (mappedType == DENSE_VECTOR) {
                             // The KEYWORD->DENSE_VECTOR converter reads hexadecimal strings, but an unmapped dense_vector loads from
@@ -3522,7 +3603,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private Expression countConvert(UnaryScalarFunction convert, Source source, DataType type, TypeConflictedField tcf) {
-            EsField field = new EsField(tcf.getName(), type, tcf.getProperties(), tcf.isAggregatable(), tcf.getTimeSeriesFieldType());
+            // Same reasoning as ResolveUnionTypes#typeSpecificConvert: the conversion input is a scalar leaf read of the field, so its
+            // multi-field children are irrelevant here and would otherwise serialize an un-transportable subfield conflict to data nodes.
+            EsField field = new EsField(tcf.getName(), type, Map.of(), tcf.isAggregatable(), tcf.getTimeSeriesFieldType());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,

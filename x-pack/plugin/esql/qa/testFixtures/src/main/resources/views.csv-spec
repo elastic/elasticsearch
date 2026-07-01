@@ -2224,3 +2224,845 @@ emp_no:integer | first_name:keyword
 10002          | Bezalel
 10005          | Kyoichi
 ;
+
+//
+// unmapped_fields="load" over views (see views.csv-spec for the non-load counterparts).
+//
+// Two flavours are covered:
+//  - passthrough / index-backed views: load surfaces the unmapped field as null
+//  - aggregating / ROW / TS views: the field is projected away by the view, so load mode
+//    only verifies the lifted restriction (result is identical to default mode)
+//
+
+// load surfaces a null unmapped column via EVAL over a single-index view
+loadViewSingleEvalUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_all
+| EVAL extra = nonexistent_field
+| WHERE extra IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
+// grouping by an unmapped (null) field over a view yields a single null bucket
+loadViewSingleStatsByUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_all
+| STATS c = COUNT(*) BY nonexistent_field
+;
+
+c:long | nonexistent_field:keyword
+100    | null
+;
+
+// sorting by an all-null unmapped field over a view keeps the secondary sort order
+loadViewSingleSortByUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_all
+| SORT nonexistent_field ASC, emp_no ASC
+| KEEP emp_no, nonexistent_field
+| LIMIT 3
+;
+
+emp_no:integer | nonexistent_field:keyword
+10001          | null
+10002          | null
+10003          | null
+;
+
+// renaming an unmapped field over a view preserves the null column
+loadViewSingleRenameUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_all
+| RENAME nonexistent_field AS missing
+| STATS c = COUNT(*), m = COUNT(missing) BY missing
+;
+
+c:long | m:long | missing:keyword
+100    | 0      | null
+;
+
+// IS NOT NULL over an unmapped field filters everything out
+loadViewSingleWhereUnmappedNotNull
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_all
+| WHERE nonexistent_field IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+// KEEP of an unmapped field over a view returns null values
+loadViewSingleKeepUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_all
+| SORT emp_no ASC
+| KEEP emp_no, nonexistent_field
+| LIMIT 2
+;
+
+emp_no:integer | nonexistent_field:keyword
+10001          | null
+10002          | null
+;
+
+// a view whose body is a subquery still surfaces the unmapped field as null
+loadViewWithSubqueryBody
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM view_with_subquery
+| EVAL extra = nonexistent_field
+| STATS c = COUNT(emp_no), missing = COUNT(extra)
+;
+
+c:long | missing:long
+100    | 0
+;
+
+// a view whose body internally branches (employees_extra) surfaces the unmapped field as null
+loadViewInternallyBranchingEmployeesExtra
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_deduplication_bugfix
+
+SET unmapped_fields="load"\;
+FROM employees_extra
+| EVAL extra = nonexistent_field
+| STATS c = COUNT(emp_no), missing = COUNT(extra)
+;
+
+c:long | missing:long
+200    | 0
+;
+
+// branching two views (employees_extra needs the dedup bugfix); the unmapped field is loadable (null)
+loadViewBranchingPassthroughUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_deduplication_bugfix
+
+SET unmapped_fields="load"\;
+FROM employees_all, employees_extra
+| EVAL extra = nonexistent_field
+| STATS c = COUNT(emp_no), missing = COUNT(extra)
+;
+
+c:long | missing:long
+300    | 0
+;
+
+// outer subquery wrapping an index-backed view surfaces the unmapped field as null
+loadViewWrappedInOuterSubqueryUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM employees_all | WHERE emp_no < 10005)
+| EVAL extra = nonexistent_field
+| STATS rows = COUNT(), missing = COUNT(extra)
+;
+
+rows:long | missing:long
+4         | 0
+;
+
+// branching index + aggregating view: the index branch makes the unmapped field loadable
+loadViewInSubqueryWithIndex
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM sample_data, (FROM country_airports)
+| STATS sd = COUNT(client_ip), ca = COUNT(count), missing = COUNT(nonexistent_field), total = COUNT()
+;
+
+sd:long | ca:long | missing:long | total:long
+7       | 15      | 0            | 22
+;
+
+// unmapped field referenced above a WHERE ... IN (view subquery)
+loadInSubqueryReferencingViewUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+SET unmapped_fields="load"\;
+FROM employees
+| WHERE emp_no IN (FROM employees_all | SORT emp_no | LIMIT 3 | KEEP emp_no)
+| EVAL extra = nonexistent_field
+| SORT emp_no
+| KEEP emp_no, first_name, extra
+;
+
+emp_no:integer | first_name:keyword | extra:keyword
+10001          | Georgi             | null
+10002          | Bezalel            | null
+10003          | Parto              | null
+;
+
+// a view whose body contains an IN subquery surfaces the unmapped field as null
+loadViewContainingInSubqueryUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_without_view
+
+SET unmapped_fields="load"\;
+FROM employees_in_subquery
+| EVAL extra = nonexistent_field
+| SORT emp_no
+| KEEP emp_no, first_name, extra
+;
+
+emp_no:integer | first_name:keyword | extra:keyword
+10001          | Georgi             | null
+10002          | Bezalel            | null
+10003          | Parto              | null
+;
+
+// branching index + alias view over the same index yields two copies (200); field loadable as null
+loadViewDedupIndexAndView
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_deduplication_bugfix
+
+SET unmapped_fields="load"\;
+FROM employees, employees_all
+| STATS c = COUNT(emp_no), missing = COUNT(nonexistent_field)
+;
+
+c:long | missing:long
+200    | 0
+;
+
+// branching the same view with itself; field loadable as null
+loadViewDedupViewAndView
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_all, employees_all
+| STATS c = COUNT(emp_no), missing = COUNT(nonexistent_field)
+;
+
+c:long | missing:long
+100    | 0
+;
+
+// load mode permitted over two branching aggregating views; result matches default mode
+loadViewBranchingCountryViewsLoadMode
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM country_addresses, country_airports
+| STATS count=SUM(count) BY country
+| WHERE count > 11
+| SORT count DESC, country ASC
+;
+
+count:long | country:keyword
+130        | United States
+50         | India
+45         | Mexico
+41         | China
+37         | Canada
+31         | Brazil
+26         | Russia
+17         | Australia
+17         | United Kingdom
+13         | Argentina
+12         | France
+12         | Indonesia
+;
+
+// load mode permitted over three branching aggregating views; result matches default mode
+loadViewBranchingThreeCountryViewsLoadMode
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM country_addresses, country_airports, country_languages
+| STATS count=SUM(count) BY country
+| WHERE count > 11
+| SORT count DESC, country ASC
+;
+
+count:long | country:keyword
+131        | United States
+50         | India
+45         | Mexico
+41         | China
+38         | Canada
+31         | Brazil
+26         | Russia
+18         | United Kingdom
+17         | Australia
+13         | Argentina
+13         | Germany
+12         | France
+12         | Indonesia
+;
+
+// load mode permitted over a wildcard expansion of aggregating views; result matches default mode
+loadViewWildcardCountryViewsLoadMode
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM country_*
+| STATS count=SUM(count) BY country
+| WHERE count > 11
+| SORT count DESC, country ASC
+;
+
+count:long | country:keyword
+131        | United States
+50         | India
+45         | Mexico
+41         | China
+38         | Canada
+31         | Brazil
+26         | Russia
+18         | United Kingdom
+17         | Australia
+13         | Argentina
+13         | Germany
+12         | France
+12         | Indonesia
+;
+
+// load mode permitted over a ROW-constants view; result matches default mode
+loadViewRowConstantsLoadMode
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+SET unmapped_fields="load"\;
+FROM view_row_constants
+| SORT seed, label
+;
+
+seed:integer | label:keyword
+1            | row_view_constants
+;
+
+// load mode permitted over a ROW+EVAL view; result matches default mode
+loadViewRowEvalLoadMode
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+SET unmapped_fields="load"\;
+FROM view_row_eval
+| SORT multiplier
+;
+
+multiplier:integer | triple:integer
+3                  | 9
+;
+
+// load mode permitted over a TS aggregating view; result matches default mode
+loadViewTsMaxBytesLoadMode
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+SET unmapped_fields="load"\;
+FROM view_k8s_max_bytes_by_cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10277          | prod
+10797          | qa
+7403           | staging
+;
+
+// load mode permitted over two branching TS aggregating views; result matches default mode
+loadViewTsBranchingStatsLoadMode
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+SET unmapped_fields="load"\;
+FROM view_k8s_max_bytes_by_cluster, view_k8s_downsampled_low_tx_count
+| STATS bytes=MAX(max_bytes), low_tx=SUM(count) BY cluster
+| SORT cluster
+;
+
+bytes:long | low_tx:long | cluster:keyword
+10277      | 3           | prod
+10797      | 2           | qa
+7403       | 2           | staging
+;
+
+// load surfaces the actual _source value of an unmapped field through a passthrough view (non-null)
+loadViewPassthroughLoadsFromSource
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_view
+| WHERE message == "42"
+| KEEP @timestamp, message, unmapped_message
+;
+
+@timestamp:date          | message:keyword | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 42              | 43
+;
+
+// aggregating an unmapped field loaded from _source through a view counts the real (non-null) values
+loadViewPassthroughLoadsFromSourceWithStats
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_view
+| STATS loaded = COUNT(unmapped_message), rows = COUNT(*)
+;
+
+loaded:long | rows:long
+7           | 7
+;
+
+// branching a source-loading view (field kept inside that branch) with an index branch: the loaded
+// keyword values survive the union and the index branch null-fills the column
+loadViewBranchingLoadsFromSourceInOneBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | KEEP message, unmapped_message), (FROM employees | KEEP emp_no)
+| WHERE unmapped_message IS NOT NULL
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+Connected to 10.1.0.2! | Disconnected from 10.1.0.2
+Connected to 10.1.0.3! | Disconnected from 10.1.0.3
+Connection error?      | Disconnection error
+Connection error?      | Disconnection error
+Connection error?      | Disconnection error
+;
+
+// An unmapped field referenced only after a branching union of views is loaded from _source in every branch (#142033),
+// so each branch surfaces its own _source value rather than null-filling the column.
+loadViewBranchingUnmappedFieldReferencedOnlyAboveUnion
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"), (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+// MV_EXPAND on a multi-value field loaded from _source through a view splits every value into its own row.
+loadMvViewExpandCount
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_view
+| MV_EXPAND unmapped_mv
+| STATS c = COUNT(*)
+;
+
+c:long
+13
+;
+
+// Filtering before MV_EXPAND through a view splits only the matching documents' values into rows.
+loadMvViewExpandValues
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_view
+| WHERE message == "Connection error?"
+| MV_EXPAND unmapped_mv
+| KEEP message, unmapped_mv
+| SORT unmapped_mv
+;
+
+message:keyword   | unmapped_mv:keyword
+Connection error? | c
+Connection error? | d
+Connection error? | e
+Connection error? | f
+Connection error? | g
+;
+
+// Multi-value functions operate on a field loaded from _source through a view.
+loadMvViewFunctions
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_view
+| WHERE message == "42"
+| EVAL n = MV_COUNT(unmapped_mv), lo = MV_MIN(unmapped_mv), hi = MV_MAX(unmapped_mv)
+| KEEP message, n, lo, hi
+;
+
+message:keyword | n:integer | lo:keyword | hi:keyword
+42              | 2         | h          | i
+;
+
+// DISSECT parses a keyword field loaded from _source through a view.
+loadDissectViewLoadedField
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_view
+| WHERE message == "Connected to 10.1.0.3!"
+| DISSECT unmapped_message "%{action} from %{host}"
+| KEEP message, action, host
+;
+
+message:keyword        | action:keyword | host:keyword
+Connected to 10.1.0.3! | Disconnected   | 10.1.0.3
+;
+
+// Branching union of the same source-loading view: one branch MV_EXPANDs the loaded multi-value field while
+// the sibling branch keeps its multi-value form. Values are loaded per-branch and survive the union.
+loadMvViewBranchingExpandInOneBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_mv_view | WHERE message == "42" | MV_EXPAND unmapped_mv | KEEP message, unmapped_mv), (FROM partial_mapping_mv_view | WHERE message == "Connected to 10.1.0.1!" | KEEP message, unmapped_mv)
+| SORT message, unmapped_mv
+;
+
+message:keyword        | unmapped_mv:keyword
+42                     | h
+42                     | i
+Connected to 10.1.0.1! | [a, b]
+;
+
+// An unmapped field referenced only after a branching union of views is loaded from _source in every branch and fed to a function.
+loadViewOuterEvalFunctionMaterializesAllBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| EVAL upper = TO_UPPER(unmapped_message)
+| KEEP message, unmapped_message, upper
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword   | upper:keyword
+42                     | 43                         | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | DISCONNECTED FROM 10.1.0.1
+;
+
+// An unmapped field materialized across a branching view union and used as an outer STATS grouping key.
+loadViewOuterStatsByMaterializesAllBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| STATS c = COUNT(*) BY unmapped_message
+| SORT unmapped_message
+;
+
+c:long | unmapped_message:keyword
+1      | 43
+1      | Disconnected from 10.1.0.1
+;
+
+// An unmapped field materialized across three view branches and ordered by an outer SORT.
+loadViewOuterSortDescMaterializesThreeBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.2!")
+| KEEP message, unmapped_message
+| SORT unmapped_message DESC
+;
+
+message:keyword        | unmapped_message:keyword
+Connected to 10.1.0.2! | Disconnected from 10.1.0.2
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+42                     | 43
+;
+
+// One view branch DROPs an unmapped field referenced after the union: the dropping branch null-fills it, the sibling materializes it.
+loadViewDropInOneBranchMaterializesSibling
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | DROP unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+// One view branch RENAMEs the field away; an outer reference to the original name still materializes in the sibling.
+loadViewRenameAwayOuterReferencesOriginalName
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_message AS renamed),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message, renamed
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword   | renamed:keyword
+42                     | null                       | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | null
+;
+
+// A view branch filters on the unmapped field then DROPs it; the outer reference still materializes in the sibling view branch.
+loadViewWhereThenDropInOneBranchMaterializesSibling
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE unmapped_message == "43" | DROP unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+// EVAL keeps the field in the view branch output, scoping the in-branch reference to that branch; the sibling null-fills it.
+loadViewEvalInOneBranchScopesFieldToBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | EVAL tag = unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message, tag
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword | tag:keyword
+42                     | 43                       | 43
+Connected to 10.1.0.1! | null                     | null
+;
+
+// KEEP surfaces the field in the view branch output, scoping it to that branch; an outer expression sees null in the sibling.
+loadViewKeepInOneBranchScopesFieldToBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!" | KEEP message)
+| EVAL has = unmapped_message IS NOT NULL
+| KEEP message, unmapped_message, has
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword | has:boolean
+42                     | 43                       | true
+Connected to 10.1.0.1! | null                     | false
+;
+
+// One view branch renames the field; an outer reference to the NEW name resolves only against that branch, so the sibling null-fills it.
+loadViewRenameInOneBranchOuterReferencesNewName
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_message AS renamed),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, renamed
+| SORT message
+;
+
+message:keyword        | renamed:keyword
+42                     | 43
+Connected to 10.1.0.1! | null
+;
+
+// A union mixing a view branch and a direct-index branch: an outer-only unmapped field materializes from _source in both.
+loadViewMixedViewAndIndexBranchesMaterialize
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+// A view branch DROPs the field while the sibling index branch materializes it from _source.
+loadViewDropInViewBranchMaterializeIndexBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | DROP unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+// A non-branching view passes unmapped fields through; an outer EVAL materializes and transforms them from _source.
+loadViewPassthroughOuterEvalMaterializes
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_view
+| WHERE message == "Connected to 10.1.0.3!"
+| EVAL upper = TO_UPPER(unmapped_message), len = LENGTH(unmapped_message)
+| KEEP message, upper, len
+;
+
+message:keyword        | upper:keyword              | len:integer
+Connected to 10.1.0.3! | DISCONNECTED FROM 10.1.0.3 | 26
+;
+
+// A field surfaced by the subquery-in-FROM branches can be filtered by a WHERE ... IN (view subquery); using an unmapped
+// field directly as the IN's left key is not yet supported (#142033 / PR #151750 review).
+loadViewInSubqueryAfterSubqueryInFrom
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: where_in_subquery_with_view
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.3!" | KEEP message, unmapped_message)
+| WHERE unmapped_message IN (FROM partial_mapping_view | WHERE message == "42" | KEEP unmapped_message)
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword | unmapped_message:keyword
+42              | 43
+;

@@ -1,0 +1,2 @@
+SET unmapped_fields="load"; FROM employees, (ROW synthetic = 1)
+| KEEP emp_no, synthetic, does_not_exist

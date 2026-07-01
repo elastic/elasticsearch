@@ -738,11 +738,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return checkNanAndInfinite(vector);
         }
 
-        abstract void checkVectorMagnitude(
-            VectorSimilarity similarity,
-            UnaryOperator<StringBuilder> errorElementsAppender,
-            float squaredMagnitude
-        );
+        abstract void checkVectorMagnitude(VectorSimilarity similarity, UnaryOperator<StringBuilder> appender, float squaredMagnitude);
 
         public abstract double computeSquaredMagnitude(VectorData vectorData);
 
@@ -3276,13 +3272,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     element.elementType(),
                     indexVersionCreated
                 );
-                // isBit is unused here: BYTE and BIT share this arm, since DocValuesBytes's scorer already
-                // branches on element.elementType() internally to compute Hamming distance for bit vectors.
+                // BYTE and BIT share this arm: DocValuesBytes's scorer branches on isBit internally to compute
+                // Hamming distance for bit vectors.
                 case ResolvedVector.Bytes(byte[] queryVector, boolean isBit) -> new DenseVectorQuery.DocValuesBytes(
                     queryVector,
                     name(),
                     effectiveSimilarity.rawVectorSimilarityFunction(),
-                    element.elementType(),
+                    isBit,
                     indexVersionCreated
                 );
             };
@@ -3292,8 +3288,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return indexVersionCreated.onOrAfter(NORMALIZE_COSINE) && VectorSimilarity.COSINE.equals(similarity);
         }
 
+        // Both callers pass a vector already validated by element.resolveAndValidate, so no dimension check here.
         private Query createExactKnnBitQuery(byte[] queryVector, Query filter) {
-            element.checkDimensions(dims, queryVector.length);
             // Bit vectors have no VectorSimilarityFunction; the codec scorer always computes Hamming distance.
             return DenseVectorQuery.Bytes.codecScored(queryVector, name()).filteredBy(filter);
         }

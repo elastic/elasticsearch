@@ -533,20 +533,14 @@ public abstract class DenseVectorQuery extends Query {
 
         private final byte[] query;
         private final VectorSimilarityFunction function;
-        private final ElementType elementType;
+        private final boolean isBit;
         private final IndexVersion indexVersion;
 
-        public DocValuesBytes(
-            byte[] query,
-            String field,
-            VectorSimilarityFunction function,
-            ElementType elementType,
-            IndexVersion indexVersion
-        ) {
+        public DocValuesBytes(byte[] query, String field, VectorSimilarityFunction function, boolean isBit, IndexVersion indexVersion) {
             super(field);
             this.query = query;
             this.function = function;
-            this.elementType = elementType;
+            this.isBit = isBit;
             this.indexVersion = indexVersion;
         }
 
@@ -569,7 +563,7 @@ public abstract class DenseVectorQuery extends Query {
             if (docValues == null) {
                 return null;
             }
-            return new DocValuesByteVectorScorer(docValues, query, function, elementType, indexVersion);
+            return new DocValuesByteVectorScorer(docValues, query, function, isBit, indexVersion);
         }
 
         @Override
@@ -580,13 +574,13 @@ public abstract class DenseVectorQuery extends Query {
             return Objects.equals(field, other.field)
                 && Objects.deepEquals(query, other.query)
                 && function == other.function
-                && elementType == other.elementType
+                && isBit == other.isBit
                 && Objects.equals(indexVersion, other.indexVersion);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(field, Arrays.hashCode(query), function, elementType, indexVersion);
+            return Objects.hash(field, Arrays.hashCode(query), function, isBit, indexVersion);
         }
 
         /**
@@ -598,7 +592,7 @@ public abstract class DenseVectorQuery extends Query {
             private final BinaryDocValues values;
             private final byte[] target;
             private final VectorSimilarityFunction function;
-            private final ElementType elementType;
+            private final boolean isBit;
             private final IndexVersion indexVersion;
             private final byte[] decoded;
 
@@ -606,13 +600,13 @@ public abstract class DenseVectorQuery extends Query {
                 BinaryDocValues values,
                 byte[] target,
                 VectorSimilarityFunction function,
-                ElementType elementType,
+                boolean isBit,
                 IndexVersion indexVersion
             ) {
                 this.values = values;
                 this.target = target;
                 this.function = function;
-                this.elementType = elementType;
+                this.isBit = isBit;
                 this.indexVersion = indexVersion;
                 this.decoded = new byte[target.length];
             }
@@ -620,7 +614,7 @@ public abstract class DenseVectorQuery extends Query {
             @Override
             public float score() throws IOException {
                 VectorEncoderDecoder.decodeDenseVector(indexVersion, values.binaryValue(), decoded);
-                if (elementType == ElementType.BIT) {
+                if (isBit) {
                     int numBits = decoded.length * Byte.SIZE;
                     return (numBits - VectorUtil.xorBitCount(target, decoded)) / (float) numBits;
                 }

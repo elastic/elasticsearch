@@ -802,25 +802,25 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             assertThat(getValuesList(resp), equalTo(List.of(List.of(0L, "local", "coordinator"))));
         }
 
-//        // lookup join after pipeline breaker on coordinator
-//        try (EsqlQueryResponse resp = runQuery("""
-//            FROM *:data
-//            | LIMIT 1 BY key
-//            | LOOKUP JOIN lookup ON key
-//            | KEEP key, cluster, mode
-//            | SORT key
-//            """, randomBoolean())) {
-//            assertThat(
-//                getValuesList(resp),
-//                equalTo(
-//                    List.of(
-//                        //
-//                        List.of(1L, "remote-1", "coordinator"),
-//                        List.of(2L, "remote-2", "coordinator")
-//                    )
-//                )
-//            );
-//        }
+        // lookup join after pipeline breaker on coordinator with remote indices
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LIMIT 1 BY key
+            | LOOKUP JOIN lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "coordinator"),
+                        List.of(2L, "remote-2", "coordinator")
+                    )
+                )
+            );
+        }
 //
 //        // lookup join with coordinator only index
 //        try (EsqlQueryResponse resp = runQuery("""

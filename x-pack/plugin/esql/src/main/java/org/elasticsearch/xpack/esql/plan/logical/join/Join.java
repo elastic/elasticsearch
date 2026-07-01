@@ -11,6 +11,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -377,6 +380,9 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     private void checkRemoteJoin(Failures failures) {
         Set<Source> fails = new HashSet<>();
 
+        // When a pipeline breaker is upstream the join runs on the coordinator using its local copy of the lookup index.
+        // Only fail when the coordinator has no local copy — in that case there is nothing to join against.
+        boolean coordinatorHasLookup = coordinatorHasLookupCopy();
         var self = this;
         forEachUp(LogicalPlan.class, u -> {
             if (u == self) {
@@ -388,14 +394,26 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
                 return;
             }
             if (u instanceof PipelineBreaker || (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR)) {
-                fails.add(u.source());
+                if (coordinatorHasLookup == false) {
+                    fails.add(u.source());
+                }
             }
         });
 
         fails.forEach(
             f -> failures.add(fail(this, "LOOKUP JOIN with remote indices can't be executed after [" + f.text() + "]" + f.source()))
         );
+    }
 
+    private boolean coordinatorHasLookupCopy() {
+        return right().anyMatch(
+            node -> node instanceof EsRelation rel
+                && rel.indexMode() == IndexMode.LOOKUP
+                && rel.indexNameWithModes()
+                    .keySet()
+                    .stream()
+                    .anyMatch(name -> RemoteClusterAware.splitIndexName(name).clusterAlias() == null)
+        );
     }
 
     @Override

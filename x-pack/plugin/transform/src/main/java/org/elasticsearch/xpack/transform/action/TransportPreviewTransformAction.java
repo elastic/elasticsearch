@@ -33,6 +33,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -85,6 +86,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
     private final TransportService transportService;
     private final Settings nodeSettings;
     private final SourceDestValidator sourceDestValidator;
+    private final CrossProjectModeDecider crossProjectModeDecider;
     private final Settings destIndexSettings;
     private final BooleanSupplier hasLinkedProjects;
     private final TransformCloudCredentialManager cloudCredentialManager;
@@ -125,6 +127,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             License.OperationMode.BASIC.description()
         );
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
+        this.crossProjectModeDecider = transformServices.crossProjectModeDecider();
         this.hasLinkedProjects = () -> transformServices.hasLinkedProjects().apply(projectResolver.getProjectId());
         this.cloudCredentialManager = transformServices.cloudCredentialManager();
     }
@@ -197,7 +200,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 config.getSource().getIndex(),
                 config.getDestination().getIndex(),
                 config.getDestination().getPipeline(),
-                SourceDestValidations.getValidationsForPreview(config.getAdditionalSourceDestValidations()),
+                SourceDestValidations.getValidationsForPreview(crossProjectModeDecider, config.getAdditionalSourceDestValidations()),
                 validateSourceDestListener
             ),
             releasingListener::onFailure

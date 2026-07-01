@@ -186,7 +186,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         "employees_parquet_copy",
         "employees_copy_collide",
         "employees_copy_multi",
-        "employees_swap"
+        "employees_swap",
+        "employees_id_from_col"
     );
 
     /**

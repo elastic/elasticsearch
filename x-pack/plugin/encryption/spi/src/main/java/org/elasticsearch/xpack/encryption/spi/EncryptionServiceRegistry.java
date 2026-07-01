@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.encryption.spi;
 
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Holds the node's single {@link EncryptionService} instance so that plugins extending the encryption SPI can obtain it from their own
@@ -21,14 +22,14 @@ import java.util.Objects;
  */
 public final class EncryptionServiceRegistry {
 
-    private static volatile EncryptionService instance;
+    private static final AtomicReference<EncryptionService> instance = new AtomicReference<>();
 
     /**
      * @return the node's {@link EncryptionService}, registered by the encryption plugin's {@code createComponents}.
      * @throws IllegalStateException if the encryption plugin hasn't wired the service yet.
      */
     public static EncryptionService getEncryptionService() {
-        EncryptionService service = instance;
+        EncryptionService service = instance.get();
         if (service == null) {
             throw new IllegalStateException("EncryptionService is not constructed yet");
         }
@@ -36,10 +37,16 @@ public final class EncryptionServiceRegistry {
     }
 
     /**
-     * Sets the node's {@link EncryptionService} to registry. Called once by the encryption plugin from {@code createComponents}.
+     * Registers the node's {@link EncryptionService}. Called once by the encryption plugin from {@code createComponents}
+     * A second call without previously calling {@link #reset} indicates the plugin was wired twice and fails loudly rather than silently
+     * overwriting the previously registered instance.
+     *
+     * @throws IllegalStateException if encryption service is already registered
      */
     public static void setEncryptionService(EncryptionService service) {
-        instance = Objects.requireNonNull(service, "encryptionService");
+        if (instance.compareAndSet(null, Objects.requireNonNull(service, "encryptionService")) == false) {
+            throw new IllegalStateException("EncryptionService is already registered");
+        }
     }
 
     /**
@@ -48,7 +55,7 @@ public final class EncryptionServiceRegistry {
      * constructor, which runs again for every node built in the same JVM (e.g. multi-node integration tests).
      */
     public static void reset() {
-        instance = null;
+        instance.set(null);
     }
 
     private EncryptionServiceRegistry() {

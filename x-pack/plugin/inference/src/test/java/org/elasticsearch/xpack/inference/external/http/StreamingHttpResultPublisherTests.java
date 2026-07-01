@@ -653,8 +653,19 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         assertThat("circuitBreaker should have 0 tracked bytes after the publisher failed", circuitBreaker.getTracked(), equalTo(0L));
     }
 
-    // TODO: bytes are released on subscriber cancellation
+    public void testCancelledSubscriberReleasesCircuitBreakerBytes() throws IOException {
+        var messageBytesLength = (long) message.length;
+        publisher.responseReceived(mock(HttpResponse.class));
+        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
 
+        assertThat("circuitBreaker should have tracked bytes after consuming content", circuitBreaker.getTracked(), equalTo(messageBytesLength));
+
+        var subscriber = new TestSubscriber();
+        testPublisher().subscribe(subscriber);
+        subscriber.subscription.cancel();
+
+        assertThat("circuitBreaker should have 0 tracked bytes after the subscriber was cancelled", circuitBreaker.getTracked(), equalTo(0L));
+    }
 
     private static class TestCircuitBreakerWithTracking extends TestCircuitBreaker {
         private long tracked;

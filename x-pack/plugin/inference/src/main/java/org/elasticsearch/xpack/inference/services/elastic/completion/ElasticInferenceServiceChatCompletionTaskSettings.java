@@ -86,10 +86,14 @@ public class ElasticInferenceServiceChatCompletionTaskSettings implements TaskSe
      * @throws ElasticsearchParseException if XContent parsing fails
      */
     public static ElasticInferenceServiceChatCompletionTaskSettings fromMap(
-        @Nullable Map<String, Object> map,
+        Map<String, Object> map,
         TaskType taskType,
         ConfigurationParseContext context
     ) {
+        if (map == null || map.isEmpty()) {
+            return EMPTY;
+        }
+
         var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
             return parser.apply(xParser, context).build(taskType);
@@ -152,6 +156,10 @@ public class ElasticInferenceServiceChatCompletionTaskSettings implements TaskSe
      */
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        if (newSettings == null || newSettings.isEmpty()) {
+            return this;
+        }
+
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, newSettings)) {
             return Update.PARSER.apply(xParser, null).mergeInto(this);
         } catch (IOException e) {

@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.deleteModel;
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.getModel;
@@ -271,7 +272,9 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
 
             var updatedEndpoint = getModel(inferenceId);
             var updatedTaskSettings = (Map<String, Object>) updatedEndpoint.get(ModelConfigurations.TASK_SETTINGS);
-            assertFalse(updatedTaskSettings.containsKey(UnifiedCompletionUtils.REASONING_FIELD));
+            // When the reasoning field is cleared there won't be any other task settings so ModelConfigurations won't serialize them
+            // because the map is empty. So we should get null here instead of an empty map.
+            assertNull(updatedTaskSettings);
         } finally {
             deleteModel(inferenceId);
         }
@@ -377,6 +380,7 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
         var responseConsumer = new AsyncInferenceResponseConsumer();
         request.setOptions(RequestOptions.DEFAULT.toBuilder().setHttpAsyncResponseConsumerFactory(() -> responseConsumer).build());
         var latch = new CountDownLatch(1);
+        var failure = new AtomicReference<Exception>();
         client().performRequestAsync(request, new ResponseListener() {
             @Override
             public void onSuccess(Response response) {
@@ -385,9 +389,11 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
 
             @Override
             public void onFailure(Exception exception) {
+                failure.set(exception);
                 latch.countDown();
             }
         });
         assertTrue(latch.await(ESRestTestCase.TEST_REQUEST_TIMEOUT.getSeconds(), TimeUnit.SECONDS));
+        assertNull(failure.get());
     }
 }

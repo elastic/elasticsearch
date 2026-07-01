@@ -33,7 +33,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.assertStatusOkOrCreated;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Rolling-upgrade test for the {@code reasoning} task setting on the Elastic Inference Service
@@ -145,8 +147,7 @@ public class ElasticInferenceServiceReasoningUpgradeIT extends ParameterizedRoll
                 assertThat(reasoning.get(UnifiedCompletionUtils.EFFORT_FIELD), is(EFFORT_MEDIUM));
                 assertThat(reasoning.get(UnifiedCompletionUtils.SUMMARY_FIELD), is(SUMMARY_DETAILED));
             } finally {
-                client().performRequest(new Request("DELETE", "_inference/" + inferenceId));
-                updateClusterSettings(Settings.builder().putNull("xpack.inference.skip_validate_and_start").build());
+                resetEndpoint(inferenceId);
             }
         } else {
             // Old or mixed cluster: the feature gate (ReasoningTaskSettingsCompatibility) fires on a new
@@ -180,5 +181,13 @@ public class ElasticInferenceServiceReasoningUpgradeIT extends ParameterizedRoll
         var request = new Request("PUT", Strings.format("_inference/%s/%s", taskType, inferenceId));
         request.setJsonEntity(config);
         return request;
+    }
+
+    private void resetEndpoint(String inferenceId) throws IOException {
+        try {
+            client().performRequest(new Request("DELETE", "_inference/" + inferenceId));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull("xpack.inference.skip_validate_and_start").build());
+        }
     }
 }

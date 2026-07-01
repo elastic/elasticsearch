@@ -49,11 +49,11 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
     /**
      * Default target rows per output page when chunking partial/intermediate output, i.e. the default of the
-     * {@code esql.time_series.target_chunk_size} setting. In partial/intermediate mode the operator slices its single
+     * {@code esql.time_series.target_chunk_rows} setting. In partial/intermediate mode the operator slices its single
      * emitted result into pages of about this many rows, bounding the size of each page sent to the coordinator. A
      * {@code _tsid} may straddle a page boundary; the coordinator re-merges groups by key.
      */
-    public static final int DEFAULT_TARGET_CHUNK_SIZE = 100_000;
+    public static final int DEFAULT_TARGET_CHUNK_ROWS = 100_000;
 
     /**
      * @param targetChunkRows target number of rows per output page when chunking partial/intermediate output. The

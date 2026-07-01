@@ -279,12 +279,13 @@ public final class TimeSeriesBlockHash extends BlockHash {
             for (int p = 0; p < positionCount; p++) {
                 final int groupId = selected.getInt(p);
                 final int globalOrd = (int) finalHash.getKey1(groupId);
+                final int slot = globalToLocalOrd.indexOf(globalOrd);
                 final int localOrd;
-                if (globalToLocalOrd.containsKey(globalOrd)) {
-                    localOrd = globalToLocalOrd.get(globalOrd);
+                if (globalToLocalOrd.indexExists(slot)) {
+                    localOrd = globalToLocalOrd.indexGet(slot);
                 } else {
                     localOrd = globalToLocalOrd.size();
-                    globalToLocalOrd.put(globalOrd, localOrd);
+                    globalToLocalOrd.indexInsert(slot, globalOrd, localOrd);
                     dictBuilder.appendBytesRef(tsidHash.get(globalOrd, tsidScratch));
                 }
                 tsidOrds.appendInt(p, localOrd);

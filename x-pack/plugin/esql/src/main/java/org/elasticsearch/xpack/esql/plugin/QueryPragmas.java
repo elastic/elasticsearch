@@ -219,7 +219,7 @@ public final class QueryPragmas implements Writeable {
         MAX_CONCURRENT_OPEN_SEGMENTS,
         MAX_RECORD_SIZE,
         FORCE_DOC_SEQUENCE,
-        PlannerSettings.TIME_SERIES_TARGET_CHUNK_SIZE,
+        PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
         RUNTIME_LEXICAL_SEARCH
     ).map(Setting::getKey).toList();
 
@@ -399,11 +399,11 @@ public final class QueryPragmas implements Writeable {
         return defaultThreshold;
     }
 
-    public int timeSeriesTargetChunkSize(int defaultChunkSize) {
-        if (settings.hasValue(PlannerSettings.TIME_SERIES_TARGET_CHUNK_SIZE.getKey())) {
-            return PlannerSettings.TIME_SERIES_TARGET_CHUNK_SIZE.get(settings);
+    public int timeSeriesTargetChunkRows(int defaultChunkRows) {
+        if (settings.hasValue(PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.getKey())) {
+            return PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.get(settings);
         }
-        return defaultChunkSize;
+        return defaultChunkRows;
     }
 
     public int docsThresholdForAutoPartitioning(int defaultThreshold) {

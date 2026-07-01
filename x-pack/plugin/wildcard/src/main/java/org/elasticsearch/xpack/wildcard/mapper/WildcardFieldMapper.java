@@ -275,14 +275,11 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public WildcardFieldMapper build(MapperBuilderContext context) {
-            boolean storeIgnored = context.isSourceSynthetic();
-            // Order and duplicates only need to survive doc values when synthetic source reconstructs them from doc values; stored or
-            // columnar-stored _source already preserves the original array as parsed.
-            boolean arrayOrderBinaryDocValues = storeIgnored && indexMode.isStrictColumnar();
+            boolean arrayOrderBinaryDocValues = indexMode.isStrictColumnar();
             return new WildcardFieldMapper(
                 leafName(),
                 new WildcardFieldType(context.buildFullName(leafName()), indexCreatedVersion, meta.get(), this, arrayOrderBinaryDocValues),
-                storeIgnored,
+                context.isSourceSynthetic(),
                 builderParams(this, context),
                 this
             );

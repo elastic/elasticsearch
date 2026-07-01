@@ -59,23 +59,9 @@ abstract class BinaryDvConfirmedQuery extends Query {
     /**
      * Returns a query that runs the generated Automaton from a range query across
      * all binary doc values (but only for docs that also match a provided approximation query which is key
-     * to getting good performance).
-     */
-    public static Query fromRangeQuery(
-        Query approximation,
-        String field,
-        BytesRef lower,
-        BytesRef upper,
-        boolean includeLower,
-        boolean includeUpper
-    ) {
-        return fromRangeQuery(approximation, field, lower, upper, includeLower, includeUpper, false);
-    }
-
-    /**
-     * Same as {@link #fromRangeQuery(Query, String, BytesRef, BytesRef, boolean, boolean)}, but reads the field's binary doc values
-     * using the in-order {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull}
-     * format when {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
+     * to getting good performance). Reads the field's binary doc values using the in-order
+     * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format when
+     * {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
      */
     public static Query fromRangeQuery(
         Query approximation,
@@ -97,14 +83,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
     /**
      * Returns a query that runs the generated Automaton from a wildcard query across
      * all binary doc values (but only for docs that also match a provided approximation query which is key
-     * to getting good performance).
-     */
-    public static Query fromWildcardQuery(Query approximation, String field, String matchPattern, boolean caseInsensitive) {
-        return fromWildcardQuery(approximation, field, matchPattern, caseInsensitive, false);
-    }
-
-    /**
-     * Same as {@link #fromWildcardQuery(Query, String, String, boolean)}, but reads the field's binary doc values using the in-order
+     * to getting good performance). Reads the field's binary doc values using the in-order
      * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format when
      * {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
      */
@@ -126,21 +105,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
     /**
      * Returns a query that runs the generated Automaton from a regexp query across
      * all binary doc values (but only for docs that also match a provided approximation query which is key
-     * to getting good performance).
-     */
-    public static Query fromRegexpQuery(
-        Query approximation,
-        String field,
-        String value,
-        int syntaxFlags,
-        int matchFlags,
-        int maxDeterminizedStates
-    ) {
-        return fromRegexpQuery(approximation, field, value, syntaxFlags, matchFlags, maxDeterminizedStates, false);
-    }
-
-    /**
-     * Same as {@link #fromRegexpQuery(Query, String, String, int, int, int)}, but reads the field's binary doc values using the in-order
+     * to getting good performance). Reads the field's binary doc values using the in-order
      * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format when
      * {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
      */
@@ -164,14 +129,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
     /**
      * Returns a query that runs the generated Automaton from a fuzzy query across
      * all binary doc values (but only for docs that also match a provided approximation query which is key
-     * to getting good performance).
-     */
-    public static Query fromFuzzyQuery(Query approximation, String field, String searchTerm, FuzzyQuery fuzzyQuery) {
-        return fromFuzzyQuery(approximation, field, searchTerm, fuzzyQuery, false);
-    }
-
-    /**
-     * Same as {@link #fromFuzzyQuery(Query, String, String, FuzzyQuery)}, but reads the field's binary doc values using the in-order
+     * to getting good performance). Reads the field's binary doc values using the in-order
      * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format when
      * {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
      */
@@ -187,14 +145,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
     /**
      * Returns a query that checks for equality of at least one of the provided terms across
      * all binary doc values (but only for docs that also match a provided approximation query which
-     * is key to getting good performance).
-     */
-    public static Query fromTerms(Query approximation, String field, BytesRef... terms) {
-        return fromTerms(approximation, field, false, terms);
-    }
-
-    /**
-     * Same as {@link #fromTerms(Query, String, BytesRef...)}, but reads the field's binary doc values using the in-order
+     * is key to getting good performance). Reads the field's binary doc values using the in-order
      * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format when
      * {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
      */

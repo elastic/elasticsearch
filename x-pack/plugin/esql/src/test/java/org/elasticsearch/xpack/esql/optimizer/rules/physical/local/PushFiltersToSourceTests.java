@@ -103,7 +103,7 @@ public class PushFiltersToSourceTests extends ESTestCase {
         List<Expression> result = PushFiltersToSource.combineFieldExtractRangePairs(
             List.of(lower, upper),
             UNMAPPED_KEY_PREDICATES,
-            AttributeMap.emptyAttributeMap()
+            AliasResolution.EMPTY
         );
 
         assertThat(result, hasSize(1));
@@ -131,7 +131,7 @@ public class PushFiltersToSourceTests extends ESTestCase {
         List<Expression> result = PushFiltersToSource.combineFieldExtractRangePairs(
             List.of(lower, upper),
             UNMAPPED_KEY_PREDICATES,
-            AttributeMap.emptyAttributeMap()
+            AliasResolution.EMPTY
         );
 
         assertThat(result, hasSize(1));
@@ -157,7 +157,7 @@ public class PushFiltersToSourceTests extends ESTestCase {
         List<Expression> result = PushFiltersToSource.combineFieldExtractRangePairs(
             conjuncts,
             UNMAPPED_KEY_PREDICATES,
-            AttributeMap.emptyAttributeMap()
+            AliasResolution.EMPTY
         );
 
         // Same reference: with no matching upper, the combiner short-circuits and returns the
@@ -188,7 +188,7 @@ public class PushFiltersToSourceTests extends ESTestCase {
         List<Expression> result = PushFiltersToSource.combineFieldExtractRangePairs(
             conjuncts,
             UNMAPPED_KEY_PREDICATES,
-            AttributeMap.emptyAttributeMap()
+            AliasResolution.EMPTY
         );
 
         assertThat(result, equalTo(conjuncts));
@@ -212,7 +212,7 @@ public class PushFiltersToSourceTests extends ESTestCase {
         ReferenceAttribute aliasAttr = new ReferenceAttribute(SRC, "my_root", DataType.FLATTENED);
         AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
         aliasBuilder.put(aliasAttr, realRoot);
-        AttributeMap<Expression> aliasReplacedBy = aliasBuilder.build();
+        AliasResolution aliasReplacedBy = new AliasResolution(aliasBuilder.build());
 
         FieldExtract aliasedExtract = new FieldExtract(SRC, aliasAttr, Literal.keyword(SRC, "host.name"));
         Expression lower = new GreaterThanOrEqual(SRC, aliasedExtract, Literal.keyword(SRC, "node-a"));
@@ -252,7 +252,7 @@ public class PushFiltersToSourceTests extends ESTestCase {
         List<Expression> result = PushFiltersToSource.combineFieldExtractRangePairs(
             conjuncts,
             UNMAPPED_KEY_PREDICATES,
-            AttributeMap.emptyAttributeMap()
+            AliasResolution.EMPTY
         );
 
         // FieldAttribute LHS never enters the field_extract bucket. The pre-pass is a no-op

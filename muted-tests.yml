@@ -719,9 +719,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/152355
-- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
-  method: testExplicitMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/152356
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.create/21_synthetic_source_stored/index param - field ordering}
   issue: https://github.com/elastic/elasticsearch/issues/152364
@@ -767,15 +764,18 @@ tests:
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPartiallyRetainedByCcrLease
   issue: https://github.com/elastic/elasticsearch/issues/152498
+- class: org.elasticsearch.reindex.RestReindexActionTests
+  method: testDestSliceRejectedWhenFeatureFlagDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/152548
+- class: org.elasticsearch.reindex.ReindexScriptTests
+  method: testSetSliceRejectedWhenFeatureFlagDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/152547
 - class: org.elasticsearch.xpack.diskbbq.DiskBBQClientYamlTestSuiteIT
   method: test {yaml=search.vectors/47_knn_search_bbq_disk_slice/KNN search with a different _slice returns that slice's nearest neighbor}
   issue: https://github.com/elastic/elasticsearch/issues/152520
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.SumSerializationTests
   method: testSerializeSumWithOverflowingLongSupplier
   issue: https://github.com/elastic/elasticsearch/issues/152506
-- class: org.elasticsearch.xpack.stateless.StatelessIT
-  method: testBackgroundMergeCommitAfterRelocationHasStartedDoesNotSendANewCommitNotification
-  issue: https://github.com/elastic/elasticsearch/issues/152516
 - class: org.elasticsearch.transport.RemoteClusterClientTests
   method: testConnectAndExecuteRequest
   issue: https://github.com/elastic/elasticsearch/issues/152518
@@ -785,3 +785,45 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexIsDeleted
   issue: https://github.com/elastic/elasticsearch/issues/152539
+- class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
+  method: testUpdatingFileBasedRoleAffectsAllProjects
+  issue: https://github.com/elastic/elasticsearch/issues/152582
+- class: org.elasticsearch.xpack.inference.InferenceWithSecurityRestIT
+  method: test {p0=inference/80_region_policy_crud/Get region policy allowed with monitor_inference privilege}
+  issue: https://github.com/elastic/elasticsearch/issues/152587
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:inlinestats.afterWhere}
+  issue: https://github.com/elastic/elasticsearch/issues/152591
+- class: org.elasticsearch.xpack.stateless.cluster.coordination.StatelessCoordinationTests
+  method: testAckListenerReceivesNacksIfPublicationTimesOut
+  issue: https://github.com/elastic/elasticsearch/issues/152605
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingStandardSource
+  issue: https://github.com/elastic/elasticsearch/issues/152643
+- class: org.elasticsearch.xpack.logsdb.WildcardRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/152644
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityBWCToRCS1ClusterRestIT
+  method: testBwcCCSViaRCS1orRCS2
+  issue: https://github.com/elastic/elasticsearch/issues/152645
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityBWCToRCS2ClusterRestIT
+  method: testBwcCCSViaRCS1orRCS2
+  issue: https://github.com/elastic/elasticsearch/issues/152646
+- class: org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests
+  method: testSkewedIndex
+  issue: https://github.com/elastic/elasticsearch/issues/152650
+- class: org.elasticsearch.xpack.logsdb.PatternTextRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/152652
+- class: org.elasticsearch.xpack.logsdb.MatchOnlyTextRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/152653
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/152654
+- class: org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/152655
+- class: org.elasticsearch.xpack.logsdb.TsdbIndexingRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/152656

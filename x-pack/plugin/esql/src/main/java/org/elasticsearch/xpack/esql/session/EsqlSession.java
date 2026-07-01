@@ -384,29 +384,27 @@ public class EsqlSession {
             ? statement.setting(QuerySettings.TIME_ZONE)
             : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone());
 
-        Configuration configuration = new ConfigurationBuilder(
-            new Configuration(
-                timeZone,
-                Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
-                request.locale() != null ? request.locale() : Locale.US,
-                // TODO: plug-in security
-                null,
-                clusterName,
-                request.pragmas(),
-                analyzerSettings.resultTruncationMaxSize(),
-                analyzerSettings.resultTruncationDefaultSize(),
-                request.query(),
-                request.profile(),
-                request.tables(),
-                System.nanoTime(),
-                request.allowPartialResults(),
-                analyzerSettings.timeseriesResultTruncationMaxSize(),
-                analyzerSettings.timeseriesResultTruncationDefaultSize(),
-                projectRouting(request, statement),
-                approximationSettings(request, statement),
-                viewResolution.viewQueries()
-            )
-        ).grokMatcherWatchdogMs(parser.grokMatcherWatchdog().maxExecutionTimeInMillis()).build();
+        Configuration configuration = new Configuration(
+            timeZone,
+            Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
+            request.locale() != null ? request.locale() : Locale.US,
+            // TODO: plug-in security
+            null,
+            clusterName,
+            request.pragmas(),
+            analyzerSettings.resultTruncationMaxSize(),
+            analyzerSettings.resultTruncationDefaultSize(),
+            request.query(),
+            request.profile(),
+            request.tables(),
+            System.nanoTime(),
+            request.allowPartialResults(),
+            analyzerSettings.timeseriesResultTruncationMaxSize(),
+            analyzerSettings.timeseriesResultTruncationDefaultSize(),
+            projectRouting(request, statement),
+            approximationSettings(request, statement),
+            viewResolution.viewQueries()
+        );
 
         // Pre-analysis pass over the uncompacted plan from ViewResolver: reshape user-written
         // Subquery/UnionAll structures into ViewUnionAll. ViewShadowRelation siblings and nested
@@ -1833,7 +1831,7 @@ public class EsqlSession {
                 indicesExpressionGrouper,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
-                    EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
+                    EsqlCCSUtils.checkForRemoteResourceErrors(indexResolution.inner().failures());
                     maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
                         executionInfo.queryProfile().incFieldCapsCalls();
                         indexResolver.resolveMainIndicesVersioned(
@@ -1885,7 +1883,7 @@ public class EsqlSession {
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
-                EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
+                EsqlCCSUtils.checkForRemoteResourceErrors(indexResolution.inner().failures());
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 // TODO count distinct linked projects
                 l.onResponse(result.withWithLinkedIndices(linkedIndexPattern, indexResolution.inner()));
@@ -1921,7 +1919,7 @@ public class EsqlSession {
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
-                EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
+                EsqlCCSUtils.checkForRemoteResourceErrors(indexResolution.inner().failures());
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {

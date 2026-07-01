@@ -8,11 +8,13 @@
  */
 package org.elasticsearch.index.codec.vectors.cluster;
 
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -26,6 +28,88 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
     protected abstract CentroidOps<V> centroidOps();
 
     protected abstract ClusteringVectorValues<V> generateData(int nSamples, int nDims, int nClusters);
+
+    public void testNumClustersForTargetSize() {
+        assertEquals(32, HierarchicalKMeans.numClustersForTargetSize(8192, 256));
+        assertEquals(2, HierarchicalKMeans.numClustersForTargetSize(400, 256));
+    }
+
+    public void testWarmStartMatchesColdStartClusterCount() throws IOException {
+        float[][] rows = {
+            { 1f, 0f, 0f, 0f },
+            { 0.9f, 0.1f, 0f, 0f },
+            { 0.8f, 0.2f, 0f, 0f },
+            { 0.7f, 0.3f, 0f, 0f },
+            { 0.6f, 0.4f, 0f, 0f },
+            { 0.5f, 0.5f, 0f, 0f },
+            { 0.4f, 0.6f, 0f, 0f },
+            { 0.3f, 0.7f, 0f, 0f },
+            { 0.2f, 0.8f, 0f, 0f },
+            { 0.1f, 0.9f, 0f, 0f },
+            { 0f, 1f, 0f, 0f },
+            { -0.1f, 0.9f, 0f, 0f } };
+        KMeansFloatVectorValues vectors = KMeansFloatVectorValues.build(List.of(rows), null, 4);
+        HierarchicalKMeans<float[]> kmeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, 4);
+        KMeansWithOverspill<float[]> cold = kmeans.cluster(vectors, 4);
+        KMeansWithOverspill<float[]> warm = kmeans.cluster(vectors, 4, cold.centroids());
+        assertEquals(cold.centroids().length, warm.centroids().length);
+        assertEquals(cold.assignments().length, warm.assignments().length);
+    }
+
+    public void testGrowingWarmStartMatchesColdStartClusterCount() throws IOException {
+        int dim = 4;
+        int targetSize = 128;
+        float[][] rows = syntheticClusteredRows(5200, dim, 8);
+        FloatVectorValues full = KMeansFloatVectorValues.build(List.of(rows), null, dim);
+        int[] ordinals4096 = new int[4096];
+        int[] ordinals5120 = new int[5120];
+        for (int i = 0; i < ordinals4096.length; i++) {
+            ordinals4096[i] = i;
+        }
+        for (int i = 0; i < ordinals5120.length; i++) {
+            ordinals5120[i] = i;
+        }
+        KMeansFloatVectorValues prefix4096 = KMeansFloatVectorValues.wrap(full, ordinals4096, ordinals4096.length);
+        KMeansFloatVectorValues prefix5120 = KMeansFloatVectorValues.wrap(full, ordinals5120, ordinals5120.length);
+
+        HierarchicalKMeans<float[]> kmeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, dim);
+        KMeansWithOverspill<float[]> small = kmeans.cluster(prefix4096, targetSize);
+        KMeansWithOverspill<float[]> coldLarge = kmeans.cluster(prefix5120, targetSize);
+        KMeansWithOverspill<float[]> warmLarge = kmeans.cluster(prefix5120, targetSize, small.centroids());
+        assertEquals(coldLarge.centroids().length, warmLarge.centroids().length);
+        assertEquals(coldLarge.assignments().length, warmLarge.assignments().length);
+    }
+
+    private static float[][] syntheticClusteredRows(int count, int dim, int numClusters) {
+        float[][] centroids = new float[numClusters][dim];
+        for (int c = 0; c < numClusters; c++) {
+            for (int d = 0; d < dim; d++) {
+                centroids[c][d] = (c + 1) * 0.1f + d * 0.01f;
+            }
+            float norm = 0;
+            for (int d = 0; d < dim; d++) {
+                norm += centroids[c][d] * centroids[c][d];
+            }
+            norm = (float) Math.sqrt(norm);
+            for (int d = 0; d < dim; d++) {
+                centroids[c][d] /= norm;
+            }
+        }
+        float[][] rows = new float[count][dim];
+        for (int i = 0; i < count; i++) {
+            System.arraycopy(centroids[i % numClusters], 0, rows[i], 0, dim);
+            rows[i][i % dim] += 0.001f * (i % 5);
+            float norm = 0;
+            for (int d = 0; d < dim; d++) {
+                norm += rows[i][d] * rows[i][d];
+            }
+            norm = (float) Math.sqrt(norm);
+            for (int d = 0; d < dim; d++) {
+                rows[i][d] /= norm;
+            }
+        }
+        return rows;
+    }
 
     public void testHKmeans() throws IOException {
         int nClusters = random().nextInt(1, 10);

@@ -16,6 +16,7 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
@@ -23,6 +24,9 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matchers;
 import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -42,8 +46,19 @@ public class LogsdbRestIT extends ESRestTestCase {
     private static final String USER = "x_pack_rest_user";
     private static final String PASS = "x-pack-test-password";
 
+    private static boolean columnarEnabled;
+
+    private static final ExternalResource randomizeColumnarRule = new ExternalResource() {
+        @Override
+        protected void before() {
+            columnarEnabled = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        }
+    };
+
+    private static final ElasticsearchCluster cluster = createCluster();
+
     @ClassRule
-    public static final ElasticsearchCluster cluster = createCluster();
+    public static TestRule ruleChain = RuleChain.outerRule(randomizeColumnarRule).around(cluster);
 
     private static ElasticsearchCluster createCluster() {
         LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
@@ -51,7 +66,8 @@ public class LogsdbRestIT extends ESRestTestCase {
             .setting("xpack.security.enabled", "true")
             .user(USER, PASS)
             .keystore("bootstrap.password", "x-pack-test-password")
-            .setting("xpack.license.self_generated.type", "trial");
+            .setting("xpack.license.self_generated.type", "trial")
+            .setting("cluster.logsdb_columnar.enabled", () -> Boolean.toString(columnarEnabled));
         boolean setNodes = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
         if (setNodes) {
             clusterBuilder.nodes(1);
@@ -146,7 +162,7 @@ public class LogsdbRestIT extends ESRestTestCase {
 
         String index = getDataStreamBackingIndexNames("logs-test-foo").getFirst();
         var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
-        assertEquals("logsdb", settings.get("index.mode"));
+        assertEquals(columnarEnabled ? "logsdb_columnar" : "logsdb", settings.get("index.mode"));
         assertNull(settings.get("index.mapping.source.mode"));
     }
 

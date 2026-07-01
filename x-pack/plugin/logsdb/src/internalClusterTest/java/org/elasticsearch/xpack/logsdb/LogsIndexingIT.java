@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
@@ -106,51 +107,69 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
             .build();
     }
 
+    /**
+     * Toggles the dynamic {@code cluster.logsdb_columnar.enabled} setting between {@code false} and {@code true} and
+     * verifies the provider's auto-injection for both outcomes, rather than leaving it to a single random per-run
+     * coin flip (the node, and any setting fixed once in {@link #nodeSettings()}, is reused across test methods).
+     */
     public void testStandard() throws Exception {
-        String dataStreamName = "logs-k8s-prod";
-        boolean columnarEnabled = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
-        String indexMode = columnarEnabled ? "logsdb_columnar" : "logsdb";
-        var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
-        putTemplateRequest.indexTemplate(
-            ComposableIndexTemplate.builder()
-                .indexPatterns(List.of(dataStreamName + "*"))
-                .template(
-                    new Template(
-                        indexSettings(4, 0).put("index.mode", indexMode).put("index.sort.field", "message,k8s.pod.uid,@timestamp").build(),
-                        new CompressedXContent(MAPPING_TEMPLATE),
-                        null
-                    )
-                )
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
-                .build()
-        );
-        client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet();
-        checkIndexSearchAndRetrieval(dataStreamName, false, columnarEnabled);
+        try {
+            for (boolean columnarEnabled : List.of(false, true)) {
+                updateClusterSettings(Settings.builder().put("cluster.logsdb_columnar.enabled", columnarEnabled).build());
+                String dataStreamName = "logs-k8s-prod-" + columnarEnabled;
+                var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id-" + columnarEnabled);
+                putTemplateRequest.indexTemplate(
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of(dataStreamName + "*"))
+                        .template(
+                            new Template(
+                                indexSettings(4, 0).put("index.sort.field", "message,k8s.pod.uid,@timestamp").build(),
+                                new CompressedXContent(MAPPING_TEMPLATE),
+                                null
+                            )
+                        )
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                        .build()
+                );
+                client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet();
+                checkIndexSearchAndRetrieval(dataStreamName, false, columnarEnabled);
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull("cluster.logsdb_columnar.enabled").build());
+        }
     }
 
+    /**
+     * See {@link #testStandard()} for why this deterministically exercises both {@code cluster.logsdb_columnar.enabled}
+     * outcomes instead of relying on a random per-run coin flip.
+     */
     public void testRouteOnSortFields() throws Exception {
-        String dataStreamName = "logs-k8s-prod";
-        boolean columnarEnabled = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
-        String indexMode = columnarEnabled ? "logsdb_columnar" : "logsdb";
-        var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
-        putTemplateRequest.indexTemplate(
-            ComposableIndexTemplate.builder()
-                .indexPatterns(List.of(dataStreamName + "*"))
-                .template(
-                    new Template(
-                        indexSettings(4, 0).put("index.mode", indexMode)
-                            .put("index.sort.field", "message,k8s.pod.uid,@timestamp")
-                            .put("index.logsdb.route_on_sort_fields", true)
-                            .build(),
-                        new CompressedXContent(MAPPING_TEMPLATE),
-                        null
-                    )
-                )
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
-                .build()
-        );
-        client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet();
-        checkIndexSearchAndRetrieval(dataStreamName, true, columnarEnabled);
+        try {
+            for (boolean columnarEnabled : List.of(false, true)) {
+                updateClusterSettings(Settings.builder().put("cluster.logsdb_columnar.enabled", columnarEnabled).build());
+                String dataStreamName = "logs-k8s-prod-" + columnarEnabled;
+                var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id-" + columnarEnabled);
+                putTemplateRequest.indexTemplate(
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of(dataStreamName + "*"))
+                        .template(
+                            new Template(
+                                indexSettings(4, 0).put("index.sort.field", "message,k8s.pod.uid,@timestamp")
+                                    .put("index.logsdb.route_on_sort_fields", true)
+                                    .build(),
+                                new CompressedXContent(MAPPING_TEMPLATE),
+                                null
+                            )
+                        )
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                        .build()
+                );
+                client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet();
+                checkIndexSearchAndRetrieval(dataStreamName, true, columnarEnabled);
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull("cluster.logsdb_columnar.enabled").build());
+        }
     }
 
     private void checkIndexSearchAndRetrieval(String dataStreamName, boolean routeOnSortFields, boolean columnarEnabled) throws Exception {
@@ -159,8 +178,10 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
             UUID.randomUUID().toString(),
             UUID.randomUUID().toString(),
             UUID.randomUUID().toString() };
-        int numBulkRequests = randomIntBetween(128, 1024);
-        int numDocsPerBulk = randomIntBetween(16, 256);
+        // Kept modest because this now runs twice per test method (once per cluster.logsdb_columnar.enabled
+        // value) against a fixed-size test JVM heap; the original wider range OOMs when doubled up.
+        int numBulkRequests = randomIntBetween(32, 256);
+        int numDocsPerBulk = randomIntBetween(8, 64);
         String indexName = null;
         {
             Instant time = Instant.now();
@@ -190,7 +211,10 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
         ).actionGet();
         final Settings settings = getSettingsResponse.getIndexToSettings().get(indexName);
         assertEquals("message,k8s.pod.uid,@timestamp", settings.get("index.sort.field"));
-        assertEquals(columnarEnabled ? "logsdb_columnar" : "logsdb", settings.get("index.mode"));
+        // The provider only auto-selects logsdb_columnar in snapshot builds; mirror that here so this
+        // assertion holds in both snapshot and release-build test runs.
+        boolean expectColumnar = columnarEnabled && Build.current().isSnapshot();
+        assertEquals(expectColumnar ? "logsdb_columnar" : "logsdb", settings.get("index.mode"));
         if (routeOnSortFields) {
             assertEquals("[message, k8s.pod.uid]", settings.get("index.routing_path"));
             assertEquals("true", settings.get("index.logsdb.route_on_sort_fields"));

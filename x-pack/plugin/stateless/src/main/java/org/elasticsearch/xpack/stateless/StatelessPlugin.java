@@ -1045,7 +1045,8 @@ public class StatelessPlugin extends Plugin
                     hollowShardsService,
                     searchShardSizeCollector,
                     memoryMetricsService,
-                    objectStoreService
+                    objectStoreService,
+                    blobCacheMetrics
                 );
             }
         }

@@ -1210,7 +1210,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         throw new IllegalStateException("numeric threshold descriptor is incomplete");
                     }
                     threshold = new DynamicThreshold(
-                        thresholdColumnName,
+                        PhysicalNames.translate(thresholdColumnName, renames),
                         thresholdElementType,
                         thresholdAscending,
                         thresholdNullsFirst,
@@ -1218,7 +1218,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     );
                 } else if (minCompetitiveSupplier != null) {
                     threshold = new DynamicThreshold(
-                        thresholdColumnName,
+                        PhysicalNames.translate(thresholdColumnName, renames),
                         thresholdAscending,
                         thresholdNullsFirst,
                         minCompetitiveSupplier.get()

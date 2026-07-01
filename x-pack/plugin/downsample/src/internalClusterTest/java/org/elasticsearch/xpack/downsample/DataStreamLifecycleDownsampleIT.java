@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
@@ -34,6 +37,7 @@ import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.junit.After;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -54,15 +58,24 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
-    public static final int DOC_COUNT = 50_000;
+    public static final int DOC_COUNT = 25_000;
+    private static Logger logger = LogManager.getLogger(DownsamplingIntegTestCase.class);
     private final DownsamplingOperationsMonitor monitor = new DownsamplingOperationsMonitor();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
-        settings.put(DataStreamLifecycleService.DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING.getKey(), "1");
         return settings.build();
+    }
+
+    @After
+    public void clearSettings() {
+        assertAcked(
+            new ClusterUpdateSettingsRequestBuilder(client(), TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(
+                Settings.builder().putNull(DataStreamLifecycleService.DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING.getKey())
+            ).execute()
+        );
     }
 
     @TestLogging(value = "org.elasticsearch.datastreams.lifecycle:TRACE", reason = "debugging")
@@ -385,7 +398,14 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         assertDownsamplingMethod(updatedSamplingMethod, downsampledPrefix + secondBackingIndex);
     }
 
+    @TestLogging(value = "org.elasticsearch.datastreams.lifecycle:DEBUG", reason = "debugging")
     public void testDownsamplingTriggersOnlyUpToMaxIndices() throws Exception {
+        assertAcked(
+            new ClusterUpdateSettingsRequestBuilder(client(), TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(
+                Settings.builder().put(DataStreamLifecycleService.DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING.getKey(), "1")
+            ).execute()
+        );
+
         DataStreamLifecycleService dlm = internalCluster().getAnyMasterNodeInstance(DataStreamLifecycleService.class);
         DataStreamLifecycleErrorStore dlmErrorStore = dlm.getErrorStore();
         String dataStreamName = "metrics-foo";
@@ -419,7 +439,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         // We have 2 backing indices that are eligible for downsampling.
         List<Index> backingIndices = getBackingIndices(dataStreamName);
         assertThat(backingIndices.size(), is(3));
-
+        logger.info("--> backing indices: {} created", backingIndices);
         // Marking nodes for shutdown will stop the downsampling task from being assigned and will give us time to assert correctness
         markNodesForShutdown();
 
@@ -528,6 +548,8 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
                     fail(e.getMessage());
                 }
             });
+        awaitClusterState(clusterState -> clusterState.metadata().nodeShutdowns().getAll().size() == clusterState.getNodes().size());
+        logger.info("--> Marking for shutdown successful");
     }
 
     private void unmarkNodesForShutdown() {
@@ -547,5 +569,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
                     fail(e.getMessage());
                 }
             });
+        awaitClusterState(clusterState -> clusterState.metadata().nodeShutdowns().getAll().isEmpty());
+        logger.info("--> Unmarking shutdown successful");
     }
 }

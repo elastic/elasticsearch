@@ -520,19 +520,13 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
             // High-cardinality (binary doc values) fields in strict columnar mode store their values in document order directly in the
             // binary doc values (ArrayOrderInlineNull) instead of recording a sidecar .offsets field; low-cardinality (sorted-set) fields
-            // keep using offsets.
-            // Exception: index sort fields must use SeparateCount encoding (sorted unique values) because
-            // MultiValuedBinaryDocValuesSortField relies on values being sorted to find min/max by reading the first/last entry.
-            // ArrayOrderInlineNull stores values in document order (not sorted) and uses a different length prefix (L+1),
-            // so sort fields keep the offsets sidecar and use SeparateCount instead.
+            // keep using offsets. This applies to index sort fields too: both MultiValuedBinaryDocValuesSortField (index sorting) and
+            // AbstractBinaryDocValuesQuery (term/prefix/wildcard/range queries against fields with no inverted index, e.g. the
+            // host.name skip-index sort field - see shouldUseHostnameSkipper) decode both the ArrayOrderInlineNull and SeparateCount
+            // binary formats.
             if (offsetsFieldName != null && usesBinaryDocValues() && indexSettings.getMode().isStrictColumnar()) {
-                IndexSortConfig sortConfig = indexSettings.getIndexSortConfig();
-                String fullFieldName = context.buildFullName(leafName());
-                boolean isIndexSortField = sortConfig != null && sortConfig.hasIndexSort() && sortConfig.hasSortOnField(fullFieldName);
-                if (isIndexSortField == false) {
-                    this.arrayOrderBinaryDocValues = true;
-                    this.offsetsFieldName = null;
-                }
+                this.arrayOrderBinaryDocValues = true;
+                this.offsetsFieldName = null;
             }
             return new KeywordFieldMapper(
                 leafName(),

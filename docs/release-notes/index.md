@@ -95,10 +95,9 @@ TSDB:
 Vector Search:
 * Fix GPU SQ format name to match CPU equivalent [#149512](https://github.com/elastic/elasticsearch/pull/149512) (issue: [#148975](https://github.com/elastic/elasticsearch/issues/148975))
 
+
+
 ## 9.3.7 [elasticsearch-9.3.7-release-notes]
-```{applies_to}
-stack: ga 9.3.7
-```
 
 ### Features and enhancements [elasticsearch-9.3.7-features-enhancements]
 
@@ -124,6 +123,7 @@ Infra/Core:
 Machine Learning:
 * Fix bug causing incorrect error on force deleting already deleted model [#107188](https://github.com/elastic/elasticsearch/pull/107188) (issue: [#105420](https://github.com/elastic/elasticsearch/issues/105420))
 * Revert "[ML] Add extra validation in `trained_model` creation" [#152000](https://github.com/elastic/elasticsearch/pull/152000)
+
 
 
 ## 9.3.6 [elasticsearch-9.3.6-release-notes]

@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
@@ -551,6 +552,20 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
         if (childResult.constFolded()) {
             return childResult;
+        }
+
+        // histogram_quantile operates either on classic histograms (counter backed) or native histograms
+        // at this point in the planning we can now distinguish those two
+        // classic histograms need a special treatment, while native histograms are regular
+        // ValueTransformationFunctions
+        if (childResult.expression().resolved() && childResult.expression().dataType().isHistogram()) {
+            var vtf = new ValueTransformationFunction(
+                histogramQuantile.source(),
+                histogramQuantile.child(),
+                PromqlHistogramQuantile.PROMQL_DEFINITION,
+                histogramQuantile.parameters()
+            );
+            return translateFunctionCall(vtf, currentPlan, ctx);
         }
 
         LogicalPlan childPlan = childResult.plan();

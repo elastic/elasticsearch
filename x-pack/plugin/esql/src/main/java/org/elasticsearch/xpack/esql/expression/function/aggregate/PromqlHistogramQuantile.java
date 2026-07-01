@@ -11,7 +11,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PromqlHistogramQuantileAggregatorFunctionSupplier;
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -19,6 +21,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -47,15 +51,31 @@ public class PromqlHistogramQuantile extends AggregateFunction implements ToAggr
 
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .histogramBinary(PromqlFunctionDefinition.QUANTILE, (source, target, ctx, extraParams) -> {
-            throw new UnsupportedOperationException("histogram_quantile is lowered via a dedicated logical node");
+            if (target.resolved() == false || target.dataType().isHistogram() == false) {
+                throw new IllegalStateException(
+                    "histogram_quantile for classic histograms should have been replaced with PromqlHistogramQuantile by the planner"
+                );
+            }
+
+            Expression quantile = extraParams.getFirst();
+            if (quantile.foldable()) {
+                // TODO: we should probably be using a shared fold context stored in PromqlContext?
+                Object folded = quantile.fold(FoldContext.small());
+                if (folded instanceof Number n) {
+                    if (n.doubleValue() == 0.0) {
+                        return ExtractHistogramComponent.create(source, target, ExponentialHistogramBlock.Component.MIN);
+                    } else if (n.doubleValue() == 1.0) {
+                        return ExtractHistogramComponent.create(source, target, ExponentialHistogramBlock.Component.MAX);
+                    }
+                }
+            }
+            return new HistogramPercentile(source, target, PromqlFunctionDefinition.quantileToPercentile(source, quantile));
         })
-        .description("Returns the φ-quantile of a classic histogram represented by cumulative `le` buckets.")
+        .description(
+            "Returns the φ-quantile of a classic histogram represented by cumulative `le` buckets or a native (exponential) histogram."
+        )
         .example("histogram_quantile(0.9, rate(http_request_duration_seconds_bucket[5m]))")
         .stack(PromqlFunctionDefinition.STACK_GA_9_5)
-        .differenceFromPrometheus(
-            "Only classic histograms, represented by cumulative `le` bucket series, are supported. Prometheus native "
-                + "histograms are not supported."
-        )
         .name("histogram_quantile");
 
     private final Expression upperBound;

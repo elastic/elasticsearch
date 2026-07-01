@@ -187,3 +187,96 @@ result:double | step:datetime            | instance:keyword
 3250.0        | 2025-09-25T02:00:00.000Z | instance-1
 3380.0        | 2025-09-25T02:00:00.000Z | instance-2
 ;
+
+///////////////////////////////////////////////////////////////////////////////
+// histogram_quantile on exponential histograms
+///////////////////////////////////////////////////////////////////////////////
+
+// --- min (quantile 0.0) ---
+
+histogram_quantile_min_exp_histo_no_bucket
+required_capability: promql_histogram_quantile_exponential
+PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_quantile(0.0, increase(responseTime{instance=~"instance-.*"}[2h])))
+| SORT _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+2.4E-4        | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
+2.17E-4       | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-1""}"
+2.2E-4        | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-2""}"
+;
+
+// --- max (quantile 1.0) ---
+
+histogram_quantile_max_exp_histo_no_bucket
+required_capability: promql_histogram_quantile_exponential
+PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_quantile(1.0, increase(responseTime{instance=~"instance-.*"}[2h])))
+| SORT _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+6.786232      | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
+3.190723      | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-1""}"
+2.744054      | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-2""}"
+;
+
+// --- median (quantile 0.5) ---
+
+histogram_quantile_median_exp_histo_no_bucket
+required_capability: promql_histogram_quantile_exponential
+PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_quantile(0.5, increase(responseTime{instance=~"instance-.*"}[2h])))
+| SORT _timeseries;
+
+result:double            | step:datetime            | _timeseries:keyword
+0.0211401..0.0211407     | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
+0.000646929..0.0006608   | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-1""}"
+0.000646929..0.0006608   | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-2""}"
+;
+
+// --- min with time bucketing (30m steps, same pattern as histogram_count_increase_exp_histo_multi_step) ---
+
+histogram_quantile_min_exp_histo_multi_step
+required_capability: promql_histogram_quantile_exponential
+PROMQL index=exp_histo_sample step=30m start="2025-09-25T00:30:00.000Z" end="2025-09-25T01:30:00.000Z" result=(histogram_quantile(0.0, increase(responseTime{instance="instance-1"}[30m])))
+| SORT step;
+
+result:double | step:datetime            | _timeseries:keyword
+2.24E-4       | 2025-09-25T00:30:00.000Z | "{""instance"":""instance-1""}"
+2.29E-4       | 2025-09-25T01:00:00.000Z | "{""instance"":""instance-1""}"
+2.21E-4       | 2025-09-25T01:30:00.000Z | "{""instance"":""instance-1""}"
+;
+
+// --- max with time bucketing ---
+
+histogram_quantile_max_exp_histo_multi_step
+required_capability: promql_histogram_quantile_exponential
+PROMQL index=exp_histo_sample step=30m start="2025-09-25T00:30:00.000Z" end="2025-09-25T01:30:00.000Z" result=(histogram_quantile(1.0, increase(responseTime{instance="instance-1"}[30m])))
+| SORT step;
+
+result:double | step:datetime            | _timeseries:keyword
+3.190723      | 2025-09-25T00:30:00.000Z | "{""instance"":""instance-1""}"
+0.252402      | 2025-09-25T01:00:00.000Z | "{""instance"":""instance-1""}"
+1.451866      | 2025-09-25T01:30:00.000Z | "{""instance"":""instance-1""}"
+;
+
+// --- median with time bucketing ---
+
+histogram_quantile_median_exp_histo_multi_step
+required_capability: promql_histogram_quantile_exponential
+PROMQL index=exp_histo_sample step=30m start="2025-09-25T00:30:00.000Z" end="2025-09-25T01:30:00.000Z" result=(histogram_quantile(0.5, increase(responseTime{instance="instance-1"}[30m])))
+| SORT step;
+
+result:double              | step:datetime            | _timeseries:keyword
+7.2E-4..7.21E-4            | 2025-09-25T00:30:00.000Z | "{""instance"":""instance-1""}"
+6.19E-4..6.2E-4            | 2025-09-25T01:00:00.000Z | "{""instance"":""instance-1""}"
+6.05E-4..6.06E-4           | 2025-09-25T01:30:00.000Z | "{""instance"":""instance-1""}"
+;
+
+// --- sum (merge) of increase across series, then quantile ---
+
+histogram_quantile_median_exp_histo_sum_across_series
+required_capability: promql_histogram_quantile_exponential
+required_capability: promql_sum_on_histogram
+PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_quantile(0.5, sum(increase(responseTime{instance=~"instance-.*"}[2h]))));
+
+result:double          | step:datetime
+0.00169649..0.001714   | 2025-09-25T02:00:00.000Z
+;

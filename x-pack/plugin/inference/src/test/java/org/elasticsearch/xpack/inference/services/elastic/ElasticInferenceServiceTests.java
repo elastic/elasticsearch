@@ -26,6 +26,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.EmptySecretSettings;
+import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -89,7 +90,6 @@ import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenc
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
-import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -221,7 +221,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var model = modelListener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
             assertThat(model, instanceOf(ElasticInferenceServiceDenseEmbeddingsModel.class));
-            assertThat(model.getTaskSettings(), is(ImmutableEmptyTaskSettings.INSTANCE));
+            assertThat(model.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
             assertThat(model.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
             assertThat(model.getConfigurations().getTaskType(), is(taskType));
             assertThat(model.getConfigurations().getChunkingSettings(), is(new WordBoundaryChunkingSettings(maxChunkSize, overlap)));
@@ -394,7 +394,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             );
 
             assertThat(model, instanceOf(ElasticInferenceServiceDenseEmbeddingsModel.class));
-            assertThat(model.getTaskSettings(), is(ImmutableEmptyTaskSettings.INSTANCE));
+            assertThat(model.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
             assertThat(model.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
             assertThat(model.getConfigurations().getTaskType(), is(taskType));
             assertThat(model.getConfigurations().getChunkingSettings(), is(new WordBoundaryChunkingSettings(maxChunkSize, overlap)));
@@ -548,7 +548,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         assertThat(model, instanceOf(ElasticInferenceServiceSparseEmbeddingsModel.class));
         var sparseEmbeddingsModel = (ElasticInferenceServiceSparseEmbeddingsModel) model;
         assertThat(sparseEmbeddingsModel.getServiceSettings().modelId(), is(expectedModelId));
-        assertThat(sparseEmbeddingsModel.getTaskSettings(), is(ImmutableEmptyTaskSettings.INSTANCE));
+        assertThat(sparseEmbeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
         assertThat(sparseEmbeddingsModel.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
     }
 

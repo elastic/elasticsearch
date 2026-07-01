@@ -725,9 +725,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OtelMetricsIT
   method: testExplicitMetrics
   issue: https://github.com/elastic/elasticsearch/issues/152379
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testRotationCycleWithNoHandlers
-  issue: https://github.com/elastic/elasticsearch/issues/152412
 - class: org.elasticsearch.index.store.BytesReadHeaderIT
   method: testMultipleIndicesAccumulateBytesRead
   issue: https://github.com/elastic/elasticsearch/issues/152425
@@ -746,9 +743,6 @@ tests:
 - class: org.elasticsearch.upgrades.RecoveryIT
   method: testRelocationWithConcurrentIndexing {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/152471
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testConsecutiveRotations
-  issue: https://github.com/elastic/elasticsearch/issues/152472
 - class: org.elasticsearch.upgrades.RecoveryIT
   method: testRelocationWithConcurrentIndexing {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/152486
@@ -839,9 +833,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
   method: testExplicitMetrics
   issue: https://github.com/elastic/elasticsearch/issues/152356
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testRotationContinuesAfterMasterFailover
-  issue: https://github.com/elastic/elasticsearch/issues/152676
 - class: org.elasticsearch.index.codec.tsdb.DISIAccumulatorTests
   method: testRandom
   issue: https://github.com/elastic/elasticsearch/issues/152677

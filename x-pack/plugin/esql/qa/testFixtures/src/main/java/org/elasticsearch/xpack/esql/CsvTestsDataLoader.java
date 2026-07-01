@@ -22,6 +22,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +31,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -52,6 +55,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -672,7 +676,56 @@ public class CsvTestsDataLoader {
         }
         if (loadedDatasets.isEmpty() == false) {
             forceMerge(client, loadedDatasets);
+            awaitDatasetsSearchable(client, loadedDatasets);
         }
+    }
+
+    /**
+     * Waits until every loaded dataset is ready to be queried. This means two things, neither of which alone is
+     * sufficient across topologies: shard allocation has settled to green (on multi-node, where a copy may still be
+     * initializing) and a searchable copy actually answers a query. The two complementary checks are:
+     * <ul>
+     *   <li><b>Stateful multi-node</b>: a distributed LOOKUP JOIN (and any per-node shard request) can route to a
+     *       replica copy that is still initializing. {@code createIndex} returns with only {@code wait_for_active_shards=1}
+     *       (primary active), so the {@code _search} probe below — satisfied by the primary alone — does not guarantee the
+     *       replica the join routes to is active; that race surfaces as a {@code NoShardAvailableActionException} from
+     *       field-caps resolution. Wait for green (scoped to the loaded indices) so every copy is started. Guarded by
+     *       data-node count: a single-node cluster keeps the default replica unassigned (yellow forever) and only ever
+     *       routes to the primary, so the wait would be both unnecessary and unsatisfiable there.</li>
+     *   <li><b>Stateless</b>: index nodes hold the promotable primary (not searchable) while search nodes hold the
+     *       unpromotable, searchable copy; the cluster can reach green before that searchable copy is active
+     *       ({@code ServerlessFieldCapabilitiesIT.testFieldCapsAreExecutedOnSearchNodes}), so green is not sufficient.
+     *       Poll a {@code _search} probe ({@code allow_partial_search_results=false}) until a searchable copy answers
+     *       (HTTP 503 while none is available, 200 once one per shard is active) — the same gate field-caps relies on.</li>
+     * </ul>
+     * On a single-node cluster only the probe runs and returns immediately, since the primary is searchable.
+     */
+    private static void awaitDatasetsSearchable(RestClient client, Set<String> loadedDatasets) throws IOException {
+        if (loadedDatasets.isEmpty()) {
+            return;
+        }
+        String pattern = String.join(",", loadedDatasets);
+        if (dataNodeCount(client) > 1) {
+            // green already implies no initializing shards for the scoped indices; wait_for_no_relocating_shards is the
+            // meaningful addition, since a relocating shard is still counted as active (the cluster stays green during
+            // relocation). This mirrors ESRestTestCase#ensureGreen.
+            ESRestTestCase.ensureHealth(client, pattern, request -> {
+                request.addParameter("wait_for_status", "green");
+                request.addParameter("wait_for_no_relocating_shards", "true");
+                request.addParameter("timeout", AWAIT_SEARCHABLE_TIMEOUT_SECONDS + "s");
+                request.addParameter("level", "shards");
+            });
+        }
+        awaitSearchable(client, new Request("GET", "/" + pattern + "/_search?size=0&allow_partial_search_results=false"), true);
+    }
+
+    /**
+     * Number of data nodes in the cluster, used to decide whether replicas can be allocated (and therefore whether
+     * waiting for green is meaningful). Defaults to {@code 1} if the field is absent.
+     */
+    private static int dataNodeCount(RestClient client) throws IOException {
+        Response response = client.performRequest(new Request("GET", "/_cluster/health"));
+        return new ObjectMapper().readTree(response.getEntity().getContent()).path("number_of_data_nodes").asInt(1);
     }
 
     private static void loadDataSets(
@@ -697,6 +750,7 @@ public class CsvTestsDataLoader {
             loadedDatasets.add(dataset.indexName);
         }
         forceMerge(client, loadedDatasets);
+        awaitDatasetsSearchable(client, loadedDatasets);
     }
 
     private static void loadEnrichPolicies(RestClient client) throws IOException {
@@ -776,11 +830,29 @@ public class CsvTestsDataLoader {
      * Creates only the listed inference endpoints (by id in {@link #INFERENCE_CONFIGS}), skipping any that already exist.
      */
     public static void createInferenceEndpoints(RestClient client, Collection<String> inferenceIds) throws IOException {
+        List<InferenceConfig> created = new ArrayList<>();
         for (String id : inferenceIds) {
             InferenceConfig config = INFERENCE_CONFIGS.get(id);
             if (config != null && hasInferenceEndpoint(client, config) == false) {
                 createInferenceEndpoint(client, config);
+                created.add(config);
             }
+        }
+        // ES|QL RERANK/COMPLETION resolution (GetInferenceModelAction) searches the .inference system index, which
+        // also routes only to searchable copies. A PUT /_inference returns once the document is indexed but before
+        // the .inference searchable copy is active, so resolution races with a failing search → VerificationException
+        // (fail-fast, no retry). Poll GET /_inference/<type>/<id> — the same action ES|QL analysis issues — until the
+        // searchable copy is ready. Unlike the _search probes (which see 503), this probe's transient signal is 500:
+        // GetInferenceModelAction wraps the underlying 503 search failure in a bare ElasticsearchException, whose
+        // status() defaults to 500 — hence INFERENCE_RETRY_STATUSES tolerates both 500 and 503.
+        // Mirrors InferenceBaseRestTest.initInferenceIndices() assertBusy pattern.
+        for (InferenceConfig config : created) {
+            awaitSearchable(
+                client,
+                new Request("GET", "/_inference/" + config.type().name() + "/" + config.id()),
+                false,
+                INFERENCE_RETRY_STATUSES
+            );
         }
     }
 
@@ -828,6 +900,19 @@ public class CsvTestsDataLoader {
 
         request = new Request("POST", "/_enrich/policy/" + policy.policyName + "/_execute");
         client.performRequest(request);
+
+        // _execute is synchronous but only guarantees the enrich index is created, not that its searchable copy
+        // is active on search nodes. In a stateless cluster the backing index follows the same stateless race as
+        // lookup indices: health green before the search-node copy is active. Subsequent ENRICH queries fail with
+        // NoShardAvailableActionException. Poll until a search succeeds on the backing index. Accessing the .enrich-*
+        // system index emits a deprecation warning; awaitSearchable tolerates it (a warned 2xx still means searchable).
+        // requireMatchedShards=true: the wildcard can match zero indices (200) if the backing index is not yet in the
+        // coordinator's cluster state, so require a matched shard rather than passing on an empty result.
+        awaitSearchable(
+            client,
+            new Request("GET", "/.enrich-" + policy.policyName() + "-*/_search?size=0&allow_partial_search_results=false"),
+            true
+        );
     }
 
     private static void loadView(RestClient client, ViewConfig view) throws IOException {
@@ -1239,6 +1324,104 @@ public class CsvTestsDataLoader {
                 builder.substring(0, 100)
             )
         );
+    }
+
+    private static final int AWAIT_SEARCHABLE_TIMEOUT_SECONDS = 60;
+
+    // A _search against an index whose copy is not yet active surfaces as 503: NoShardAvailableActionException is
+    // SERVICE_UNAVAILABLE, and SearchPhaseExecutionException#status returns the 503 shard failure with precedence. A
+    // genuine 500 is a real error that we must NOT mask by retrying, so it fast-fails.
+    private static final Set<Integer> SEARCH_RETRY_STATUSES = Set.of(RestStatus.SERVICE_UNAVAILABLE.getStatus());
+
+    // GetInferenceModelAction wraps the underlying (503) .inference search failure in a bare ElasticsearchException
+    // (not an ElasticsearchWrapperException), whose status() defaults to 500 — so the inference probe's transient
+    // "not ready" signal is 500 (and may also be 503). Tolerate both, for this probe only.
+    private static final Set<Integer> INFERENCE_RETRY_STATUSES = Set.of(
+        RestStatus.INTERNAL_SERVER_ERROR.getStatus(),
+        RestStatus.SERVICE_UNAVAILABLE.getStatus()
+    );
+
+    /**
+     * Polls {@code probe} until it succeeds, retrying on the {@code _search}-probe transient statuses
+     * ({@link #SEARCH_RETRY_STATUSES}).
+     */
+    private static void awaitSearchable(RestClient client, Request probe, boolean requireMatchedShards) throws IOException {
+        awaitSearchable(client, probe, requireMatchedShards, SEARCH_RETRY_STATUSES);
+    }
+
+    /**
+     * Polls {@code probe} until it succeeds, retrying on the HTTP statuses in {@code retryableStatuses} (the transient
+     * "not ready yet" signals for that probe). Any other non-2xx status fast-fails so real errors are not masked.
+     * <p>
+     * In a stateless cluster ES|QL resolution (field-caps for indices, GetInferenceModelAction for inference endpoints)
+     * routes only to searchable shard copies held by search nodes.  A just-created index or inference endpoint can be
+     * cluster-health green while no searchable copy is yet active — waiting for green alone is not sufficient.  This
+     * method polls the actual resolution operation (or an equivalent probe) until it succeeds, giving us topology-agnostic
+     * readiness that works on single-node, stateful multi-node, and stateless multi-node clusters.
+     * </p>
+     *
+     * @param requireMatchedShards when {@code true}, a 2xx response is only treated as ready if its {@code _shards.total}
+     *                             is at least one. This guards wildcard {@code _search} probes (e.g. {@code .enrich-*})
+     *                             that return 200 while matching zero indices: a not-yet-visible backing index is then
+     *                             retried rather than passed. Has no effect on non-{@code _search} probes (e.g.
+     *                             {@code GET /_inference/...}), which carry no {@code _shards} and must pass {@code false}.
+     * @param retryableStatuses    the HTTP statuses treated as transient and retried. {@code _search} probes use
+     *                             {@link #SEARCH_RETRY_STATUSES} (503 only); the inference probe uses
+     *                             {@link #INFERENCE_RETRY_STATUSES} (500 and 503) because GetInferenceModelAction
+     *                             reports the unavailable-copy failure as 500.
+     */
+    private static void awaitSearchable(RestClient client, Request probe, boolean requireMatchedShards, Set<Integer> retryableStatuses)
+        throws IOException {
+        try {
+            ESTestCase.assertBusy(() -> {
+                Response response;
+                try {
+                    response = client.performRequest(probe);
+                } catch (WarningFailureException e) {
+                    // RestClient throws this only for an otherwise-successful (2xx) response that carried unexpected
+                    // warnings, e.g. the system-index access warning when probing .enrich-*. Re-check the status below
+                    // so the success path stays explicit and a non-2xx can never slip through as "searchable". This
+                    // also keeps the probe robust regardless of which warnings handler a harness imposes (e.g.
+                    // MultiClusterSpecIT#twoClients overwrites per-request options).
+                    response = e.getResponse();
+                } catch (ResponseException e) {
+                    response = e.getResponse();
+                }
+                int status = response.getStatusLine().getStatusCode();
+                if (status >= 200 && status < 300) {
+                    if (requireMatchedShards) {
+                        // Throws an AssertionError (retried) when the probe matched no shard yet.
+                        assertProbeMatchedShards(probe, response);
+                    }
+                    return; // a (possibly warned) success means a searchable copy answered
+                }
+                if (retryableStatuses.contains(status)) {
+                    // Transient shard unavailability (e.g. NoShardAvailableActionException → 503 for _search, or the
+                    // 500 GetInferenceModelAction reports for the inference probe). Retry until the copy is active.
+                    throw new AssertionError("[" + probe.getEndpoint() + "] not yet searchable (HTTP " + status + ")");
+                }
+                throw new IOException("unexpected response probing [" + probe.getEndpoint() + "]: HTTP " + status);
+            }, AWAIT_SEARCHABLE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (IOException e) {
+            // Preserve the IOException type for callers; assertBusy only ever rethrows the probe's own IOException here.
+            throw e;
+        } catch (Exception e) {
+            // Wrap anything else assertBusy may surface (e.g. InterruptedException) so the signature stays IOException-only.
+            throw new IOException(e);
+        }
+    }
+
+    /**
+     * Asserts that {@code response} (a successful {@code _search} probe) actually hit at least one shard, throwing a
+     * retryable {@link AssertionError} otherwise. A wildcard probe matching zero indices (e.g. an enrich backing index
+     * not yet in the coordinator's cluster state) returns 200 with {@code _shards.total == 0}; treating that as ready
+     * would pass the probe prematurely.
+     */
+    private static void assertProbeMatchedShards(Request probe, Response response) throws IOException {
+        JsonNode shards = new ObjectMapper().readTree(response.getEntity().getContent()).get("_shards");
+        if (shards == null || shards.path("total").asInt(0) < 1) {
+            throw new AssertionError("[" + probe.getEndpoint() + "] matched no shards yet");
+        }
     }
 
     private static void forceMerge(RestClient client, Set<String> indices) throws IOException {

@@ -12,7 +12,7 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
-import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
+import org.elasticsearch.index.codec.vectors.cluster.KMeansWithOverspill;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,7 +76,8 @@ public class TieredMergeStrategy<V> {
         Strategy strategy();
 
         // Execute the merge action, returning the clustering result
-        KMeansResult<V> execute(HierarchicalKMeans<V> kmeans, ClusteringVectorValues<V> vectors, int vectorsPerCluster) throws IOException;
+        KMeansWithOverspill<V> execute(HierarchicalKMeans<V> kmeans, ClusteringVectorValues<V> vectors, int vectorsPerCluster)
+            throws IOException;
     }
 
     public record FullRebuild<V>() implements MergeAction<V> {
@@ -86,7 +87,7 @@ public class TieredMergeStrategy<V> {
         }
 
         @Override
-        public KMeansResult<V> execute(HierarchicalKMeans<V> kmeans, ClusteringVectorValues<V> vectors, int vectorsPerCluster)
+        public KMeansWithOverspill<V> execute(HierarchicalKMeans<V> kmeans, ClusteringVectorValues<V> vectors, int vectorsPerCluster)
             throws IOException {
             return kmeans.cluster(vectors, vectorsPerCluster);
         }
@@ -99,7 +100,7 @@ public class TieredMergeStrategy<V> {
         }
 
         @Override
-        public KMeansResult<V> execute(HierarchicalKMeans<V> kmeans, ClusteringVectorValues<V> vectors, int vectorsPerCluster)
+        public KMeansWithOverspill<V> execute(HierarchicalKMeans<V> kmeans, ClusteringVectorValues<V> vectors, int vectorsPerCluster)
             throws IOException {
             return kmeans.clusterByInsertion(vectors, seedCentroids, vectorsPerCluster);
         }
@@ -126,7 +127,7 @@ public class TieredMergeStrategy<V> {
         }
 
         @Override
-        public KMeansResult<V> execute(HierarchicalKMeans<V> kmeans, ClusteringVectorValues<V> vectors, int vectorsPerCluster)
+        public KMeansWithOverspill<V> execute(HierarchicalKMeans<V> kmeans, ClusteringVectorValues<V> vectors, int vectorsPerCluster)
             throws IOException {
             return kmeans.clusterByConcatenation(vectors, seedCentroids, clusterSizes, coveredVectorCount, vectorsPerCluster);
         }

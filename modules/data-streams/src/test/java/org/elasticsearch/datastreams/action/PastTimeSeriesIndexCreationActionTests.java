@@ -87,10 +87,7 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
         {
             ClusterState state = stateWithNoTsdbIndices();
             DataStream ds = state.projectState(projectId).metadata().dataStreams().get(DATA_STREAM);
-            var result = PastTimeSeriesIndexCreationExecutor.retrieveSortedTimeWindows(
-                ds,
-                state.projectState(projectId).metadata()
-            );
+            var result = PastTimeSeriesIndexCreationExecutor.retrieveSortedTimeWindows(ds, state.projectState(projectId).metadata());
             assertThat(result, empty());
         }
         // Retrieve all continuous TSDB indices in a single window
@@ -114,10 +111,7 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
             DataStream mixedDs = project.dataStreams().get(DATA_STREAM).unsafeAddBackingIndex(nonTsdb.getIndex());
             project = ProjectMetadata.builder(project).put(nonTsdb, false).put(mixedDs).build();
 
-            var result = PastTimeSeriesIndexCreationExecutor.retrieveSortedTimeWindows(
-                project.dataStreams().get(DATA_STREAM),
-                project
-            );
+            var result = PastTimeSeriesIndexCreationExecutor.retrieveSortedTimeWindows(project.dataStreams().get(DATA_STREAM), project);
             assertThat(result, hasSize(1));
             TransportPastTimeSeriesIndexCreationAction.CoveredTimeWindow timeWindow = result.pop();
             assertThat(timeWindow.start(), is(start1.toEpochMilli()));
@@ -151,10 +145,7 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
                 now
             ).projectState(projectId).metadata();
 
-            var result = PastTimeSeriesIndexCreationExecutor.retrieveSortedTimeWindows(
-                project.dataStreams().get(DATA_STREAM),
-                project
-            );
+            var result = PastTimeSeriesIndexCreationExecutor.retrieveSortedTimeWindows(project.dataStreams().get(DATA_STREAM), project);
             assertThat(result, hasSize(3));
             TransportPastTimeSeriesIndexCreationAction.CoveredTimeWindow timeWindow = result.pop();
             assertThat(timeWindow.start(), is(startA_1.toEpochMilli()));

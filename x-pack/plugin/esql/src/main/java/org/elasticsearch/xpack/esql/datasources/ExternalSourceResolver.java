@@ -231,7 +231,7 @@ public class ExternalSourceResolver {
         Map<String, Map<String, Object>> pathConfigs,
         ActionListener<ExternalSourceResolution> listener
     ) {
-        resolve(paths, pathConfigs, null, null, listener);
+        resolve(paths, pathConfigs, null, null, null, listener);
     }
 
     public void resolve(
@@ -240,14 +240,28 @@ public class ExternalSourceResolver {
         @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         ActionListener<ExternalSourceResolution> listener
     ) {
-        resolve(paths, pathConfigs, filterHints, null, listener);
+        resolve(paths, pathConfigs, filterHints, null, null, listener);
     }
 
+    /**
+     * Resolves external sources. A per-path declared mapping drives strict/non-strict schema resolution and carries
+     * column renames; {@code pathsRequiringStats} gates the FIRST_FILE_WINS eager all-file stats aggregation.
+     *
+     * @param declaredMappings    per-path declared mapping — strict skips inference, non-strict overlays it, and its
+     *        {@code source} renames ride config to the reader boundary; {@code null} when no path declares a mapping.
+     * @param pathsRequiringStats paths whose multi-file FFW resolution must eagerly aggregate global
+     *        statistics across all files (the ungrouped-aggregate metadata fast path). A {@code null}
+     *        value selects legacy behavior — every path resolves eagerly — preserving existing call
+     *        sites and tests. When non-null, a path absent from the set defers the per-file footer
+     *        reads (keeping {@code STATS_FILE_COUNT}, marking stats partial). See
+     *        {@link ExternalStatsRequirementExtractor#pathsRequiringEagerStats}.
+     */
     public void resolve(
         List<String> paths,
         Map<String, Map<String, Object>> pathConfigs,
         @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         @Nullable Map<String, DatasetMapping> declaredMappings,
+        @Nullable Set<String> pathsRequiringStats,
         ActionListener<ExternalSourceResolution> listener
     ) {
         if (paths == null || paths.isEmpty()) {
@@ -269,13 +283,15 @@ public class ExternalSourceResolver {
                     List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(path) : null;
                     boolean hivePartitioning = isHivePartitioningEnabled(config);
                     DatasetMapping declaredMapping = declaredMappings != null ? declaredMappings.get(path) : null;
-                    // Carry any logical->physical column renames to the by-name readers via config. The schema stays
-                    // logical everywhere else; only the reader needs the physical (file) name to locate a renamed column.
+                    // Carry any logical->physical column renames in config; consumed on the data node by the centralized
+                    // last-mile physicalization (PhysicalNames) and the pushdown planner rules. Readers stay rename-agnostic.
                     Map<String, String> renames = DeclaredSchemaResolver.renameMap(declaredMapping);
                     if (renames.isEmpty() == false) {
                         config = new HashMap<>(config);
                         config.put(CONFIG_DECLARED_RENAMES, renames);
                     }
+                    // null => legacy eager for every path; non-null => eager only for listed paths.
+                    boolean requiresStats = pathsRequiringStats == null || pathsRequiringStats.contains(path);
 
                     try {
                         ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(
@@ -283,7 +299,8 @@ public class ExternalSourceResolver {
                             config,
                             hints,
                             hivePartitioning,
-                            declaredMapping
+                            declaredMapping,
+                            requiresStats
                         );
                         // Strict is built directly from the declaration inside resolveSource; non-strict infers first
                         // and then overlays the declaration onto the resolved result (works the same for single- and
@@ -335,7 +352,8 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         boolean hivePartitioning,
-        @Nullable DatasetMapping declaredMapping
+        @Nullable DatasetMapping declaredMapping,
+        boolean requiresStats
     ) throws Exception {
         LOGGER.debug("Resolving external source: path=[{}]", path);
 
@@ -344,7 +362,7 @@ public class ExternalSourceResolver {
         throwIfCancelled();
 
         if (GlobExpander.isMultiFile(path)) {
-            return resolveMultiFileSource(path, config, hints, hivePartitioning, declaredMapping);
+            return resolveMultiFileSource(path, config, hints, hivePartitioning, declaredMapping, requiresStats);
         }
 
         /*
@@ -568,7 +586,8 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         boolean hivePartitioning,
-        @Nullable DatasetMapping declaredMapping
+        @Nullable DatasetMapping declaredMapping,
+        boolean requiresStats
     ) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);
@@ -635,22 +654,26 @@ public class ExternalSourceResolver {
         }
 
         extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
-        if (listing.fileCount() > 1) {
+        if (listing.fileCount() > 1 && requiresStats) {
             // For multi-file FIRST_FILE_WINS, read all files' metadata in parallel during Phase 1
             // to aggregate statistics across all files. This allows aggregate pushdown
             // (COUNT/MIN/MAX) to use accurate global stats and to skip Phase 2 (split discovery)
             // entirely for those queries.
             //
-            // Tradeoff: this performs N footer reads up-front for *every* multi-file resolve,
-            // including queries that don't use the stats (e.g. SELECT *). For those queries,
-            // Phase 2 still runs, so the per-file footer is read twice (once here, once during
-            // split discovery). The cost is generally acceptable because:
+            // This eager all-file aggregation is gated on requiresStats: only query shapes that can
+            // consume the global stats — an ungrouped aggregate over the relation, detected by
+            // ExternalStatsRequirementExtractor#pathsRequiringEagerStats — pay the N footer reads.
+            // Every other shape (LIMIT, SELECT *, grouped STATS ... BY, INLINESTATS) takes the
+            // defer branch below: it keeps STATS_FILE_COUNT (from enrichWithFileCount above) but
+            // marks stats partial, so Phase 2 split discovery reads footers once instead of twice.
+            // Legacy callers pass requiresStats == true for every path (the resolve overload with a
+            // null pathsRequiringStats set), preserving the original eager-for-all behavior.
+            //
+            // For an eager (requiresStats) resolve the cost is acceptable because:
             // - the cacheable path consults the schema cache, so repeat resolves are free;
             // - the non-cacheable path reads footers in parallel up to MAX_PARALLEL_METADATA_READS;
             // - the aggregated stats unlock skipping Phase 2 entirely for pushable aggregates
             // (see ComputeService#canSkipSplitDiscovery), which dominates the savings.
-            // We don't gate this on the query (which isn't known here) — see issue #148086 for the
-            // design notes.
             Map<String, Object> aggregatedStats = cacheable
                 ? readAndAggregateAllFileStatsWithCache(listing, config)
                 : readAndAggregateAllFileStats(listing, config);
@@ -695,6 +718,13 @@ public class ExternalSourceResolver {
                 // so the optimizer does not rely on incomplete sourceMetadata stats.
                 extMetadata = markStatsAsPartial(extMetadata);
             }
+        } else if (listing.fileCount() > 1) {
+            // Defer branch (requiresStats == false): skip the N footer reads. The anchor-only stats
+            // are not representative of the whole glob, so mark them partial — exactly the state the
+            // failed-aggregation path above produces, which downstream already handles
+            // (SplitStats.resolveEffectiveStats returns null rather than consuming anchor stats as
+            // global). STATS_FILE_COUNT, stamped by enrichWithFileCount above, is preserved.
+            extMetadata = markStatsAsPartial(extMetadata);
         }
 
         // The anchor's pre-enrichment schema is the physical read schema every file's reader parses.
@@ -959,9 +989,14 @@ public class ExternalSourceResolver {
         List<Map.Entry<StoragePath, SourceMetadata>> entries = BoundedParallelGather.gather(indices, i -> {
             throwIfCancelled();
             StoragePath filePath = fileList.path(i);
-            SourceMetadata meta = cacheable
-                ? cachedResolveSingleSource(filePath, fileList.lastModifiedMillis(i), config)
-                : resolveSingleSource(filePath.toString(), config);
+            // Carry the cancellation signal across the synchronous footer read so a backoff sleep in
+            // the storage retry layer aborts promptly on cancel.
+            SourceMetadata meta = StorageRetryCancellation.callWithCancellation(
+                this::isCancelled,
+                () -> cacheable
+                    ? cachedResolveSingleSource(filePath, fileList.lastModifiedMillis(i), config)
+                    : resolveSingleSource(filePath.toString(), config)
+            );
             return Map.entry(filePath, meta);
         }, MAX_PARALLEL_METADATA_READS, executor);
 
@@ -1025,7 +1060,10 @@ public class ExternalSourceResolver {
         try {
             allMeta = BoundedParallelGather.gather(paths, filePath -> {
                 throwIfCancelled();
-                return resolveSingleSource(filePath.toString(), config);
+                return StorageRetryCancellation.callWithCancellation(
+                    this::isCancelled,
+                    () -> resolveSingleSource(filePath.toString(), config)
+                );
             }, MAX_PARALLEL_METADATA_READS, executor);
         } catch (TaskCancelledException e) {
             // Cancellation is not a "could not aggregate stats" condition — propagate it so the query
@@ -1059,9 +1097,13 @@ public class ExternalSourceResolver {
             String formatType = detectFormatType(filePath);
             SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, config);
             try {
-                SchemaCacheEntry entry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                    return SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config));
-                });
+                SchemaCacheEntry entry = StorageRetryCancellation.callWithCancellation(
+                    this::isCancelled,
+                    () -> cacheService.getOrComputeSchema(
+                        schemaKey,
+                        k -> SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config))
+                    )
+                );
                 Map<String, Object> fileMeta = entry.safeMetadata();
                 if (fileMeta == null || fileMeta.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false) {
                     // This file has no statistics — cannot produce accurate global stats.

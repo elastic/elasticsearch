@@ -27,6 +27,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchHit;
@@ -66,6 +67,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     // for cross-cluster scenarios where cluster names are shown in API responses, use this string
     // rather than empty string (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) we use internally
     public static final String LOCAL_CLUSTER_NAME_REPRESENTATION = "(local)";
+    public static final TransportVersion SEARCH_DIRECTORY_METRICS = TransportVersion.fromName("search_directory_metrics");
 
     public static final ParseField SCROLL_ID = new ParseField("_scroll_id");
     public static final ParseField POINT_IN_TIME_ID = new ParseField("pit_id");
@@ -91,6 +93,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final long tookInMillis;
     // only used for telemetry purposes on the coordinating node, where the search response gets created
     private transient Long timeRangeFilterFromMillis;
+    private DirectoryMetrics directoryMetrics = DirectoryMetrics.EMPTY;
 
     /**
      * Query-phase aggregation bytes left on the request breaker when
@@ -147,6 +150,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
         pointInTimeId = in.readOptionalBytesReference();
+        if (in.getTransportVersion().supports(SEARCH_DIRECTORY_METRICS)) {
+            directoryMetrics = new DirectoryMetrics(in);
+        }
     }
 
     public SearchResponse(
@@ -553,10 +559,21 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
         out.writeOptionalBytesReference(pointInTimeId);
+        if (out.getTransportVersion().supports(SEARCH_DIRECTORY_METRICS)) {
+            directoryMetrics.writeTo(out);
+        }
     }
 
     public Long getTimeRangeFilterFromMillis() {
         return timeRangeFilterFromMillis;
+    }
+
+    public DirectoryMetrics getDirectoryMetrics() {
+        return directoryMetrics;
+    }
+
+    public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
+        this.directoryMetrics = directoryMetrics;
     }
 
     @Override

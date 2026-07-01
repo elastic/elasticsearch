@@ -30,6 +30,7 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -153,12 +154,22 @@ final class PageColumnReader implements Releasable {
             case BOOLEAN -> readBooleanBatch(maxRows, blockFactory);
             case INTEGER -> readIntBatch(maxRows, blockFactory);
             case LONG, UNSIGNED_LONG -> {
+                if (info.logicalType() instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+                    if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
+                        // TIME_MILLIS: physical INT32, widen to long (raw ms value, no unit conversion)
+                        yield readInt32AsLongBatch(maxRows, blockFactory, true);
+                    }
+                    yield readLongBatch(maxRows, blockFactory, ParquetColumnDecoding.timeNanoMultiplier(time), false);
+                }
                 if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
                     var logicalType = (LogicalTypeAnnotation.IntLogicalTypeAnnotation) info.logicalType();
                     // A plain INT32 with no logical-type annotation is historically "signed"
                     yield readInt32AsLongBatch(maxRows, blockFactory, logicalType == null || logicalType.isSigned());
                 }
-                yield readLongBatch(maxRows, blockFactory);
+                // A 64-bit unsigned column maps to UNSIGNED_LONG, which ESQL stores sign-flip-encoded
+                // (value ^ 2^63) so signed-long ordering matches unsigned ordering. The output edge always
+                // decodes UNSIGNED_LONG blocks, so the read path must emit the encoded form here.
+                yield readLongBatch(maxRows, blockFactory, 1L, info.esqlType() == DataType.UNSIGNED_LONG);
             }
             case DOUBLE -> readDoubleBatch(maxRows, blockFactory);
             case KEYWORD, TEXT -> readBytesBatch(maxRows, blockFactory);
@@ -743,10 +754,28 @@ final class PageColumnReader implements Releasable {
 
     // --- Long ---
 
-    private Block readLongBatch(int maxRows, BlockFactory blockFactory) {
+    /**
+     * Reads a Parquet INT64 column into a {@code LONG}/{@code UNSIGNED_LONG} block.
+     *
+     * @param multiplier     factor applied to each value, used to normalize Parquet TIME_* units to nanoseconds
+     *                       ({@code 1L} when no conversion is needed).
+     * @param encodeUnsigned when {@code true} the column is an {@code unsigned_long}; the decoded values are sign-flip-encoded
+     *                       ({@code value ^ 2^63}) in place before constant detection and block creation, mirroring the indexing
+     *                       path so the always-decoding output edge produces the true unsigned value. Encoding before constant
+     *                       detection keeps a constant {@code unsigned_long} column correctly encoded. Mutually exclusive with a
+     *                       non-unit {@code multiplier} (a column is either a TIME type or {@code unsigned_long}).
+     */
+    private Block readLongBatch(int maxRows, BlockFactory blockFactory, long multiplier, boolean encodeUnsigned) {
         long[] values = UninitializedArrays.newLongArray(maxRows);
         if (maxDefLevel == 0) {
             int produced = readNonNullLongs(values, 0, maxRows);
+            if (encodeUnsigned) {
+                ParquetColumnDecoding.encodeUnsignedLongInPlace(values, produced);
+            } else if (multiplier != 1) {
+                for (int i = 0; i < produced; i++) {
+                    values[i] *= multiplier;
+                }
+            }
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
             if (needsShrinking(produced, maxRows)) values = Arrays.copyOf(values, produced);
@@ -762,6 +791,13 @@ final class PageColumnReader implements Releasable {
             advancePosition(fromPage);
             produced += fromPage;
             remaining -= fromPage;
+        }
+        if (encodeUnsigned) {
+            ParquetColumnDecoding.encodeUnsignedLongInPlace(values, produced);
+        } else if (multiplier != 1) {
+            for (int i = 0; i < produced; i++) {
+                values[i] *= multiplier;
+            }
         }
         if (nulls.isEmpty()) {
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);

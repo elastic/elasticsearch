@@ -72,6 +72,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils.drainPagesAsync;
 
@@ -1713,7 +1714,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     firstSplit,
                     PhysicalNames.translateSchema(perFileReadSchema, renames),
                     fileSplit.offset(),
-                    state.buffer.capturedSourceMetadataSink()
+                    state.buffer.capturedSourceMetadataSink(),
+                    state.buffer::recordWarning
                 );
                 if (pages == null) {
                     boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
@@ -1895,7 +1897,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 true,
                 PhysicalNames.translateSchema(perFileReadSchema, renames),
                 0L,
-                state.buffer.capturedSourceMetadataSink()
+                state.buffer.capturedSourceMetadataSink(),
+                state.buffer::recordWarning
             );
             if (pages == null) {
                 int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
@@ -1996,7 +1999,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 true,
                 null,
                 0L,
-                buffer.capturedSourceMetadataSink()
+                buffer.capturedSourceMetadataSink(),
+                buffer::recordWarning
             );
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
@@ -2239,7 +2243,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         boolean splitIncludesFileLeader,
         @Nullable List<Attribute> perFileReadSchema,
         long baseFileOffset,
-        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        @Nullable Consumer<String> partialResultsWarningSink
     ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             return null;
@@ -2304,7 +2309,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         perFileReadSchema,
                         baseFileOffset,
                         maxRecordBytes,
-                        captureSink
+                        captureSink,
+                        partialResultsWarningSink
                     );
                 } catch (Exception e) {
                     try {

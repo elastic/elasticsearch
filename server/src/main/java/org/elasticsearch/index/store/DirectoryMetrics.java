@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -114,6 +115,13 @@ public class DirectoryMetrics implements ToXContentFragment, Writeable {
             entries.putAll(metric.entries());
         }
         return Collections.unmodifiableMap(entries);
+    }
+
+    public static void accumulate(AtomicReference<DirectoryMetrics> ref, DirectoryMetrics incoming) {
+        if (incoming == null || incoming.isEmpty()) {
+            return;
+        }
+        ref.accumulateAndGet(incoming, (current, in) -> current.isEmpty() ? in : current.merge(in));
     }
 
     /**

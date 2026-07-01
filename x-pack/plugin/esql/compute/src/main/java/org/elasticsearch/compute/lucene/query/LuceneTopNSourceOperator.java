@@ -71,6 +71,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
      *   <li>the primary sort field has a points index (numeric/date/ip): the sort prunes via the BKD tree,
      *       e.g. a data stream sorted by {@code @timestamp};</li>
      *   <li>the query sort is congruent with the index sort: Lucene early-terminates per segment;</li>
+     *   <li>the filter contains a costly-to-build clause (point range, multi-term): sub-segment DOC slices would each
+     *       pay the full-segment scorer-build cost (BKD/automaton iterate in value order);</li>
      *   <li>the query is cheap enough that DOC's per-slice overhead isn't worth it
      *       ({@code cost < minCostForDoc}).</li>
      * </ul>
@@ -109,6 +111,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 if (indexSort != null && searchSort.isPresent() && Lucene.canEarlyTerminate(searchSort.get().sort, indexSort)) {
                     return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
                 }
+            }
+            // A costly-to-build clause in the filter (point range, multi-term) -> keep whole segments: sub-segment DOC
+            // slices would each pay the full-segment scorer-build cost (BKD/automaton iterate in value order).
+            if (LuceneSourceOperator.Factory.containsCostlyClause(query)) {
+                return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
             }
             // Low-cost query -> not enough work to amortize DOC's per-slice overhead.
             Weight weight = ctx.searcher().createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);

@@ -151,6 +151,15 @@ public class LuceneTopNSourceOperatorAutoStrategyTests extends ESTestCase {
         assertThat(pick(ctx, Queries.ALL_DOCS_INSTANCE, "kw", NUM_DOCS / 2), equalTo(DOC));
     }
 
+    // --- pickStrategy: costly-to-build filter clause -> SEGMENT (even with a scan-dominant field sort) ---
+
+    public void testCostlyFilterClausePicksSegment() throws IOException {
+        ShardContext ctx = context(null, null);
+        // Sort by kw (scan-dominant, no points), but the WHERE is a point range: costly to build a scorer for, so DOC's
+        // sub-segment slices would each pay the full-segment BKD cost -> keep SEGMENT.
+        assertThat(pick(ctx, LongPoint.newRangeQuery("num", 5, 10), "kw", 1), equalTo(SEGMENT));
+    }
+
     // --- autoStrategy wrapper: _score and non-field sorts -> SEGMENT ---
 
     public void testScoreSortPicksSegment() throws IOException {

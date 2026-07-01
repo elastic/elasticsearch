@@ -824,3 +824,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT
   method: testIndexing
   issue: https://github.com/elastic/elasticsearch/issues/152655
+- class: org.elasticsearch.xpack.logsdb.TsdbIndexingRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/152656

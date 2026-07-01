@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -90,6 +91,32 @@ import static org.hamcrest.Matchers.nullValue;
  * Base class of ML integration tests that use a native data_frame_analytics process
  */
 abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTestCase {
+
+    /**
+     * Index settings that produce deterministic {@code _doc} sort order. Use these when creating a source index whose
+     * reindexing order must be reproducible (e.g. tests that compare train/test splits across two DFA jobs with the
+     * same randomize seed).
+     * <p>
+     * The DFA train/test split uses reservoir sampling that consumes a seeded {@link java.util.Random} in
+     * {@code ml__incremental_id} order. That id is assigned during reindex by a counter script over {@code _doc}-sorted
+     * source docs. For two jobs with the same seed to pick the same training rows, the {@code _doc} order must be
+     * identical across both reindex operations. A single shard with zero replicas eliminates cross-shard merge
+     * non-determinism and ensures the search always hits the same (sole) shard copy.
+     * <p>
+     * Pair with {@link #forceMergeSingleSegment} after indexing to collapse all docs into one Lucene segment.
+     */
+    protected static final Settings DETERMINISTIC_DOC_ORDER_INDEX_SETTINGS = Settings.builder()
+        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        .build();
+
+    /**
+     * Force-merges an index to a single Lucene segment per shard so that {@code _doc} sort reflects a stable,
+     * deterministic Lucene doc-id sequence. Intended for use with {@link #DETERMINISTIC_DOC_ORDER_INDEX_SETTINGS}.
+     */
+    protected static void forceMergeSingleSegment(String index) {
+        client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).setFlush(true).get();
+    }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {

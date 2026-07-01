@@ -34,6 +34,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import javax.inject.Inject;
 
@@ -60,13 +61,14 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
         project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
         boolean isCi = loadBuildParams(project).get().getCi();
 
+        var dependencies = project.getDependencies();
         if (project.getPath().equals(":x-pack:plugin:esql") == false) {
-            project.getDependencies().add("implementation", project.project(":x-pack:plugin:esql"));
-            project.getDependencies().add("testImplementation", project.project(":x-pack:plugin:esql:qa:testFixtures"));
+            dependencies.add("implementation", dependencies.project(Map.of("path", ":x-pack:plugin:esql")));
+            dependencies.add("testImplementation", dependencies.project(Map.of("path", ":x-pack:plugin:esql:qa:testFixtures")));
         }
-        project.getDependencies().add("implementation", project.project(":x-pack:plugin:esql:compute"));
-        project.getDependencies().add("implementation", project.project(":x-pack:plugin:esql:compute:ann"));
-        project.getDependencies().add("annotationProcessor", project.project(":x-pack:plugin:esql:compute:gen"));
+        dependencies.add("implementation", dependencies.project(Map.of("path", ":x-pack:plugin:esql:compute")));
+        dependencies.add("implementation", dependencies.project(Map.of("path", ":x-pack:plugin:esql:compute:ann")));
+        dependencies.add("annotationProcessor", dependencies.project(Map.of("path", ":x-pack:plugin:esql:compute:gen")));
 
         String generatedPath = "src/main/generated";
         Directory generatedSourceDir = project.getLayout().getProjectDirectory().dir(generatedPath);

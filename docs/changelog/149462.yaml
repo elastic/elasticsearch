@@ -1,6 +1,0 @@
-area: Transform
-issues:
-  - 149400
-pr: 149462
-summary: Honor `ClusterHealth` timeout when waiting for transform internal index shards
-type: bug

@@ -11,7 +11,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -30,7 +30,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class MultiSearchTemplateRequest extends LegacyActionRequest implements CompositeIndicesRequest {
+public class MultiSearchTemplateRequest extends UntypedActionRequest implements CompositeIndicesRequest {
 
     private int maxConcurrentSearchRequests = 0;
     private List<SearchTemplateRequest> requests = new ArrayList<>();

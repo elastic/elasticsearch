@@ -637,12 +637,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             action.setFailureStore(true);
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> MetadataDataStreamsService.modifyDataStream(
-                    clusterState,
-                    List.of(action),
-                    this::getMapperService,
-                    Settings.EMPTY
-                )
+                () -> MetadataDataStreamsService.modifyDataStream(clusterState, List.of(action), this::getMapperService, Settings.EMPTY)
             );
             assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "::failures] not found"));
         }

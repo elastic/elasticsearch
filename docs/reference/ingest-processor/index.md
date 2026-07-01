@@ -4,7 +4,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/processors.html
 ---
 
-# Ingest processor reference [processors]
+# Ingest processor reference
 
 :::{note}
 This section provides detailed **reference information** for ingest processors.

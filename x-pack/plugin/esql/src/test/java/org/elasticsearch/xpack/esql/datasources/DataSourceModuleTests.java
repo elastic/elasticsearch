@@ -140,7 +140,7 @@ public class DataSourceModuleTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
             () -> false
         );
         assertFalse("plugin must not be closed before module close", plugin.closed.get());
@@ -448,7 +448,7 @@ public class DataSourceModuleTests extends ESTestCase {
             settings,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
             () -> false
         );
     }

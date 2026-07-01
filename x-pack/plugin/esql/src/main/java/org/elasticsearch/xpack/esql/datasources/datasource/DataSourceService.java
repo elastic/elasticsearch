@@ -46,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Supplier;
 
 /** Orchestrates create / replace / delete of data sources in cluster state. */
 public class DataSourceService {
@@ -65,18 +64,18 @@ public class DataSourceService {
     protected final ClusterService clusterService;
     private final Map<String, DataSourceValidator> validatorsByType;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
-    private final Supplier<EncryptionService> encryptionServiceSupplier;
+    private final EncryptionService encryptionService;
 
     private volatile int maxDataSourcesCount;
 
     public DataSourceService(
         ClusterService clusterService,
         Map<String, DataSourceValidator> validatorsByType,
-        Supplier<EncryptionService> encryptionServiceSupplier
+        EncryptionService encryptionService
     ) {
         this.clusterService = clusterService;
         this.validatorsByType = Map.copyOf(validatorsByType);
-        this.encryptionServiceSupplier = Objects.requireNonNull(encryptionServiceSupplier, "encryptionServiceSupplier");
+        this.encryptionService = Objects.requireNonNull(encryptionService, "encryptionService");
         this.taskQueue = clusterService.createTaskQueue(
             "update-esql-data-source-metadata",
             Priority.NORMAL,
@@ -144,9 +143,8 @@ public class DataSourceService {
      * <p>Settings with no secrets, and already-encrypted carriers, pass through unchanged.
      */
     DataSourceSettings applyEncryption(String dataSourceName, DataSourceSettings settings) {
-        EncryptionService encryptionService = encryptionServiceSupplier.get();
         try {
-            return encryptSettings(settings, encryptionService);
+            return encryptSettings(settings);
         } catch (EncryptionKeyNotYetAvailableException e) {
             throw new ElasticsearchStatusException(
                 "cannot store secrets for data source [" + dataSourceName + "]: " + e.getMessage() + " Retry once the cluster is ready.",
@@ -171,14 +169,14 @@ public class DataSourceService {
         }
     }
 
-    private static DataSourceSettings encryptSettings(DataSourceSettings settings, EncryptionService encryptionService) {
+    private DataSourceSettings encryptSettings(DataSourceSettings settings) {
         Map<String, DataSourceSetting> result = new HashMap<>(settings.size());
         for (var entry : settings) {
             String key = entry.getKey();
             DataSourceSetting setting = entry.getValue();
             // Skip null-valued secrets (nothing to protect) and already-encrypted carriers (no double-encryption).
             if (setting.secret() && setting.rawValue() != null && setting.isEncrypted() == false) {
-                result.put(key, encryptSecret(setting.rawValue(), encryptionService));
+                result.put(key, encryptSecret(setting.rawValue()));
             } else {
                 result.put(key, setting);
             }
@@ -191,7 +189,7 @@ public class DataSourceService {
      * the plaintext buffer is zeroed after. The source value object outlives this call until the CAS task
      * completes — narrowing that is Phase 2.
      */
-    private static DataSourceSetting encryptSecret(Object value, EncryptionService encryptionService) {
+    private DataSourceSetting encryptSecret(Object value) {
         byte[] plaintext = serializeValue(value);
         try {
             return new DataSourceSetting(encryptionService.encrypt(plaintext), true);

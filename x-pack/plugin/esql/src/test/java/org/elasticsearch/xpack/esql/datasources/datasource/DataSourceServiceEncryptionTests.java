@@ -274,6 +274,6 @@ public class DataSourceServiceEncryptionTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(Settings.EMPTY, Set.of(DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING))
         );
-        return new DataSourceService(clusterService, Map.of(), () -> encryptionService);
+        return new DataSourceService(clusterService, Map.of(), encryptionService);
     }
 }

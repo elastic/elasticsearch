@@ -52,7 +52,7 @@ public class DataSourceCredentialsTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        credentials = new DataSourceCredentials(() -> IDENTITY);
+        credentials = new DataSourceCredentials(IDENTITY);
     }
 
     public void testNullMapPassesThrough() {

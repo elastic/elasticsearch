@@ -91,8 +91,8 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
             LocalStateCompositeXPackPlugin.class,
             Downsample.class,
             AggregateMetricMapperPlugin.class,
-            EsqlPlugin.class,
             EncryptionPlugin.class,
+            EsqlPlugin.class,
             AnalyticsPlugin.class
         );
     }

@@ -788,7 +788,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
             () -> false
         );
 
@@ -2129,7 +2129,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
             () -> false
         );
 
@@ -2211,7 +2211,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
             () -> false
         );
 
@@ -2319,7 +2319,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
             () -> false
         );
 
@@ -2446,7 +2446,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
             () -> false
         );
 
@@ -2490,7 +2490,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(() -> ENCRYPTION_SERVICE),
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
             () -> false
         );
 

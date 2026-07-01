@@ -19,7 +19,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 /**
  * Decrypts secret values at the connector boundary. Created once per node by {@code EsqlPlugin} with the node's
@@ -29,10 +28,10 @@ import java.util.function.Supplier;
  */
 public final class DataSourceCredentials {
 
-    private final Supplier<EncryptionService> encryptionServiceSupplier;
+    private final EncryptionService encryptionService;
 
-    public DataSourceCredentials(Supplier<EncryptionService> encryptionServiceSupplier) {
-        this.encryptionServiceSupplier = Objects.requireNonNull(encryptionServiceSupplier, "encryptionServiceSupplier");
+    public DataSourceCredentials(EncryptionService encryptionService) {
+        this.encryptionService = Objects.requireNonNull(encryptionService, "encryptionService");
     }
 
     public Map<String, Object> decryptInPlace(Map<String, Object> config) {
@@ -43,7 +42,7 @@ public final class DataSourceCredentials {
         for (Map.Entry<String, Object> entry : config.entrySet()) {
             Object value = entry.getValue();
             if (value instanceof EncryptedData encrypted) {
-                result.put(entry.getKey(), decryptValue(encrypted, encryptionServiceSupplier.get()));
+                result.put(entry.getKey(), decryptValue(encrypted, encryptionService));
             } else {
                 result.put(entry.getKey(), value);
             }

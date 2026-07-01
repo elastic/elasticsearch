@@ -23,6 +23,7 @@ public class IndexFieldCapabilitiesBuilder {
     private boolean isMetadataField;
     private boolean isSearchable;
     private boolean isAggregatable;
+    private boolean isInference;
     private boolean isDimension;
     private @Nullable TimeSeriesParams.MetricType metricType;
     private Map<String, String> meta;
@@ -52,6 +53,11 @@ public class IndexFieldCapabilitiesBuilder {
         return this;
     }
 
+    public IndexFieldCapabilitiesBuilder isInference(boolean isInference) {
+        this.isInference = isInference;
+        return this;
+    }
+
     public IndexFieldCapabilitiesBuilder isDimension(boolean isDimension) {
         this.isDimension = isDimension;
         return this;
@@ -68,6 +74,16 @@ public class IndexFieldCapabilitiesBuilder {
     }
 
     public IndexFieldCapabilities build() {
-        return new IndexFieldCapabilities(name, type, isMetadataField, isSearchable, isAggregatable, isDimension, metricType, meta);
+        return new IndexFieldCapabilities(
+            name,
+            type,
+            isMetadataField,
+            isSearchable,
+            isAggregatable,
+            isInference,
+            isDimension,
+            metricType,
+            meta
+        );
     }
 }

@@ -331,9 +331,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testGroupOnManyLongs
   issue: https://github.com/elastic/elasticsearch/issues/150104
-- class: org.elasticsearch.simdvec.internal.vectorization.MSBitToBitESNextOSQVectorsScorerTests
-  method: testSymmetric1BitDotProductMatchesNativeWhenSupported
-  issue: https://github.com/elastic/elasticsearch/issues/150155
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:k8s-timeseries-count-distinct-over-time.countDistinctNull}
   issue: https://github.com/elastic/elasticsearch/issues/150187
@@ -611,9 +608,6 @@ tests:
 - class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceIT
   method: testCreateIndexBatching
   issue: https://github.com/elastic/elasticsearch/issues/152041
-- class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerStressTestIT
-  method: testMergingFallsBehindAndThenCatchesUp
-  issue: https://github.com/elastic/elasticsearch/issues/152045
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
   method: testDownsampling
   issue: https://github.com/elastic/elasticsearch/issues/152060
@@ -809,3 +803,39 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityBWCToRCS2ClusterRestIT
   method: testBwcCCSViaRCS1orRCS2
   issue: https://github.com/elastic/elasticsearch/issues/152646
+- class: org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests
+  method: testSkewedIndex
+  issue: https://github.com/elastic/elasticsearch/issues/152650
+- class: org.elasticsearch.xpack.logsdb.PatternTextRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/152652
+- class: org.elasticsearch.xpack.logsdb.MatchOnlyTextRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/152653
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/152654
+- class: org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/152655
+- class: org.elasticsearch.xpack.logsdb.TsdbIndexingRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/152656
+- class: org.elasticsearch.xpack.logsdb.KeywordRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/152659
+- class: org.elasticsearch.xpack.logsdb.SyntheticSourceRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/152660
+- class: org.elasticsearch.xpack.logsdb.TextRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/152661
+- class: org.elasticsearch.xpack.logsdb.StandardToLogsDbIndexModeRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/152662
+- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
+  method: testStress
+  issue: https://github.com/elastic/elasticsearch/issues/152671
+- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
+  method: testExplicitMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/152356

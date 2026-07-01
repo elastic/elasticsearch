@@ -59,12 +59,20 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
         String description,
         EnumSet<TaskType> supportedTaskTypes
     ) {
+        return toSettingsConfigurationWithDescription(description, supportedTaskTypes, true);
+    }
+
+    public static Map<String, SettingsConfiguration> toSettingsConfigurationWithDescription(
+        String description,
+        EnumSet<TaskType> supportedTaskTypes,
+        boolean required
+    ) {
         var configurationMap = new HashMap<String, SettingsConfiguration>();
         configurationMap.put(
             API_KEY,
             new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(description)
                 .setLabel("API Key")
-                .setRequired(true)
+                .setRequired(required)
                 .setSensitive(true)
                 .setUpdatable(true)
                 .setType(SettingsConfigurationFieldType.STRING)

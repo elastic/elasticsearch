@@ -116,28 +116,37 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
                 continue;
             }
 
-            if (hasAtLeastOneGeoipProcessor(projectMetadata)) {
+            // A geoip processor with download_database_on_pipeline_creation:true wants its databases as soon as the pipeline
+            // exists; one with download_database_on_pipeline_creation:false only wants them once an index references the
+            // pipeline.
+            Set<String> eagerPipelines = pipelinesWithGeoIpProcessor(projectMetadata, true);
+            Set<String> lazyPipelines = pipelinesWithGeoIpProcessor(projectMetadata, false);
+            if (eagerPipelines.isEmpty() == false || anyIndexReferencesPipeline(projectMetadata, lazyPipelines)) {
                 ipLocationService.requestDownloads(projectId.id(), IpLocationConsumer.INGEST);
-            } else {
+            } else if (lazyPipelines.isEmpty()) {
+                // Drop any pending downloads for this project only if there are no pipelines that need them (we know the eager
+                // pipelines are empty if we ever get here).
                 ipLocationService.cancelDownloadRequest(projectId.id(), IpLocationConsumer.INGEST);
             }
         }
     }
 
     static boolean hasAtLeastOneGeoipProcessor(ProjectMetadata projectMetadata) {
-        if (pipelinesWithGeoIpProcessor(projectMetadata, true).isEmpty() == false) {
-            return true;
-        }
+        return pipelinesWithGeoIpProcessor(projectMetadata, true).isEmpty() == false
+            || anyIndexReferencesPipeline(projectMetadata, pipelinesWithGeoIpProcessor(projectMetadata, false));
+    }
 
-        Set<String> checkReferencedPipelines = pipelinesWithGeoIpProcessor(projectMetadata, false);
-        if (checkReferencedPipelines.isEmpty()) {
+    /**
+     * Returns whether any index in the project references one of the given pipelines as its default or final pipeline.
+     */
+    private static boolean anyIndexReferencesPipeline(ProjectMetadata projectMetadata, Set<String> pipelineIds) {
+        if (pipelineIds.isEmpty()) {
             return false;
         }
-
         for (IndexMetadata indexMetadata : projectMetadata.indices().values()) {
             String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetadata.getSettings());
             String finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexMetadata.getSettings());
-            if (checkReferencedPipelines.contains(defaultPipeline) || checkReferencedPipelines.contains(finalPipeline)) {
+            if (pipelineIds.contains(defaultPipeline) || pipelineIds.contains(finalPipeline)) {
                 return true;
             }
         }

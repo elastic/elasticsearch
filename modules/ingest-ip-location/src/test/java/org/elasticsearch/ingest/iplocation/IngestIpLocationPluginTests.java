@@ -45,6 +45,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -159,6 +160,50 @@ public class IngestIpLocationPluginTests extends ESTestCase {
         ProjectMetadata projectMeta2 = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, emptyIngestMetadata).build();
         ClusterState state2 = clusterStateWithProject(projectMeta2);
         mocks.plugin.clusterChanged(new ClusterChangedEvent("test", state2, state1));
+        verify(mocks.service).cancelDownloadRequest(projectId.id(), IpLocationConsumer.INGEST);
+    }
+
+    /**
+     * A pipeline whose geoip processor sets {@code download_database_on_pipeline_creation: false} registers the ingest
+     * consumer only while an index references it. Deleting that index must <em>not</em> release the consumer: the
+     * pipeline still exists, so its databases must stay available for the next document. The consumer is released only
+     * once the pipeline itself is removed.
+     */
+    public void testUnreferencedDownloadOnCreationFalsePipelineKeepsConsumer() throws IOException {
+        var mocks = createPluginWithMocks();
+        ProjectId projectId = randomProjectIdOrDefault();
+
+        String pipelineJson = """
+            {"processors":[{"geoip":{"field":"ip","download_database_on_pipeline_creation":false}}]}""";
+        var ingestMetadata = new IngestMetadata(
+            Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipelineJson), XContentType.JSON))
+        );
+
+        // State 1: an index references the pipeline -> downloads requested
+        IndexMetadata index = new IndexMetadata.Builder("index").settings(
+            indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "_id1")
+        ).build();
+        ProjectMetadata projectMeta1 = ProjectMetadata.builder(projectId)
+            .putCustom(IngestMetadata.TYPE, ingestMetadata)
+            .put(index, false)
+            .build();
+        ClusterState state1 = clusterStateWithProject(projectMeta1);
+        mocks.plugin.clusterChanged(new ClusterChangedEvent("test", state1, emptyClusterState()));
+        verify(mocks.service).requestDownloads(projectId.id(), IpLocationConsumer.INGEST);
+
+        // State 2: the index is removed but the pipeline remains -> consumer must NOT be released
+        ProjectMetadata projectMeta2 = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build();
+        ClusterState state2 = clusterStateWithProject(projectMeta2);
+        mocks.plugin.clusterChanged(new ClusterChangedEvent("test", state2, state1));
+        verify(mocks.service, never()).cancelDownloadRequest(anyString(), any(IpLocationConsumer.class));
+        verify(mocks.service, times(1)).requestDownloads(projectId.id(), IpLocationConsumer.INGEST);
+
+        // State 3: the pipeline itself is removed -> now the consumer is released
+        ProjectMetadata projectMeta3 = ProjectMetadata.builder(projectId)
+            .putCustom(IngestMetadata.TYPE, new IngestMetadata(Map.of()))
+            .build();
+        ClusterState state3 = clusterStateWithProject(projectMeta3);
+        mocks.plugin.clusterChanged(new ClusterChangedEvent("test", state3, state2));
         verify(mocks.service).cancelDownloadRequest(projectId.id(), IpLocationConsumer.INGEST);
     }
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -1172,6 +1173,115 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertEquals(2, page.getPositionCount());
             assertEquals(2, page.getBlockCount());
         }
+    }
+
+    public void testNestedObjectSometimesNull() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        // "address" is a nested-object prefix in the schema (address.city / address.zip), but in one row it is a JSON null.
+        // Reproduces https://github.com/elastic/elasticsearch/issues/152574 (NPE on structural decoder nodes).
+        String ndjson = """
+            {"address": {"city": "NYC", "zip": "10001"}}
+            {"address": null}
+            {"address": {"city": "London", "zip": "SW1A"}}
+            """;
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("address.city", "address.zip"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertPage(page, """
+                   BYTES_REF   |   BYTES_REF  \s
+                ---------------+---------------
+                NYC            |10001         \s
+                null           |null          \s
+                London         |SW1A          \s
+                """);
+            assertEquals(3, page.getPositionCount());
+        }
+    }
+
+    public void testDeeplyNestedObjectSometimesNull() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        // Intermediate prefix "user.sessionContext" is an object in one row and JSON null in another.
+        String ndjson = """
+            {"user": {"type": "Root", "sessionContext": {"creationDate": "2017"}}}
+            {"user": {"type": "IAMUser", "sessionContext": null}}
+            {"user": null}
+            """;
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("user.type", "user.sessionContext.creationDate"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertPage(page, """
+                   BYTES_REF   |   BYTES_REF  \s
+                ---------------+---------------
+                Root           |2017          \s
+                IAMUser        |null          \s
+                null           |null          \s
+                """);
+            assertEquals(3, page.getPositionCount());
+        }
+    }
+
+    /**
+     * Issue-faithful regression for https://github.com/elastic/elasticsearch/issues/152574: AWS CloudTrail-shaped
+     * NDJSON read through full per-file schema inference (null projection), with a nested {@code userIdentity} object
+     * that is sometimes {@code null} and an arbitrary {@code responseElements} object that is intermittently
+     * {@code null}. The previous code NPE'd on the structural decoder nodes; here the whole file must decode with the
+     * mismatched rows null-filled and every column staying row-aligned.
+     */
+    public void testCloudTrailNestedObjectsWithInferredSchema() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        String ndjson = """
+            {"eventSource":"s3.amazonaws.com","userIdentity":{"type":"Root","arn":"arn:1"},"responseElements":{"code":"200"}}
+            {"eventSource":"ec2.amazonaws.com","userIdentity":{"type":"IAMUser","arn":"arn:2"},"responseElements":null}
+            {"eventSource":"iam.amazonaws.com","userIdentity":null,"responseElements":{"code":"403"}}
+            """;
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///cloudtrail.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var schema = reader.metadata(object).schema();
+
+        try (var iterator = reader.read(object, null, 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            for (int b = 0; b < page.getBlockCount(); b++) {
+                assertEquals("column " + b + " row-misaligned", 3, page.getBlock(b).getPositionCount());
+            }
+
+            BytesRef scratch = new BytesRef();
+            BytesRefBlock eventSource = page.getBlock(indexOf(schema, "eventSource"));
+            assertEquals("s3.amazonaws.com", eventSource.getBytesRef(eventSource.getFirstValueIndex(0), scratch).utf8ToString());
+            assertEquals("iam.amazonaws.com", eventSource.getBytesRef(eventSource.getFirstValueIndex(2), scratch).utf8ToString());
+
+            BytesRefBlock userType = page.getBlock(indexOf(schema, "userIdentity.type"));
+            assertEquals("Root", userType.getBytesRef(userType.getFirstValueIndex(0), scratch).utf8ToString());
+            assertEquals("IAMUser", userType.getBytesRef(userType.getFirstValueIndex(1), scratch).utf8ToString());
+            assertTrue("userIdentity null row -> userIdentity.type null", userType.isNull(2));
+
+            BytesRefBlock respCode = page.getBlock(indexOf(schema, "responseElements.code"));
+            assertEquals("200", respCode.getBytesRef(respCode.getFirstValueIndex(0), scratch).utf8ToString());
+            assertTrue("responseElements null row -> responseElements.code null", respCode.isNull(1));
+            assertEquals("403", respCode.getBytesRef(respCode.getFirstValueIndex(2), scratch).utf8ToString());
+        }
+    }
+
+    private static int indexOf(List<Attribute> schema, String name) {
+        for (int i = 0; i < schema.size(); i++) {
+            if (schema.get(i).name().equals(name)) {
+                return i;
+            }
+        }
+        throw new AssertionError("column [" + name + "] not found in schema " + schema);
     }
 
     public void testArrayOfObjects() throws IOException {

@@ -93,7 +93,7 @@ docs/reference/elasticsearch/rest-apis @elastic/developer-docs
 docs/reference/elasticsearch/elasticsearch-audit-events.md @elastic/admin-docs
 docs/reference/elasticsearch/jvm-settings.md @elastic/admin-docs
 docs/reference/elasticsearch/roles.md @elastic/admin-docs
-docs/reference/enrich-processor @elastic/admin-docs
+docs/reference/ingest-processor @elastic/admin-docs
 docs/reference/query-languages @elastic/developer-docs
 docs/reference/scripting-languages @elastic/admin-docs
 docs/reference/search-connectors @elastic/developer-docs

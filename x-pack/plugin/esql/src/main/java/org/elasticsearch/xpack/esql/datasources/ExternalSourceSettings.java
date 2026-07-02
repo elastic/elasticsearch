@@ -12,30 +12,31 @@ import org.elasticsearch.common.settings.Setting;
 import java.util.List;
 
 /**
- * Cluster settings for controlling ESQL external source behavior.
- * All settings are dynamic (can be changed without restart) and node-scoped.
+ * Cluster settings for controlling ESQL external source behavior; all node-scoped. The connection bound
+ * ({@link #MAX_CONNECTIONS}) and the throttle retry budget are read at node startup — the former sizes the SDK
+ * connection pools and the blocking-read thread pool when they are built, the latter is read when the
+ * storage-provider registry initializes — so a change to either takes effect after a node restart.
  * <p>
- * Covers two areas: cloud API rate limiting (concurrency cap, retry duration budget)
- * and glob/listing safety limits (max discovered files, max brace expansion) to
- * prevent degenerate queries from overwhelming storage backends.
+ * Covers three areas: the per-backend external-read concurrency bound ({@link #MAX_CONNECTIONS}); reactive
+ * throttle handling for object stores (the retry duration budget — throttling is handled by backoff, not a
+ * concurrency cap); and glob/listing safety limits (max discovered files, max brace expansion) to prevent
+ * degenerate queries from overwhelming storage backends.
  */
 public final class ExternalSourceSettings {
 
     private ExternalSourceSettings() {}
 
     /**
-     * Maximum number of concurrent cloud API requests per storage scheme per node.
-     * Set to 0 to disable concurrency limiting entirely.
-     * Default: 50. Cloud APIs typically handle 50 concurrent requests per IP easily;
-     * increase for high-throughput clusters, decrease if experiencing throttling.
+     * Maximum concurrent in-flight external-storage reads per backend, per node. Sizes the S3/Azure SDK connection
+     * pools and the {@code esql_external_blocking_io} thread pool. Static (NodeScope): thread pools and SDK pools
+     * are fixed at startup.
      */
-    public static final Setting<Integer> MAX_CONCURRENT_REQUESTS = Setting.intSetting(
-        "esql.external.max_concurrent_requests",
-        50,
-        0,
-        500,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+    public static final Setting<Integer> MAX_CONNECTIONS = Setting.intSetting(
+        "esql.external.max_connections",
+        512,
+        1,
+        4096,
+        Setting.Property.NodeScope
     );
 
     /**
@@ -50,8 +51,7 @@ public final class ExternalSourceSettings {
         30,
         0,
         300,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.NodeScope
     );
 
     /**
@@ -84,30 +84,46 @@ public final class ExternalSourceSettings {
     );
 
     /**
-     * Enables {@code auth=workload_identity} for EXTERNAL cloud reads, which resolves credentials from the node's
-     * workload identity (IAM instance profile / IMDS on AWS and Azure, GCE metadata server on GCP)
-     * rather than requiring explicit credentials in the query or datasource.
-     * <p>
-     * Disabled by default. Must be explicitly enabled by an operator on self-hosted, single-cloud,
-     * single-tenant deployments where the node's workload identity is the intended credential.
-     * Never enable in serverless or multi-tenant deployments: workload identity credentials bypass tenant isolation.
-     * <p>
-     * This is an operator-dynamic setting: changes take effect immediately without a node restart.
+     * Deprecated former name for {@link #MANAGED_IDENTITY_ENABLED}. Still honored for backwards compatibility — it is the
+     * fallback source for the new key, so an operator's existing {@code esql.datasource.workload_identity.enabled} config
+     * keeps working — and emits a deprecation warning when set. Prefer {@link #MANAGED_IDENTITY_ENABLED}.
      */
     public static final Setting<Boolean> WORKLOAD_IDENTITY_ENABLED = Setting.boolSetting(
         "esql.datasource.workload_identity.enabled",
         false,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.DeprecatedWarning
+    );
+
+    /**
+     * Enables {@code auth=managed_identity} for external data source reads, which resolves credentials from the node's
+     * ambient cloud identity (IAM instance profile / IMDS on AWS and Azure, GCE metadata server on GCP)
+     * rather than requiring explicit credentials in the query or datasource.
+     * <p>
+     * Disabled by default. Must be explicitly enabled by an operator on self-hosted, single-cloud,
+     * single-tenant deployments where the node's ambient identity is the intended credential.
+     * Never enable in serverless or multi-tenant deployments: ambient credentials bypass tenant isolation.
+     * <p>
+     * This is an operator-dynamic setting: changes take effect immediately without a node restart. When this key is
+     * not set, it falls back to the deprecated {@link #WORKLOAD_IDENTITY_ENABLED} key's value, so reads through this
+     * setting see an operator's pre-rename configuration.
+     */
+    public static final Setting<Boolean> MANAGED_IDENTITY_ENABLED = Setting.boolSetting(
+        "esql.datasource.managed_identity.enabled",
+        WORKLOAD_IDENTITY_ENABLED,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );
 
     public static List<Setting<?>> settings() {
         return List.of(
-            MAX_CONCURRENT_REQUESTS,
+            MAX_CONNECTIONS,
             THROTTLE_MAX_RETRY_DURATION,
             MAX_DISCOVERED_FILES,
             MAX_GLOB_EXPANSION,
-            WORKLOAD_IDENTITY_ENABLED
+            WORKLOAD_IDENTITY_ENABLED,
+            MANAGED_IDENTITY_ENABLED
         );
     }
 }

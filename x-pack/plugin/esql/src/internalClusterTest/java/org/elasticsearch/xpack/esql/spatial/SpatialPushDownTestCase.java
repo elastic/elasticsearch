@@ -52,7 +52,7 @@ public abstract class SpatialPushDownTestCase<T extends Geometry> extends ESInte
     protected static final String[] ALL_INDEXES = new String[] { "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values" };
 
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(EsqlPluginWithEnterpriseOrTrialLicense.class, SpatialPlugin.class, TestEncryptionServicePlugin.class);
+        return List.of(TestEncryptionServicePlugin.class, EsqlPluginWithEnterpriseOrTrialLicense.class, SpatialPlugin.class);
     }
 
     /**

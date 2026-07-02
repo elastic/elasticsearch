@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -14,12 +18,17 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.MergedSplitStats;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -99,6 +108,165 @@ public final class ExternalSourceAggregatePushdown {
             return l >= min && l <= max;
         }
         return false;
+    }
+
+    /**
+     * Resolves one aggregate function's value from split statistics, or {@code null} to safe-miss
+     * (the aggregate re-scans). This is the ONE resolution used by both pushdown rules — the two used
+     * to carry near-verbatim copies, which had already drifted: one guarded against virtual columns
+     * ({@code _file.*} metadata, absent from column stats), the other did not. A virtual column
+     * reaching the footer-format implicit-nulls contract would serve {@code COUNT(col) = rowCount -
+     * rowCount = 0} — wrong data — so the shared resolution carries the union of both rules' guards.
+     */
+    static Object resolveFromStats(
+        Expression aggFunction,
+        org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
+        boolean implicitNullsForAbsentColumn
+    ) {
+        if (aggFunction instanceof Count count) {
+            return resolveCount(count, stats, implicitNullsForAbsentColumn);
+        } else if (aggFunction instanceof Min min) {
+            return resolveMin(min, stats, implicitNullsForAbsentColumn);
+        } else if (aggFunction instanceof Max max) {
+            return resolveMax(max, stats, implicitNullsForAbsentColumn);
+        }
+        return null;
+    }
+
+    /**
+     * Resolves {@code COUNT(*)} as the row count and {@code COUNT(col)} preferentially from the harvested
+     * per-column value count (multivalue-correct: an NDJSON array {@code [a,b,c]} contributes 3), falling
+     * back to {@code rowCount - columnNullCount} for footer formats that don't harvest a value count (their
+     * columns are single-valued, and the {@link org.elasticsearch.xpack.esql.datasources.spi.SplitStats}
+     * "implicit nulls" contract makes the subtraction exact across UNION_BY_NAME mixes). A return of
+     * {@code -1} from {@code columnNullCount} signals the rare present-but-stats-less case: bail out.
+     */
+    private static Object resolveCount(
+        Count count,
+        org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
+        boolean implicitNullsForAbsentColumn
+    ) {
+        if (count.hasFilter()) {
+            return null;
+        }
+        Expression target = count.field();
+        if (target.foldable()) {
+            return stats.rowCount();
+        }
+        // Virtual columns ({@code _file.*}) are not present in the split's column stats; under the footer
+        // implicit-nulls contract an absent column reads as all-null, which would serve COUNT(col) = 0.
+        // Refuse here even if a format-level gate happens to let one through (defense in depth).
+        if (target instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
+            // For text formats under partial harvest an unobserved column means "not harvested," not
+            // "all-null": serving rowCount - rowCount = 0 would be wrong. Safe-miss so the engine re-scans.
+            if (columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
+                return null;
+            }
+            long vc = stats.columnValueCount(ref.name());
+            if (vc >= 0) {
+                return vc;
+            }
+            long nc = stats.columnNullCount(ref.name());
+            if (nc >= 0) {
+                return stats.rowCount() - nc;
+            }
+        }
+        return null;
+    }
+
+    private static Object resolveMin(
+        Min min,
+        org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
+        boolean implicitNullsForAbsentColumn
+    ) {
+        if (min.hasFilter()) {
+            return null;
+        }
+        if (min.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
+            // A partially-harvested column would serve a subset extremum (one file's range while a
+            // sibling's is invisible). Safe-miss; MergedSplitStats requires every child to have observed
+            // the column for hasColumn to be true.
+            if (columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
+                return null;
+            }
+            return servableExtremum(stats.columnMin(ref.name()), ref.dataType());
+        }
+        return null;
+    }
+
+    private static Object resolveMax(
+        Max max,
+        org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
+        boolean implicitNullsForAbsentColumn
+    ) {
+        if (max.hasFilter()) {
+            return null;
+        }
+        if (max.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
+            if (columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
+                return null;
+            }
+            return servableExtremum(stats.columnMax(ref.name()), ref.dataType());
+        }
+        return null;
+    }
+
+    /** One constant block per resolved value — the FINAL-mode substitution shape. */
+    static Block[] buildFinalBlocks(List<Object> values, List<DataType> dataTypes) {
+        var blockFactory = PlannerUtils.NON_BREAKING_BLOCK_FACTORY;
+        Block[] blocks = new Block[values.size()];
+        for (int i = 0; i < values.size(); i++) {
+            blocks[i] = buildBlock(blockFactory, values.get(i), dataTypes.get(i));
+        }
+        return blocks;
+    }
+
+    /** Value + seen-flag block pairs — the INITIAL/intermediate-mode substitution shape. */
+    static Block[] buildIntermediateBlocks(List<Object> values, List<DataType> dataTypes) {
+        var blockFactory = PlannerUtils.NON_BREAKING_BLOCK_FACTORY;
+        Block[] blocks = new Block[values.size() * 2];
+        for (int i = 0; i < values.size(); i++) {
+            blocks[i * 2] = buildBlock(blockFactory, values.get(i), dataTypes.get(i));
+            blocks[i * 2 + 1] = blockFactory.newConstantBooleanBlockWith(true, 1);
+        }
+        return blocks;
+    }
+
+    /**
+     * Builds a single-value constant block, coercing the stat value to match the expected ESQL data
+     * type. Format readers may return stats in wider Java types than the column's ESQL type; the
+     * integral coercions here are exactly what {@link #servableExtremum} guards against lossy inputs.
+     */
+    static Block buildBlock(BlockFactory blockFactory, Object value, DataType dataType) {
+        if (value == null) {
+            return blockFactory.newConstantNullBlock(1);
+        }
+        return switch (dataType) {
+            case INTEGER -> blockFactory.newConstantIntBlockWith(((Number) value).intValue(), 1);
+            case LONG, COUNTER_LONG, DATETIME -> blockFactory.newConstantLongBlockWith(((Number) value).longValue(), 1);
+            case DOUBLE, COUNTER_DOUBLE -> blockFactory.newConstantDoubleBlockWith(((Number) value).doubleValue(), 1);
+            case BOOLEAN -> blockFactory.newConstantBooleanBlockWith(
+                value instanceof Boolean b ? b : Booleans.parseBoolean(value.toString()),
+                1
+            );
+            case KEYWORD, TEXT -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(value), 1);
+            default -> {
+                if (value instanceof Number n) {
+                    yield blockFactory.newConstantLongBlockWith(n.longValue(), 1);
+                }
+                yield blockFactory.newConstantNullBlock(1);
+            }
+        };
+    }
+
+    private static BytesRef toBytesRef(Object value) {
+        if (value instanceof BytesRef br) {
+            return br;
+        }
+        if (value instanceof byte[] bytes) {
+            return new BytesRef(bytes);
+        }
+        return new BytesRef(value.toString());
     }
 
     /**

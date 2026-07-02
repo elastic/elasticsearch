@@ -36,42 +36,43 @@ public final class ExternalStats {
 
     /**
      * Set on per-chunk/per-segment contributions to mark them as a partial cover of the file (as
-     * opposed to a whole-file read). A partial also carries a coverage range (see {@link
-     * #COVERAGE_START_KEY}); the coordinator reconciler unions partials by range and commits only
-     * when they tile the file. Whole-file reads carry neither marker and stay on the authoritative
-     * dedup path.
+     * opposed to a whole-file read). {@code SourceStatsContribution.classify} routes a partial to the
+     * stripe-fragment path: a stripe-addressed partial (carries {@link #STRIPE_SIZE_KEY} etc.) folds
+     * through the reconciler's per-stripe interval cover; a partial WITHOUT stripe addressing is
+     * un-addressable and is a deterministic safe miss (never cached, never wrong). Whole-file reads
+     * carry no marker and stay on the authoritative dedup path.
      */
     public static final String PARTIAL_CHUNK_KEY = "_stats.partial_chunk";
 
     /**
-     * Coverage-addressing keys. Every stats contribution describes the half-open byte range
-     * {@code [COVERAGE_START_KEY, COVERAGE_END_KEY)} of the file it observed, in that path's own read
-     * coordinate system (decompressed-stream offset for stream codecs like gzip/zstd; raw file offset
-     * for uncompressed or block-splittable inputs — a single file is read in exactly one coordinate
-     * system per {@code (path, config)}, so ranges are always comparable). The range is the
-     * contribution's <em>intrinsic identity</em>: the coordinator reconciler unions contributions by
-     * range, so a range observed more than once — the two branches of a FORK each re-scanning the
-     * source, a schema-probe pass plus the data scan, a retry, a redelivery — is counted once, while
-     * disjoint ranges (parallel chunks, record-aligned macro-splits, block splits, splits spread
-     * across nodes) are summed. This replaces scan/finalize counting, which was a brittle proxy: "how
-     * many times was it read" is an implementation detail, "which bytes did this cover" is not.
+     * Coverage-addressing keys. A stripe fragment describes the half-open byte sub-range
+     * {@code [COVERAGE_START_KEY, COVERAGE_END_KEY)} of its canonical stripe that it observed, in the
+     * path's own read coordinate system (decompressed-stream offset for stream codecs like gzip/zstd;
+     * raw file offset for uncompressed or block-splittable inputs — a single file is read in exactly
+     * one coordinate system per {@code (path, config)}, so ranges are always comparable). The range is
+     * the fragment's <em>intrinsic identity</em> within its stripe: the reconciler's per-stripe
+     * interval cover counts a range observed more than once — the two branches of a FORK each
+     * re-scanning the source, a schema-probe pass plus the data scan, a retry, a redelivery — exactly
+     * once, while sibling chunkings of one stripe tile to the same folded stripe stats.
      * <p>
-     * {@link #COVERAGE_IS_LAST_KEY} marks the contribution that observed the end of the input. A
-     * cover is complete — and therefore cacheable as a file-level statistic — only when the unioned
-     * ranges tile {@code [0, end)} with no gap and the final range is flagged last. The keys ride
-     * inside the opaque {@code _stats.*} map, so there is no transport-version impact; an older node
-     * emits no coverage and its contribution is treated as un-addressable (never cached).
+     * {@link #COVERAGE_IS_LAST_KEY} marks the fragment that observed the end of the input — the
+     * file's last stripe — which drives the whole-file completeness marker (stripes {@code 0..K} all
+     * covered + EOF known ⇒ the fold is cacheable as a file-level statistic). The keys ride inside
+     * the opaque {@code _stats.*} map, so there is no transport-version impact; an older node emits
+     * no coverage and its contribution is treated as un-addressable (never cached).
      */
     public static final String COVERAGE_START_KEY = "_stats.coverage_start";
     public static final String COVERAGE_END_KEY = "_stats.coverage_end";
     public static final String COVERAGE_IS_LAST_KEY = "_stats.coverage_is_last";
 
     /**
-     * Published by any chunk whose iterator dropped rows (rowsSkipped > 0). The presence of this
-     * marker in any contribution for a file poisons the file's merge — the coordinator discards every
-     * contribution rather than commit a policy-dependent count. Defeats the SKIP_ROW edge case where
-     * one chunk drops rows silently, the others succeed cleanly, the finalize marker fires, and the
-     * merged rowCount under-counts the file.
+     * Published by the parallel coordinators when a scan did NOT complete cleanly — an error mid-scan,
+     * a truncated/cancelled read, a chunk cut short — i.e. the scan's extent is not deterministic.
+     * Classified as {@code Poison}: the coordinator discards every contribution for the file rather
+     * than commit stats whose extent another scan would not reproduce. A row DROPPED by the error
+     * policy (skip_row, or a structural malformed row under null_field) is deliberately NOT an error
+     * here: which rows survive is a deterministic function of the file bytes and the policy (pinned by
+     * the config fingerprint), so a clean-completing scan commits exact stats over the survivors.
      */
     public static final String CHUNK_HAD_ERRORS_KEY = "_stats.chunk_had_errors";
 

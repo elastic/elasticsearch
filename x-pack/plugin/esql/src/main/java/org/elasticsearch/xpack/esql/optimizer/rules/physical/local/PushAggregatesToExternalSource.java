@@ -7,13 +7,10 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -23,13 +20,9 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
-import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -37,7 +30,6 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -141,10 +133,10 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             for (NamedExpression agg : aggregateExec.aggregates()) {
                 outputAttrs.add(agg.toAttribute());
             }
-            blocks = buildFinalBlocks(values, dataTypes);
+            blocks = ExternalSourceAggregatePushdown.buildFinalBlocks(values, dataTypes);
         } else {
             outputAttrs = aggregateExec.intermediateAttributes();
-            blocks = buildIntermediateBlocks(values, dataTypes);
+            blocks = ExternalSourceAggregatePushdown.buildIntermediateBlocks(values, dataTypes);
         }
 
         return new LocalSourceExec(aggregateExec.source(), outputAttrs, LocalSupplier.of(new Page(blocks)));
@@ -163,7 +155,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 return false;
             }
             Expression child = ((Alias) agg).child();
-            Object value = resolveFromStats(child, stats, implicitNullsForAbsentColumn);
+            Object value = ExternalSourceAggregatePushdown.resolveFromStats(child, stats, implicitNullsForAbsentColumn);
             if (value == null) {
                 return false;
             }
@@ -210,135 +202,6 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
      * value" or "incompatible/unknown stats" — both correct fall-back signals; the rule does not
      * pushdown.
      */
-    private Object resolveFromStats(
-        Expression aggFunction,
-        org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
-        boolean implicitNullsForAbsentColumn
-    ) {
-        if (aggFunction instanceof Count count) {
-            if (count.hasFilter()) {
-                return null;
-            }
-            Expression target = count.field();
-            if (target.foldable()) {
-                return stats.rowCount();
-            }
-            // Virtual columns are not present in the split's column stats; refuse the pushdown
-            // here even if a format-level gate happens to let one through (defense in depth).
-            if (target instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
-                // For formats that do not apply implicit nulls to absent columns (text formats under
-                // partial harvest), an unobserved column means "not harvested," not "all-null":
-                // serving rowCount - rowCount = 0 would be wrong. Safe-miss so the engine re-scans.
-                if (ExternalSourceAggregatePushdown.columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
-                    return null;
-                }
-                // COUNT(col) counts non-null VALUES. Prefer the harvested value count (multivalue-correct);
-                // it is -1 for footer formats that don't harvest it, where rowCount - nullCount is exact.
-                long vc = stats.columnValueCount(ref.name());
-                if (vc >= 0) {
-                    return vc;
-                }
-                long nc = stats.columnNullCount(ref.name());
-                if (nc >= 0) {
-                    return stats.rowCount() - nc;
-                }
-            }
-            return null;
-        } else if (aggFunction instanceof Min min) {
-            if (min.hasFilter()) {
-                return null;
-            }
-            if (min.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
-                // For formats that do not apply implicit nulls to absent columns (text formats under
-                // partial harvest), a column that some contributing split did not observe is "not
-                // harvested," not "absent/all-null." A merged extremum that silently skips the
-                // unharvested split would serve a subset MIN/MAX (e.g. one file's value range while a
-                // sibling file's range is invisible). Safe-miss so the engine re-scans. MergedSplitStats
-                // already requires every child to have observed the column for hasColumn to be true.
-                if (ExternalSourceAggregatePushdown.columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
-                    return null;
-                }
-                return ExternalSourceAggregatePushdown.servableExtremum(stats.columnMin(ref.name()), ref.dataType());
-            }
-            return null;
-        } else if (aggFunction instanceof Max max) {
-            if (max.hasFilter()) {
-                return null;
-            }
-            if (max.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
-                if (ExternalSourceAggregatePushdown.columnStatUnservable(stats, ref.name(), implicitNullsForAbsentColumn)) {
-                    return null;
-                }
-                return ExternalSourceAggregatePushdown.servableExtremum(stats.columnMax(ref.name()), ref.dataType());
-            }
-            return null;
-        }
-        return null;
-    }
-
-    private static Block[] buildFinalBlocks(List<Object> values, List<DataType> dataTypes) {
-        var blockFactory = PlannerUtils.NON_BREAKING_BLOCK_FACTORY;
-        Block[] blocks = new Block[values.size()];
-        for (int i = 0; i < values.size(); i++) {
-            blocks[i] = buildBlock(blockFactory, values.get(i), dataTypes.get(i));
-        }
-        return blocks;
-    }
-
-    private static Block[] buildIntermediateBlocks(List<Object> values, List<DataType> dataTypes) {
-        var blockFactory = PlannerUtils.NON_BREAKING_BLOCK_FACTORY;
-        Block[] blocks = new Block[values.size() * 2];
-        for (int i = 0; i < values.size(); i++) {
-            blocks[i * 2] = buildBlock(blockFactory, values.get(i), dataTypes.get(i));
-            blocks[i * 2 + 1] = blockFactory.newConstantBooleanBlockWith(true, 1);
-        }
-        return blocks;
-    }
-
-    /**
-     * Builds a single-value constant block, coercing the stat value to match the expected ESQL
-     * data type. Format readers may return stats in wider Java types than the column's ESQL type
-     * (e.g. ORC returns {@code long} for all integer stats including INT32 columns).
-     */
-    static Block buildBlock(BlockFactory blockFactory, Object value, DataType dataType) {
-        if (value == null) {
-            return blockFactory.newConstantNullBlock(1);
-        }
-        return switch (dataType) {
-            case INTEGER -> blockFactory.newConstantIntBlockWith(((Number) value).intValue(), 1);
-            case LONG, COUNTER_LONG, DATETIME -> blockFactory.newConstantLongBlockWith(((Number) value).longValue(), 1);
-            case DOUBLE, COUNTER_DOUBLE -> blockFactory.newConstantDoubleBlockWith(((Number) value).doubleValue(), 1);
-            case BOOLEAN -> blockFactory.newConstantBooleanBlockWith(
-                value instanceof Boolean b ? b : Booleans.parseBoolean(value.toString()),
-                1
-            );
-            case KEYWORD, TEXT -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(value), 1);
-            default -> {
-                if (value instanceof Number n) {
-                    yield blockFactory.newConstantLongBlockWith(n.longValue(), 1);
-                }
-                yield blockFactory.newConstantNullBlock(1);
-            }
-        };
-    }
-
-    /**
-     * Coerces a stat value to a {@link BytesRef} suitable for a constant KEYWORD / TEXT block. The
-     * {@link Object#toString} fallback is reserved for stat values whose {@code toString} is
-     * documented to return the underlying UTF-8 string (e.g. Parquet's {@code Binary}). Direct
-     * {@link BytesRef} and raw {@code byte[]} stat values bypass {@code toString} entirely because
-     * {@link BytesRef#toString} returns a hex dump (e.g. {@code [61 6c 70 68 61]}) and a
-     * round-trip through it would corrupt the warm-path result.
-     */
-    private static BytesRef toBytesRef(Object value) {
-        if (value instanceof BytesRef br) {
-            return br;
-        }
-        if (value instanceof byte[] bytes) {
-            return new BytesRef(bytes);
-        }
-        return new BytesRef(value.toString());
-    }
 
     private List<Expression> extractAggregateFunctions(List<? extends NamedExpression> aggregates) {
         List<Expression> result = new ArrayList<>();

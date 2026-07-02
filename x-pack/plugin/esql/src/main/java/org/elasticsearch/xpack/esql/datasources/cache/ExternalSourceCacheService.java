@@ -151,7 +151,9 @@ public class ExternalSourceCacheService implements Closeable {
                     case SourceStatsContribution.StripeFragment f -> fragments.add(f);
                 }
             }
-            // A poisoned file (a chunk dropped rows mid-scan) is discarded entirely.
+            // A poisoned file (a scan that did NOT complete cleanly -- error/truncation/cancel, so its
+            // extent is not deterministic) is discarded entirely. A row DROPPED by the error policy is
+            // not poison: survivors are deterministic and commit normally.
             if (poisoned) {
                 continue;
             }

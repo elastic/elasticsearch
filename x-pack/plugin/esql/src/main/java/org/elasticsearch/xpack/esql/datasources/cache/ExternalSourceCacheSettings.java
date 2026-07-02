@@ -16,7 +16,10 @@ import java.util.List;
 
 /**
  * Cluster settings for ESQL external source caching.
- * Cache size and TTL values are restart-only (NodeScope). The enabled flag is dynamic.
+ * Everything here is restart-only (NodeScope) except the enabled flag, which is dynamic and wired to a
+ * live consumer in {@code EsqlPlugin.createComponents}. A setting must not be declared Dynamic unless a
+ * {@code ClusterSettings.addSettingsUpdateConsumer} actually observes updates — a Dynamic flag without a
+ * consumer accepts runtime updates and silently ignores them.
  */
 public final class ExternalSourceCacheSettings {
 
@@ -89,13 +92,15 @@ public final class ExternalSourceCacheSettings {
      * stripe's row count.
      * <p>
      * Unlike {@link #STRIPE_SIZE}, this does NOT participate in stripe identity — it only changes how much
-     * a fresh scan harvests, never which stripe a record belongs to — so it is {@link Setting.Property#Dynamic}.
+     * a fresh scan harvests, never which stripe a record belongs to — so it COULD safely become dynamic.
+     * It is restart-only today because its one consumer ({@code FileSourceFactory}) reads it from the
+     * node's startup {@code Settings}; declaring it Dynamic without a live settings consumer would accept
+     * a runtime update and silently never observe it.
      */
     public static final Setting<StripeColumnScope> STRIPE_COLUMNS = Setting.enumSetting(
         StripeColumnScope.class,
         "esql.source.cache.stripe.columns",
         StripeColumnScope.PROJECTED,
-        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 

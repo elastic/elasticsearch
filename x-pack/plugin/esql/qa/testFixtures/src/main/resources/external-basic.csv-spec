@@ -1104,3 +1104,81 @@ distinct_paths:long
 1
 ;
 
+
+// ---- runtime match over an external source ----
+// External columns are not Lucene-mapped, so match runs at runtime (runtime_lexical_search). Authored as
+// FROM <dataset> so it runs verbatim on dataset-capable backends and as rebuilt EXTERNAL on the others.
+
+matchOnExternalKeyword
+required_capability: external_command
+required_capability: match_function
+required_capability: match_runtime_search
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+pragma: runtime_lexical_search=true
+
+FROM employees_no_mv
+| WHERE match(first_name, "Bezalel")
+| KEEP emp_no, first_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+;
+
+matchOnExternalKeywordAsText
+required_capability: external_command
+required_capability: match_function
+required_capability: match_runtime_search
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+pragma: runtime_lexical_search=true
+
+// Casting an external keyword column to text makes match analyze it (case-insensitive).
+FROM employees_no_mv
+| EVAL name = to_text(first_name)
+| WHERE match(name, "bezalel")
+| KEEP emp_no, first_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+;
+
+matchOnExternalInteger
+required_capability: external_command
+required_capability: match_function
+required_capability: match_runtime_search
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+pragma: runtime_lexical_search=true
+
+FROM employees_no_mv
+| WHERE match(salary, 57305)
+| KEEP emp_no, salary
+| SORT emp_no
+;
+
+emp_no:integer | salary:integer
+10001          | 57305
+;
+
+matchOnExternalIntegerWithStringQuery
+required_capability: external_command
+required_capability: match_function
+required_capability: match_runtime_search
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+pragma: runtime_lexical_search=true
+
+FROM employees_no_mv
+| WHERE match(salary, "57305")
+| KEEP emp_no, salary
+| SORT emp_no
+;
+
+emp_no:integer | salary:integer
+10001          | 57305
+;

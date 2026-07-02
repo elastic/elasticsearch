@@ -259,7 +259,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         // `delimiter`). Both must round-trip into cluster state so they reach the reader at query time.
         final String parent = "explicit_format_parent";
         final String dataset = "explicit_format_child";
-        putDataSource(parent, "s3", Map.of("region", "us-east-1"));
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
         putDataset(dataset, parent, "s3://bucket/data", Map.of("format", "csv", "delimiter", "|"));
 
         Map<String, Object> got = getDataset(dataset);
@@ -277,7 +277,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
 
     public void testPutDatasetRejectsUnknownFormat() throws IOException {
         final String parent = "unknown_format_parent";
-        putDataSource(parent, "s3", Map.of("region", "us-east-1"));
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
         ResponseException ex = expectThrows(
             ResponseException.class,
             () -> putDataset("unknown_format_child", parent, "s3://bucket/data", Map.of("format", "bogus"))
@@ -291,7 +291,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         // Extensionless resource + a format-specific setting but no `format`: the validator cannot tell
         // which format the setting belongs to, so it fails with the targeted "cannot determine format" hint.
         final String parent = "no_format_parent";
-        putDataSource(parent, "s3", Map.of("region", "us-east-1"));
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
         ResponseException ex = expectThrows(
             ResponseException.class,
             () -> putDataset("no_format_child", parent, "s3://bucket/data", Map.of("delimiter", "|"))

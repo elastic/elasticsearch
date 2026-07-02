@@ -3828,7 +3828,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                 newOutputToConvertFunctions.putIfAbsent(resolvedField.name(), convert);
                             } else {
                                 String newAliasName = Attribute.rawTemporaryName(
-                                    oldAttr.name(), "converted_to", convert.dataType().typeName());
+                                    oldAttr.name(),
+                                    "converted_to",
+                                    convert.dataType().typeName()
+                                );
                                 Alias newAlias = new Alias(
                                     oldAttr.source(),
                                     newAliasName, // oldAttrName$$converted_to$$targetType

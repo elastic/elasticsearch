@@ -62,6 +62,16 @@ public class AzureStorageProviderTests extends ESTestCase {
         assertTrue(e.getMessage().contains("AzureStorageProvider only supports wasbs:// and wasb:// schemes"));
     }
 
+    public void testManagedIdentityDefersBuildWhenAccountOnlyFromPath() {
+        // auth=managed_identity with the account supplied only in the query path (no account/endpoint in config) must
+        // not fail at construction: the endpoint is derived per-query from the wasbs://<account>... path, which is
+        // unavailable at construction, so the client build is deferred to first use. Regression guard for the eager-
+        // build guard, which must exclude managed_identity for Azure.
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, null, "managed_identity");
+        AzureStorageProvider provider = new AzureStorageProvider(config, null, null);
+        assertNotNull(provider);
+    }
+
     public void testWasbsPathParsing() {
         StoragePath path = StoragePath.of("wasbs://myaccount.blob.core.windows.net/container/data/sales.parquet");
         assertEquals("wasbs", path.scheme());
@@ -256,6 +266,23 @@ public class AzureStorageProviderTests extends ESTestCase {
             // The issuer fails the assertion, so resolution short-circuits before any Azure AD token exchange.
             TokenRequestContext request = new TokenRequestContext().addScopes("https://storage.azure.com/.default");
             expectThrows(CredentialUnavailableException.class, () -> credential.getToken(request).block());
+            assertEquals("overridden-audience", issuer.requestedAudience);
+        } finally {
+            WorkloadIdentityRegistry.reset();
+        }
+    }
+
+    public void testBuildClientAssertionCredentialRequestsDefaultAudienceWhenOmitted() {
+        RecordingIssuerClient issuer = new RecordingIssuerClient(true, false);
+        WorkloadIdentityRegistry.setIssuerClient(issuer);
+        try {
+            TokenCredential credential = AzureStorageProvider.buildClientAssertionCredential(
+                AzureConfiguration.fromMap(Map.of("tenant_id", "test-tenant-id", "client_id", "test-client-id")),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
+            // The issuer fails the assertion, so resolution short-circuits before any Azure AD token exchange.
+            TokenRequestContext request = new TokenRequestContext().addScopes("https://storage.azure.com/.default");
+            expectThrows(CredentialUnavailableException.class, () -> credential.getToken(request).block());
             assertEquals("api://AzureADTokenExchange", issuer.requestedAudience);
         } finally {
             WorkloadIdentityRegistry.reset();
@@ -264,7 +291,7 @@ public class AzureStorageProviderTests extends ESTestCase {
 
     private static AzureConfiguration keylessConfig() {
         return AzureConfiguration.fromMap(
-            Map.of("tenant_id", "test-tenant-id", "client_id", "test-client-id", "jwt_audience", "api://AzureADTokenExchange")
+            Map.of("tenant_id", "test-tenant-id", "client_id", "test-client-id", "jwt_audience", "overridden-audience")
         );
     }
 

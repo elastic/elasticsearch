@@ -138,7 +138,10 @@ abstract class DataNodeRequestSender {
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_COORDINATION
+            ThreadPool.Names.SEARCH_COORDINATION,
+            // Reached downstream of ComputeService.execute(), which itself may be invoked on esql_worker after
+            // ExternalSourceResolver completes on that pool.
+            EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME
         );
         final long startTimeInNanos = System.nanoTime();
         searchShards(concreteIndices, ActionListener.wrap(targetShards -> {

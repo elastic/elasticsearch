@@ -13,7 +13,7 @@ esplugin {
   name = 'x-pack-kibana'
   description = 'Implicit security privileges for Kibana as-data features'
   classname = 'org.elasticsearch.xpack.kibana.KibanaPlugin'
-  extendedPlugins = ['x-pack-core', 'x-pack-security']
+  extendedPlugins = ['x-pack-security']
 }
 
 base {

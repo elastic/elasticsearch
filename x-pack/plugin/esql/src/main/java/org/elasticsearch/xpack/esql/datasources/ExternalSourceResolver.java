@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
@@ -655,6 +656,42 @@ public class ExternalSourceResolver {
         return dot >= 0 ? name.substring(dot) : "";
     }
 
+    /** True for the coordinator-cache stripe bookkeeping keys that have no plan-side consumer. */
+    private static boolean isStripeBookkeeping(String key) {
+        return key.startsWith(ExternalStats.STRIPE_ENTRY_PREFIX)
+            || key.equals(ExternalStats.STRIPE_LAST_INDEX_KEY)
+            || key.equals(ExternalStats.STRIPE_GRID_KEY);
+    }
+
+    /**
+     * Returns {@code safeMetadata} without the coordinator-cache stripe bookkeeping ({@code _stats.stripe.<k>},
+     * {@code _stats.stripe_last_index}, {@code _stats.stripe_grid}) — those feed the cache-side 0..K fold and are
+     * never read from the plan, but would otherwise ride the plan wire per fragment. Returns the input unchanged
+     * when it carries no stripe keys (no copy on the common already-folded warm-serve path).
+     */
+    private static Map<String, Object> stripStripeBookkeeping(Map<String, Object> safeMetadata) {
+        if (safeMetadata == null || safeMetadata.isEmpty()) {
+            return safeMetadata;
+        }
+        boolean hasStripeKeys = false;
+        for (String k : safeMetadata.keySet()) {
+            if (isStripeBookkeeping(k)) {
+                hasStripeKeys = true;
+                break;
+            }
+        }
+        if (hasStripeKeys == false) {
+            return safeMetadata;
+        }
+        Map<String, Object> filtered = new HashMap<>(safeMetadata.size());
+        for (Map.Entry<String, Object> e : safeMetadata.entrySet()) {
+            if (isStripeBookkeeping(e.getKey()) == false) {
+                filtered.put(e.getKey(), e.getValue());
+            }
+        }
+        return filtered;
+    }
+
     private static ExternalSourceMetadata buildMetadataFromCache(
         SchemaCacheEntry entry,
         List<Attribute> schema,
@@ -675,8 +712,13 @@ public class ExternalSourceResolver {
 
         // Warm stats live in the entry's safeMetadata, reconciled there from the data-node capture
         // (DriverCompletionInfo → ExternalSourceCacheService.reconcileSourceStats). The optimizer
-        // reads the _stats.* keys straight off this map; no separate cache lookup.
-        final Map<String, Object> finalMetadata = entry.safeMetadata();
+        // reads the whole-file _stats.* keys (row count, per-column min/max/null/value-count, mtime,
+        // fingerprint) straight off this map; no separate cache lookup. But safeMetadata ALSO carries the
+        // coordinator-cache stripe bookkeeping (_stats.stripe.<k> committed stripes, _stats.stripe_last_index,
+        // _stats.stripe_grid), which only ExternalSourceCacheService's 0..K fold reads — it has no plan-side
+        // consumer, yet this map rides ExternalRelation.writeTo onto the wire in every fragment of every query.
+        // Strip it here so the plan carries only what the optimizer actually reads.
+        final Map<String, Object> finalMetadata = stripStripeBookkeeping(entry.safeMetadata());
 
         return new ExternalSourceMetadata() {
             @Override

@@ -272,7 +272,9 @@ public final class ExternalSourceAggregatePushdown {
         }
         return switch (dataType) {
             case INTEGER -> blockFactory.newConstantIntBlockWith(((Number) value).intValue(), 1);
-            case LONG, COUNTER_LONG, DATETIME -> blockFactory.newConstantLongBlockWith(((Number) value).longValue(), 1);
+            // DATE_NANOS, like DATETIME, is a nanos/millis-since-epoch long — served as a constant long block;
+            // the coordinator renders it per the column's resolved type.
+            case LONG, COUNTER_LONG, DATETIME, DATE_NANOS -> blockFactory.newConstantLongBlockWith(((Number) value).longValue(), 1);
             case DOUBLE, COUNTER_DOUBLE -> blockFactory.newConstantDoubleBlockWith(((Number) value).doubleValue(), 1);
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith(
                 value instanceof Boolean b ? b : Booleans.parseBoolean(value.toString()),
@@ -282,12 +284,10 @@ public final class ExternalSourceAggregatePushdown {
             // KEYWORD/TEXT/IP -> T_BYTESREF, whose byte-lex order matches IP address order), which is exactly
             // the representation an ES|QL IP block holds, so it round-trips through a constant BytesRef block.
             case KEYWORD, TEXT, IP -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(value), 1);
-            default -> {
-                if (value instanceof Number n) {
-                    yield blockFactory.newConstantLongBlockWith(n.longValue(), 1);
-                }
-                yield blockFactory.newConstantNullBlock(1);
-            }
+            // Fail loud rather than serve a silent NULL/long coercion for an unhandled type: every type in
+            // MIN_MAX_TYPES (TextAggregatePushdownSupport) must have an explicit arm above. A silent default is
+            // how MIN/MAX(ip) once served NULL — adding a type to MIN_MAX_TYPES without an arm now fails here.
+            default -> throw new IllegalStateException("buildBlock has no arm for pushed aggregate type [" + dataType + "]");
         };
     }
 

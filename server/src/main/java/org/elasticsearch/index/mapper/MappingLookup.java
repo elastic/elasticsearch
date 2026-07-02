@@ -271,8 +271,7 @@ public final class MappingLookup {
         this.isSourceColumnarStored = sfm != null && sfm.isColumnarStored();
 
         var idFieldMapper = mapping.getMetadataMapperByName(IdFieldMapper.NAME);
-        this.isColumnarId = (idFieldMapper instanceof ProvidedIdFieldMapper provided && provided.isColumnarMode())
-            || (idFieldMapper instanceof SliceIdFieldMapper slice && slice.isColumnarMode());
+        this.isColumnarId = idFieldMapper instanceof IdFieldMapper idMapper && idMapper.isColumnarMode();
     }
 
     private static boolean assertMapperNamesInterned(Map<String, Mapper> mappers, Map<String, ObjectMapper> objectMappers) {

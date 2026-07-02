@@ -76,8 +76,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             return createTsIdLoader(indexRouting, routingPaths, indexSettings.useTimeSeriesSyntheticId());
         }
         var idFieldMapper = mappingLookup.getMapping().getMetadataMapperByName(IdFieldMapper.NAME);
-        boolean columnar = (idFieldMapper instanceof ProvidedIdFieldMapper provided && provided.isColumnarMode())
-            || (idFieldMapper instanceof SliceIdFieldMapper slice && slice.isColumnarMode());
+        boolean columnar = idFieldMapper instanceof IdFieldMapper idMapper && idMapper.isColumnarMode();
         // For a slice-enabled index the stored/doc-value _id is the compound identity term;
         boolean sliceEnabled = indexSettings.isSliceEnabled();
         if (columnar) {

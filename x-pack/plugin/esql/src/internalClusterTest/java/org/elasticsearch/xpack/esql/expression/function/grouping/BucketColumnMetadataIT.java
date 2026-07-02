@@ -456,6 +456,10 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testBucketColumnMetadataStartEndPresentAndCorrect() {
+        assumeTrue(
+            "requires column_metadata_bucket_date_bounds capability",
+            EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET_DATE_BOUNDS.isEnabled()
+        );
         // Documents the contract: the 4-arg date BUCKET always surfaces "start" and "end" epoch-millis
         // in addition to "interval" and "unit". Verifies the exact parsed values so they can't drift.
         client().prepareIndex("dates")

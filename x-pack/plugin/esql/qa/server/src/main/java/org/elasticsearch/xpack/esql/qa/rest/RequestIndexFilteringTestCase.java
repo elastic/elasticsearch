@@ -23,6 +23,7 @@ import org.junit.Rule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -258,33 +259,62 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
             b.endObject();
         }).query(from("test*") + " | STATS count = COUNT(*) BY bucket = TBUCKET(10) | SORT bucket");
 
-        assertQueryResult(
-            runEsql(builder),
-            matchesList().item(
-                matchesMap()//
-                    .entry("name", "count")
-                    .entry("type", "long")
-            )
-                .item(
-                    matchesMap()//
-                        .entry("name", "bucket")
-                        .entry("type", "date")
-                        // meta is only present if request is routed to a node supporting this feature; nodes that
-                        // additionally support the 4-arg date form contribute "start"/"end" epoch millis to the inner
-                        // bucket map, so treat those two keys as optional to stay compatible across mixed clusters
-                        .optionalEntry(
-                            "_meta",
-                            matchesMap().entry(
-                                "bucket",
-                                matchesMap().entry("interval", 3)
-                                    .entry("unit", "hour")
-                                    .optionalEntry("start", instanceOf(Long.class))
-                                    .optionalEntry("end", instanceOf(Long.class))
-                            )
-                        )
-                ),
-            allOf(instanceOf(List.class), hasSize(0))
+        Map<String, Object> result = runEsql(builder);
+        boolean hasBounds = RestEsqlTestCase.hasCapabilities(
+            adminClient(),
+            List.of(EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET_DATE_BOUNDS.capabilityName())
         );
+        if (hasBounds) {
+            // Cluster supports start/end bounds in bucket metadata: assert the precise values derived
+            // from the request filter ("2020-12-13" ≥ @timestamp < "2020-12-14", 10-bucket → 3-hour interval).
+            long expectedStart = Instant.parse("2020-12-13T00:00:00Z").toEpochMilli();
+            long expectedEnd = Instant.parse("2020-12-14T00:00:00Z").toEpochMilli();
+            assertQueryResult(
+                result,
+                matchesList().item(matchesMap().entry("name", "count").entry("type", "long"))
+                    .item(
+                        matchesMap()//
+                            .entry("name", "bucket")
+                            .entry("type", "date")
+                            .entry(
+                                "_meta",
+                                matchesMap().entry(
+                                    "bucket",
+                                    matchesMap().entry("interval", 3)
+                                        .entry("unit", "hour")
+                                        .entry("start", expectedStart)
+                                        .entry("end", expectedEnd)
+                                )
+                            )
+                    ),
+                allOf(instanceOf(List.class), hasSize(0))
+            );
+        } else {
+            // Without COLUMN_METADATA_BUCKET_DATE_BOUNDS the metadata may be absent entirely (node
+            // predates COLUMN_METADATA_BUCKET) or present with only interval/unit (node supports
+            // COLUMN_METADATA_BUCKET but not the start/end extension). In a mixed cluster the query
+            // may land on a node at either capability level, so treat _meta and its bounds as optional.
+            assertQueryResult(
+                result,
+                matchesList().item(matchesMap().entry("name", "count").entry("type", "long"))
+                    .item(
+                        matchesMap()//
+                            .entry("name", "bucket")
+                            .entry("type", "date")
+                            .optionalEntry(
+                                "_meta",
+                                matchesMap().entry(
+                                    "bucket",
+                                    matchesMap().entry("interval", 3)
+                                        .entry("unit", "hour")
+                                        .optionalEntry("start", instanceOf(Long.class))
+                                        .optionalEntry("end", instanceOf(Long.class))
+                                )
+                            )
+                    ),
+                allOf(instanceOf(List.class), hasSize(0))
+            );
+        }
     }
 
     protected static RestEsqlTestCase.RequestObjectBuilder timestampFilter(String op, String date) throws IOException {

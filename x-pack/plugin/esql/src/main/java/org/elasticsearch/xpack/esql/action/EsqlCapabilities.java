@@ -926,6 +926,13 @@ public class EsqlCapabilities {
         COLUMN_METADATA_BUCKET(Build.current().isSnapshot()),
 
         /**
+         * Extend {@code BUCKET} date-interval metadata with {@code "start"} and {@code "end"} epoch-millis
+         * when the 4-arg date form is used. Nodes without this capability emit only {@code "interval"} and
+         * {@code "unit"} in the inner {@code "bucket"} map.
+         */
+        COLUMN_METADATA_BUCKET_DATE_BOUNDS(COLUMN_METADATA_BUCKET.isEnabled()),
+
+        /**
          * Allow mixed numeric types in coalesce
          */
         MIXED_NUMERIC_TYPES_IN_COALESCE,

@@ -149,6 +149,84 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
     }
 
     // =========================================================================
+    // getSortKeyDocValues — single-valued-segment fast path (skips MinMaxBinaryDocValues)
+    // =========================================================================
+
+    /**
+     * When every document in a (force-merged) segment is single-valued, the {@code .counts} skipper reports
+     * {@code maxValue() == 1} and {@code getSortKeyDocValues} returns the raw {@link BinaryDocValues} directly,
+     * bypassing the {@code MinMaxBinaryDocValues} wrapper entirely. Verified across multiple documents so the
+     * fast path is actually exercised (a single-doc segment can't distinguish it from the wrapper path).
+     */
+    public void testAllSingleValued_afterForceMerge_usesFastPath() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
+            addSingleValueDoc(w, "alice");
+            addSingleValueDoc(w, "bob");
+            addSingleValueDoc(w, "charlie");
+            w.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                LeafReader leaf = getOnlyLeafReader(reader);
+                assertEquals(1, leaf.getDocValuesSkipper("name.counts").maxValue());
+
+                BinaryDocValues dvs = new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, false)
+                    .getSortKeyDocValues(leaf);
+                assertTrue(dvs.advanceExact(0));
+                assertEquals(new BytesRef("alice"), dvs.binaryValue());
+                assertTrue(dvs.advanceExact(1));
+                assertEquals(new BytesRef("bob"), dvs.binaryValue());
+                assertTrue(dvs.advanceExact(2));
+                assertEquals(new BytesRef("charlie"), dvs.binaryValue());
+            }
+        }
+    }
+
+    /**
+     * A single multi-valued document mixed in with otherwise single-valued documents raises the segment-wide
+     * {@code .counts} skipper max to 2, so {@code getSortKeyDocValues} falls back to the {@code MinMaxBinaryDocValues}
+     * wrapper for the whole segment - which must still decode every document correctly, single- and multi-valued
+     * alike, in both MIN and MAX mode.
+     */
+    public void testOneMultiValuedDocMixedIn_afterForceMerge_wrapperDecodesAll() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
+            addSingleValueDoc(w, "alice");
+            LuceneDocument multiValueDoc = new LuceneDocument();
+            MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(multiValueDoc, "name", new BytesRef("zebra"));
+            MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(multiValueDoc, "name", new BytesRef("bob"));
+            w.addDocument(multiValueDoc);
+            addSingleValueDoc(w, "charlie");
+            w.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                LeafReader leaf = getOnlyLeafReader(reader);
+                assertEquals(2, leaf.getDocValuesSkipper("name.counts").maxValue());
+
+                BinaryDocValues minDvs = new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, false)
+                    .getSortKeyDocValues(leaf);
+                assertTrue(minDvs.advanceExact(0));
+                assertEquals(new BytesRef("alice"), minDvs.binaryValue());
+                assertTrue(minDvs.advanceExact(1));
+                assertEquals(new BytesRef("bob"), minDvs.binaryValue());
+                assertTrue(minDvs.advanceExact(2));
+                assertEquals(new BytesRef("charlie"), minDvs.binaryValue());
+
+                BinaryDocValues maxDvs = new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, true)
+                    .getSortKeyDocValues(leaf);
+                assertTrue(maxDvs.advanceExact(0));
+                assertEquals(new BytesRef("alice"), maxDvs.binaryValue());
+                assertTrue(maxDvs.advanceExact(1));
+                assertEquals(new BytesRef("zebra"), maxDvs.binaryValue());
+                assertTrue(maxDvs.advanceExact(2));
+                assertEquals(new BytesRef("charlie"), maxDvs.binaryValue());
+            }
+        }
+    }
+
+    private static void addSingleValueDoc(IndexWriter w, String value) throws IOException {
+        LuceneDocument doc = new LuceneDocument();
+        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(doc, "name", new BytesRef(value));
+        w.addDocument(doc);
+    }
+
+    // =========================================================================
     // getSortKeyDocValues — ArrayOrderInlineNull format (document order, inline nulls)
     // =========================================================================
 

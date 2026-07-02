@@ -169,6 +169,10 @@ public class DatafeedNodeSelector {
 
     @Nullable
     private AssignmentFailure verifyIndicesActive() {
+        // ESQL datafeeds have no indices list and are resolved by the ESQL engine at query time
+        if (datafeedIndices.isEmpty()) {
+            return null;
+        }
         boolean hasRemoteIndices = datafeedIndices.stream().anyMatch(RemoteClusterLicenseChecker::isRemoteIndex);
         String[] index = datafeedIndices.stream()
             // We cannot verify remote indices

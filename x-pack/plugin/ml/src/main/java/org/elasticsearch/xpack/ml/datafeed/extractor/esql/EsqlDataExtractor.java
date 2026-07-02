@@ -79,6 +79,10 @@ public class EsqlDataExtractor implements DataExtractor {
         return context.end();
     }
 
+    EsqlDataExtractorContext getContext() {
+        return context;
+    }
+
     @Override
     public DataSummary getSummary() {
         String summaryQuery = context.esqlQuery()
@@ -112,21 +116,30 @@ public class EsqlDataExtractor implements DataExtractor {
      */
     private static DataSummary parseSummaryResponse(EsqlResponse response) {
         List<? extends ColumnInfo> columns = response.columns();
-        // MIN/MAX inherit the time field's output type; detect it once from the first column.
-        boolean timeIsDate = columns.isEmpty() == false
-            && ("date".equals(columns.get(0).outputType()) || "date_nanos".equals(columns.get(0).outputType()));
+        // earliest_time and latest_time are independent MIN/MAX columns; detect each one's output
+        // type on its own rather than assuming they match.
+        boolean earliestIsDate = isDateType(columns, 0);
+        boolean latestIsDate = isDateType(columns, 1);
         for (Iterable<Object> row : response.rows()) {
             List<Object> values = new ArrayList<>();
             for (Object v : row) {
                 values.add(v);
             }
-            Long earliestTime = toEpochMillisOrNull(values.get(0), timeIsDate);
-            Long latestTime = toEpochMillisOrNull(values.get(1), timeIsDate);
+            Long earliestTime = toEpochMillisOrNull(values.get(0), earliestIsDate);
+            Long latestTime = toEpochMillisOrNull(values.get(1), latestIsDate);
             long totalHits = values.get(2) instanceof Number n ? n.longValue() : 0L;
             return new DataSummary(earliestTime, latestTime, totalHits);
         }
         // Defensive fallback — STATS without BY should never produce zero rows.
         return new DataSummary(null, null, 0L);
+    }
+
+    private static boolean isDateType(List<? extends ColumnInfo> columns, int index) {
+        if (index >= columns.size()) {
+            return false;
+        }
+        String type = columns.get(index).outputType();
+        return "date".equals(type) || "date_nanos".equals(type);
     }
 
     private static Long toEpochMillisOrNull(Object value, boolean isDate) {
@@ -174,34 +187,11 @@ public class EsqlDataExtractor implements DataExtractor {
     private static Optional<InputStream> toNdjson(EsqlResponse response, String timeField, String requiredSummaryCountField)
         throws IOException {
         List<? extends ColumnInfo> columns = response.columns();
+        EsqlDatafeedQueryValidator.checkRequiredColumns(columns, timeField, requiredSummaryCountField);
         boolean[] isDateColumn = new boolean[columns.size()];
-        boolean foundTimeField = false;
-        boolean foundSummaryCountField = requiredSummaryCountField == null;
         for (int i = 0; i < columns.size(); i++) {
-            String name = columns.get(i).name();
             String type = columns.get(i).outputType();
             isDateColumn[i] = "date".equals(type) || "date_nanos".equals(type);
-            if (timeField.equals(name)) {
-                foundTimeField = true;
-            }
-            if (requiredSummaryCountField != null && requiredSummaryCountField.equals(name)) {
-                foundSummaryCountField = true;
-            }
-        }
-
-        List<String> missingColumns = new ArrayList<>();
-        if (!foundTimeField) {
-            missingColumns.add(timeField);
-        }
-        if (!foundSummaryCountField) {
-            missingColumns.add(requiredSummaryCountField);
-        }
-        if (!missingColumns.isEmpty()) {
-            throw new IllegalArgumentException(
-                "ESQL query response is missing the required columns: "
-                    + String.join(", ", missingColumns)
-                    + ". Ensure the query's final projection includes these columns."
-            );
         }
 
         BytesStreamOutput out = new BytesStreamOutput();

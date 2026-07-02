@@ -68,11 +68,30 @@ public class PutDatafeedActionRequestTests extends AbstractXContentSerializingTe
     }
 
     /**
-     * Verifies that an ESQL datafeed request succeeds and has null indicesOptions
-     * even when the caller passes a non-null default (as RestPutDatafeedAction does).
+     * Verifies that an ESQL datafeed request succeeds without an {@code indices} list and has null
+     * indicesOptions even when the caller passes a non-null default (as RestPutDatafeedAction does).
      * The default should be silently ignored for ESQL datafeeds.
      */
     public void testParseRequest_GivenEsqlQueryWithNoIndicesOptions_DoesNotInjectDefault() throws IOException {
+        String body = """
+            {
+              "job_id": "test_job",
+              "esql_query": "FROM test | KEEP @timestamp"
+            }
+            """;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), body)) {
+            // Simulate what RestPutDatafeedAction does: always pass a non-null default
+            Request request = Request.parseRequest("test_datafeed", SearchRequest.DEFAULT_INDICES_OPTIONS, parser);
+            assertThat(request.getDatafeed().getIndicesOptions(), nullValue());
+            assertThat(request.getDatafeed().getIndices(), nullValue());
+        }
+    }
+
+    /**
+     * Verifies that an ESQL datafeed request still rejects an explicit {@code indices} list
+     * supplied in the request body.
+     */
+    public void testParseRequest_GivenEsqlQueryWithIndices_Throws() throws IOException {
         String body = """
             {
               "job_id": "test_job",
@@ -81,9 +100,11 @@ public class PutDatafeedActionRequestTests extends AbstractXContentSerializingTe
             }
             """;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), body)) {
-            // Simulate what RestPutDatafeedAction does: always pass a non-null default
-            Request request = Request.parseRequest("test_datafeed", SearchRequest.DEFAULT_INDICES_OPTIONS, parser);
-            assertThat(request.getDatafeed().getIndicesOptions(), nullValue());
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> Request.parseRequest("test_datafeed", SearchRequest.DEFAULT_INDICES_OPTIONS, parser)
+            );
+            assertThat(e.getMessage(), containsString(Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES));
         }
     }
 
@@ -95,7 +116,6 @@ public class PutDatafeedActionRequestTests extends AbstractXContentSerializingTe
         String body = """
             {
               "job_id": "test_job",
-              "indices": ["test"],
               "esql_query": "FROM test | KEEP @timestamp",
               "indices_options": { "expand_wildcards": "open" }
             }

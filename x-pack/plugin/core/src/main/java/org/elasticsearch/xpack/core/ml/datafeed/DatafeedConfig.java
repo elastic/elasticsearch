@@ -71,6 +71,7 @@ import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGG
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_AGGS;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES_OPTIONS;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_QUERY;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_RUNTIME_MAPPINGS;
@@ -551,6 +552,15 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             out.writeOptionalWriteable(queryProvider);
             out.writeOptionalString(esqlQuery);
         } else {
+            if (esqlQuery != null) {
+                throw new IllegalStateException(
+                    "cannot serialize datafeed ["
+                        + id
+                        + "] with an ES|QL query to a node older than ["
+                        + ML_DATAFEED_ESQL_QUERY.toReleaseVersion()
+                        + "]"
+                );
+            }
             queryProvider.writeTo(out);
         }
         // This writes a boolean to the stream, if true, it sends the stream to the `writeTo` method
@@ -626,7 +636,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         if (frequency != null) {
             builder.field(FREQUENCY.getPreferredName(), frequency.getStringRep());
         }
-        builder.field(INDICES.getPreferredName(), indices);
+        if (indices != null) {
+            builder.field(INDICES.getPreferredName(), indices);
+        }
         if (aggProvider != null) {
             builder.field(AGGREGATIONS.getPreferredName(), aggProvider.getAggs());
         }
@@ -794,7 +806,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         private String jobId;
         private TimeValue queryDelay;
         private TimeValue frequency;
-        private List<String> indices = Collections.emptyList();
+        private List<String> indices;
         private QueryProvider queryProvider;
         private String esqlQuery;
         private AggProvider aggProvider;
@@ -820,7 +832,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.jobId = config.jobId;
             this.queryDelay = config.queryDelay;
             this.frequency = config.frequency;
-            this.indices = new ArrayList<>(config.indices);
+            this.indices = config.indices == null ? null : new ArrayList<>(config.indices);
             this.queryProvider = config.queryProvider == null ? null : new QueryProvider(config.queryProvider);
             this.esqlQuery = config.esqlQuery;
             this.aggProvider = config.aggProvider == null ? null : new AggProvider(config.aggProvider);
@@ -889,6 +901,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 out.writeOptionalWriteable(queryProvider);
                 out.writeOptionalString(esqlQuery);
             } else {
+                if (esqlQuery != null) {
+                    throw new IllegalStateException(
+                        "cannot serialize datafeed builder with an ES|QL query to a node older than ["
+                            + ML_DATAFEED_ESQL_QUERY.toReleaseVersion()
+                            + "]"
+                    );
+                }
                 // Pre-ESQL nodes assume a non-null query; substitute the historical match_all default.
                 (queryProvider == null ? QueryProvider.defaultQuery() : queryProvider).writeTo(out);
             }
@@ -1112,7 +1131,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (MlStrings.isValidId(id) == false) {
                 throw ExceptionsHelper.badRequestException(getMessage(INVALID_ID, ID.getPreferredName(), id));
             }
-            if (indices == null || indices.isEmpty() || indices.contains("")) {
+            if (esqlQuery == null && (indices == null || indices.isEmpty() || indices.contains(""))) {
                 throw invalidOptionValue(INDICES.getPreferredName(), indices);
             }
 
@@ -1167,6 +1186,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         }
 
         void validateEsqlDatafeedConfig() {
+            if (indices != null) {
+                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES));
+            }
             if (queryProvider != null) {
                 throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_QUERY));
             }

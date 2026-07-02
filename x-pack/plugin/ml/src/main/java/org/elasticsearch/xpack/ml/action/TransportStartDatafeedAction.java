@@ -291,7 +291,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         ActionListener<DatafeedConfig.Builder> datafeedListener = ActionListener.wrap(datafeedBuilder -> {
             DatafeedConfig datafeedConfig = datafeedBuilder.build();
-            params.setDatafeedIndices(datafeedConfig.getIndices());
+            // ESQL datafeeds have no indices list
+            if (datafeedConfig.getIndices() != null) {
+                params.setDatafeedIndices(datafeedConfig.getIndices());
+            }
             params.setJobId(datafeedConfig.getJobId());
             if (datafeedConfig.getIndicesOptions() != null) {
                 params.setIndicesOptions(datafeedConfig.getIndicesOptions());

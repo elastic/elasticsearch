@@ -70,6 +70,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigBuilderTests.createRandomizedDatafeedConfigBuilder;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_AGGS;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES_OPTIONS;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_QUERY;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_RUNTIME_MAPPINGS;
@@ -1133,6 +1134,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         assertThat(config.getParsedQuery(xContentRegistry()), nullValue());
         assertThat(config.getRuntimeMappings(), nullValue());
         assertThat(config.getIndicesOptions(), nullValue());
+        assertThat(config.getIndices(), nullValue());
         assertThat(config.getQueryDelay().seconds(), greaterThanOrEqualTo(60L));
         assertThat(config.getQueryDelay().seconds(), lessThan(120L));
         assertThat(config.getDelayedDataCheckConfig(), equalTo(DelayedDataCheckConfig.defaultDelayedDataCheckConfig()));
@@ -1152,6 +1154,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
     public void testSerialization_GivenEsqlQuery() throws IOException {
         DatafeedConfig original = createEsqlDatafeedBuilder().build();
         assertThat(original.getQuery(), nullValue());
+        assertThat(original.getIndices(), nullValue());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(TransportVersion.current());
@@ -1162,8 +1165,17 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
                 assertThat(roundTripped.getEsqlQuery(), equalTo(original.getEsqlQuery()));
                 assertThat(roundTripped.getId(), equalTo(original.getId()));
                 assertThat(roundTripped.getQuery(), nullValue());
+                assertThat(roundTripped.getIndices(), nullValue());
             }
         }
+    }
+
+    public void testBuild_GivenEsqlQueryWithIndicesThrows() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        builder.setIndices(Collections.singletonList("logs"));
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES));
     }
 
     public void testBuild_GivenEsqlQueryWithIndicesOptionsThrows() {
@@ -1208,36 +1220,43 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
     }
 
     /**
-     * Verifies that an ESQL datafeed serialized to a pre-ESQL transport version degrades gracefully:
-     * the {@code esql_query} field is dropped and a match-all DSL query is substituted, allowing the
-     * older node to deserialize the datafeed without error.
+     * Verifies that serializing an ESQL datafeed {@link DatafeedConfig.Builder} to a stream targeting a
+     * pre-ESQL transport version throws an {@link IllegalStateException} rather than silently
+     * substituting a match-all query. Datafeeds with an ES|QL query are rejected at PUT time in a
+     * mixed-version cluster, so this code path should never be reached in practice; the exception
+     * is a last-resort safety net.
      */
-    public void testSerialization_GivenEsqlQueryBetweenVersions() throws IOException {
+    public void testSerialization_GivenEsqlQueryBuilderToOldVersionThrows() throws IOException {
         DatafeedConfig.Builder original = createEsqlDatafeedBuilder();
         // The version immediately before ml_datafeed_esql_query was added
         TransportVersion preEsqlVersion = TransportVersion.fromName("histogram_blocks_multivalue_support");
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(preEsqlVersion);
-            original.writeTo(out);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
-                in.setTransportVersion(preEsqlVersion);
-                DatafeedConfig.Builder deserialized = new DatafeedConfig.Builder(in);
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> original.writeTo(out));
+            assertThat(e.getMessage(), containsString("ES|QL query"));
+        }
+    }
 
-                // esql_query is unknown at this transport version and must be dropped
-                assertThat(deserialized.getEsqlQuery(), nullValue());
+    /**
+     * Verifies that serializing a built {@link DatafeedConfig} with an ES|QL query to a stream targeting
+     * a pre-ESQL transport version throws an {@link IllegalStateException} rather than NPE-ing on a null
+     * {@code queryProvider}. This path is unreachable in a correctly guarded cluster but must fail
+     * loudly rather than silently or with an uninformative NPE.
+     */
+    public void testSerialization_GivenEsqlQueryConfigToOldVersionThrows() throws IOException {
+        DatafeedConfig original = createEsqlDatafeedBuilder().build();
+        TransportVersion preEsqlVersion = TransportVersion.fromName("histogram_blocks_multivalue_support");
 
-                // A match-all DSL query must be substituted so the older node gets a valid datafeed
-                DatafeedConfig config = deserialized.build();
-                assertThat(config.getEsqlQuery(), nullValue());
-                assertThat(config.getQuery(), not(nullValue()));
-            }
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(preEsqlVersion);
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> original.writeTo(out));
+            assertThat(e.getMessage(), containsString("ES|QL query"));
         }
     }
 
     private DatafeedConfig.Builder createEsqlDatafeedBuilder() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        builder.setIndices(Collections.singletonList("logs"));
         builder.setEsqlQuery("FROM logs");
         return builder;
     }

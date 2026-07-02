@@ -42,6 +42,7 @@ public final class Messages {
         "[runtime_mappings] cannot be used in combination with [esql_query]";
     public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCROLL_SIZE =
         "[scroll_size] cannot be used in combination with [esql_query]";
+    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES = "[indices] cannot be used in combination with [esql_query]";
     public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES_OPTIONS =
         "[indices_options] cannot be used in combination with [esql_query]";
 

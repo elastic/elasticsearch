@@ -200,6 +200,12 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     }
 
     private void isDateNanos(DatafeedConfig datafeed, String timeField, ActionListener<Boolean> listener) {
+        // ESQL datafeeds have no separate indices list. The ESQL engine resolves the time field type,
+        // so assume the default epoch_millis precision (not date_nanos) for the preview time range.
+        if (datafeed.getIndices() == null) {
+            listener.onResponse(false);
+            return;
+        }
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
         fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0]));
         if (datafeed.getIndicesOptions() != null) {

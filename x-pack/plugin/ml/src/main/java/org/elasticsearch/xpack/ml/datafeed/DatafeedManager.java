@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -106,11 +107,11 @@ public final class DatafeedManager {
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 // TODO: Remove this filter once https://github.com/elastic/elasticsearch/issues/67798 is fixed.
-                final String[] indices = request.getDatafeed()
-                    .getIndices()
-                    .stream()
-                    .filter(not(RemoteClusterLicenseChecker::isRemoteIndex))
-                    .toArray(String[]::new);
+                // ESQL datafeeds have no indices list security for those is enforced by the ESQL engine itself.
+                final List<String> datafeedIndices = request.getDatafeed().getIndices();
+                final String[] indices = datafeedIndices == null
+                    ? Strings.EMPTY_ARRAY
+                    : datafeedIndices.stream().filter(not(RemoteClusterLicenseChecker::isRemoteIndex)).toArray(String[]::new);
 
                 final String username = securityContext.getUser().principal();
                 final HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
@@ -146,7 +147,7 @@ public final class DatafeedManager {
                         listener.onFailure(e);
                     }
                 });
-                if (RemoteClusterLicenseChecker.containsRemoteIndex(request.getDatafeed().getIndices())) {
+                if (datafeedIndices != null && RemoteClusterLicenseChecker.containsRemoteIndex(datafeedIndices)) {
                     getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());
                 } else {
                     executeAsyncWithOrigin(
@@ -219,7 +220,7 @@ public final class DatafeedManager {
                 request.getUpdate().getId(),
                 request.getUpdate(),
                 headers,
-                jobConfigProvider::validateDatafeedJob,
+                (cfg, l) -> jobConfigProvider.validateDatafeedJob(cfg, headers, l),
                 listener.delegateFailureAndWrap((l, updatedConfig) -> l.onResponse(new PutDatafeedAction.Response(updatedConfig)))
             );
         });
@@ -332,6 +333,7 @@ public final class DatafeedManager {
 
         CheckedConsumer<Boolean, Exception> jobOk = ok -> jobConfigProvider.validateDatafeedJob(
             request.getDatafeed(),
+            headers,
             ActionListener.wrap(validationOk, listener::onFailure)
         );
 

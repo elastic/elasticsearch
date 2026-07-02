@@ -358,7 +358,6 @@ public class DatafeedJobValidatorTests extends ESTestCase {
 
         // Delayed data check is disabled → summary count field is not required
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("esql-datafeed", "esql-job");
-        builder.setIndices(Collections.singletonList("logs"));
         builder.setEsqlQuery("FROM logs");
         builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
         DatafeedConfig datafeedConfig = builder.build();
@@ -369,7 +368,6 @@ public class DatafeedJobValidatorTests extends ESTestCase {
 
     private static DatafeedConfig createEsqlDatafeedWithDelayedData() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("esql-datafeed", "esql-job");
-        builder.setIndices(Collections.singletonList("logs"));
         builder.setEsqlQuery("FROM logs");
         builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueMinutes(10)));
         return builder.build();

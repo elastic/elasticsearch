@@ -15,10 +15,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -154,14 +152,8 @@ public class MoveDecisionTests extends ESTestCase {
         assertThat(debugOffNoJson, containsString("filter says no"));
     }
 
-    private static String toJsonObject(MoveDecision moveDecision) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        for (var it = moveDecision.toXContentChunked(ToXContent.EMPTY_PARAMS); it.hasNext();) {
-            it.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-        }
-        builder.endObject();
-        return Strings.toString(builder);
+    private static String toJsonObject(MoveDecision moveDecision) {
+        return Strings.toString(ChunkedToXContent.wrapAsToXContent(moveDecision::toXContentChunked));
     }
 
     public void testSerialization() throws IOException {

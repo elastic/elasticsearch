@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.search.BinarySortField;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -516,6 +517,8 @@ public final class IndexSortConfig {
 
     public static SortField.Type getSortFieldType(SortField sortField) {
         if (sortField instanceof SortedSetSortField) {
+            return SortField.Type.STRING;
+        } else if (sortField instanceof BinarySortField) {
             return SortField.Type.STRING;
         } else if (sortField instanceof SortedNumericSortField) {
             return ((SortedNumericSortField) sortField).getNumericType();

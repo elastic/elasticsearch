@@ -2017,14 +2017,6 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                 null
             )
         );
-        return new ResolvedIndexExpressions(
-            List.of(
-                new ResolvedIndexExpression(
-                    expression,
-                    resolvedLocally,
-                    Set.of(remoteExpressions)
-                )
-            )
-        );
+        return new ResolvedIndexExpressions(List.of(new ResolvedIndexExpression(expression, resolvedLocally, Set.of(remoteExpressions))));
     }
 }

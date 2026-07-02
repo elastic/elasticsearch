@@ -21,15 +21,16 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
 /**
  * Configuration for Azure Blob Storage access including credentials and endpoint settings.
  * <p>
- * Supports authentication modes:
+ * The {@code auth} setting selects the mode explicitly — {@code auto}, {@code anonymous},
+ * {@code static_credentials}, {@code federated_identity}, or {@code managed_identity}. When omitted it defaults to
+ * {@code auto}, which infers the mode from the fields present. Supported modes:
  * <ul>
- *   <li>Connection string (full connection string)</li>
- *   <li>Account + key (SharedKey auth)</li>
- *   <li>SAS token</li>
- *   <li>Workload identity federation via {@code tenant_id}, {@code client_id}, and {@code jwt_audience}</li>
- *   <li>{@code auth=none} for anonymous access to public containers</li>
- *   <li>{@code auth=workload_identity} to use the node's managed identity via Azure IMDS. Requires the
- *       {@code esql.datasource.workload_identity.enabled} cluster setting.</li>
+ *   <li>{@code auth=static_credentials} — a connection string, account + key (SharedKey auth), or account + SAS token</li>
+ *   <li>{@code auth=federated_identity} — workload identity federation via {@code tenant_id}, {@code client_id},
+ *       and {@code jwt_audience}</li>
+ *   <li>{@code auth=anonymous} — anonymous access to public containers</li>
+ *   <li>{@code auth=managed_identity} — the node's managed identity via Azure IMDS. Requires the
+ *       {@code esql.datasource.managed_identity.enabled} cluster setting.</li>
  * </ul>
  */
 public class AzureConfiguration extends FileDataSourceConfiguration {
@@ -160,11 +161,27 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
         return get(JWT_AUDIENCE.name());
     }
 
+    @Override
     public boolean hasCredentials() {
         return hasExplicitCredentials();
     }
 
+    @Override
+    public String unresolvedAuthMessage() {
+        return "Azure data source requires credentials: set connection_string, or account and key, "
+            + "or account and sas_token; "
+            + "set auth=anonymous for public containers; "
+            + "set auth=managed_identity to use the node's managed identity "
+            + "(requires the esql.datasource.managed_identity.enabled cluster setting); "
+            + "or configure keyless authentication with tenant_id, client_id, and jwt_audience";
+    }
+
     private boolean hasExplicitCredentials() {
-        return Strings.hasText(connectionString()) || (Strings.hasText(account()) && Strings.hasText(key())) || Strings.hasText(sasToken());
+        // Every form the STATIC_CREDENTIALS provider arm can actually build: a full connection_string, account+key,
+        // or account+sas_token. sas_token alone (no account) is NOT a complete credential — requiring account here
+        // means validate() rejects it up front instead of letting it resolve to static and fail at query time.
+        return Strings.hasText(connectionString())
+            || (Strings.hasText(account()) && Strings.hasText(key()))
+            || (Strings.hasText(account()) && Strings.hasText(sasToken()));
     }
 }

@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -26,6 +27,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -83,11 +85,11 @@ public final class ThrottlingRecoveryService implements Closeable {
         RecoveryStats stats,
         Consumer<RecoveryListener> task
     ) {
-        final Supplier<ThreadContext.StoredContext> context = restorableContextForProject(projectId);
+        final Supplier<ThreadContext.StoredContext> context = threadContext.newRestorableContext(false);
         final PendingRecovery pendingRecovery;
         synchronized (this) {
             if (closed == false) {
-                pendingRecovery = new PendingRecovery(recoveryState, stats, task, recoveryListener, context);
+                pendingRecovery = new PendingRecovery(projectId, recoveryState, stats, task, recoveryListener, context);
                 pendingRecoveries.add(pendingRecovery);
                 stats.targetRecoveryQueued(recoveryState.getRecoverySource().getType());
             } else {
@@ -96,8 +98,7 @@ public final class ThrottlingRecoveryService implements Closeable {
         }
         if (pendingRecovery == null) {
             logger.debug("service is closed, aborting recovery: {}", recoveryState);
-            // Recovery was never enqueued, keep caller thread context
-            recoveryListener.onRecoveryAborted();
+            projectResolver.executeOnProject(projectId, () -> recoveryListener.onRecoveryAborted(recoveryState));
             return;
         }
         logger.trace("enqueued recovery: {}", recoveryState);
@@ -127,8 +128,9 @@ public final class ThrottlingRecoveryService implements Closeable {
         }
         for (PendingRecovery pending : recoveriesToAbort) {
             logger.trace("service closing, aborting recovery: {}", pending.recoveryState());
-            // Keep close() caller thread context
-            pending.listener.onRecoveryAborted();
+            try (var ignored = pending.context.get()) {
+                projectResolver.executeOnProject(pending.projectId, () -> pending.listener.onRecoveryAborted(pending.recoveryState));
+            }
             schedulingListeners.onQueuedRecoveryDiscarded(pending.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
         }
     }
@@ -153,12 +155,12 @@ public final class ThrottlingRecoveryService implements Closeable {
             }
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
-            final RecoveryListener wrapped = RecoveryListener.wrapPreservingContext(
-                RecoveryListener.runAfter(recovery.listener, () -> releaseSlot(recovery)),
-                recovery.context
+            final RecoveryListener wrapped = RecoveryListener.runAfter(
+                RecoveryListener.runBefore(recovery.listener, () -> ensureProjectIdHeader(recovery.projectId)),
+                () -> releaseSlot(recovery)
             );
             try (var ignored = recovery.context.get()) {
-                executor.execute(new RecoveryRunnable(recovery, wrapped));
+                projectResolver.executeOnProject(recovery.projectId, () -> executor.execute(new RecoveryRunnable(recovery, wrapped)));
             }
             logger.trace("dispatched recovery: {}", recovery.recoveryState());
             schedulingListeners.onRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
@@ -190,16 +192,17 @@ public final class ThrottlingRecoveryService implements Closeable {
         }
     }
 
-    private Supplier<ThreadContext.StoredContext> restorableContextForProject(ProjectId projectId) {
-        try (ThreadContext.StoredContext ignored = projectResolver.storeContextForProject(projectId, threadContext)) {
-            return threadContext.newRestorableContext(false);
-        }
+    private void ensureProjectIdHeader(ProjectId projectId) {
+        final String projectIdHeader = threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
+        assert Objects.equals(projectIdHeader, projectId.id()) || projectResolver.supportsMultipleProjects() == false
+            : "unexpected project id header for in thread context: " + projectIdHeader;
     }
 
     /// Metadata holder for a recovery that has been enqueued but not yet dispatched.
     /// The `listener` is the one passed in to [#enqueue] by indicesServices. Slot-release and other wrappers are added
     /// at dispatch time, such that aborting a queued-but-never-dispatched task does not decrement a slot that was never taken.
     private record PendingRecovery(
+        ProjectId projectId,
         RecoveryState recoveryState,
         RecoveryStats stats,
         Consumer<RecoveryListener> task,

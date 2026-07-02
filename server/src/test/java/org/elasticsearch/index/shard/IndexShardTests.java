@@ -5842,7 +5842,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void onRecoveryAborted() {
+            public void onRecoveryAborted(RecoveryState state) {
                 assert false : "Unexpected abort";
             }
         };

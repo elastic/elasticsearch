@@ -371,7 +371,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             }
 
             @Override
-            public void onRecoveryAborted() {
+            public void onRecoveryAborted(RecoveryState state) {
                 future.onResponse(null);
             }
         });

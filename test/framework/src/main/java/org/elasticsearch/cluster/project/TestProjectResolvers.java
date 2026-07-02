@@ -50,13 +50,6 @@ public final class TestProjectResolvers {
             }
 
             @Override
-            public ThreadContext.StoredContext storeContextForProject(ProjectId projectId, ThreadContext threadContext) {
-                throw new UnsupportedOperationException(
-                    "Cannot store context for a specific project when using the 'allProjects' resolver"
-                );
-            }
-
-            @Override
             public boolean supportsMultipleProjects() {
                 return true;
             }
@@ -103,24 +96,6 @@ public final class TestProjectResolvers {
             }
 
             @Override
-            public ThreadContext.StoredContext storeContextForProject(ProjectId projectId, ThreadContext threadContext) {
-                final ThreadContext.StoredContext storedContext = threadContext.newStoredContext();
-                synchronized (this) {
-                    if (enforceProjectId != null) {
-                        storedContext.close();
-                        throw new IllegalStateException("Cannot nest calls to storeContextForProject");
-                    }
-                    enforceProjectId = projectId;
-                }
-                return () -> {
-                    synchronized (this) {
-                        enforceProjectId = null;
-                    }
-                    storedContext.close();
-                };
-            }
-
-            @Override
             public boolean supportsMultipleProjects() {
                 return true;
             }
@@ -130,11 +105,6 @@ public final class TestProjectResolvers {
     private static final ProjectResolver ALWAYS_THROW = new ProjectResolver() {
         @Override
         public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
-            throw new UnsupportedOperationException("Method on the dummy ProjectResolver is not meant to be invoked");
-        }
-
-        @Override
-        public ThreadContext.StoredContext storeContextForProject(ProjectId projectId, ThreadContext threadContext) {
             throw new UnsupportedOperationException("Method on the dummy ProjectResolver is not meant to be invoked");
         }
 
@@ -218,16 +188,6 @@ public final class TestProjectResolvers {
             }
 
             @Override
-            public ThreadContext.StoredContext storeContextForProject(ProjectId otherProjectId, ThreadContext threadContext) {
-                final ProjectId projectId = projectIdSupplier.get();
-                if (projectId.equals(otherProjectId)) {
-                    return threadContext.newStoredContext();
-                } else {
-                    throw new IllegalArgumentException("Cannot set project id to " + otherProjectId);
-                }
-            }
-
-            @Override
             public boolean supportsMultipleProjects() {
                 return only == false;
             }
@@ -259,14 +219,6 @@ public final class TestProjectResolvers {
                     threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id());
                     body.run();
                 }
-            }
-
-            @Override
-            public ThreadContext.StoredContext storeContextForProject(ProjectId projectId, ThreadContext executionContext) {
-                assert executionContext == threadContext;
-                final ThreadContext.StoredContext storedContext = executionContext.newStoredContext();
-                executionContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id());
-                return storedContext;
             }
 
             @Override

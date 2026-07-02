@@ -25,7 +25,13 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import java.util.Optional;
 
 public class AllocateReshardSplitTargetPrimaryCommand extends BasePrimaryAllocationCommand {
-    protected AllocateReshardSplitTargetPrimaryCommand(String index, int shardId, String node, boolean acceptDataLoss, ProjectId projectId) {
+    protected AllocateReshardSplitTargetPrimaryCommand(
+        String index,
+        int shardId,
+        String node,
+        boolean acceptDataLoss,
+        ProjectId projectId
+    ) {
         super(index, shardId, node, acceptDataLoss, projectId);
     }
 

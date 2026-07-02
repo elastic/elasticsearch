@@ -41,7 +41,7 @@ import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
  * image of {@link HeapAttackIT}: instead of attacking the cluster from inside (FROM + bulk-indexed data),
  * we attack it from outside by serving pathologically large or fat datasource files via an in-memory S3
  * fixture and submitting {@code FROM <dataset>} queries that would crash the node if the request breaker
- * did not intervene. Each scenario registers a dataset (bound to a single {@code auth=none} S3 data
+ * did not intervene. Each scenario registers a dataset (bound to a single {@code auth=anonymous} S3 data
  * source against the fixture) pointing at its uploaded object key, then queries it by name. Because the
  * data source persists no secrets, no project encryption key is required.
  * <p>
@@ -70,7 +70,7 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
      *  with {@code /{bucket}/{basePath}/}, where the fixture sets basePath = WAREHOUSE. */
     private static final String KEY_PREFIX = WAREHOUSE + "/heap-attack-external";
 
-    /** Name of the {@code auth=none} S3 data source backing every {@code FROM <dataset>} query in this
+    /** Name of the {@code auth=anonymous} S3 data source backing every {@code FROM <dataset>} query in this
      *  suite. Registered once against the in-memory fixture; since it persists no secrets it requires no
      *  project encryption key. */
     private static final String DATA_SOURCE = "heap_attack_s3";
@@ -165,12 +165,17 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
     }
 
     /**
-     * Registers the {@code auth=none} S3 data source the suite's datasets bind to. The fixture serves
+     * Registers the {@code auth=anonymous} S3 data source the suite's datasets bind to. The fixture serves
      * blobs without an {@code Authorization} header, so anonymous reads succeed; persisting no secrets
      * means no project encryption key is needed. Idempotent via {@link DatasetRegistry#ensureDataSource}.
      */
     private void ensureDataSourceRegistered() throws IOException {
-        DatasetRegistry.ensureDataSource(adminClient(), DATA_SOURCE, "s3", Map.of("endpoint", S3_FIXTURE.getAddress(), "auth", "none"));
+        DatasetRegistry.ensureDataSource(
+            adminClient(),
+            DATA_SOURCE,
+            "s3",
+            Map.of("endpoint", S3_FIXTURE.getAddress(), "auth", "anonymous")
+        );
     }
 
     /*

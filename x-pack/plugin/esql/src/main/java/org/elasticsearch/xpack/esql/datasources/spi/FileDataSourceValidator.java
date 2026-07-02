@@ -83,7 +83,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
     @Nullable
     private final FormatConfigKeyResolver formatConfigKeyResolver;
     private final Set<String> compressionExtensions;
-    private final BooleanSupplier workloadIdentityEnabled;
+    private final BooleanSupplier managedIdentityEnabled;
 
     public FileDataSourceValidator(
         String type,
@@ -99,14 +99,14 @@ public class FileDataSourceValidator implements DataSourceValidator {
         Set<String> supportedSchemes,
         @Nullable FormatConfigKeyResolver formatConfigKeyResolver,
         Set<String> compressionExtensions,
-        BooleanSupplier workloadIdentityEnabled
+        BooleanSupplier managedIdentityEnabled
     ) {
         this.type = type;
         this.configFactory = configFactory;
         this.supportedSchemes = supportedSchemes;
         this.formatConfigKeyResolver = formatConfigKeyResolver;
         this.compressionExtensions = compressionExtensions;
-        this.workloadIdentityEnabled = workloadIdentityEnabled;
+        this.managedIdentityEnabled = managedIdentityEnabled;
     }
 
     /**
@@ -119,17 +119,17 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * runtime resolution in {@code FormatReaderRegistry}/{@code DecompressionCodecRegistry}.
      */
     public FileDataSourceValidator withFormatConfigKeyResolver(FormatConfigKeyResolver resolver, Set<String> compressionExtensions) {
-        return new FileDataSourceValidator(type, configFactory, supportedSchemes, resolver, compressionExtensions, workloadIdentityEnabled);
+        return new FileDataSourceValidator(type, configFactory, supportedSchemes, resolver, compressionExtensions, managedIdentityEnabled);
     }
 
     /**
-     * Returns a new validator that gates {@code auth=workload_identity} on the supplied boolean supplier.
+     * Returns a new validator that gates {@code auth=managed_identity} on the supplied boolean supplier.
      * The supplier is called on each validation. Pass a live supplier (e.g. backed by an
      * {@code AtomicBoolean} updated via {@code ClusterSettings.addSettingsUpdateConsumer}) so
-     * that operator changes to {@code esql.datasource.workload_identity.enabled} take effect
+     * that operator changes to {@code esql.datasource.managed_identity.enabled} take effect
      * without a node restart.
      */
-    public FileDataSourceValidator withWorkloadIdentityEnabled(BooleanSupplier supplier) {
+    public FileDataSourceValidator withManagedIdentityEnabled(BooleanSupplier supplier) {
         return new FileDataSourceValidator(type, configFactory, supportedSchemes, formatConfigKeyResolver, compressionExtensions, supplier);
     }
 
@@ -144,10 +144,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             return Map.of();
         }
         DataSourceConfiguration config = configFactory.apply(datasourceSettings);
-        if (config instanceof FileDataSourceConfiguration fc
-            && fc.isWorkloadIdentity()
-            && workloadIdentityEnabled.getAsBoolean() == false) {
-            throw new ValidationException().addValidationError(FileDataSourceConfiguration.WORKLOAD_IDENTITY_DISABLED_MESSAGE);
+        if (config instanceof FileDataSourceConfiguration fc && fc.isManagedIdentity() && managedIdentityEnabled.getAsBoolean() == false) {
+            throw new ValidationException().addValidationError(FileDataSourceConfiguration.MANAGED_IDENTITY_DISABLED_MESSAGE);
         }
         return config != null ? config.toStoredSettings() : Map.of();
     }

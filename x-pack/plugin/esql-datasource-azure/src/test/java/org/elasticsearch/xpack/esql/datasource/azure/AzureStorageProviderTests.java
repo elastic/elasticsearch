@@ -62,6 +62,16 @@ public class AzureStorageProviderTests extends ESTestCase {
         assertTrue(e.getMessage().contains("AzureStorageProvider only supports wasbs:// and wasb:// schemes"));
     }
 
+    public void testManagedIdentityDefersBuildWhenAccountOnlyFromPath() {
+        // auth=managed_identity with the account supplied only in the query path (no account/endpoint in config) must
+        // not fail at construction: the endpoint is derived per-query from the wasbs://<account>... path, which is
+        // unavailable at construction, so the client build is deferred to first use. Regression guard for the eager-
+        // build guard, which must exclude managed_identity for Azure.
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, null, "managed_identity");
+        AzureStorageProvider provider = new AzureStorageProvider(config, null, null);
+        assertNotNull(provider);
+    }
+
     public void testWasbsPathParsing() {
         StoragePath path = StoragePath.of("wasbs://myaccount.blob.core.windows.net/container/data/sales.parquet");
         assertEquals("wasbs", path.scheme());

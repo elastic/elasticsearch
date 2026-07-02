@@ -61,7 +61,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
     public void testLifecycle() throws IOException {
         final String name = "lifecycle_ds";
 
-        putDataSource(name, "s3", Map.of("region", "us-east-1"));
+        putDataSource(name, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
 
         Map<String, Object> got = getDataSource(name);
         @SuppressWarnings("unchecked")
@@ -140,7 +140,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
     public void testDatasetLifecycle() throws IOException {
         final String parent = "ds_lifecycle_parent";
         final String dataset = "ds_lifecycle_child";
-        putDataSource(parent, "s3", Map.of("region", "us-east-1"));
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
         putDataset(dataset, parent, "s3://bucket/x/*.parquet", Map.of());
 
         Map<String, Object> got = getDataset(dataset);
@@ -171,7 +171,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
 
         final String parent = "coresident_parent";
         final String dataset = "cloudtrail_logs";
-        putDataSource(parent, "s3", Map.of("region", "us-east-1"));
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
         putDataset(dataset, parent, "s3://bucket/cloudtrail/*.json.gz", Map.of());
 
         // GET /_query/dataset (list all == "*") — this is the exact request from the bug report.
@@ -227,7 +227,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         assertThat(client().performRequest(createDs).getStatusLine().getStatusCode(), equalTo(200));
         final String parent = "mixed_parent";
         final String dataset = "valid_ds";
-        putDataSource(parent, "s3", Map.of("region", "us-east-1"));
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
         putDataset(dataset, parent, "s3://bucket/x/*.parquet", Map.of());
         try {
             ResponseException ex = expectThrows(
@@ -255,7 +255,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
 
     public void testPutDatasetRejectsUnknownTopLevelField() throws IOException {
         final String parent = "reject_field_parent";
-        putDataSource(parent, "s3", Map.of("region", "us-east-1"));
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
         Request req = new Request("PUT", "/_query/dataset/reject_field_ds");
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject().field("data_source", parent).field("resource", "s3://x/").field("not_a_real_field", "x").endObject();
@@ -269,7 +269,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
     public void testDeleteDataSourceWithDependentsReturns409() throws IOException {
         final String parent = "delete_blocked_parent";
         final String dataset = "delete_blocked_child";
-        putDataSource(parent, "s3", Map.of("region", "us-east-1"));
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
         putDataset(dataset, parent, "s3://x/", Map.of());
 
         ResponseException ex = expectThrows(

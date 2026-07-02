@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
@@ -19,16 +20,17 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
 /**
  * Configuration for S3 access including credentials and endpoint settings.
  * <p>
- * Supports authentication modes:
+ * The {@code auth} setting selects the mode explicitly — {@code auto}, {@code anonymous},
+ * {@code static_credentials}, {@code federated_identity}, or {@code managed_identity}. When omitted it defaults to
+ * {@code auto}, which infers the mode from the fields present. Supported modes:
  * <ul>
- *   <li>Access key + secret key (static credentials)</li>
- *   <li>Access key + secret key + session token (STS temporary credentials)</li>
- *   <li>Keyless workload-identity federation via {@code role_arn} and {@code jwt_audience}
- *       (optionally {@code role_session_name} and {@code sts_endpoint})</li>
- *   <li>{@code auth=none} for anonymous access to public buckets</li>
- *   <li>{@code auth=workload_identity} to use the node's instance credentials via the IMDS-family chain
+ *   <li>{@code auth=static_credentials} — access_key + secret_key (optionally session_token for STS temporary credentials)</li>
+ *   <li>{@code auth=federated_identity} — keyless workload-identity federation via {@code role_arn} and
+ *       {@code jwt_audience} (optionally {@code role_session_name} and {@code sts_endpoint})</li>
+ *   <li>{@code auth=anonymous} — anonymous access to public buckets</li>
+ *   <li>{@code auth=managed_identity} — the node's instance credentials via the IMDS-family chain
  *       (ECS task role, then EC2 instance profile). Requires the
- *       {@code esql.datasource.workload_identity.enabled} cluster setting.</li>
+ *       {@code esql.datasource.managed_identity.enabled} cluster setting.</li>
  * </ul>
  */
 public class S3Configuration extends FileDataSourceConfiguration {
@@ -203,7 +205,18 @@ public class S3Configuration extends FileDataSourceConfiguration {
         return get(STS_REGION.name());
     }
 
+    @Override
     public boolean hasCredentials() {
-        return accessKey() != null && secretKey() != null;
+        return Strings.hasText(accessKey()) && Strings.hasText(secretKey());
+    }
+
+    @Override
+    public String unresolvedAuthMessage() {
+        return "S3 data source requires credentials: set access_key and secret_key "
+            + "(optionally session_token for STS temporary credentials); "
+            + "set auth=anonymous for public buckets; "
+            + "set auth=managed_identity to use the node's instance role "
+            + "(requires the esql.datasource.managed_identity.enabled cluster setting); "
+            + "or configure keyless authentication with role_arn and jwt_audience";
     }
 }

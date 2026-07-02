@@ -105,42 +105,67 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasourceAuthCaseInsensitive() {
-        var result = validator.validateDatasource(Map.of("auth", "NONE"));
-        assertEquals("none", result.get("auth").nonSecretValue());  // case-insensitive fields normalized to lowercase
+        var result = validator.validateDatasource(Map.of("auth", "ANONYMOUS"));
+        assertEquals("anonymous", result.get("auth").nonSecretValue());  // case-insensitive fields normalized to lowercase
         assertFalse(result.get("auth").secret());
+    }
+
+    public void testValidateDatasourceCanonicalizesDeprecatedAuthNone() {
+        // The CRUD store path canonicalizes a deprecated alias and warns: the stored (GET-returned) value is canonical.
+        var result = validator.validateDatasource(Map.of("auth", "none"));
+        assertEquals("anonymous", result.get("auth").nonSecretValue());
+        assertWarnings("auth value [none] is deprecated; the canonical value is [anonymous]");
+    }
+
+    public void testValidateDatasourceCanonicalizesDeprecatedWorkloadIdentity() {
+        var enabledValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withManagedIdentityEnabled(() -> true);
+        var result = enabledValidator.validateDatasource(Map.of("auth", "workload_identity", "region", "us-east-1"));
+        assertEquals("managed_identity", result.get("auth").nonSecretValue());
+        assertWarnings("auth value [workload_identity] is deprecated; the canonical value is [managed_identity]");
     }
 
     public void testValidateDatasourceAnonymousConflict() {
         expectThrows(
             ValidationException.class,
-            () -> validator.validateDatasource(Map.of("auth", "none", "access_key", "AKIA123", "secret_key", "secret"))
+            () -> validator.validateDatasource(Map.of("auth", "anonymous", "access_key", "AKIA123", "secret_key", "secret"))
         );
     }
 
-    public void testValidateDatasourceRejectsWorkloadIdentityWhenDisabled() {
-        // default validator has workload identity disabled
+    public void testValidateDatasourceRejectsManagedIdentityWhenDisabled() {
+        // default validator has managed identity disabled
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("auth", "managed_identity", "region", "us-east-1"))
+        );
+        assertThat(e.getMessage(), containsString("esql.datasource.managed_identity.enabled"));
+    }
+
+    public void testValidateDatasourceRejectsDeprecatedWorkloadIdentityWhenDisabled() {
+        // The deprecated alias canonicalizes to managed_identity, so the disabled-gate still catches it (and warns).
         var e = expectThrows(
             ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "workload_identity", "region", "us-east-1"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.workload_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.datasource.managed_identity.enabled"));
+        assertWarnings("auth value [workload_identity] is deprecated; the canonical value is [managed_identity]");
     }
 
-    public void testValidateDatasourceAcceptsWorkloadIdentityWhenEnabled() {
-        var workloadIdentityValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
-            .withWorkloadIdentityEnabled(() -> true);
-        var result = workloadIdentityValidator.validateDatasource(Map.of("auth", "workload_identity", "region", "us-east-1"));
-        assertEquals("workload_identity", result.get("auth").nonSecretValue());
+    public void testValidateDatasourceAcceptsManagedIdentityWhenEnabled() {
+        var managedIdentityValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withManagedIdentityEnabled(() -> true);
+        var result = managedIdentityValidator.validateDatasource(Map.of("auth", "managed_identity", "region", "us-east-1"));
+        assertEquals("managed_identity", result.get("auth").nonSecretValue());
         assertFalse(result.get("auth").secret());
     }
 
-    public void testValidateDatasourceWorkloadIdentityConflictWithCredentials() {
-        var workloadIdentityValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
-            .withWorkloadIdentityEnabled(() -> true);
+    public void testValidateDatasourceManagedIdentityConflictWithCredentials() {
+        var managedIdentityValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withManagedIdentityEnabled(() -> true);
         expectThrows(
             ValidationException.class,
-            () -> workloadIdentityValidator.validateDatasource(
-                Map.of("auth", "workload_identity", "access_key", "AKIA123", "secret_key", "secret")
+            () -> managedIdentityValidator.validateDatasource(
+                Map.of("auth", "managed_identity", "access_key", "AKIA123", "secret_key", "secret")
             )
         );
     }
@@ -157,20 +182,23 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     public void testValidateDatasourceSessionTokenConflictsWithAuthNone() {
         expectThrows(
             ValidationException.class,
-            () -> validator.validateDatasource(Map.of("auth", "none", "session_token", "FwoGZXIvYXdz"))
+            () -> validator.validateDatasource(Map.of("auth", "anonymous", "session_token", "FwoGZXIvYXdz"))
         );
     }
 
     public void testValidateDatasourceAccumulatesMultipleErrors() {
+        // Complete credentials keep auto resolvable, so the only accumulated errors are the two distinct unknown fields.
         var e = expectThrows(
             ValidationException.class,
-            () -> validator.validateDatasource(Map.of("unknown_field", "x", "also_unknown", "y"))
+            () -> validator.validateDatasource(Map.of("unknown_field", "x", "also_unknown", "y", "access_key", "ak", "secret_key", "sk"))
         );
         assertEquals(2, e.validationErrors().size());
     }
 
     public void testValidateDatasourceSkipsNullValues() {
         var settings = new HashMap<String, Object>();
+        // auth=anonymous makes the credential-less config resolvable; the null-skipping behavior is what's under test.
+        settings.put("auth", "anonymous");
         settings.put("region", "us-east-1");
         settings.put("endpoint", null);
         var result = validator.validateDatasource(settings);

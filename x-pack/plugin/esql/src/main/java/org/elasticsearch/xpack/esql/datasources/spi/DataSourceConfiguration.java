@@ -31,6 +31,21 @@ public abstract class DataSourceConfiguration {
 
     private static final Logger logger = LogManager.getLogger(DataSourceConfiguration.class);
 
+    /**
+     * Deprecation-warning message template emitted when a deprecated {@code auth} value alias is canonicalized on
+     * parse. The two {@code {}} placeholders are the deprecated value and its canonical replacement, in that order.
+     * Shared by every {@code normalize()} that canonicalizes an {@code auth} alias so the emitted string stays
+     * byte-identical across datasource types (a serverless test filters on it).
+     */
+    public static final String DEPRECATED_AUTH_MESSAGE = "auth value [{}] is deprecated; the canonical value is [{}]";
+
+    /**
+     * Deprecation-logger key prefix for a deprecated {@code auth} value; the deprecated value name is appended to form
+     * the per-alias key (e.g. {@code esql_datasource_auth_none}). Shared so every {@code normalize()} keys the warning
+     * identically.
+     */
+    public static final String DEPRECATED_AUTH_LOG_KEY_PREFIX = "esql_datasource_auth_";
+
     private final Map<String, DataSourceConfigDefinition> fieldDefs;
     private final Map<String, Object> values;
 
@@ -66,10 +81,20 @@ public abstract class DataSourceConfiguration {
                 parsed.put(entry.getKey(), value);
             }
         }
+        normalize(parsed);
         this.values = Map.copyOf(parsed);
         validate(errors);
         errors.throwIfValidationErrorsExist();
     }
+
+    /**
+     * Subclass hook to canonicalize parsed values before they are frozen — e.g. mapping a deprecated
+     * enum alias to its current value so the stored configuration (and every later read) holds the
+     * canonical form. Runs after unknown-field rejection and case-insensitive lowering, before
+     * {@link #validate}. The default is a no-op. Like {@link #validate}, this is a virtual call during
+     * construction, so overrides must touch only the supplied map and static data, never instance fields.
+     */
+    protected void normalize(Map<String, Object> parsed) {}
 
     /** Cross-field validation. Accumulate errors into the provided exception. */
     protected abstract void validate(ValidationException errors);

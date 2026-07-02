@@ -68,10 +68,10 @@ public class HttpDataSourcePluginTests extends ESTestCase {
         assertTrue(http.validateDatasource(Map.of()).isEmpty());
     }
 
-    public void testAuthNoneDatasourceSettingAccepted() {
+    public void testAuthAnonymousDatasourceSettingAccepted() {
         assumeTrue("requires http datasource feature flag", ESQL_EXTERNAL_DATASOURCES_HTTP_FEATURE_FLAG.isEnabled());
         DataSourceValidator http = plugin.datasourceValidators(Settings.EMPTY).get("http");
-        assertTrue(http.validateDatasource(Map.of("auth", "none")).containsKey("auth"));
+        assertTrue(http.validateDatasource(Map.of("auth", "anonymous")).containsKey("auth"));
     }
 
     public void testDatasourceSettingsRejected() {

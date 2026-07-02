@@ -336,7 +336,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     public void applyClusterState(ClusterChangedEvent event) {
         assert projectResolver.supportsMultipleProjects();
         assert projectObjectStoreExceptions != null;
-        for (var projectId : event.projectDelta().added()) {
+        for (var projectId : event.projectDelta().initializing()) {
             final var projectSettings = ProjectStateRegistry.getProjectSettings(projectId, event.state());
             try {
                 final RepositoryMetadata repositoryMetadata = getRepositoryMetadata(projectSettings);
@@ -364,7 +364,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             }
         }
 
-        for (var projectId : event.projectDelta().removed()) {
+        for (var projectId : event.projectDelta().deleted()) {
             final var projectObjectStore = projectObjectStores.remove(projectId);
             if (projectObjectStore == null) {
                 final var repositoryException = projectObjectStoreExceptions.remove(projectId);

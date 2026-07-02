@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
+import org.elasticsearch.xpack.inference.services.settings.EnforcingEmptyTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
 
 import java.util.List;
@@ -141,20 +142,20 @@ public class CompletionCompatibilityServiceTests extends ESTestCase {
         assertThat(strategy, instanceOf(CompletionCompatibilityService.EnforceEmptyTaskSettingsStrategy.class));
     }
 
-    public void testEnforceEmptyTaskSettingsStrategy_CreateTaskSettings_EmptyMap_ReturnsEmptyTaskSettings() {
+    public void testEnforceEmptyTaskSettingsStrategy_CreateTaskSettings_EmptyMap_ReturnsEnforcingEmptyTaskSettings() {
         var strategy = createCompatibilityService(false).getTaskSettingsStrategy(TaskType.CHAT_COMPLETION);
 
         var taskSettings = strategy.createTaskSettings(Map.of(), ConfigurationParseContext.REQUEST);
 
-        assertThat(taskSettings, sameInstance(EmptyTaskSettings.INSTANCE));
+        assertThat(taskSettings, sameInstance(EnforcingEmptyTaskSettings.INSTANCE));
     }
 
-    public void testEnforceEmptyTaskSettingsStrategy_CreateTaskSettings_NonEmptyMap_Persistent_ReturnsEmptyTaskSettings() {
+    public void testEnforceEmptyTaskSettingsStrategy_CreateTaskSettings_NonEmptyMap_Persistent_ReturnsEnforcingEmptyTaskSettings() {
         var strategy = createCompatibilityService(false).getTaskSettingsStrategy(TaskType.CHAT_COMPLETION);
 
         var taskSettings = strategy.createTaskSettings(MEDIUM_DETAILED_REASONING_MAP, ConfigurationParseContext.PERSISTENT);
 
-        assertThat(taskSettings, sameInstance(EmptyTaskSettings.INSTANCE));
+        assertThat(taskSettings, sameInstance(EnforcingEmptyTaskSettings.INSTANCE));
     }
 
     public void testEnforceEmptyTaskSettingsStrategy_CreateTaskSettings_NonEmptyMap_Request_ThrowsBadRequest() {
@@ -163,6 +164,21 @@ public class CompletionCompatibilityServiceTests extends ESTestCase {
         var exception = expectThrows(
             ElasticsearchStatusException.class,
             () -> strategy.createTaskSettings(MEDIUM_DETAILED_REASONING_MAP, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), is("[task_settings] Configuration contains unknown settings [reasoning]"));
+    }
+
+    public void testEnforceEmptyTaskSettingsStrategy_CreateTaskSettingsThenUpdate_NonEmptyMap_Throws() {
+        // Mirrors TransportUpdateInferenceModelAction: load the existing (persisted) task settings, then merge the
+        // incoming update's task settings into it via updatedTaskSettings.
+        var strategy = createCompatibilityService(false).getTaskSettingsStrategy(TaskType.CHAT_COMPLETION);
+        var existingTaskSettings = strategy.createTaskSettings(Map.of(), ConfigurationParseContext.PERSISTENT);
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> existingTaskSettings.updatedTaskSettings(MEDIUM_DETAILED_REASONING_MAP)
         );
 
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));

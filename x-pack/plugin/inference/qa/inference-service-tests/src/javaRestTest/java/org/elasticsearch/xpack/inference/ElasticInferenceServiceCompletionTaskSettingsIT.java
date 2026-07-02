@@ -305,7 +305,7 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
         }
     }
 
-    private static String chatCompletionConfig(String effort, String summary) throws IOException {
+    public static String chatCompletionConfig(String effort, String summary) throws IOException {
         String reasoning;
         if (summary != null) {
             reasoning = Strings.format("""
@@ -335,7 +335,7 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
      * Builds a PUT body with no {@code task_settings}, producing an endpoint with empty task settings.
      * The task type is supplied via the URL by the caller.
      */
-    private static String configWithoutReasoning() throws IOException {
+    public static String configWithoutReasoning() throws IOException {
         return XContentHelper.stripWhitespace(Strings.format("""
             {
               "service": "%s",
@@ -347,7 +347,7 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
     /**
      * Builds an update body that sets {@code task_settings.reasoning} to the given effort value.
      */
-    private static String reasoningTaskSettingsUpdate(String effort) throws IOException {
+    public static String reasoningTaskSettingsUpdate(String effort) throws IOException {
         return XContentHelper.stripWhitespace(Strings.format("""
             {
               "task_settings": { "reasoning": { "effort": "%s" } }

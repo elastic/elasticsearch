@@ -7,19 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.compatibility;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.InferenceService;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
+import org.elasticsearch.xpack.inference.services.settings.EnforcingEmptyTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
 
 import java.util.Map;
@@ -30,9 +27,9 @@ import java.util.Objects;
  */
 public class CompletionCompatibilityService {
 
-    public static final String REASONING_FIELD_UNSUPPORTED_MESSAGE =
-        "The reasoning field in task_settings is not supported by all nodes in the cluster; "
-            + "please finish upgrading before using the reasoning field";
+    public static final String REASONING_FIELD_UNSUPPORTED_MESSAGE = """
+        The reasoning field in task_settings is not supported by all nodes in the cluster; \
+        please finish upgrading before using the reasoning field""";
 
     private final InferenceFeatureService featureService;
 
@@ -73,10 +70,12 @@ public class CompletionCompatibilityService {
      * Returns the appropriate {@link TaskSettingsStrategy} based on the task type and feature availability.
      */
     public TaskSettingsStrategy getTaskSettingsStrategy(TaskType taskType) {
-        // If the reasoning task settings is not supported by the whole cluster we'll need to continue to return EmptyTaskSettings for BWC
-        // but we'll want to make sure the reasoning fields are not present. We can't return ImmutableEmptyTaskSettings because
-        // if the PUT result (ModelConfiguration serialization) is sent to a node that hasn't been upgraded, it won't recognize the
-        // ImmutableEmptyTaskSettings named writeable yet.
+        // If the reasoning task settings is not supported by the whole cluster we'll need to continue to return settings that
+        // serialize like EmptyTaskSettings for BWC, but we'll want to make sure the reasoning fields are not present. We can't
+        // return ImmutableEmptyTaskSettings because if the PUT result (ModelConfiguration serialization) is sent to a node that
+        // hasn't been upgraded, it won't recognize the ImmutableEmptyTaskSettings named writeable yet. EnforcingEmptyTaskSettings
+        // solves this: it serializes exactly like EmptyTaskSettings (old nodes read it back as such) but still rejects unknown
+        // settings when updated, unlike EmptyTaskSettings itself.
         // Once the cluster is updated, we can begin returning ImmutableEmptyTaskSettings for Completion
         if (featureService.hasFeature(InferenceFeatures.INFERENCE_ELASTIC_REASONING_TASK_SETTINGS) == false) {
             return new EnforceEmptyTaskSettingsStrategy(taskType);
@@ -98,16 +97,7 @@ public class CompletionCompatibilityService {
 
         @Override
         public TaskSettings createTaskSettings(Map<String, Object> taskSettings, ConfigurationParseContext context) {
-            if (taskSettings.isEmpty() || context == ConfigurationParseContext.PERSISTENT) {
-                return EmptyTaskSettings.INSTANCE;
-            }
-
-            throw new ElasticsearchStatusException(
-                "[{}] Configuration contains unknown settings {}",
-                RestStatus.BAD_REQUEST,
-                ModelConfigurations.TASK_SETTINGS,
-                taskSettings.keySet()
-            );
+            return EnforcingEmptyTaskSettings.fromMap(taskSettings, context);
         }
     }
 

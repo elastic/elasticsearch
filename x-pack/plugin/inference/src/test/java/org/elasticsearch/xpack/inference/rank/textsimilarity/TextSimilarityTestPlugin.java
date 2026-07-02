@@ -147,7 +147,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                         new CohereRerankServiceSettings(
                             new CohereCommonServiceSettings("model", null, CohereCommonServiceSettings.CohereApiVersion.V2)
                         ),
-                        topN == null ? new EmptyTaskSettings() : new CohereRerankTaskSettings(topN, null, null)
+                        topN == null ? EmptyTaskSettings.INSTANCE : new CohereRerankTaskSettings(topN, null, null)
                     )
                 )
             );

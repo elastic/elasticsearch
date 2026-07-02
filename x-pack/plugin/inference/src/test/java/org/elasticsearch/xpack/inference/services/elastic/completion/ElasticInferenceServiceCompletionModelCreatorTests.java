@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.completion.Reasoning;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService;
+import org.elasticsearch.xpack.inference.services.settings.EnforcingEmptyTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
 
 import java.util.HashMap;
@@ -80,17 +80,17 @@ public class ElasticInferenceServiceCompletionModelCreatorTests extends ESTestCa
         assertThat(model.getTaskType(), is(TaskType.COMPLETION));
     }
 
-    public void testCreateFromMaps_ChatCompletion_ReasoningFeatureAbsent_EmptyTaskSettings_ReturnsEmptyTaskSettings() {
+    public void testCreateFromMaps_ChatCompletion_ReasoningFeatureAbsent_EmptyTaskSettings_ReturnsEnforcingEmptyTaskSettings() {
         var model = createFromMaps(false, TaskType.CHAT_COMPLETION, Map.of(), ConfigurationParseContext.REQUEST);
 
-        assertThat(model.getTaskSettings(), sameInstance(EmptyTaskSettings.INSTANCE));
+        assertThat(model.getTaskSettings(), sameInstance(EnforcingEmptyTaskSettings.INSTANCE));
         assertThat(model.getTaskType(), is(TaskType.CHAT_COMPLETION));
     }
 
-    public void testCreateFromMaps_Completion_ReasoningFeatureAbsent_EmptyTaskSettings_ReturnsEmptyTaskSettings() {
+    public void testCreateFromMaps_Completion_ReasoningFeatureAbsent_EmptyTaskSettings_ReturnsEnforcingEmptyTaskSettings() {
         var model = createFromMaps(false, TaskType.COMPLETION, Map.of(), ConfigurationParseContext.REQUEST);
 
-        assertThat(model.getTaskSettings(), sameInstance(EmptyTaskSettings.INSTANCE));
+        assertThat(model.getTaskSettings(), sameInstance(EnforcingEmptyTaskSettings.INSTANCE));
         assertThat(model.getTaskType(), is(TaskType.COMPLETION));
     }
 
@@ -103,10 +103,10 @@ public class ElasticInferenceServiceCompletionModelCreatorTests extends ESTestCa
         assertThat(exception.getMessage(), is("[task_settings] Configuration contains unknown settings [reasoning]"));
     }
 
-    public void testCreateFromMaps_ChatCompletion_ReasoningFeatureAbsent_NonEmptyTaskSettings_Persistent_ReturnsEmptyTaskSettings() {
+    public void testCreateFromMaps_ChatCompletion_ReasoningFeatureAbsent_NonEmptySettings_Persistent_ReturnsEnforcingEmpty() {
         var model = createFromMaps(false, TaskType.CHAT_COMPLETION, MEDIUM_DETAILED_REASONING_MAP, ConfigurationParseContext.PERSISTENT);
 
-        assertThat(model.getTaskSettings(), sameInstance(EmptyTaskSettings.INSTANCE));
+        assertThat(model.getTaskSettings(), sameInstance(EnforcingEmptyTaskSettings.INSTANCE));
         assertThat(model.getTaskType(), is(TaskType.CHAT_COMPLETION));
     }
 

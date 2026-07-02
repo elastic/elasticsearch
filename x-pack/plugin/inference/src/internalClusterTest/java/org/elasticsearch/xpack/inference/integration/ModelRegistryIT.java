@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -1018,6 +1019,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
     private void storeModelDirectlyInIndexWithoutRegistry(Model model) {
         var listener = new PlainActionFuture<BulkResponse>();
+        var clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        var featureService = getInstanceFromNode(FeatureService.class);
 
         client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -1027,7 +1030,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                     InferenceIndex.INDEX_NAME,
                     model.getConfigurations(),
                     false,
-                    true,
+                    clusterState,
+                    featureService,
                     client()
                 )
             )
@@ -1037,7 +1041,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                     InferenceSecretsIndex.INDEX_NAME,
                     model.getSecrets(),
                     false,
-                    true,
+                    clusterState,
+                    featureService,
                     client()
                 )
             )
@@ -1258,6 +1263,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
     private void storeCorruptedModel(Model model, boolean storeSecrets) {
         var listener = new PlainActionFuture<BulkResponse>();
+        var clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        var featureService = getInstanceFromNode(FeatureService.class);
 
         client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -1267,7 +1274,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                     storeSecrets ? InferenceSecretsIndex.INDEX_NAME : InferenceIndex.INDEX_NAME,
                     storeSecrets ? model.getSecrets() : model.getConfigurations(),
                     false,
-                    true,
+                    clusterState,
+                    featureService,
                     client()
                 )
             )

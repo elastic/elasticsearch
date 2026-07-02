@@ -4556,8 +4556,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(DataStreamsPlugin.class);
         plugins.add(StatelessMockRepositoryPlugin.class);
-        plugins.add(EsqlPlugin.class);
         plugins.add(EncryptionPlugin.class);
+        plugins.add(EsqlPlugin.class);
         plugins.add(TestTelemetryPlugin.class);
         return plugins;
     }

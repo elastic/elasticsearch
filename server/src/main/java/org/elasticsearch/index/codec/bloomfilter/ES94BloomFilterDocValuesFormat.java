@@ -40,7 +40,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
-import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
@@ -52,6 +51,8 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.RandomAccessInputUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -236,6 +237,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         private final SegmentWriteState state;
         // Lazy initialized
         private BitSetBuffer bitSetBuffer;
+        private byte[] scratch;
 
         Writer(SegmentWriteState state) throws IOException {
             this.state = state;
@@ -402,6 +404,13 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             });
         }
 
+        private byte[] getScratch(int len) {
+            if (scratch == null || scratch.length < len) {
+                scratch = new byte[len];
+            }
+            return scratch;
+        }
+
         private void orRegion(
             RandomAccessInput source,
             int sourceOffset,
@@ -423,32 +432,20 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             while (offset < length) {
                 int pageLen = Math.min(PageCacheRecycler.PAGE_SIZE_IN_BYTES, length - offset);
 
-                source.readBytes(sourceOffset + offset, sourcePageScratch.bytes, 0, pageLen);
                 var materialized = bitSetBuffer.get(targetOffset + offset, pageLen, scratchRef);
                 assert materialized == false : "Unexpected materialized array";
 
                 if (firstPass) {
-                    // If we're just processing the first bloom filter the first pass, we can just copy the
-                    // bytes from the source bloom filter into the new bloom filter and skip all the OR operations.
+                    source.readBytes(sourceOffset + offset, sourcePageScratch.bytes, 0, pageLen);
                     bitSetBuffer.set(targetOffset + offset, sourcePageScratch.bytes, 0, pageLen);
                 } else {
-                    // Unfortunately we have to copy the bytes that we read from bitSetBuffer since the
-                    // BigArrays ByteArray just provides a view from the page that shouldn't be mutated
-                    // (this mostly apply to the initial empty pages which are shared across all the byte buffers).
                     System.arraycopy(scratchRef.bytes, scratchRef.offset, targetPageScratch.bytes, 0, pageLen);
 
-                    int i = 0;
-                    for (; i + Long.BYTES <= pageLen; i += Long.BYTES) {
-                        long existing = (long) BitUtil.VH_LE_LONG.get(sourcePageScratch.bytes, i);
-                        long current = (long) BitUtil.VH_LE_LONG.get(targetPageScratch.bytes, i);
-                        BitUtil.VH_LE_LONG.set(targetPageScratch.bytes, i, existing | current);
-                    }
-
-                    // OR any remaining bytes if length isn't a multiple of 8.
-                    // In practice this only applies for segments with 1 document where the bloom filter size is 4 bytes
-                    for (; i < pageLen; i++) {
-                        targetPageScratch.bytes[i] |= sourcePageScratch.bytes[i];
-                    }
+                    final int len = pageLen;
+                    RandomAccessInputUtils.withByteBufferSlice(source, sourceOffset + offset, len, this::getScratch, buf -> {
+                        ESVectorUtil.orByteArrays(buf, targetPageScratch.bytes, 0, len);
+                        return null;
+                    });
 
                     bitSetBuffer.set(targetOffset + offset, targetPageScratch.bytes, 0, pageLen);
                 }
@@ -797,6 +794,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         // identical (the filter is immutable), so the race is benign — the cost is redundant I/O,
         // not incorrect results. volatile ensures the write is visible once complete.
         private volatile double cachedSaturation = -1.0;
+        private byte[] scratch;
 
         private BloomFilterFieldReader(
             RandomAccessInput bloomFilterIn,
@@ -835,6 +833,13 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             return Math.divideExact(bloomFilterBitSetSizeInBits, Byte.SIZE);
         }
 
+        private byte[] getScratch(int len) {
+            if (scratch == null || scratch.length < len) {
+                scratch = new byte[len];
+            }
+            return scratch;
+        }
+
         @Override
         public long sizeInBytes() {
             return getBloomFilterBitSetSizeInBytes();
@@ -847,15 +852,14 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             }
             final int sizeInBytes = getBloomFilterBitSetSizeInBytes();
             long setBits = 0;
-            final byte[] scratch = new byte[PageCacheRecycler.PAGE_SIZE_IN_BYTES];
             int remaining = sizeInBytes;
             int offset = 0;
             while (remaining > 0) {
                 int pageLen = Math.min(PageCacheRecycler.PAGE_SIZE_IN_BYTES, remaining);
-                bloomFilterIn.readBytes(offset, scratch, 0, pageLen);
-                for (int i = 0; i < pageLen; i++) {
-                    setBits += Integer.bitCount(scratch[i] & 0xFF);
-                }
+                final int len = pageLen;
+                setBits += RandomAccessInputUtils.withByteBufferSlice(bloomFilterIn, offset, len, this::getScratch, buf -> {
+                    return ESVectorUtil.popcount(buf, len);
+                });
                 offset += pageLen;
                 remaining -= pageLen;
             }

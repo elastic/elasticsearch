@@ -19,6 +19,7 @@ import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
@@ -923,6 +924,48 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         for (int j = 0; j < v1.length; j++) {
             result[j] = MathUtils.pow2NQT((a + v1[j] - v2[j]) / eps);
         }
+    }
+
+    @Override
+    public long popcount(byte[] data, int offset, int length) {
+        long cnt = 0;
+        int i = offset;
+        final int upperBound = offset + (length & -Integer.BYTES);
+        for (; i < upperBound; i += Integer.BYTES) {
+            cnt += Integer.bitCount((int) BitUtil.VH_NATIVE_INT.get(data, i));
+        }
+        for (; i < offset + length; i++) {
+            cnt += Integer.bitCount(data[i] & 0xFF);
+        }
+        return cnt;
+    }
+
+    @Override
+    public void orByteArrays(byte[] source, byte[] dest, int offset, int length) {
+        int i = offset;
+        final int upperBound = offset + (length & -Long.BYTES);
+        for (; i < upperBound; i += Long.BYTES) {
+            long s = (long) BitUtil.VH_NATIVE_LONG.get(source, i);
+            long d = (long) BitUtil.VH_NATIVE_LONG.get(dest, i);
+            BitUtil.VH_NATIVE_LONG.set(dest, i, s | d);
+        }
+        for (; i < offset + length; i++) {
+            dest[i] |= source[i];
+        }
+    }
+
+    @Override
+    public long popcount(ByteBuffer buf, int length) {
+        byte[] tmp = new byte[length];
+        buf.get(buf.position(), tmp, 0, length);
+        return popcount(tmp, 0, length);
+    }
+
+    @Override
+    public void orByteArrays(ByteBuffer src, byte[] dest, int destOffset, int length) {
+        byte[] tmp = new byte[length];
+        src.get(src.position(), tmp, 0, length);
+        orByteArrays(tmp, dest, destOffset, length);
     }
 
 }

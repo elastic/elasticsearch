@@ -2001,7 +2001,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * active ({@code statsStripeSize > 0}); owns the per-stripe accumulators and the close-time emit loop.
          */
         private final StripeStatsHarvester stripeHarvester;
-        /** Set when per-stripe capture must safe-miss (row/page misalignment); suppresses emission. */
+        /**
+         * Set when per-stripe capture must safe-miss — row/page misalignment during accumulation, or a
+         * setup-time offset gap. Only meaningful in chunk mode ({@code statsStripeSize > 0}): once set,
+         * accumulation stops and the close hook emits no stripe fragments (the file re-scans warm). The
+         * non-chunk whole-file publish does not consult it — stripe attribution is irrelevant there.
+         */
         private boolean stripeCaptureDisabled = false;
         /**
          * Set when the error policy RECOVERED an over-{@code max_record_size} record by dropping it (the
@@ -2136,13 +2141,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // zero blocks for COUNT(*)). ALL's UNPROJECTED file columns are harvested separately, straight
             // from the raw parsed record, in {@link #harvestAllColumns} during conversion — there is no block
             // here for a column the query never projected.
-            if (statsStripeSize > 0 && rowStartBytes != null && stripeCaptureDisabled == false) {
-                accumulateStripes(page);
+            if (statsStripeSize > 0) {
+                // Chunk-parallel read: per-stripe fragments are the only cacheable contribution. Accumulate
+                // while capture stays aligned; once disabled it is a permanent safe-miss, so stop — the
+                // whole-chunk harvest below would feed a doomed PARTIAL the coordinator just discards.
+                if (rowStartBytes != null && stripeCaptureDisabled == false) {
+                    accumulateStripes(page);
+                }
                 return;
             }
-            // Non-stripe whole-file path. COUNT scope harvests no per-column stats (the close hook still
-            // publishes rowsEmittedForCache); PROJECTED/ALL harvest the projected columns.
-            if (statsColumnScope.harvestsColumns() == false || columnCount == 0) {
+            // Non-stripe whole-file path. Only PROJECTED harvests the projected columns here; COUNT harvests
+            // none (the close hook still publishes rowsEmittedForCache) and ALL harvests EVERY file column
+            // straight from the raw record in harvestAllColumns (a strict superset), so the projected
+            // re-harvest is skipped — mirrors NDJSON.
+            if (statsColumnScope != StripeColumnScope.PROJECTED || columnCount == 0) {
                 return;
             }
             if (columnStats == null) {
@@ -2166,12 +2178,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // Attribute by the SURVIVING rows' offsets (page-aligned): a row dropped during convertRowsToPage is
             // absent from both the page and this array. The shared run-walk owns the offset/page alignment invariant
             // (fail-loud assert + safe-miss); this consumer only folds the projected columns + row count per run.
-            // COUNT scope harvests rows only (no column accumulator). PROJECTED/ALL build one for the projected
-            // columns when there are any (a zero-projection COUNT(*) read has none). ALL's UNPROJECTED file columns
-            // are accumulated separately in harvestAllColumns (acc.allCols), fed from the raw record.
+            // COUNT scope harvests rows only (no column accumulator). Only PROJECTED builds a per-stripe
+            // projected-column accumulator (when there are any — a zero-projection COUNT(*) read has none).
+            // Under ALL, every file column (incl. the projected ones) is accumulated in harvestAllColumns
+            // (acc.allCols) from the raw record — a strict superset that shadows acc.cols at emit — so the
+            // projected accumulator is skipped, mirroring NDJSON.
             long[] offsets = acceptedRowStartBytes;
             boolean aligned = stripeHarvester.forEachRun(offsets, offsets == null ? -1 : offsets.length, n, (ordinal, acc, from, to) -> {
-                if (acc.cols == null && statsColumnScope.harvestsColumns() && projectedAttrs.length > 0) {
+                if (acc.cols == null && statsColumnScope == StripeColumnScope.PROJECTED && projectedAttrs.length > 0) {
                     acc.cols = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
                 }
                 if (acc.cols != null) {
@@ -2287,13 +2301,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         && schema != null
                         && recordCapDropped == false
                         && statsColumnScope != StripeColumnScope.NONE) {
-                        if (statsStripeSize > 0 && stripeCaptureDisabled == false && stripeHarvester.isEmpty() == false) {
-                            // Chunk-parallel read with per-stripe stats: emit one stripe-addressed fragment per
-                            // stripe this chunk touched; the coordinator interval-covers and folds them.
-                            emitPerStripe();
+                        if (statsStripeSize > 0) {
+                            // Chunk-parallel read: only per-stripe fragments are cacheable. Emit one
+                            // stripe-addressed fragment per stripe this chunk touched (the coordinator
+                            // interval-covers and folds them) if capture stayed aligned and non-empty;
+                            // otherwise safe-miss. A whole-chunk publish here would be an un-addressable
+                            // PARTIAL the coordinator just discards — wasted work. Mirrors NDJSON.
+                            if (stripeCaptureDisabled == false && stripeHarvester.isEmpty() == false) {
+                                emitPerStripe();
+                            }
                         } else {
-                            // PROJECTED/COUNT commit columnStats (projected / none). ALL additionally commits
-                            // allFileColumnStats (every file column) → strict superset of PROJECTED's set.
+                            // Non-chunk whole-file read. PROJECTED/COUNT commit columnStats (projected / none).
+                            // ALL additionally commits allFileColumnStats (every file column) → strict superset
+                            // of PROJECTED's set.
                             Map<String, ExternalStats.ColumnStats> cols = StripeStatsHarvester.mergeColumnStats(
                                 columnStats,
                                 allFileColumnStats

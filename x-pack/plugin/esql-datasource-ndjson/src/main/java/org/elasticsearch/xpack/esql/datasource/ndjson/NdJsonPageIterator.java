@@ -100,11 +100,9 @@ final class NdJsonPageIterator extends BufferingPageIterator {
      * page-capping needed.
      */
     private final long statsStripeSize;
-    /** This chunk's absolute first-byte offset in file/decompressed coordinates; the byte-range cover anchors on it. */
-    private final long statsBaseOffset;
     /**
-     * The file-global offset of the FIRST byte the decoder actually reads, i.e. {@code statsBaseOffset}
-     * plus any leading partial record dropped by {@code skipFirstLine}. Both the per-record offset
+     * The file-global offset of the FIRST byte the decoder actually reads, i.e. this chunk's absolute
+     * first-byte offset plus any leading partial record dropped by {@code skipFirstLine}. Both the per-record offset
      * tracking and the close-hook byte-range cover anchor on this so that, on a split that started
      * mid-record, records are attributed to the correct canonical stripe rather than {@code skipped}
      * bytes too early. Equals {@code statsBaseOffset} on record-aligned chunks (the common parallel path).
@@ -229,7 +227,6 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         // (parallelism=1) keeps the simpler authoritative WholeFile contribution. NONE scope disables
         // stripe harvest entirely (the warm aggregate then always re-scans).
         this.statsStripeSize = (chunkMode && this.statsColumnScope != StripeColumnScope.NONE) ? statsStripeSize : -1L;
-        this.statsBaseOffset = statsBaseOffset;
         this.statsFileFinal = statsFileFinal;
         this.stripeHarvester = this.statsStripeSize > 0 ? new StripeStatsHarvester(this.statsStripeSize, statsFileFinal) : null;
         InputStream inputStream = object.newStream();
@@ -241,6 +238,9 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         long skipped = skipFirstLine ? Math.max(0L, skipToNextLine(inputStream, recordSplitter)) : 0L;
         long recordOffsetBase = splitStartByte + skipped;
         // Decoder reads from statsBaseOffset + skipped; both stripe-attribution anchors derive from here.
+        // Today `skipped` is always 0 whenever stripe capture is active: the harvester needs chunkMode
+        // (recordAligned) chunks, and skipFirstLine only fires on !recordAligned reads — so the two are
+        // mutually exclusive. The fold-in is kept as a correctness invariant for any future overlap.
         this.statsStripeBaseOffset = statsBaseOffset + skipped;
         if (trimLastPartialLine) {
             inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation, recordSplitter);

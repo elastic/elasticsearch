@@ -111,7 +111,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
@@ -129,6 +128,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -145,7 +145,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
@@ -224,7 +223,6 @@ import java.lang.annotation.Target;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -2756,9 +2754,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
                 List<Class<? extends Plugin>> plugins = new ArrayList<>(ESIntegTestCase.this.nodePlugins());
-                if (enableIndexSlice()) {
-                    plugins.add(AlwaysValidateSlicePlugin.class);
-                }
                 if (enableConcurrentSearch) {
                     plugins.add(ConcurrentSearchTestPlugin.class);
                 }
@@ -2781,15 +2776,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Default is true, can be disabled if it causes problems in specific tests.
      */
     protected boolean enableConcurrentSearch() {
-        return true;
-    }
-
-    /**
-     * Whether the test cluster should enable index slicing validation.
-     * This adds the {@link IndexSettings#SLICE_VALIDATED} setting to all indices created in the cluster. In production, this happens
-     * via an x-pack plugin
-     */
-    protected boolean enableIndexSlice() {
         return true;
     }
 
@@ -2867,34 +2853,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         @Override
         public List<Setting<?>> getSettings() {
             return Collections.singletonList(INDEX_TEST_SEED_SETTING);
-        }
-    }
-
-    public static final class AlwaysValidateSlicePlugin extends Plugin {
-        private static final SliceIndexingValidationProvider PROVIDER_INSTANCE = new SliceIndexingValidationProvider();
-
-        @Override
-        public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-            return List.of(PROVIDER_INSTANCE);
-        }
-
-        private static final class SliceIndexingValidationProvider implements IndexSettingProvider {
-            @Override
-            public void provideAdditionalSettings(
-                String indexName,
-                String dataStreamName,
-                IndexMode templateIndexMode,
-                ProjectMetadata projectMetadata,
-                Instant resolvedAt,
-                Settings indexTemplateAndCreateRequestSettings,
-                List<CompressedXContent> combinedTemplateMappings,
-                IndexVersion indexVersion,
-                Settings.Builder additionalSettings
-            ) {
-                if (IndexSettings.SLICE_ENABLED.get(indexTemplateAndCreateRequestSettings)) {
-                    additionalSettings.put(IndexSettings.SLICE_VALIDATED.getKey(), "true");
-                }
-            }
         }
     }
 

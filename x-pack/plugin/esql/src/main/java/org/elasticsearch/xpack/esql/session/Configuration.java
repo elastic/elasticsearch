@@ -49,6 +49,15 @@ public class Configuration implements Writeable {
 
     private static final TransportVersion ESQL_EXPLAIN_ONLY = TransportVersion.fromName("esql_explain_only");
 
+    /**
+     * Reserved transport version id from the GROK watchdog work (#152170), which was reverted before release.
+     * Intentionally unused: the id is boxed in between released version markers, so it cannot be removed without
+     * breaking transport-version id density. This reference keeps the definition from becoming orphaned. Do not
+     * serialize anything against it — the feature was reverted and mixed clusters must not exchange a grok field.
+     */
+    @SuppressWarnings("unused")
+    private static final TransportVersion ESQL_GROK_WATCHDOG = TransportVersion.fromName("esql_grok_watchdog");
+
     private final String clusterName;
     private final String username;
     private final Instant now;

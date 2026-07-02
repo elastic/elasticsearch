@@ -107,6 +107,13 @@ public class MetricValidator {
          */
         static final Set<String> OTEL_ATTRIBUTES = Set.of(MetricAttributes.ERROR_TYPE);
 
+        /**
+         * Routing attribute consumed by apm-server to direct a datapoint to a specific data stream
+         * (see apm-data {@code input/otlp}). It is stripped during ingestion and never stored as a
+         * label, so it is permitted on any metric regardless of the attribute naming pattern.
+         */
+        static final String DATA_STREAM_DATASET_ATTRIBUTE = "data_stream.dataset";
+
         static final Set<String> SEARCH_ATTRIBUTES = Set.of(
             "knn",
             "pit_scroll",
@@ -349,6 +356,7 @@ public class MetricValidator {
                 );
 
             assert Attributes.OTEL_ATTRIBUTES.contains(attribute)
+                || Attributes.DATA_STREAM_DATASET_ATTRIBUTE.equals(attribute)
                 || Attributes.SKIP_VALIDATION.getOrDefault(metricName, emptySet()).contains(attribute)
                 // allow percentile for all thread pools
                 // https://github.com/elastic/dev/issues/3436 remove the usage of percentile as attribute and move to metric name.

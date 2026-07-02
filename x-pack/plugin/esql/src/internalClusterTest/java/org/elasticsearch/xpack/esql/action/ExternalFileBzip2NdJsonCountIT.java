@@ -12,6 +12,8 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.Build;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -19,7 +21,9 @@ import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -85,6 +89,19 @@ public class ExternalFileBzip2NdJsonCountIT extends AbstractEsqlIntegTestCase {
     }
 
     @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
+            .build();
+    }
+
+    @Before
+    public void requireLocalFilesEnabled() {
+        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+    }
+
+    @Override
     protected QueryPragmas getPragmas() {
         return QueryPragmas.EMPTY;
     }
@@ -100,6 +117,9 @@ public class ExternalFileBzip2NdJsonCountIT extends AbstractEsqlIntegTestCase {
 
     private void assertExternalBzip2NdJsonCount(String remoteUrl, long expectedCount, TimeValue requestTimeout) {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+        // bzip2 is outside the GA text-format codec set (uncompressed/gzip/zstd) and is rejected on release
+        // builds; this end-to-end bzip2 read is therefore snapshot-only. See elastic/esql-planning#938.
+        assumeTrue("bzip2 text-format codec is rejected on release builds", Build.current().isSnapshot());
 
         String query = "EXTERNAL \"" + remoteUrl + "\" | STATS c = COUNT(*)";
 

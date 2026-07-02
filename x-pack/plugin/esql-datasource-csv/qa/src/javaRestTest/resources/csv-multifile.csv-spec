@@ -54,7 +54,7 @@ required_capability: external_command
 required_capability: external_source_file_metadata_columns
 dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 
-FROM employees_multifile_split_brackets
+FROM employees_multifile_split_brackets METADATA _file.name
 | STATS names = COUNT_DISTINCT(`_file.name`);
 
 names:long
@@ -66,7 +66,7 @@ required_capability: external_command
 required_capability: external_source_file_metadata_columns
 dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 
-FROM employees_multifile_split_brackets
+FROM employees_multifile_split_brackets METADATA _file.name
 | STATS count = COUNT(*) BY `_file.name`
 | STATS files = COUNT(*), total = SUM(count);
 
@@ -79,7 +79,7 @@ required_capability: external_command
 required_capability: external_source_file_metadata_columns
 dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 
-FROM employees_multifile_split_brackets
+FROM employees_multifile_split_brackets METADATA _file.size
 | WHERE `_file.size` > 0
 | STATS count = COUNT(*);
 

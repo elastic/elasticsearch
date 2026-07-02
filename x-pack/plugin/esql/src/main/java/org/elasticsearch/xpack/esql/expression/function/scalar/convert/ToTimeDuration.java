@@ -37,6 +37,7 @@ public class ToTimeDuration extends FoldablesConvertFunction {
         @Param(
             name = "field",
             type = { "time_duration", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Input value. The input is a valid constant time duration expression."
         ) Expression v
     ) {

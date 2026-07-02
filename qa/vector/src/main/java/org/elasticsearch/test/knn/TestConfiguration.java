@@ -81,7 +81,9 @@ public record TestConfiguration(
     int secondaryClusterSize,
     boolean autoCalibrate,
     String directoryType,
-    DatasetConfig datasetConfig
+    DatasetConfig datasetConfig,
+    int numDeletedDocs,
+    long deleteSeed
 ) {
 
     static final ParseField DATASET_FIELD = new ParseField("dataset");
@@ -125,6 +127,8 @@ public record TestConfiguration(
     static final ParseField FLAT_VECTOR_THRESHOLD = new ParseField("flat_vector_threshold");
     static final ParseField AUTO_CALIBRATE_FIELD = new ParseField("auto_calibrate");
     static final ParseField DIRECTORY_TYPE_FIELD = new ParseField("directory_type");
+    static final ParseField NUM_DELETED_DOCS_FIELD = new ParseField("num_deleted_docs");
+    static final ParseField DELETE_SEED_FIELD = new ParseField("delete_seed");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -197,6 +201,8 @@ public record TestConfiguration(
         PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
         PARSER.declareBoolean(Builder::setAutoCalibrate, AUTO_CALIBRATE_FIELD);
         PARSER.declareString(Builder::setDirectoryType, DIRECTORY_TYPE_FIELD);
+        PARSER.declareInt(Builder::setNumDeletedDocs, NUM_DELETED_DOCS_FIELD);
+        PARSER.declareLong(Builder::setDeleteSeed, DELETE_SEED_FIELD);
     }
 
     public int numberOfSearchRuns() {
@@ -226,6 +232,12 @@ public record TestConfiguration(
             new ParameterHelp("doc_vectors", "array[string]", "Required. Paths to document vectors files used for indexing."),
             new ParameterHelp("query_vectors", "string", "Optional. Path to query vectors file; omit to skip searches."),
             new ParameterHelp("num_docs", "int", "Number of documents to index."),
+            new ParameterHelp(
+                "num_deleted_docs",
+                "int",
+                "Number of indexed documents to delete after indexing (0 by default). Uses delete_seed to pick which documents."
+            ),
+            new ParameterHelp("delete_seed", "long", "Random seed used to select which documents are deleted."),
             new ParameterHelp("num_queries", "int", "Number of queries to run from the query vectors file."),
             new ParameterHelp("index_type", "string", "Index type: hnsw, flat, ivf, or gpu_hnsw."),
             new ParameterHelp("ivf_cluster_size", "int", "IVF: number of clusters."),
@@ -430,6 +442,8 @@ public record TestConfiguration(
         private boolean autoCalibrate = false;
         private int flatIndexThreshold = -1; // use format's default threshold
         private String directoryType = "default";
+        private int numDeletedDocs = 0;
+        private long deleteSeed = 1751900822751L;
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -655,6 +669,16 @@ public record TestConfiguration(
             return this;
         }
 
+        public Builder setNumDeletedDocs(int numDeletedDocs) {
+            this.numDeletedDocs = numDeletedDocs;
+            return this;
+        }
+
+        public Builder setDeleteSeed(long deleteSeed) {
+            this.deleteSeed = deleteSeed;
+            return this;
+        }
+
         /*
          * Each dataset has a descriptor file, expected to be at gs://<bucket>/<dataset>/<dataset>.json, with contents of:
            {
@@ -867,6 +891,14 @@ public record TestConfiguration(
             if (autoCalibrate && indexType != KnnIndexTester.IndexType.IVF) {
                 throw new IllegalArgumentException("auto_calibrate is only supported when index_type is ivf");
             }
+            if (numDeletedDocs < 0) {
+                throw new IllegalArgumentException("num_deleted_docs must be >= 0, but got: " + numDeletedDocs);
+            }
+            if (numDeletedDocs >= numDocs) {
+                throw new IllegalArgumentException(
+                    "num_deleted_docs must be less than num_docs, but got num_deleted_docs=" + numDeletedDocs + " and num_docs=" + numDocs
+                );
+            }
 
             // length of the longest array parameter
             int longestParam = longestParameter();
@@ -935,7 +967,9 @@ public record TestConfiguration(
                 secondaryClusterSize,
                 autoCalibrate,
                 directoryType,
-                datasetConfig
+                datasetConfig,
+                numDeletedDocs,
+                deleteSeed
             );
         }
 
@@ -998,6 +1032,12 @@ public record TestConfiguration(
             builder.field(FLAT_VECTOR_THRESHOLD.getPreferredName(), flatVectorThreshold);
             builder.field(AUTO_CALIBRATE_FIELD.getPreferredName(), autoCalibrate);
             builder.field(DIRECTORY_TYPE_FIELD.getPreferredName(), directoryType);
+            if (numDeletedDocs > 0) {
+                builder.field(NUM_DELETED_DOCS_FIELD.getPreferredName(), numDeletedDocs);
+            }
+            if (deleteSeed != 1751900822751L) {
+                builder.field(DELETE_SEED_FIELD.getPreferredName(), deleteSeed);
+            }
             return builder.endObject();
         }
 

@@ -86,6 +86,74 @@ export BUILDKITE_API_TOKEN
 
 export GH_TOKEN="${VAULT_GITHUB_TOKEN:-}"
 
+# ── pi-agent ──────────────────────────────────────────────────────────────────
+# Bootstraps the self-contained pi-agent CLI (https://github.com/elastic/rene-bk-experiments)
+# so the elasticsearch-agentic-workflow pipeline can run pi sessions on this agent.
+#
+# Completely inert unless USE_PI_AGENT=true is set on the step. The required
+# secrets live in Vault at secret/ci/elastic-elasticsearch/agentic-workflows.
+if [[ "${USE_PI_AGENT:-}" == "true" ]]; then
+  # LiteLLM API key — the bundled models.json resolves it automatically.
+  ELASTIC_LITELLM_API_KEY=$(vault_with_retry read -field=litellm_token secret/ci/elastic-elasticsearch/agentic-workflows)
+  export ELASTIC_LITELLM_API_KEY
+
+  # Read-only Buildkite token for the agent's bk_* tools. The bundled
+  # buildkite-jobs extension reads BUILDKITE_API_TOKEN, so alias it here
+  # (scoped to this step's environment).
+  BUILDKITE_RO_API_TOKEN=$(vault_with_retry read -field=buildkite_ro_token secret/ci/elastic-elasticsearch/agentic-workflows)
+  export BUILDKITE_RO_API_TOKEN
+  export BUILDKITE_API_TOKEN="${BUILDKITE_RO_API_TOKEN}"
+
+  # Develocity API key for build-scan reads during analysis.
+  DEVELOCITY_API_KEY=$(vault_with_retry read -field=develocity_api_token secret/ci/elastic-elasticsearch/agentic-workflows)
+  export DEVELOCITY_API_KEY
+
+  export PATH="${HOME}/.local/bin:${PATH}"
+
+  # Bootstrap pi-agent if not already cached on this agent.
+  PI_AGENT_TAG="${PI_AGENT_TAG:-pi-agent-v1.0.2}"
+  PI_AGENT_DIR="${HOME}/.local/pi-agent"
+
+  if [[ ! -x "${PI_AGENT_DIR}/bin/pi-agent.js" ]]; then
+    echo "--- Bootstrapping pi-agent (${PI_AGENT_TAG})"
+
+    # The release repo is private — use the org-level gh_token from Vault.
+    GH_ADMIN_TOKEN=$(vault_with_retry read -field=gh_token secret/ci/elastic-elasticsearch/agentic-workflows)
+
+    # Resolve the pinned release's .tgz asset API URL.
+    PI_TARBALL_URL=$(curl -fsSL \
+      -H "Authorization: Bearer ${GH_ADMIN_TOKEN}" \
+      "https://api.github.com/repos/elastic/rene-bk-experiments/releases/tags/${PI_AGENT_TAG}" \
+      | node -e "
+          const r = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8'));
+          const a = r.assets.find(a => a.name.endsWith('.tgz') && !a.name.includes('sha256'));
+          if (!a) { process.stderr.write('No .tgz asset found in release\n'); process.exit(1); }
+          process.stdout.write(a.url);
+        ")
+
+    TMPDIR_DL="$(mktemp -d)"
+    curl -fsSL \
+      -H "Authorization: Bearer ${GH_ADMIN_TOKEN}" \
+      -H "Accept: application/octet-stream" \
+      "${PI_TARBALL_URL}" \
+      -o "${TMPDIR_DL}/pi-agent.tgz"
+
+    rm -rf "${PI_AGENT_DIR}"
+    mkdir -p "${PI_AGENT_DIR}"
+    tar -xzf "${TMPDIR_DL}/pi-agent.tgz" -C "${PI_AGENT_DIR}" --strip-components=1
+
+    # Install the bundled pi SDK dependency.
+    npm install --prefix "${PI_AGENT_DIR}" --omit=dev --no-audit --no-fund --silent
+
+    mkdir -p "${HOME}/.local/bin"
+    ln -sf "${PI_AGENT_DIR}/bin/pi-agent.js" "${HOME}/.local/bin/pi-agent"
+    chmod +x "${PI_AGENT_DIR}/bin/pi-agent.js"
+    rm -rf "${TMPDIR_DL}"
+    unset GH_ADMIN_TOKEN
+  fi
+fi
+# ── end pi-agent ──────────────────────────────────────────────────────────────
+
 if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
   data=$(.buildkite/scripts/get-legacy-secret.sh aws-elastic/creds/lucene-snapshots)
 

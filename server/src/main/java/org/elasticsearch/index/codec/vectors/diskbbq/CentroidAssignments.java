@@ -13,46 +13,23 @@ import java.util.Arrays;
 
 public record CentroidAssignments(
     int numCentroids,
-    float[][] centroids,
     int[] assignments,
-    int[] overspillAssignments,
+    OverspillAssignments overspillAssignments,
     float[] globalCentroid,
     CentroidSlices centroidSlices
 ) {
 
-    public CentroidAssignments(int dims, float[][] centroids, int[] assignments, int[] overspillAssignments) {
-        this(centroids.length, centroids, assignments, overspillAssignments, computeGlobalCentroid(dims, centroids), null);
-        assert assignments.length == overspillAssignments.length || overspillAssignments.length == 0
+    public CentroidAssignments(int numCentroids, int[] assignments, OverspillAssignments overspillAssignments, float[] globalCentroid) {
+        this(numCentroids, assignments, overspillAssignments, globalCentroid, null);
+        assert assignments.length == overspillAssignments.size() || overspillAssignments.size() == 0
             : "assignments and overspillAssignments must have the same length";
 
     }
 
-    public CentroidAssignments(
-        int dims,
-        float[][] centroids,
-        int[] assignments,
-        int[] overspillAssignments,
-        CentroidSlices centroidSlices
-    ) {
-        this(centroids.length, centroids, assignments, overspillAssignments, computeGlobalCentroid(dims, centroids), centroidSlices);
-        assert assignments.length == overspillAssignments.length || overspillAssignments.length == 0
+    public CentroidAssignments {
+        assert assignments.length == overspillAssignments.size() || overspillAssignments.size() == 0
             : "assignments and overspillAssignments must have the same length";
         assert centroidSlices == null || Arrays.stream(centroidSlices.sliceNumVectors()).sum() == assignments.length;
         assert centroidSlices == null || CentroidSlices.assertSliceOffsets(centroidSlices.sliceOffsets(), numCentroids);
-    }
-
-    private static float[] computeGlobalCentroid(int dims, float[][] centroids) {
-        final float[] globalCentroid = new float[dims];
-        // TODO: push this logic into vector util?
-        for (float[] centroid : centroids) {
-            assert centroid.length == dims;
-            for (int j = 0; j < centroid.length; j++) {
-                globalCentroid[j] += centroid[j];
-            }
-        }
-        for (int j = 0; j < globalCentroid.length; j++) {
-            globalCentroid[j] /= centroids.length;
-        }
-        return globalCentroid;
     }
 }

@@ -231,7 +231,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             minDocID = 0;
         } else {
             skipper.advance(ord, Long.MAX_VALUE);
-            minDocID = skipper.minValue() == ord ? skipper.minDocID(0) : nextDoc(skipper.minDocID(0), sortedDocValues, ord);
+            minDocID = skipper.minValue(0) == ord ? skipper.minDocID(0) : nextDoc(skipper.minDocID(0), sortedDocValues, ord);
         }
         int maxDocID;
         if (skipper.maxValue() == ord) {
@@ -239,7 +239,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         } else {
             int nextOrd = ord + 1;
             skipper.advance(nextOrd, Long.MAX_VALUE);
-            maxDocID = skipper.minValue() == nextOrd ? skipper.minDocID(0) : nextDoc(skipper.minDocID(0), sortedDocValues, nextOrd);
+            maxDocID = skipper.minValue(0) == nextOrd ? skipper.minDocID(0) : nextDoc(skipper.minDocID(0), sortedDocValues, nextOrd);
         }
         return new ESAcceptDocs.SliceAcceptDocs(minDocID, maxDocID);
     }

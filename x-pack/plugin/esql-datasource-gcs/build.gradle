@@ -235,7 +235,7 @@ dependencies {
   javaRestTestImplementation 'com.google.api:gax:2.63.1'
 
   // The DEFAULT distribution already bundles repository-gcs, workload-identity, and every
-  // esql-datasource-* module needed by GcsWorkloadIdentityAuthIT. Mapper plugins are not in
+  // esql-datasource-* module needed by GcsManagedIdentityAuthIT. Mapper plugins are not in
   // DEFAULT and still need to be provisioned explicitly for the test cluster.
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')

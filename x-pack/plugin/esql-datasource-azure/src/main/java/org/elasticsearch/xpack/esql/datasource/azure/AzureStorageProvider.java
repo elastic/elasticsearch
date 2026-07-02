@@ -36,6 +36,7 @@ import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -82,12 +83,13 @@ import java.util.function.Function;
  * The async dependencies ({@code azure-core-http-netty}, Reactor Netty, Netty) are already
  * bundled in this plugin's classloader. Versions are aligned with {@code repository-azure}.
  * <p>
- * Authentication: connection string, account+key, SAS token, {@code auth=none} for public
- * containers, {@code auth=workload_identity} (AKS Workload Identity via the entitled
- * federated-token symlink under {@code ${ES_PATH_CONF}} when configured, falling back to
- * {@code ManagedIdentityCredential} via Azure IMDS), or workload identity federation
- * ({@code tenant_id} + {@code client_id} + {@code jwt_audience}) which mints a JWT via the
- * node's workload-identity issuer and exchanges it through Azure AD as a client assertion.
+ * Authentication (selected by the {@code auth} mode; {@code auto} infers it from the fields present):
+ * {@code auth=static_credentials} (connection string, account+key, or account+SAS token),
+ * {@code auth=federated_identity} ({@code tenant_id} + {@code client_id} + {@code jwt_audience}) which mints a JWT
+ * via the node's workload-identity issuer and exchanges it through Azure AD as a client assertion,
+ * {@code auth=anonymous} for public containers, or {@code auth=managed_identity} (AKS Workload Identity via the
+ * entitled federated-token symlink under {@code ${ES_PATH_CONF}} when configured, falling back to
+ * {@code ManagedIdentityCredential} via Azure IMDS).
  * {@code DefaultAzureCredential} is excluded entirely: it bundles file-reading and process-spawning
  * credential sources blocked by entitlements.
  */
@@ -157,7 +159,10 @@ public final class AzureStorageProvider implements StorageProvider {
         this.environment = environment;
         this.executor = executor;
         this.maxConnections = maxConnections;
-        if (config != null && (config.hasCredentials() || config.hasKeylessAuth() || config.isAnonymous())) {
+        // Build the client eagerly so misconfigurations are caught early — except auth=managed_identity, whose
+        // endpoint can be derived from the per-query wasbs://<account>... path (unavailable at construction), so it
+        // is deferred to first use like on the pre-refactor path. With no configuration (config is null), also defer.
+        if (config != null && config.resolveAuthMode() != FileDataSourceConfiguration.AuthMode.MANAGED_IDENTITY) {
             BlobServiceClientBuilder builder = configureBlobServiceClientBuilder(config, null);
             this.clients = new Clients(builder.buildClient(), builder.buildAsyncClient());
         }
@@ -264,109 +269,118 @@ public final class AzureStorageProvider implements StorageProvider {
     }
 
     private BlobServiceClientBuilder configureBlobServiceClientBuilder(AzureConfiguration config, String accountFromPath) {
+        if (config == null) {
+            // The datasource layer always builds a provider from a validated configuration.
+            throw new IllegalArgumentException("Azure data source requires a configuration");
+        }
         BlobServiceClientBuilder builder = new BlobServiceClientBuilder().httpClient(buildSizedHttpClient());
 
-        if (config != null && config.isAnonymous()) {
-            String account = accountFromPath;
-            if (account == null && config.account() != null) {
-                account = config.account();
-            }
-            if (config.endpoint() != null && config.endpoint().isEmpty() == false) {
-                builder.endpoint(config.endpoint());
-            } else if (account != null) {
-                builder.endpoint(blobEndpoint(account));
-            } else {
-                throw new IllegalStateException(
-                    "Anonymous Azure access requires an endpoint or account from the path "
-                        + "(wasbs://account.blob.core.windows.net/...) or WITH {\"endpoint\": \"...\"}"
-                );
-            }
-        } else if (config != null && config.hasCredentials()) {
-            if (Strings.hasText(config.connectionString())) {
-                builder.connectionString(config.connectionString());
+        // Field inference happens only inside resolveAuthMode()'s auto branch; every explicit mode maps straight to
+        // its case here. Within STATIC_CREDENTIALS the specific static form (connection_string / account+key /
+        // account+sas) is assembled from whichever fields are present — that is form selection, not mode inference.
+        // A switch expression yielding the configured builder keeps this exhaustive: a new AuthMode fails to compile.
+        return switch (config.resolveAuthMode()) {
+            case ANONYMOUS -> {
+                String account = accountFromPath;
+                if (account == null && config.account() != null) {
+                    account = config.account();
+                }
                 if (config.endpoint() != null && config.endpoint().isEmpty() == false) {
                     builder.endpoint(config.endpoint());
-                }
-            } else if (Strings.hasText(config.account()) && Strings.hasText(config.key())) {
-                StorageSharedKeyCredential credential = new StorageSharedKeyCredential(config.account(), config.key());
-                String endpoint = config.endpoint();
-                if (endpoint == null || endpoint.isEmpty()) {
-                    endpoint = blobEndpoint(config.account());
-                }
-                builder.endpoint(endpoint).credential(credential);
-            } else if (Strings.hasText(config.sasToken()) && Strings.hasText(config.account())) {
-                String endpoint = config.endpoint();
-                if (endpoint == null || endpoint.isEmpty()) {
-                    endpoint = blobEndpoint(config.account());
-                }
-                builder.endpoint(endpoint).sasToken(config.sasToken());
-            } else {
-                throw new IllegalStateException("Azure credentials require connection_string, (account + key), or (account + sas_token)");
-            }
-        } else if (config != null && config.isWorkloadIdentity()) {
-            // Workload-identity selection (NOT a chain: only one of these makes sense at a time).
-            //
-            // 1. If the AKS Workload Identity env triple is present, use WorkloadIdentityCredential
-            // pinned to the entitled symlink (maybeBuildAksWorkloadIdentityCredential hard-fails if
-            // the env triple is set but the symlink is missing/unreadable). We deliberately ignore
-            // AZURE_FEDERATED_TOKEN_FILE so the K8s-injected path stays out of the entitlement
-            // allowlist.
-            //
-            // Crucially we do NOT also add ManagedIdentityCredential here:
-            // ManagedIdentityCredentialBuilder auto-detects AZURE_FEDERATED_TOKEN_FILE itself
-            // and would re-enter the K8s path through its IdentityClient, hitting the
-            // entitlement and surfacing as a misleading "Managed Identity authentication is
-            // not available" error. WorkloadIdentityCredential already covers the AKS case.
-            //
-            // 2. Otherwise (no AKS env triple at all) fall back to ManagedIdentityCredential —
-            // covers Azure IMDS, the v1 surface.
-            //
-            // EnvironmentCredential is intentionally excluded: it reads AZURE_CLIENT_* env vars,
-            // which are a dev/CI convention and open a JVM-global-state override on production
-            // nodes. DefaultAzureCredential is also excluded — it bundles file-reading and
-            // process-spawning sources blocked by entitlements.
-            TokenCredential workloadIdentity = maybeBuildAksWorkloadIdentityCredential();
-            TokenCredential credential = workloadIdentity != null ? workloadIdentity : new ManagedIdentityCredentialBuilder().build();
-            String endpoint = Strings.hasText(config.endpoint())
-                ? config.endpoint()
-                : (accountFromPath != null ? blobEndpoint(accountFromPath) : null);
-            if (endpoint == null && Strings.hasText(config.account())) {
-                endpoint = blobEndpoint(config.account());
-            }
-            if (endpoint == null) {
-                throw new IllegalStateException(
-                    "auth=workload_identity requires an account from the path (wasbs://account.blob.core.windows.net/...) "
-                        + "or WITH {\"endpoint\": \"...\"}"
-                );
-            }
-            builder.endpoint(endpoint).credential(credential);
-        } else if (config != null && config.hasKeylessAuth()) {
-            String account = accountFromPath;
-            if (account == null && config.account() != null) {
-                account = config.account();
-            }
-            String endpoint = config.endpoint();
-            if (endpoint == null || endpoint.isEmpty()) {
-                if (account == null) {
+                } else if (account != null) {
+                    builder.endpoint(blobEndpoint(account));
+                } else {
                     throw new IllegalStateException(
-                        "Azure keyless authentication requires an account from the path "
-                            + "(wasbs://account.blob.core.windows.net/...) or WITH {\"account\": \"...\"}"
+                        "Anonymous Azure access requires an endpoint or account from the path "
+                            + "(wasbs://account.blob.core.windows.net/...) or the endpoint setting"
                     );
                 }
-                endpoint = blobEndpoint(account);
+                yield builder;
             }
-            builder.endpoint(endpoint).credential(buildClientAssertionCredential(config, executor));
-        } else {
-            throw new IllegalArgumentException(
-                "Azure data source requires credentials: provide WITH {\"connection_string\": \"...\"}, "
-                    + "WITH {\"account\": \"...\", \"key\": \"...\"}, WITH {\"account\": \"...\", \"sas_token\": \"...\"}, "
-                    + "WITH {\"auth\": \"none\"} for public containers, "
-                    + "WITH {\"auth\": \"workload_identity\"} to use the node's managed identity (requires cluster setting), "
-                    + "or configure keyless authentication settings (tenant_id, client_id, jwt_audience)"
-            );
-        }
-
-        return builder;
+            case STATIC_CREDENTIALS -> {
+                if (Strings.hasText(config.connectionString())) {
+                    builder.connectionString(config.connectionString());
+                    if (config.endpoint() != null && config.endpoint().isEmpty() == false) {
+                        builder.endpoint(config.endpoint());
+                    }
+                } else if (Strings.hasText(config.account()) && Strings.hasText(config.key())) {
+                    StorageSharedKeyCredential credential = new StorageSharedKeyCredential(config.account(), config.key());
+                    String endpoint = config.endpoint();
+                    if (endpoint == null || endpoint.isEmpty()) {
+                        endpoint = blobEndpoint(config.account());
+                    }
+                    builder.endpoint(endpoint).credential(credential);
+                } else if (Strings.hasText(config.sasToken()) && Strings.hasText(config.account())) {
+                    String endpoint = config.endpoint();
+                    if (endpoint == null || endpoint.isEmpty()) {
+                        endpoint = blobEndpoint(config.account());
+                    }
+                    builder.endpoint(endpoint).sasToken(config.sasToken());
+                } else {
+                    throw new IllegalStateException(
+                        "Azure credentials require connection_string, (account + key), or (account + sas_token)"
+                    );
+                }
+                yield builder;
+            }
+            case FEDERATED_IDENTITY -> {
+                String account = accountFromPath;
+                if (account == null && config.account() != null) {
+                    account = config.account();
+                }
+                String endpoint = config.endpoint();
+                if (endpoint == null || endpoint.isEmpty()) {
+                    if (account == null) {
+                        throw new IllegalStateException(
+                            "Azure keyless authentication requires an account from the path "
+                                + "(wasbs://account.blob.core.windows.net/...) or the account setting"
+                        );
+                    }
+                    endpoint = blobEndpoint(account);
+                }
+                builder.endpoint(endpoint).credential(buildClientAssertionCredential(config, executor));
+                yield builder;
+            }
+            case MANAGED_IDENTITY -> {
+                // Workload-identity selection (NOT a chain: only one of these makes sense at a time).
+                //
+                // 1. If the AKS Workload Identity env triple is present, use WorkloadIdentityCredential
+                // pinned to the entitled symlink (maybeBuildAksWorkloadIdentityCredential hard-fails if
+                // the env triple is set but the symlink is missing/unreadable). We deliberately ignore
+                // AZURE_FEDERATED_TOKEN_FILE so the K8s-injected path stays out of the entitlement
+                // allowlist.
+                //
+                // Crucially we do NOT also add ManagedIdentityCredential here:
+                // ManagedIdentityCredentialBuilder auto-detects AZURE_FEDERATED_TOKEN_FILE itself
+                // and would re-enter the K8s path through its IdentityClient, hitting the
+                // entitlement and surfacing as a misleading "Managed Identity authentication is
+                // not available" error. WorkloadIdentityCredential already covers the AKS case.
+                //
+                // 2. Otherwise (no AKS env triple at all) fall back to ManagedIdentityCredential —
+                // covers Azure IMDS, the v1 surface.
+                //
+                // EnvironmentCredential is intentionally excluded: it reads AZURE_CLIENT_* env vars,
+                // which are a dev/CI convention and open a JVM-global-state override on production
+                // nodes. DefaultAzureCredential is also excluded — it bundles file-reading and
+                // process-spawning sources blocked by entitlements.
+                TokenCredential workloadIdentity = maybeBuildAksWorkloadIdentityCredential();
+                TokenCredential credential = workloadIdentity != null ? workloadIdentity : new ManagedIdentityCredentialBuilder().build();
+                String endpoint = Strings.hasText(config.endpoint())
+                    ? config.endpoint()
+                    : (accountFromPath != null ? blobEndpoint(accountFromPath) : null);
+                if (endpoint == null && Strings.hasText(config.account())) {
+                    endpoint = blobEndpoint(config.account());
+                }
+                if (endpoint == null) {
+                    throw new IllegalStateException(
+                        "auth=managed_identity requires an account from the path (wasbs://account.blob.core.windows.net/...) "
+                            + "or the endpoint setting"
+                    );
+                }
+                builder.endpoint(endpoint).credential(credential);
+                yield builder;
+            }
+        };
     }
 
     /**
@@ -506,19 +520,18 @@ public final class AzureStorageProvider implements StorageProvider {
             if (e instanceof BlobStorageException bse && bse.getStatusCode() == 404) {
                 return false;
             }
-            throw new IOException("Failed to check existence of " + path + " (properties denied, range GET also failed)", e);
+            throw new IOException(
+                "Failed to check existence of " + path + " (properties denied, range GET also failed)" + credentialHint(),
+                e
+            );
         }
     }
 
     private String credentialHint() {
-        if (config == null
-            || (config.isAnonymous() == false
-                && config.hasCredentials() == false
-                && config.hasKeylessAuth() == false
-                && config.isWorkloadIdentity() == false)) {
-            return ". If accessing a public container, use WITH {\"auth\": \"none\"}. "
-                + "Otherwise, provide credentials via WITH {\"account\": \"...\", \"key\": \"...\"}, configure keyless "
-                + "authentication settings, or set Azure environment variables";
+        if (config == null || config.resolveAuthModeOrNull() == null) {
+            return ". If accessing a public container, set auth=anonymous. "
+                + "Otherwise, provide credentials via account and key, "
+                + "or configure keyless authentication with tenant_id, client_id, and jwt_audience";
         }
         return "";
     }

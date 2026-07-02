@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -201,7 +200,11 @@ public class SigtermTerminationHandler implements TerminationHandler {
         logger.info("Blocking shutdown of node {} waiting for a node with role {}", localNode.getId(), targetRole);
         Predicate<DiscoveryNode> nodeFilter = node -> node.getId().equals(nodeId) == false && node.getRoles().contains(targetRole);
 
-        ReadyChecker readyChecker = new ReadyChecker();
+        // Seed the known node set from the current cluster state *before* registering the listener. The listener fires on the
+        // cluster applier thread while this setup runs on the shutdown thread, so seeding it afterwards would let this (older)
+        // snapshot clobber a fresher node set already published by the listener. That would make maybeSendReadyCheck wrongly
+        // treat a just-added node as gone and silently drop its readiness check, hanging shutdown forever (see #148037).
+        ReadyChecker readyChecker = new ReadyChecker(clusterService.state().nodes().stream());
 
         // Watch for new nodes to join
         ClusterStateListener nodesChangedListener = event -> {
@@ -214,9 +217,9 @@ public class SigtermTerminationHandler implements TerminationHandler {
         };
         clusterService.addListener(nodesChangedListener);
 
-        // Immediately check any nodes already in the cluster
+        // Immediately check any nodes already in the cluster. Re-read the state so we don't miss a node that joined between the
+        // snapshot above and registering the listener; pendingNodes dedups against anything the listener also picked up.
         Set<DiscoveryNode> nodes = clusterService.state().nodes().stream().filter(nodeFilter).collect(Collectors.toSet());
-        readyChecker.setCurrentNodes(nodes.stream());
         readyChecker.sendReadyChecks(nodes);
 
         // Now block and wait for the first ready response
@@ -244,15 +247,17 @@ public class SigtermTerminationHandler implements TerminationHandler {
         private final Set<String> pendingNodes = new HashSet<>();
 
         /**
-         * Null indicates we don't yet have information about the nodes in the cluster
-         * and should not conclude that we can stop the retry loop for any particular node.
-         * This happens during the brief window after we've registered the cluster state listener
-         * but before we've fetched the node list for the initial round of checks.
-         * We'll set this later, once things have settled, and from then on it can be used reliably
-         * to stop retries on nodes.
+         * The IDs of the nodes currently in the cluster, used to stop retries on nodes that have left.
+         * Seeded from the current cluster state in the constructor (before the cluster state listener is
+         * registered, and thus before any readiness check runs) so it is never observed unset, and updated
+         * by the listener as nodes come and go. Volatile because the listener writes it from the cluster
+         * applier thread while readiness checks read it from other threads.
          */
-        @Nullable
-        private volatile Set<String> currentNodes = null;
+        private volatile Set<String> currentNodes;
+
+        ReadyChecker(Stream<DiscoveryNode> initialNodes) {
+            setCurrentNodes(initialNodes);
+        }
 
         private void setCurrentNodes(Stream<DiscoveryNode> nodes) {
             this.currentNodes = nodes.map(DiscoveryNode::getId).collect(Collectors.toSet());
@@ -293,8 +298,7 @@ public class SigtermTerminationHandler implements TerminationHandler {
          * in case it re-joins in the future.
          */
         private void maybeSendReadyCheck(DiscoveryNode node, TimeValue retryInterval) {
-            var currentNodes = this.currentNodes;
-            if (currentNodes != null && currentNodes.contains(node.getId()) == false) {
+            if (this.currentNodes.contains(node.getId()) == false) {
                 logger.debug("Node {} no longer exists in the cluster", node.getId());
                 // Remove the node from pendingNodes so that we start up a fresh request loop if it ever rejoins
                 pendingNodes.remove(node.getId());

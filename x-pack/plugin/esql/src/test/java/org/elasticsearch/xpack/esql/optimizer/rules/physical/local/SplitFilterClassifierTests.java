@@ -162,29 +162,29 @@ public class SplitFilterClassifierTests extends ESTestCase {
     // --- AND conjunction ---
 
     public void testConjunctionAllMatch() {
-        assertEquals(MATCH, classifySplit(List.of(greaterThanOrEqualOf(AGE, of(10L)), lessThanOrEqualOf(AGE, of(20L))), STATS_10_20));
+        assertEquals(MATCH, classifySplit(List.of(greaterThanOrEqualOf(AGE, of(10L)), lessThanOrEqualOf(AGE, of(20L))), STATS_10_20, true));
     }
 
     public void testConjunctionOneMiss() {
-        assertEquals(MISS, classifySplit(List.of(greaterThanOrEqualOf(AGE, of(10L)), lessThanOf(AGE, of(5L))), STATS_10_20));
+        assertEquals(MISS, classifySplit(List.of(greaterThanOrEqualOf(AGE, of(10L)), lessThanOf(AGE, of(5L))), STATS_10_20, true));
     }
 
     public void testConjunctionMixedMatchAndAmbiguous() {
-        assertEquals(AMBIGUOUS, classifySplit(List.of(greaterThanOrEqualOf(AGE, of(10L)), lessThanOf(AGE, of(15L))), STATS_10_20));
+        assertEquals(AMBIGUOUS, classifySplit(List.of(greaterThanOrEqualOf(AGE, of(10L)), lessThanOf(AGE, of(15L))), STATS_10_20, true));
     }
 
     // --- Edge cases ---
 
     public void testEmptyConjuncts() {
-        assertEquals(AMBIGUOUS, classifySplit(List.of(), STATS_10_20));
+        assertEquals(AMBIGUOUS, classifySplit(List.of(), STATS_10_20, true));
     }
 
     public void testNullStats() {
-        assertEquals(AMBIGUOUS, classifySplit(List.of(greaterThanOf(AGE, of(5L))), null));
+        assertEquals(AMBIGUOUS, classifySplit(List.of(greaterThanOf(AGE, of(5L))), null, true));
     }
 
     public void testEmptyStats() {
-        assertEquals(AMBIGUOUS, classifyExpression(greaterThanOf(AGE, of(5L)), SplitStats.EMPTY));
+        assertEquals(AMBIGUOUS, classifyExpression(greaterThanOf(AGE, of(5L)), SplitStats.EMPTY, true));
     }
 
     public void testMissingColumnStats() {
@@ -321,6 +321,27 @@ public class SplitFilterClassifierTests extends ESTestCase {
         assertEquals(AMBIGUOUS, classify(isNull(AGE), stats));
     }
 
+    /**
+     * WRONG-DATA regression: for a format WITHOUT implicit nulls (partially-harvested text stats), an
+     * ABSENT column means "not harvested" — its null count is unknowable, NOT rowCount. Classifying it
+     * as all-null would MATCH {@code IS NULL} (COUNT(*) served as N where the truth is 0) or MISS
+     * {@code IS NOT NULL} (COUNT(*) served as 0 where the truth is N). Both must be AMBIGUOUS so the
+     * engine re-scans. Under implicit nulls (footer formats) the all-null classification stays correct.
+     */
+    public void testIsNullFamilyAmbiguousForUnharvestedTextColumn() {
+        // Stats harvested only for "other" — the filtered column "age" was never observed.
+        SplitStats partial = colStats("other", 1L, 9L, 100L, 0L);
+        assertEquals(AMBIGUOUS, classifyExpression(isNull(AGE), partial, false));
+        assertEquals(AMBIGUOUS, classifyExpression(isNotNull(AGE), partial, false));
+        // Footer semantics: absent == all-null stays classifiable.
+        assertEquals(MATCH, classifyExpression(isNull(AGE), partial, true));
+        assertEquals(MISS, classifyExpression(isNotNull(AGE), partial, true));
+        // A column the text harvest DID observe classifies normally without implicit nulls.
+        SplitStats harvested = colStats(COL, 30L, 50L, 100L, 0L);
+        assertEquals(MISS, classifyExpression(isNull(AGE), harvested, false));
+        assertEquals(MATCH, classifyExpression(isNotNull(AGE), harvested, false));
+    }
+
     // --- IS NOT NULL ---
 
     public void testIsNotNullMatchWhenNoNulls() {
@@ -388,7 +409,7 @@ public class SplitFilterClassifierTests extends ESTestCase {
     // --- helpers ---
 
     private static SplitFilterClassifier.SplitMatch classify(Expression filter, SplitStats stats) {
-        return classifyExpression(filter, stats);
+        return classifyExpression(filter, stats, true);
     }
 
     private static SplitStats colStats(String colName, Object min, Object max, long rowCount, long nullCount) {

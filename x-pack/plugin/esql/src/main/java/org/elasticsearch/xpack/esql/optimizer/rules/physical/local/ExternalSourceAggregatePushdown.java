@@ -349,7 +349,8 @@ public final class ExternalSourceAggregatePushdown {
      */
     static org.elasticsearch.xpack.esql.datasources.spi.SplitStats resolveFilteredStats(
         ExternalSourceExec externalExec,
-        Expression filterCondition
+        Expression filterCondition,
+        boolean implicitNullsForAbsentColumn
     ) {
         List<? extends ExternalSplit> splits = externalExec.splits();
 
@@ -364,7 +365,11 @@ public final class ExternalSourceAggregatePushdown {
             if (stats == null) {
                 return null;
             }
-            SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyExpression(filterCondition, stats);
+            SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyExpression(
+                filterCondition,
+                stats,
+                implicitNullsForAbsentColumn
+            );
             return switch (result) {
                 case MATCH -> stats;
                 case MISS -> SplitStats.EMPTY;
@@ -379,7 +384,11 @@ public final class ExternalSourceAggregatePushdown {
             if (stats == null) {
                 return null;
             }
-            SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyExpression(filterCondition, stats);
+            SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyExpression(
+                filterCondition,
+                stats,
+                implicitNullsForAbsentColumn
+            );
             switch (result) {
                 case MATCH -> matchedStats.add(stats);
                 case MISS -> {

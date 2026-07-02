@@ -144,7 +144,11 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
 
         org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats;
         if (filterForClassification != null) {
-            stats = ExternalSourceAggregatePushdown.resolveFilteredStats(externalExec, filterForClassification);
+            stats = ExternalSourceAggregatePushdown.resolveFilteredStats(
+                externalExec,
+                filterForClassification,
+                implicitNullsForAbsentColumn
+            );
         } else {
             stats = SplitStats.resolveEffectiveStats(externalExec.splits(), externalExec.sourceMetadata());
         }

@@ -596,9 +596,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.cluster.FloatHierarchicalKMeansTests
   method: testHKmeans
   issue: https://github.com/elastic/elasticsearch/issues/152027
-- class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
-  method: testRandomDirectoryIOExceptions
-  issue: https://github.com/elastic/elasticsearch/issues/152037
 - class: org.elasticsearch.xpack.esql.action.ExternalParquetStringTopNSideChannelIT
   method: testNullsFirstEarlyTermination
   issue: https://github.com/elastic/elasticsearch/issues/152038

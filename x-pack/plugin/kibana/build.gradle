@@ -13,7 +13,10 @@ esplugin {
   name = 'x-pack-kibana'
   description = 'Implicit security privileges for Kibana as-data features'
   classname = 'org.elasticsearch.xpack.kibana.KibanaPlugin'
-  extendedPlugins = ['x-pack-core', 'x-pack-security']
+  // x-pack-core isn't listed here: x-pack-security already extends it, so it's on the classpath
+  // transitively. See https://github.com/elastic/elasticsearch/pull/148331#discussion_r3508332181
+  // (outstanding review feedback on the original x-pack-kibana scaffold).
+  extendedPlugins = ['x-pack-security']
 }
 
 base {

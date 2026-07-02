@@ -306,7 +306,7 @@ public class SplitStatsTests extends ESTestCase {
                 long rows = randomIntBetween(1, 100);
                 SplitStats.Builder b = new SplitStats.Builder().rowCount(rows);
                 int c = b.addColumn("c");
-                switch (randomIntBetween(0, 2)) {
+                switch (randomIntBetween(0, 3)) {
                     case 0 -> { // servable: has non-null values (nc < rows) and a min/max
                         b.nullCount(c, randomIntBetween(0, (int) rows - 1));
                         b.min(c, randomExtremum());
@@ -314,11 +314,15 @@ public class SplitStatsTests extends ESTestCase {
                     }
                     case 1 -> // all-null: every row null, no extremum, not poisoned
                         b.nullCount(c, rows);
-                    default -> { // poisoned: has values (nc < rows) but the extremum was cleared
+                    case 2 -> { // poisoned: has values (nc < rows) but the extremum was cleared
                         b.nullCount(c, randomIntBetween(0, (int) rows - 1));
                         b.minUnservable(c);
                         b.maxUnservable(c);
                     }
+                    default -> // present with non-null rows but NO extremum committed and NOT poisoned
+                        // (minServable stays true, min/max null). This is the case ColumnFold used to serve a
+                        // subset extremum for while MergedSplitStats poisons — the fold must poison too.
+                        b.nullCount(c, randomIntBetween(0, (int) rows - 1));
                 }
                 // Randomly give the (present) column a known value count or leave it unknown (-1, the
                 // addColumn default). Mixing present-with-count and present-without-count children is the

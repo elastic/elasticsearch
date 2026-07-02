@@ -684,6 +684,11 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
                         min = merged;
                     }
                 }
+            } else if (sp.nullCounts[i] != sp.rowCount) {
+                // Present (or unknown-null-count) column with no min value: we cannot rule out a smaller value
+                // in this split, so poison rather than serve the other splits' subset minimum — matching
+                // MergedSplitStats.columnMin. Only an all-null column (nullCount == rowCount) yields no candidate.
+                minServable = false;
             }
             if (sp.maxServable[i] == false) {
                 maxServable = false;
@@ -703,6 +708,9 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
                         max = merged;
                     }
                 }
+            } else if (sp.nullCounts[i] != sp.rowCount) {
+                // Symmetric to MIN: a present column with no max value poisons (can't rule out a larger value).
+                maxServable = false;
             }
         }
 

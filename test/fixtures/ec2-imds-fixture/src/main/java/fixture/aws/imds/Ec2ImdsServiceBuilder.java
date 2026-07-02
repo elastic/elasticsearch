@@ -24,6 +24,7 @@ public class Ec2ImdsServiceBuilder {
     private final Ec2ImdsVersion ec2ImdsVersion;
     private BiConsumer<String, String> newCredentialsConsumer = Ec2ImdsServiceBuilder::rejectNewCredentials;
     private Supplier<String> authorizationTokenSupplier = null;
+    private boolean podIdentityCredentialsResponse = false;
     private Collection<String> alternativeCredentialsEndpoints = Set.of();
     private Supplier<String> availabilityZoneSupplier = Ec2ImdsServiceBuilder::rejectAvailabilityZone;
     private ToXContent instanceIdentityDocument = null;
@@ -56,6 +57,16 @@ public class Ec2ImdsServiceBuilder {
         return this;
     }
 
+    /**
+     * If set, the credentials endpoint returns an {@code AccountId} field and omits {@code RoleArn}, matching the response
+     * shape of the EKS Pod Identity agent. If unset, the response carries a {@code RoleArn} as the EC2 IMDS and ECS
+     * container-credentials endpoints this fixture otherwise emulates do.
+     */
+    public Ec2ImdsServiceBuilder podIdentityCredentialsResponse() {
+        this.podIdentityCredentialsResponse = true;
+        return this;
+    }
+
     private static String rejectAvailabilityZone() {
         return ESTestCase.fail(null, "availability zones not supported");
     }
@@ -75,6 +86,7 @@ public class Ec2ImdsServiceBuilder {
             ec2ImdsVersion,
             newCredentialsConsumer,
             authorizationTokenSupplier,
+            podIdentityCredentialsResponse,
             alternativeCredentialsEndpoints,
             availabilityZoneSupplier,
             instanceIdentityDocument,

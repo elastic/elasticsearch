@@ -132,6 +132,26 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
         );
     }
 
+    public void testPodIdentityCredentialsEndpointReturnsAccountIdNotRoleArn() throws IOException {
+        final var credentialsEndpoint = "/" + randomIdentifier();
+        final Map<String, String> generatedCredentials = new HashMap<>();
+
+        final var handler = new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).alternativeCredentialsEndpoints(Set.of(credentialsEndpoint))
+            .podIdentityCredentialsResponse()
+            .newCredentialsConsumer(generatedCredentials::put)
+            .buildHandler();
+
+        final var credentialsResponse = handleRequest(handler, "GET", credentialsEndpoint);
+        assertThat(generatedCredentials, aMapWithSize(1));
+
+        assertEquals(RestStatus.OK, credentialsResponse.status());
+        final var responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), credentialsResponse.body().streamInput(), false);
+        // EKS Pod Identity returns an AccountId and no RoleArn, unlike the EC2 IMDS / ECS credentials responses.
+        assertEquals(Set.of("AccessKeyId", "Expiration", "AccountId", "SecretAccessKey", "Token"), responseMap.keySet());
+        assertEquals(generatedCredentials.keySet().iterator().next(), responseMap.get("AccessKeyId"));
+        assertEquals(generatedCredentials.values().iterator().next(), responseMap.get("Token"));
+    }
+
     public void testAlternativeCredentialsEndpointRequiresAuthorizationToken() throws IOException {
         final var authorizationToken = randomSecretKey();
         final var credentialsEndpoint = "/" + randomIdentifier();

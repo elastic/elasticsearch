@@ -64,6 +64,8 @@ public class RepositoryS3PodIdentityCredentialsRestIT extends AbstractRepository
     private static final Ec2ImdsHttpFixture podIdentityCredentialsFixture = new Ec2ImdsHttpFixture(
         new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).newCredentialsConsumer(dynamicCredentials::addValidCredentials)
             .alternativeCredentialsEndpoints(Set.of("/pod_identity_credentials_endpoint"))
+            // Return the EKS Pod Identity response shape (AccountId, no RoleArn) rather than the EC2/ECS RoleArn shape.
+            .podIdentityCredentialsResponse()
             // Verify the SDK sends the token read from the entitled file, which is the whole point of this test.
             .authorizationTokenSupplier(podIdentityTokenSupplier)
     );

@@ -49,6 +49,8 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
     private final BiConsumer<String, String> newCredentialsConsumer;
     @Nullable // if non-null, the credentials endpoint requires this exact Authorization header value
     private final Supplier<String> authorizationTokenSupplier;
+    // if true, the credentials endpoint returns the EKS Pod Identity response shape (AccountId, no RoleArn)
+    private final boolean podIdentityCredentialsResponse;
     private final Map<String, String> instanceAddresses;
     private final Set<String> validCredentialsEndpoints;
     private final boolean dynamicProfileNames;
@@ -60,6 +62,7 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
         Ec2ImdsVersion ec2ImdsVersion,
         BiConsumer<String, String> newCredentialsConsumer,
         @Nullable Supplier<String> authorizationTokenSupplier,
+        boolean podIdentityCredentialsResponse,
         Collection<String> alternativeCredentialsEndpoints,
         Supplier<String> availabilityZoneSupplier,
         @Nullable ToXContent instanceIdentityDocument,
@@ -68,6 +71,7 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
         this.ec2ImdsVersion = Objects.requireNonNull(ec2ImdsVersion);
         this.newCredentialsConsumer = Objects.requireNonNull(newCredentialsConsumer);
         this.authorizationTokenSupplier = authorizationTokenSupplier;
+        this.podIdentityCredentialsResponse = podIdentityCredentialsResponse;
         this.instanceAddresses = instanceAddresses;
 
         if (alternativeCredentialsEndpoints.isEmpty()) {
@@ -148,17 +152,22 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                     final String accessKey = "test_key_imds_" + randomIdentifier();
                     final String sessionToken = randomIdentifier();
                     newCredentialsConsumer.accept(accessKey, sessionToken);
+                    // The EKS Pod Identity agent returns an AccountId and no RoleArn (see its EksCredentialsResponse),
+                    // while the EC2 IMDS and ECS container-credentials responses this fixture otherwise emulates carry a
+                    // RoleArn. Emit whichever field matches the endpoint under test so the fixture stays faithful.
+                    final String principalFieldName = podIdentityCredentialsResponse ? "AccountId" : "RoleArn";
                     final byte[] response = Strings.format(
                         """
                             {
                               "AccessKeyId": "%s",
                               "Expiration": "%s",
-                              "RoleArn": "%s",
+                              "%s": "%s",
                               "SecretAccessKey": "%s",
                               "Token": "%s"
                             }""",
                         accessKey,
                         ZonedDateTime.now(Clock.systemUTC()).plusDays(1L).format(DateTimeFormatter.ISO_DATE_TIME),
+                        principalFieldName,
                         randomIdentifier(),
                         randomSecretKey(),
                         sessionToken

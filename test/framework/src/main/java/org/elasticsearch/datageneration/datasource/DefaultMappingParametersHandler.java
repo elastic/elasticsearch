@@ -103,7 +103,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             // We only add copy_to to keywords because we get into trouble with numeric fields that are copied to dynamic fields.
             // If first copied value is numeric, dynamic field is created with numeric field type and then copy of text values fail.
             // Actual value being copied does not influence the core logic of copy_to anyway.
-            if (ESTestCase.randomDouble() <= 0.05) {
+            // copy_to is not allowed on fields in strict-columnar mode.
+            if (indexMode.isStrictColumnar() == false && ESTestCase.randomDouble() <= 0.05) {
                 var options = request.eligibleCopyToFields()
                     .stream()
                     .filter(f -> f.equals(request.fieldName()) == false)
@@ -218,7 +219,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = new HashMap<String, Object>();
 
-            mapping.put("store", ESTestCase.randomBoolean());
+            // store cannot be enabled in strict-columnar mode.
+            mapping.put("store", indexMode.isStrictColumnar() == false && ESTestCase.randomBoolean());
             mapping.put("index", ESTestCase.randomBoolean());
 
             return mapping;
@@ -276,12 +278,14 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
     public HashMap<String, Object> commonMappingParameters() {
         var map = new HashMap<String, Object>();
-        map.put("store", ESTestCase.randomBoolean());
+        // store cannot be enabled in strict-columnar mode.
+        map.put("store", indexMode.isStrictColumnar() == false && ESTestCase.randomBoolean());
         map.put("index", ESTestCase.randomBoolean());
         // doc_values cannot be disabled in strict-columnar mode: every field must be reconstructable from its own doc values.
         map.put("doc_values", indexMode.isStrictColumnar() || ESTestCase.randomBoolean());
 
-        if (ESTestCase.randomBoolean()) {
+        // synthetic_source_keep is not allowed on fields in strict-columnar mode.
+        if (indexMode.isStrictColumnar() == false && ESTestCase.randomBoolean()) {
             map.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, randomFrom("none", "arrays", "all"));
         }
 
@@ -342,6 +346,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
     @Override
     public DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
+        boolean strictColumnar = indexMode.isStrictColumnar();
+
         if (request.isNested()) {
             assert request.parentSubobjects() != ObjectMapper.Subobjects.DISABLED;
 
@@ -351,7 +357,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 if (ESTestCase.randomBoolean()) {
                     parameters.put("dynamic", randomFrom("true", "false", "strict"));
                 }
-                if (ESTestCase.randomBoolean()) {
+                // synthetic_source_keep is not allowed on objects in strict-columnar mode
+                if (strictColumnar == false && ESTestCase.randomBoolean()) {
                     parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "all");  // [arrays] doesn't apply to nested objects
                 }
 
@@ -378,17 +385,25 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 return parameters;
             }
 
-            if (ESTestCase.randomBoolean()) {
+            // the subobjects parameter itself is not allowed on objects in strict-columnar mode
+            if (strictColumnar == false && ESTestCase.randomBoolean()) {
                 parameters.put("subobjects", subobjects.toString());
             }
             if (ESTestCase.randomBoolean()) {
-                parameters.put("dynamic", randomFrom("true", "false", "strict", "runtime"));
+                // dynamic:runtime is not supported in strict-columnar mode
+                var dynamicValues = strictColumnar
+                    ? new String[] { "true", "false", "strict" }
+                    : new String[] { "true", "false", "strict", "runtime" };
+                parameters.put("dynamic", randomFrom(dynamicValues));
             }
             if (ESTestCase.randomBoolean()) {
-                parameters.put("enabled", randomFrom("true", "false"));
+                // enabled:false is not allowed on the root object in strict-columnar mode
+                var enabledValues = strictColumnar && request.isRoot() ? new String[] { "true" } : new String[] { "true", "false" };
+                parameters.put("enabled", randomFrom(enabledValues));
             }
 
-            if (ESTestCase.randomBoolean()) {
+            // synthetic_source_keep is not allowed on objects in strict-columnar mode
+            if (strictColumnar == false && ESTestCase.randomBoolean()) {
                 var value = request.isRoot() ? randomFrom("none", "arrays") : randomFrom("none", "arrays", "all");
                 parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, value);
             }

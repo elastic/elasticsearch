@@ -255,11 +255,16 @@ public class ExternalSourceResolver {
             return;
         }
 
-        // Resolution runs on the SEARCH pool and a wide multi-file resolve pins this worker on the
-        // BoundedParallelGather latch while it dispatches up to MAX_PARALLEL_METADATA_READS more SEARCH
-        // tasks (join pattern). This is an accepted tradeoff: the rework bounds submission so a saturated
-        // pool now fails fast via running-slot rejection rather than deadlocking on a flooded queue.
-        // Moving resolution off SEARCH entirely is left as a possible follow-up.
+        // Resolution runs on the caller-supplied executor (esql_worker in production, isolated from SEARCH
+        // so a wide wildcard cannot starve regular ES searches). A multi-file resolve pins one worker on
+        // the BoundedParallelGather latch while dispatching up to MAX_PARALLEL_METADATA_READS more tasks
+        // on the same pool (join pattern), for a peak of MAX_PARALLEL_METADATA_READS + 1 running slots.
+        // When the pool is smaller, ThrottledTaskRunner throttles submission rather than overflowing the
+        // queue; on saturation across concurrent ES|QL queries it fails fast per-slot via running-slot
+        // rejection rather than deadlocking. Splitting the coordinator from the footer fan-out onto a
+        // dedicated I/O pool would require a second executor here and is deferred until the
+        // esql_external_blocking_io pool's sizing and lifecycle are resolved; the caller-supplied
+        // executor is the current re-routing hook.
         executor.execute(() -> {
             try {
                 Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());

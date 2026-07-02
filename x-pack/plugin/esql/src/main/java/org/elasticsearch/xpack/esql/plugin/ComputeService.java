@@ -520,7 +520,10 @@ public class ComputeService {
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_COORDINATION
+            ThreadPool.Names.SEARCH_COORDINATION,
+            // execute() is invoked downstream of EsqlSession's analyzed-plan callback, which may complete on
+            // esql_worker after ExternalSourceResolver dispatches resolution there.
+            EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME
         );
         // Check if the plan contains subqueries (UnionAll) vs fork branches before breaking it apart.
         // Batching is only applied to subqueries, not fork branches.

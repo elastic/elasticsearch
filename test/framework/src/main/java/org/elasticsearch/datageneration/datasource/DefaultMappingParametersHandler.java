@@ -329,14 +329,11 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
     protected Object extendedDocValuesParams() {
         if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false || indexMode.isStrictColumnar() == false) {
-            // The object form of doc_values (including multi_value) is only accepted in strict-columnar index modes. Callers that
-            // actually generate for a strict-columnar index must construct this handler with that IndexMode.
+            // The object form (including multi_value) is only valid in strict-columnar mode.
             return ESTestCase.randomBoolean();
         }
 
-        // doc_values cannot be disabled in strict-columnar mode (every field must be reconstructable from its own doc values), so
-        // only the enabled forms are emitted here. Only multi_value: true is emitted because this handler does not coordinate
-        // single-value data generation; the multi_value: false path is exercised by SingleValueDocValuesDataSourceHandler.
+        // doc_values can't be disabled here; multi_value:false is exercised separately by SingleValueDocValuesDataSourceHandler.
         return switch (ESTestCase.randomInt(1)) {
             case 0 -> true;
             case 1 -> Map.of("multi_value", true);
@@ -391,15 +388,13 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             }
             if (ESTestCase.randomBoolean()) {
                 // dynamic:runtime is not supported in strict-columnar mode
-                var dynamicValues = strictColumnar
-                    ? new String[] { "true", "false", "strict" }
-                    : new String[] { "true", "false", "strict", "runtime" };
-                parameters.put("dynamic", randomFrom(dynamicValues));
+                var dynamic = strictColumnar ? randomFrom("true", "false", "strict") : randomFrom("true", "false", "strict", "runtime");
+                parameters.put("dynamic", dynamic);
             }
             if (ESTestCase.randomBoolean()) {
                 // enabled:false is not allowed on the root object in strict-columnar mode
-                var enabledValues = strictColumnar && request.isRoot() ? new String[] { "true" } : new String[] { "true", "false" };
-                parameters.put("enabled", randomFrom(enabledValues));
+                var enabled = strictColumnar && request.isRoot() ? "true" : randomFrom("true", "false");
+                parameters.put("enabled", enabled);
             }
 
             // synthetic_source_keep is not allowed on objects in strict-columnar mode

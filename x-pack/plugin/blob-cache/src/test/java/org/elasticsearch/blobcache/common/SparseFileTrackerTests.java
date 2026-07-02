@@ -752,7 +752,7 @@ public class SparseFileTrackerTests extends ESTestCase {
         assertTrue(upperOptGaps.isPresent());
         final var upperGaps = upperOptGaps.get().claim();
         assertThat(upperGaps, hasSize(1));
-        // Randomly register another (smaller) read for the upper half. It should not lead to incorrect forward either.
+        // Randomly register another (smaller) read for the upper half. It must not lead to incorrect forward either.
         if (randomBoolean()) {
             tracker.waitForRange(
                 ByteRange.of(firstSplitPosition, length - 1),

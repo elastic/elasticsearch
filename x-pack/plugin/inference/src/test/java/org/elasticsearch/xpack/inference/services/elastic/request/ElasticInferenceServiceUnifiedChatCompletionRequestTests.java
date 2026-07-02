@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
-import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -130,7 +129,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
         var modelId = "my-model-id";
         var inferenceEntityId = "test-endpoint-id";
 
-        var model = new ElasticInferenceServiceCompletionModel(
+        var model = ElasticInferenceServiceCompletionModelTests.createModel(
             inferenceEntityId,
             TaskType.COMPLETION,
             new ElasticInferenceServiceCompletionServiceSettings(modelId),

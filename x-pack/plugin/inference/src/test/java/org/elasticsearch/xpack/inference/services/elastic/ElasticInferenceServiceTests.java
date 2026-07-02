@@ -80,7 +80,6 @@ import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
-import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
@@ -936,7 +935,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
 
             // Create completion model
-            var model = new ElasticInferenceServiceCompletionModel(
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(
                 INFERENCE_ENTITY_ID,
                 TaskType.CHAT_COMPLETION,
                 new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
@@ -984,7 +983,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             // Create completion model
-            var model = new ElasticInferenceServiceCompletionModel(
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(
                 INFERENCE_ENTITY_ID,
                 TaskType.CHAT_COMPLETION,
                 new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
@@ -1119,7 +1118,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(mockedResponseJson));
 
             // Create completion model
-            var model = new ElasticInferenceServiceCompletionModel(
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(
                 INFERENCE_ENTITY_ID,
                 TaskType.CHAT_COMPLETION,
                 new ElasticInferenceServiceCompletionServiceSettings(MODEL_ID_VALUE),
@@ -1883,7 +1882,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
             webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(responseJson));
-            var model = new ElasticInferenceServiceCompletionModel(
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(
                 INFERENCE_ENTITY_ID,
                 TaskType.CHAT_COMPLETION,
                 new ElasticInferenceServiceCompletionServiceSettings(MODEL_ID_VALUE),

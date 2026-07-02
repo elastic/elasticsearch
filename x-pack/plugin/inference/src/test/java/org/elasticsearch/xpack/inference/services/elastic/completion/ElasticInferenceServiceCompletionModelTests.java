@@ -17,6 +17,7 @@ import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
 
 import java.util.List;
 
@@ -71,7 +72,7 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
 
     public void testGetInferenceEntityId() {
         var inferenceEntityId = "test-id";
-        var model = new ElasticInferenceServiceCompletionModel(
+        var model = createModel(
             inferenceEntityId,
             TaskType.COMPLETION,
             new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
@@ -93,11 +94,27 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
     }
 
     public static ElasticInferenceServiceCompletionModel createModel(String url, String modelId, TaskType taskType) {
-        return new ElasticInferenceServiceCompletionModel(
+        return createModel(
             "id",
             taskType,
             new ElasticInferenceServiceCompletionServiceSettings(modelId),
             ElasticInferenceServiceComponents.of(url)
+        );
+    }
+
+    public static ElasticInferenceServiceCompletionModel createModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        ElasticInferenceServiceCompletionServiceSettings serviceSettings,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents
+    ) {
+        return new ElasticInferenceServiceCompletionModel(
+            inferenceEntityId,
+            taskType,
+            serviceSettings,
+            elasticInferenceServiceComponents,
+            null,
+            ImmutableEmptyTaskSettings.INSTANCE
         );
     }
 

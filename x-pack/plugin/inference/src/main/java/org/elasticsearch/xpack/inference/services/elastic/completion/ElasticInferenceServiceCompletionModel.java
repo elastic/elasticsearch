@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
-import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -75,15 +74,6 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
     ) {
         super(model, serviceSettings);
         this.uri = createUri();
-    }
-
-    public ElasticInferenceServiceCompletionModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        ElasticInferenceServiceCompletionServiceSettings serviceSettings,
-        ElasticInferenceServiceComponents elasticInferenceServiceComponents
-    ) {
-        this(inferenceEntityId, taskType, serviceSettings, elasticInferenceServiceComponents, null, ImmutableEmptyTaskSettings.INSTANCE);
     }
 
     public ElasticInferenceServiceCompletionModel(

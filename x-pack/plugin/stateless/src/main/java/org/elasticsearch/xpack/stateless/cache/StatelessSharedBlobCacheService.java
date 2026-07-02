@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.indices.IndicesService;
@@ -100,7 +99,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
     private final boolean hasSearchRole;
     private final boolean cacheBoostPreferenceEnabled;
-    private final EvictionPolicy<FileCacheKey> evictionPolicy;
 
     // TODO Merge the two constructors
     public StatelessSharedBlobCacheService(
@@ -112,16 +110,18 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         IndicesService indicesService,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
-        this(
+        super(
             environment,
             settings,
             threadPool,
+            IO_EXECUTOR,
             blobCacheMetrics,
-            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
-            System::nanoTime,
-            threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
-            metricsHolder
+            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool)
         );
+        this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
+        this.metricsHolder = metricsHolder;
+        this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
+        this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
     }
 
     // for tests
@@ -142,7 +142,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             blobCacheMetrics,
             StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
             relativeTimeInNanosSupplier,
-            IO_EXECUTOR,
             metricsHolder
         );
     }
@@ -157,22 +156,8 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         LongSupplier relativeTimeInNanosSupplier,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
-        this(environment, settings, threadPool, blobCacheMetrics, evictionPolicy, relativeTimeInNanosSupplier, IO_EXECUTOR, metricsHolder);
-    }
-
-    private StatelessSharedBlobCacheService(
-        NodeEnvironment environment,
-        Settings settings,
-        ThreadPool threadPool,
-        BlobCacheMetrics blobCacheMetrics,
-        EvictionPolicy<FileCacheKey> evictionPolicy,
-        LongSupplier relativeTimeInNanosSupplier,
-        Executor shardReadExecutor,
-        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
-    ) {
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier, evictionPolicy);
-        this.evictionPolicy = evictionPolicy;
-        this.shardReadThreadPoolExecutor = shardReadExecutor;
+        this.shardReadThreadPoolExecutor = IO_EXECUTOR;
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
@@ -298,15 +283,5 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     public boolean isCacheBoostPreferenceEnabled() {
         return cacheBoostPreferenceEnabled;
-    }
-
-    public TimeValue getPinnedWindowDuration() {
-        if (evictionPolicy instanceof PinnedWindowEvictionPolicy pinnedWindowEvictionPolicy) {
-            return pinnedWindowEvictionPolicy.getPinnedWindowDuration();
-        }
-
-        final var error = "Method [getPinnedWindowDuration] is not supported on eviction policy [" + evictionPolicy.getClass() +']';
-        assert false : error;
-        throw new UnsupportedOperationException(error);
     }
 }

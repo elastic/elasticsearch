@@ -1336,8 +1336,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             false,
             false,
             false,
-            false,
-            IndexVersion.current(),
             null
         );
         testCase(iw -> {

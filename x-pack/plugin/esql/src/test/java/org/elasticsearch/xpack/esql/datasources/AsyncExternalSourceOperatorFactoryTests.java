@@ -80,6 +80,29 @@ import static org.mockito.Mockito.when;
  */
 public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
+    public void testResolveDispatchModeSequentialWhenSplitterNotStridedSafe() {
+        // A quoted CSV/TSV reader reports a non-strided splitter, so the uncompressed file must be read as one
+        // sequential stream through the streaming coordinator rather than segmented at arbitrary offsets.
+        SegmentableFormatReader quoted = mock(SegmentableFormatReader.class);
+        RecordSplitter nonStrided = mock(RecordSplitter.class);
+        when(nonStrided.supportsStridedProbing()).thenReturn(false);
+        when(quoted.recordSplitter()).thenReturn(nonStrided);
+        assertEquals(
+            AsyncExternalSourceOperatorFactory.ParallelDispatchMode.SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL,
+            AsyncExternalSourceOperatorFactory.resolveDispatchMode(quoted)
+        );
+
+        // A plain (quoting-off) reader keeps strided probing, so it stays on the offset-segmented parallel path.
+        SegmentableFormatReader plain = mock(SegmentableFormatReader.class);
+        RecordSplitter strided = mock(RecordSplitter.class);
+        when(strided.supportsStridedProbing()).thenReturn(true);
+        when(plain.recordSplitter()).thenReturn(strided);
+        assertEquals(
+            AsyncExternalSourceOperatorFactory.ParallelDispatchMode.SEGMENTABLE_UNCOMPRESSED,
+            AsyncExternalSourceOperatorFactory.resolveDispatchMode(plain)
+        );
+    }
+
     public void testConstructorValidation() {
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);

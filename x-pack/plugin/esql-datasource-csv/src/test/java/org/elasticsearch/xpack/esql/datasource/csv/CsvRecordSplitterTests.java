@@ -193,6 +193,21 @@ public class CsvRecordSplitterTests extends ESTestCase {
         assertEquals(buf.length - 1, splitter.findLastRecordBoundary(buf, buf.length));
     }
 
+    public void testCsvRecordSplitterDisablesStridedProbing() {
+        // The quote/bracket state machine can carry a record across a raw newline, so a mid-file probe is
+        // unsafe: the splitter reports it cannot be probed at arbitrary offsets and must be driven serially.
+        assertFalse(splitter(CsvFormatOptions.DEFAULT).supportsStridedProbing());
+        assertFalse(splitter(CsvFormatOptions.TSV).supportsStridedProbing());
+        assertFalse(splitter(bracketsDefault()).supportsStridedProbing());
+    }
+
+    public void testNewlineRecordSplitterKeepsStridedProbing() {
+        // With quoting off, every newline is an unambiguous boundary, so the plain splitter keeps the
+        // strided default that enables cross-node byte-range splitting.
+        RecordSplitter plain = new NewlineRecordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES);
+        assertTrue(plain.supportsStridedProbing());
+    }
+
     private static RecordSplitter splitter(CsvFormatOptions options) {
         return new CsvRecordSplitter(options, SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES);
     }

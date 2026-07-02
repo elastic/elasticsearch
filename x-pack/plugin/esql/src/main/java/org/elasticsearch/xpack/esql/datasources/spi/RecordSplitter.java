@@ -58,4 +58,19 @@ public interface RecordSplitter {
      * Maximum bytes a single record may occupy before the splitter reports {@link #RECORD_TOO_LARGE}.
      */
     int maxRecordBytes();
+
+    /**
+     * Whether it is safe to begin a boundary probe at an arbitrary mid-file offset (as the stride-based
+     * segmentation in {@code FileSplitProvider} and {@code ParallelParsingCoordinator} does).
+     * <p>
+     * This holds only when every record terminator is unambiguous from the byte immediately at it, i.e. a
+     * raw newline is always a true record boundary regardless of the state the scan started in. It is
+     * <em>false</em> for splitters whose grammar can carry a record across a raw newline (quoted fields
+     * with embedded newlines, bracketed multi-value cells): starting a probe inside such a construct
+     * misreads an in-construct newline as a terminator and desyncs the parse. Callers that get {@code false}
+     * must not split at arbitrary offsets; they read the file as one sequential stream instead.
+     */
+    default boolean supportsStridedProbing() {
+        return true;
+    }
 }

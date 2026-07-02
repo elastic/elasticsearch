@@ -368,6 +368,27 @@ public class FileSplitProvider implements SplitProvider {
     private List<ExternalSplit> processFileForSplits(FileTask task, @Nullable StorageProvider hoistedProvider) throws IOException {
         List<ExternalSplit> fileSplits = new ArrayList<>();
 
+        // Quoted CSV/TSV cannot be probed at arbitrary offsets (an in-quote newline would be misread as a
+        // record terminator), so no start-anywhere splitting is safe: not newline-aligned macro-splits, nor
+        // compressed block/frame-aligned splits. Emit a single whole-file split (identical to the fallback
+        // below); the reader consumes it as one sequential stream and finds boundaries quote-aware.
+        if (requiresSequentialWholeFileRead(task.filePath(), task.config())) {
+            fileSplits.add(
+                FileSplit.withReadSchema(
+                    "file",
+                    task.filePath(),
+                    0,
+                    task.fileLength(),
+                    task.format(),
+                    task.config(),
+                    task.partitionValues(),
+                    task.columnMapping(),
+                    task.readSchema()
+                )
+            );
+            return fileSplits;
+        }
+
         // Try block-aligned splitting for splittable compressed files (e.g. .ndjson.bz2).
         // This is independent of targetSplitSizeBytes — compressed files with splittable
         // codecs are always split at block boundaries when possible.
@@ -429,6 +450,38 @@ public class FileSplitProvider implements SplitProvider {
             FileSplit.withReadSchema("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping, readSchema)
         );
         return fileSplits;
+    }
+
+    /**
+     * Whether the file's config-resolved record splitter cannot be probed at arbitrary offsets (quoted
+     * CSV/TSV, whose quoted fields may embed newlines), so every start-anywhere splitting strategy must be
+     * disabled and the file read as one sequential stream. Returns {@code false} when splitting is safe, or
+     * when the reader cannot be resolved (no {@code formatRegistry}, unknown extension), preserving prior
+     * behavior. The compression suffix is stripped by {@link FormatNameResolver}, so this resolves the inner
+     * text reader for compressed files (e.g. {@code .csv.bz2}) too.
+     */
+    private boolean requiresSequentialWholeFileRead(StoragePath filePath, Map<String, Object> config) {
+        if (formatRegistry == null) {
+            return false;
+        }
+        String objectName = filePath.objectName();
+        if (objectName == null) {
+            return false;
+        }
+        final FormatReader reader;
+        try {
+            reader = FormatNameResolver.resolveReader(config, objectName, formatRegistry).withConfig(config);
+        } catch (RuntimeException e) {
+            LOGGER.debug(() -> "Cannot resolve reader for [" + objectName + "]; assuming strided probing is safe", e);
+            return false;
+        }
+        SegmentableFormatReader seg = AsyncExternalSourceOperatorFactory.resolveSegmentableReader(reader);
+        if (seg == null) {
+            return false;
+        }
+        RecordSplitter splitter = seg.recordSplitter();
+        // A null splitter (only reachable from mocks) keeps the strided default: splitting stays enabled.
+        return splitter != null && splitter.supportsStridedProbing() == false;
     }
 
     /**

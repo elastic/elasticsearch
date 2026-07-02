@@ -65,6 +65,17 @@ final class CsvRecordSplitter implements RecordSplitter {
         return maxRecordBytes;
     }
 
+    /**
+     * Quoted fields (and bracketed multi-value cells) can carry a record across a raw newline, so a probe
+     * that starts at an arbitrary offset can land mid-construct and misread an embedded newline as a record
+     * terminator. This splitter must therefore be driven sequentially from a known record start; the plain
+     * {@code NewlineRecordSplitter} used when {@code quoting == false} keeps the strided default.
+     */
+    @Override
+    public boolean supportsStridedProbing() {
+        return false;
+    }
+
     private int findLastRecordBoundaryByForwardScan(byte[] buf, int offset, int length) throws IOException {
         if (length <= 0) {
             return -1;

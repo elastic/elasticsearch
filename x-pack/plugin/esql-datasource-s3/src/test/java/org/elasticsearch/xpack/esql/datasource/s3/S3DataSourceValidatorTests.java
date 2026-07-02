@@ -186,7 +186,23 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
     }
 
-    public void testValidateDatasourceRejectsKeylessWhenDisabled() {
+    public void testValidateDatasourceRejectsExplicitKeylessWhenDisabled() {
+        // default validator has keyless authentication disabled
+        var keylessConfig = Map.<String, Object>of(
+            "auth",
+            "federated_identity",
+            "role_arn",
+            "arn:aws:iam::123456789012:role/example",
+            "jwt_audience",
+            "sts.amazonaws.com",
+            "region",
+            "us-east-1"
+        );
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(keylessConfig));
+        assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
+    }
+
+    public void testValidateDatasourceRejectsImplicitKeylessWhenDisabled() {
         // default validator has keyless authentication disabled
         var keylessConfig = Map.<String, Object>of(
             "role_arn",
@@ -204,7 +220,16 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         var keylessValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
             .withFederatedIdentityEnabled(() -> true);
         var result = keylessValidator.validateDatasource(
-            Map.of("role_arn", "arn:aws:iam::123456789012:role/example", "jwt_audience", "sts.amazonaws.com", "region", "us-east-1")
+            Map.of(
+                "auth",
+                "federated_identity",
+                "role_arn",
+                "arn:aws:iam::123456789012:role/example",
+                "jwt_audience",
+                "sts.amazonaws.com",
+                "region",
+                "us-east-1"
+            )
         );
         assertEquals("arn:aws:iam::123456789012:role/example", result.get("role_arn").nonSecretValue());
         assertFalse(result.get("role_arn").secret());

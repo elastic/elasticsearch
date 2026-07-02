@@ -230,9 +230,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         if (config instanceof FileDataSourceConfiguration fc && fc.isManagedIdentity() && managedIdentityEnabled.getAsBoolean() == false) {
             throw new ValidationException().addValidationError(FileDataSourceConfiguration.MANAGED_IDENTITY_DISABLED_MESSAGE);
         }
-        if (config instanceof FileDataSourceConfiguration fc
-            && fc.isFederatedIdentity()
-            && federatedIdentityEnabled.getAsBoolean() == false) {
+        if (isFederatedIdentityUsed(config) && federatedIdentityEnabled.getAsBoolean() == false) {
             throw new ValidationException().addValidationError(FEDERATED_IDENTITY_DISABLED_MESSAGE);
         }
         return config != null ? config.toStoredSettings() : Map.of();
@@ -318,6 +316,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
         errors.throwIfValidationErrorsExist();
         return result;
+    }
+
+    private boolean isFederatedIdentityUsed(DataSourceConfiguration config) {
+        return (config instanceof FileDataSourceConfiguration fc && fc.isFederatedIdentity()) || config.hasKeylessAuth();
     }
 
     /**

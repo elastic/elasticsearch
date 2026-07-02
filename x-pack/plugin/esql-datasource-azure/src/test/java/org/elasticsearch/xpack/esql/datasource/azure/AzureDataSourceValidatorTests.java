@@ -126,7 +126,27 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
         );
     }
 
-    public void testValidateDatasourceRejectsKeylessWhenDisabled() {
+    public void testValidateDatasourceRejectsExplicitKeylessWhenDisabled() {
+        // default validator has keyless authentication disabled
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(
+                Map.of(
+                    "auth",
+                    "federated_identity",
+                    "tenant_id",
+                    "tenant",
+                    "client_id",
+                    "client",
+                    "jwt_audience",
+                    "api://AzureADTokenExchange"
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
+    }
+
+    public void testValidateDatasourceRejectsImplicitKeylessWhenDisabled() {
         // default validator has keyless authentication disabled
         var e = expectThrows(
             org.elasticsearch.common.ValidationException.class,
@@ -141,7 +161,7 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
         var keylessValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
             .withFederatedIdentityEnabled(() -> true);
         var result = keylessValidator.validateDatasource(
-            Map.of("tenant_id", "tenant", "client_id", "client", "jwt_audience", "api://AzureADTokenExchange")
+            Map.of("auth", "federated_identity", "tenant_id", "tenant", "client_id", "client", "jwt_audience", "api://AzureADTokenExchange")
         );
         assertEquals("tenant", result.get("tenant_id").nonSecretValue());
         assertFalse(result.get("tenant_id").secret());

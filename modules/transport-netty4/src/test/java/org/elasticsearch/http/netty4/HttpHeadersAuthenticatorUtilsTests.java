@@ -14,10 +14,15 @@ import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
 
+import org.elasticsearch.common.settings.SecureReleasable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpHeadersWithAuthenticationContext;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -83,4 +88,47 @@ public final class HttpHeadersAuthenticatorUtilsTests extends ESTestCase {
             assertThat(((HttpHeadersWithAuthenticationContext) httpHeadersCopy).authenticationContextSetOnce.get(), nullValue());
         }
     }
+
+    public void testReleaseSecureReleasablesClosesAllReleasables() {
+        final DefaultHttpRequest httpRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
+        final DefaultHttpRequest validatableHttpRequest = (DefaultHttpRequest) HttpHeadersAuthenticatorUtils
+            .wrapAsMessageWithAuthenticationContext(httpRequest);
+        final HttpHeadersWithAuthenticationContext headers = (HttpHeadersWithAuthenticationContext) validatableHttpRequest.headers();
+
+        final AtomicBoolean releasableClosed = new AtomicBoolean(false);
+        final SecureReleasable releasable = () -> releasableClosed.set(true);
+        headers.setSecureReleasables(List.of(releasable));
+
+        final Netty4HttpRequest netty4Request = new Netty4HttpRequest(0, validatableHttpRequest, HttpBody.empty());
+
+        assertFalse(releasableClosed.get());
+
+        HttpHeadersAuthenticatorUtils.releaseSecureReleasables(netty4Request);
+
+        assertTrue(releasableClosed.get());
+    }
+
+    public void testReleaseSecureReleasablesHandlesExceptions() {
+        final DefaultHttpRequest httpRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
+        final DefaultHttpRequest validatableHttpRequest = (DefaultHttpRequest) HttpHeadersAuthenticatorUtils
+            .wrapAsMessageWithAuthenticationContext(httpRequest);
+        final HttpHeadersWithAuthenticationContext headers = (HttpHeadersWithAuthenticationContext) validatableHttpRequest.headers();
+
+        // create releasables where one throws an exception
+        final AtomicBoolean releasable1Closed = new AtomicBoolean(false);
+        final AtomicBoolean releasable2Closed = new AtomicBoolean(false);
+        final SecureReleasable throwingReleasable = () -> {
+            releasable1Closed.set(true);
+            throw new RuntimeException("test exception");
+        };
+        final SecureReleasable normalReleasable = () -> releasable2Closed.set(true);
+        headers.setSecureReleasables(List.of(throwingReleasable, normalReleasable));
+        final Netty4HttpRequest netty4Request = new Netty4HttpRequest(0, validatableHttpRequest, HttpBody.empty());
+
+        // call releaseSecureReleasables - should not throw, and should close all releasables
+        HttpHeadersAuthenticatorUtils.releaseSecureReleasables(netty4Request);
+        assertTrue(releasable1Closed.get());
+        assertTrue(releasable2Closed.get());
+    }
+
 }

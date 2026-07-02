@@ -1,0 +1,7 @@
+area: Search
+issues:
+ - 147575
+ - 124567
+pr: 152102
+summary: Add inference flag to field caps
+type: enhancement

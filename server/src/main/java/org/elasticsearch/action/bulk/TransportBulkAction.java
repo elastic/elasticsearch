@@ -234,7 +234,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         Map<String, CreateIndexRequest> indicesToAutoCreate = new HashMap<>();
         Set<String> dataStreamsToBeRolledOver = new HashSet<>();
         Set<String> failureStoresToBeRolledOver = new HashSet<>();
-        Map<String, List<Instant>> tsdbPastTimestampsToCover = new HashMap<>();
+        Map<String, List<Instant>> tsdbPastTimestampsToCover = pastTsdbIndexCreationEnabled ? new HashMap<>() : Map.of();
         long requestStartTime = threadPool.absoluteTimeInMillis();
         populateMissingTargets(
             bulkRequest,
@@ -334,7 +334,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         );
         Set<String> indicesThatRequireAlias = new HashSet<>();
         // Caches the start of the eligible write window per tsdb
-        Map<String, Long> tsdbWriteWindowStart = new HashMap<>();
+        Map<String, Long> tsdbWriteWindowStart = pastTsdbIndexCreationEnabled ? new HashMap<>() : Map.of();
         for (DocWriteRequest<?> request : bulkRequest.requests) {
             // Delete requests should not attempt to create the index (if the index does not exist), unless an external versioning is used.
             if (request.opType() == DocWriteRequest.OpType.DELETE

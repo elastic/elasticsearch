@@ -89,7 +89,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * does not have it registered, which would happen during a rolling upgrade.
      */
     public static final NodeFeature TIME_SERIES_PAST_INDEX_CREATION_FEATURE = new NodeFeature(
-        "data_stream.time_series.past_index_creation"
+        "data_stream.past_tsdb_index_creation_enabled"
     );
     private static final Logger LOGGER = LogManager.getLogger(DataStream.class);
 

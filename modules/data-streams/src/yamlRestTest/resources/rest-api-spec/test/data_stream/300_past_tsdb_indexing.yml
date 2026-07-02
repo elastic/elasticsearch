@@ -1,6 +1,6 @@
 setup:
   - requires:
-      cluster_features: ["data_stream.time_series.past_index_creation"]
+      cluster_features: ["data_stream.past_tsdb_index_creation_enabled"]
       reason: "TSDB past index creation is required to index documents with past timestamps"
       test_runner_features: allowed_warnings
 

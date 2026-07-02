@@ -199,9 +199,6 @@ final class TranslogDirectoryReader extends DirectoryReader {
         boolean rootDocOnly,
         Translog.Index operation
     ) {
-        // operation.uid() is the compound identity term for a slice index (Uid.encodeCompoundId) or a plain
-        // encodeId for a non-slice index. Extract the user-visible id accordingly so the re-parse feeds the
-        // mapper the correct plain id (the mapper rebuilds all three _id terms from id + routing).
         final boolean sliceEnabled = engineConfig.getIndexSettings().isSliceEnabled();
         final String id = sliceEnabled ? SliceIdFieldMapper.decodeCompoundId(operation.uid()) : Uid.decodeId(operation.uid());
         final ParsedDocument parsedDocs = documentParser.parseDocument(
@@ -361,9 +358,6 @@ final class TranslogDirectoryReader extends DirectoryReader {
             this.engineConfig = engineConfig;
             this.onSegmentCreated = onSegmentCreated;
             this.directory = directory;
-            // A realtime GET seeks the engine identity term, which is operation.uid() — the compound identity bytes for
-            // a slice index, or the plain encodeId for a non-slice index. Translog.Index now carries the compound uid
-            // directly (built by prepareIndex → encodeIdentity), so no reconstruction is needed.
             this.uid = operation.uid();
         }
 

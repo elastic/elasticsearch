@@ -104,14 +104,12 @@ public class SliceIdFieldMapper extends IdFieldMapper {
         }
         final String id = context.id();
         // Slice-free search term drives ids/term search; the compound term (== Engine.Operation.uid()) scopes
-        // uniqueness/versioning/GET/delete by (slice, id). Both are indexed-only (not stored), in both modes.
+        // uniqueness/versioning/GET/delete
         context.doc().add(new StringField(NAME, searchTerm(id), Field.Store.NO));
         final BytesRef compound = encodeCompoundId(id, slice);
         context.doc().add(new StringField(NAME, compound, Field.Store.NO));
         // The compound bytes are also stored as the _id value (stored field in document mode, binary doc values in
-        // columnar mode). Live docs and delete tombstones carry the same compound bytes, eliminating any live-vs-tombstone
-        // branching in the engine and recovery paths. The plain user id and slice are recovered at the presentation layer
-        // only (IdFieldMapper.decodeIdentity / decodeCompoundId).
+        // columnar mode).
         if (columnar) {
             context.doc().add(new BinaryDocValuesField(NAME, compound));
         } else {

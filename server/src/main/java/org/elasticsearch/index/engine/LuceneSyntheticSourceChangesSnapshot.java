@@ -321,5 +321,4 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
         }
         return null;
     }
-
 }

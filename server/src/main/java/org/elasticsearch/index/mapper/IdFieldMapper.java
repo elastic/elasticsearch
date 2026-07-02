@@ -40,8 +40,6 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
             return new ConstantBuilder(TsidExtractingIdFieldMapper.INSTANCE);
         } else if (indexSettings.isSliceEnabled()) {
-            // A slice-enabled index composes with columnar _id: follow the index's columnar default for where the plain
-            // id lives (binary doc values vs a stored field). The slice search/compound terms are indexed either way.
             return new ConstantBuilder(
                 indexSettings.isUseColumnarIdByDefault() ? SliceIdFieldMapper.COLUMNAR : SliceIdFieldMapper.DOCUMENT
             );
@@ -114,9 +112,8 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     }
 
     /**
-     * Resolve the identity term bytes — the {@code _id} term used for uniqueness/versioning/GET/delete (i.e.
-     * {@link org.elasticsearch.index.engine.Engine.Operation#uid()}). This is the single
-     * source of truth for the encoding.
+     * Resolve the {@code _id} term used for uniqueness/versioning/GET/delete
+     * This is the single source of truth for the encoding.
      */
     public static BytesRef encodeIdentity(boolean sliceEnabled, String id, @Nullable String routing) {
         if (sliceEnabled && routing == null) {
@@ -128,8 +125,7 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     /**
      * Decode the user-visible plain {@code _id} string from the bytes that are stored in the {@code _id} stored field
      * or binary doc value. For a slice-enabled index the stored bytes are the compound identity term
-     * ({@link SliceIdFieldMapper#encodeCompoundId(String, String)}); for a non-slice index they are the plain
-     * {@link Uid#encodeId(String)} bytes. This is the symmetric counterpart of {@link #encodeIdentity}.
+     * ({@link SliceIdFieldMapper#encodeCompoundId(String, String)}).
      */
     public static String decodeIdentity(boolean sliceEnabled, BytesRef storedBytes) {
         return sliceEnabled ? SliceIdFieldMapper.decodeCompoundId(storedBytes) : Uid.decodeId(storedBytes);

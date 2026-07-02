@@ -75,14 +75,10 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             }
             return createTsIdLoader(indexRouting, routingPaths, indexSettings.useTimeSeriesSyntheticId());
         }
-        // Columnar _id (binary doc values) is used by ProvidedIdFieldMapper and a slice-enabled SliceIdFieldMapper. (TSDB
-        // also stores _id as binary doc values but synthesizes it at read time; it is handled by the time_series branch
-        // above, never here.) Match those two explicitly rather than any IdFieldMapper.
         var idFieldMapper = mappingLookup.getMapping().getMetadataMapperByName(IdFieldMapper.NAME);
         boolean columnar = (idFieldMapper instanceof ProvidedIdFieldMapper provided && provided.isColumnarMode())
             || (idFieldMapper instanceof SliceIdFieldMapper slice && slice.isColumnarMode());
-        // For a slice-enabled index the stored/doc-value _id is the compound identity term; use a dedicated slice loader
-        // that decodes via IdFieldMapper.decodeIdentity rather than the plain Uid.decodeId.
+        // For a slice-enabled index the stored/doc-value _id is the compound identity term;
         boolean sliceEnabled = indexSettings.isSliceEnabled();
         if (columnar) {
             return sliceEnabled ? new SliceDocValuesIdLoader() : new DocValuesIdLoader();

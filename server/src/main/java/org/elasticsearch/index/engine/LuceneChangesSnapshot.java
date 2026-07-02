@@ -420,5 +420,4 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
     boolean useSequentialStoredFieldsReader() {
         return storedFieldsReader != null;
     }
-
 }

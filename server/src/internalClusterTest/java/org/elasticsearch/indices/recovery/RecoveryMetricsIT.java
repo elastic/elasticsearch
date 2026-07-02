@@ -14,10 +14,13 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
@@ -380,6 +383,91 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             Map.of(RecoveryMetricsCollector.CURRENT_STORE_RECOVERIES, 0L, RecoveryMetricsCollector.QUEUED_STORE_RECOVERIES, 0L)
 
         );
+    }
+
+    public void testDirectCancellationMetrics() throws Exception {
+        final var node = internalCluster().startNode(
+            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+        );
+        final var telemetry = resetAndGetTelemetryPlugin(node);
+
+        final var indexOne = randomIndexName();
+        final var indexTwo = randomIndexName();
+
+        final var firstRecoveryStarted = new CountDownLatch(1);
+        final var proceedWithFirstRecovery = new CountDownLatch(1);
+
+        final IndexEventListener indexEventListener = new IndexEventListener() {
+            @Override
+            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                if (indexShard.shardId().getIndexName().equals(indexOne)) {
+                    firstRecoveryStarted.countDown();
+                    safeAwait(proceedWithFirstRecovery);
+                }
+                listener.onResponse(null);
+            }
+        };
+        internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node).setNewDelegate(indexEventListener);
+
+        // First recovery is started and holds the only slot
+        assertAcked(prepareCreate(indexOne).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE));
+        safeAwait(firstRecoveryStarted);
+
+        // Second recovery is queued behind the first.
+        assertAcked(prepareCreate(indexTwo).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE));
+        awaitRecoveryCountStats(Map.of(node, stats -> stats.currentFromStore() == 1 && stats.currentFromStoreQueued() == 1));
+
+        final var clusterService = internalCluster().getInstance(ClusterService.class, node);
+        final var indicesService = internalCluster().getInstance(IndicesService.class, node);
+
+        // Directly cancel the queued recovery.
+        final var queuedShardId = new ShardId(resolveIndex(indexTwo), 0);
+        final var queuedAllocationId = indicesService.indexServiceSafe(queuedShardId.getIndex())
+            .getShard(0)
+            .routingEntry()
+            .allocationId()
+            .getId();
+        client(node).execute(
+            CancelRecoveriesAction.TYPE,
+            new CancelRecoveriesAction.Request(
+                clusterService.state().version(),
+                List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(queuedShardId, queuedAllocationId, false))
+            )
+        ).get();
+
+        awaitRecoveryCountMetrics(node, telemetry, Map.of(RecoveryMetricsCollector.RECOVERY_DIRECT_CANCELLATIONS_METRIC, 1L));
+        List<Measurement> cancellations = telemetry.getLongCounterMeasurement(
+            RecoveryMetricsCollector.RECOVERY_DIRECT_CANCELLATIONS_METRIC
+        );
+        assertThat("Direct cancellation measurements after queued cancellation", cancellations, hasSize(1));
+        assertThat("Recovery type", cancellations.getFirst().attributes().get("es_recovery_type"), equalTo("EMPTY_STORE"));
+        assertThat("Scheduling state", cancellations.getFirst().attributes().get("es_recovery_scheduling_state"), equalTo("QUEUED"));
+
+        // Directly cancel the started recovery.
+        final var startedShardId = new ShardId(resolveIndex(indexOne), 0);
+        final var startedAllocationId = indicesService.indexServiceSafe(startedShardId.getIndex())
+            .getShard(0)
+            .routingEntry()
+            .allocationId()
+            .getId();
+        client(node).execute(
+            CancelRecoveriesAction.TYPE,
+            new CancelRecoveriesAction.Request(
+                clusterService.state().version(),
+                List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(startedShardId, startedAllocationId, true))
+            )
+        ).get();
+        proceedWithFirstRecovery.countDown();
+
+        awaitRecoveryCountMetrics(node, telemetry, Map.of(RecoveryMetricsCollector.RECOVERY_DIRECT_CANCELLATIONS_METRIC, 2L));
+        cancellations = telemetry.getLongCounterMeasurement(RecoveryMetricsCollector.RECOVERY_DIRECT_CANCELLATIONS_METRIC);
+        assertThat("Direct cancellation measurements after started cancellation", cancellations, hasSize(2));
+        final Measurement startedMeasurement = cancellations.stream()
+            .filter(measurement -> "STARTED".equals(measurement.attributes().get("es_recovery_scheduling_state")))
+            .findFirst()
+            .orElseThrow();
+        assertThat("Recovery type", startedMeasurement.attributes().get("es_recovery_type"), equalTo("EMPTY_STORE"));
+        assertThat("Started cancellation count", startedMeasurement.getLong(), equalTo(1L));
     }
 
     private TestTelemetryPlugin resetAndGetTelemetryPlugin(String node) {

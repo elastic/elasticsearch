@@ -44,6 +44,9 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
 
     public static final String RECOVERY_DIRECT_CANCELLATIONS_METRIC = "es.recovery.shard.directcancellations.total";
 
+    private static final String RECOVERY_SCHEDULING_STATE_QUEUED = "queued";
+    private static final String RECOVERY_SCHEDULING_STATE_STARTED = "started";
+
     public static final RecoveryMetricsCollector NOOP = new RecoveryMetricsCollector(TelemetryProvider.NOOP);
 
     private final LongCounter shardRecoveryTotalMetric;
@@ -114,7 +117,7 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
         );
         shardRecoveryDirectCancellationsMetric = meterRegistry.registerLongCounter(
             RECOVERY_DIRECT_CANCELLATIONS_METRIC,
-            "Number of started shard recoveries that have been directly cancelled by the master",
+            "Number of shard recoveries that have been directly cancelled by the master, while queued or started",
             "unit"
         );
     }
@@ -172,14 +175,19 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     }
 
     @Override
+    public void onQueuedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {
+        updateQueuedRecovery(type, role, -1);
+        shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.QUEUED));
+    }
+
+    @Override
     public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
         updateActiveRecovery(type, role, -1);
     }
 
     @Override
     public void onStartedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {
-        // TODO: use type and role in metric attributes (https://github.com/elastic/elasticsearch-team/issues/2860)
-        shardRecoveryDirectCancellationsMetric.increment();
+        shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.STARTED));
     }
 
     private void updateQueuedRecovery(RecoverySource.Type type, RecoveryRole role, int delta) {
@@ -214,5 +222,14 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
 
     private static Map<String, Object> recoveryLifecycleMetricLabels(RecoverySource.Type type) {
         return Map.of("es_recovery_type", type.name());
+    }
+
+    private static Map<String, Object> directCancellationMetricLabels(RecoverySource.Type type, RecoverySchedulingState state) {
+        return Map.of("es_recovery_type", type.name(), "es_recovery_scheduling_state", state.name());
+    }
+
+    private enum RecoverySchedulingState {
+        QUEUED,
+        STARTED
     }
 }

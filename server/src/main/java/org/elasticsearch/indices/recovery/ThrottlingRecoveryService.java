@@ -177,7 +177,7 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
             logger.trace("cancelling recovery in queue: {}", state);
             RecoveryListener.wrapPreservingContext(pendingRecovery.listener, pendingRecovery.context)
                 .onRecoveryFailure(new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()), false);
-            schedulingListener.onQueuedRecoveryDiscarded(state.getRecoverySource().getType(), RecoveryRole.TARGET);
+            schedulingListener.onQueuedRecoveryCancelled(state.getRecoverySource().getType(), RecoveryRole.TARGET);
             cancelledInQueue.add(pendingRecovery.allocationId());
         }
         return cancelledInQueue;

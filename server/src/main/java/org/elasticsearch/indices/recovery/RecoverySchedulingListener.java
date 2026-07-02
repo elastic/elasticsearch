@@ -28,6 +28,9 @@ public interface RecoverySchedulingListener {
     /// Called when a queued recovery is discarded without having ever run.
     default void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {}
 
+    /// Called when a queued recovery is directly cancelled by the master node, before it started running.
+    default void onQueuedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {}
+
     /// Called when a recovery has been dispatched for execution on this data node.
     default void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {}
 

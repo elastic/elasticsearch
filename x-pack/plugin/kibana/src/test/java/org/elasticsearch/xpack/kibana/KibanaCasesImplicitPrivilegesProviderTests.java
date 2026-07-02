@@ -241,6 +241,27 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(result, is(empty()));
     }
 
+    public void testEmptyApplicationPrivilegesReturnsEmpty() {
+        // A role with no application-privilege blocks at all (e.g. an index-privileges-only role)
+        // must short-circuit without scanning the stored privileges.
+        RoleDescriptor roleDescriptor = new RoleDescriptor(
+            "test_role",
+            null,
+            null,
+            new RoleDescriptor.ApplicationResourcePrivileges[0],
+            null,
+            null,
+            null,
+            null
+        );
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "cases_read", Set.of(GET_CASE_ACTION_CASES), Map.of())
+        );
+
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(roleDescriptor, storedPrivileges);
+        assertThat(result, is(empty()));
+    }
+
     public void testStoredPrivilegeWithMultipleActionsIncludingGetCase() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
             new ApplicationPrivilegeDescriptor(
@@ -288,6 +309,9 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         assertTrue(query.contains("\"owner\""));
         assertTrue(query.contains(OWNER_CASES));
         assertFalse(query.contains("space_id"));
+        // Hand-rolled via XContentBuilder rather than QueryBuilders.termQuery, which always adds a
+        // "boost" field that would otherwise leak into the query stored on the role.
+        assertFalse(query.contains("boost"));
     }
 
     public void testBuildOwnerAndSpaceIdsDlsQuery() {
@@ -298,6 +322,9 @@ public class KibanaCasesImplicitPrivilegesProviderTests extends ESTestCase {
         assertTrue(query.contains(OWNER_OBSERVABILITY));
         assertTrue(query.contains("\"space_id\""));
         assertTrue(query.contains("default"));
+        // Hand-rolled via XContentBuilder rather than QueryBuilders.termQuery/termsQuery, which
+        // always add a "boost" field that would otherwise leak into the query stored on the role.
+        assertFalse(query.contains("boost"));
     }
 
     public void testStoredPrivilegeWithWildcardActionPatternForOwner() {

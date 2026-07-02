@@ -18,8 +18,8 @@ import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -93,7 +93,14 @@ public class KibanaCasesImplicitPrivilegesProvider implements ImplicitPrivileges
         RoleDescriptor roleDescriptor,
         Collection<ApplicationPrivilegeDescriptor> storedApplicationPrivileges
     ) {
-        Map<String, Set<String>> resourcesByOwner = collectResourcesByOwner(roleDescriptor, storedApplicationPrivileges);
+        // This provider derives privileges from the role's application privileges, so there is
+        // nothing to contribute (and no need to scan the stored privileges) when the role has none.
+        RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = roleDescriptor.getApplicationPrivileges();
+        if (applicationPrivileges.length == 0) {
+            return List.of();
+        }
+
+        Map<String, Set<String>> resourcesByOwner = collectResourcesByOwner(applicationPrivileges, storedApplicationPrivileges);
         if (resourcesByOwner.isEmpty()) {
             return List.of();
         }
@@ -158,7 +165,7 @@ public class KibanaCasesImplicitPrivilegesProvider implements ImplicitPrivileges
      * contributes its resources to every matching owner independently.
      */
     private static Map<String, Set<String>> collectResourcesByOwner(
-        RoleDescriptor roleDescriptor,
+        RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges,
         Collection<ApplicationPrivilegeDescriptor> storedApplicationPrivileges
     ) {
         Map<String, Set<String>> kibanaPrivilegeNamesGrantingActionByOwner = new HashMap<>();
@@ -172,7 +179,7 @@ public class KibanaCasesImplicitPrivilegesProvider implements ImplicitPrivileges
         }
 
         Map<String, Set<String>> resourcesByOwner = new HashMap<>();
-        for (RoleDescriptor.ApplicationResourcePrivileges arp : roleDescriptor.getApplicationPrivileges()) {
+        for (RoleDescriptor.ApplicationResourcePrivileges arp : applicationPrivileges) {
             // Application field may be a literal ("kibana-.kibana") or a wildcard ("kibana-*", "*");
             // StringMatcher handles both: it matches a literal with an exact-string predicate and only
             // builds an automaton for entries that actually contain wildcard characters.
@@ -180,7 +187,7 @@ public class KibanaCasesImplicitPrivilegesProvider implements ImplicitPrivileges
                 continue;
             }
 
-            List<String> privileges = Arrays.asList(arp.getPrivileges());
+            String[] privileges = arp.getPrivileges();
             for (Map.Entry<String, String> actionAndOwner : GET_CASE_ACTIONS_BY_OWNER.entrySet()) {
                 String action = actionAndOwner.getKey();
                 String owner = actionAndOwner.getValue();
@@ -188,14 +195,27 @@ public class KibanaCasesImplicitPrivilegesProvider implements ImplicitPrivileges
 
                 // Short-circuit on the resolved-name path (cheap set lookup) before matching the
                 // raw-pattern path with StringMatcher.
-                if (privileges.stream().anyMatch(namesGrantingAction::contains) || StringMatcher.of(privileges).test(action)) {
-                    resourcesByOwner.computeIfAbsent(owner, k -> new HashSet<>()).addAll(Arrays.asList(arp.getResources()));
+                boolean grantsActionByName = false;
+                for (String privilege : privileges) {
+                    if (namesGrantingAction.contains(privilege)) {
+                        grantsActionByName = true;
+                        break;
+                    }
+                }
+
+                if (grantsActionByName || StringMatcher.of(privileges).test(action)) {
+                    Collections.addAll(resourcesByOwner.computeIfAbsent(owner, k -> new HashSet<>()), arp.getResources());
                 }
             }
         }
 
         return resourcesByOwner;
     }
+
+    // Both query builders below are hand-rolled rather than QueryBuilders.termQuery/termsQuery so
+    // the stored/surfaced DLS query stays free of the default "boost":1.0 that the query builder
+    // classes always serialize - that field would otherwise show up in the query persisted on the
+    // role and returned by GET /_security/role/<name>?include_implicit=true.
 
     static String buildOwnerDlsQuery(String owner) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {

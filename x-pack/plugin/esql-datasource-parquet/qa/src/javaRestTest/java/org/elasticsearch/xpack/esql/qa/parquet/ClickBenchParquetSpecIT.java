@@ -135,7 +135,7 @@ public class ClickBenchParquetSpecIT extends EsqlSpecTestCase {
     protected void doTest() throws Throwable {
         // Register the local data_source once and the `clickbench` dataset for the active layout, resolving
         // the {{clickbench}} template to the single-file or multi-file URI, then run the spec's FROM query.
-        String dataSource = DatasetRegistry.ensureDataSource(client(), "clickbench_local_ds", "local", Map.of("auth", "none"));
+        String dataSource = DatasetRegistry.ensureDataSource(client(), "clickbench_local_ds", "local", Map.of("auth", "anonymous"));
         for (DatasetSource source : testCase.datasetSources) {
             String resource = substituteClickBenchTemplates(source.resource());
             DatasetRegistry.ensureDataset(client(), source.name(), dataSource, resource, source.withJson());

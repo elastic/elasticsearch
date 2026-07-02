@@ -180,9 +180,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     @ClassRule
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
-    // Anonymous form: migrated specs read every backend via FROM <dataset> with auth=none, so the Azure
-    // fixture must serve unauthenticated reads (the S3/GCS fixtures already do). No shared-key secret is
-    // stored, so these suites need no cluster encryption key.
+    // Anonymous form: migrated specs read every backend via FROM <dataset> with auth=anonymous, so the
+    // Azure fixture must serve unauthenticated reads (the S3/GCS fixtures already do). No shared-key
+    // secret is stored, so these suites need no cluster encryption key.
     @ClassRule
     public static DataSourcesAzureHttpFixture azureFixture = new DataSourcesAzureHttpFixture(true);
 
@@ -454,8 +454,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     /**
      * Lazily registers (and caches) the {@code data_source} pointing at the in-process fixture for the
-     * active backend. Every backend authenticates anonymously ({@code auth=none}, or no settings for the
-     * unauthenticated HTTP/local sources), so no secret is stored and the suites need no cluster
+     * active backend. Every backend authenticates anonymously ({@code auth=anonymous}, or no settings for
+     * the unauthenticated HTTP/local sources), so no secret is stored and the suites need no cluster
      * encryption key. The blob credentials, where a real backend would need them, are unnecessary because
      * each fixture serves its blobs without verifying authorization.
      */
@@ -471,16 +471,16 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 client(),
                 "esql_spec_gcs",
                 "gcs",
-                Map.of("endpoint", gcsFixture.getAddress(), "auth", "none")
+                Map.of("endpoint", gcsFixture.getAddress(), "auth", "anonymous")
             );
             case AZURE -> DatasetRegistry.ensureDataSource(
                 client(),
                 "esql_spec_azure",
                 "azure",
-                Map.of("endpoint", azureFixture.getAddress(), "auth", "none")
+                Map.of("endpoint", azureFixture.getAddress(), "auth", "anonymous")
             );
-            case HTTP -> DatasetRegistry.ensureDataSource(client(), "esql_spec_http", "http", Map.of("auth", "none"));
-            case LOCAL -> DatasetRegistry.ensureDataSource(client(), "esql_spec_local", "local", Map.of("auth", "none"));
+            case HTTP -> DatasetRegistry.ensureDataSource(client(), "esql_spec_http", "http", Map.of("auth", "anonymous"));
+            case LOCAL -> DatasetRegistry.ensureDataSource(client(), "esql_spec_local", "local", Map.of("auth", "anonymous"));
         };
     }
 

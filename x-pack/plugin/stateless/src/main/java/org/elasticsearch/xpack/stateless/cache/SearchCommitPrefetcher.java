@@ -389,7 +389,7 @@ public class SearchCommitPrefetcher {
     }
 
     /**
-     * Computes both the byte ranges to prefetch per blob and (optionally) a single representative data timestamp per blob.
+     * Computes both the byte ranges to prefetch per blob ana single representative data timestamp per blob.
      */
     static PendingPrefetchDetails getPendingRangesToPrefetch(
         BCCPreFetchedOffset currentMaxPrefetchedOffset,

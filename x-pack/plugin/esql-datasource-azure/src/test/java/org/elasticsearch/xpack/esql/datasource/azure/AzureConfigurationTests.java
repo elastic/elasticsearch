@@ -285,10 +285,18 @@ public class AzureConfigurationTests extends ESTestCase {
         assertFalse(config.hasCredentials());
     }
 
-    public void testKeylessAuthRequiresAllFields() {
+    public void testKeylessAuthRequiresClientId() {
         ValidationException e = expectThrows(ValidationException.class, () -> AzureConfiguration.fromMap(Map.of("tenant_id", "my-tenant")));
         assertThat(e.getMessage(), containsString("client_id is required when keyless authentication settings are configured"));
-        assertThat(e.getMessage(), containsString("jwt_audience is required when keyless authentication settings are configured"));
+    }
+
+    public void testKeylessAuthAllowsOmittingJwtAudience() {
+        AzureConfiguration config = AzureConfiguration.fromMap(Map.of("tenant_id", "my-tenant", "client_id", "my-client"));
+        assertNotNull(config);
+        assertEquals("my-tenant", config.tenantId());
+        assertEquals("my-client", config.clientId());
+        assertNull(config.jwtAudience());
+        assertTrue(config.hasKeylessAuth());
     }
 
     public void testKeylessAuthConflictsWithExplicitCredentials() {

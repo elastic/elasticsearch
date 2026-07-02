@@ -334,12 +334,12 @@ public class S3ConfigurationTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("role_arn is required when keyless authentication settings are configured"));
     }
 
-    public void testKeylessAuthRequiresJwtAudience() {
-        ValidationException e = expectThrows(
-            ValidationException.class,
-            () -> S3Configuration.fromKeylessFields("role-arn", null, null, null, null, null, null)
-        );
-        assertThat(e.getMessage(), containsString("jwt_audience is required when keyless authentication settings are configured"));
+    public void testKeylessAuthAllowsOmittingJwtAudience() {
+        S3Configuration config = S3Configuration.fromKeylessFields("role-arn", null, null, null, null, null, null);
+        assertNotNull(config);
+        assertTrue(config.hasKeylessAuth());
+        assertEquals("role-arn", config.roleArn());
+        assertNull(config.jwtAudience());
     }
 
     public void testKeylessAuthConflictsWithCredentials() {

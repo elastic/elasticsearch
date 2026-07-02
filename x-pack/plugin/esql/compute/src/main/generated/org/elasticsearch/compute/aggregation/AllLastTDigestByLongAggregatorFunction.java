@@ -14,19 +14,18 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link LastTDigestByTimestampAggregator}.
+ * {@link AggregatorFunction} implementation for {@link AllLastTDigestByLongAggregator}.
  * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
-public final class LastTDigestByTimestampAggregatorFunction implements AggregatorFunction {
+public final class AllLastTDigestByLongAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("timestamps", ElementType.LONG),
+      new IntermediateStateDesc("sortKeys", ElementType.LONG),
       new IntermediateStateDesc("values", ElementType.TDIGEST),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
@@ -36,10 +35,10 @@ public final class LastTDigestByTimestampAggregatorFunction implements Aggregato
 
   private final List<Integer> channels;
 
-  LastTDigestByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
+  AllLastTDigestByLongAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = LastTDigestByTimestampAggregator.initSingle(driverContext);
+    this.state = AllLastTDigestByLongAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -64,43 +63,42 @@ public final class LastTDigestByTimestampAggregatorFunction implements Aggregato
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     TDigestBlock tdigestBlock = page.getBlock(channels.get(0));
-    LongBlock timestampBlock = page.getBlock(channels.get(1));
-    addRawBlock(tdigestBlock, timestampBlock, mask);
+    LongBlock sortKeyBlock = page.getBlock(channels.get(1));
+    addRawBlock(tdigestBlock, sortKeyBlock, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
     TDigestBlock tdigestBlock = page.getBlock(channels.get(0));
-    LongBlock timestampBlock = page.getBlock(channels.get(1));
-    addRawBlock(tdigestBlock, timestampBlock);
+    LongBlock sortKeyBlock = page.getBlock(channels.get(1));
+    addRawBlock(tdigestBlock, sortKeyBlock);
   }
 
-  private void addRawBlock(TDigestBlock tdigestBlock, LongBlock timestampBlock) {
+  private void addRawBlock(TDigestBlock tdigestBlock, LongBlock sortKeyBlock) {
     TDigestHolder tdigestScratch = new TDigestHolder();
     for (int p = 0; p < tdigestBlock.getPositionCount(); p++) {
       int tdigestValueCount = tdigestBlock.getValueCount(p);
       if (tdigestValueCount == 0) {
         continue;
       }
-      int timestampValueCount = timestampBlock.getValueCount(p);
-      if (timestampValueCount == 0) {
+      int sortKeyValueCount = sortKeyBlock.getValueCount(p);
+      if (sortKeyValueCount == 0) {
         continue;
       }
       int tdigestStart = tdigestBlock.getFirstValueIndex(p);
       int tdigestEnd = tdigestStart + tdigestValueCount;
       for (int tdigestOffset = tdigestStart; tdigestOffset < tdigestEnd; tdigestOffset++) {
         TDigestHolder tdigestValue = tdigestBlock.getTDigestHolder(tdigestOffset, tdigestScratch);
-        int timestampStart = timestampBlock.getFirstValueIndex(p);
-        int timestampEnd = timestampStart + timestampValueCount;
-        for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
-          long timestampValue = timestampBlock.getLong(timestampOffset);
-          LastTDigestByTimestampAggregator.combine(state, tdigestValue, timestampValue);
+        int sortKeyStart = sortKeyBlock.getFirstValueIndex(p);
+        int sortKeyEnd = sortKeyStart + sortKeyValueCount;
+        for (int sortKeyOffset = sortKeyStart; sortKeyOffset < sortKeyEnd; sortKeyOffset++) {
+          long sortKeyValue = sortKeyBlock.getLong(sortKeyOffset);
+          AllLastTDigestByLongAggregator.combine(state, tdigestValue, sortKeyValue);
         }
       }
     }
   }
 
-  private void addRawBlock(TDigestBlock tdigestBlock, LongBlock timestampBlock,
-      BooleanVector mask) {
+  private void addRawBlock(TDigestBlock tdigestBlock, LongBlock sortKeyBlock, BooleanVector mask) {
     TDigestHolder tdigestScratch = new TDigestHolder();
     for (int p = 0; p < tdigestBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
@@ -110,19 +108,19 @@ public final class LastTDigestByTimestampAggregatorFunction implements Aggregato
       if (tdigestValueCount == 0) {
         continue;
       }
-      int timestampValueCount = timestampBlock.getValueCount(p);
-      if (timestampValueCount == 0) {
+      int sortKeyValueCount = sortKeyBlock.getValueCount(p);
+      if (sortKeyValueCount == 0) {
         continue;
       }
       int tdigestStart = tdigestBlock.getFirstValueIndex(p);
       int tdigestEnd = tdigestStart + tdigestValueCount;
       for (int tdigestOffset = tdigestStart; tdigestOffset < tdigestEnd; tdigestOffset++) {
         TDigestHolder tdigestValue = tdigestBlock.getTDigestHolder(tdigestOffset, tdigestScratch);
-        int timestampStart = timestampBlock.getFirstValueIndex(p);
-        int timestampEnd = timestampStart + timestampValueCount;
-        for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
-          long timestampValue = timestampBlock.getLong(timestampOffset);
-          LastTDigestByTimestampAggregator.combine(state, tdigestValue, timestampValue);
+        int sortKeyStart = sortKeyBlock.getFirstValueIndex(p);
+        int sortKeyEnd = sortKeyStart + sortKeyValueCount;
+        for (int sortKeyOffset = sortKeyStart; sortKeyOffset < sortKeyEnd; sortKeyOffset++) {
+          long sortKeyValue = sortKeyBlock.getLong(sortKeyOffset);
+          AllLastTDigestByLongAggregator.combine(state, tdigestValue, sortKeyValue);
         }
       }
     }
@@ -132,53 +130,17 @@ public final class LastTDigestByTimestampAggregatorFunction implements Aggregato
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block timestampsUncast = page.getBlock(channels.get(0));
-    if (timestampsUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
-    LongVector timestamps = ((LongBlock) timestampsUncast).asVector();
-    assert timestamps.getPositionCount() == 1;
+    Block sortKeysUncast = page.getBlock(channels.get(0));
+    LongBlock sortKeys = (LongBlock) sortKeysUncast;
+    assert sortKeys.getPositionCount() == 1;
     Block valuesUncast = page.getBlock(channels.get(1));
-    if (valuesUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
     TDigestBlock values = (TDigestBlock) valuesUncast;
     assert values.getPositionCount() == 1;
     Block seenUncast = page.getBlock(channels.get(2));
-    if (seenUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    BooleanBlock seen = (BooleanBlock) seenUncast;
     assert seen.getPositionCount() == 1;
     TDigestHolder valuesScratch = new TDigestHolder();
-    LastTDigestByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values.getTDigestHolder(values.getFirstValueIndex(0), valuesScratch), seen.getBoolean(0));
+    AllLastTDigestByLongAggregator.combineIntermediate(state, sortKeys.getLong(0), values, seen.getBoolean(0));
   }
 
   @Override
@@ -188,7 +150,7 @@ public final class LastTDigestByTimestampAggregatorFunction implements Aggregato
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = LastTDigestByTimestampAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = AllLastTDigestByLongAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

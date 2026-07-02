@@ -1037,10 +1037,11 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         assertValidPlan(result);
 
         Aggregate outerAgg = as(result, Aggregate.class);
-        // combiner FromPartial is filterless (data already filtered in the branches)
+        // combiner FromPartial is filterless (data already filtered in the branches); the wrapped aggregate it
+        // carries only to select the supplier is filterless too (the filter is dropped in buildCombinerFn)
         FromPartial combiner = as(as(outerAgg.aggregates().get(0), Alias.class).child(), FromPartial.class);
         assertThat(combiner.hasFilter(), equalTo(false));
-        assertThat(combiner.function(), instanceOf(CountDistinct.class));
+        assertThat(as(combiner.function(), CountDistinct.class).hasFilter(), equalTo(false));
 
         UnionAll newUnionAll = as(outerAgg.child(), UnionAll.class);
         ToPartial b1ToPartial = as(

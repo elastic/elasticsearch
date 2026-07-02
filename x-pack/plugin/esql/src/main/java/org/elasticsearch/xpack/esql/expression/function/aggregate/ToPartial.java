@@ -112,6 +112,12 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
 
     @Override
     public List<Attribute> aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
+        // field() is the wrapped aggregate, so field().references() already covers every input channel the inner
+        // aggregator reads. The base implementation would additionally add the function parameter (the same wrapped
+        // aggregate), duplicating those channels. The per-aggregate filter is intentionally excluded: it is applied by
+        // an evaluator around the supplier (see supplierWithInnerFilter), not read as an input channel by the inner
+        // aggregator. Note this differs from FromPartial, which also overrides references() to drop the filter; here the
+        // filter references must stay in references() so the branch keeps the filtered columns in scope.
         return new ArrayList<>(field().references());
     }
 

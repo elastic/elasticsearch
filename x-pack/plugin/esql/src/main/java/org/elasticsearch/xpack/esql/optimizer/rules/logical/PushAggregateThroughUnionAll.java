@@ -399,14 +399,17 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
      *   states and produce the final value)</li>
      * </ul>
      *
-     * <p>The {@link FromPartial} carries the original {@code aggFn} only to select the aggregator supplier;
+     * <p>The {@link FromPartial} carries {@code aggFn} only to select the aggregator supplier;
      * {@link FromPartial#references()} excludes it, so its (now-absent) UnionAll-level attribute references
-     * are not part of the combiner's reference set.
+     * are not part of the combiner's reference set. Any per-aggregate filter is dropped from the carried
+     * {@code aggFn}: the branches already filtered their rows before producing the partial states, so the
+     * combiner must stay filterless (and dropping it avoids keeping the filter's UnionAll-level references
+     * in the plan tree).
      */
     private static AggregateFunction buildCombinerFn(AggregateFunction aggFn, ReferenceAttribute partialRef) {
         Source src = aggFn.source();
         if (isIntermediateDecomposable(aggFn)) {
-            return new FromPartial(src, partialRef, aggFn);
+            return new FromPartial(src, partialRef, aggFn.withFilter(Literal.TRUE));
         }
         if (aggFn instanceof Count) {
             return new Sum(src, partialRef);

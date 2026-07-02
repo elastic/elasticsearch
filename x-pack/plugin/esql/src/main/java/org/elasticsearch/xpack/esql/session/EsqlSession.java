@@ -1447,7 +1447,13 @@ public class EsqlSession {
                         fields,
                         result.minimumTransportVersion(),
                         l.map(
-                            retriedIndexResolution -> receiveLookupIndexResolution(result, COORDINATOR_LOOKUP_SCOPE, localPattern, executionInfo, retriedIndexResolution)
+                            retriedIndexResolution -> receiveLookupIndexResolution(
+                                result,
+                                COORDINATOR_LOOKUP_SCOPE,
+                                localPattern,
+                                executionInfo,
+                                retriedIndexResolution
+                            )
                         )
                     );
                 }
@@ -1694,8 +1700,8 @@ public class EsqlSession {
                 index,
                 lookupIndexResolution.get().mapping(),
                 Map.of(indexName, IndexMode.LOOKUP),
-                Map.of(),
-                Map.of()
+                lookupIndexResolution.get().originalIndices(),
+                lookupIndexResolution.get().concreteIndices()
             );
             return IndexResolution.valid(newIndex, newIndex.concreteQualifiedIndices(), lookupIndexResolution.failures());
         }

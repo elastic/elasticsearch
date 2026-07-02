@@ -416,6 +416,22 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         );
     }
 
+    /**
+     * Whether the right-hand lookup index resolved exclusively against the local (coordinating)
+     * cluster - e.g. because remote resolution failed and EsqlSession fell back to a coordinator-
+     * local lookup. Used by the physical planner to force the join to run on the coordinator
+     * instead of being pushed down as a remote fragment, since the remote clusters don't have
+     * this index at all.
+     */
+    public boolean lookupResolvedLocallyOnly() {
+        return right().anyMatch(
+            node -> node instanceof EsRelation rel
+                && rel.indexMode() == IndexMode.LOOKUP
+                && rel.concreteIndices().isEmpty() == false
+                && rel.concreteIndices().keySet().stream().allMatch(alias -> alias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+        );
+    }
+
     @Override
     public void postOptimizationVerification(Failures failures) {
         if (isRemote()) {

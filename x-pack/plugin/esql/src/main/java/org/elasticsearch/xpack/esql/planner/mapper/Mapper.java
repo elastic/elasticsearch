@@ -206,14 +206,22 @@ public class Mapper {
             PhysicalPlan left = mapInner(bp.left());
 
             if (left instanceof FragmentExec) {
-                // Data is still on data nodes/remotes — push the whole join down.
-                // For remote joins the only potential pipeline breakers here are local limits duplicated past
-                // the join by PushdownAndCombineLimits; they are safe because they only reduce row count and
-                // another limit is downstream.
-                return new FragmentExec(bp);
+                if (join.isRemote() && join.lookupResolvedLocallyOnly()) {
+                    // The lookup index exists only on the coordinator (remote resolution failed and
+                    // EsqlSession fell back to a local-only lookup). Gather the left side here instead
+                    // of shipping the whole join down to remotes that don't have the index.
+                    left = new ExchangeExec(left.source(), left);
+                } else {
+                    // Data is still on data nodes/remotes — push the whole join down.
+                    // For remote joins the only potential pipeline breakers here are local limits duplicated past
+                    // the join by PushdownAndCombineLimits; they are safe because they only reduce row count and
+                    // another limit is downstream.
+                    return new FragmentExec(bp);
+                }
             }
             // Data has already been gathered to the coordinator (left is not a FragmentExec).
-            // For remote joins this happens when a pipeline breaker above the join centralised the rows.
+            // For remote joins this happens when a pipeline breaker above the join centralised the rows,
+            // or when the lookup index is coordinator-only (see above).
             // Fall through to the local join path; the coordinator uses its own copy of the lookup index.
 
             PhysicalPlan right = mapInner(bp.right());

@@ -503,11 +503,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public KeywordFieldMapper build(MapperBuilderContext context) {
-            enforceIndexSortDocValuesCompatibility(
-                context.buildFullName(leafName()),
-                indexSettings.getIndexSortConfig(),
-                docValuesParameters
-            );
             FieldType fieldtype = resolveFieldType(forceDocValuesSkipper, context.buildFullName(leafName()));
             super.hasScript = script.get() != null;
             super.onScriptError = onScriptError.getValue();
@@ -525,7 +520,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
             // High-cardinality (binary doc values) fields in strict columnar mode store their values in document order directly in the
             // binary doc values (ArrayOrderInlineNull) instead of recording a sidecar .offsets field; low-cardinality (sorted-set) fields
-            // keep using offsets.
+            // keep using offsets. This applies to index sort fields too: both MultiValuedBinaryDocValuesSortField (index sorting) and
+            // AbstractBinaryDocValuesQuery (term/prefix/wildcard/range queries against fields with no inverted index, e.g. the
+            // host.name skip-index sort field - see shouldUseHostnameSkipper) decode both the ArrayOrderInlineNull and SeparateCount
+            // binary formats.
             if (offsetsFieldName != null && usesBinaryDocValues() && indexSettings.getMode().isStrictColumnar()) {
                 this.arrayOrderBinaryDocValues = true;
                 this.offsetsFieldName = null;

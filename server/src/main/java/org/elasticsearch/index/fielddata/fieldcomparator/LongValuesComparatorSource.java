@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -19,6 +21,7 @@ import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
@@ -29,7 +32,9 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.lucene.comparators.XLongComparator;
 import org.elasticsearch.lucene.comparators.XNumericComparator;
 import org.elasticsearch.search.DocValueFormat;
@@ -276,10 +281,50 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         if (Objects.equals(sortField.getField(), "host.name") == false) {
             return false;
         }
-        SortedSetDocValues ssdv = context.reader().getSortedSetDocValues("host.name");
-        if (ssdv == null) {
-            return true;
+        LeafReader reader = context.reader();
+        SortedSetDocValues ssdv = reader.getSortedSetDocValues("host.name");
+        if (ssdv != null) {
+            return ssdv.getValueCount() == 1;
         }
-        return (ssdv.getValueCount() == 1);
+        if (sortField instanceof MultiValuedBinaryDocValuesSortField binarySortField) {
+            BinaryDocValues bdv = reader.getBinaryDocValues("host.name");
+            if (bdv == null) {
+                return true;
+            }
+            // host.name is indexed with high-cardinality binary doc values (see KeywordFieldMapper#usesBinaryDocValues).
+            // This segment is sorted by host.name, so it is a singleton iff its overall minimum and maximum value -
+            // read off whichever endpoint holds them, depending on sort direction - are equal.
+            int maxDoc = reader.maxDoc();
+            int minValueDoc = sortField.getReverse() ? maxDoc - 1 : 0;
+            int maxValueDoc = sortField.getReverse() ? 0 : maxDoc - 1;
+            boolean arrayOrder = binarySortField.isArrayOrder();
+            BytesRef min = decodeHostNameValueAt(reader, minValueDoc, false, arrayOrder);
+            BytesRef max = decodeHostNameValueAt(reader, maxValueDoc, true, arrayOrder);
+            return min != null && min.equals(max);
+        }
+        // host.name has no doc values at all in this segment (e.g. the field is absent).
+        return true;
+    }
+
+    /**
+     * Decodes the minimum ({@code maxMode=false}) or maximum ({@code maxMode=true}) {@code host.name} value stored at
+     * {@code doc}, reusing {@link MultiValuedBinaryDocValuesSortField#decodeExtreme} to extract sort keys from the
+     * {@code SeparateCount}/{@code ArrayOrderInlineNull} binary formats. Returns {@code null} if {@code doc} has no
+     * value (e.g. all-null or empty array).
+     */
+    @Nullable
+    private static BytesRef decodeHostNameValueAt(LeafReader reader, int doc, boolean maxMode, boolean arrayOrder) throws IOException {
+        BinaryDocValues bdv = reader.getBinaryDocValues("host.name");
+        if (bdv.advanceExact(doc) == false) {
+            return null;
+        }
+        NumericDocValues counts = reader.getNumericDocValues(
+            "host.name" + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX
+        );
+        long count = 1;
+        if (counts != null && counts.advanceExact(doc)) {
+            count = counts.longValue();
+        }
+        return MultiValuedBinaryDocValuesSortField.decodeExtreme(bdv.binaryValue(), count, maxMode, arrayOrder);
     }
 }

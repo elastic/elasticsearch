@@ -1065,7 +1065,7 @@ public class ExternalSourceResolver {
 
         Exception lastFailure = null;
         for (ExternalSourceFactory factory : dataSourceModule.sourceFactories().values()) {
-            if (factory.canHandle(path)) {
+            if (factory.canHandle(path, config)) {
                 try {
                     return factory.resolveMetadata(path, config);
                 } catch (Exception e) {

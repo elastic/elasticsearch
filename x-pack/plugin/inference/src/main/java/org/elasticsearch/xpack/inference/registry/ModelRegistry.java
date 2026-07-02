@@ -635,8 +635,7 @@ public class ModelRegistry implements ClusterStateListener {
             preventDeletionLock.add(inferenceEntityId);
         }
 
-        boolean includeDocType = InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()
-            && InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state(), featureService);
+        var clusterState = clusterService.state();
         SubscribableListener.<BulkResponse>newForked((subListener) -> {
             // in this block, we try to update the stored model configurations
             var configRequestBuilder = createIndexRequestBuilder(
@@ -644,7 +643,8 @@ public class ModelRegistry implements ClusterStateListener {
                 InferenceIndex.INDEX_NAME,
                 newModel.getConfigurations(),
                 true,
-                includeDocType,
+                clusterState,
+                featureService,
                 client
             );
 
@@ -687,7 +687,8 @@ public class ModelRegistry implements ClusterStateListener {
                     InferenceSecretsIndex.INDEX_NAME,
                     newModel.getSecrets(),
                     true,
-                    includeDocType,
+                    clusterState,
+                    featureService,
                     client
                 );
 
@@ -711,7 +712,8 @@ public class ModelRegistry implements ClusterStateListener {
                     InferenceIndex.INDEX_NAME,
                     existingModel.getConfigurations(),
                     true,
-                    includeDocType,
+                    clusterState,
+                    featureService,
                     client
                 );
 
@@ -827,8 +829,7 @@ public class ModelRegistry implements ClusterStateListener {
         }
 
         var bulkRequestBuilder = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        boolean includeDocType = InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()
-            && InferenceIndex.inferenceIndexHasV4Mappings(clusterService.state(), featureService);
+        var clusterState = clusterService.state();
 
         for (var model : models) {
             bulkRequestBuilder.add(
@@ -837,7 +838,8 @@ public class ModelRegistry implements ClusterStateListener {
                     InferenceIndex.INDEX_NAME,
                     model.getConfigurations(),
                     allowOverwriting,
-                    includeDocType,
+                    clusterState,
+                    featureService,
                     client
                 )
             );
@@ -848,7 +850,8 @@ public class ModelRegistry implements ClusterStateListener {
                     InferenceSecretsIndex.INDEX_NAME,
                     model.getSecrets(),
                     allowOverwriting,
-                    includeDocType,
+                    clusterState,
+                    featureService,
                     client
                 )
             );
@@ -1247,9 +1250,13 @@ public class ModelRegistry implements ClusterStateListener {
         String indexName,
         ToXContentObject body,
         boolean allowOverwriting,
-        boolean includeDocType,
+        ClusterState clusterState,
+        FeatureService featureService,
         Client client
     ) {
+        boolean includeDocType = indexName.equals(InferenceIndex.INDEX_NAME)
+            && InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()
+            && InferenceIndex.inferenceIndexHasV4Mappings(clusterState, featureService);
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             Map<String, String> params = includeDocType
                 ? Map.of(

@@ -390,25 +390,27 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 return parameters;
             }
 
-            boolean strictColumnar = indexMode.isStrictColumnar();
+            if (indexMode.isStrictColumnar()) {
+                // subobjects and synthetic_source_keep are not allowed on objects in strict-columnar mode
+                if (ESTestCase.randomBoolean()) {
+                    parameters.put("dynamic", randomFrom("true", "false", "strict"));
+                }
+                if (ESTestCase.randomBoolean()) {
+                    parameters.put("enabled", request.isRoot() ? "true" : randomFrom("true", "false"));
+                }
+                return parameters;
+            }
 
-            // the subobjects parameter itself is not allowed on objects in strict-columnar mode
-            if (strictColumnar == false && ESTestCase.randomBoolean()) {
+            if (ESTestCase.randomBoolean()) {
                 parameters.put("subobjects", subobjects.toString());
             }
             if (ESTestCase.randomBoolean()) {
-                // dynamic:runtime is not supported in strict-columnar mode
-                var dynamic = strictColumnar ? randomFrom("true", "false", "strict") : randomFrom("true", "false", "strict", "runtime");
-                parameters.put("dynamic", dynamic);
+                parameters.put("dynamic", randomFrom("true", "false", "strict", "runtime"));
             }
             if (ESTestCase.randomBoolean()) {
-                // enabled:false is not allowed on the root object in strict-columnar mode
-                var enabled = strictColumnar && request.isRoot() ? "true" : randomFrom("true", "false");
-                parameters.put("enabled", enabled);
+                parameters.put("enabled", randomFrom("true", "false"));
             }
-
-            // synthetic_source_keep is not allowed on objects in strict-columnar mode
-            if (strictColumnar == false && ESTestCase.randomBoolean()) {
+            if (ESTestCase.randomBoolean()) {
                 var value = request.isRoot() ? randomFrom("none", "arrays") : randomFrom("none", "arrays", "all");
                 parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, value);
             }

@@ -83,7 +83,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         ElasticInferenceServiceCompletionServiceSettings serviceSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
-        this(inferenceEntityId, taskType, serviceSettings, elasticInferenceServiceComponents, null);
+        this(inferenceEntityId, taskType, serviceSettings, elasticInferenceServiceComponents, null, ImmutableEmptyTaskSettings.INSTANCE);
     }
 
     public ElasticInferenceServiceCompletionModel(
@@ -91,7 +91,8 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         TaskType taskType,
         ElasticInferenceServiceCompletionServiceSettings serviceSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-        @Nullable EndpointMetadata endpointMetadata
+        @Nullable EndpointMetadata endpointMetadata,
+        TaskSettings taskSettings
     ) {
         this(
             new ModelConfigurations(
@@ -99,7 +100,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
                 taskType,
                 ElasticInferenceService.NAME,
                 serviceSettings,
-                ImmutableEmptyTaskSettings.INSTANCE,
+                taskSettings,
                 null,
                 endpointMetadata
             ),

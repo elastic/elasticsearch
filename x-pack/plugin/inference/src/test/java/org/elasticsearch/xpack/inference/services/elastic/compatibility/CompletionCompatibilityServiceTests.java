@@ -13,9 +13,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceFeatureService;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.rest.RestStatus;
@@ -26,6 +30,7 @@ import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInfe
 import org.elasticsearch.xpack.inference.services.settings.EnforcingEmptyTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -211,6 +216,47 @@ public class CompletionCompatibilityServiceTests extends ESTestCase {
         var taskSettings = strategy.createTaskSettings(Map.of(), ConfigurationParseContext.REQUEST);
 
         assertThat(taskSettings, sameInstance(ImmutableEmptyTaskSettings.INSTANCE));
+    }
+
+    public void testEmptyCompletionTaskSettings_FeatureAbsent_ReturnsEnforcingEmptyTaskSettings() {
+        var taskSettings = createCompatibilityService(false).emptyCompletionTaskSettings();
+
+        assertThat(taskSettings, sameInstance(EnforcingEmptyTaskSettings.INSTANCE));
+    }
+
+    public void testEmptyCompletionTaskSettings_FeaturePresent_ReturnsImmutableEmptyTaskSettings() {
+        var taskSettings = createCompatibilityService(true).emptyCompletionTaskSettings();
+
+        assertThat(taskSettings, sameInstance(ImmutableEmptyTaskSettings.INSTANCE));
+    }
+
+    // This encodes the BWC guarantee that emptyCompletionTaskSettings() relies on for mixed clusters: a
+    // not-yet-upgraded node's NamedWriteableRegistry predates ImmutableEmptyTaskSettings and only knows
+    // EmptyTaskSettings under the name "empty_task_settings".
+    public void testEmptyCompletionTaskSettings_MixedCluster_DeserializesOnOldNodeRegistry() throws IOException {
+        var oldNodeRegistry = new NamedWriteableRegistry(
+            List.of(new NamedWriteableRegistry.Entry(TaskSettings.class, EmptyTaskSettings.NAME, EmptyTaskSettings::new))
+        );
+
+        // EnforcingEmptyTaskSettings (used while mixed) reuses EmptyTaskSettings's writeable name, so an old
+        // node reads it back as a plain EmptyTaskSettings instead of failing.
+        var deserialized = copyTaskSettings(EnforcingEmptyTaskSettings.INSTANCE, oldNodeRegistry);
+        assertThat(deserialized, instanceOf(EmptyTaskSettings.class));
+
+        // ImmutableEmptyTaskSettings (used once fully upgraded) is registered under a different name that an
+        // old node's registry does not recognize, so deserialization fails. NamedWriteableRegistry asserts
+        // before throwing IllegalArgumentException, and tests run with assertions enabled, so an AssertionError
+        // is what actually surfaces here.
+        expectThrows(AssertionError.class, () -> copyTaskSettings(ImmutableEmptyTaskSettings.INSTANCE, oldNodeRegistry));
+    }
+
+    private static TaskSettings copyTaskSettings(TaskSettings taskSettings, NamedWriteableRegistry registry) throws IOException {
+        try (var out = new BytesStreamOutput()) {
+            out.writeNamedWriteable(taskSettings);
+            try (var in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
+                return in.readNamedWriteable(TaskSettings.class);
+            }
+        }
     }
 
     private static CompletionCompatibilityService createCompatibilityService(boolean hasReasoningFeature) {

@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -92,7 +93,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             logger,
             createNoopApplierFactory(),
             createMockCcmFeature(false),
-            createMockCcmService(false)
+            createMockCcmService(false),
+            createFeatureService()
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -121,7 +123,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             logger,
             createNoopApplierFactory(),
             createMockCcmFeature(false),
-            createMockCcmService(false)
+            createMockCcmService(false),
+            createFeatureService()
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -151,7 +154,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             logger,
             createNoopApplierFactory(),
             createMockCcmFeature(false),
-            createMockCcmService(false)
+            createMockCcmService(false),
+            createFeatureService()
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -211,7 +215,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             logger,
             createNoopApplierFactory(),
             mockCcmFeature,
-            mockCcmService
+            mockCcmService,
+            createFeatureService()
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -279,7 +284,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             threadPool,
             createNoopApplierFactory(),
             mockCcmFeature,
-            mockCcmService
+            mockCcmService,
+            createFeatureService()
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -321,7 +327,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             logger,
             createNoopApplierFactory(),
             mockCcmFeature,
-            mockCcmService
+            mockCcmService,
+            createFeatureService()
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -388,7 +395,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             threadPool,
             createNoopApplierFactory(),
             mockCcmFeature,
-            mockCcmService
+            mockCcmService,
+            createFeatureService()
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -426,7 +434,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             logger,
             createNoopApplierFactory(),
             mockCcmFeature,
-            mockCcmService
+            mockCcmService,
+            createFeatureService()
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -463,7 +472,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             logger,
             createApplierFactory(secret),
             createMockCcmFeature(false),
-            createMockCcmService(false)
+            createMockCcmService(false),
+            createFeatureService()
         );
 
         var elserResponseBody = getEisElserAuthorizationResponse(eisGatewayUrl).responseJson();
@@ -505,7 +515,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             logger,
             createNoopApplierFactory(),
             createMockCcmFeature(false),
-            createMockCcmService(false)
+            createMockCcmService(false),
+            createFeatureService()
         );
 
         PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
@@ -551,7 +562,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             logger,
             createNoopApplierFactory(),
             createMockCcmFeature(false),
-            createMockCcmService(false)
+            createMockCcmService(false),
+            createFeatureService()
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -567,6 +579,14 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             var message = loggerArgsCaptor.getValue();
             assertThat(message, containsString("Failed to retrieve the authorization information from the Elastic Inference Service."));
         }
+    }
+
+    // The tests in this class exercise auth retrieval, not the reasoning task settings, so a fully-upgraded
+    // feature service is used throughout to match the expected endpoints built with ImmutableEmptyTaskSettings.
+    private static InferenceFeatureService createFeatureService() {
+        var featureService = mock(InferenceFeatureService.class);
+        when(featureService.hasFeature(any())).thenReturn(true);
+        return featureService;
     }
 
     private static CCMFeature createMockCcmFeature(boolean isCcmSupportedEnvironment) {

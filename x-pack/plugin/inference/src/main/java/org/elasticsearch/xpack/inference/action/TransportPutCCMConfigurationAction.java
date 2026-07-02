@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -114,7 +115,8 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
                 threadPool,
                 new ValidationAuthenticationFactory(request.getApiKey()),
                 ccmFeature,
-                ccmService
+                ccmService,
+                new InferenceFeatureService(clusterService, featureService)
             );
 
             var errorListener = authValidationListener.delegateResponse((delegate, exception) -> {

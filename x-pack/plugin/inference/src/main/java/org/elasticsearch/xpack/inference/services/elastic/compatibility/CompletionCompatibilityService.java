@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic.compatibility;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.TaskSettings;
@@ -64,6 +65,18 @@ public class CompletionCompatibilityService {
          * Creates the appropriate {@link TaskSettings} based on the provided task settings map and context.
          */
         public abstract TaskSettings createTaskSettings(Map<String, Object> taskSettings, ConfigurationParseContext context);
+    }
+
+    /**
+     * Returns the empty {@link TaskSettings} instance to use for system-generated (preconfigured) completion/chat_completion
+     * endpoints. Until the reasoning feature is available cluster-wide we must emit settings that serialize like
+     * {@link EmptyTaskSettings} so that a not-yet-upgraded master can deserialize the persisted model; once the cluster is
+     * fully upgraded we can emit {@link ImmutableEmptyTaskSettings}.
+     */
+    public TaskSettings emptyCompletionTaskSettings() {
+        return featureService.hasFeature(InferenceFeatures.INFERENCE_ELASTIC_REASONING_TASK_SETTINGS)
+            ? ImmutableEmptyTaskSettings.INSTANCE
+            : EnforcingEmptyTaskSettings.INSTANCE;
     }
 
     /**

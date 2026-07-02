@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ccm.AuthenticationFactory;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
+import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceAuthorizationRequest;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -60,13 +62,15 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
     private final AuthenticationFactory authFactory;
     private final CCMFeature ccmFeature;
     private final CCMService ccmService;
+    private final CompletionCompatibilityService completionCompatibilityService;
 
     public ElasticInferenceServiceAuthorizationRequestHandler(
         @Nullable String baseUrl,
         ThreadPool threadPool,
         AuthenticationFactory authFactory,
         CCMFeature ccmFeature,
-        CCMService ccmService
+        CCMService ccmService,
+        InferenceFeatureService inferenceFeatureService
     ) {
         this(
             baseUrl,
@@ -74,7 +78,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
             LogManager.getLogger(ElasticInferenceServiceAuthorizationRequestHandler.class),
             authFactory,
             ccmFeature,
-            ccmService
+            ccmService,
+            inferenceFeatureService
         );
     }
 
@@ -85,7 +90,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
         Logger logger,
         AuthenticationFactory authFactory,
         CCMFeature ccmFeature,
-        CCMService ccmService
+        CCMService ccmService,
+        InferenceFeatureService inferenceFeatureService
     ) {
         this.baseUrl = baseUrl;
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -93,6 +99,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
         this.authFactory = Objects.requireNonNull(authFactory);
         this.ccmFeature = Objects.requireNonNull(ccmFeature);
         this.ccmService = Objects.requireNonNull(ccmService);
+        this.completionCompatibilityService = new CompletionCompatibilityService(Objects.requireNonNull(inferenceFeatureService));
     }
 
     /**
@@ -173,7 +180,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
             .andThenApply(authResult -> {
                 if (authResult instanceof ElasticInferenceServiceAuthorizationResponseEntity authResponseEntity) {
                     logger.debug(() -> Strings.format("Received authorization information from gateway %s", authResponseEntity));
-                    return ElasticInferenceServiceAuthorizationModel.of(authResponseEntity, baseUrl);
+                    return ElasticInferenceServiceAuthorizationModel.of(authResponseEntity, baseUrl, completionCompatibilityService);
                 }
 
                 var errorMessage = Strings.format(

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic.response;
 
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
+import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenc
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
 
 import java.io.IOException;
 import java.time.LocalDate;
@@ -43,6 +46,9 @@ import static org.elasticsearch.xpack.inference.services.elastic.authorization.E
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ElasticInferenceServiceAuthorizationResponseEntityTests extends ESTestCase {
 
@@ -523,7 +529,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 GP_LLM_V2_CHAT_COMPLETION_DISPLAY,
                 List.of(),
                 false
-            )
+            ),
+            ImmutableEmptyTaskSettings.INSTANCE
         );
     }
 
@@ -539,7 +546,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 GP_LLM_V2_COMPLETION_DISPLAY,
                 List.of(),
                 false
-            )
+            ),
+            ImmutableEmptyTaskSettings.INSTANCE
         );
     }
 
@@ -594,7 +602,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 RAINBOW_SPRINKLES_DISPLAY,
                 List.of(),
                 false
-            )
+            ),
+            ImmutableEmptyTaskSettings.INSTANCE
         );
     }
 
@@ -943,7 +952,11 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
 
         assertThat(entity, is(responseData.responseEntity()));
 
-        var authModel = ElasticInferenceServiceAuthorizationModel.of(responseData.responseEntity(), url);
+        var authModel = ElasticInferenceServiceAuthorizationModel.of(
+            responseData.responseEntity(),
+            url,
+            createFullyUpgradedCompletionCompatibilityService()
+        );
         assertThat(authModel.getEndpointIds(), containsInAnyOrder(responseData.inferenceIds().toArray(String[]::new)));
 
         assertThat(
@@ -1042,5 +1055,13 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
         try (var parser = createParser(JsonXContent.jsonXContent, json)) {
             return ElasticInferenceServiceAuthorizationResponseEntity.PARSER.apply(parser, null);
         }
+    }
+
+    // The expected endpoints in this class are built with ImmutableEmptyTaskSettings, so a fully-upgraded
+    // feature service is used to match that when building an authorization model from a parsed response.
+    private static CompletionCompatibilityService createFullyUpgradedCompletionCompatibilityService() {
+        var inferenceFeatureService = mock(InferenceFeatureService.class);
+        when(inferenceFeatureService.hasFeature(any())).thenReturn(true);
+        return new CompletionCompatibilityService(inferenceFeatureService);
     }
 }

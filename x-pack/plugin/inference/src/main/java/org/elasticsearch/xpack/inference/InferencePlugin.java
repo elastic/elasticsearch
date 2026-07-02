@@ -550,7 +550,8 @@ public class InferencePlugin extends Plugin
             services.threadPool(),
             ccmAuthApplierFactory,
             ccmFeature,
-            ccmService
+            ccmService,
+            inferenceFeatureService
         );
 
         var authTaskExecutor = AuthorizationTaskExecutor.create(

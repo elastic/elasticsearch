@@ -27,7 +27,7 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  * <ul>
  *   <li>{@code auth=static_credentials} — a connection string, account + key (SharedKey auth), or account + SAS token</li>
  *   <li>{@code auth=federated_identity} — workload identity federation via {@code tenant_id}, {@code client_id},
- *       and {@code jwt_audience}</li>
+ *       and optionally {@code jwt_audience}</li>
  *   <li>{@code auth=anonymous} — anonymous access to public containers</li>
  *   <li>{@code auth=managed_identity} — the node's managed identity via Azure IMDS. Requires the
  *       {@code esql.datasource.managed_identity.enabled} cluster setting.</li>
@@ -68,9 +68,6 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
             }
             if (clientId() == null) {
                 errors.addValidationError("client_id is required when keyless authentication settings are configured");
-            }
-            if (jwtAudience() == null) {
-                errors.addValidationError("jwt_audience is required when keyless authentication settings are configured");
             }
         }
     }
@@ -155,7 +152,7 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
 
     /**
      * Audience passed to the workload-identity issuer {@code IssueTokenRequest} when minting the JWT that
-     * is presented to Azure AD as a client assertion (typically {@code api://AzureADTokenExchange}).
+     * is presented to Azure AD as a client assertion (defaults to {@code api://AzureADTokenExchange}).
      */
     public String jwtAudience() {
         return get(JWT_AUDIENCE.name());

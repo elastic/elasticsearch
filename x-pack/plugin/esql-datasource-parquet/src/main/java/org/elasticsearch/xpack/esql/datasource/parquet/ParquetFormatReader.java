@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.bytes.DirectByteBufferAllocator;
@@ -34,6 +35,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -50,12 +52,15 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
@@ -74,6 +79,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -88,6 +94,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 
 /**
  * FormatReader implementation for Parquet files.
@@ -131,6 +138,21 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     private final ParquetReaderCounters counters = new ParquetReaderCounters();
 
     static final long DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES = 32L * 1024 * 1024;
+
+    /**
+     * Bytes prefetched from the tail of a Parquet file by {@link #metadataAsync} to cover the footer
+     * in a single async read. The Parquet trailer is 8 bytes (4-byte little-endian footer length +
+     * 4-byte {@code PAR1} magic); footers for typical files fit comfortably within this window, so a
+     * single {@link StorageObject#readBytesAsync} suffices. When a footer exceeds this window a
+     * second exact-range read is issued (see {@link #metadataAsync}).
+     */
+    static final int FOOTER_TAIL_PREFETCH_BYTES = 64 * 1024;
+
+    /** The 4-byte magic that both opens and closes a (non-encrypted) Parquet file. */
+    private static final byte[] PARQUET_MAGIC = { 'P', 'A', 'R', '1' };
+
+    /** Length of the Parquet trailer: 4-byte footer length + 4-byte magic. */
+    private static final int PARQUET_TRAILER_BYTES = 8;
 
     static final String CONFIG_OPTIMIZED_READER = "optimized_reader";
     static final String CONFIG_LATE_MATERIALIZATION = "late_materialization";
@@ -529,13 +551,335 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ParquetReadOptions options = readOptionsBuilder().build();
 
         try (ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, options)) {
-            FileMetaData fileMetaData = reader.getFileMetaData();
-            MessageType parquetSchema = fileMetaData.getSchema();
-            validateFooterIntegrity(object.path().toString(), parquetSchema, reader.getRowGroups());
-            List<Attribute> schema = convertParquetSchemaToAttributes(parquetSchema);
-            SourceStatistics statistics = extractStatistics(reader, schema);
-            return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
+            return buildFooterMetadata(object, reader.getFooter());
         }
+    }
+
+    /**
+     * Builds the {@link SourceMetadata} (schema + statistics) from an already-parsed Parquet
+     * {@link ParquetMetadata}. Shared by the synchronous {@link #metadata(StorageObject)} and the
+     * async {@link #metadataAsync} parse-from-buffer path so both produce identical results from the
+     * same footer, independent of how the footer bytes were obtained.
+     */
+    private SourceMetadata buildFooterMetadata(StorageObject object, ParquetMetadata footer) {
+        MessageType parquetSchema = footer.getFileMetaData().getSchema();
+        validateFooterIntegrity(object.path().toString(), parquetSchema, footer.getBlocks());
+        List<Attribute> schema = convertParquetSchemaToAttributes(parquetSchema);
+        SourceStatistics statistics = extractStatistics(footer.getBlocks(), schema);
+        return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
+    }
+
+    /**
+     * Async metadata resolution: prefetch the footer tail off the executor via
+     * {@link StorageObject#readBytesAsync} (native, non-blocking on S3), then run the (CPU-only)
+     * footer parse straight from the prefetched byte array (see {@link #parseFooterFromTail}). The
+     * executor thread is therefore released across the network round-trip and is touched only for the
+     * microsecond-scale parse, which is what makes a wide discovery fan-out safe to bound by an
+     * in-flight permit equal to the pool size. The prefetched bytes are additionally offered to the
+     * JVM-wide {@link FooterByteCache} best-effort so a later split-discovery pass can reuse them, but
+     * the parse never depends on that entry surviving.
+     * <p>
+     * On any anomaly (short file, absent/foreign magic, oversized footer that cannot be cached) the
+     * method falls back to running {@link #metadata(StorageObject)} on the executor, which performs
+     * its own I/O and produces the canonical error for invalid files. Correctness never depends on
+     * the prefetch succeeding.
+     * <p>
+     * Contract note: {@link StorageObject#length()} is read synchronously on the calling thread before
+     * the async prefetch is dispatched. This is I/O-free when {@code object} was built from a directory
+     * listing (the resolver always seeds it via a {@link org.elasticsearch.xpack.esql.datasources.spi.ListingHint},
+     * so {@code length()} returns the known size). A caller that constructs {@code object} without a
+     * known length makes this a blocking stat/HEAD on the calling thread — such callers should dispatch
+     * {@code metadataAsync} on an executor themselves.
+     */
+    @Override
+    public void metadataAsync(StorageObject object, Executor executor, ActionListener<SourceMetadata> listener) {
+        final long length;
+        final FooterByteCache.Key cacheKey;
+        try {
+            length = object.length();
+            cacheKey = FooterByteCache.Key.keyFor(object, length);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        // Too small to hold a trailer, or the tail is already cached (warm) — the sync parse will
+        // not touch the network, so just run it on the executor.
+        if (length < PARQUET_TRAILER_BYTES || FooterByteCache.getInstance().get(cacheKey) != null) {
+            parseFooterOnExecutor(object, executor, listener);
+            return;
+        }
+
+        int tailLen = (int) Math.min(FOOTER_TAIL_PREFETCH_BYTES, length);
+        BufferAllocator allocator = blockFactory.arrowAllocator();
+        DirectBufferFactory factory = DirectBufferFactory.forAllocator(allocator);
+
+        object.readBytesAsync(length - tailLen, tailLen, factory, executor, ActionListener.wrap(tail -> {
+            final byte[] tailBytes;
+            try {
+                tailBytes = copyToArray(tail);
+            } finally {
+                tail.close();
+            }
+
+            if (tailBytes.length != tailLen) {
+                // readBytesAsync's SPI contract permits a short read (fewer than the requested bytes). The parse path
+                // treats these bytes as a suffix ending at the file length (TailBackedInputFile offsets by
+                // length - tailBytes.length), so a short read would misalign every footer offset. Fall back to the
+                // synchronous parse, which reads the exact ranges it needs itself, rather than relying on the
+                // trailing-magic scan below happening to reject the misaligned bytes.
+                parseFooterOnExecutor(object, executor, listener);
+                return;
+            }
+
+            int footerLength = footerLengthFromTrailer(tailBytes);
+            if (footerLength <= 0) {
+                // Missing/foreign magic or a nonsensical length — let the sync path produce the
+                // proper invalid-Parquet error (or handle an encrypted footer via its own I/O).
+                parseFooterOnExecutor(object, executor, listener);
+                return;
+            }
+
+            long footerRegion = (long) footerLength + PARQUET_TRAILER_BYTES;
+            if (footerRegion <= tailBytes.length) {
+                // The whole footer is already in the prefetched tail — parse straight from it.
+                parseTailOnExecutor(object, length, tailBytes, cacheKey, executor, listener);
+                return;
+            }
+
+            if (footerRegion > FooterByteCache.getInstance().maxEntryBytes()) {
+                // The footer is larger than the cache admits; the sync parse reads it directly.
+                parseFooterOnExecutor(object, executor, listener);
+                return;
+            }
+
+            // Large footer: a single exact-range read of [length - footerRegion, length) covers the
+            // whole footer, which is then parsed straight from the returned bytes.
+            int exactLen = (int) footerRegion;
+            object.readBytesAsync(length - exactLen, exactLen, factory, executor, ActionListener.wrap(footer -> {
+                final byte[] footerBytes;
+                try {
+                    footerBytes = copyToArray(footer);
+                } finally {
+                    footer.close();
+                }
+                if (footerBytes.length != exactLen) {
+                    // Short read (see the tail-read guard above): the bytes would not align to the file suffix the
+                    // parse path assumes, so fall back to the synchronous exact-range read.
+                    parseFooterOnExecutor(object, executor, listener);
+                    return;
+                }
+                parseTailOnExecutor(object, length, footerBytes, cacheKey, executor, listener);
+            }, listener::onFailure));
+        }, listener::onFailure));
+    }
+
+    /**
+     * Parses the footer directly from the prefetched {@code tailBytes} (a suffix of the file ending at
+     * {@code length}) on {@code executor}, completing {@code listener}. Parsing from the byte array is
+     * deliberate: it does not depend on the {@link FooterByteCache} surviving between the async read
+     * and the parse (a wide concurrent discovery could otherwise evict the tail against the cache's
+     * byte budget and force a blocking re-read on the executor thread). The bytes are additionally
+     * offered to the cache best-effort so a later split-discovery pass can reuse them, but correctness
+     * never depends on that.
+     */
+    private void parseTailOnExecutor(
+        StorageObject object,
+        long length,
+        byte[] tailBytes,
+        FooterByteCache.Key cacheKey,
+        Executor executor,
+        ActionListener<SourceMetadata> listener
+    ) {
+        executor.execute(() -> {
+            try {
+                FooterByteCache.getInstance().put(cacheKey, tailBytes);
+                listener.onResponse(parseFooterFromTail(object, length, tailBytes));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    /**
+     * Parses a Parquet {@link ParquetMetadata} footer from an in-memory suffix of the file
+     * ({@code tailBytes} covering {@code [length - tailBytes.length, length)}) and builds the
+     * corresponding {@link SourceMetadata}. Malformed footers surface as the same
+     * invalid-Parquet {@link IllegalArgumentException} the synchronous path produces.
+     */
+    private SourceMetadata parseFooterFromTail(StorageObject object, long length, byte[] tailBytes) throws IOException {
+        TailBackedInputFile inputFile = new TailBackedInputFile(length, tailBytes);
+        ParquetReadOptions options = readOptionsBuilder().build();
+        try (SeekableInputStream stream = inputFile.newStream()) {
+            ParquetMetadata footer;
+            try {
+                footer = ParquetFileReader.readFooter(inputFile, options, stream);
+            } catch (RuntimeException e) {
+                // parquet-mr signals a malformed footer with plain RuntimeExceptions; wrap them into
+                // the same shape as the synchronous read path so callers see consistent errors.
+                throw newInvalidParquetFileException(object.path().toString(), e);
+            }
+            return buildFooterMetadata(object, footer);
+        }
+    }
+
+    /** Runs the synchronous {@link #metadata(StorageObject)} on {@code executor}, completing {@code listener}. */
+    private void parseFooterOnExecutor(StorageObject object, Executor executor, ActionListener<SourceMetadata> listener) {
+        executor.execute(() -> {
+            try {
+                listener.onResponse(metadata(object));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    /**
+     * An {@link InputFile} whose bytes are an in-memory suffix of a larger file. It reports the true
+     * {@code fileLength} (so footer offsets computed from the trailer remain valid) but only serves
+     * reads that fall within the prefetched tail {@code [fileLength - tail.length, fileLength)}; any
+     * read below that throws, which for a footer-only parse never happens.
+     */
+    private static final class TailBackedInputFile implements org.apache.parquet.io.InputFile {
+        private final long fileLength;
+        private final byte[] tail;
+
+        TailBackedInputFile(long fileLength, byte[] tail) {
+            this.fileLength = fileLength;
+            this.tail = tail;
+        }
+
+        @Override
+        public long getLength() {
+            return fileLength;
+        }
+
+        @Override
+        public SeekableInputStream newStream() {
+            return new TailBackedSeekableInputStream(fileLength - tail.length, tail);
+        }
+    }
+
+    /** {@link SeekableInputStream} over a byte array positioned at file offset {@code tailStart}. */
+    private static final class TailBackedSeekableInputStream extends SeekableInputStream {
+        private final long tailStart;
+        private final byte[] tail;
+        private long pos;
+
+        TailBackedSeekableInputStream(long tailStart, byte[] tail) {
+            this.tailStart = tailStart;
+            this.tail = tail;
+            this.pos = tailStart;
+        }
+
+        private int index() throws IOException {
+            long rel = pos - tailStart;
+            if (rel < 0 || rel > tail.length) {
+                throw new IOException("Parquet footer read at " + pos + " outside prefetched tail of length " + tail.length);
+            }
+            return (int) rel;
+        }
+
+        @Override
+        public long getPos() {
+            return pos;
+        }
+
+        @Override
+        public void seek(long newPos) {
+            pos = newPos;
+        }
+
+        @Override
+        public int read() throws IOException {
+            int i = index();
+            if (i >= tail.length) {
+                return -1;
+            }
+            pos++;
+            return tail[i] & 0xFF;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            int i = index();
+            if (i >= tail.length) {
+                return -1;
+            }
+            int n = Math.min(len, tail.length - i);
+            System.arraycopy(tail, i, b, off, n);
+            pos += n;
+            return n;
+        }
+
+        @Override
+        public int read(ByteBuffer buf) throws IOException {
+            int i = index();
+            int n = Math.min(buf.remaining(), tail.length - i);
+            if (n <= 0) {
+                return -1;
+            }
+            buf.put(tail, i, n);
+            pos += n;
+            return n;
+        }
+
+        @Override
+        public void readFully(byte[] bytes) throws IOException {
+            readFully(bytes, 0, bytes.length);
+        }
+
+        @Override
+        public void readFully(byte[] bytes, int start, int len) throws IOException {
+            int i = index();
+            if (i + len > tail.length) {
+                throw new java.io.EOFException("Parquet footer read past prefetched tail");
+            }
+            System.arraycopy(tail, i, bytes, start, len);
+            pos += len;
+        }
+
+        @Override
+        public void readFully(ByteBuffer buf) throws IOException {
+            int i = index();
+            int len = buf.remaining();
+            if (i + len > tail.length) {
+                throw new java.io.EOFException("Parquet footer read past prefetched tail");
+            }
+            buf.put(tail, i, len);
+            pos += len;
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /** Copies the readable region ({@code position()}..{@code limit()}) of a direct buffer into a heap array. */
+    private static byte[] copyToArray(DirectReadBuffer buffer) {
+        ByteBuffer bb = buffer.buffer().duplicate();
+        byte[] bytes = new byte[bb.remaining()];
+        bb.get(bytes);
+        return bytes;
+    }
+
+    /**
+     * Reads the Parquet footer length from a byte array that ends at the file's final byte, i.e. the
+     * last 8 bytes are the trailer {@code [footerLength:int32-le][PAR1]}. Returns {@code -1} when the
+     * trailing magic is absent (foreign/encrypted footer, truncated file) so the caller can fall back
+     * to the synchronous path rather than trusting a bogus length.
+     */
+    private static int footerLengthFromTrailer(byte[] tail) {
+        int n = tail.length;
+        if (n < PARQUET_TRAILER_BYTES) {
+            return -1;
+        }
+        for (int i = 0; i < PARQUET_MAGIC.length; i++) {
+            if (tail[n - PARQUET_MAGIC.length + i] != PARQUET_MAGIC[i]) {
+                return -1;
+            }
+        }
+        int base = n - PARQUET_TRAILER_BYTES;
+        return (tail[base] & 0xFF) | ((tail[base + 1] & 0xFF) << 8) | ((tail[base + 2] & 0xFF) << 16) | ((tail[base + 3] & 0xFF) << 24);
     }
 
     /**
@@ -568,8 +912,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     @SuppressWarnings("rawtypes")
-    private SourceStatistics extractStatistics(ParquetFileReader reader, List<Attribute> attributes) {
-        List<BlockMetaData> rowGroups = reader.getRowGroups();
+    private SourceStatistics extractStatistics(List<BlockMetaData> rowGroups, List<Attribute> attributes) {
         if (rowGroups.isEmpty()) {
             return null;
         }

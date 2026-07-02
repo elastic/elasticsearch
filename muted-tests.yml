@@ -548,9 +548,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.precommit.PomValidationPrecommitPluginFuncTest
   method: detects missing POM elements and reports structured problems
   issue: https://github.com/elastic/elasticsearch/issues/151636
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=scroll/10_basic/Basic scroll}
-  issue: https://github.com/elastic/elasticsearch/issues/151698
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
   issue: https://github.com/elastic/elasticsearch/issues/151709
@@ -617,9 +614,6 @@ tests:
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/152115
-- class: org.elasticsearch.index.engine.InternalEngineTests
-  method: testLookupSeqNoByIdInLucene
-  issue: https://github.com/elastic/elasticsearch/issues/152120
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
@@ -853,3 +847,15 @@ tests:
 - class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
   method: testSupportsParsingObject {p0=true p1=ENTERPRISE}
   issue: https://github.com/elastic/elasticsearch/issues/152791
+- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
+  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<double>, <dense_vector>}
+  issue: https://github.com/elastic/elasticsearch/issues/152794
+- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
+  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<long>, <dense_vector>}
+  issue: https://github.com/elastic/elasticsearch/issues/152795
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testSourceRelocationDuringReshard
+  issue: https://github.com/elastic/elasticsearch/issues/152800
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:inlinestats.groupByMultipleRenamedColumns_AndTwoExpressions}
+  issue: https://github.com/elastic/elasticsearch/issues/152801

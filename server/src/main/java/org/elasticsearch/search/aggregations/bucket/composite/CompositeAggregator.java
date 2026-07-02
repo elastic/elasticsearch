@@ -140,7 +140,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             }
         }
         this.innerSizedBucketAggregators = dateHistogramValuesSources.toArray(new DateHistogramValuesSource[0]);
-        this.queue = new CompositeValuesCollectorQueue(aggCtx.bigArrays(), sources, size);
+        this.queue = new CompositeValuesCollectorQueue(aggCtx.bigArrays(), sources, size, aggCtx.searcher().getIndexReader());
         if (rawAfterKey != null) {
             try {
                 this.queue.setAfterKey(rawAfterKey);
@@ -504,10 +504,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
 
                     @Override
                     public DocIdSetIterator competitiveIterator() throws IOException {
-                        // Only prune when there is no index sort to exploit. With a (possibly reversed) index-sort
-                        // prefix, index-sort early termination is preferred - it stops the scan entirely - and pruning
-                        // the competitive range away would hide the boundary document that triggers it.
-                        if (queue.mayDynamicallyPrune() && sortPrefixLen == 0) {
+                        if (queue.mayDynamicallyPrune()) {
                             return inner.competitiveIterator();
                         } else {
                             return null;
@@ -623,8 +620,8 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
-        if (sources[0] instanceof SegmentOrdinalValuesSource segmentOrdinalValuesSource) {
-            segmentOrdinalValuesSource.collectDebugInfo(Strings.format("sources.%s", sourceConfigs[0].name()), add);
+        if (sources[0] instanceof GlobalOrdinalValuesSource globalOrdinalValuesSource) {
+            globalOrdinalValuesSource.collectDebugInfo(Strings.format("sources.%s", sourceConfigs[0].name()), add);
         }
     }
 

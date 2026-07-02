@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.GrokCaptureConfig;
 import org.elasticsearch.grok.GrokCaptureType;
-import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -96,13 +95,9 @@ public class Grok extends RegexExtract implements TelemetryAware, SortPreserving
     }
 
     public static Parser pattern(Source source, String pattern) {
-        return pattern(source, pattern, MatcherWatchdog.noop());
-    }
-
-    public static Parser pattern(Source source, String pattern, MatcherWatchdog matcherWatchdog) {
         try {
             var builtinPatterns = GrokBuiltinPatterns.get(true);
-            org.elasticsearch.grok.Grok grok = new org.elasticsearch.grok.Grok(builtinPatterns, pattern, matcherWatchdog, logger::warn);
+            org.elasticsearch.grok.Grok grok = new org.elasticsearch.grok.Grok(builtinPatterns, pattern, logger::warn);
             return new Parser(pattern, grok);
         } catch (IllegalArgumentException e) {
             throw new ParsingException(source, "Invalid pattern [{}] for grok: {}", pattern, e.getMessage());
@@ -124,13 +119,12 @@ public class Grok extends RegexExtract implements TelemetryAware, SortPreserving
     }
 
     private static Grok readFrom(StreamInput in) throws IOException {
-        PlanStreamInput planIn = (PlanStreamInput) in;
-        Source source = Source.readFrom(planIn);
+        Source source = Source.readFrom((PlanStreamInput) in);
         return new Grok(
             source,
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
-            Grok.pattern(source, in.readString(), planIn.grokMatcherWatchdog()),
+            Grok.pattern(source, in.readString()),
             in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }

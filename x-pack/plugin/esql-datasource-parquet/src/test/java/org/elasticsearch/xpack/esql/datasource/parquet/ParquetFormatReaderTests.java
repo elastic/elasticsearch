@@ -26,6 +26,8 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -47,11 +49,14 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -63,6 +68,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -75,10 +81,16 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -171,6 +183,322 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
         assertEquals("active", attributes.get(3).name());
         assertEquals(DataType.BOOLEAN, attributes.get(3).dataType());
+    }
+
+    /**
+     * Parity: {@link ParquetFormatReader#metadataAsync} must resolve the same schema as the
+     * synchronous {@link ParquetFormatReader#metadata}. The async path prefetches the footer tail via
+     * {@code readBytesAsync} (completed here on a separate probe pool), seeds the footer-byte cache and
+     * then runs the CPU-only parse; the resulting {@link SourceMetadata} must be indistinguishable
+     * from the fully-synchronous path.
+     */
+    public void testMetadataAsyncMatchesSync() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("age")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("id", 7L);
+            g.add("name", "Alice");
+            g.add("age", 30);
+            return List.of(g);
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        // Synchronous baseline against its own (freshly cleared) object.
+        SourceMetadata syncMeta = reader.metadata(createStorageObject(parquetData));
+        List<Attribute> syncSchema = syncMeta.schema();
+
+        // Async path over an object whose reads complete on a separate pool.
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger asyncReadCount = new AtomicInteger();
+        try {
+            StorageObject asyncObject = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null);
+            PlainActionFuture<SourceMetadata> future = new PlainActionFuture<>();
+            reader.metadataAsync(asyncObject, probePool, future);
+            SourceMetadata asyncMeta = future.actionGet(30, TimeUnit.SECONDS);
+
+            assertEquals("footer tail should be prefetched exactly once", 1, asyncReadCount.get());
+            List<Attribute> asyncSchema = asyncMeta.schema();
+            assertEquals(syncSchema.size(), asyncSchema.size());
+            for (int i = 0; i < syncSchema.size(); i++) {
+                assertEquals(syncSchema.get(i).name(), asyncSchema.get(i).name());
+                assertEquals(syncSchema.get(i).dataType(), asyncSchema.get(i).dataType());
+            }
+            // The async path parses via TailBackedInputFile, a different open path than the sync
+            // ParquetStorageObjectAdapter — statistics are part of the metadata contract, so assert
+            // row count, byte size and per-column stats match, not just the schema.
+            assertStatisticsEqual(syncMeta, asyncMeta);
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
+    /** Asserts that two {@link SourceMetadata} carry identical row-count, byte-size and per-column statistics. */
+    private static void assertStatisticsEqual(SourceMetadata expected, SourceMetadata actual) {
+        assertEquals("statistics presence must match", expected.statistics().isPresent(), actual.statistics().isPresent());
+        if (expected.statistics().isPresent() == false) {
+            return;
+        }
+        SourceStatistics expectedStats = expected.statistics().get();
+        SourceStatistics actualStats = actual.statistics().get();
+        assertEquals("row count", expectedStats.rowCount(), actualStats.rowCount());
+        assertEquals("size in bytes", expectedStats.sizeInBytes(), actualStats.sizeInBytes());
+        assertEquals(
+            "column-statistics presence",
+            expectedStats.columnStatistics().isPresent(),
+            actualStats.columnStatistics().isPresent()
+        );
+        if (expectedStats.columnStatistics().isPresent() == false) {
+            return;
+        }
+        Map<String, SourceStatistics.ColumnStatistics> expectedCols = expectedStats.columnStatistics().get();
+        Map<String, SourceStatistics.ColumnStatistics> actualCols = actualStats.columnStatistics().get();
+        assertEquals("column-statistics keys", expectedCols.keySet(), actualCols.keySet());
+        for (Map.Entry<String, SourceStatistics.ColumnStatistics> entry : expectedCols.entrySet()) {
+            SourceStatistics.ColumnStatistics expectedCol = entry.getValue();
+            SourceStatistics.ColumnStatistics actualCol = actualCols.get(entry.getKey());
+            String col = entry.getKey();
+            assertEquals("null count [" + col + "]", expectedCol.nullCount(), actualCol.nullCount());
+            assertEquals("min value [" + col + "]", expectedCol.minValue(), actualCol.minValue());
+            assertEquals("max value [" + col + "]", expectedCol.maxValue(), actualCol.maxValue());
+            assertEquals("column size [" + col + "]", expectedCol.sizeInBytes(), actualCol.sizeInBytes());
+        }
+    }
+
+    /**
+     * Large footer: a file whose footer exceeds the {@link ParquetFormatReader#FOOTER_TAIL_PREFETCH_BYTES}
+     * tail window must trigger a second, exact-range {@code readBytesAsync} covering the whole footer,
+     * and still parse to the correct schema. A wide (many-column) schema inflates the footer well past
+     * the 64 KiB tail while staying under the footer-byte cache's per-entry cap.
+     */
+    public void testMetadataAsyncLargeFooterIssuesSecondRead() throws Exception {
+        int columns = 2000;
+        Types.MessageTypeBuilder builder = Types.buildMessage();
+        for (int i = 0; i < columns; i++) {
+            builder.optional(PrimitiveType.PrimitiveTypeName.INT64).named("col_" + i);
+        }
+        MessageType schema = builder.named("wide_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("col_0", 1L);
+            return List.of(g);
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<Attribute> syncSchema = reader.metadata(createStorageObject(parquetData)).schema();
+
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger asyncReadCount = new AtomicInteger();
+        List<long[]> reads = new CopyOnWriteArrayList<>();
+        try {
+            StorageObject asyncObject = createAsyncStorageObject(parquetData, probePool, asyncReadCount, reads);
+            PlainActionFuture<SourceMetadata> future = new PlainActionFuture<>();
+            reader.metadataAsync(asyncObject, probePool, future);
+            SourceMetadata asyncMeta = future.actionGet(30, TimeUnit.SECONDS);
+
+            assertEquals("footer larger than the tail window should trigger a second read", 2, asyncReadCount.get());
+            assertEquals("first read is the bounded tail prefetch", ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES, reads.get(0)[1]);
+            assertThat(
+                "second read must cover the full footer, larger than the tail window",
+                reads.get(1)[1],
+                greaterThan((long) ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES)
+            );
+            assertEquals(syncSchema.size(), asyncMeta.schema().size());
+            assertEquals(columns, asyncMeta.schema().size());
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
+    /**
+     * No-buffer-leak (success): every {@link DirectReadBuffer} handed to {@code metadataAsync} —
+     * both the tail prefetch and the second full-footer read of a wide footer — must be closed by the
+     * reader once its bytes have been copied out. A file wide enough to force the two-read path
+     * exercises both allocations.
+     */
+    public void testMetadataAsyncReleasesBuffersOnSuccess() throws Exception {
+        int columns = 2000;
+        Types.MessageTypeBuilder builder = Types.buildMessage();
+        for (int i = 0; i < columns; i++) {
+            builder.optional(PrimitiveType.PrimitiveTypeName.INT64).named("col_" + i);
+        }
+        byte[] parquetData = createParquetFile(builder.named("wide_schema"), factory -> {
+            Group g = factory.newGroup();
+            g.add("col_0", 1L);
+            return List.of(g);
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger openBuffers = new AtomicInteger();
+        AtomicInteger allocated = new AtomicInteger();
+        try {
+            StorageObject asyncObject = createBufferTrackingAsyncStorageObject(parquetData, probePool, openBuffers, allocated, -1);
+            PlainActionFuture<SourceMetadata> future = new PlainActionFuture<>();
+            reader.metadataAsync(asyncObject, probePool, future);
+            future.actionGet(30, TimeUnit.SECONDS);
+
+            assertThat("both reads must allocate a buffer", allocated.get(), equalTo(2));
+            assertEquals("every prefetched buffer must be released after its bytes are copied", 0, openBuffers.get());
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
+    /**
+     * No-buffer-leak (failure): when the second (full-footer) read fails, the reader must already have
+     * released the first (tail) buffer and must not leak any buffer, while surfacing the failure.
+     */
+    public void testMetadataAsyncReleasesBuffersOnReadFailure() throws Exception {
+        int columns = 2000;
+        Types.MessageTypeBuilder builder = Types.buildMessage();
+        for (int i = 0; i < columns; i++) {
+            builder.optional(PrimitiveType.PrimitiveTypeName.INT64).named("col_" + i);
+        }
+        byte[] parquetData = createParquetFile(builder.named("wide_schema"), factory -> {
+            Group g = factory.newGroup();
+            g.add("col_0", 1L);
+            return List.of(g);
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger openBuffers = new AtomicInteger();
+        AtomicInteger allocated = new AtomicInteger();
+        try {
+            // Fail the second read (index 1): the full-footer fetch that follows the tail prefetch.
+            StorageObject asyncObject = createBufferTrackingAsyncStorageObject(parquetData, probePool, openBuffers, allocated, 1);
+            PlainActionFuture<SourceMetadata> future = new PlainActionFuture<>();
+            reader.metadataAsync(asyncObject, probePool, future);
+            expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+
+            assertEquals("the tail buffer must be released even though the follow-up read failed", 0, openBuffers.get());
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
+    /**
+     * Short-read fallback: {@code readBytesAsync}'s SPI contract permits returning fewer bytes than
+     * requested. The async parse treats the prefetched bytes as a suffix ending at the file length, so a
+     * short read would misalign every footer offset. This mock returns a short buffer whose trailing 8
+     * bytes forge a valid-looking Parquet trailer (small footer length + {@code PAR1}) — enough to send
+     * the unguarded path straight into {@code parseTailOnExecutor} with a misaligned window (which then
+     * mis-parses or throws). {@code metadataAsync} must instead detect the short read and fall back to the
+     * synchronous parse, yielding metadata identical to the fully-synchronous path.
+     */
+    public void testMetadataAsyncShortReadFallsBackToSync() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .named("short_read_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("id", 42L);
+            g.add("name", "Bob");
+            return List.of(g);
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata syncMeta = reader.metadata(createStorageObject(parquetData));
+
+        // A deliberately short buffer with a forged trailer: footerLength=20 (LE int32) followed by PAR1.
+        // footerRegion (20 + 8) <= buffer length (40), so the unguarded path would parse straight from
+        // these misaligned bytes instead of the real file suffix.
+        byte[] shortBuffer = new byte[40];
+        int forgedFooterLength = 20;
+        int base = shortBuffer.length - 8;
+        shortBuffer[base] = (byte) (forgedFooterLength & 0xFF);
+        shortBuffer[base + 1] = (byte) ((forgedFooterLength >> 8) & 0xFF);
+        shortBuffer[base + 2] = (byte) ((forgedFooterLength >> 16) & 0xFF);
+        shortBuffer[base + 3] = (byte) ((forgedFooterLength >> 24) & 0xFF);
+        shortBuffer[base + 4] = 'P';
+        shortBuffer[base + 5] = 'A';
+        shortBuffer[base + 6] = 'R';
+        shortBuffer[base + 7] = '1';
+
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger asyncReadCount = new AtomicInteger();
+        try {
+            StorageObject asyncObject = new StorageObject() {
+                @Override
+                public InputStream newStream() {
+                    return new ByteArrayInputStream(parquetData);
+                }
+
+                @Override
+                public InputStream newStream(long position, long length) {
+                    int pos = (int) position;
+                    int len = (int) Math.min(length, parquetData.length - position);
+                    return new ByteArrayInputStream(parquetData, pos, len);
+                }
+
+                @Override
+                public void readBytesAsync(
+                    long position,
+                    long length,
+                    DirectBufferFactory factory,
+                    Executor ignored,
+                    ActionListener<DirectReadBuffer> listener
+                ) {
+                    asyncReadCount.incrementAndGet();
+                    probePool.execute(() -> listener.onResponse(new DirectReadBuffer(ByteBuffer.wrap(shortBuffer), () -> {})));
+                }
+
+                @Override
+                public long length() {
+                    return parquetData.length;
+                }
+
+                @Override
+                public Instant lastModified() {
+                    return Instant.ofEpochMilli(0);
+                }
+
+                @Override
+                public boolean exists() {
+                    return true;
+                }
+
+                @Override
+                public StoragePath path() {
+                    return StoragePath.of("memory://short-read-test.parquet");
+                }
+            };
+
+            PlainActionFuture<SourceMetadata> future = new PlainActionFuture<>();
+            reader.metadataAsync(asyncObject, probePool, future);
+            SourceMetadata asyncMeta = future.actionGet(30, TimeUnit.SECONDS);
+
+            assertEquals("the tail prefetch must be attempted once before falling back", 1, asyncReadCount.get());
+            assertEquals(syncMeta.schema().size(), asyncMeta.schema().size());
+            for (int i = 0; i < syncMeta.schema().size(); i++) {
+                assertEquals(syncMeta.schema().get(i).name(), asyncMeta.schema().get(i).name());
+                assertEquals(syncMeta.schema().get(i).dataType(), asyncMeta.schema().get(i).dataType());
+            }
+            assertStatisticsEqual(syncMeta, asyncMeta);
+        } finally {
+            probePool.shutdownNow();
+        }
     }
 
     public void testReadDataFromSimpleParquet() throws Exception {
@@ -1671,6 +1999,91 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testReadListOfUnsignedLongColumn() throws Exception {
+        assertReadListOfUnsignedLongColumn(new ParquetFormatReader(blockFactory, false)); // baseline reader
+    }
+
+    public void testReadListOfUnsignedLongColumnOptimizedReader() throws Exception {
+        assertReadListOfUnsignedLongColumn(new ParquetFormatReader(blockFactory, true)); // optimized reader
+    }
+
+    /**
+     * A LIST of unsigned_long (Parquet INT64 with {@code intType(64, false)}) must sign-flip-encode each element
+     * ({@code value ^ 2^63}), just like the scalar path, so the always-decoding output edge produces the true unsigned
+     * value. Before the encode was added, list columns fell into the unsupported branch and read back as all-null.
+     * Both reader paths route list columns through the same shared decoder, so both are exercised here.
+     */
+    private void assertReadListOfUnsignedLongColumn(ParquetFormatReader reader) throws Exception {
+        Type listType = Types.optionalList()
+            .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.intType(64, false)) // unsigned, bit-width 64
+            .named("values");
+        MessageType schema = new MessageType("test_schema", listType);
+
+        long maxUnsigned = 0xFFFFFFFFFFFFFFFFL; // 2^64-1
+        // 2^63 + 100: as an unsigned value this is > Long.MAX_VALUE, so it encodes (^ 2^63) to a non-negative long --
+        // the opposite side of the sign boundary from 0 and 100, which encode to negative longs.
+        long aboveSignedMaxUnsigned = 0x8000000000000064L;
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            // Row 0: [0, 2^63+100, 2^64-1] -- spans both sides of the encoding's sign boundary
+            Group g1 = factory.newGroup();
+            Group list1 = g1.addGroup("values");
+            list1.addGroup("list").append("element", 0L);
+            list1.addGroup("list").append("element", aboveSignedMaxUnsigned);
+            list1.addGroup("list").append("element", maxUnsigned);
+
+            // Row 1: null list (no addGroup call)
+            Group g2 = factory.newGroup();
+
+            // Row 2: [100, null element, 200]
+            Group g3 = factory.newGroup();
+            Group list3 = g3.addGroup("values");
+            list3.addGroup("list").append("element", 100L);
+            list3.addGroup("list"); // element absent -> null within the list
+            list3.addGroup("list").append("element", 200L);
+
+            // Row 3: [] (empty, non-null list)
+            Group g4 = factory.newGroup();
+            g4.addGroup("values");
+
+            return List.of(g1, g2, g3, g4);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.UNSIGNED_LONG, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(4, page.getPositionCount());
+
+            LongBlock block = (LongBlock) page.getBlock(0);
+            // Row 0: [0, 2^63+100, 2^64-1] sign-flip-encoded
+            assertFalse(block.isNull(0));
+            assertEquals(3, block.getValueCount(0));
+            int start0 = block.getFirstValueIndex(0);
+            assertEquals(0L ^ Long.MIN_VALUE, block.getLong(start0));
+            assertEquals(aboveSignedMaxUnsigned ^ Long.MIN_VALUE, block.getLong(start0 + 1));
+            assertEquals(maxUnsigned ^ Long.MIN_VALUE, block.getLong(start0 + 2));
+
+            // Row 1: null list
+            assertTrue(block.isNull(1));
+
+            // Row 2: [100, 200] encoded; the null element is dropped (multivalue blocks do not hold null slots within a list)
+            assertFalse(block.isNull(2));
+            assertEquals(2, block.getValueCount(2));
+            int start2 = block.getFirstValueIndex(2);
+            assertEquals(100L ^ Long.MIN_VALUE, block.getLong(start2));
+            assertEquals(200L ^ Long.MIN_VALUE, block.getLong(start2 + 1));
+
+            // Row 3: [] empty list -> read back as null (the shared list decoder maps an empty list to a null position;
+            // ESQL multivalue blocks have no distinct empty-list representation). This is pre-existing list behavior,
+            // independent of the unsigned encoding, asserted here to document it for the unsigned_long path.
+            assertTrue(block.isNull(3));
+        }
+    }
+
     // --- UUID formatting unit test ---
 
     public void testFormatUuid() {
@@ -2734,6 +3147,156 @@ public class ParquetFormatReaderTests extends ESTestCase {
         };
     }
 
+    /**
+     * Builds a {@link StorageObject} that completes {@code readBytesAsync} on {@code pool} (never on
+     * the executor the caller passes in), so tests can assert the executor thread is released across
+     * the "network" read. {@code asyncReadCount} records the number of async dispatches; when
+     * {@code reads} is non-null each {@code readBytesAsync} appends a {@code [position, length]} pair
+     * so tests can inspect the exact ranges requested.
+     */
+    private static StorageObject createAsyncStorageObject(
+        byte[] data,
+        ExecutorService pool,
+        AtomicInteger asyncReadCount,
+        List<long[]> reads
+    ) {
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(data);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                int pos = (int) position;
+                int len = (int) Math.min(length, data.length - position);
+                return new ByteArrayInputStream(data, pos, len);
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor ignored,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                asyncReadCount.incrementAndGet();
+                if (reads != null) {
+                    reads.add(new long[] { position, length });
+                }
+                pool.execute(() -> {
+                    try {
+                        int pos = (int) position;
+                        int len = (int) Math.min(length, data.length - position);
+                        byte[] slice = new byte[len];
+                        System.arraycopy(data, pos, slice, 0, len);
+                        listener.onResponse(new DirectReadBuffer(ByteBuffer.wrap(slice), () -> {}));
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                });
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.ofEpochMilli(0);
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://async-test.parquet");
+            }
+        };
+    }
+
+    /**
+     * Like {@link #createAsyncStorageObject} but tracks {@link DirectReadBuffer} lifecycle so leak
+     * tests can assert release: {@code allocated} counts buffers handed out and {@code openBuffers} is
+     * incremented on allocation and decremented on {@link DirectReadBuffer#close()}. When
+     * {@code failReadIndex >= 0} that (0-based) read completes with a failure and allocates no buffer.
+     */
+    private static StorageObject createBufferTrackingAsyncStorageObject(
+        byte[] data,
+        ExecutorService pool,
+        AtomicInteger openBuffers,
+        AtomicInteger allocated,
+        int failReadIndex
+    ) {
+        AtomicInteger readIndex = new AtomicInteger();
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(data);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                int pos = (int) position;
+                int len = (int) Math.min(length, data.length - position);
+                return new ByteArrayInputStream(data, pos, len);
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor ignored,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                int idx = readIndex.getAndIncrement();
+                pool.execute(() -> {
+                    if (idx == failReadIndex) {
+                        listener.onFailure(new IOException("injected read failure at index " + idx));
+                        return;
+                    }
+                    try {
+                        int pos = (int) position;
+                        int len = (int) Math.min(length, data.length - position);
+                        byte[] slice = new byte[len];
+                        System.arraycopy(data, pos, slice, 0, len);
+                        allocated.incrementAndGet();
+                        openBuffers.incrementAndGet();
+                        listener.onResponse(new DirectReadBuffer(ByteBuffer.wrap(slice), openBuffers::decrementAndGet));
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                });
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.ofEpochMilli(0);
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://async-leak-test.parquet");
+            }
+        };
+    }
+
     private StorageObject createStorageObject(byte[] data) {
         return createStorageObject(data, "memory://test.parquet");
     }
@@ -3440,6 +4003,149 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    // esql-planning#1030: WHERE pushdown over a uint32 column (physical INT32, widened to
+    // ESQL LONG) used to build a Parquet longColumn FilterPredicate, which parquet-mr rejects
+    // against the file's INT32 schema — every comparator 500d. This exercises the full read
+    // path end to end: the reader must not throw, and must return exactly the matching rows.
+    // A sibling uint16 column (stays ESQL INTEGER, never widened) is the issue's suggested
+    // "already works" control.
+    public void testUint32FilterPushdownDoesNotThrowAndReturnsMatchingRows() throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(32, false)) // unsigned
+            .named("u32")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(16, false)) // unsigned control
+            .named("u16")
+            .named("test_schema");
+
+        // Values straddle Integer.MAX_VALUE, matching the issue's 3,000,000,000-style overflow.
+        long[] u32Values = { 50_000L, 100_000L, 200_000L, 3_000_000_000L, 4_000_000_000L };
+        int[] u16Values = { 10, 50, 150, 200, 300 };
+        byte[] data = createParquetFile(schema, f -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < u32Values.length; i++) {
+                Group g = f.newGroup();
+                g.append("u32", (int) u32Values[i]);
+                g.append("u16", u16Values[i]);
+                groups.add(g);
+            }
+            return groups;
+        });
+        StorageObject storageObject = createStorageObject(data);
+
+        // The issue's exact reproducer: WHERE u32 > 100000.
+        org.elasticsearch.xpack.esql.core.expression.Expression u32Filter =
+            new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan(
+                Source.EMPTY,
+                new ReferenceAttribute(Source.EMPTY, "u32", DataType.LONG),
+                new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, 100_000L, DataType.LONG),
+                null
+            );
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(
+            new ParquetPushedExpressions(List.of(u32Filter))
+        );
+
+        List<Long> survivors = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, List.of("u32"), 10)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                LongBlock block = (LongBlock) page.getBlock(0);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    survivors.add(block.getLong(i));
+                }
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(List.of(200_000L, 3_000_000_000L, 4_000_000_000L), survivors);
+    }
+
+    // Companion IN/AND coverage, per the issue's "every operator fails" list.
+    public void testUint32InAndCombinedAndFilterPushdown() throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(32, false))
+            .named("u32")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(16, false))
+            .named("u16")
+            .named("test_schema");
+
+        long[] u32Values = { 50_000L, 100_000L, 200_000L, 3_000_000_000L, 4_000_000_000L };
+        int[] u16Values = { 10, 50, 150, 200, 300 };
+        byte[] data = createParquetFile(schema, f -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < u32Values.length; i++) {
+                Group g = f.newGroup();
+                g.append("u32", (int) u32Values[i]);
+                g.append("u16", u16Values[i]);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        // IN (100000, 4000000000)
+        org.elasticsearch.xpack.esql.core.expression.Expression inFilter =
+            new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In(
+                Source.EMPTY,
+                new ReferenceAttribute(Source.EMPTY, "u32", DataType.LONG),
+                List.of(
+                    new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, 100_000L, DataType.LONG),
+                    new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, 4_000_000_000L, DataType.LONG)
+                )
+            );
+        ParquetFormatReader inReader = new ParquetFormatReader(blockFactory).withPushedFilter(
+            new ParquetPushedExpressions(List.of(inFilter))
+        );
+        List<Long> inSurvivors = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = inReader.read(createStorageObject(data), List.of("u32"), 10)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                LongBlock block = (LongBlock) page.getBlock(0);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    inSurvivors.add(block.getLong(i));
+                }
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(List.of(100_000L, 4_000_000_000L), inSurvivors);
+
+        // u32 > 100000 AND u16 > 100 (combined predicate across a widened and a non-widened column)
+        org.elasticsearch.xpack.esql.core.expression.Expression u32Gt =
+            new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan(
+                Source.EMPTY,
+                new ReferenceAttribute(Source.EMPTY, "u32", DataType.LONG),
+                new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, 100_000L, DataType.LONG),
+                null
+            );
+        org.elasticsearch.xpack.esql.core.expression.Expression u16Gt =
+            new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan(
+                Source.EMPTY,
+                new ReferenceAttribute(Source.EMPTY, "u16", DataType.INTEGER),
+                new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, 100, DataType.INTEGER),
+                null
+            );
+        org.elasticsearch.xpack.esql.core.expression.Expression combined =
+            new org.elasticsearch.xpack.esql.expression.predicate.logical.And(Source.EMPTY, u32Gt, u16Gt);
+        ParquetFormatReader andReader = new ParquetFormatReader(blockFactory).withPushedFilter(
+            new ParquetPushedExpressions(List.of(combined))
+        );
+        List<Long> andSurvivors = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = andReader.read(createStorageObject(data), List.of("u32"), 10)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                LongBlock block = (LongBlock) page.getBlock(0);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    andSurvivors.add(block.getLong(i));
+                }
+                page.releaseBlocks();
+            }
+        }
+        // u16 > 100 keeps rows [150, 200, 300] -> u32 values [200000, 3000000000, 4000000000];
+        // u32 > 100000 further restricts to the same three (100000 itself is excluded by u16=50 anyway).
+        assertEquals(List.of(200_000L, 3_000_000_000L, 4_000_000_000L), andSurvivors);
+    }
+
     public void testLargeUnsignedLong() throws Exception {
         var schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)
@@ -3455,8 +4161,95 @@ public class ParquetFormatReaderTests extends ESTestCase {
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
-            assertEquals(unsignedBits, ((LongBlock) page.getBlock(0)).getLong(0));
+            // ESQL stores unsigned_long sign-flip-encoded (value ^ 2^63); the output edge decodes it back to the true value.
+            assertEquals(unsignedBits ^ Long.MIN_VALUE, ((LongBlock) page.getBlock(0)).getLong(0));
             assertFalse(iterator.hasNext());
+        }
+    }
+
+    public void testUnsignedLong64SignFlipEncoding() throws Exception {
+        assertUnsignedLong64SignFlipEncoding(new ParquetFormatReader(blockFactory, false)); // baseline reader
+    }
+
+    public void testUnsignedLong64SignFlipEncodingOptimizedReader() throws Exception {
+        assertUnsignedLong64SignFlipEncoding(new ParquetFormatReader(blockFactory, true)); // optimized reader
+    }
+
+    /**
+     * A 64-bit unsigned column maps to UNSIGNED_LONG, which ESQL stores in a signed LongBlock in sign-flip-encoded form
+     * ({@code value ^ 2^63}) so signed-long ordering matches unsigned ordering. The producer (this reader) must emit the
+     * encoded form because the output edge unconditionally decodes UNSIGNED_LONG blocks. This asserts the encode is applied
+     * across representative values, including {@code 0} and {@code 2^64-1}, on both reader paths.
+     */
+    private void assertUnsignedLong64SignFlipEncoding(ParquetFormatReader reader) throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.intType(64, false)) // unsigned, bit-width 64
+            .named("u64")
+            .named("test_schema");
+        // The encoding (v ^ 2^63) maps unsigned values in [0, 2^63-1] to negative longs and [2^63, 2^64-1] to non-negative
+        // longs. Cover both sides of that boundary: 0, small positive, 2^63-1 (largest value encoding to a negative long),
+        // 2^63 (smallest value encoding to a non-negative long), and 2^64-1.
+        long[] unsignedValues = { 0L, 100L, 0x7FFFFFFFFFFFFFFFL, 0x8000000000000000L, 0xFFFFFFFFFFFFFFFFL };
+        byte[] data = createParquetFile(schema, f -> {
+            List<Group> g = new ArrayList<>();
+            for (long bits : unsignedValues) {
+                g.add(f.newGroup().append("u64", bits));
+            }
+            return g;
+        });
+        var so = createStorageObject(data);
+        assertEquals(DataType.UNSIGNED_LONG, reader.metadata(so).schema().get(0).dataType());
+        try (CloseableIterator<Page> it = reader.read(so, null, 10)) {
+            LongBlock block = (LongBlock) it.next().getBlock(0);
+            for (int i = 0; i < unsignedValues.length; i++) {
+                // contract: a uint64 column is stored sign-flip-encoded (v ^ 2^63 == asLongUnsigned(v))
+                assertEquals(unsignedValues[i] ^ Long.MIN_VALUE, block.getLong(i));
+            }
+        }
+    }
+
+    public void testUnsignedLong64ConstantColumnEncoding() throws Exception {
+        assertUnsignedLong64ConstantColumnEncoding(new ParquetFormatReader(blockFactory, false), false); // baseline reader
+    }
+
+    public void testUnsignedLong64ConstantColumnEncodingOptimizedReader() throws Exception {
+        // The optimized reader collapses an all-equal column into a constant block; assert both the encoding and the collapse,
+        // which proves the encode is applied before constant detection rather than after.
+        assertUnsignedLong64ConstantColumnEncoding(new ParquetFormatReader(blockFactory, true), true);
+    }
+
+    /**
+     * A constant unsigned_long column must still be sign-flip-encoded. The encode is applied before constant detection,
+     * so a collapsed constant block holds the encoded value rather than the raw bits.
+     *
+     * @param expectConstantCollapse when {@code true} the block is additionally asserted to be a constant vector; only the
+     *                               optimized reader performs this collapse, so the baseline reader passes {@code false}.
+     */
+    private void assertUnsignedLong64ConstantColumnEncoding(ParquetFormatReader reader, boolean expectConstantCollapse) throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.intType(64, false)) // unsigned
+            .named("u64")
+            .named("test_schema");
+        long unsignedBits = 0xFFFFFFFFFFFFFFFFL; // 2^64-1, constant across all rows
+        byte[] data = createParquetFile(schema, f -> {
+            List<Group> g = new ArrayList<>();
+            for (int i = 0; i < 16; i++) {
+                g.add(f.newGroup().append("u64", unsignedBits));
+            }
+            return g;
+        });
+        var so = createStorageObject(data);
+        try (CloseableIterator<Page> it = reader.read(so, null, 100)) {
+            LongBlock block = (LongBlock) it.next().getBlock(0);
+            assertEquals(16, block.getPositionCount());
+            for (int i = 0; i < block.getPositionCount(); i++) {
+                assertEquals(unsignedBits ^ Long.MIN_VALUE, block.getLong(i));
+            }
+            if (expectConstantCollapse) {
+                assertTrue("optimized reader should collapse an all-equal column into a constant vector", block.asVector().isConstant());
+            }
         }
     }
 
@@ -3576,6 +4369,183 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertNotNull(paths.offsetIndexPaths());
         assertTrue("no FilterPredicate -> predicate column index must not be fetched", paths.columnIndexPaths().isEmpty());
         assertTrue("no FilterPredicate -> no offset index must be fetched", paths.offsetIndexPaths().isEmpty());
+    }
+
+    // --- Temporal stats decode regression ---
+
+    /**
+     * Verifies that Parquet footer statistics for temporal columns (date32, timestamp[us],
+     * timestamp[ms]) are published as epoch-millis, matching the scan-path decode. Before the
+     * fix, date32 stats were raw days and timestamp[us] stats were raw microseconds.
+     */
+    public void testTemporalStatsDecodeToEpochMillis() throws Exception {
+        long millis2000 = Instant.parse("2000-01-01T00:00:00Z").toEpochMilli(); // 946684800000
+        long millis2020 = Instant.parse("2020-01-01T00:00:00Z").toEpochMilli(); // 1577836800000
+
+        int days2000 = (int) (millis2000 / ParquetColumnDecoding.MILLIS_PER_DAY);
+        int days2020 = (int) (millis2020 / ParquetColumnDecoding.MILLIS_PER_DAY);
+        long micros2000 = millis2000 * 1_000;
+        long micros2020 = millis2020 * 1_000;
+
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.dateType())
+            .named("d32")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("tus")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("tms")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("d32", days2000);
+            g1.add("tus", micros2000);
+            g1.add("tms", millis2000);
+            Group g2 = factory.newGroup();
+            g2.add("d32", days2020);
+            g2.add("tus", micros2020);
+            g2.add("tms", millis2020);
+            return List.of(g1, g2);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        // --- extractStatistics path (metadata) ---
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertTrue("expected source statistics", metadata.statistics().isPresent());
+        var colStats = metadata.statistics().get().columnStatistics().get();
+
+        var d32Stats = colStats.get("d32");
+        assertEquals("date32 min must be epoch-millis", Optional.of(millis2000), d32Stats.minValue());
+        assertEquals("date32 max must be epoch-millis", Optional.of(millis2020), d32Stats.maxValue());
+
+        var tusStats = colStats.get("tus");
+        assertEquals("timestamp[us] min must be epoch-millis", Optional.of(millis2000), tusStats.minValue());
+        assertEquals("timestamp[us] max must be epoch-millis", Optional.of(millis2020), tusStats.maxValue());
+
+        var tmsStats = colStats.get("tms");
+        assertEquals("timestamp[ms] min must be epoch-millis (no double-divide)", Optional.of(millis2000), tmsStats.minValue());
+        assertEquals("timestamp[ms] max must be epoch-millis (no double-divide)", Optional.of(millis2020), tmsStats.maxValue());
+
+        // --- buildRowGroupStats path (discoverSplitRanges) ---
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertFalse("expected at least one split range", ranges.isEmpty());
+
+        // buildRowGroupStats is wired separately from extractStatistics, so assert every temporal
+        // column here too (date32, timestamp[us], timestamp[ms]) rather than date32 alone.
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            Map<String, Object> stats = range.statistics();
+            for (String col : List.of("d32", "tus", "tms")) {
+                Object min = stats.get("_stats.columns." + col + ".min");
+                Object max = stats.get("_stats.columns." + col + ".max");
+                if (min != null) {
+                    long minMs = ((Number) min).longValue();
+                    assertTrue(col + " split min must be epoch-millis", minMs == millis2000 || minMs == millis2020);
+                }
+                if (max != null) {
+                    long maxMs = ((Number) max).longValue();
+                    assertTrue(col + " split max must be epoch-millis", maxMs == millis2000 || maxMs == millis2020);
+                }
+            }
+        }
+
+        // --- scan-vs-stats parity ---
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 100)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            LongBlock d32Block = (LongBlock) page.getBlock(0);
+            LongBlock tusBlock = (LongBlock) page.getBlock(1);
+            LongBlock tmsBlock = (LongBlock) page.getBlock(2);
+
+            long scanD32Min = Long.MAX_VALUE, scanD32Max = Long.MIN_VALUE;
+            long scanTusMin = Long.MAX_VALUE, scanTusMax = Long.MIN_VALUE;
+            long scanTmsMin = Long.MAX_VALUE, scanTmsMax = Long.MIN_VALUE;
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                long d = d32Block.getLong(i);
+                scanD32Min = Math.min(scanD32Min, d);
+                scanD32Max = Math.max(scanD32Max, d);
+                long u = tusBlock.getLong(i);
+                scanTusMin = Math.min(scanTusMin, u);
+                scanTusMax = Math.max(scanTusMax, u);
+                long m = tmsBlock.getLong(i);
+                scanTmsMin = Math.min(scanTmsMin, m);
+                scanTmsMax = Math.max(scanTmsMax, m);
+            }
+            assertEquals("scan d32 min == stats d32 min", scanD32Min, ((Number) d32Stats.minValue().get()).longValue());
+            assertEquals("scan d32 max == stats d32 max", scanD32Max, ((Number) d32Stats.maxValue().get()).longValue());
+            assertEquals("scan tus min == stats tus min", scanTusMin, ((Number) tusStats.minValue().get()).longValue());
+            assertEquals("scan tus max == stats tus max", scanTusMax, ((Number) tusStats.maxValue().get()).longValue());
+            assertEquals("scan tms min == stats tms min", scanTmsMin, ((Number) tmsStats.minValue().get()).longValue());
+            assertEquals("scan tms max == stats tms max", scanTmsMax, ((Number) tmsStats.maxValue().get()).longValue());
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * Direct coverage of {@link ParquetColumnDecoding#decodeTemporalStat} for the timestamp[nanos]
+     * and TIME_* branches, which parquet-mr does not always emit footer statistics for (so they are
+     * hard to exercise via a written file). Also pins date32/micros/millis, the INT96 opt-out (its
+     * footer stats are not chronological, so the helper must return null), and the non-temporal
+     * null fall-through.
+     */
+    public void testDecodeTemporalStatHelper() {
+        long millis = Instant.parse("2000-01-01T00:00:00Z").toEpochMilli();
+        long days = millis / ParquetColumnDecoding.MILLIS_PER_DAY;
+
+        PrimitiveType date32 = Types.required(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.dateType()).named("d");
+        assertEquals(Long.valueOf(millis), ParquetColumnDecoding.decodeTemporalStat((int) days, date32));
+
+        PrimitiveType tsMicros = Types.required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("us");
+        assertEquals(Long.valueOf(millis), ParquetColumnDecoding.decodeTemporalStat(millis * 1_000, tsMicros));
+
+        PrimitiveType tsMillis = Types.required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("ms");
+        assertEquals(Long.valueOf(millis), ParquetColumnDecoding.decodeTemporalStat(millis, tsMillis));
+
+        PrimitiveType tsNanos = Types.required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("ns");
+        assertEquals(Long.valueOf(millis), ParquetColumnDecoding.decodeTemporalStat(millis * 1_000_000, tsNanos));
+
+        // TIME must mirror the scan path: TIME_MILLIS (physical INT32) stays raw ms; TIME_MICROS
+        // scales x1_000 to nanos; TIME_NANOS is as-is.
+        long midMillis = 12 * 3_600_000L; // 12:00:00 of a day
+        PrimitiveType timeMillis = Types.required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("tm");
+        assertEquals(Long.valueOf(midMillis), ParquetColumnDecoding.decodeTemporalStat((int) midMillis, timeMillis));
+
+        long midMicros = midMillis * 1_000L;
+        PrimitiveType timeMicros = Types.required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("tu");
+        assertEquals(Long.valueOf(midMicros * 1_000L), ParquetColumnDecoding.decodeTemporalStat(midMicros, timeMicros));
+
+        long midNanos = midMillis * 1_000_000L;
+        PrimitiveType timeNanos = Types.required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("tn");
+        assertEquals(Long.valueOf(midNanos), ParquetColumnDecoding.decodeTemporalStat(midNanos, timeNanos));
+
+        // INT96 footer min/max are compared as unsigned little-endian bytes, not chronologically, so
+        // the helper must opt out (return null) and let the query fall back to a scan.
+        int julianDay = (int) (days + 2_440_588);
+        byte[] int96 = ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN).putLong(0L).putInt(julianDay).array();
+        PrimitiveType int96Type = Types.required(PrimitiveType.PrimitiveTypeName.INT96).named("i96");
+        assertNull(ParquetColumnDecoding.decodeTemporalStat(Binary.fromConstantByteArray(int96), int96Type));
+
+        // Non-temporal types return null so the caller falls through to other normalization.
+        PrimitiveType plainInt = Types.required(PrimitiveType.PrimitiveTypeName.INT32).named("n");
+        assertNull(ParquetColumnDecoding.decodeTemporalStat(5, plainInt));
+        PrimitiveType plainLong = Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("l");
+        assertNull(ParquetColumnDecoding.decodeTemporalStat(5L, plainLong));
     }
 
 }

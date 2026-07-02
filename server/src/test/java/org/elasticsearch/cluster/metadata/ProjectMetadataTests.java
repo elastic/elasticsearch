@@ -2260,7 +2260,6 @@ public class ProjectMetadataTests extends ESTestCase {
     }
 
     public void testRetrieveIndexModeFromTemplateColumnar() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // columnar:
         var columnarTemplate = new Template(Settings.builder().put("index.mode", "columnar").build(), new CompressedXContent("{}"), null);
         // Settings in component template:
@@ -2295,7 +2294,6 @@ public class ProjectMetadataTests extends ESTestCase {
     }
 
     public void testRetrieveIndexModeFromTemplateColumnarLogsdb() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // logsdb_columnar:
         var columnarLogsdbTemplate = new Template(
             Settings.builder().put("index.mode", "logsdb_columnar").build(),

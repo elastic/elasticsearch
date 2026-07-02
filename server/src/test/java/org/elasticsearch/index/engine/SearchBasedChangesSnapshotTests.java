@@ -17,7 +17,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.EngineTestUtils;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -50,7 +49,7 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
 
     @Before
     public void initializeColumnarId() throws Exception {
-        columnarId = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        columnarId = randomBoolean();
     }
 
     @Override

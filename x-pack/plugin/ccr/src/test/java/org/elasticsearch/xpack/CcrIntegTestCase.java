@@ -49,7 +49,6 @@ import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -175,9 +174,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             )
         );
 
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            mockPlugins.add(ESIntegTestCase.RandomizeColumnarIdModePlugin.class);
-        }
+        mockPlugins.add(ESIntegTestCase.RandomizeColumnarIdModePlugin.class);
 
         InternalTestCluster leaderCluster = new InternalTestCluster(
             randomLong(),

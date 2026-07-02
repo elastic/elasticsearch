@@ -16,7 +16,6 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
@@ -51,7 +50,7 @@ public class LogsdbRestIT extends ESRestTestCase {
     private static final ExternalResource randomizeColumnarRule = new ExternalResource() {
         @Override
         protected void before() {
-            columnarEnabled = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+            columnarEnabled = randomBoolean();
         }
     };
 

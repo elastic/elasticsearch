@@ -2839,7 +2839,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         mocks.add(TestSeedPlugin.class);
         mocks.add(AssertActionNamePlugin.class);
         mocks.add(MockScriptService.TestPlugin.class);
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomizeColumnarIdMode()) {
+        if (randomizeColumnarIdMode()) {
             mocks.add(RandomizeColumnarIdModePlugin.class);
         }
         return Collections.unmodifiableList(mocks);

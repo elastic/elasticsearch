@@ -1375,7 +1375,6 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     }
 
     public void testNewIndexHasSyntheticSourceUsageColumnarLogsdbIndex() throws IOException {
-        assumeTrue("columnar index modes feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         String indexName = DataStream.getDefaultBackingIndexName(DATA_STREAM_NAME, 0);
         String mapping = """
             {
@@ -1408,7 +1407,6 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     }
 
     public void testColumnarLogsdbInjectsSortAndHostName() throws Exception {
-        assumeTrue("columnar index modes feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         var settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR).build();
         var mappings = """
             {
@@ -1426,7 +1424,6 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     }
 
     public void testColumnarLogsdbSortOnExistingHostNameKeyword() throws Exception {
-        assumeTrue("columnar index modes feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         var settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR).build();
         var mappings = """
             {

@@ -42,10 +42,7 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
     protected abstract String fieldTypeName();
 
     @Before
-    public void assumeColumnarFeatureEnabled() {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        assumeTrue("in-order binary doc values require the columnar feature flag", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
+    public void assumeColumnarFeatureEnabled() {}
 
     public final void setUp() throws Exception {
         super.setUp();

@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
@@ -40,7 +39,7 @@ public class LogsdbTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final ExternalResource randomizeColumnarRule = new ExternalResource() {
         @Override
         protected void before() {
-            columnarEnabled = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+            columnarEnabled = randomBoolean();
         }
     };
 
@@ -57,7 +56,6 @@ public class LogsdbTestSuiteIT extends ESClientYamlSuiteTestCase {
             .keystore("bootstrap.password", "x-pack-test-password")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("cluster.logsdb_columnar.enabled", () -> Boolean.toString(columnarEnabled))
-            .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
             .feature(FeatureFlag.IGNORED_SOURCE_AS_DOC_VALUES_FF);
         boolean setNodes = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
         if (setNodes) {

@@ -208,14 +208,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         protected Parameter<?>[] getParameters() {
             List<Parameter<?>> params = new ArrayList<>();
             params.add(meta);
-            // when COLUMNAR_FEATURE_FLAG is disabled, exclude docValuesParameters from parsing
-            // so doc_values configuration in the mapping is ignored and the default (disabled) is used
-            if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-                params.add(docValuesParameters);
-            }
-            if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-                params.add(indexed);
-            }
+            params.add(docValuesParameters);
+            params.add(indexed);
             return params.toArray(Parameter[]::new);
         }
 

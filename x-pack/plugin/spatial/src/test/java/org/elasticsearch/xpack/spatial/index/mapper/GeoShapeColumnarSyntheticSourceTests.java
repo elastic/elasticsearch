@@ -32,14 +32,12 @@ public class GeoShapeColumnarSyntheticSourceTests extends MapperServiceTestCase 
     }
 
     public void testColumnarSingleValue() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = columnarMapper();
         String source = syntheticSource(mapper, b -> b.field("location", "POINT (-71.34 41.12)"));
         assertThat(source, equalTo("{\"location\":\"POINT (-71.34 41.12)\"}"));
     }
 
     public void testColumnarMultiValuePreservesOrder() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = columnarMapper();
         String source = syntheticSource(mapper, b -> b.array("location", "LINESTRING (1 1, 2 2)", "POINT (-71.34 41.12)"));
         assertThat(source, equalTo("{\"location\":[\"LINESTRING (1.0 1.0, 2.0 2.0)\",\"POINT (-71.34 41.12)\"]}"));

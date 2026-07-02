@@ -51,9 +51,7 @@ public class ColumnarRuntimeFieldsValidationIT extends ESIntegTestCase {
         """;
 
     @Before
-    public void checkFeatureFlag() {
-        assumeTrue("columnar index modes require snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
+    public void checkFeatureFlag() {}
 
     @Override
     protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {

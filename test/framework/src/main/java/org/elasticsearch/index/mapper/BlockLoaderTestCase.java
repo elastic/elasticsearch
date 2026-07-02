@@ -71,9 +71,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     public static List<Object[]> args() {
         List<Object[]> args = new ArrayList<>();
 
-        List<IndexMode> modes = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
-            ? List.of(IndexMode.STANDARD, IndexMode.COLUMNAR)
-            : List.of(IndexMode.STANDARD);
+        List<IndexMode> modes = List.of(IndexMode.STANDARD, IndexMode.COLUMNAR);
 
         for (IndexMode indexMode : modes) {
             for (SourceFieldMapper.Mode sourceMode : SOURCE_MODES) {
@@ -150,9 +148,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
      * target field while keeping generated documents single-valued, so the enforced mapping is exercised without rejecting documents.
      */
     private static Collection<DataSourceHandler> withSingleValueDocValues(String fieldType, Collection<DataSourceHandler> customHandlers) {
-        boolean singleValueRun = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
-            && SINGLE_VALUE_ENFORCING_TYPES.contains(fieldType)
-            && ESTestCase.randomBoolean();
+        boolean singleValueRun = SINGLE_VALUE_ENFORCING_TYPES.contains(fieldType) && ESTestCase.randomBoolean();
         if (singleValueRun == false) {
             return customHandlers;
         }

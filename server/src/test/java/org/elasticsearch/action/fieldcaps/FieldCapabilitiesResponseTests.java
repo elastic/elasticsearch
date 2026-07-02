@@ -164,6 +164,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         );
         Randomness.shuffle(indexResponses);
         FieldCapabilitiesResponse inResponse = randomCCSResponse(indexResponses);
+
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         final boolean hasColumnarMode = indexResponses.stream()
             .anyMatch(r -> r.getIndexMode() == IndexMode.COLUMNAR || r.getIndexMode() == IndexMode.LOGSDB_COLUMNAR);
@@ -176,6 +177,14 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
             "vectordb_document index mode requires transport version " + IndexMode.VECTORDB_DOCUMENT_INDEX_MODE,
             hasVectordbDocumentMode == false || version.supports(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE)
         );
+        final boolean hasInferenceField = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(IndexFieldCapabilities::isInference);
+        assumeTrue(
+            "inference field flag requires transport version " + FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD,
+            hasInferenceField == false || version.supports(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD)
+        );
+
         final FieldCapabilitiesResponse outResponse = copyInstance(inResponse, version);
         assertThat(
             outResponse.getFailures().stream().flatMap(f -> Arrays.stream(f.getIndices())).toList(),
@@ -188,10 +197,12 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
             outList.stream().sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName)).toList(),
             equalTo(inList.stream().sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName)).toList())
         );
+
         Map<String, List<FieldCapabilitiesIndexResponse>> groupedResponses = outList.stream()
             .filter(r -> r.canMatch() && r.getIndexMappingHash() != null)
             .collect(Collectors.groupingBy(FieldCapabilitiesIndexResponse::getIndexMappingHash));
         assertThat(groupedResponses.keySet(), equalTo(mappingHashToIndices.keySet()));
+
         // Asserts responses of indices with the same mapping hash must be shared.
         for (Map.Entry<String, List<FieldCapabilitiesIndexResponse>> e : groupedResponses.entrySet()) {
             List<String> indices = mappingHashToIndices.get(e.getKey());

@@ -4111,9 +4111,8 @@ public class InternalEngine extends Engine {
             final DocIdSetIterator iterator = scorer.iterator();
             var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, null);
             var leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leaf.reader(), null);
-            // Under the #-delimited compound encoding, Uid.decodeId returns "id#slice" for compound docs,
-            // so the raw binary doc value (columnar) or leafStoredFieldLoader.id() (stored) can be decoded
-            // and re-encoded to recover the compound uid.
+            // For columnar, the BinaryDocValues bytes ARE the compound uid (deep-copied so the buffer can advance).
+            // For stored, leafStoredFieldLoader.id() decodes via Uid.decodeId to "id#slice" which we re-encode.
             final BinaryDocValues sliceColumnarIdDV = (sliceEnabled && columnar)
                 ? DocValues.getBinary(leaf.reader(), IdFieldMapper.NAME)
                 : null;
@@ -4129,17 +4128,16 @@ public class InternalEngine extends Engine {
                 final String id;
                 final BytesRef uid;
                 if (sliceEnabled) {
-                    final String compoundIdStr;
                     if (columnar) {
-                        compoundIdStr = sliceColumnarIdDV.advanceExact(docId) ? Uid.decodeId(sliceColumnarIdDV.binaryValue()) : null;
+                        uid = sliceColumnarIdDV.advanceExact(docId) ? BytesRef.deepCopyOf(sliceColumnarIdDV.binaryValue()) : null;
                     } else {
-                        compoundIdStr = leafStoredFieldLoader.id();
+                        final String compoundIdStr = leafStoredFieldLoader.id();
+                        uid = compoundIdStr != null ? Uid.encodeId(compoundIdStr) : null;
                     }
-                    if (compoundIdStr == null) {
+                    if (uid == null) {
                         assert isTombstone;
                         continue;
                     }
-                    uid = Uid.encodeId(compoundIdStr);
                     id = SliceIdFieldMapper.decodeCompoundId(uid);
                 } else {
                     id = leafIdLoader.getId(docId);

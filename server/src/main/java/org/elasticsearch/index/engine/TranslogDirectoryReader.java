@@ -560,11 +560,8 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 visitor.stringField(FAKE_ROUTING_FIELD, operation.routing());
             }
             if (visitor.needsField(FAKE_ID_FIELD) == StoredFieldVisitor.Status.YES) {
-                // The stored _id is always the plain encodeId(id) (operation.uid()), even when the seek term (this.uid)
-                // is the slice compound.
-                final BytesRef plainUid = operation.uid();
-                final byte[] id = new byte[plainUid.length];
-                System.arraycopy(plainUid.bytes, plainUid.offset, id, 0, plainUid.length);
+                final byte[] id = new byte[uid.length];
+                System.arraycopy(uid.bytes, uid.offset, id, 0, uid.length);
                 visitor.binaryField(FAKE_ID_FIELD, id);
             }
         }

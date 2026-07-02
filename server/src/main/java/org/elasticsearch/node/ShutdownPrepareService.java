@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpServerTransport;
@@ -50,13 +49,6 @@ import java.util.stream.Collectors;
  * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
  */
 public class ShutdownPrepareService {
-
-    /// Allows setting the system property `es.reindex.disable_relocation` as an escape hatch to disable triggering reindex relocation.
-    // TODO(#2715): Remove this when we're confident relocation works
-    private static final boolean DISABLE_REINDEX_RELOCATION = Booleans.parseBooleanLenient(
-        System.getProperty("es.reindex.disable_relocation", "false"),
-        false
-    );
 
     private record ShutdownHook(String name, Runnable action) {}
 
@@ -261,13 +253,6 @@ public class ShutdownPrepareService {
             boolean isChildTaskOfSameType = localParent != null && localParent.getAction().equals(task.getAction());
             if (bulkByPaginatedSearchTask.isEligibleForRelocationOnShutdown()) {
                 assert !bulkByPaginatedSearchTask.isRelocationRequested() : "Requested relocation multiple times for task " + task.getId();
-                if (DISABLE_REINDEX_RELOCATION) {
-                    logger.info(
-                        "Not requesting relocation for task {} because the system property es.reindex.disable_relocation is set",
-                        task.getId()
-                    );
-                    return;
-                }
                 if (!isChildTaskOfSameType) {
                     logger.info("Requesting relocation for bulk-by-paginated-search task {}", bulkByPaginatedSearchTask.getId());
                 } else {

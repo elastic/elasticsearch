@@ -2729,7 +2729,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Collect field attributes from previous runs
             if (plan instanceof EsRelation rel) {
                 state.unionFieldAttributes.clear();
-                // A new source relation may belong to a sibling FORK/UnionAll branch. Aggregate context is branch-local.
+                // A new source relation may belong to a sibling FORK/UnionAll branch; Aggregate context is branch-local.
                 state.isAfterAggregate = false;
                 for (Attribute attr : rel.output()) {
                     if (attr instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField && fa.synthetic()) {

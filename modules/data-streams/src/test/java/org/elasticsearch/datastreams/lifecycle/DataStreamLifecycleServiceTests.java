@@ -47,6 +47,7 @@ import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthI
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
@@ -1415,6 +1416,37 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         clientDelegate = (action, request, listener) -> {
             if (action.name().equals(TransportDeleteIndexAction.TYPE.name())) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
+            }
+        };
+
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(
+            fixture.project(),
+            fixture.dataStream(),
+            fixture.dataRetention(),
+            null,
+            Set.of()
+        );
+        assertThat(indicesToBeRemoved, contains(fixture.project().index(fixture.frozenIndexName()).getIndex()));
+
+        List<DeleteSnapshotRequest> deleteSnapshotRequests = clientSeenRequests.stream()
+            .filter(request -> request instanceof DeleteSnapshotRequest)
+            .map(request -> (DeleteSnapshotRequest) request)
+            .toList();
+        assertThat(deleteSnapshotRequests, hasSize(1));
+        assertThat(deleteSnapshotRequests.getFirst().repository(), is(repositoryName));
+        assertThat(deleteSnapshotRequests.getFirst().snapshots(), arrayContaining(snapshotName));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMaybeExecuteRetentionDeletesBackingSnapshotWhenIndexAlreadyDeleted() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        String repositoryName = "frozen-repo";
+        String snapshotName = "dlm-frozen-" + dataStreamName;
+        FrozenIndexFixture fixture = setupDataStreamWithFrozenBackingIndex(dataStreamName, repositoryName, snapshotName, true);
+
+        clientDelegate = (action, request, listener) -> {
+            if (action.name().equals(TransportDeleteIndexAction.TYPE.name())) {
+                listener.onFailure(new IndexNotFoundException(fixture.frozenIndexName()));
             }
         };
 

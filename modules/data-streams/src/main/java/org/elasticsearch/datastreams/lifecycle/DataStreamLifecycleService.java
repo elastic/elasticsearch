@@ -1583,6 +1583,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     logger.trace("Data stream lifecycle did not delete index [{}] as it was already deleted", targetIndex);
                     // index was already deleted, treat this as a success
                     errorStore.clearRecordedError(projectId, targetIndex);
+                    if (backingSnapshot != null) {
+                        deleteBackingSnapshot(backingSnapshot, targetIndex);
+                    }
                     listener.onResponse(null);
                     return;
                 }

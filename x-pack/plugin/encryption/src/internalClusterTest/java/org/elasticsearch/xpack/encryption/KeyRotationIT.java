@@ -61,6 +61,19 @@ public class KeyRotationIT extends SecurityIntegTestCase {
 
     private final List<Integer> keyAddEvents = new CopyOnWriteArrayList<>();
 
+    /**
+     * Stops rotation before the framework's post-test cluster-state consistency check runs. Without this,
+     * 1-second rotation ticks can keep submitting cluster-state tasks during teardown, occasionally pushing
+     * the 10-second {@code safeGet} timeout in {@code doEnsureClusterStateConsistency} on loaded CI.
+     * {@link KeyRotationCoordinator#close()} is idempotent; the plugin lifecycle closes it again as a no-op.
+     */
+    @After
+    public void stopKeyRotationCoordinators() {
+        for (String nodeName : internalCluster().getNodeNames()) {
+            internalCluster().getInstance(KeyRotationCoordinator.class, nodeName).close();
+        }
+    }
+
     @Override
     protected boolean addMockHttpTransport() {
         return false;

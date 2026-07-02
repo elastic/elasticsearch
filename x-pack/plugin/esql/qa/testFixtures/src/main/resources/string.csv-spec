@@ -364,6 +364,33 @@ some text | red
 // end::trim-result[]
 ;
 
+ltrimKeywordField
+FROM trim_test | EVAL t = LTRIM(col_leading) | KEEP id, t | SORT id;
+
+id:integer | t:keyword
+1          | foo
+2          | bar
+3          | baz
+;
+
+rtrimKeywordField
+FROM trim_test | EVAL t = RTRIM(col_trailing) | KEEP id, t | SORT id;
+
+id:integer | t:keyword
+1          | foo
+2          | bar
+3          | baz
+;
+
+trimKeywordField
+FROM trim_test | EVAL t = TRIM(col_both) | KEEP id, t | SORT id;
+
+id:integer | t:keyword
+1          | foo
+2          | bar
+3          | baz
+;
+
 concat
 from employees | sort emp_no | limit 10 | eval name = concat(first_name, " ", last_name) | keep emp_no, name;
 

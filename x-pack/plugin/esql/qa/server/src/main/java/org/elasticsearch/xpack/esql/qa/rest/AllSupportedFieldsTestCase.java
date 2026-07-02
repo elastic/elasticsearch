@@ -277,7 +277,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             );
         }
         if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR) {
-            assumeTrue("Columnar index modes require a snapshot build", Build.current().isSnapshot());
+            // Gate on the cluster capability rather than the test runner build: columnar index modes are only available when the
+            // feature flag is enabled on the nodes (e.g. they are disabled in upgrade clusters), in which case these tests skip.
+            assumeTrue(
+                "Cluster does not have columnar index modes enabled",
+                clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false)
+            );
             assumeTrue(
                 "Cluster has nodes that do not support columnar index modes",
                 minVersion().supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)
@@ -917,16 +922,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         client.performRequest(request);
     }
 
-    // Field types with no native (doc-value-based) synthetic source: columnar index modes reject them because their
-    // _source cannot be reconstructed from doc values. Tracked as follow-ups in the columnar contract issue.
-    private static final Set<DataType> COLUMNAR_UNSUPPORTED_TYPES = Set.of(
-        DataType.GEO_SHAPE,
-        DataType.CARTESIAN_SHAPE,
-        DataType.CARTESIAN_POINT
-    );
-
     private static boolean excludedInColumnar(DataType type, IndexMode mode) {
-        return mode.isStrictColumnar() && COLUMNAR_UNSUPPORTED_TYPES.contains(type);
+        // geo_shape/cartesian_shape are reconstructable in columnar only on nodes that have the feature, so exclude them
+        // during a rolling upgrade where an older node would reject them in a columnar index.
+        return mode.isStrictColumnar()
+            && (type == DataType.GEO_SHAPE || type == DataType.CARTESIAN_SHAPE)
+            && clusterHasFeature("mapper.columnar.supports_shape_fields") == false;
     }
 
     private static String fieldName(DataType type) {
@@ -1171,7 +1172,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield nullValue();
             }
             case FLATTENED -> {
-                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
                     MapMatcher values = matchesMap().entry("a.c", "bar")
                         .entry("b", "foo")
                         .entry("d", "baz")
@@ -1194,11 +1195,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     }
                     if (isSingleNodeSnapshot()) {
                         /*
-                         * Only assert that keys come back in sorted order because
-                         * this was added after the first release of flattened. We
-                         * *did* do this while it was under snapshot, so we should
-                         * be able to enable this if all versions have the flattened
-                         * field released. But we'll worry about that when we release it.
+                         * Only assert sorted key order on a single snapshot node. Sorted keys
+                         * were added after flattened first shipped, so a mixed cluster with an
+                         * older node may still return them unsorted; the FLATTENED_DATATYPE_SORTED_KEYS
+                         * capability (see flattenedSortedKeys) governs the cross-version case.
                          */
                         yield allOf(values, hasKeys("a.c", "b", "d", "e", "j"));
                     }
@@ -1386,10 +1386,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield equalTo("histogram");
             }
             case FLATTENED -> {
-                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
-                    yield anyOf(equalTo("flattened"), equalTo("unsupported"));
+                // Support for flattened was added later. Mirror IndexResolver's gating, which treats the type as supported
+                // once the minimum version reaches the under-construction created version on snapshot builds, but requires the
+                // release version on release builds. Hardcoding release semantics here would wrongly expect "unsupported" in a
+                // snapshot mixed cluster whose oldest node predates the release transport version.
+                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot()) == false) {
+                    yield equalTo("unsupported");
                 }
-                yield equalTo("unsupported");
+                yield equalTo("flattened");
             }
             default -> equalTo(type.esType());
         };
@@ -1546,14 +1550,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Geometries")
                 : matchesList().item("column_at_a_time:BlockDocValuesReader.BytesRefsFromLong");
             case GEO_SHAPE -> {
-                String last;
-                if (syntheticSourceByDefault()) {
-                    last = "row_stride:FallbackToSource[Geometry]";
-                } else if (extractPreference == MappedFieldType.FieldExtractPreference.STORED) {
-                    last = "row_stride:BlockSourceReader.Geometries";
-                } else {
-                    last = "row_stride:BlockSourceReader.Geometries";
+                // In columnar, geo_shape is native and reads its WKB value straight from its own doc value; other
+                // synthetic-source modes fall back to loading the value from source.
+                if (indexMode.isStrictColumnar()) {
+                    yield matchesList().item("column_at_a_time:GeometrySource");
                 }
+                String last = syntheticSourceByDefault()
+                    ? "row_stride:FallbackToSource[Geometry]"
+                    : "row_stride:BlockSourceReader.Geometries";
                 yield matchesList().item("column_at_a_time:null").item(last);
             }
             case HISTOGRAM -> matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes");

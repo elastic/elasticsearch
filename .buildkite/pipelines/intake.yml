@@ -9,6 +9,14 @@ steps:
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - wait
+  - label: build-logic
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkBuildLogic
+    timeout_in_minutes: 120
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n1-standard-32
+      buildDirectory: /dev/shm/bk
   - label: part1
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart1
     timeout_in_minutes: 300
@@ -65,7 +73,7 @@ steps:
         timeout_in_minutes: 300
         matrix:
           setup:
-            BWC_VERSION: ["8.19.18", "9.3.7", "9.4.3", "9.5.0"]
+            BWC_VERSION: ["8.19.19", "9.3.8", "9.4.4", "9.5.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

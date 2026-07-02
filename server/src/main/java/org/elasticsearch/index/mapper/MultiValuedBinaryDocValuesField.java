@@ -50,13 +50,25 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     private static final int INITIAL_VALUES_CAPACITY = 4;
 
     protected final ValueOrdering ordering;
-    protected final Collection<BytesRef> values;
+    protected Collection<BytesRef> values;
     protected int docValuesByteCount = 0;
 
     MultiValuedBinaryDocValuesField(String name, ValueOrdering ordering) {
         super(name);
         this.ordering = ordering;
         this.values = ordering == ValueOrdering.SORTED_UNIQUE ? new TreeSet<>() : new ArrayList<>(INITIAL_VALUES_CAPACITY);
+    }
+
+    /**
+     * Constructor for subclasses that manage their own values collection lazily and do not
+     * need the base class to pre-allocate the backing collection.
+     */
+    protected MultiValuedBinaryDocValuesField(String name, ValueOrdering ordering, boolean eagerAllocate) {
+        super(name);
+        this.ordering = ordering;
+        this.values = eagerAllocate
+            ? (ordering == ValueOrdering.SORTED_UNIQUE ? new TreeSet<>() : new ArrayList<>(INITIAL_VALUES_CAPACITY))
+            : null;
     }
 
     public void add(BytesRef value) {
@@ -296,8 +308,15 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         // Held so the record* helpers can update the count on each slot without re-deriving the companion field from the document.
         private NumericDocValuesField countField;
 
+        // Lazy single-slot storage: avoids allocating the backing ArrayList until a second slot
+        // arrives. When hasSingleSlot==true and singleSlot==null, the single slot is a null
+        // (inline null). The base-class values field starts null and is promoted to an ArrayList
+        // only on the second add/addNull call.
+        private BytesRef singleSlot;
+        private boolean hasSingleSlot;
+
         public ArrayOrderInlineNull(String name) {
-            super(name, ValueOrdering.UNSORTED);
+            super(name, ValueOrdering.UNSORTED, false);
         }
 
         public String countFieldName() {
@@ -337,6 +356,23 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         }
 
         /**
+         * Optimized version of {@link #recordValue(LuceneDocument, String, BytesRef)}
+         * for when it is very likely that a field has a single value.
+         */
+        public static void recordSingleValue(LuceneDocument doc, String fieldName, BytesRef value) {
+            var field = new ArrayOrderInlineNull(fieldName);
+            if (doc.putKeyIfAbsent(fieldName, field) == null) {
+                field.add(value);
+                field.countField = NumericDocValuesField.indexedField(field.countFieldName(), 1);
+                doc.addAll(List.of(field, field.countField));
+            } else {
+                // Safety net (for dotted-field flattening or duplicated field names):
+                // a field under the same name has already been registered.
+                recordValue(doc, fieldName, value);
+            }
+        }
+
+        /**
          * Looks up the per-field accumulator on the document, creating it on first use. The accumulator is registered by key (without
          * being added to the field list yet) and its always-present {@code .counts} companion is added to the document immediately.
          */
@@ -353,7 +389,20 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         @Override
         public void add(BytesRef value) {
             hasNonNullValue = true;
-            super.add(value);
+            if (values == null) {
+                if (hasSingleSlot == false) {
+                    singleSlot = value;
+                    hasSingleSlot = true;
+                } else {
+                    // Second slot: promote the lazy single-slot to the backing list.
+                    values = new ArrayList<>(INITIAL_VALUES_CAPACITY);
+                    values.add(singleSlot);
+                    values.add(value);
+                    singleSlot = null;
+                }
+            } else {
+                values.add(value);
+            }
         }
 
         /**
@@ -361,8 +410,20 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
          * {@link #count()} but not towards {@code docValuesByteCount}.
          */
         public void addNull() {
-            // The UNSORTED ordering backs values with an ArrayList, which permits null elements.
-            values.add(null);
+            if (values == null) {
+                if (hasSingleSlot == false) {
+                    // singleSlot is already null — record the null slot lazily.
+                    hasSingleSlot = true;
+                } else {
+                    // Second slot: promote to list.
+                    values = new ArrayList<>(INITIAL_VALUES_CAPACITY);
+                    values.add(singleSlot);
+                    values.add(null);
+                    singleSlot = null;
+                }
+            } else {
+                values.add(null);
+            }
         }
 
         /**
@@ -374,8 +435,17 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         }
 
         @Override
+        public int count() {
+            return values != null ? values.size() : (hasSingleSlot ? 1 : 0);
+        }
+
+        @Override
         public BytesRef binaryValue() {
-            return encode(values);
+            if (values != null) {
+                return encode(values);
+            }
+            assert hasSingleSlot && singleSlot != null : "a lone null slot must not write a binary value";
+            return singleSlot;
         }
 
         /**

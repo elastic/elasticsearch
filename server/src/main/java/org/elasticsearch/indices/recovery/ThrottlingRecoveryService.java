@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -154,10 +155,12 @@ public final class ThrottlingRecoveryService implements Closeable {
             }
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
-            final RecoveryListener wrapped = RecoveryListener.runAfter(
-                RecoveryListener.runBefore(recovery.listener, () -> assertCurrentProjectId(recovery.projectId)),
-                () -> releaseSlot(recovery)
-            );
+            RecoveryListener listener = recovery.listener;
+            if (Assertions.ENABLED) {
+                listener = RecoveryListener.runBefore(listener, () -> assertCurrentProjectId(recovery.projectId));
+            }
+            final RecoveryListener wrapped = RecoveryListener.runAfter(listener, () -> releaseSlot(recovery));
+
             try (var ignored = recovery.context.get()) {
                 projectResolver.executeOnProject(recovery.projectId, () -> executor.execute(new RecoveryRunnable(recovery, wrapped)));
             }

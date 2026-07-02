@@ -241,8 +241,10 @@ public class ElasticInferenceServiceCompletionTaskSettingsIT extends ESRestTestC
             putModel(inferenceId, configWithoutReasoning(), TaskType.CHAT_COMPLETION);
 
             var initialEndpoint = getModel(inferenceId);
-            var initialTaskSettings = (Map<String, Object>) initialEndpoint.get(ModelConfigurations.TASK_SETTINGS);
-            assertFalse(initialTaskSettings.containsKey(UnifiedCompletionUtils.REASONING_FIELD));
+            // A chat_completion endpoint created without task settings does not serialize a task_settings field on
+            // GET (ModelConfigurations omits empty task settings from responses), so the map is null here. This
+            // mirrors testUpdateChatCompletionEndpoint_ClearsReasoning_WhenSetToNull.
+            assertNull(initialEndpoint.get(ModelConfigurations.TASK_SETTINGS));
 
             mockEISServer.getWebServer().enqueue(new MockResponse().setResponseCode(200).setBody(SSE_RESPONSE));
             updateEndpoint(inferenceId, reasoningTaskSettingsUpdate(EFFORT_MEDIUM), TaskType.CHAT_COMPLETION);

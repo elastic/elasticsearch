@@ -421,22 +421,19 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
      * execution path to register and run the {@code FROM} form directly on dataset-capable backends.
      *
      * <p>Specs without a {@code dataset:} directive are returned unchanged. EXTERNAL is single-source
-     * today, so a spec declaring more than one source has no EXTERNAL equivalent and fails fast (rather
-     * than silently mis-running); the guard is removed once EXTERNAL gains multi-source support.
+     * today, so a spec declaring more than one source has no EXTERNAL equivalent and is skipped on the
+     * EXTERNAL-rebuild backends (dataset-capable backends run such specs verbatim via {@code FROM <dataset>}
+     * before reaching this method); the skip is removed once EXTERNAL gains multi-source support.
      */
     protected final String rebuildExternalFromDatasets(String query) {
         List<DatasetSource> sources = testCase.datasetSources;
         if (sources.isEmpty()) {
             return query;
         }
-        if (sources.size() > 1) {
-            throw new AssertionError(
-                "Cannot rebuild a single EXTERNAL query for ["
-                    + sources.size()
-                    + "] dataset sources; multi-source FROM <dataset> has no EXTERNAL equivalent yet: "
-                    + query
-            );
-        }
+        assumeFalseLogging(
+            "multi-source FROM <dataset> has no EXTERNAL equivalent yet; skipping on EXTERNAL-rebuild backend: " + query,
+            sources.size() > 1
+        );
         DatasetSource source = sources.get(0);
         int pipe = FixtureUtils.findFirstPipeAfterExternal(query);
         String tail = pipe < 0 ? "" : " " + query.substring(pipe);

@@ -1,0 +1,13 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[],[FROMPARTIAL($$partial$$p{r$}#0,true[BOOLEAN],PT0S[TIME_DURATION],PERCENTILE(salary{r}#1,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER])) AS p#2],SINGLE,[$$p$partial{r}#3],null]
+  \_MergeExec[[$$partial$$p{r$}#0]]
+    |_AggregateExec[[],[TOPARTIAL(PERCENTILE(salary{r}#4,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER]),true[BOOLEAN],PT0S[TIME_DURATION],PERCENTILE(salary{r}#4,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER])) AS $$partial$$p#0],FINAL,[$$partial$$p$partial{r}#5],null]
+    | \_ExchangeExec[[$$partial$$p$partial{r}#5],true]
+    |   \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Aggregate[[],[TOPARTIAL(PERCENTILE(salary{r}#4,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER]),true[BOOLEAN],PT0S[TIME_DURATION],PERCENTILE(salary{r}#4,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER])) AS $$partial$$p#0]]
+\_ExternalRelation[s3://bucket/heavy_a.parquet][parquet][emp_no{r}#6, salary{r}#4, dept{r}#7]<>]]
+    \_AggregateExec[[],[TOPARTIAL(PERCENTILE(salary{r}#8,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER]),true[BOOLEAN],PT0S[TIME_DURATION],PERCENTILE(salary{r}#8,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER])) AS $$partial$$p#0],FINAL,[$$partial$$p$partial{r}#9],null]
+      \_ExchangeExec[[$$partial$$p$partial{r}#9],true]
+        \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Aggregate[[],[TOPARTIAL(PERCENTILE(salary{r}#8,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER]),true[BOOLEAN],PT0S[TIME_DURATION],PERCENTILE(salary{r}#8,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER])) AS $$partial$$p#0]]
+\_ExternalRelation[s3://bucket/heavy_b.parquet][parquet][emp_no{r}#10, salary{r}#8, dept{r}#11]<>]]

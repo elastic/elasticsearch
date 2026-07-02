@@ -13,13 +13,16 @@ import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.FilteredAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FromPartialGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.aggregation.ToPartialAggregatorFunction;
 import org.elasticsearch.compute.aggregation.ToPartialGroupingAggregatorFunction;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -28,7 +31,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 /**
@@ -106,13 +111,33 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
     }
 
     @Override
+    public List<Attribute> aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
+        return new ArrayList<>(field().references());
+    }
+
+    @Override
     protected NodeInfo<ToPartial> info() {
         return NodeInfo.create(this, ToPartial::new, field(), filter(), window(), function);
     }
 
     @Override
     public AggregatorFunctionSupplier supplier() {
-        final AggregatorFunctionSupplier supplier = ((ToAggregator) function).supplier();
+        return supplier(((ToAggregator) function).supplier());
+    }
+
+    /**
+     * Like {@link #supplier()}, but applies {@code innerFilter} to the wrapped aggregate before it folds rows
+     * into its intermediate state. Used when a per-aggregate filter is carried on this {@code ToPartial} node
+     * (see {@code PushAggregateThroughUnionAll}): the branch must compute its partial state over only the matching
+     * rows, so the filter is wrapped <em>inside</em> {@code ToPartial} rather than around it. This must only be
+     * called in the initial phase ({@code mode.isInputPartial() == false}); on partial input the rows are already
+     * filtered upstream, so no filter is applied (matching {@link #supplier()}).
+     */
+    public AggregatorFunctionSupplier supplierWithInnerFilter(ExpressionEvaluator.Factory innerFilter) {
+        return supplier(new FilteredAggregatorFunctionSupplier(((ToAggregator) function).supplier(), innerFilter));
+    }
+
+    private AggregatorFunctionSupplier supplier(final AggregatorFunctionSupplier supplier) {
         return new AggregatorFunctionSupplier() {
             @Override
             public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {

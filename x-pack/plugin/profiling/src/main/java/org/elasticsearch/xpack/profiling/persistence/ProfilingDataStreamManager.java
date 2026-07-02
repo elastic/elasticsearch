@@ -23,7 +23,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -34,25 +33,13 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
- * Creates all data streams that are required for using Elastic Universal Profiling.
+ * Manages data streams for Elastic Universal Profiling. Data streams are no longer pre-created at startup;
+ * instead, index templates are installed by {@link ProfilingIndexTemplateRegistry} and Elasticsearch
+ * auto-creates each data stream on first document ingest. This keeps "Set up Profiling" lightweight —
+ * the setup is complete as soon as the templates are in place, with no need to wait for empty shards.
  */
 public class ProfilingDataStreamManager extends AbstractProfilingPersistenceManager<ProfilingDataStreamManager.ProfilingDataStream> {
-    public static final List<ProfilingDataStream> PROFILING_DATASTREAMS;
-
-    static {
-        List<ProfilingDataStream> dataStreams = new ArrayList<>(
-            EventsIndex.indexNames()
-                .stream()
-                .map(n -> ProfilingDataStream.of(n, ProfilingIndexTemplateRegistry.PROFILING_EVENTS_VERSION))
-                .toList()
-        );
-        dataStreams.add(ProfilingDataStream.of("profiling-metrics", ProfilingIndexTemplateRegistry.PROFILING_METRICS_VERSION));
-        dataStreams.add(ProfilingDataStream.of("profiling-hosts", ProfilingIndexTemplateRegistry.PROFILING_HOSTS_VERSION));
-        dataStreams.add(ProfilingDataStream.of("profiling-stackframes", ProfilingIndexTemplateRegistry.PROFILING_STACKFRAMES_VERSION));
-        dataStreams.add(ProfilingDataStream.of("profiling-stacktraces", ProfilingIndexTemplateRegistry.PROFILING_STACKTRACES_VERSION));
-        dataStreams.add(ProfilingDataStream.of("profiling-executables", ProfilingIndexTemplateRegistry.PROFILING_EXECUTABLES_VERSION));
-        PROFILING_DATASTREAMS = Collections.unmodifiableList(dataStreams);
-    }
+    public static final List<ProfilingDataStream> PROFILING_DATASTREAMS = List.of();
 
     public ProfilingDataStreamManager(
         ThreadPool threadPool,

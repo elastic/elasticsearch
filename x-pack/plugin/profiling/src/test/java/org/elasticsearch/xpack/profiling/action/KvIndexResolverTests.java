@@ -12,11 +12,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -170,10 +170,7 @@ public class KvIndexResolverTests extends ESTestCase {
         metaBuilder.indices(Map.of(kvIndex.getName(), metadata(kvIndex, 1675209600000L)));
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metaBuilder).build();
 
-        assertThrows(
-            IllegalStateException.class,
-            () -> resolver.resolve(clusterState, indexPattern, Instant.MIN, Instant.MAX)
-        );
+        assertThrows(IllegalStateException.class, () -> resolver.resolve(clusterState, indexPattern, Instant.MIN, Instant.MAX));
     }
 
     private IndexMetadata metadata(Index index, long creationDate) {

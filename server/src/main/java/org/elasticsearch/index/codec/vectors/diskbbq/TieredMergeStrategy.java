@@ -9,8 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
-import org.elasticsearch.index.codec.vectors.cluster.ConcatenatedClusteringFloatVectorValues;
+import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
+import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansWithOverspill;
 
@@ -30,8 +30,10 @@ import java.util.List;
  * <tr><td>Segments with enough prior centroids</td><td>CONCATENATION</td></tr>
  * <tr><td>Default</td><td>FULL_REBUILD</td></tr>
  * </table>
+ *
+ * @param <V> the array type for vectors and centroids ({@code float[]} or {@code byte[]})
  */
-public class TieredMergeStrategy {
+public class TieredMergeStrategy<V> {
 
     /**
      * Minimum total centroids across all segments to justify concatenation.
@@ -47,9 +49,11 @@ public class TieredMergeStrategy {
     static final float INSERTION_DOMINANT_RATIO = 0.8f;
 
     private final int vectorsPerCluster;
+    private final CentroidOps<V> ops;
 
-    public TieredMergeStrategy(int vectorsPerCluster) {
+    public TieredMergeStrategy(int vectorsPerCluster, CentroidOps<V> ops) {
         this.vectorsPerCluster = vectorsPerCluster;
+        this.ops = ops;
     }
 
     public enum Strategy {
@@ -64,44 +68,40 @@ public class TieredMergeStrategy {
     /**
      * A merge action that encapsulates the selected strategy and the data needed to execute it.
      * Call {@link #execute} with a pre-configured {@link HierarchicalKMeans} instance.
+     *
+     * @param <V> the array type for vectors and centroids
      */
-    public sealed interface MergeAction {
+    public sealed interface MergeAction<V> {
         // Selected strategy
         Strategy strategy();
 
         // Execute the merge action, returning the clustering result
-        KMeansWithOverspill<float[]> execute(HierarchicalKMeans<float[]> kmeans, ClusteringFloatVectorValues vectors, int vectorsPerCluster)
+        KMeansWithOverspill<V> execute(HierarchicalKMeans<V> kmeans, ClusteringVectorValues<V> vectors, int vectorsPerCluster)
             throws IOException;
     }
 
-    public record FullRebuild() implements MergeAction {
+    public record FullRebuild<V>() implements MergeAction<V> {
         @Override
         public Strategy strategy() {
             return Strategy.FULL_REBUILD;
         }
 
         @Override
-        public KMeansWithOverspill<float[]> execute(
-            HierarchicalKMeans<float[]> kmeans,
-            ClusteringFloatVectorValues vectors,
-            int vectorsPerCluster
-        ) throws IOException {
+        public KMeansWithOverspill<V> execute(HierarchicalKMeans<V> kmeans, ClusteringVectorValues<V> vectors, int vectorsPerCluster)
+            throws IOException {
             return kmeans.cluster(vectors, vectorsPerCluster);
         }
     }
 
-    public record Insertion(ClusteringFloatVectorValues seedCentroids) implements MergeAction {
+    public record Insertion<V>(ClusteringVectorValues<V> seedCentroids) implements MergeAction<V> {
         @Override
         public Strategy strategy() {
             return Strategy.INSERTION;
         }
 
         @Override
-        public KMeansWithOverspill<float[]> execute(
-            HierarchicalKMeans<float[]> kmeans,
-            ClusteringFloatVectorValues vectors,
-            int vectorsPerCluster
-        ) throws IOException {
+        public KMeansWithOverspill<V> execute(HierarchicalKMeans<V> kmeans, ClusteringVectorValues<V> vectors, int vectorsPerCluster)
+            throws IOException {
             return kmeans.clusterByInsertion(vectors, seedCentroids, vectorsPerCluster);
         }
     }
@@ -116,21 +116,19 @@ public class TieredMergeStrategy {
      *                           segments do not surface prior centroids (e.g. 9.2/ES940 indices).
      *                           Used by {@link HierarchicalKMeans#clusterByConcatenation} to size
      *                           {@code k} without biasing toward the covered portion's density.
+     * @param <V> the array type for vectors and centroids
      */
-    public record Concatenation(ClusteringFloatVectorValues seedCentroids, int[] clusterSizes, int coveredVectorCount)
+    public record Concatenation<V>(ClusteringVectorValues<V> seedCentroids, int[] clusterSizes, int coveredVectorCount)
         implements
-            MergeAction {
+            MergeAction<V> {
         @Override
         public Strategy strategy() {
             return Strategy.CONCATENATION;
         }
 
         @Override
-        public KMeansWithOverspill<float[]> execute(
-            HierarchicalKMeans<float[]> kmeans,
-            ClusteringFloatVectorValues vectors,
-            int vectorsPerCluster
-        ) throws IOException {
+        public KMeansWithOverspill<V> execute(HierarchicalKMeans<V> kmeans, ClusteringVectorValues<V> vectors, int vectorsPerCluster)
+            throws IOException {
             return kmeans.clusterByConcatenation(vectors, seedCentroids, clusterSizes, coveredVectorCount, vectorsPerCluster);
         }
     }
@@ -145,22 +143,35 @@ public class TieredMergeStrategy {
      * @param centroidData     per-segment centroid data (may contain nulls for segments without centroids)
      * @return a merge action ready to execute
      */
-    public MergeAction selectAction(int[] segmentSizes, int[] segmentCentroids, IVFVectorsReader.CentroidData[] centroidData) {
+    // TODO: CentroidData is not yet generic on main — it uses ClusteringFloatVectorValues internally.
+    // Once CentroidData is generified to CentroidData<V> (as part of the subsequent byte DiskBBQ reader work),
+    // this method signature should change to CentroidData<V>[] and the unchecked casts below can be removed.
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public MergeAction<V> selectAction(int[] segmentSizes, int[] segmentCentroids, IVFVectorsReader.CentroidData[] centroidData) {
+        if (ops != CentroidOps.FLOAT) {
+            throw new UnsupportedOperationException(
+                "selectAction with non-float CentroidOps requires generified CentroidData<V>; "
+                    + "this guard will be removed once CentroidData is parameterized by vector type"
+            );
+        }
         Strategy strategy = selectStrategy(segmentSizes, segmentCentroids);
         return switch (strategy) {
             case INSERTION -> {
                 int dominantIdx = findDominantSegment(segmentSizes);
-                yield new Insertion(centroidData[dominantIdx].centroids());
+                // Safe when V=float[] since CentroidData.centroids() returns ClusteringFloatVectorValues.
+                // Will be type-safe once CentroidData is generified.
+                yield new Insertion<>((ClusteringVectorValues<V>) centroidData[dominantIdx].centroids());
             }
             case CONCATENATION -> {
-                List<ClusteringFloatVectorValues> parts = new ArrayList<>();
+                List<ClusteringVectorValues<V>> parts = new ArrayList<>();
                 List<int[]> sizesParts = new ArrayList<>();
                 int totalSizes = 0;
                 int coveredVectorCount = 0;
                 for (int i = 0; i < centroidData.length; i++) {
                     IVFVectorsReader.CentroidData data = centroidData[i];
                     if (data != null) {
-                        parts.add(data.centroids());
+                        // Same cast as above — safe for V=float[], type-safe once CentroidData is generified.
+                        parts.add((ClusteringVectorValues<V>) data.centroids());
                         sizesParts.add(data.clusterSizes());
                         totalSizes += data.clusterSizes().length;
                         coveredVectorCount += segmentSizes[i];
@@ -172,12 +183,10 @@ public class TieredMergeStrategy {
                     System.arraycopy(s, 0, allClusterSizes, off, s.length);
                     off += s.length;
                 }
-                ClusteringFloatVectorValues concatenated = new ConcatenatedClusteringFloatVectorValues(
-                    parts.toArray(new ClusteringFloatVectorValues[0])
-                );
-                yield new Concatenation(concatenated, allClusterSizes, coveredVectorCount);
+                ClusteringVectorValues<V> concatenated = ops.concatenate(parts);
+                yield new Concatenation<>(concatenated, allClusterSizes, coveredVectorCount);
             }
-            case FULL_REBUILD -> new FullRebuild();
+            case FULL_REBUILD -> new FullRebuild<>();
         };
     }
 

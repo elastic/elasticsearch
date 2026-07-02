@@ -23,6 +23,17 @@ public interface ExternalSourceFactory {
 
     boolean canHandle(String location);
 
+    /**
+     * Config-aware variant of {@link #canHandle(String)} used by the resolver when selecting a factory.
+     * The default delegates to the path-only form; a factory overrides this when query configuration can
+     * supply information the path alone lacks. The file factory uses it to claim an extensionless resource
+     * when an explicit {@code format} is configured (the read-path counterpart to the CRUD validator
+     * accepting an explicit format on an extensionless resource).
+     */
+    default boolean canHandle(String location, Map<String, Object> config) {
+        return canHandle(location);
+    }
+
     SourceMetadata resolveMetadata(String location, Map<String, Object> config);
 
     /**

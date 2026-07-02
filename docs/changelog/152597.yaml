@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 152571
-pr: 152597
-summary: Error on `match` options w/ runtime field
-type: enhancement

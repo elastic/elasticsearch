@@ -1,0 +1,24 @@
+{
+  "index_patterns": [
+    "profiling-stacktraces"
+  ],
+  "data_stream": {},
+  "template": {
+    "lifecycle": {
+      "data_retention": "60d"
+    }
+  },
+  "composed_of": [
+    "profiling-stacktraces",
+    "profiling-stacktraces@custom"
+  ],
+  "ignore_missing_component_templates": [
+    "profiling-stacktraces@custom"
+  ],
+  "priority": 100,
+  "_meta": {
+    "description": "Data stream template for profiling-stacktraces",
+    "managed": true
+  },
+  "version": ${xpack.profiling.template.version}
+}

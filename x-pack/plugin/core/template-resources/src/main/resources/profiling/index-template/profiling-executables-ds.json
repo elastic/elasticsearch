@@ -1,0 +1,24 @@
+{
+  "index_patterns": [
+    "profiling-executables"
+  ],
+  "data_stream": {},
+  "template": {
+    "lifecycle": {
+      "data_retention": "60d"
+    }
+  },
+  "composed_of": [
+    "profiling-executables",
+    "profiling-executables@custom"
+  ],
+  "ignore_missing_component_templates": [
+    "profiling-executables@custom"
+  ],
+  "priority": 100,
+  "_meta": {
+    "description": "Data stream template for profiling-executables",
+    "managed": true
+  },
+  "version": ${xpack.profiling.template.version}
+}

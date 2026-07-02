@@ -53,7 +53,8 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     // version 14: Stop using using _source.mode attribute in index templates
     // version 15: Use LogsDB mode for profiling-events-* (~30% smaller storage footprint)
     // version 16: Added 'profiling.executable.name' keyword mapping to profiling-events
-    public static final int INDEX_TEMPLATE_VERSION = 15;
+    // version 17: Added data stream index templates for profiling-executables, profiling-stacktraces, profiling-stackframes
+    public static final int INDEX_TEMPLATE_VERSION = 17;
 
     // history for individual indices / index templates. Only bump these for breaking changes that require to create a new index
     public static final int PROFILING_EVENTS_VERSION = 6;
@@ -223,6 +224,25 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         new IndexTemplateConfig(
             "profiling-stacktraces",
             "/profiling/index-template/profiling-stacktraces.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        ),
+        // data stream templates (no ILM, DSL-managed)
+        new IndexTemplateConfig(
+            "profiling-executables-ds",
+            "/profiling/index-template/profiling-executables-ds.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            "profiling-stacktraces-ds",
+            "/profiling/index-template/profiling-stacktraces-ds.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            "profiling-stackframes-ds",
+            "/profiling/index-template/profiling-stackframes-ds.json",
             INDEX_TEMPLATE_VERSION,
             PROFILING_TEMPLATE_VERSION_VARIABLE
         ),

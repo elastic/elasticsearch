@@ -48,6 +48,9 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
         );
         dataStreams.add(ProfilingDataStream.of("profiling-metrics", ProfilingIndexTemplateRegistry.PROFILING_METRICS_VERSION));
         dataStreams.add(ProfilingDataStream.of("profiling-hosts", ProfilingIndexTemplateRegistry.PROFILING_HOSTS_VERSION));
+        dataStreams.add(ProfilingDataStream.of("profiling-stackframes", ProfilingIndexTemplateRegistry.PROFILING_STACKFRAMES_VERSION));
+        dataStreams.add(ProfilingDataStream.of("profiling-stacktraces", ProfilingIndexTemplateRegistry.PROFILING_STACKTRACES_VERSION));
+        dataStreams.add(ProfilingDataStream.of("profiling-executables", ProfilingIndexTemplateRegistry.PROFILING_EXECUTABLES_VERSION));
         PROFILING_DATASTREAMS = Collections.unmodifiableList(dataStreams);
     }
 

@@ -9847,7 +9847,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 PlannerSettings.DEFAULTS,
                 () -> 0L
             ),
-            null  // OperatorFactoryRegistry - not needed for these tests
+            null,  // OperatorFactoryRegistry - not needed for these tests
+            null,  // parallelWorkerExecutor - not needed for these tests
+            0      // esqlWorkerPoolSize - not needed for these tests
         );
 
         return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance());

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
@@ -471,6 +472,39 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         assertEquals(total - 1, ((Number) meta.get(SourceStatisticsSerializer.columnMaxKey("id"))).intValue());
     }
 
+    /**
+     * A record over {@code max_record_size} is recovered by the error policy as a per-row DROP on the
+     * record-reader path -- unlike a normal SKIP_ROW drop, that survivor loss is a function of the
+     * max_record_size query PRAGMA, which is NOT in the cache fingerprint (only max_field_size is). So a
+     * warm query under a larger cap would keep the row and count N, but would be served this scan's N-1.
+     * The reader must safe-miss the whole publish (no stripe fragment, no whole-file stats) so the file
+     * re-scans warm rather than caching a pragma-dependent count. (The bulk/Jackson path is immune: there
+     * an over-cap record is stream-fatal via CsvRecordCappingInputStream, which the coordinator poisons.)
+     */
+    public void testMaxRecordSizeDropSafeMissesStripeCapture() throws Exception {
+        int total = 20;
+        int badRow = total / 2;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < total; i++) {
+            // Every row is a few bytes except the mid-file row, whose id field blows past the 24-byte cap.
+            String id = i == badRow ? "9".repeat(40) : Integer.toString(i);
+            sb.append(id).append(",[a,b]\n");
+        }
+        byte[] data = sb.toString().getBytes(StandardCharsets.UTF_8);
+        long stripe = 8; // small grid -> many stripes, so a served fragment would be a real (wrong) commit
+        List<Attribute> schema = List.of(
+            intCol("id"),
+            new ReferenceAttribute(Source.EMPTY, null, "tags", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+        ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 100, 1.0, false);
+
+        List<Map<String, Object>> frags = captureFusedBracket(data, 0, true, true, 3, stripe, schema, skipRow, 24);
+        assertTrue(
+            "an over-max_record_size drop must safe-miss the whole publish (pragma not fingerprinted), got: " + frags,
+            frags.isEmpty()
+        );
+    }
+
     /** Drives the fused bracket path with {@code _rowPosition} projected (byte tracking on) and a provided schema. */
     private List<Map<String, Object>> captureFusedBracket(
         byte[] bytes,
@@ -481,6 +515,30 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         long stripeSize,
         List<Attribute> readSchema,
         ErrorPolicy policy
+    ) throws Exception {
+        return captureFusedBracket(
+            bytes,
+            baseOffset,
+            firstSplit,
+            fileFinal,
+            batchSize,
+            stripeSize,
+            readSchema,
+            policy,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+    }
+
+    private List<Map<String, Object>> captureFusedBracket(
+        byte[] bytes,
+        long baseOffset,
+        boolean firstSplit,
+        boolean fileFinal,
+        int batchSize,
+        long stripeSize,
+        List<Attribute> readSchema,
+        ErrorPolicy policy,
+        int maxRecordBytes
     ) throws Exception {
         StorageObject o = memoryObject(bytes);
         FormatReadContext ctx = FormatReadContext.builder()
@@ -493,6 +551,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             .splitStartByte(baseOffset)
             .stats(baseOffset, stripeSize, fileFinal)
             .errorPolicy(policy)
+            .maxRecordBytes(maxRecordBytes)
             .statsColumnScope(StripeColumnScope.PROJECTED)
             .build();
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();

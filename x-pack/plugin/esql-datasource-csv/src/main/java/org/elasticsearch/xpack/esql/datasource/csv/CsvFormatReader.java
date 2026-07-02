@@ -2004,6 +2004,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
         /** Set when per-stripe capture must safe-miss (row/page misalignment); suppresses emission. */
         private boolean stripeCaptureDisabled = false;
         /**
+         * Set when the error policy RECOVERED an over-{@code max_record_size} record by dropping it (the
+         * bracket/record-reader path). Unlike a normal SKIP_ROW drop, that survivor loss is determined by the
+         * {@code max_record_size} query PRAGMA, which is NOT in the cache fingerprint -- so a warm query under a
+         * larger cap would serve this scan's under-count instead of its own N. Suppress the whole publish
+         * (safe-miss, re-scan) rather than cache a pragma-dependent count. Rare (pathological oversized records).
+         */
+        private boolean recordCapDropped = false;
+        /**
          * The byte offsets of the rows that SURVIVED into the current page, in page order. {@link #rowStartBytes}
          * holds an offset for every PARSED row (including ones later dropped by a structural/field error during
          * {@link #convertRowsToPage}); this array holds only the accepted rows, so it stays length-aligned with
@@ -2277,6 +2285,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         && naturallyExhausted
                         && pinnedMtimeMillis >= 0
                         && schema != null
+                        && recordCapDropped == false
                         && statsColumnScope != StripeColumnScope.NONE) {
                         if (statsStripeSize > 0 && stripeCaptureDisabled == false && stripeHarvester.isEmpty() == false) {
                             // Chunk-parallel read with per-stripe stats: emit one stripe-addressed fragment per
@@ -2556,6 +2565,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return recordReader.readRecord(true);
             } catch (CsvRecordTooLargeException e) {
                 totalRowCount++;
+                // A cap-determined drop: the max_record_size pragma is not fingerprinted, so this survivor
+                // loss is not reproducible from the cache key. Mark the scan uncacheable (safe-miss) so a warm
+                // query under a different cap re-scans rather than serving this pragma-dependent count.
+                recordCapDropped = true;
                 onRowError(e.getMessage(), e, EMPTY_ROW, true);
                 return "";
             }

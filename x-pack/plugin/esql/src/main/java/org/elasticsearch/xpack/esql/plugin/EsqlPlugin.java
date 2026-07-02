@@ -46,7 +46,6 @@ import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -264,17 +263,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     );
 
     /**
-     * Maximum time (in milliseconds) that a GROK matcher is allowed to run before being interrupted.
-     * Limits how long a GROK matcher can run to protect against expensive regex patterns.
-     */
-    public static final Setting<TimeValue> GROK_WATCHDOG_MAX_EXECUTION_TIME = Setting.timeSetting(
-        "esql.grok.watchdog.max_execution_time",
-        TimeValue.timeValueMillis(1000),
-        TimeValue.timeValueMillis(0),
-        Setting.Property.NodeScope
-    );
-
-    /**
      * Tuning parameter for deciding when to use the "merge" stored field loader.
      * Think of it as "how similar to a sequential block of documents do I have to
      * be before I'll use the merge reader?" So a value of {@code 1} means I have to
@@ -350,14 +338,17 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         DataSourceCredentials dataSourceCredentials = new DataSourceCredentials();
 
         boolean isStateless = DiscoveryNode.isStateless(settings);
-        AtomicBoolean workloadIdentityEnabled = new AtomicBoolean(
-            isStateless == false && ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED.get(settings)
+        // Read through MANAGED_IDENTITY_ENABLED, which falls back to the deprecated workload_identity key, so a
+        // pre-rename operator config is still honored. Its update consumer fires on changes to either key because the
+        // setting's raw value resolves the fallback.
+        AtomicBoolean managedIdentityEnabled = new AtomicBoolean(
+            isStateless == false && ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings)
         );
         services.clusterService()
             .getClusterSettings()
             .addSettingsUpdateConsumer(
-                ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED,
-                v -> workloadIdentityEnabled.set(isStateless == false && v)
+                ExternalSourceSettings.MANAGED_IDENTITY_ENABLED,
+                v -> managedIdentityEnabled.set(isStateless == false && v)
             );
 
         // Kill switch for the flattened data type. The IndexResolver is a node-level singleton, so the dynamic
@@ -376,15 +367,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             blockFactoryProvider.blockFactory(),
             services.threadPool().executor(ThreadPool.Names.GENERIC),
             dataSourceCredentials,
-            workloadIdentityEnabled::get,
+            managedIdentityEnabled::get,
             services.threadPool(),
             services.environment(),
-            services.resourceWatcherService()
+            services.resourceWatcherService(),
+            services.telemetryProvider().getMeterRegistry()
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        MatcherWatchdog grokWatchdog = MatcherWatchdog.newInstance(GROK_WATCHDOG_MAX_EXECUTION_TIME.get(settings).millis());
-        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry, grokWatchdog));
+        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
 
         services.ipLocationService()
@@ -454,7 +445,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             p.datasourceValidators(settings).forEach((type, v) -> {
                 DataSourceValidator effective = v;
                 if (effective instanceof FileDataSourceValidator fdv) {
-                    effective = fdv.withWorkloadIdentityEnabled(workloadIdentityEnabled::get);
+                    effective = fdv.withManagedIdentityEnabled(managedIdentityEnabled::get);
                 }
                 if (formatKeyResolver != null && effective instanceof FileDataSourceValidator fdv) {
                     effective = fdv.withFormatConfigKeyResolver(formatKeyResolver, compressionExtensions);
@@ -540,8 +531,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
                 DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING,
-                DatasetService.MAX_DATASETS_COUNT_SETTING,
-                GROK_WATCHDOG_MAX_EXECUTION_TIME
+                DatasetService.MAX_DATASETS_COUNT_SETTING
             )
         );
         settings.addAll(PlannerSettings.settings());

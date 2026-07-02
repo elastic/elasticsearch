@@ -336,6 +336,10 @@ public class Driver implements Releasable, Describable {
                     }
                     nextOp.addInput(page);
                     movedPage = true;
+                    Operator promoted = nextOp.tryPromote(driverContext);
+                    if (promoted != nextOp) {
+                        activeOperators.set(iterator.nextIndex(), promoted);
+                    }
                 }
             }
 

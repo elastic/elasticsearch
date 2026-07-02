@@ -1,6 +1,0 @@
-area: Aggregations
-issues:
- - 151012
-pr: 151181
-summary: Fix AVLTreeDigest CDF monotonicity for penultimate centroid
-type: bug

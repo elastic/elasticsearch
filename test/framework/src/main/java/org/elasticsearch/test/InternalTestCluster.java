@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
@@ -1306,16 +1307,25 @@ public final class InternalTestCluster extends TestCluster {
         try {
             assertBusy(() -> {
                 try {
+                    // Use a per-attempt timeout that is well below the outer assertBusy budget so that a single
+                    // slow or unroutable health request cannot consume the whole retry budget. client() picks a
+                    // fresh random node on each attempt, so retrying naturally routes around a node that is still
+                    // reconnecting or recovering (for instance right after a network disruption has been healed).
                     final boolean timeout = internalClient().admin()
                         .cluster()
                         .prepareHealth(TEST_REQUEST_TIMEOUT)
                         .setWaitForEvents(Priority.LANGUID)
                         .setWaitForNodes(Integer.toString(expectedNodes.size()))
-                        .get(TimeValue.timeValueSeconds(40))
+                        .get(TimeValue.timeValueSeconds(20))
                         .isTimedOut();
                     if (timeout) {
-                        throw new IllegalStateException("timed out waiting for cluster to form");
+                        // the cluster has not formed yet; throw an AssertionError so that assertBusy retries
+                        throw new AssertionError("timed out waiting for cluster to form");
                     }
+                } catch (ElasticsearchTimeoutException e) {
+                    // the health request did not complete in time, e.g. because the randomly picked node is still
+                    // reconnecting to the master; retry via assertBusy rather than failing the whole validation
+                    throw new AssertionError(e);
                 } catch (UnavailableShardsException e) {
                     if (e.getMessage() != null && e.getMessage().contains(".security")) {
                         // security index may not be ready yet, throwing assertion error to retry
@@ -1324,7 +1334,7 @@ public final class InternalTestCluster extends TestCluster {
                         throw e;
                     }
                 }
-            }, 30, TimeUnit.SECONDS);
+            }, 60, TimeUnit.SECONDS);
 
             final Object[] previousStates = new Object[1];
             assertBusy(() -> {

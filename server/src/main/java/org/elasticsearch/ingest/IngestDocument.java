@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -36,6 +37,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -61,6 +63,19 @@ public final class IngestDocument {
     static final String TIMESTAMP = "timestamp";
     // This is the maximum number of nested pipelines that can be within a pipeline. If there are more, we bail out with an error
     public static final int MAX_PIPELINES = Integer.parseInt(System.getProperty("es.ingest.max_pipelines", "100"));
+
+    // The maximum cumulative number of bytes that can be written into a single document's fields over its entire ingest lifecycle
+    // (across all processors and any nested pipelines). Without this, a pipeline can chain many processors that each copy an
+    // already-large field into a new field (e.g. many `set` processors with `copy_from`) -- individually cheap, but the resulting
+    // document can later blow up memory when it's serialized in full, e.g. in an index or _simulate response. See
+    // https://github.com/elastic/security/issues/5580.
+    // Kept as a static volatile field (rather than threaded through IngestDocument's many constructors) so that
+    // IngestSettings.MAX_CUMULATIVE_FIELD_VALUE_BYTES can update it live; see IngestService's constructor for the wiring.
+    // Defaults to the setting's default so that IngestDocument behaves sanely even when constructed without an IngestService
+    // around (e.g. in unit tests).
+    static volatile long MAX_CUMULATIVE_FIELD_VALUE_BYTES = IngestSettings.MAX_CUMULATIVE_FIELD_VALUE_BYTES.getDefault(
+        Settings.EMPTY
+    ).getBytes();
 
     // a 'not found' sentinel value for use in getOrDefault calls in order to avoid containsKey-and-then-get
     private static final Object NOT_FOUND = new Object();
@@ -100,6 +115,10 @@ public final class IngestDocument {
     private boolean doNoSelfReferencesCheck = false;
     private boolean reroute = false;
     private boolean terminate = false;
+
+    // Running total of the estimated bytes written into this document's fields via setFieldValue/appendFieldValue, across this
+    // document's whole ingest lifecycle. Checked against MAX_CUMULATIVE_FIELD_VALUE_BYTES.
+    private long cumulativeFieldValueBytes = 0L;
 
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
         this.ctxMap = new IngestCtxMap(index, id, version, routing, versionType, ZonedDateTime.now(ZoneOffset.UTC), source);
@@ -782,6 +801,7 @@ public final class IngestDocument {
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates, boolean ignoreEmptyValues) {
         assert append || (allowDuplicates == false && ignoreEmptyValues == false)
             : "allowDuplicates and ignoreEmptyValues only apply if append is true";
+        trackFieldValueSize(path, value);
         final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
         Object context = fieldPath.initialContext(this);
         int leafKeyIndex = fieldPath.pathElements.length - 1;
@@ -970,6 +990,94 @@ public final class IngestDocument {
             }
         } else {
             throw new IllegalArgumentException(Errors.cannotSet(path, leafKey, context));
+        }
+    }
+
+    /**
+     * Accumulates the estimated size of {@code value} onto this document's running total, and throws if the document has now had
+     * more than {@link #MAX_CUMULATIVE_FIELD_VALUE_BYTES} written into it over its ingest lifecycle. This guards against pipelines
+     * that duplicate an already-large field into many other fields (e.g. many processors' worth of {@code copy_from}) -- no single
+     * write is large, but the cumulative effect can make the document dangerously large once it's fully serialized elsewhere.
+     */
+    private void trackFieldValueSize(String path, Object value) {
+        // seenContainers is allocated lazily -- by far the most common case is a scalar (String, number, etc.) being set or
+        // appended, which can never recurse or cycle, so it should never pay for an IdentityHashMap allocation.
+        cumulativeFieldValueBytes += estimateSizeInBytes(value, null);
+        if (cumulativeFieldValueBytes > MAX_CUMULATIVE_FIELD_VALUE_BYTES) {
+            throw new IllegalArgumentException(
+                "failed to set field ["
+                    + path
+                    + "]: this document's ingest pipeline(s) have written more than ["
+                    + MAX_CUMULATIVE_FIELD_VALUE_BYTES
+                    + "] bytes of field values into it, exceeding the limit"
+            );
+        }
+    }
+
+    /**
+     * A rough, conservative estimate (in bytes) of the in-memory size of an arbitrary field value, recursing into the same
+     * container types that {@link #deepCopy(Object)} handles. Precision doesn't matter much here -- this only needs to catch
+     * orders-of-magnitude blowups, not track exact heap usage.
+     * <p>
+     * {@code seenContainers} guards against self-referencing structures (e.g. a list that contains itself). Unlike
+     * {@link #deepCopy(Object)}, this method doesn't reject self-references outright -- that's handled elsewhere, e.g. by
+     * {@link org.elasticsearch.common.util.CollectionUtils#ensureNoSelfReferences} -- it just needs to not stack-overflow.
+     * It's passed in as {@code null} and only allocated on first use, since the overwhelming majority of calls are for a scalar
+     * value (a plain String, number, etc.) that can never contain a cycle and so should never pay for the allocation.
+     */
+    private static long estimateSizeInBytes(Object value, Set<Object> seenContainers) {
+        if (value instanceof Map<?, ?> mapValue) {
+            if (seenContainers == null) {
+                seenContainers = Collections.newSetFromMap(new IdentityHashMap<>());
+            }
+            if (seenContainers.add(mapValue) == false) {
+                return 0L;
+            }
+            long size = 0;
+            for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
+                size += estimateSizeInBytes(entry.getKey(), seenContainers);
+                size += estimateSizeInBytes(entry.getValue(), seenContainers);
+            }
+            return size;
+        } else if (value instanceof List<?> listValue) {
+            if (seenContainers == null) {
+                seenContainers = Collections.newSetFromMap(new IdentityHashMap<>());
+            }
+            if (seenContainers.add(listValue) == false) {
+                return 0L;
+            }
+            long size = 0;
+            for (Object itemValue : listValue) {
+                size += estimateSizeInBytes(itemValue, seenContainers);
+            }
+            return size;
+        } else if (value instanceof Set<?> setValue) {
+            if (seenContainers == null) {
+                seenContainers = Collections.newSetFromMap(new IdentityHashMap<>());
+            }
+            if (seenContainers.add(setValue) == false) {
+                return 0L;
+            }
+            long size = 0;
+            for (Object itemValue : setValue) {
+                size += estimateSizeInBytes(itemValue, seenContainers);
+            }
+            return size;
+        } else if (value instanceof byte[] bytes) {
+            return bytes.length;
+        } else if (value instanceof double[][] doubles) {
+            long size = 0;
+            for (double[] row : doubles) {
+                size += (long) row.length * Double.BYTES;
+            }
+            return size;
+        } else if (value instanceof double[] doubles) {
+            return (long) doubles.length * Double.BYTES;
+        } else if (value instanceof String string) {
+            return (long) string.length() * Character.BYTES; // rough estimate; ignores compact-string encoding
+        } else {
+            // null, boxed numbers, Boolean, ZonedDateTime, Date, or anything else -- treat as a small fixed cost
+            return 16L;
         }
     }
 

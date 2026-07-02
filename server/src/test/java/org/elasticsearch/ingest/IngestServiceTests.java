@@ -47,8 +47,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -56,6 +58,8 @@ import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
@@ -209,6 +213,53 @@ public class IngestServiceTests extends ESTestCase {
             )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
+    }
+
+    public void testMaxCumulativeFieldValueBytesSettingWiring() {
+        long originalValue = IngestDocument.MAX_CUMULATIVE_FIELD_VALUE_BYTES;
+        try {
+            Environment env = TestEnvironment.newEnvironment(
+                Settings.builder()
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                    .put(IngestSettings.MAX_CUMULATIVE_FIELD_VALUE_BYTES.getKey(), "7mb")
+                    .build()
+            );
+            ClusterSettings clusterSettings = new ClusterSettings(
+                Settings.EMPTY,
+                Set.of(IngestSettings.MAX_CUMULATIVE_FIELD_VALUE_BYTES)
+            );
+            ClusterService clusterService = mock(ClusterService.class);
+            when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+            ThreadPool threadPool = mock(ThreadPool.class);
+            when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+            new IngestService(
+                clusterService,
+                threadPool,
+                env,
+                null,
+                null,
+                List.of(),
+                mock(Client.class),
+                null,
+                UserAgentParserRegistry.NOOP,
+                IpLocationService.NOOP,
+                FailureStoreMetrics.NOOP,
+                TestProjectResolvers.alwaysThrow(),
+                new FeatureService(List.of())
+            );
+
+            // the node-startup value from Environment's settings should have been applied
+            assertThat(IngestDocument.MAX_CUMULATIVE_FIELD_VALUE_BYTES, equalTo(ByteSizeValue.ofMb(7).getBytes()));
+
+            // a live cluster settings update should also be picked up, without restarting anything
+            clusterSettings.applySettings(
+                Settings.builder().put(IngestSettings.MAX_CUMULATIVE_FIELD_VALUE_BYTES.getKey(), "3mb").build()
+            );
+            assertThat(IngestDocument.MAX_CUMULATIVE_FIELD_VALUE_BYTES, equalTo(ByteSizeValue.ofMb(3).getBytes()));
+        } finally {
+            IngestDocument.MAX_CUMULATIVE_FIELD_VALUE_BYTES = originalValue;
+        }
     }
 
     public void testExecuteIndexPipelineDoesNotExist() {

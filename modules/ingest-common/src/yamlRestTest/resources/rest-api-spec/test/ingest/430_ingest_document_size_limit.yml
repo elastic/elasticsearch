@@ -1,0 +1,78 @@
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            ingest.max_cumulative_field_value_size: null
+
+---
+"Test simulate rejects a pipeline that copies an oversized field into many other fields":
+  - requires:
+      cluster_features: [ "ingest.document_size_limit" ]
+      reason: "This test relies on the cumulative field value size limit, which didn't exist in earlier versions"
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            ingest.max_cumulative_field_value_size: "256b"
+
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "processors": [
+                { "set": { "field": "bar0", "copy_from": "foo" } },
+                { "set": { "field": "bar1", "copy_from": "foo" } },
+                { "set": { "field": "bar2", "copy_from": "foo" } }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "01234567890123456789012345678901234567890123456789012345678901234567890123456789"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.error.type: "illegal_argument_exception" }
+  - match: { docs.0.error.reason: /.*bytes\ of\ field\ values.*/ }
+
+---
+"Test simulate still succeeds for a pipeline well within the size limit":
+  - requires:
+      cluster_features: [ "ingest.document_size_limit" ]
+      reason: "This test relies on the cumulative field value size limit, which didn't exist in earlier versions"
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            ingest.max_cumulative_field_value_size: "256b"
+
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "processors": [
+                { "set": { "field": "bar0", "copy_from": "foo" } }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "a small value"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._source.bar0: "a small value" }

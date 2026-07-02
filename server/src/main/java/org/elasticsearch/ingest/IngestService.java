@@ -56,6 +56,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -276,6 +277,20 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.projectResolver = projectResolver;
         this.featureService = featureService;
         this.nodeInfoListener = nodeInfoListener;
+
+        // env and clusterService.getClusterSettings() can be null/absent in lightweight test harnesses that construct an
+        // IngestService without a full node -- in that case IngestDocument just keeps its setting-default fallback value.
+        if (env != null) {
+            IngestDocument.MAX_CUMULATIVE_FIELD_VALUE_BYTES = IngestSettings.MAX_CUMULATIVE_FIELD_VALUE_BYTES.get(env.settings())
+                .getBytes();
+        }
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        if (clusterSettings != null) {
+            clusterSettings.addSettingsUpdateConsumer(
+                IngestSettings.MAX_CUMULATIVE_FIELD_VALUE_BYTES,
+                value -> IngestDocument.MAX_CUMULATIVE_FIELD_VALUE_BYTES = value.getBytes()
+            );
+        }
     }
 
     public IngestService(

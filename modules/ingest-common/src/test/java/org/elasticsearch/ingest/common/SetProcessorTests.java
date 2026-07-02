@@ -239,6 +239,24 @@ public class SetProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(targetField, Object.class), equalTo(preservedDate));
     }
 
+    public void testManySetProcessorsWithCopyFromOfLargeFieldTripsCumulativeSizeLimit() throws Exception {
+        // Reproduces the shape of https://github.com/elastic/security/issues/5580 : a pipeline made of 499 `set` processors,
+        // each copying the same already-large field into a distinct new field (the exact shape of the reported exploit script).
+        // No single copy is large, but the cumulative effect of many of them (499 * 100,000 bytes =~ 47mb here) should trip
+        // IngestDocument's cumulative field value size guard well before all processors run, rather than being allowed to build
+        // a document that OOMs the node when it's later serialized in full.
+        Map<String, Object> document = new HashMap<>();
+        document.put("foo", randomAlphaOfLength(50_000));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            for (int i = 0; i < 499; i++) {
+                createSetProcessor("bar" + i, null, "foo", true, false).execute(ingestDocument);
+            }
+        });
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("bytes of field values"));
+    }
+
     public void testSetEmptyField() {
         // edge case: it's valid (according to the current validation) to *create* a set processor that has an empty string as its 'field',
         // but it will fail at ingest execution time.

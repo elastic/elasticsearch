@@ -664,6 +664,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IndicesClusterStateService.CONCURRENT_SHARD_CLOSE_LIMIT,
         IngestSettings.GROK_WATCHDOG_INTERVAL,
         IngestSettings.GROK_WATCHDOG_MAX_EXECUTION_TIME,
+        IngestSettings.MAX_CUMULATIVE_FIELD_VALUE_BYTES,
         TDigestExecutionHint.SETTING,
         MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT_SETTING,
         MergePolicyConfig.DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT_SETTING,

@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -555,6 +554,12 @@ public abstract class FieldMapper extends Mapper {
      * Field mappers must override this method if they provide
      * a more efficient field-specific implementation of synthetic source.
      * </p>
+     * <p>
+     * This also determines columnar support. Columnar index modes ({@code columnar}, {@code logsdb_columnar}) rebuild
+     * {@code _source} from doc-value columns only and keep no generic source fallback: a mapper that returns
+     * {@link SyntheticSourceSupport.Native} (its {@code _source} is reconstructable from its own doc values) is
+     * supported, while one that falls back is rejected at mapping time.
+     * </p>
      * @return {@link SyntheticSourceMode}
      */
     protected SyntheticSourceSupport syntheticSourceSupport() {
@@ -636,10 +641,6 @@ public abstract class FieldMapper extends Mapper {
 
             private boolean hasSyntheticSourceCompatibleKeywordField;
 
-            // True when a keyword multi-field's doc values are a byte-identical, complete copy of the parent's raw values: no normalizer
-            // altering them, no ignore_above omitting long values, and no null_value injecting substitutes.
-            private boolean hasColumnarModeCompatibleKeywordDelegate;
-
             public Builder add(FieldMapper.Builder builder) {
                 fieldBuilders.put(builder.leafName(), builder);
 
@@ -648,23 +649,9 @@ public abstract class FieldMapper extends Mapper {
                         && (kwd.docValuesParameters().enabled || kwd.isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
                     }
-                    if (isColumnarModeCompatibleKeywordDelegate(kwd)) {
-                        hasColumnarModeCompatibleKeywordDelegate = true;
-                    }
                 }
 
                 return this;
-            }
-
-            // A keyword delegate is columnar-mode-compatible when its doc values losslessly mirror the parent's raw values: normalizer is
-            // absent (or skips storing the original), doc values are present, and neither ignore_above nor null_value transforms them.
-            // Normalizes, ignore_above, and null_value all transform indexed values -> original source is changed, which we don't want
-            // if we're using a keyword subfield as a delegate for parent field.
-            private static boolean isColumnarModeCompatibleKeywordDelegate(KeywordFieldMapper.Builder kwd) {
-                return (kwd.hasNormalizer() == false || kwd.isNormalizerSkipStoreOriginalValue())
-                    && kwd.docValuesParameters().enabled
-                    && kwd.hasIgnoreAbove() == false
-                    && kwd.hasNullValue() == false;
             }
 
             private void add(FieldMapper mapper) {
@@ -694,12 +681,6 @@ public abstract class FieldMapper extends Mapper {
                     if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
                     }
-                    if (kwd.hasNormalizer() == false
-                        && kwd.fieldType().hasDocValues()
-                        && kwd.fieldType().ignoreAbove().valuesPotentiallyIgnored() == false
-                        && kwd.fieldType().hasNullValue() == false) {
-                        hasColumnarModeCompatibleKeywordDelegate = true;
-                    }
                 }
             }
 
@@ -726,9 +707,6 @@ public abstract class FieldMapper extends Mapper {
                         && (kwd.docValuesParameters().enabled || kwd.isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
                     }
-                    if (isColumnarModeCompatibleKeywordDelegate(kwd)) {
-                        hasColumnarModeCompatibleKeywordDelegate = true;
-                    }
                 }
             }
 
@@ -742,14 +720,6 @@ public abstract class FieldMapper extends Mapper {
 
             public boolean hasSyntheticSourceCompatibleKeywordField() {
                 return hasSyntheticSourceCompatibleKeywordField;
-            }
-
-            /**
-             * Returns true when this field has a keyword multi-field whose doc values are a complete, byte-identical copy of the parent's
-             * raw values AND the index mode is strictly columnar, so the parent can skip its own doc values and load via the delegate.
-             */
-            public boolean hasColumnarModeCompatibleKeywordDelegate(IndexMode mode) {
-                return mode != null && mode.isStrictColumnar() && hasColumnarModeCompatibleKeywordDelegate;
             }
 
             public MultiFields build(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
@@ -1997,34 +1967,6 @@ public abstract class FieldMapper extends Mapper {
             return DEPRECATED_PARAMS.contains(propName);
         }
 
-        /**
-         * Ensures that index sort fields don't use binary (non-sortable) doc values. If the default for a columnar index is HIGH
-         * cardinality, it is silently overridden to LOW since sort fields require sortable doc values.
-         */
-        protected static void enforceIndexSortDocValuesCompatibility(
-            String fullFieldName,
-            IndexSortConfig sortConfig,
-            DocValuesParameter docValuesParameters
-        ) {
-            if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-                return;
-            }
-            if (sortConfig == null || sortConfig.hasIndexSort() == false || sortConfig.hasSortOnField(fullFieldName) == false) {
-                return;
-            }
-            DocValuesParameter.Values currentValues = docValuesParameters.getValue();
-            if (currentValues.cardinality() != DocValuesParameter.Values.Cardinality.HIGH) {
-                return;
-            }
-            // Default was HIGH (columnar mode) — override to LOW since sort fields require sortable doc values.
-            docValuesParameters.setValue(
-                new DocValuesParameter.Values(
-                    currentValues.enabled(),
-                    DocValuesParameter.Values.Cardinality.LOW,
-                    currentValues.multiValue()
-                )
-            );
-        }
     }
 
     /**

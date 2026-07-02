@@ -408,7 +408,7 @@ final class ParquetPushedExpressions {
         }
         return switch (dataType) {
             case INTEGER -> orderedPredicate(FilterApi.intColumn(columnName), value != null ? ((Number) value).intValue() : null, op);
-            case LONG -> orderedPredicate(FilterApi.longColumn(columnName), value != null ? ((Number) value).longValue() : null, op);
+            case LONG -> buildLongPredicate(columnName, value, op, schema);
             case DOUBLE -> {
                 if (isPhysicalDouble(schema, columnName)) {
                     yield orderedPredicate(FilterApi.doubleColumn(columnName), value != null ? ((Number) value).doubleValue() : null, op);
@@ -440,6 +440,76 @@ final class ParquetPushedExpressions {
             return false;
         }
         return primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.DOUBLE;
+    }
+
+    /**
+     * Builds a predicate for an ESQL {@code LONG} column, dispatching on the file's <b>physical</b>
+     * primitive rather than the (possibly widened) ESQL type — see the class Javadoc's
+     * {@code INT32}/{@code INT64} split. Two Parquet shapes surface as ESQL {@code LONG} while their
+     * physical primitive is {@code INT32}: an unsigned 32-bit integer (values can exceed signed
+     * {@code int} range) and {@code TIME_MILLIS} (signed, but ESQL has no distinct "time of day" type).
+     * A {@link FilterApi#longColumn} pushed against either would describe a column the file doesn't
+     * have — {@code INT64} — and parquet-mr rejects it as a declared-type mismatch
+     * (github.com/elastic/esql-planning/issues/1030).
+     *
+     * <p>When the physical primitive is {@code INT32}, the literal is narrowed via
+     * {@link #narrowLongToPhysicalInt32}; when narrowing fails (the literal cannot possibly match any
+     * value the column can hold) this returns {@code null} rather than push an incorrect predicate.
+     * That is safe: LONG comparisons are always RECHECK, never YES (see
+     * {@link ParquetFilterPushdownSupport#isFullyEvaluable}), so {@code FilterExec} re-applies the
+     * real ESQL semantics regardless of whether this predicate was pushed for pruning.
+     */
+    private static FilterPredicate buildLongPredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
+        PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
+        if (ptype == null) {
+            return null;
+        }
+        return switch (ptype.getPrimitiveTypeName()) {
+            case INT64 -> orderedPredicate(FilterApi.longColumn(columnName), value != null ? ((Number) value).longValue() : null, op);
+            case INT32 -> {
+                if (value == null) {
+                    yield orderedPredicate(FilterApi.intColumn(columnName), null, op);
+                }
+                Integer narrowed = narrowLongToPhysicalInt32(((Number) value).longValue(), ptype);
+                yield narrowed != null ? orderedPredicate(FilterApi.intColumn(columnName), narrowed, op) : null;
+            }
+            default -> null;
+        };
+    }
+
+    /**
+     * Returns {@code true} when {@code ptype} is the Parquet {@code UINT_32} logical annotation
+     * (physical {@code INT32}, {@code intType(32, false)}) — the shape that widens to ESQL
+     * {@code LONG} because unsigned 32-bit values can exceed signed {@code int} range.
+     */
+    private static boolean isUnsignedInt32(PrimitiveType ptype) {
+        return ptype.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical
+            && intLogical.isSigned() == false
+            && intLogical.getBitWidth() == 32;
+    }
+
+    /**
+     * Narrows an ESQL {@code LONG} literal to the raw {@code int} bit pattern to push against a
+     * physical {@code INT32} column, or returns {@code null} when {@code value} cannot possibly be
+     * held by that column (in which case the caller must not push a predicate for it — see
+     * {@link #buildLongPredicate}).
+     *
+     * <p>For {@code UINT_32} (unsigned), any value in {@code [0, 2^32 - 1]} round-trips through
+     * {@code (int) value}: the cast reinterprets the low 32 bits, which is exactly the column's raw
+     * on-disk representation, and parquet-mr's statistics comparator already applies unsigned
+     * ordering for {@code UINT_32} columns when evaluating the pushed predicate against row-group /
+     * page stats, so the signed-vs-unsigned interpretation is handled beneath this method.
+     *
+     * <p>For a signed {@code INT32} widened to {@code LONG} (today: {@code TIME_MILLIS}, whose values
+     * are always small and positive), the standard signed round trip applies.
+     */
+    @Nullable
+    private static Integer narrowLongToPhysicalInt32(long value, PrimitiveType ptype) {
+        if (isUnsignedInt32(ptype)) {
+            return (value >= 0 && value <= 0xFFFFFFFFL) ? (int) value : null;
+        }
+        int narrowed = (int) value;
+        return narrowed == value ? narrowed : null;
     }
 
     /**
@@ -576,7 +646,7 @@ final class ParquetPushedExpressions {
         }
         return switch (dataType) {
             case INTEGER -> inPredicate(FilterApi.intColumn(columnName), rawValues, v -> ((Number) v).intValue());
-            case LONG -> inPredicate(FilterApi.longColumn(columnName), rawValues, v -> ((Number) v).longValue());
+            case LONG -> translateLongIn(columnName, rawValues, schema);
             case DOUBLE -> {
                 if (isPhysicalDouble(schema, columnName)) {
                     yield inPredicate(FilterApi.doubleColumn(columnName), rawValues, v -> ((Number) v).doubleValue());
@@ -586,6 +656,35 @@ final class ParquetPushedExpressions {
             case KEYWORD -> inPredicate(FilterApi.binaryColumn(columnName), rawValues, ParquetPushedExpressions::toBinary);
             case BOOLEAN -> inPredicate(FilterApi.booleanColumn(columnName), rawValues, v -> (Boolean) v);
             case DATETIME -> translateDatetimeIn(columnName, rawValues, schema);
+            default -> null;
+        };
+    }
+
+    /**
+     * {@code IN} counterpart to {@link #buildLongPredicate}: dispatches on the physical primitive
+     * rather than the widened ESQL {@code LONG} type. For a physical {@code INT32} column, literals
+     * that fail to narrow (see {@link #narrowLongToPhysicalInt32}) are dropped from the pushed set
+     * rather than aborting the whole predicate — such a literal can never equal any value the column
+     * holds, so omitting it only makes the pushed set a (still-correct) subset of the true domain,
+     * never stricter than the truth for the values that remain.
+     */
+    private static FilterPredicate translateLongIn(String columnName, List<Object> rawValues, MessageType schema) {
+        PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
+        if (ptype == null) {
+            return null;
+        }
+        return switch (ptype.getPrimitiveTypeName()) {
+            case INT64 -> inPredicate(FilterApi.longColumn(columnName), rawValues, v -> ((Number) v).longValue());
+            case INT32 -> {
+                List<Object> narrowed = new ArrayList<>();
+                for (Object v : rawValues) {
+                    Integer n = narrowLongToPhysicalInt32(((Number) v).longValue(), ptype);
+                    if (n != null) {
+                        narrowed.add(n);
+                    }
+                }
+                yield narrowed.isEmpty() ? null : inPredicate(FilterApi.intColumn(columnName), narrowed, v -> (Integer) v);
+            }
             default -> null;
         };
     }

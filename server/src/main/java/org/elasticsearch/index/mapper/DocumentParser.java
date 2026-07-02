@@ -585,8 +585,7 @@ public final class DocumentParser {
         // For [subobjects:false], intermediate objects get flattened so we can't skip parsing children.
         if (dynamic == ObjectMapper.Dynamic.FALSE && context.parent().subobjects() != ObjectMapper.Subobjects.DISABLED) {
             failIfMatchesRoutingPath(context, currentFieldName);
-            // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
-            if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
+            if (context.canAddIgnoredField()) {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
@@ -690,8 +689,7 @@ public final class DocumentParser {
         ObjectMapper.Dynamic dynamic = context.resolveDynamic(currentFieldName);
         ensureNotStrict(dynamic, context, currentFieldName);
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
-            // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
-            if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
+            if (context.canAddIgnoredField()) {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
@@ -941,8 +939,7 @@ public final class DocumentParser {
         ensureNotStrict(dynamic, context, currentFieldName);
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, currentFieldName);
-            // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
-            if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
+            if (context.canAddIgnoredField()) {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,

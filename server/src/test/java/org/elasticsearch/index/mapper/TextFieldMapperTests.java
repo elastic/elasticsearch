@@ -2120,7 +2120,13 @@ public class TextFieldMapperTests extends MapperTestCase {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assumeFalse("ignore_malformed not supported", ignoreMalformed);
-        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("text", true, false, true);
+        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("text", true, false, true, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        assumeFalse("ignore_malformed not supported", ignoreMalformed);
+        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("text", true, false, true, true);
     }
 
     @Override
@@ -2560,24 +2566,19 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertTrue("Should have a doc_values field in columnar mode by default", hasDocValuesField);
     }
 
-    public void testDocValuesDedupedAgainstPlainKeywordDelegateInColumnarMode() throws IOException {
+    public void testTextKeepsOwnDocValuesInColumnarMode() throws IOException {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
 
-        // A plain keyword multi-field (dv-backed, no normalizer/ignore_above/null_value) is a complete copy of the raw values, so the text
-        // field skips its own doc values and loads through the delegate; the keyword's doc values are the only copy written. When the text
-        // field instead keeps its own doc values, in strict columnar mode it stores them in document order (no offsets sidecar).
-        assertTextDocValuesDedup(b -> {}, false);
-        // null_value on the keyword delegate substitutes values, so the keyword copy is not byte-identical and the text field keeps its
-        // own.
-        assertTextDocValuesDedup(b -> b.field("null_value", "NULL"), true);
-        // ignore_above on the keyword delegate omits long values, so the keyword copy is incomplete and the text field keeps its own.
-        assertTextDocValuesDedup(b -> b.field("ignore_above", 10), true);
-        // A keyword delegate with doc values disabled is not a copy at all, so the text field keeps its own doc values.
-        assertTextDocValuesDedup(b -> b.field("doc_values", false), true);
+        // In columnar mode a text field always keeps its own doc values and reconstructs _source from them, regardless
+        // of any keyword multi-field. A keyword multi-field is never used as a doc-values delegate, so its own config
+        // (plain, null_value, ignore_above, or doc_values:false for a search-only analyzer copy) does not matter.
+        assertTextKeepsOwnDocValues(b -> {});
+        assertTextKeepsOwnDocValues(b -> b.field("null_value", "NULL"));
+        assertTextKeepsOwnDocValues(b -> b.field("ignore_above", 10));
+        assertTextKeepsOwnDocValues(b -> b.field("doc_values", false));
     }
 
-    private void assertTextDocValuesDedup(CheckedConsumer<XContentBuilder, IOException> keywordConfig, boolean expectsOwnDocValues)
-        throws IOException {
+    private void assertTextKeepsOwnDocValues(CheckedConsumer<XContentBuilder, IOException> keywordConfig) throws IOException {
         Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
         indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName());
         Settings indexSettings = indexSettingsBuilder.build();
@@ -2596,7 +2597,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
         TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
-        assertThat(textMapper.fieldType().hasDocValues(), equalTo(expectsOwnDocValues));
+        assertTrue("text field keeps its own doc values in columnar mode", textMapper.fieldType().hasDocValues());
 
         var source = source(b -> {
             b.field("@timestamp", Instant.now());
@@ -2614,11 +2615,11 @@ public class TextFieldMapperTests extends MapperTestCase {
                 hasOwnOffsets = true;
             }
         }
-        assertThat("text field's own binary doc values", hasOwnBinaryDocValues, equalTo(expectsOwnDocValues));
+        assertTrue("text field's own binary doc values", hasOwnBinaryDocValues);
         // High-cardinality columnar fields store values in document order in their own binary doc values, never via a sidecar offsets
         // field.
         assertFalse("text field's own offsets sidecar", hasOwnOffsets);
-        assertThat("text field stores array values in order", textMapper.storesArrayValuesInOrder(), equalTo(expectsOwnDocValues));
+        assertTrue("text field stores array values in order", textMapper.storesArrayValuesInOrder());
     }
 
     public void testConditionalBlockLoader() throws IOException {

@@ -111,4 +111,11 @@ public class AvgOverTimeTests extends AbstractAggregationTestCase {
         return copies;
     }
 
+    /**
+     * Filters out implicitly injected parameters to ensure CONSTANT hint validation
+     * only checks declared @Param arguments.
+     */
+    public static List<TestCaseSupplier.TypedData> providedParameters(List<TestCaseSupplier.TypedData> params) {
+        return params;
+    }
 }

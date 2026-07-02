@@ -127,7 +127,9 @@ public abstract class DocumentParserContext {
 
         @Override
         public FieldArrayContext getOffSetContext() {
-            return in.getOffSetContext();
+            FieldArrayContext offsetContext = in.getOffSetContext();
+            offsetContext.setCurrentDoc(doc());
+            return offsetContext;
         }
 
         @Override
@@ -556,9 +558,15 @@ public abstract class DocumentParserContext {
     }
 
     public final boolean canAddIgnoredField() {
-        return (mappingLookup.isSourceSynthetic() || mappingLookup.isSourceColumnarStored())
+        // Columnar modes rebuild _source purely from doc-value columns. Anything not reconstructable from a field-owned
+        // doc-value representation is dropped (lossy) rather than kept as generic _ignored_source, so the generic
+        // ignored source is disabled entirely in columnar. Field-owned fallbacks (ignore_malformed, text) are written
+        // directly by their mappers, and the columnar_stored whole-document blob is written directly in postParse -
+        // neither goes through this gate.
+        return mappingLookup.isSourceSynthetic()
             && recordedSource == false
-            && indexSettings().getSkipIgnoredSourceWrite() == false;
+            && indexSettings().getSkipIgnoredSourceWrite() == false
+            && indexSettings().getMode().isStrictColumnar() == false;
     }
 
     Mapper.SourceKeepMode sourceKeepModeFromIndexSettings() {
@@ -630,6 +638,7 @@ public abstract class DocumentParserContext {
         if (fieldArrayContext == null) {
             fieldArrayContext = new FieldArrayContext();
         }
+        fieldArrayContext.setCurrentDoc(doc());
         return fieldArrayContext;
     }
 
@@ -645,6 +654,16 @@ public abstract class DocumentParserContext {
 
     public boolean isImmediateParentAnArray() {
         return lastSetToken == XContentParser.Token.START_ARRAY;
+    }
+
+    /**
+     * Returns {@code true} when the value currently being parsed is part of an array: either its immediate XContent parent is an array (a
+     * leaf array such as {@code "f": ["a","b"]}), or it sits inside one or more object arrays higher up the path (such as
+     * {@code "obj": [{"f":"a"}, {"f":"b"}]}). In both cases the field can receive multiple values for the same document, so callers that
+     * store values in document order should treat it as a multi-valued column rather than a single scalar.
+     */
+    public boolean isPartOfArray() {
+        return isImmediateParentAnArray() || inArrayScope();
     }
 
     /**

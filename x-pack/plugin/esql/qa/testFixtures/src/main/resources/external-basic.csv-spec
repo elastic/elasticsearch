@@ -332,6 +332,27 @@ employee_id:integer | given_name:keyword | last_name:keyword | salary:integer
 10003          | "Parto"            | "Bamford"         | 61805
 ;
 
+// Renaming an external column, deriving a value from it, then grouping by both used to fail optimization with a 500
+// (PruneRedundantAggregateGroupings rebuilt the pruned derived grouping referencing the pre-rename column).
+// Runs against both EXTERNAL and FROM <dataset> (same read path) via the dataset directive.
+renameDerivedGroupingPrune
+required_capability: fix_prune_renamed_derived_external_grouping
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| WHERE emp_no <= 10005
+| RENAME languages AS lang
+| EVAL lang_plus = lang + 1
+| STATS count = COUNT(*) BY lang, lang_plus
+| SORT lang;
+
+count:long | lang:integer | lang_plus:integer
+1          | 1            | 2
+1          | 2            | 3
+1          | 4            | 5
+2          | 5            | 6
+;
+
 // Additional STATS aggregate: SUM
 
 aggregateSumSalary
@@ -1083,3 +1104,81 @@ distinct_paths:long
 1
 ;
 
+
+// ---- runtime match over an external source ----
+// External columns are not Lucene-mapped, so match runs at runtime (runtime_lexical_search). Authored as
+// FROM <dataset> so it runs verbatim on dataset-capable backends and as rebuilt EXTERNAL on the others.
+
+matchOnExternalKeyword
+required_capability: external_command
+required_capability: match_function
+required_capability: match_runtime_search
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+pragma: runtime_lexical_search=true
+
+FROM employees_no_mv
+| WHERE match(first_name, "Bezalel")
+| KEEP emp_no, first_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+;
+
+matchOnExternalKeywordAsText
+required_capability: external_command
+required_capability: match_function
+required_capability: match_runtime_search
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+pragma: runtime_lexical_search=true
+
+// Casting an external keyword column to text makes match analyze it (case-insensitive).
+FROM employees_no_mv
+| EVAL name = to_text(first_name)
+| WHERE match(name, "bezalel")
+| KEEP emp_no, first_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+;
+
+matchOnExternalInteger
+required_capability: external_command
+required_capability: match_function
+required_capability: match_runtime_search
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+pragma: runtime_lexical_search=true
+
+FROM employees_no_mv
+| WHERE match(salary, 57305)
+| KEEP emp_no, salary
+| SORT emp_no
+;
+
+emp_no:integer | salary:integer
+10001          | 57305
+;
+
+matchOnExternalIntegerWithStringQuery
+required_capability: external_command
+required_capability: match_function
+required_capability: match_runtime_search
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+pragma: runtime_lexical_search=true
+
+FROM employees_no_mv
+| WHERE match(salary, "57305")
+| KEEP emp_no, salary
+| SORT emp_no
+;
+
+emp_no:integer | salary:integer
+10001          | 57305
+;

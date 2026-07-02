@@ -94,9 +94,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         // Enqueue recovery 2 while the slot is held. It will be dispatched by recovery 1's releasing thread
         final var secondListener = new RecoveryListener() {
             @Override
-            public void onRecoveryDone(RecoveryState state, ShardLongFieldRange t, ShardLongFieldRange e) {
-                secondRecoveryDone.countDown();
-            }
+            public void onRecoveryDone(RecoveryState state, ShardLongFieldRange t, ShardLongFieldRange e) {}
 
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
@@ -111,6 +109,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(secondListener, newRecoveryState(), stats, listener -> {
             assertNull(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER));
             listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            secondRecoveryDone.countDown();
         });
         assertThat(service.currentQueueSize(), equalTo(1));
 

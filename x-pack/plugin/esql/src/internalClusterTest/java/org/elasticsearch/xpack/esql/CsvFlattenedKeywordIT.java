@@ -58,6 +58,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.FlattenedJunkConfig;
 
 /**
  * Integration test that runs the {@link CsvIT} csv-spec corpus against indices where every field
@@ -320,6 +321,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         private final Map<String, Set<String>> protectedKeywordPathsByDatasetIndexName;
         private final Map<String, Set<String>> keywordPathsByDatasetIndexName;
         private final Map<String, Set<String>> nonKeywordPathsByDatasetIndexName;
+        private final Map<String, FlattenedJunkConfig> junkConfigByDatasetIndexName;
 
         KeywordToFlattenedStrategy() {
             EnrichExclusionResult enrichResult = computeEnrichMatchFieldExclusions();
@@ -329,6 +331,16 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             DatasetPathsResult datasetPaths = computeDatasetPaths(protectedKeywordPathsByDatasetIndexName);
             this.keywordPathsByDatasetIndexName = datasetPaths.keywordPathsByDatasetIndexName();
             this.nonKeywordPathsByDatasetIndexName = datasetPaths.nonKeywordPathsByDatasetIndexName();
+
+            // Compute per-dataset junk configuration: flip one coin per dataset.
+            // selectJunkFields already returns EMPTY for an empty input set, and
+            // datasets without a mapping file have no converted paths so they also get EMPTY.
+            Map<String, FlattenedJunkConfig> junkMap = new HashMap<>();
+            for (CsvTestsDataLoader.TestDataset dataset : CsvTestsDataLoader.CSV_DATASET.values()) {
+                Set<String> kw = this.keywordPathsByDatasetIndexName.getOrDefault(dataset.indexName(), Set.of());
+                junkMap.put(dataset.indexName(), FlattenedJunkConfig.selectJunkFields(kw));
+            }
+            this.junkConfigByDatasetIndexName = Map.copyOf(junkMap);
 
             // Emit one INFO line for every keyword field that this variant will
             // intentionally never convert. The user can grep for "skip-convert" to inventory the
@@ -343,6 +355,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             logEnrichMatchFieldExclusions(enrichResult.exclusions());
             logLookupJoinFieldExclusions(lookupResult.exclusions());
             logMappingDenylistHits(datasetPaths.skippedFieldsByDataset());
+            logJunkConfig(this.junkConfigByDatasetIndexName);
         }
 
         /**
@@ -662,7 +675,9 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         @Override
         public String transformDocument(CsvTestsDataLoader.TestDataset dataset, String originalDocumentJson) throws IOException {
             Set<String> paths = keywordPathsByDatasetIndexName.getOrDefault(dataset.indexName(), Set.of());
-            return KeywordToFlattenedTransformer.wrapKeywordValuesAsFlattened(originalDocumentJson, paths);
+            FlattenedJunkConfig junk = junkConfigByDatasetIndexName.get(dataset.indexName());
+            assert junk != null : "no junk config for dataset: " + dataset.indexName();
+            return KeywordToFlattenedTransformer.wrapKeywordValuesAsFlattened(originalDocumentJson, paths, junk);
         }
 
         @Override
@@ -1056,6 +1071,22 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         }
 
         /**
+         * Emits one INFO line per dataset listing which fields (if any) will have junk keys
+         * injected into their wrapped flattened objects. An empty junk-fields list means the
+         * coin came up tails for that dataset and no junk is injected.
+         */
+        private static void logJunkConfig(Map<String, FlattenedJunkConfig> junkConfigByDatasetIndexName) {
+            List<String> datasets = new ArrayList<>(junkConfigByDatasetIndexName.keySet());
+            datasets.sort(Comparator.naturalOrder());
+            for (String dataset : datasets) {
+                FlattenedJunkConfig cfg = junkConfigByDatasetIndexName.get(dataset);
+                List<String> fields = new ArrayList<>(cfg.junkFields());
+                fields.sort(Comparator.naturalOrder());
+                logger.info("keyword\u2192flattened: junk-config; dataset={}; junk-fields={}", dataset, fields);
+            }
+        }
+
+        /**
          * Emits one INFO line per keyword field declaration that
          * {@link KeywordToFlattenedTransformer} left untouched because the field declared a
          * {@link KeywordToFlattenedTransformer#PARAMS_INCOMPATIBLE_WITH_FLATTENED}
@@ -1289,14 +1320,10 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "COUNT_DISTINCT_OVER_TIME:field is missing",
         "COUNT_OVER_TIME:field is missing",
         "DATE_DIFF:unit is missing",
-        "DATE_FORMAT:date|dateFormat is missing",
-        "DATE_PARSE:datePattern|dateString is missing",
-        "DATE_PARSE:dateString|options is missing",
-        "DATE_UNIT_COUNT:from_unit is missing",
-        "DATE_UNIT_COUNT:to_unit is missing",
         "DECAY:scale is missing",
         "EMBEDDING:value is missing",
         "ENDS_WITH:suffix is missing",
+        "FIELD_EXTRACT:path is missing",
         "FIRST_OVER_TIME:field is missing",
         "FROM_BASE64:string is missing",
         "GREATER_THAN:rhs is missing",
@@ -1315,8 +1342,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "LESS_THAN_OR_EQUAL:rhs is missing",
         "LIKE:pattern is missing",
         "LOCATE:substring is missing",
-        "LTRIM:string is missing",
-        "MATCH:field is missing",
         "MATCH:query is missing",
         "MATCH_OPERATOR:field is missing",
         "MATCH_OPERATOR:query is missing",
@@ -1349,7 +1374,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "REPLACE:newString is missing",
         "REPLACE:regex is missing",
         "RLIKE:pattern is missing",
-        "RTRIM:string is missing",
         "SPARKLINE:from is missing",
         "SPARKLINE:to is missing",
         "SPLIT:string is missing",
@@ -1374,7 +1398,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "TO_VERSION:field is missing",
         "TRANGE:end_time is missing",
         "TRANGE:start_time_or_offset is missing",
-        "TRIM:string is missing",
         "TSTEP:from is missing",
         "TSTEP:to is missing",
         "WITHOUT:dimension is missing"

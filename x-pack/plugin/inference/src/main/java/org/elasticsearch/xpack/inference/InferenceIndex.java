@@ -183,6 +183,23 @@ public class InferenceIndex {
                             "type": "long"
                           }
                         }
+                      },
+                      "regions": {
+                        "dynamic": false,
+                        "properties": {
+                          "csp": {
+                            "type": "keyword"
+                          },
+                          "region": {
+                            "type": "keyword"
+                          },
+                          "geo": {
+                            "type": "keyword"
+                          }
+                        }
+                      },
+                      "denied_by_region_policy": {
+                        "type": "boolean"
                       }
                     }
                   },

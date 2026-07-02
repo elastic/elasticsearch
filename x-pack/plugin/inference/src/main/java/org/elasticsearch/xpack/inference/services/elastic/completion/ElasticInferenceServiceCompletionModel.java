@@ -51,23 +51,6 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         Map<String, Object> serviceSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ConfigurationParseContext context,
-        @Nullable EndpointMetadata endpointMetadata
-    ) {
-        this(
-            inferenceEntityId,
-            taskType,
-            ElasticInferenceServiceCompletionServiceSettings.fromMap(serviceSettings, context),
-            elasticInferenceServiceComponents,
-            endpointMetadata
-        );
-    }
-
-    public ElasticInferenceServiceCompletionModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-        ConfigurationParseContext context,
         @Nullable EndpointMetadata endpointMetadata,
         TaskSettings taskSettings
     ) {

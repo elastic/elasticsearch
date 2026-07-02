@@ -34,6 +34,7 @@ import static org.elasticsearch.xpack.inference.ElasticInferenceServiceCompletio
 import static org.elasticsearch.xpack.inference.ElasticInferenceServiceCompletionTaskSettingsIT.reasoningTaskSettingsUpdate;
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.assertStatusOkOrCreated;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings.CCM_SUPPORTED_ENVIRONMENT;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -45,24 +46,33 @@ import static org.hamcrest.Matchers.is;
  * upgraded phases of a rolling upgrade), this suite pins a fixed old-node + current-node cluster, mirroring
  * every other test in this package. Because the {@code reasoning} feature is brand new, such a cluster is
  * permanently "mixed" with respect to it, so PUT requests carrying {@code task_settings.reasoning} are always
- * rejected via {@code EnforcingEmptyTaskSettings} / {@code EnforceEmptyTaskSettingsStrategy}, while requests
- * with empty task settings always succeed on either task type.
+ * rejected, while requests with empty task settings always succeed on either task type.
  *
- * <p>{@code _update} for inference models is a master-node action whose task-settings interpretation happens
- * entirely inside {@code masterOperation}, so which node is elected master determines the outcome — as with
- * every other mixed-cluster suite in this repo, master election here is not pinned to either node (no suite
- * does this; a node's version and its master eligibility are independent things bootstrap does not let you
- * decouple for a fresh old+new cluster). If the current node is master, {@code EnforcingEmptyTaskSettings}
- * rejects the update outright (400). If the old node is master, its release predates the reasoning field
- * entirely, so it has no way to even recognize the field, let alone reject it — the update "succeeds" but the
- * field is silently dropped rather than stored. Either way, reasoning must never end up persisted, so the
- * update tests below assert that invariant instead of a specific status code.
+ * <p>PUT and {@code _update} are both master-node actions, so which node is elected master determines the
+ * exact rejection path — as with every other mixed-cluster suite in this repo, master election here is not
+ * pinned to either node (no suite does this; a node's version and its master eligibility are independent
+ * things bootstrap does not let you decouple for a fresh old+new cluster). For PUT, a current-node master
+ * rejects via {@code EnforcingEmptyTaskSettings} / {@code EnforceEmptyTaskSettingsStrategy} (since the current
+ * {@code ElasticInferenceService} uses a task-settings parser); an old-node master never parses
+ * {@code reasoning} into a settings object at all, so the field survives into the generic leftover-map check
+ * and is rejected there instead — a different message, same 400 outcome.
+ *
+ * <p>For {@code _update} the two masters diverge further because the leftover-map check on the update path
+ * ({@code validateConsumedUpdateSettings}) postdates 9.4.x. A current-node master still rejects during the
+ * settings merge, via {@code EnforcingEmptyTaskSettings#updatedTaskSettings}. An old (9.4.x) node master has
+ * no such check and {@code EmptyTaskSettings#updatedTaskSettings} does not inspect its input map, so
+ * {@code reasoning} is silently swallowed rather than rejected; the update then proceeds to the mandatory
+ * external service-validation call that {@code _update} always makes (this does not honor
+ * {@code xpack.inference.skip_validate_and_start}, unlike PUT), which fails against the URL-only mock with no
+ * queued response. Either way {@code reasoning} must never end up persisted, so the update tests below assert
+ * that invariant, plus the closed set of 400 messages each master can actually produce, instead of a single
+ * fixed message.
  *
  * <p>The 2-node cluster is wired to {@link MockElasticInferenceServiceAuthorizationServer} for its URL (so
  * the EIS URL setting resolves to a bound address before any node starts) but with EIS authorization fully
  * disabled, and {@code xpack.inference.skip_validate_and_start=true} so PUTs make no outgoing call to the
- * mock. Reasoning is rejected during task-settings parsing, before any outgoing call would be made, so the
- * mock never needs to serve a response for the update scenarios either.
+ * mock. The mock is never given a queued response, since PUT rejects before any outgoing call would be made
+ * and the update scenarios only need to observe that the call fails, not what it returns.
  *
  * <p>The whole class is skipped (before the cluster is ever started) unless the old cluster version is
  * {@code >= 9.3.1}, since the {@link ElasticInferenceServiceSettings#AUTHORIZATION_ENABLED} node setting
@@ -72,11 +82,19 @@ public class ElasticInferenceServiceReasoningMixedIT extends ESRestTestCase {
 
     private static final String EFFORT_MEDIUM = "medium";
     private static final String SUMMARY_DETAILED = "detailed";
+    // Thrown by EnforcingEmptyTaskSettings when a current-node master parses task_settings.
     private static final String UNKNOWN_REASONING_SETTING_MESSAGE = Strings.format(
         "[%s] Configuration contains unknown settings [%s]",
         ModelConfigurations.TASK_SETTINGS,
         UnifiedCompletionUtils.REASONING_FIELD
     );
+    // Thrown by ServiceUtils#unknownSettingsError when a leftover-map check rejects reasoning because it was
+    // never consumed by a task-settings parser (e.g. an old-node master on PUT).
+    private static final String UNKNOWN_TO_SERVICE_MESSAGE = "unknown to the [elastic] service";
+    // Thrown by ServiceIntegrationValidator when the mandatory update-time service-validation call fails; this
+    // is what an old (9.4.x) node master produces, since it silently drops reasoning instead of rejecting it
+    // and then falls through to that call, which the URL-only mock cannot answer.
+    private static final String VALIDATION_CALL_FAILED_MESSAGE = "validation call to service threw an exception";
     // AUTHORIZATION_ENABLED setting was added in 9.3.0
     private static final Version AUTHORIZATION_ENABLED_MIN_VERSION = Version.fromString("9.3.1");
 
@@ -203,32 +221,61 @@ public class ElasticInferenceServiceReasoningMixedIT extends ESRestTestCase {
     }
 
     /**
-     * Asserts a 400 response rejecting the {@code reasoning} field via {@code EnforcingEmptyTaskSettings} /
-     * {@code EnforceEmptyTaskSettingsStrategy} — the only reachable rejection path for PUT here, since the
-     * feature is never present cluster-wide (so task settings are never parsed as
-     * {@code ElasticInferenceServiceChatCompletionTaskSettings}, ruling out the cluster-compatibility gate's
-     * message).
+     * Asserts a 400 response rejecting the {@code reasoning} field. Which message appears depends on which
+     * node is master for this master-node action: a current-node master rejects via
+     * {@code EnforcingEmptyTaskSettings} / {@code EnforceEmptyTaskSettingsStrategy} (scoped to
+     * {@code task_settings}); an old-node master never parses {@code reasoning} into a settings object, so it
+     * survives into the generic leftover-map check and is rejected as an unknown top-level setting instead.
      */
     private static void assertReasoningRejected(ResponseException e) {
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(400));
-        assertThat(e.getMessage(), containsString(UNKNOWN_REASONING_SETTING_MESSAGE));
+        assertThat(
+            e.getMessage(),
+            anyOf(
+                // current-node master: EnforcingEmptyTaskSettings (usesParserForTaskSettings() == true)
+                containsString(UNKNOWN_REASONING_SETTING_MESSAGE),
+                // old-node master: reasoning survives into SenderService's leftover-map check
+                containsString(UNKNOWN_TO_SERVICE_MESSAGE)
+            )
+        );
     }
 
     /**
      * Asserts that {@code _update} never actually applies {@code task_settings.reasoning} while the cluster is
-     * not fully upgraded, regardless of which node happens to be master for this master-node action: a
-     * current-node master rejects the request outright (400, via {@code EnforcingEmptyTaskSettings}); an
-     * old-node master predates the reasoning field entirely and has no way to recognize or reject it, so the
-     * update "succeeds" but the field is silently dropped rather than stored.
+     * not fully upgraded, regardless of which node happens to be master for this master-node action:
+     * <ul>
+     *   <li>a current-node master rejects the request outright (400) during the settings merge, via
+     *       {@code EnforcingEmptyTaskSettings#updatedTaskSettings};</li>
+     *   <li>an old (9.4.x) node master predates the update-path leftover-map check
+     *       ({@code validateConsumedUpdateSettings}) and {@code EmptyTaskSettings#updatedTaskSettings} does
+     *       not inspect its input map, so {@code reasoning} is silently swallowed rather than rejected; the
+     *       update then proceeds to the mandatory external service-validation call that {@code _update}
+     *       always makes (unlike PUT, this ignores {@code xpack.inference.skip_validate_and_start}), which
+     *       fails (400) against the URL-only mock with no queued response.</li>
+     * </ul>
+     * Either way {@code reasoning} must never end up persisted, so this asserts that invariant unconditionally,
+     * plus the closed set of 400 messages each master can actually produce.
      */
     private static void assertReasoningRejectedOrNeverApplied(String inferenceId, Request updateRequest) throws IOException {
         try {
             client().performRequest(updateRequest);
         } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(400));
-            assertThat(e.getMessage(), containsString(UNKNOWN_REASONING_SETTING_MESSAGE));
-            return;
+            assertThat(
+                e.getMessage(),
+                anyOf(
+                    // current-node master: EnforcingEmptyTaskSettings rejects reasoning during the merge
+                    containsString(UNKNOWN_REASONING_SETTING_MESSAGE),
+                    // old-node master that rejects unknown update settings via a leftover-map check
+                    // (unreachable on 9.4.x, which predates that check; kept for future old-cluster versions)
+                    containsString(UNKNOWN_TO_SERVICE_MESSAGE),
+                    // old (9.4.x) node master: reasoning is dropped, then the mandatory update-validation
+                    // call fails against the URL-only mock
+                    containsString(VALIDATION_CALL_FAILED_MESSAGE)
+                )
+            );
         }
+        // In every case, reasoning must never be persisted.
         assertNoTaskSettings(inferenceId);
     }
 

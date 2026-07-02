@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.esql.execution;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -24,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
@@ -155,7 +159,7 @@ public class PlanExecutor {
 
         var begin = System.nanoTime();
         ActionListener<Versioned<Result>> executeListener = wrap(
-            x -> onQuerySuccess(request, listener, x, planTelemetry),
+            x -> onQuerySuccess(request, listener, x, planTelemetry, begin),
             ex -> onQueryFailure(request, listener, ex, clientId, planTelemetry, begin)
         );
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
@@ -167,9 +171,18 @@ public class PlanExecutor {
         EsqlQueryRequest request,
         ActionListener<Versioned<Result>> listener,
         Versioned<Result> x,
-        PlanTelemetry planTelemetry
+        PlanTelemetry planTelemetry,
+        long begin
     ) {
         planTelemetryManager.publish(planTelemetry, true);
+        boolean partial = x != null && x.inner().completionInfo().partial();
+        recordExternalSourceQuery(
+            dataSourceModule.externalSourceMetrics(),
+            planTelemetry.externalSource(),
+            (System.nanoTime() - begin) / 1_000_000,
+            partial,
+            null
+        );
         queryLog.onQueryPhase(x, request.queryDescription());
         listener.onResponse(x);
     }
@@ -185,8 +198,61 @@ public class PlanExecutor {
         // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
         metrics.failed(clientId);
         planTelemetryManager.publish(planTelemetry, false);
+        recordExternalSourceQuery(
+            dataSourceModule.externalSourceMetrics(),
+            planTelemetry.externalSource(),
+            (System.nanoTime() - begin) / 1_000_000,
+            false,
+            ex
+        );
         queryLog.onQueryFailure(request.queryDescription(), ex, System.nanoTime() - begin);
         listener.onFailure(ex);
+    }
+
+    /**
+     * Publishes the per-query external-source coordinator metrics — but only when the query actually scanned an
+     * external source ({@code externalSource}: an {@code ExternalRelation} was seen in the analyzed plan, flagged on
+     * {@code PlanTelemetry}). The outcome is classified from {@code failure}: {@code null} → success; a
+     * {@link TaskCancelledException} anywhere in the cause chain → cancelled; anything else → failure. A hard failure
+     * that unwraps to a {@link CircuitBreakingException} additionally bumps {@code breaker.tripped}. Best-effort: the
+     * {@code recordX} methods self-guard, so an instrumentation failure never affects the query outcome.
+     * <p>
+     * <b>Known gap (only hard-failure breaker trips are counted):</b> a query that returns {@code is_partial=true}
+     * BECAUSE a breaker tripped mid-scan reaches the success path with {@code failure == null}, so it is NOT counted
+     * in {@code breaker.tripped}. The tripping {@link CircuitBreakingException} is not cleanly reachable here: a pure
+     * external-source partial is flagged via {@code EsqlExecutionInfo#markPartial()}, which sets {@code is_partial}
+     * directly with NO {@code clusterInfo} / {@code ShardSearchFailure} carrying the cause — so scanning the
+     * execution-info cluster failures would systematically miss exactly this case while adding a fragile traversal.
+     * The partial itself is still counted in {@code queries.partial.total}; only the breaker attribution is dropped.
+     * <p>
+     * Package-private and static (no coordinator state, only the sink) so the classification can be unit-tested
+     * directly against a real registry-backed {@link ExternalSourceMetrics}.
+     */
+    static void recordExternalSourceQuery(
+        ExternalSourceMetrics externalSourceMetrics,
+        boolean externalSource,
+        long durationMillis,
+        boolean partial,
+        Throwable failure
+    ) {
+        if (externalSource == false) {
+            return;
+        }
+        String outcome;
+        if (failure == null) {
+            outcome = ExternalSourceMetrics.OUTCOME_SUCCESS;
+        } else if (ExceptionsHelper.unwrap(failure, TaskCancelledException.class) != null) {
+            outcome = ExternalSourceMetrics.OUTCOME_CANCELLED;
+        } else {
+            outcome = ExternalSourceMetrics.OUTCOME_FAILURE;
+        }
+        externalSourceMetrics.recordQuery(outcome, durationMillis, partial);
+        // Only hard-failure breaker trips are attributed here: a CB that instead produced is_partial=true reaches the
+        // success path with failure==null and is NOT counted (its CircuitBreakingException is not cleanly reachable at
+        // this seam — see the javadoc "Known gap"). The partial is still counted via queries.partial.total above.
+        if (failure != null && ExceptionsHelper.unwrap(failure, CircuitBreakingException.class) != null) {
+            externalSourceMetrics.recordBreakerTripped();
+        }
     }
 
     public IndexResolver indexResolver() {

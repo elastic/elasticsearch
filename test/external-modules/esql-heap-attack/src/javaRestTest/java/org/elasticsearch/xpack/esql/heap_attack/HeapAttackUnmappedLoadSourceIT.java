@@ -96,19 +96,15 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
 
     private void initHugeSourceTinyUnmappedIndex(String index, int docs, int sourceSizeMb) throws IOException {
         logger.info("loading {} documents with one {}MB source-only payload", docs, sourceSizeMb);
-        CreateIndexResponse response = createIndex(
-            index,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(),
-            """
-                {
-                  "dynamic": false,
-                  "properties": {
-                    "sort_key": {
-                      "type": "long"
-                    }
-                  }
-                }"""
-        );
+        CreateIndexResponse response = createIndex(index, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(), """
+            {
+              "dynamic": false,
+              "properties": {
+                "sort_key": {
+                  "type": "long"
+                }
+              }
+            }""");
         assertTrue(response.isAcknowledged());
 
         int sourceSize = Math.toIntExact(ByteSizeValue.ofMb(sourceSizeMb).getBytes());
@@ -118,16 +114,10 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
              * Keep setup pressure separate from the query under test: each huge source
              * document is sent as its own flushed bulk request by HeapAttackTestCase#bulk.
              */
-            String bulk = String.format(
-                Locale.ROOT,
-                """
-                    {"create":{}}
-                    {"sort_key":%d,"small_unmapped":"value-%d","huge_payload":"%s"}
-                    """,
-                d,
-                d,
-                hugePayload
-            );
+            String bulk = String.format(Locale.ROOT, """
+                {"create":{}}
+                {"sort_key":%d,"small_unmapped":"value-%d","huge_payload":"%s"}
+                """, d, d, hugePayload);
             bulk(index, bulk);
         }
         initIndex(index, "");

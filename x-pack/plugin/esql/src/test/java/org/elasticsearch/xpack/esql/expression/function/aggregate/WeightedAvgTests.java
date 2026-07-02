@@ -223,6 +223,13 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
                     warnings.add("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.");
                 }
 
+                // Doubles currently return +/-Infinity on overflow in some surrogate aggregation paths.
+                // After https://github.com/elastic/elasticsearch/issues/111026, replace it with an expected warning.
+                assumeFalse(
+                    "Weighted averages of doubles may return infinity in their current implementation",
+                    warnings.stream().anyMatch(w -> w.contains("java.lang.ArithmeticException: not a finite double number:"))
+                );
+
                 return new TestCaseSupplier.TestCase(
                     List.of(fieldTypedData, weightTypedData),
                     "WeightedAvg[number=Attribute[channel=0],weight=Attribute[channel=1]]",

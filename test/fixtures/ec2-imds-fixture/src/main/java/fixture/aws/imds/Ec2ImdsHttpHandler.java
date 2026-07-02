@@ -152,9 +152,8 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                     final String accessKey = "test_key_imds_" + randomIdentifier();
                     final String sessionToken = randomIdentifier();
                     newCredentialsConsumer.accept(accessKey, sessionToken);
-                    // The EKS Pod Identity agent returns an AccountId and no RoleArn (see its EksCredentialsResponse),
-                    // while the EC2 IMDS and ECS container-credentials responses this fixture otherwise emulates carry a
-                    // RoleArn. Emit whichever field matches the endpoint under test so the fixture stays faithful.
+                    // EKS Pod Identity credentials carry an AccountId and no RoleArn, unlike the EC2 IMDS / ECS responses.
+                    // https://docs.aws.amazon.com/eks/latest/userguide/pod-id-how-it-works.html
                     final String principalFieldName = podIdentityCredentialsResponse ? "AccountId" : "RoleArn";
                     final byte[] response = Strings.format(
                         """

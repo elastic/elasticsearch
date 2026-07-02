@@ -146,7 +146,6 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
 
         assertEquals(RestStatus.OK, credentialsResponse.status());
         final var responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), credentialsResponse.body().streamInput(), false);
-        // EKS Pod Identity returns an AccountId and no RoleArn, unlike the EC2 IMDS / ECS credentials responses.
         assertEquals(Set.of("AccessKeyId", "Expiration", "AccountId", "SecretAccessKey", "Token"), responseMap.keySet());
         assertEquals(generatedCredentials.keySet().iterator().next(), responseMap.get("AccessKeyId"));
         assertEquals(generatedCredentials.values().iterator().next(), responseMap.get("Token"));
@@ -162,7 +161,6 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
             .newCredentialsConsumer(generatedCredentials::put)
             .buildHandler();
 
-        // A missing or incorrect Authorization header is rejected, and no credentials are handed out.
         assertEquals(RestStatus.FORBIDDEN, handleCredentialsRequest(handler, credentialsEndpoint, null).status());
         assertEquals(
             RestStatus.FORBIDDEN,
@@ -171,7 +169,6 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
         );
         assertThat(generatedCredentials, anEmptyMap());
 
-        // The correct Authorization header (the entitled token the SDK read from the token file) is accepted.
         final var credentialsResponse = handleCredentialsRequest(handler, credentialsEndpoint, authorizationToken);
         assertThat(generatedCredentials, aMapWithSize(1));
         assertValidCredentialsResponse(

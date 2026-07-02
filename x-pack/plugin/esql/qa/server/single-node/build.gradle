@@ -37,7 +37,9 @@ esqlCsvSpecTests {
     specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
     packageName = 'org.elasticsearch.xpack.esql.qa.single_node'
     variant 'EsqlSpec', 'AbstractEsqlSpecIT'
+    variant 'EsqlSpecApproximation', 'AbstractEsqlSpecApproximationIT'
     variant 'EsqlSpecForceStoredLoading', 'AbstractEsqlSpecForceStoredLoadingIT'
+    variant 'EsqlSpecFork', 'AbstractEsqlSpecForkIT'
 }
 
 restResources {

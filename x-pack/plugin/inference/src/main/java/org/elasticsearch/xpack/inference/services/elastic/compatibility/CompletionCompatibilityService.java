@@ -57,7 +57,7 @@ public class CompletionCompatibilityService {
     public abstract static class TaskSettingsStrategy {
         protected final TaskType taskType;
 
-        public TaskSettingsStrategy(TaskType taskType) {
+        TaskSettingsStrategy(TaskType taskType) {
             this.taskType = taskType;
         }
 
@@ -104,7 +104,7 @@ public class CompletionCompatibilityService {
      * A strategy that enforces that task settings are empty. If it is non-empty, it throws an exception.
      */
     static class EnforceEmptyTaskSettingsStrategy extends TaskSettingsStrategy {
-        public EnforceEmptyTaskSettingsStrategy(TaskType taskType) {
+        EnforceEmptyTaskSettingsStrategy(TaskType taskType) {
             super(taskType);
         }
 
@@ -118,7 +118,7 @@ public class CompletionCompatibilityService {
      * A strategy that creates {@link ElasticInferenceServiceChatCompletionTaskSettings} for chat completion tasks.
      */
     static class ReasoningTaskSettingsStrategy extends TaskSettingsStrategy {
-        public ReasoningTaskSettingsStrategy(TaskType taskType) {
+        ReasoningTaskSettingsStrategy(TaskType taskType) {
             super(taskType);
         }
 
@@ -132,7 +132,7 @@ public class CompletionCompatibilityService {
      * A strategy that creates {@link ImmutableEmptyTaskSettings} to enforce that creation and update do not provide any settings.
      */
     static class ImmutableEmptyTaskSettingsStrategy extends TaskSettingsStrategy {
-        public ImmutableEmptyTaskSettingsStrategy(TaskType taskType) {
+        ImmutableEmptyTaskSettingsStrategy(TaskType taskType) {
             super(taskType);
         }
 

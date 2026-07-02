@@ -75,6 +75,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction.TYPE;
@@ -385,26 +386,31 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
 
     private void getOpenPITContextInfos(ShardId shardId, ActionListener<PITHandoffResponse> listener) {
         List<PitReaderContext> activeContexts = searchService.getActivePITContexts(shardId);
-        logger.debug("getting pit context infos for shard {}. Active contexts: {}", shardId, activeContexts.size());
+        logger.info("getting pit context infos for shard {}. Active contexts: {}", shardId, activeContexts.size());
         List<OpenPITContextInfo> pitContextInfos = Collections.synchronizedList(new ArrayList<>(activeContexts.size()));
+        AtomicLong warningCounter = new AtomicLong();
 
-        try (var listeners = new RefCountingListener(listener.map(r -> new PITHandoffResponse(pitContextInfos)))) {
+        try (var listeners = new RefCountingListener(listener.map(r -> {
+            logger.info("returning {} context infos for shard {}. Warnings: {}", pitContextInfos.size(), shardId, warningCounter.get());
+            return new PITHandoffResponse(pitContextInfos);
+        }))) {
             for (PitReaderContext context : activeContexts) {
                 fetchOpenPitContextInfo(shardId, context, listeners.acquire(r -> r.ifPresent(info -> {
                     pitContextInfos.add(info);
                     pitRelocationMetrics.recordSourceContextCreated();
-                })));
+                })), warningCounter);
             }
         }
     }
 
-    private void fetchOpenPitContextInfo(ShardId shardId, PitReaderContext context, ActionListener<Optional<OpenPITContextInfo>> listener) {
+    private void fetchOpenPitContextInfo(ShardId shardId, PitReaderContext context, ActionListener<Optional<OpenPITContextInfo>> listener, AtomicLong warningCounter) {
         // In case of a failure we want just to ignore this PIT and continue with the relocation process
         listener = listener.delegateResponse((l, e) -> {
             logger.warn(
                 "Unexpected exception while fetching Open PIT context info for shard " + shardId + ", context id " + context.id(),
                 e
             );
+            warningCounter.incrementAndGet();
             l.onResponse(Optional.empty());
         });
 
@@ -451,11 +457,11 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                 throw new IllegalStateException("commit [" + indexCommit + "] not found in object store");
             }));
         } catch (Exception e) {
-            // Ignore the exception and continue with the next context
             logger.warn(
                 "Unexpected exception while fetching Open PIT context info for shard " + shardId + ", context id " + context.id(),
                 e
             );
+            warningCounter.incrementAndGet();
             listener.onResponse(Optional.empty());
         }
     }

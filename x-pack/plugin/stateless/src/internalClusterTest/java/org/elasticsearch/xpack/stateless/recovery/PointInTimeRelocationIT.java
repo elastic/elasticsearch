@@ -185,6 +185,113 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         .put(disableIndexingDiskAndMemoryControllersNodeSettings())
         .build();
 
+    public void testPointInTimeRelocationPitOnUnflushedIndexState() throws Exception {
+        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
+        startMasterAndIndexNode(nodeSettings);
+        var searchNodeA = startSearchNode(nodeSettings);
+
+        var indexName = randomIdentifier();
+        int numberOfShards = 6;
+        createIndex(indexName, indexSettings(numberOfShards, 1).build());
+        ensureGreen(indexName);
+
+        var testDataSetup = commonTestdataSetup(indexName, numberOfShards);
+
+        var pitId1 = testDataSetup.pitId1;
+        var numDocs_pit1 = testDataSetup.numDocs_pit1;
+        var pitId2 = testDataSetup.pitId2;
+        var numDocs_pit2 = testDataSetup.numDocs_pit2;
+
+        int moreDocs = randomIntBetween(1, 100);
+        indexDocs(indexName, moreDocs);
+        refresh(indexName);
+        int numDocsPit3 = numDocs_pit2 + moreDocs;
+
+        // open a third pit on an unflushed index state
+        BytesReference pitId3 = openPointInTime(indexName, TimeValue.timeValueMinutes(5)).getPointInTimeId();
+
+        // enabling the following makes the test pass but we probably should be able to relocate this PIT since its usable before
+        // flush(indexName);
+
+        // check all PITs with the initial search node
+        assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId1)), resp -> {
+            assertThat(resp.pointInTimeId(), equalTo(pitId1));
+            assertHitCount(resp, numDocs_pit1);
+        });
+        assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId2)), resp -> {
+            assertThat(resp.pointInTimeId(), equalTo(pitId2));
+            assertHitCount(resp, numDocs_pit2);
+        });
+        assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId3)), resp -> {
+            assertThat(resp.pointInTimeId(), equalTo(pitId3));
+            assertHitCount(resp, numDocsPit3);
+        });
+
+        // also regular search should work
+        assertResponse(prepareSearch(), resp -> { assertHitCount(resp, numDocsPit3); });
+
+        var searchNodeB = startSearchNode(nodeSettings);
+        SearchService searchService1 = internalCluster().getInstance(SearchService.class, searchNodeA);
+        SearchService searchService2 = internalCluster().getInstance(SearchService.class, searchNodeB);
+
+        var startHandOffSent = new CountDownLatch(1);
+        MockTransportService.getInstance(searchNodeB).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(START_HANDOFF_ACTION_NAME)) {
+                startHandOffSent.countDown();
+                assertThat(connection.getNode().getName(), is(equalTo(searchNodeA)));
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeA));
+        safeAwait(startHandOffSent);
+        ensureGreen(indexName);
+        assertBusy(
+            () -> { assertEquals("Open contexts after shard relocation.", 0, searchService1.getActivePITContexts()); },
+            15,
+            TimeUnit.SECONDS
+        );
+
+        internalCluster().stopNode(searchNodeA);
+        logger.info("Search node " + searchNodeA + " stopped.");
+        assertThat(internalCluster().nodesInclude(indexName), not(hasItem(searchNodeA)));
+        assertThat(internalCluster().nodesInclude(indexName), hasItem(searchNodeB));
+
+        assertBusy(
+            () -> assertEquals("Expected all PIT contexts to be relocated.", 3 * numberOfShards, searchService2.getActivePITContexts()),
+            15,
+            TimeUnit.SECONDS
+        );
+
+        // search should still work without PIT
+        assertResponse(prepareSearch(), resp -> { assertHitCount(resp, numDocsPit3); });
+
+        AtomicReference<BytesReference> updated_pit1 = new AtomicReference<>();
+        AtomicReference<BytesReference> updated_pit2 = new AtomicReference<>();
+        AtomicReference<BytesReference> updated_pit3 = new AtomicReference<>();
+        // search with PIT should still work
+        assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId1)), resp -> {
+            assertFalse("pit1 should have changed.", isEquivalentId(resp.pointInTimeId(), pitId1));
+            assertHitCount(resp, numDocs_pit1);
+            updated_pit1.set(resp.pointInTimeId());
+        });
+        assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId2)), resp -> {
+            assertFalse("pit2 should have changed.", isEquivalentId(resp.pointInTimeId(), pitId2));
+            assertHitCount(resp, numDocs_pit2);
+            updated_pit2.set(resp.pointInTimeId());
+        });
+        assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId3)), resp -> {
+            assertFalse("pit3 should have changed.", isEquivalentId(resp.pointInTimeId(), pitId3));
+            assertHitCount(resp, numDocsPit3);
+            updated_pit3.set(resp.pointInTimeId());
+        });
+
+        // close the PIT
+        assertClosePit(updated_pit1.get(), numberOfShards);
+        assertClosePit(updated_pit2.get(), numberOfShards);
+        assertClosePit(updated_pit3.get(), numberOfShards);
+    }
+
     public void testPointInTimeRelocation() throws Exception {
         assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         startMasterAndIndexNode(nodeSettings);
@@ -1439,6 +1546,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         logger.info(
             "Original PIT id2: " + new PointInTimeBuilder(pitId2).getSearchContextId(this.writableRegistry()).toString().replace("},", "\n")
         );
+        flushAndRefresh(indexName);
         TestDataSetup testDataSetup = new TestDataSetup(pitId1, numDocsPit1, pitId2, numDocs_pit2);
         logger.info("TestDataSetup: " + testDataSetup);
         return testDataSetup;

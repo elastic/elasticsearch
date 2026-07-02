@@ -185,7 +185,7 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
                 // equivalence with multi-fields present. Only TEXT/KEYWORD are used since the other string types are
                 // filtered out above.
                 new MultifieldAddonHandler(Map.of(FieldType.TEXT, List.of(FieldType.KEYWORD), FieldType.KEYWORD, List.of(FieldType.TEXT))),
-                new DefaultMappingParametersHandler() {
+                new DefaultMappingParametersHandler(IndexMode.COLUMNAR) {
                     @Override
                     public DataSourceResponse.LeafMappingParametersGenerator handle(
                         DataSourceRequest.LeafMappingParametersGenerator request
@@ -200,14 +200,13 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
                             mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
                             mapping.remove("store");
                             mapping.remove("copy_to");
-                            // doc_values cannot be disabled in columnar modes: a field must be reconstructable from its
-                            // doc values, so let it fall back to the (enabled) default.
-                            mapping.remove("doc_values");
+                            // data generation guarantees the columnar mode indices have enabled doc_values
                             return mapping;
                         });
                     }
                 }
             ))
+            .withIndexMode(IndexMode.COLUMNAR)
             .build();
     }
 }

@@ -274,11 +274,12 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return HashMap::new;
     }
 
-    public static HashMap<String, Object> commonMappingParameters() {
+    public HashMap<String, Object> commonMappingParameters() {
         var map = new HashMap<String, Object>();
         map.put("store", ESTestCase.randomBoolean());
         map.put("index", ESTestCase.randomBoolean());
-        map.put("doc_values", ESTestCase.randomBoolean());
+        // doc_values cannot be disabled in strict-columnar mode: every field must be reconstructable from its own doc values.
+        map.put("doc_values", indexMode.isStrictColumnar() || ESTestCase.randomBoolean());
 
         if (ESTestCase.randomBoolean()) {
             map.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, randomFrom("none", "arrays", "all"));
@@ -291,7 +292,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = new HashMap<String, Object>();
             mapping.put("index", ESTestCase.randomBoolean());
-            mapping.put("doc_values", ESTestCase.randomBoolean());
+            // doc_values cannot be disabled in strict-columnar mode: every field must be reconstructable from its own doc values.
+            mapping.put("doc_values", indexMode.isStrictColumnar() || ESTestCase.randomBoolean());
 
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
@@ -328,12 +330,12 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             return ESTestCase.randomBoolean();
         }
 
-        // Only multi_value: true is emitted here because this handler does not coordinate single-value data generation, so emitting. The
-        // multi_value: false path is exercised by SingleValueDocValuesDataSourceHandler.
-        return switch (ESTestCase.randomInt(2)) {
-            case 0 -> false;
-            case 1 -> true;
-            case 2 -> Map.of("multi_value", true);
+        // doc_values cannot be disabled in strict-columnar mode (every field must be reconstructable from its own doc values), so
+        // only the enabled forms are emitted here. Only multi_value: true is emitted because this handler does not coordinate
+        // single-value data generation; the multi_value: false path is exercised by SingleValueDocValuesDataSourceHandler.
+        return switch (ESTestCase.randomInt(1)) {
+            case 0 -> true;
+            case 1 -> Map.of("multi_value", true);
             default -> throw new IllegalStateException();
         };
     }

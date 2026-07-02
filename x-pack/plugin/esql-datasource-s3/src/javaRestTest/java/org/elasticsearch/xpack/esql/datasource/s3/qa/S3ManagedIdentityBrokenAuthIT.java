@@ -39,16 +39,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * Negative regression guard for {@code auth=workload_identity} on the {@code esql-datasource-s3}
+ * Negative regression guard for {@code auth=managed_identity} on the {@code esql-datasource-s3}
  * plugin: when IRSA is configured but credentials can never be obtained (the on-disk token never
  * matches what STS expects, so STS always returns 401), a query must fail with a clean error
  * response rather than hanging or surfacing an internal failure (e.g. NPE) to the client.
  *
- * <p>Complements {@link IrsaWorkloadIdentityAuthIT} (happy path) and {@link IrsaCredentialsReloadIT}
+ * <p>Complements {@link IrsaManagedIdentityAuthIT} (happy path) and {@link IrsaCredentialsReloadIT}
  * (token rotation). Here the token is deliberately and permanently wrong.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-public class S3WorkloadIdentityBrokenAuthIT extends ESRestTestCase {
+public class S3ManagedIdentityBrokenAuthIT extends ESRestTestCase {
 
     // Operator-managed symlink location relative to ${ES_PATH_CONF}; mirrors
     // CustomWebIdentityTokenCredentialsProvider.WEB_IDENTITY_TOKEN_FILE_LOCATION (not on the qa
@@ -83,7 +83,7 @@ public class S3WorkloadIdentityBrokenAuthIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting("esql.datasource.workload_identity.enabled", "true")
+        .setting("esql.datasource.managed_identity.enabled", "true")
         .configFile(WEB_IDENTITY_TOKEN_FILE_LOCATION, Resource.fromString(ON_DISK_TOKEN))
         .systemProperty("org.elasticsearch.xpack.esql.datasource.s3.stsEndpointOverride", stsHttpFixture::getAddress)
         .environment("AWS_WEB_IDENTITY_TOKEN_FILE", () -> "/var/run/secrets/eks.amazonaws.com/serviceaccount/token")
@@ -111,7 +111,7 @@ public class S3WorkloadIdentityBrokenAuthIT extends ESRestTestCase {
     }
 
     public void testQueryFailsCleanlyWhenCredentialsUnavailable() throws IOException {
-        putWorkloadIdentityDataSource(DATASOURCE_NAME, s3HttpFixture.getAddress());
+        putManagedIdentityDataSource(DATASOURCE_NAME, s3HttpFixture.getAddress());
         putDataset(DATASET_NAME, DATASOURCE_NAME, "s3://" + BUCKET + "/" + OBJECT_KEY);
 
         ResponseException ex = expectThrows(
@@ -127,13 +127,13 @@ public class S3WorkloadIdentityBrokenAuthIT extends ESRestTestCase {
     // REST helpers
     // -----------------------------------------------------------------------------------------
 
-    private static void putWorkloadIdentityDataSource(String name, String endpoint) throws IOException {
+    private static void putManagedIdentityDataSource(String name, String endpoint) throws IOException {
         Request req = new Request("PUT", "/_query/data_source/" + name);
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject()
                 .field("type", "s3")
                 .startObject("settings")
-                .field("auth", "workload_identity")
+                .field("auth", "managed_identity")
                 .field("region", regionSupplier.get())
                 .field("endpoint", endpoint)
                 .endObject()

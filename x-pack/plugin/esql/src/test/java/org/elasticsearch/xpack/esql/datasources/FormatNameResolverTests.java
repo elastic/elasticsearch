@@ -61,6 +61,22 @@ public class FormatNameResolverTests extends ESTestCase {
         assertEquals("orc", FormatNameResolver.resolve(Map.of("format", ""), "file.orc"));
     }
 
+    public void testAutoFormatFallsBackToExtension() {
+        assertEquals("orc", FormatNameResolver.resolve(Map.of("format", "auto"), "file.orc"));
+    }
+
+    public void testAutoFormatCaseInsensitiveFallsBackToExtension() {
+        assertEquals("parquet", FormatNameResolver.resolve(Map.of("format", "AUTO"), "file.parquet"));
+    }
+
+    public void testAutoFormatWithNoExtensionIsNull() {
+        assertNull(FormatNameResolver.resolve(Map.of("format", "auto"), "file_without_extension"));
+    }
+
+    public void testFormatSurroundingWhitespaceTrimmed() {
+        assertEquals("orc", FormatNameResolver.resolve(Map.of("format", "  ORC  "), "file.parquet"));
+    }
+
     public void testNoConfigNoExtension() {
         assertNull(FormatNameResolver.resolve(null, "file_without_extension"));
     }

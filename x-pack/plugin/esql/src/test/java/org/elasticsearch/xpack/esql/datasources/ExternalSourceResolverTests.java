@@ -738,7 +738,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, Object> config
     ) {
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(GLOB), Map.of(GLOB, new HashMap<>(config)), null, pathsRequiringStats, future);
+        resolver.resolve(List.of(GLOB), Map.of(GLOB, new HashMap<>(config)), null, null, pathsRequiringStats, future);
         return future.actionGet();
     }
 

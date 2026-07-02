@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -50,6 +51,10 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
     private static final ParseField RESOURCE = new ParseField("resource");
     private static final ParseField DESCRIPTION = new ParseField("description");
     private static final ParseField SETTINGS = new ParseField("settings");
+    private static final ParseField MAPPINGS = new ParseField("mappings");
+
+    /** Gates the optional {@link DatasetMapping} (the declared {@code mappings} block) on the wire. */
+    private static final TransportVersion DATASET_DECLARED_SCHEMA = TransportVersion.fromName("dataset_declared_schema");
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<Dataset, Void> PARSER = new ConstructingObjectParser<>(
@@ -60,7 +65,8 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
             new DataSourceReference((String) args[1]),
             (String) args[2],
             (String) args[3],
-            args[4] != null ? (Map<String, Object>) args[4] : Map.of()
+            args[4] != null ? (Map<String, Object>) args[4] : Map.of(),
+            DatasetMapping.assemble((DatasetMapping.Mappings) args[5])
         )
     );
 
@@ -73,6 +79,8 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         PARSER.declareString(ConstructingObjectParser.constructorArg(), RESOURCE);
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
+        // Declared mapping: an optional `mappings` block (columns + the `_source`/`_id` meta-fields).
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DatasetMapping.parseMappings(p), MAPPINGS);
     }
 
     private final String name;
@@ -80,6 +88,8 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
     private final String resource;
     private final String description;
     private final Map<String, Object> settings;
+    @Nullable
+    private final DatasetMapping mapping;
 
     public Dataset(
         String name,
@@ -88,11 +98,23 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         @Nullable String description,
         Map<String, Object> settings
     ) {
+        this(name, dataSource, resource, description, settings, null);
+    }
+
+    public Dataset(
+        String name,
+        DataSourceReference dataSource,
+        String resource,
+        @Nullable String description,
+        Map<String, Object> settings,
+        @Nullable DatasetMapping mapping
+    ) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.dataSource = Objects.requireNonNull(dataSource, "data source must not be null");
         this.resource = Objects.requireNonNull(resource, "resource must not be null");
         this.description = description;
         this.settings = settings != null ? Collections.unmodifiableMap(settings) : Map.of();
+        this.mapping = mapping;
     }
 
     public Dataset(StreamInput in) throws IOException {
@@ -102,6 +124,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         this.description = in.readOptionalString();
         // readMap returns a mutable HashMap when non-empty; wrap to preserve the class invariant that settings is unmodifiable
         this.settings = Collections.unmodifiableMap(in.readMap(StreamInput::readGenericValue));
+        this.mapping = in.getTransportVersion().supports(DATASET_DECLARED_SCHEMA) ? in.readOptionalWriteable(DatasetMapping::new) : null;
     }
 
     @Override
@@ -111,6 +134,9 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         out.writeString(resource);
         out.writeOptionalString(description);
         out.writeMap(settings, StreamOutput::writeGenericValue);
+        if (out.getTransportVersion().supports(DATASET_DECLARED_SCHEMA)) {
+            out.writeOptionalWriteable(mapping);
+        }
     }
 
     public String name() {
@@ -133,6 +159,12 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         return settings;
     }
 
+    /** The user-declared {@code mappings} block, or {@code null} when the dataset relies on inference. */
+    @Nullable
+    public DatasetMapping mapping() {
+        return mapping;
+    }
+
     public static Dataset fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
@@ -148,6 +180,9 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         }
         if (settings.isEmpty() == false) {
             builder.field(SETTINGS.getPreferredName(), settings);
+        }
+        if (mapping != null) {
+            mapping.toXContentFragment(builder);
         }
         builder.endObject();
         return builder;
@@ -197,12 +232,13 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
             && Objects.equals(dataSource, that.dataSource)
             && Objects.equals(resource, that.resource)
             && Objects.equals(description, that.description)
-            && Objects.equals(settings, that.settings);
+            && Objects.equals(settings, that.settings)
+            && Objects.equals(mapping, that.mapping);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, dataSource, resource, description, settings);
+        return Objects.hash(name, dataSource, resource, description, settings, mapping);
     }
 
     @Override

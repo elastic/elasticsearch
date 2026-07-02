@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPlans.skipPlan;
@@ -224,13 +226,22 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
      * that requests {@code _source} but drops it without reading does not need the pin). Indexed
      * {@code _source} reads from the stored doc and is independent of projection; external {@code _source}
      * has no stored doc to fall back to.
+     * <p>
+     * Same shape for a declared {@code _id.path}: when {@code _id} is consumed AND the dataset declares
+     * {@code mappings._id.path}, the id-source column must be read even if the query did not {@code KEEP} it — the
+     * reader stamps {@code _id} from its value. Pin only that one data column (by its logical name) into {@code used}.
+     * The top-level {@code Project} drops it from the user's output automatically when it was not projected.
      */
     private static LogicalPlan pruneColumnsInExternalRelation(ExternalRelation ext, AttributeSet.Builder used) {
         boolean sourceConsumed = false;
+        boolean idConsumed = false;
         for (Attribute a : ext.output()) {
-            if (a instanceof ExternalMetadataAttribute && ExternalMetadataColumns.SOURCE.equals(a.name()) && used.contains(a)) {
-                sourceConsumed = true;
-                break;
+            if (a instanceof ExternalMetadataAttribute && used.contains(a)) {
+                if (ExternalMetadataColumns.SOURCE.equals(a.name())) {
+                    sourceConsumed = true;
+                } else if (ExternalMetadataColumns.ID.equals(a.name())) {
+                    idConsumed = true;
+                }
             }
         }
         if (sourceConsumed) {
@@ -240,8 +251,36 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 }
             }
         }
+        if (idConsumed) {
+            String idPath = declaredIdPath(ext);
+            if (idPath != null) {
+                for (Attribute a : ext.output()) {
+                    if (a instanceof ExternalMetadataAttribute == false
+                        && a instanceof VirtualAttribute == false
+                        && idPath.equals(a.name())) {
+                        used.add(a);
+                        break;
+                    }
+                }
+            }
+        }
         var remaining = pruneUnusedAndAddReferences(ext.output(), used);
         return remaining != null ? ext.withAttributes(remaining) : ext;
+    }
+
+    /**
+     * The declared {@code _id.path} (logical column name) carried in the external relation's config under
+     * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver#CONFIG_DECLARED_ID_PATH}, or {@code null}
+     * when the dataset declares no {@code mappings._id.path}. Mirrors how the {@code source} renames ride the same config
+     * map to the reader boundary.
+     */
+    private static String declaredIdPath(ExternalRelation ext) {
+        Map<String, Object> config = ext.metadata() != null ? ext.metadata().config() : null;
+        if (config == null) {
+            return null;
+        }
+        Object value = config.get(ExternalSourceResolver.CONFIG_DECLARED_ID_PATH);
+        return value instanceof String s ? s : null;
     }
 
     // TODO: see ResolveUnmapped#patchFork comment

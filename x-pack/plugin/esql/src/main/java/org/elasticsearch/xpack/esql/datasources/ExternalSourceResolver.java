@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
@@ -28,8 +29,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -45,6 +48,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
@@ -85,7 +89,38 @@ public class ExternalSourceResolver {
      */
     public static final String DATASOURCE_CONFIG_KEY = "_datasource";
 
-    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_SCHEMA_RESOLUTION, DATASOURCE_CONFIG_KEY);
+    /**
+     * Config key carrying a declared mapping's logical&rarr;physical column renames ({@code Map<String,String>}). Consumed
+     * on the data node by the centralized last-mile physicalization ({@link PhysicalNames#fromConfig}, at
+     * {@code FileSourceFactory} / the operator factory) and by the pushdown planner rules ({@code PushFiltersToSource},
+     * {@code PushAggregatesToExternalSource}). Readers receive already-physical names and stay rename-agnostic; text
+     * readers read positionally. Injected by {@code resolve} only when the mapping renames a column.
+     */
+    public static final String CONFIG_DECLARED_RENAMES = "_declared_renames";
+
+    /**
+     * Config key carrying a declared mapping's {@code _id.path} (a single logical column name, {@code String}). Consumed
+     * on the data node by {@link VirtualColumnIterator}, which stamps each row's {@code _id} from that column's value
+     * instead of the synthetic (file+row-position) identity. Injected by {@code resolve} only when the mapping declares
+     * {@code mappings._id.path}; absent otherwise, in which case the synthetic {@code _id} path is used unchanged.
+     */
+    public static final String CONFIG_DECLARED_ID_PATH = "_declared_id_path";
+
+    public static final Set<String> CONFIG_KEYS = Set.of(
+        CONFIG_SCHEMA_RESOLUTION,
+        DATASOURCE_CONFIG_KEY,
+        CONFIG_DECLARED_RENAMES,
+        CONFIG_DECLARED_ID_PATH
+    );
+
+    /**
+     * The subset of {@link #CONFIG_KEYS} that {@code resolve} <b>derives</b> from the dataset's declared mapping and
+     * injects into the query-path config — never user-settable dataset settings. Like {@link #DATASOURCE_CONFIG_KEY}
+     * they are internal envelopes: the user declares {@code mappings} (a {@code path} rename, {@code _id.path}), and the
+     * resolver turns that into these keys. {@code FileSourceFactoryValidationTests} excludes them (with
+     * {@link #DATASOURCE_CONFIG_KEY}) when pinning the user-settable dataset vocabulary against {@code COORDINATOR_KEYS}.
+     */
+    public static final Set<String> DERIVED_CONFIG_KEYS = Set.of(CONFIG_DECLARED_RENAMES, CONFIG_DECLARED_ID_PATH);
 
     private static final int MAX_PARALLEL_METADATA_READS = 16;
 
@@ -239,7 +274,7 @@ public class ExternalSourceResolver {
         Map<String, Map<String, Object>> pathConfigs,
         ActionListener<ExternalSourceResolution> listener
     ) {
-        resolve(paths, pathConfigs, null, listener);
+        resolve(paths, pathConfigs, null, null, null, listener);
     }
 
     public void resolve(
@@ -248,13 +283,15 @@ public class ExternalSourceResolver {
         @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         ActionListener<ExternalSourceResolution> listener
     ) {
-        resolve(paths, pathConfigs, filterHints, null, listener);
+        resolve(paths, pathConfigs, filterHints, null, null, listener);
     }
 
     /**
-     * Resolves external sources, gating the FIRST_FILE_WINS eager all-file stats aggregation on
-     * {@code pathsRequiringStats}.
+     * Resolves external sources. A per-path declared mapping drives strict/non-strict schema resolution and carries
+     * column renames; {@code pathsRequiringStats} gates the FIRST_FILE_WINS eager all-file stats aggregation.
      *
+     * @param declaredMappings    per-path declared mapping — strict skips inference, non-strict overlays it, and its
+     *        {@code path} renames ride config to the reader boundary; {@code null} when no path declares a mapping.
      * @param pathsRequiringStats paths whose multi-file FFW resolution must eagerly aggregate global
      *        statistics across all files (the ungrouped-aggregate metadata fast path). A {@code null}
      *        value selects legacy behavior — every path resolves eagerly — preserving existing call
@@ -266,6 +303,7 @@ public class ExternalSourceResolver {
         List<String> paths,
         Map<String, Map<String, Object>> pathConfigs,
         @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        @Nullable Map<String, DatasetMapping> declaredMappings,
         @Nullable Set<String> pathsRequiringStats,
         ActionListener<ExternalSourceResolution> listener
     ) {
@@ -292,6 +330,22 @@ public class ExternalSourceResolver {
                     Map<String, Object> config = pathConfigs.getOrDefault(path, Map.of());
                     List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(path) : null;
                     boolean hivePartitioning = isHivePartitioningEnabled(config);
+                    DatasetMapping declaredMapping = declaredMappings != null ? declaredMappings.get(path) : null;
+                    // Carry any logical->physical column renames in config; consumed on the data node by the centralized
+                    // last-mile physicalization (PhysicalNames) and the pushdown planner rules. Readers stay rename-agnostic.
+                    Map<String, String> renames = DeclaredSchemaResolver.renameMap(declaredMapping);
+                    if (renames.isEmpty() == false) {
+                        config = new HashMap<>(config);
+                        config.put(CONFIG_DECLARED_RENAMES, renames);
+                    }
+                    // Carry the declared _id.path (logical column name) so the data node stamps _id from that column
+                    // rather than the synthetic (file+row-position) identity. Consumed by VirtualColumnIterator.
+                    DatasetMapping.Mappings declaredMappings2 = declaredMapping == null ? null : declaredMapping.mappings();
+                    String idPath = declaredMappings2 == null ? null : declaredMappings2.idPath();
+                    if (idPath != null) {
+                        config = new HashMap<>(config);
+                        config.put(CONFIG_DECLARED_ID_PATH, idPath);
+                    }
                     // null => legacy eager for every path; non-null => eager only for listed paths.
                     boolean requiresStats = pathsRequiringStats == null || pathsRequiringStats.contains(path);
 
@@ -301,8 +355,15 @@ public class ExternalSourceResolver {
                             config,
                             hints,
                             hivePartitioning,
+                            declaredMapping,
                             requiresStats
                         );
+                        // Strict is built directly from the declaration inside resolveSource; non-strict infers first
+                        // and then overlays the declaration onto the resolved result (works the same for single- and
+                        // multi-file).
+                        if (declaredMapping != null && isStrict(declaredMapping) == false) {
+                            resolvedSource = applyNonStrictOverlay(resolvedSource, declaredMapping);
+                        }
                         resolved.put(path, resolvedSource);
                         LOGGER.debug("Successfully resolved external source: {}", path);
                     } catch (TaskCancelledException e) {
@@ -349,6 +410,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         boolean hivePartitioning,
+        @Nullable DatasetMapping declaredMapping,
         boolean requiresStats
     ) throws Exception {
         LOGGER.debug("Resolving external source: path=[{}]", path);
@@ -358,7 +420,7 @@ public class ExternalSourceResolver {
         throwIfCancelled();
 
         if (GlobExpander.isMultiFile(path)) {
-            return resolveMultiFileSource(path, config, hints, hivePartitioning, requiresStats);
+            return resolveMultiFileSource(path, config, hints, hivePartitioning, declaredMapping, requiresStats);
         }
 
         /*
@@ -368,6 +430,10 @@ public class ExternalSourceResolver {
          */
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);
+
+        if (isStrict(declaredMapping)) {
+            return resolveStrictSingleFile(path, storagePath, provider, config, declaredMapping);
+        }
 
         ExternalSourceMetadata extMetadata;
         StorageObject object;
@@ -407,6 +473,48 @@ public class ExternalSourceResolver {
         return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
     }
 
+    /** True when the dataset declared a strict mapping ({@code dynamic: false}) — the declaration is the whole schema. */
+    private static boolean isStrict(@Nullable DatasetMapping declaredMapping) {
+        return declaredMapping != null
+            && declaredMapping.mappings() != null
+            && declaredMapping.mappings().dynamic() == DatasetMapping.Dynamic.FALSE;
+    }
+
+    /**
+     * Strict single-file resolution: the declared mapping is the entire schema, so no inference and no schema-cache
+     * lookup happen — the declaration is content-independent. Only the file's size/mtime is read (for split planning,
+     * the same data-read requirement the inferred path has). Both the user-facing output and the per-file schema carry
+     * the declared <b>logical</b> names (identity column mapping); a {@code path} rename is applied to physical only at
+     * the reader boundary via {@link PhysicalNames}, so the operator and reconciliation stay in logical space.
+     */
+    private ExternalSourceResolution.ResolvedSource resolveStrictSingleFile(
+        String path,
+        StoragePath storagePath,
+        StorageProvider provider,
+        Map<String, Object> config,
+        DatasetMapping declaredMapping
+    ) throws Exception {
+        StorageObject object = provider.newObject(storagePath);
+        // Declared mapping is the whole schema, in LOGICAL names; a `source` rename is applied at the reader, so the
+        // operator (and file schema) work purely in logical names.
+        List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
+        // sourceType drives operator-factory dispatch (OperatorFactoryRegistry keys on it), so it must equal the
+        // reader's formatName() the inferred path would have produced — derive it without reading the file: an explicit
+        // `format` setting wins, otherwise the `reader` override / file extension via FormatNameResolver.
+        Object formatOverride = config.get(FileSourceFactory.CONFIG_FORMAT);
+        String sourceType = formatOverride != null ? String.valueOf(formatOverride) : FormatNameResolver.resolve(config, path);
+        ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(
+            new SimpleSourceMetadata(logicalSchema, sourceType, path),
+            config
+        );
+        FileList singletonList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
+            path
+        );
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, logicalSchema);
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
+    }
+
     private static Map<StoragePath, SchemaReconciliation.FileSchemaInfo> singleEntrySchemaMap(
         StoragePath path,
         @Nullable List<Attribute> schema
@@ -418,15 +526,133 @@ public class ExternalSourceResolver {
         return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(schema), identityMapping, null));
     }
 
+    /**
+     * Strict multi-file resolution: the declared mapping is the entire schema for every file, so only the glob is
+     * listed — no per-file metadata reads. Each file resolves to the declared schema (identity mapping).
+     */
+    private ExternalSourceResolution.ResolvedSource resolveStrictMultiFile(
+        String path,
+        StoragePath storagePath,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        boolean hivePartitioning,
+        Map<String, Object> config,
+        DatasetMapping declaredMapping
+    ) throws Exception {
+        FileList listing;
+        if (path.indexOf(',') >= 0) {
+            int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
+            int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
+            listing = GlobExpander.expandCommaSeparated(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
+        } else if (isCacheable(provider)) {
+            ListingCacheKey listingKey = ListingCacheKey.build(storagePath.scheme(), storagePath.host(), storagePath.path(), config);
+            listing = cacheService.getOrComputeListing(
+                listingKey,
+                k -> expandAndCompact(path, provider, hints, hivePartitioning, storagePath)
+            );
+        } else {
+            listing = expandAndCompact(path, provider, hints, hivePartitioning, storagePath);
+        }
+        if (listing.fileCount() == 0) {
+            throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+        }
+
+        // Declared mapping is the whole schema, in LOGICAL names; a `source` rename is applied at the reader, so the
+        // operator (and file schema) work purely in logical names.
+        List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
+        Object formatOverride = config.get(FileSourceFactory.CONFIG_FORMAT);
+        String sourceType = formatOverride != null ? String.valueOf(formatOverride) : FormatNameResolver.resolve(config, path);
+        ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(
+            new SimpleSourceMetadata(logicalSchema, sourceType, path),
+            config
+        );
+        extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
+
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = new HashMap<>();
+        for (int i = 0; i < listing.fileCount(); i++) {
+            schemaMap.putAll(singleEntrySchemaMap(listing.path(i), logicalSchema));
+        }
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap);
+    }
+
+    /**
+     * Apply a non-strict declared mapping onto an already-resolved (inferred) source: retype/rename the declared
+     * columns in the user-facing schema (strict — every declared column must appear in the unified schema) and in
+     * each per-file schema (lenient — a column may be absent from one file under union-by-name), preserving the
+     * inferred stats/sourceMetadata and the per-file column mappings.
+     */
+    private ExternalSourceResolution.ResolvedSource applyNonStrictOverlay(
+        ExternalSourceResolution.ResolvedSource resolved,
+        DatasetMapping declaredMapping
+    ) {
+        final ExternalSourceMetadata inferred = resolved.metadata();
+        DeclaredSchemaResolver.Overlaid unified = DeclaredSchemaResolver.overlayNonStrict(inferred.schema(), declaredMapping, false);
+        ExternalSourceMetadata overlaidMetadata = new ExternalSourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return unified.output();
+            }
+
+            @Override
+            public String sourceType() {
+                return inferred.sourceType();
+            }
+
+            @Override
+            public String location() {
+                return inferred.location();
+            }
+
+            @Override
+            public Optional<SourceStatistics> statistics() {
+                return inferred.statistics();
+            }
+
+            @Override
+            public Optional<List<String>> partitionColumns() {
+                return inferred.partitionColumns();
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return inferred.sourceMetadata();
+            }
+
+            @Override
+            public Map<String, Object> config() {
+                return inferred.config();
+            }
+        };
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> overlaidSchemaMap = new HashMap<>();
+        for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : resolved.schemaMap().entrySet()) {
+            SchemaReconciliation.FileSchemaInfo info = e.getValue();
+            DeclaredSchemaResolver.Overlaid perFile = DeclaredSchemaResolver.overlayNonStrict(
+                info.fileSchema().attributes(),
+                declaredMapping,
+                true
+            );
+            overlaidSchemaMap.put(
+                e.getKey(),
+                new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(perFile.fileSchema()), info.mapping(), info.statistics())
+            );
+        }
+        return new ExternalSourceResolution.ResolvedSource(overlaidMetadata, resolved.fileList(), overlaidSchemaMap);
+    }
+
     private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(
         String path,
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         boolean hivePartitioning,
+        @Nullable DatasetMapping declaredMapping,
         boolean requiresStats
     ) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);
+
+        if (isStrict(declaredMapping)) {
+            return resolveStrictMultiFile(path, storagePath, provider, hints, hivePartitioning, config, declaredMapping);
+        }
 
         FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
         boolean cacheable = isCacheable(provider);

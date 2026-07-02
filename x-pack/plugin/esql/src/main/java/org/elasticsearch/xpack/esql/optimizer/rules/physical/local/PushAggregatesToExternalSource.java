@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Replaces {@code AggregateExec → ExternalSourceExec} with {@code LocalSourceExec}
@@ -129,7 +131,13 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         }
         List<Object> values = new ArrayList<>(aggregateExec.aggregates().size());
         List<DataType> dataTypes = new ArrayList<>(aggregateExec.aggregates().size());
-        if (resolveAggregateValues(aggregateExec.aggregates(), stats, values, dataTypes) == false) {
+        if (resolveAggregateValues(
+            aggregateExec.aggregates(),
+            stats,
+            values,
+            dataTypes,
+            PhysicalNames.fromConfig(externalExec.config())
+        ) == false) {
             return aggregateExec;
         }
 
@@ -153,7 +161,8 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         List<? extends NamedExpression> aggregates,
         org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
         List<Object> values,
-        List<DataType> dataTypes
+        List<DataType> dataTypes,
+        Map<String, String> renames
     ) {
         for (int i = 0; i < aggregates.size(); i++) {
             NamedExpression agg = aggregates.get(i);
@@ -161,7 +170,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 return false;
             }
             Expression child = ((Alias) agg).child();
-            Object value = resolveFromStats(child, stats);
+            Object value = resolveFromStats(child, stats, renames);
             if (value == null) {
                 return false;
             }
@@ -193,7 +202,14 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
      * means either "no child contributed a candidate value" or "incompatible/unknown stats" — both are
      * correct fall-back signals, the rule does not pushdown.
      */
-    private Object resolveFromStats(Expression aggFunction, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
+    // Split stats are keyed by the name the format emitted them under (physical, for the columnar formats), so a
+    // declared `source` rename must resolve the physical name before the lookup. A 1:1 rename cannot collide, so this
+    // never returns a wrong stat; a mismatch merely declines the pushdown (correct fall-back).
+    private Object resolveFromStats(
+        Expression aggFunction,
+        org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
+        Map<String, String> renames
+    ) {
         if (aggFunction instanceof Count count) {
             if (count.hasFilter()) {
                 return null;
@@ -205,7 +221,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             // Virtual columns are not present in the split's column stats; refuse the pushdown
             // here even if a format-level gate happens to let one through (defense in depth).
             if (target instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
-                long nc = stats.columnNullCount(ref.name());
+                long nc = stats.columnNullCount(PhysicalNames.translate(ref.name(), renames));
                 if (nc >= 0) {
                     return stats.rowCount() - nc;
                 }
@@ -216,7 +232,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 return null;
             }
             if (min.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
-                return stats.columnMin(ref.name());
+                return stats.columnMin(PhysicalNames.translate(ref.name(), renames));
             }
             return null;
         } else if (aggFunction instanceof Max max) {
@@ -224,7 +240,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 return null;
             }
             if (max.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
-                return stats.columnMax(ref.name());
+                return stats.columnMax(PhysicalNames.translate(ref.name(), renames));
             }
             return null;
         }

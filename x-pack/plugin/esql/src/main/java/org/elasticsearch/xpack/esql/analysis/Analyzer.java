@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -684,7 +685,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             var metadata = resolvedSource.metadata();
             MetadataBindResult bindResult = bindMetadataFields(plan, metadata.schema());
-            return new ExternalRelation(
+            ExternalRelation relation = new ExternalRelation(
                 plan.source(),
                 tablePath,
                 metadata,
@@ -694,6 +695,58 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 plan.datasetName(),
                 bindResult.unresolvedMetadata()
             );
+            // A declared `copy_to` materializes as an EVAL `target = <source column>` above the base relation. Copies
+            // stay out of the read/reconciliation schema — every format reader gets them for free, the read path is
+            // untouched, and the copy reuses the plan's projection, pushdown alias-substitution, and cast machinery.
+            List<Alias> copyAliases = copyToAliases(plan.mapping(), relation.output(), plan.source());
+            return copyAliases.isEmpty() ? relation : new Eval(plan.source(), relation, copyAliases);
+        }
+
+        /**
+         * One {@link Alias} per declared {@code copy_to} target: {@code target = <the property's own column>}. The
+         * source column is a base-relation output attribute (a move renames it there; an as-is column keeps its name),
+         * so the copy is a plain reference — the optimizer substitutes it on pushdown. Empty when nothing copies, so
+         * the common path adds no {@code Eval}.
+         */
+        private static List<Alias> copyToAliases(
+            org.elasticsearch.cluster.metadata.DatasetMapping mapping,
+            List<Attribute> baseOutput,
+            Source source
+        ) {
+            org.elasticsearch.cluster.metadata.DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
+            if (mappings == null) {
+                return List.of();
+            }
+            Map<String, Attribute> byName = new HashMap<>(baseOutput.size());
+            for (Attribute a : baseOutput) {
+                byName.putIfAbsent(a.name(), a);
+            }
+            List<Alias> aliases = new ArrayList<>();
+            for (Map.Entry<String, org.elasticsearch.cluster.metadata.DatasetFieldMapping> e : mappings.properties().entrySet()) {
+                List<String> targets = e.getValue().copyTo();
+                if (targets.isEmpty()) {
+                    continue;
+                }
+                Attribute src = byName.get(e.getKey());
+                if (src == null) {
+                    // The source is always a declared/overlaid base output attribute; if it isn't, fail loud rather
+                    // than silently drop the copy.
+                    throw new IllegalArgumentException("copy_to source column [" + e.getKey() + "] is not present in the dataset schema");
+                }
+                for (String copyTo : targets) {
+                    if (byName.containsKey(copyTo)) {
+                        // The target collides with an existing (declared, inferred, or another copy) output column. An
+                        // EVAL would silently SHADOW/overwrite it — reject. PUT validation can't catch a collision with
+                        // an INFERRED column (no file I/O at PUT), so this is where the base output is finally known.
+                        throw new IllegalArgumentException(
+                            "copy_to target [" + copyTo + "] on column [" + e.getKey() + "] collides with an existing column"
+                        );
+                    }
+                    aliases.add(new Alias(source, copyTo, src));
+                    byName.put(copyTo, src); // reserve the target name so a later copy onto it is caught as a collision
+                }
+            }
+            return aliases;
         }
 
         /**
@@ -736,6 +789,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (existing.contains(name)) {
                     continue;
                 }
+                // _source.enabled: false — the dataset opted out of a synthetic _source, so reject the request loudly
+                // rather than returning a silently-null column.
+                if (ExternalMetadataColumns.SOURCE.equals(name) && sourceDisabled(plan)) {
+                    throw new IllegalArgumentException(
+                        "[_source] is not available: it is disabled (_source.enabled: false) for this dataset"
+                    );
+                }
                 DataType type = MetadataAttribute.dataType(name);
                 if (type == null) {
                     type = FileMetadataColumns.COLUMNS.get(name);
@@ -758,6 +818,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> resolvedSchema = enriched == null ? baseSchema : List.copyOf(enriched);
             List<? extends NamedExpression> unresolvedList = unresolved == null ? List.of() : List.copyOf(unresolved);
             return new MetadataBindResult(resolvedSchema, unresolvedList);
+        }
+
+        private static boolean sourceDisabled(UnresolvedExternalRelation plan) {
+            var mapping = plan.mapping();
+            return mapping != null && mapping.mappings() != null && mapping.mappings().sourceAvailable() == false;
         }
 
         private String extractTablePath(Expression tablePath) {

@@ -842,3 +842,5 @@ tests:
 - class: org.elasticsearch.xpack.stateless.HollowIndexShardsMergesIT
   method: testQueuedOrOnGoingMergesPreventHollowing
   issue: https://github.com/elastic/elasticsearch/issues/152723
+- class: org.elasticsearch.xpack.esql.qa.mixed.AllSupportedFieldsIT
+  issue: https://github.com/elastic/elasticsearch/pull/152637

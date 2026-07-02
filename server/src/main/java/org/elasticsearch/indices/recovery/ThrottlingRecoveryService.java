@@ -160,7 +160,7 @@ public final class ThrottlingRecoveryService implements Closeable {
             // Wipe the projectId header between recoveries.
             // TODO: Add instead a new `storeContextForProject` method for async code: https://github.com/elastic/elasticsearch/pull/152107
             try (ThreadContext.StoredContext ignored = threadContext.newEmptySystemContext()) {
-                executor.execute(new RecoveryRunnable(recovery, () -> releaseSlot(recovery), () -> enqueue(recovery)));
+                executor.execute(new RecoveryRunnable(recovery, RecoveryListener.assertOnce(new DispatchedRecoveryListener(recovery))));
             }
             logger.trace("dispatched recovery: {}", recovery.recoveryState());
             schedulingListeners.onRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
@@ -202,28 +202,16 @@ public final class ThrottlingRecoveryService implements Closeable {
         RecoveryListener listener
     ) {}
 
-    /// Executable wrapper for a dispatched recovery. The provided recovery listener (from [PendingRecovery]) is wrapped
-    /// with `runAfter` (to release a recovery slot on completion) and `assertOnce` (to ensure there is only one terminal callback).
+    /// Executable wrapper for a dispatched recovery
     private static class RecoveryRunnable extends AbstractRunnable {
         private final RecoveryState recoveryState;
         private final Consumer<RecoveryListener> task;
         private final RecoveryListener listener;
 
-        private RecoveryRunnable(PendingRecovery pending, Runnable runAfter, Runnable onRetry) {
+        private RecoveryRunnable(PendingRecovery pending, RecoveryListener listener) {
             this.recoveryState = pending.recoveryState;
             this.task = pending.task;
-            // Enqueue new retry last to make sure we have completed the current attempt before dispatching the next.
-            // The whole listener wrapping result in this sequence
-            // First, notify listener provided by user
-            // Second, runAfter (releaseSlot -> fillSlots)
-            // Third, onRetry (enqueue, which will also fillSlots)
-            this.listener = RecoveryListener.assertOnce(
-                RecoveryListener.runAfterFailure(RecoveryListener.runAfter(pending.listener, runAfter), (e, fs) -> {
-                    if (fs.retry()) {
-                        onRetry.run();
-                    }
-                })
-            );
+            this.listener = listener;
         }
 
         @Override
@@ -234,6 +222,51 @@ public final class ThrottlingRecoveryService implements Closeable {
         @Override
         protected void doRun() {
             task.accept(listener);
+        }
+    }
+
+    /// RecoveryListener that release slot when notified and enqueues recovery again on retriable failure
+    private class DispatchedRecoveryListener implements RecoveryListener {
+        private final RecoveryListener delegate;
+        private final PendingRecovery pending;
+
+        private DispatchedRecoveryListener(PendingRecovery pending) {
+            this.delegate = pending.listener;
+            this.pending = pending;
+        }
+
+        @Override
+        public void onRecoveryDone(
+            RecoveryState state,
+            ShardLongFieldRange timestampMillisFieldRange,
+            ShardLongFieldRange eventIngestedMillisFieldRange
+        ) {
+            try {
+                delegate.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
+            } finally {
+                releaseSlot(pending);
+            }
+        }
+
+        @Override
+        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy fs) {
+            try {
+                delegate.onRecoveryFailure(e, fs);
+            } finally {
+                releaseSlot(pending);
+                if (fs.retry()) {
+                    enqueue(pending);
+                }
+            }
+        }
+
+        @Override
+        public void onRecoveryAborted() {
+            try {
+                delegate.onRecoveryAborted();
+            } finally {
+                releaseSlot(pending);
+            }
         }
     }
 }

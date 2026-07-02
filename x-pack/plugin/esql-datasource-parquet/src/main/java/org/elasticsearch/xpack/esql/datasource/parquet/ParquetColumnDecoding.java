@@ -21,6 +21,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
@@ -311,7 +312,7 @@ final class ParquetColumnDecoding {
             case UNSIGNED_LONG -> readListUnsignedLongColumn(cr, maxDef, rows, blockFactory);
             case DOUBLE -> readListDoubleColumn(cr, maxDef, rows, blockFactory);
             case BOOLEAN -> readListBooleanColumn(cr, maxDef, rows, blockFactory);
-            case KEYWORD, TEXT -> readListBytesRefColumn(cr, maxDef, rows, blockFactory);
+            case KEYWORD, TEXT -> readListBytesRefColumn(cr, info, rows, blockFactory);
             case DATETIME -> readListDatetimeColumn(cr, info, rows, blockFactory);
             case DATE_NANOS -> readListDateNanosColumn(cr, info, rows, blockFactory);
             default -> {
@@ -432,9 +433,15 @@ final class ParquetColumnDecoding {
         }
     }
 
-    private static Block readListBytesRefColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+    private static Block readListBytesRefColumn(ColumnReader cr, ColumnInfo info, int rows, BlockFactory blockFactory) {
+        int maxDef = info.maxDefLevel();
+        // UUID-annotated bytes are raw 16-byte payloads: format them as hex (matching the scalar path)
+        // rather than sanitizing, which would mangle valid UUID bytes into replacement characters.
+        boolean isUuid = info.logicalType() instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
         try (var builder = blockFactory.newBytesRefBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes()));
+            Runnable appender = isUuid
+                ? () -> builder.appendBytesRef(new BytesRef(formatUuid(cr.getBinary().getBytes())))
+                : () -> builder.appendBytesRef(Utf8Sanitizer.sanitize(new BytesRef(cr.getBinary().getBytes())));
             for (int row = 0; row < rows; row++) {
                 readListRow(cr, maxDef, builder, appender);
             }

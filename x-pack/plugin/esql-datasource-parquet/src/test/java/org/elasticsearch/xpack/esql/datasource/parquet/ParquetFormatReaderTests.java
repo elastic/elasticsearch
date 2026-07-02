@@ -76,6 +76,7 @@ import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -1964,6 +1965,147 @@ public class ParquetFormatReaderTests extends ESTestCase {
             BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
             assertEquals(uuid1.toString(), block.getBytesRef(0, new BytesRef()).utf8ToString());
             assertEquals(uuid2.toString(), block.getBytesRef(1, new BytesRef()).utf8ToString());
+        }
+    }
+
+    // --- Raw binary / malformed UTF-8 tests ---
+
+    public void testRawBinaryColumnsMapToKeywordAndAreSanitized() throws Exception {
+        // Un-annotated BINARY/FIXED_LEN_BYTE_ARRAY is how legacy writers (Impala, older Spark) store strings,
+        // so it maps to KEYWORD rather than UNSUPPORTED to avoid dropping legitimate string columns. Because
+        // the bytes may be arbitrary, the reader sanitizes them to well-formed UTF-8 so KEYWORD ops stay total.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .named("raw_binary")
+            .required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(4)
+            .named("raw_fixed")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("raw_binary", Binary.fromConstantByteArray(new byte[] { (byte) 0xFF, (byte) 0xFE, 0x00 }));
+            g.add("raw_fixed", Binary.fromConstantByteArray(new byte[] { (byte) 0xF8, (byte) 0xFF, 0x01, 0x02 }));
+            return List.of(g);
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        StorageObject storageObject = createStorageObject(parquetData);
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(2, metadata.schema().size());
+        assertEquals(DataType.KEYWORD, metadata.schema().get(0).dataType());
+        assertEquals(DataType.KEYWORD, metadata.schema().get(1).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            BytesRefBlock rawBinary = (BytesRefBlock) page.getBlock(0);
+            BytesRefBlock rawFixed = (BytesRefBlock) page.getBlock(1);
+            // 0xFF and 0xFE are invalid lead bytes -> one U+FFFD each; 0x00/0x01/0x02 are valid ASCII.
+            assertEquals(new BytesRef("\uFFFD\uFFFD\u0000"), rawBinary.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("\uFFFD\uFFFD\u0001\u0002"), rawFixed.getBytesRef(0, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testStringColumnWithInvalidUtf8IsSanitized() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("s")
+            .named("test_schema");
+
+        // 0xFF is never a valid UTF-8 lead byte (it is exactly what crashes the TopN Utf8 encoder).
+        byte[] invalid = { (byte) 0xFF };
+        byte[] valid = "ok".getBytes(StandardCharsets.UTF_8);
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("s", Binary.fromConstantByteArray(invalid));
+            Group g2 = factory.newGroup();
+            g2.add("s", Binary.fromConstantByteArray(valid));
+            return List.of(g1, g2);
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        StorageObject storageObject = createStorageObject(parquetData);
+        assertEquals(DataType.KEYWORD, reader.metadata(storageObject).schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
+            assertEquals(new BytesRef("\uFFFD"), block.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("ok"), block.getBytesRef(1, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testStringListWithInvalidUtf8IsSanitized() throws Exception {
+        Type listType = Types.optionalList()
+            .optionalElement(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("tags");
+        MessageType schema = new MessageType("test_schema", listType);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            Group list = g.addGroup("tags");
+            list.addGroup("list").append("element", Binary.fromConstantByteArray(new byte[] { (byte) 0xC3, (byte) 0x28 }));
+            list.addGroup("list").append("element", Binary.fromConstantByteArray("valid".getBytes(StandardCharsets.UTF_8)));
+            return List.of(g);
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        StorageObject storageObject = createStorageObject(parquetData);
+        assertEquals(DataType.KEYWORD, reader.metadata(storageObject).schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
+            assertEquals(2, block.getValueCount(0));
+            int start = block.getFirstValueIndex(0);
+            // 0xC3 0x28: 0xC3 is a 2-byte lead but 0x28 is not a continuation -> one U+FFFD then '('.
+            assertEquals(new BytesRef("\uFFFD("), block.getBytesRef(start, new BytesRef()));
+            assertEquals(new BytesRef("valid"), block.getBytesRef(start + 1, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testUuidListIsFormattedNotSanitized() throws Exception {
+        // A UUID-annotated list element is a raw 16-byte payload (usually not valid UTF-8). It must be
+        // hex-formatted like the scalar UUID path, never fed through the UTF-8 sanitizer.
+        Type listType = Types.optionalList()
+            .optionalElement(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(16)
+            .as(LogicalTypeAnnotation.uuidType())
+            .named("ids");
+        MessageType schema = new MessageType("test_schema", listType);
+
+        UUID uuid1 = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
+        UUID uuid2 = UUID.fromString("00000000-0000-0000-0000-000000000000");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            Group list = g.addGroup("ids");
+            list.addGroup("list").append("element", Binary.fromConstantByteArray(toUuidBytes(uuid1)));
+            list.addGroup("list").append("element", Binary.fromConstantByteArray(toUuidBytes(uuid2)));
+            return List.of(g);
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        StorageObject storageObject = createStorageObject(parquetData);
+        assertEquals(DataType.KEYWORD, reader.metadata(storageObject).schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
+            assertEquals(2, block.getValueCount(0));
+            int start = block.getFirstValueIndex(0);
+            assertEquals(uuid1.toString(), block.getBytesRef(start, new BytesRef()).utf8ToString());
+            assertEquals(uuid2.toString(), block.getBytesRef(start + 1, new BytesRef()).utf8ToString());
+            page.releaseBlocks();
         }
     }
 

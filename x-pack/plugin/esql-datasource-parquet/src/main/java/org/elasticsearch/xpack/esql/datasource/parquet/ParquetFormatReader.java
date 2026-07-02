@@ -41,6 +41,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
+import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
@@ -2175,6 +2176,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     yield DataType.DOUBLE;
                 }
                 if (logical instanceof LogicalTypeAnnotation.BsonLogicalTypeAnnotation) {
+                    // BSON is a binary document container, not UTF-8 text, so it is not KEYWORD-safe.
                     yield DataType.UNSUPPORTED;
                 }
                 if (logical instanceof LogicalTypeAnnotation.IntervalLogicalTypeAnnotation) {
@@ -2182,6 +2184,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     // DATE_PERIOD is year/quarter/months/week/days, and TIME_DURATION is hours/minutes/secs/millis.
                     yield DataType.UNSUPPORTED;
                 }
+                // Everything else maps to KEYWORD: string/enum/json annotations, UUID (rendered as a hex
+                // string), and un-annotated BINARY/FIXED_LEN_BYTE_ARRAY. Legacy writers (Impala, older Spark)
+                // and much real-world data store strings as un-annotated BINARY, so mapping those to
+                // UNSUPPORTED would silently drop legitimate string columns. ES|QL requires KEYWORD bytes to
+                // be valid UTF-8 (the TopN Utf8 encoders index a table by the raw lead byte), so the reader
+                // sanitizes malformed bytes to U+FFFD on read, keeping KEYWORD operations total even when a
+                // column genuinely holds arbitrary bytes.
                 yield DataType.KEYWORD;
             }
             default -> DataType.UNSUPPORTED;
@@ -2781,7 +2790,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     } else if (isUuid) {
                         builder.appendBytesRef(new BytesRef(ParquetColumnDecoding.formatUuid(cr.getBinary().getBytes())));
                     } else {
-                        builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes()));
+                        builder.appendBytesRef(Utf8Sanitizer.sanitize(new BytesRef(cr.getBinary().getBytes())));
                     }
                     cr.consume();
                 }

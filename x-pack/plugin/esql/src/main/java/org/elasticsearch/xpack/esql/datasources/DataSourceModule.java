@@ -73,7 +73,7 @@ public final class DataSourceModule implements Closeable {
         BlockFactory blockFactory,
         ExecutorService executor,
         DataSourceCredentials credentials,
-        BooleanSupplier workloadIdentityEnabled
+        BooleanSupplier managedIdentityEnabled
     ) {
         this(
             dataSourcePlugins,
@@ -82,7 +82,7 @@ public final class DataSourceModule implements Closeable {
             blockFactory,
             executor,
             credentials,
-            workloadIdentityEnabled,
+            managedIdentityEnabled,
             null,
             null,
             null,
@@ -97,7 +97,7 @@ public final class DataSourceModule implements Closeable {
         BlockFactory blockFactory,
         ExecutorService executor,
         DataSourceCredentials credentials,
-        BooleanSupplier workloadIdentityEnabled,
+        BooleanSupplier managedIdentityEnabled,
         @Nullable ThreadPool threadPool,
         @Nullable Environment environment,
         @Nullable ResourceWatcherService resourceWatcherService,
@@ -111,7 +111,7 @@ public final class DataSourceModule implements Closeable {
         RetryScheduler retryScheduler = threadPool == null
             ? RetryScheduler.DIRECT
             : (command, delayMillis, exec) -> threadPool.schedule(command, TimeValue.timeValueMillis(Math.max(0L, delayMillis)), exec);
-        this.storageProviderRegistry = new StorageProviderRegistry(settings, credentials, workloadIdentityEnabled, retryScheduler);
+        this.storageProviderRegistry = new StorageProviderRegistry(settings, credentials, managedIdentityEnabled, retryScheduler);
 
         DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
         for (DataSourcePlugin plugin : dataSourcePlugins) {

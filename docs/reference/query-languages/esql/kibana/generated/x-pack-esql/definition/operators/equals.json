@@ -208,6 +208,24 @@
       "params" : [
         {
           "name" : "lhs",
+          "type" : "flattened",
+          "optional" : false,
+          "description" : "An expression."
+        },
+        {
+          "name" : "rhs",
+          "type" : "flattened",
+          "optional" : false,
+          "description" : "An expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
           "type" : "geo_point",
           "optional" : false,
           "description" : "An expression."

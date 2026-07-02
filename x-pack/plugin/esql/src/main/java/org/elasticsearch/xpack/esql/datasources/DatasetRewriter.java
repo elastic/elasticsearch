@@ -18,8 +18,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -29,6 +27,8 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -59,8 +59,6 @@ import java.util.Set;
  * {@link DatasetResolution} to build the plan — they no longer resolve, expand, or gate on authorization.
  */
 public final class DatasetRewriter {
-
-    private static final Logger logger = LogManager.getLogger(DatasetRewriter.class);
 
     /**
      * {@link IndexResolver#DEFAULT_OPTIONS} (which carries {@code ALLOW_UNAVAILABLE_TARGETS}) plus
@@ -252,7 +250,7 @@ public final class DatasetRewriter {
             throw new VerificationException("Unknown index [" + resolution.explicitUnauthorized().iterator().next() + "]");
         }
 
-        Set<String> datasetNames = resolution.authorizedDatasets();
+        List<String> datasetNames = new ArrayList<>(resolution.authorizedDatasets());
 
         if (datasetNames.isEmpty()) {
             // Nothing authorized (or matched) here: the relation flows through to index resolution unchanged. Note this
@@ -273,86 +271,64 @@ public final class DatasetRewriter {
             throw new VerificationException(message);
         }
         Set<String> nonDatasetNamesList = resolution.nonDatasetNames();
-        if (nonDatasetNamesList.isEmpty() == false) {
-            // Heterogeneous FROM: indices and datasets in the same FROM clause.
-            // Build UnionAll(UnresolvedRelation(indices), UnresolvedExternalRelation(ds1), UnresolvedExternalRelation(ds2), ...).
-            logger.debug(
-                "DatasetRewriter building heterogeneous UnionAll: pattern=[{}] datasets={} non-datasets={}",
-                relation.indexPattern().indexPattern(),
-                datasetNames,
-                nonDatasetNamesList
-            );
-            int totalBranches = 1 + datasetNames.size(); // 1 index branch + one per dataset
-            if (Fork.exceedsMaxBranches(totalBranches)) {
-                throw new VerificationException(
-                    "FROM ["
-                        + relation.indexPattern().indexPattern()
-                        + "] matched "
-                        + datasetNames.size()
-                        + " dataset(s) and "
-                        + nonDatasetNamesList.size()
-                        + " non-dataset index/alias(es); total "
-                        + totalBranches
-                        + " branches exceeds the current limit of "
-                        + Fork.MAX_BRANCHES
-                        + " per FROM. Narrow the pattern, exclude some datasets, or split into multiple queries."
-                );
-            }
-            List<LogicalPlan> branches = new ArrayList<>(totalBranches);
-            // Index branch: concrete resolved non-dataset names, joined for the index resolver.
-            branches.add(
-                new UnresolvedRelation(
-                    relation.source(),
-                    new IndexPattern(relation.source(), String.join(",", nonDatasetNamesList)),
-                    relation.frozen(),
-                    List.of(),
-                    relation.indexMode(),
-                    null
-                )
-            );
-            for (String name : datasetNames) {
-                branches.add(buildDatasetBranch(name, datasets, dataSources, relation.source(), relation.metadataFields()));
-            }
-            return new UnionAll(relation.source(), branches, List.of());
-        }
-        // Dataset-only case: all resolved names are datasets.
-        List<LogicalPlan> children = new ArrayList<>(datasetNames.size());
+
+        // One rail for every FROM shape — dataset-only and heterogeneous (index + dataset). The non-remotable-abstraction
+        // CPS rule (a remote view/dataset fails; a remote index of the same name reads both) must hold uniformly, so the
+        // cross-project siblings below are appended regardless of whether the FROM also names local indices. Keeping the
+        // two shapes on one path is what stops them drifting.
+        List<LogicalPlan> children = new ArrayList<>();
         for (String name : datasetNames) {
             children.add(buildDatasetBranch(name, datasets, dataSources, relation.source(), relation.metadataFields()));
         }
-        // Cross-project (CPS): a wildcard that matched a dataset locally may also match indices in linked projects.
-        // Mirror ViewResolver — keep the original wildcard as a sibling UnresolvedRelation so the remote half resolves
-        // at field-caps, instead of the dataset replacing the whole relation and silently dropping the remote indices.
+
+        // Index branch: the concrete local non-dataset names plus, under cross-project, any preserved positive
+        // wildcards — joined into one UnresolvedRelation so the resolver dedups a local index matched by both a
+        // concrete name and a wildcard (no double read) and the wildcard's remote half reaches field-caps (closing
+        // #151977's dropped-remote-wildcard gap). The resolveDatasets rail on this branch also fails a remote
+        // dataset/view the wildcard matches. METADATA fields ride along so _index/_id resolve on the index rows.
+        List<String> indexBranch = new ArrayList<>(nonDatasetNamesList);
         if (crossProjectEnabled) {
-            List<String> remotePatterns = crossProjectPatternsToPreserve(patternsOf(relation));
-            if (remotePatterns.isEmpty() == false) {
-                children.add(
-                    new UnresolvedRelation(
-                        relation.source(),
-                        new IndexPattern(relation.indexPattern().source(), String.join(",", remotePatterns)),
-                        relation.frozen(),
-                        relation.metadataFields(),
-                        relation.indexMode(),
-                        relation.unresolvedMessage()
-                    )
-                );
-            }
+            indexBranch.addAll(crossProjectPatternsToPreserve(patternsOf(relation)));
         }
-        if (children.size() == 1) {
-            return children.get(0);
+        if (indexBranch.isEmpty() == false) {
+            children.add(
+                new UnresolvedRelation(
+                    relation.source(),
+                    new IndexPattern(relation.source(), String.join(",", indexBranch)),
+                    relation.frozen(),
+                    relation.metadataFields(),
+                    relation.indexMode(),
+                    relation.unresolvedMessage()
+                )
+            );
         }
-        // UnionAll inherits Fork's branch cap; wrap with a user-facing message instead of the internal
-        // "FORK supports up to N branches" error from Fork's constructor.
+
+        // Cap the real-read branches (datasets + the index branch) here, BEFORE the speculative shadows. A shadow
+        // strips when its name has no remote namesake, so it must not consume the rewrite-time budget; a matched
+        // shadow is a real read bounded post-analysis by Fork.checkBranchCount.
         if (Fork.exceedsMaxBranches(children.size())) {
             throw new VerificationException(
                 "FROM ["
                     + relation.indexPattern().indexPattern()
-                    + "] matched "
+                    + "] resolved to "
                     + children.size()
-                    + " datasets; current limit is "
+                    + " branches, exceeding the current limit of "
                     + Fork.MAX_BRANCHES
                     + " per FROM. Narrow the pattern, exclude some datasets, or split into multiple queries."
             );
+        }
+
+        // CPS: an exact (non-wildcard) dataset name has no wildcard to re-emit, so its remote half rides a
+        // DatasetShadowRelation — a remote index of the same name federates in, a remote dataset/view of the same
+        // name fails (the detection rail). See DatasetShadowRelation for the full lifecycle. This stays inert until
+        // datasets exist: datasetNames is non-empty only once datasets are registered, which the upstream
+        // esql_external_datasources feature flag controls — this method enforces no flag check of its own.
+        if (crossProjectEnabled) {
+            children.addAll(crossProjectExactNameShadows(relation, datasetNames));
+        }
+
+        if (children.size() == 1) {
+            return children.get(0);
         }
         return new UnionAll(relation.source(), children, List.of());
     }
@@ -431,6 +407,48 @@ public final class DatasetRewriter {
         Map<String, Object> merged = mergeSettings(parent, dataset);
         Literal path = Literal.keyword(source, dataset.resource());
         return new UnresolvedExternalRelation(source, path, merged, metadataFields, name);
+    }
+
+    /**
+     * Builds a {@link DatasetShadowRelation} for each exact (non-wildcard, flat) dataset name in {@code datasetNames}
+     * that the relation named with a concrete pattern, so the remote half of that name reaches the lenient linked pass.
+     * Mirrors {@code ViewResolver}'s OPTIONAL-shadow branch: each shadow's pattern is the exact name followed by the
+     * relation's trailing exclusions, so the remote resolution honors the same exclusions the local FROM did.
+     * <p>
+     * Only exact names produce shadows here — wildcards are already handled by {@link #crossProjectPatternsToPreserve}
+     * (re-emitted as an {@link UnresolvedRelation}, which the strict main pass resolves). A remote-prefixed FROM never
+     * reaches {@code rewriteOne} (see {@link #hasRemotePattern}), so every pattern here is flat.
+     */
+    static List<DatasetShadowRelation> crossProjectExactNameShadows(UnresolvedRelation relation, List<String> datasetNames) {
+        List<String> patterns = patternsOf(relation);
+        Set<String> datasetNameSet = new LinkedHashSet<>(datasetNames);
+        List<DatasetShadowRelation> shadows = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (int i = 0; i < patterns.size(); i++) {
+            String pattern = patterns.get(i);
+            if (pattern.isEmpty() || pattern.charAt(0) == '-' || Regex.isSimpleMatchPattern(pattern)) {
+                continue;
+            }
+            // Resolve date-math so a literal-named dataset with a date suffix matches its authorized name.
+            String name = IndexNameExpressionResolver.resolveDateMathExpression(pattern);
+            if (datasetNameSet.contains(name) == false || seen.add(name) == false) {
+                continue;
+            }
+            // Exclusions are positional (ES applies them left-to-right): only those appearing AFTER this name narrow it.
+            // Mirrors ViewResolver.collectExclusionsAfterPosition.
+            List<String> shadowPattern = new ArrayList<>();
+            shadowPattern.add(name);
+            for (int p = i + 1; p < patterns.size(); p++) {
+                String later = patterns.get(p);
+                if (later.isEmpty() == false && later.charAt(0) == '-') {
+                    shadowPattern.add(later);
+                }
+            }
+            shadows.add(
+                new DatasetShadowRelation(relation.source(), name, LinkedIndexPattern.Kind.OPTIONAL, String.join(",", shadowPattern))
+            );
+        }
+        return shadows;
     }
 
     /**

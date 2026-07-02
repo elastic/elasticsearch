@@ -39,14 +39,13 @@ import java.util.function.BooleanSupplier;
  * so heavy dependencies (S3 client, HTTP client, etc.) are only loaded when
  * an EXTERNAL query actually targets that backend.
  *
- * <p>All providers are automatically wrapped with concurrency limiting and retry
- * logic for transient storage failures (503, 429, connection resets, timeouts)
- * unless the scheme is "file" (local filesystem). Wrap order:
- * {@code caller → Retryable(with adaptive backoff) → ConcurrencyLimited → raw provider}
+ * <p>All providers are automatically wrapped with retry logic for transient storage
+ * failures (503, 429, connection resets, timeouts). Wrap order:
+ * {@code caller → Retryable(with adaptive backoff) → raw provider}
  *
- * <p>Concurrency limiters and adaptive backoff state are shared per-scheme across
- * all providers (including per-query config providers), because cloud API rate limits
- * are per account/IP, not per client instance.
+ * <p>Adaptive backoff state is shared per-throttle-scope across all providers
+ * (including per-query config providers), because cloud API rate limits are per
+ * account/IP, not per client instance.
  *
  * <p>Registration methods are intended for single-threaded initialization only
  * (called from the {@link DataSourceModule} constructor).
@@ -59,9 +58,7 @@ public class StorageProviderRegistry implements Closeable {
     private final Map<String, StorageProvider> providers = new ConcurrentHashMap<>();
     private final List<StorageProvider> createdProviders = new ArrayList<>();
 
-    private final Map<String, ConcurrencyLimiter> limiters = new ConcurrentHashMap<>();
-    private final Map<String, ConcurrencyBudgetAllocator> allocators = new ConcurrentHashMap<>();
-    private final Map<String, AdaptiveBackoff> backoffs = new ConcurrentHashMap<>();
+    private final Map<String, RetryPolicy> scopedPolicies = new ConcurrentHashMap<>();
 
     // Cache for providers created with a non-empty per-query configuration map.
     // Avoids reconstructing cloud clients (S3, GCS, Azure) for repeated calls with the same config.
@@ -72,8 +69,7 @@ public class StorageProviderRegistry implements Closeable {
     /** Decrypts data-source secrets at the single provider-build chokepoint; {@code null} in tests with no encryption. */
     @Nullable
     private final DataSourceCredentials credentials;
-    private volatile int maxConcurrentRequests;
-    private volatile int throttleMaxRetryDurationSeconds;
+    private final int throttleMaxRetryDurationSeconds;
     /** Schedules async read-retry continuations off a timer; {@code DIRECT} (no ThreadPool) in tests. */
     private final RetryScheduler retryScheduler;
 
@@ -106,7 +102,6 @@ public class StorageProviderRegistry implements Closeable {
         this.credentials = credentials;
         this.workloadIdentityEnabled = workloadIdentityEnabled;
         this.retryScheduler = retryScheduler != null ? retryScheduler : RetryScheduler.DIRECT;
-        this.maxConcurrentRequests = ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(this.settings);
         this.throttleMaxRetryDurationSeconds = ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(this.settings);
     }
 
@@ -200,7 +195,7 @@ public class StorageProviderRegistry implements Closeable {
         try {
             return configuredProviderCache.getOrCreate(cacheKey, () -> {
                 Configured<StorageProvider> raw = factory.createTrackingConsumedKeys(settings, storageConfig);
-                return new Configured<>(wrapProvider(raw.value(), normalizedScheme), raw.consumedKeys());
+                return new Configured<>(wrapProvider(raw.value()), raw.consumedKeys());
             });
         } catch (RuntimeException e) {
             throw e;
@@ -232,54 +227,51 @@ public class StorageProviderRegistry implements Closeable {
         if (factory == null) {
             throw new IllegalArgumentException("No storage provider registered for scheme: " + normalizedScheme);
         }
-        provider = wrapProvider(factory.create(settings), normalizedScheme);
+        provider = wrapProvider(factory.create(settings));
         providers.put(normalizedScheme, provider);
         createdProviders.add(provider);
         return provider;
     }
 
-    private StorageProvider wrapProvider(StorageProvider provider, String scheme) {
-        if ("file".equals(scheme)) {
-            return provider;
-        }
-        ConcurrencyLimiter limiter = limiterForScheme(scheme);
-        AdaptiveBackoff backoff = backoffForScheme(scheme);
-        RetryPolicy retryPolicy = buildRetryPolicy(backoff);
-        StorageProvider limited = new ConcurrencyLimitedStorageProvider(provider, limiter);
-        return new RetryableStorageProvider(limited, retryPolicy, retryScheduler);
+    private StorageProvider wrapProvider(StorageProvider provider) {
+        // The adaptive backoff is selected per throttle scope (per-bucket/account) at read time, not baked in here:
+        // a hot bucket backs off only its own traffic, not every read on the same store. The retry/backoff layer is
+        // inert for file:// (local reads raise plain IOExceptions, never the throttling-typed
+        // ExternalUnavailableException it retries on).
+        return new RetryableStorageProvider(provider, retryScheduler, this::retryPolicyForScope);
+    }
+
+    private RetryPolicy retryPolicyForScope(StoragePath path) {
+        // One RetryPolicy per distinct throttle scope (bucket/account), computed once and reused across every read
+        // in that scope. Each carries its own AdaptiveBackoff, so a hot scope backs off only its own traffic. The
+        // map is bounded by the number of distinct buckets the node ever reads; each entry is small and left
+        // unpruned.
+        return scopedPolicies.computeIfAbsent(throttleScope(path), k -> buildRetryPolicy().withAdaptiveBackoff(new AdaptiveBackoff()));
     }
 
     /**
-     * Returns a per-query concurrency budget allocator for the given scheme, or {@code null}
-     * if per-query budgeting is not applicable (file scheme or concurrency limiting disabled).
+     * The throttle-scope key for adaptive backoff: the store's own hot unit, derived generically from the path as
+     * {@code scheme://host[:port]} — per-bucket for S3/GCS, per-account for Azure (the host carries the bucket or
+     * the {@code account.blob.core.windows.net}; Azure throttles per account, not per container). A hot scope backs
+     * off only its own traffic. The host is lowercased (DNS is case-insensitive) so the same bucket maps to one
+     * scope; the port is included so two custom endpoints on the same host but different ports stay isolated.
+     * {@code userInfo} is deliberately excluded: it can carry credentials (which must never be retained in this
+     * long-lived map) and is not a throttle axis. Finer per-prefix granularity for S3 is the deferred per-store SPI
+     * refinement.
      */
-    public ConcurrencyBudgetAllocator allocatorForScheme(String scheme) {
-        if ("file".equals(scheme)) {
-            return null;
+    static String throttleScope(StoragePath path) {
+        StringBuilder sb = new StringBuilder(path.scheme()).append("://");
+        if (path.host() != null) {
+            sb.append(path.host().toLowerCase(Locale.ROOT));
         }
-        int permits = maxConcurrentRequests;
-        if (permits <= 0) {
-            return null;
+        if (path.port() >= 0) {
+            sb.append(':').append(path.port());
         }
-        return allocators.computeIfAbsent(scheme, k -> new ConcurrencyBudgetAllocator(permits));
+        return sb.toString();
     }
 
-    private ConcurrencyLimiter limiterForScheme(String scheme) {
-        return limiters.computeIfAbsent(scheme, k -> {
-            int permits = maxConcurrentRequests;
-            if (permits <= 0) {
-                return ConcurrencyLimiter.UNLIMITED;
-            }
-            return new ConcurrencyLimiter(permits);
-        });
-    }
-
-    private AdaptiveBackoff backoffForScheme(String scheme) {
-        return backoffs.computeIfAbsent(scheme, k -> new AdaptiveBackoff());
-    }
-
-    private RetryPolicy buildRetryPolicy(AdaptiveBackoff backoff) {
-        RetryPolicy policy = RetryPolicy.DEFAULT.withAdaptiveBackoff(backoff);
+    private RetryPolicy buildRetryPolicy() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
         if (throttleMaxRetryDurationSeconds > 0) {
             policy = policy.withTotalDurationBudget(throttleMaxRetryDurationSeconds * 1000L);
         }

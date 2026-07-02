@@ -475,11 +475,14 @@ public class DataSourceModuleTests extends ESTestCase {
 
         StorageProviderRegistry registry = module.storageProviderRegistry();
 
-        // Verify file provider is registered
+        // Verify file provider is registered. file:// gets the same reactive retry/backoff wrapping as every
+        // other scheme (the retry layer is inert for file:// — local reads raise plain IOExceptions, not the
+        // throttling-typed exception it retries — but the wrapping is uniform), so the retrieved provider is
+        // the outer RetryableStorageProvider, not the raw MockFileStorageProvider.
         assertTrue("File storage provider should be registered", registry.hasProvider("file"));
         StorageProvider fileProvider = registry.provider(StoragePath.of("file:///tmp/test.csv"));
         assertNotNull("File storage provider should be retrievable", fileProvider);
-        assertTrue("File provider should be MockFileStorageProvider", fileProvider instanceof MockFileStorageProvider);
+        assertTrue("File provider should be wrapped with the retry layer", fileProvider instanceof RetryableStorageProvider);
     }
 
     /**

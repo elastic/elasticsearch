@@ -182,6 +182,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
                 EsqlTestUtils.TEST_CFG,
                 TEST_FUNCTION_REGISTRY,
                 PromqlFunctionRegistry.INSTANCE,
+                EsqlTestUtils.TEST_ANALYSIS_REGISTRY,
                 indexResolutions(test),
                 Map.of(),
                 emptyPolicyResolution(),

@@ -53,19 +53,21 @@ public final class FlattenedFieldArrayContext extends FieldArrayContext {
 
     @Override
     public void addToLuceneDocument(DocumentParserContext context) throws IOException {
-        for (var entry : offsetsPerField.entrySet()) {
-            String fieldName = entry.getKey();
-            var offsets = entry.getValue();
+        for (var docOffsets : offsetsPerDoc.values()) {
+            for (var entry : docOffsets.entrySet()) {
+                String fieldName = entry.getKey();
+                var offsets = entry.getValue();
 
-            BytesRef encoded = encodeKeyedOffsetsArray(fieldName, offsets);
+                BytesRef encoded = encodeKeyedOffsetsArray(fieldName, offsets);
 
-            if (encoded != null) {
-                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-                    context.doc(),
-                    offsetsFieldName,
-                    encoded,
-                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-                );
+                if (encoded != null) {
+                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                        context.doc(),
+                        offsetsFieldName,
+                        encoded,
+                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                    );
+                }
             }
         }
     }

@@ -35,7 +35,6 @@ module org.elasticsearch.inference {
     requires org.elasticsearch.logging;
     requires org.elasticsearch.sslconfig;
     requires org.apache.commons.text;
-    requires org.apache.commons.lang3;
     requires software.amazon.awssdk.services.sagemakerruntime;
     requires com.azure.identity;
     requires com.azure.core;

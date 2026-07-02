@@ -303,6 +303,30 @@ POST /_query
 % TEST[setup:library]
 % TEST[skip:This can output a warning, and asciidoc doesn't support allowed_warnings]
 
+### Enabling query approximation [esql-approximation-param]
+
+```{applies_to}
+stack: preview 9.4, ga 9.5
+serverless: ga
+```
+
+Use the `approximation` parameter to enable [fast approximation for `STATS` queries](esql-query-approximation.md).
+If not specified, defaults to `false`.
+
+For example:
+```console
+POST /_query
+{
+  "approximation": true,
+  "query": """
+    FROM web_traffic
+    | STATS total_hits = COUNT(), avg_load_time = AVG(page_load_ms)
+  """
+}
+```
+
+For more advanced settings, use a [query approximation settings](commands/set.md#esql-approximation) object.
+
 ## Pass parameters to a query [esql-rest-params]
 
 Instead of embedding values directly in a query string, you can use parameters to separate the query logic from its data. This approach prevents injection attacks when queries include user input and makes queries reusable with different values.

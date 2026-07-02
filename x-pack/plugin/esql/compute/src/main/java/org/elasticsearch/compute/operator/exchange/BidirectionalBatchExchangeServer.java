@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ResponseHeadersCollector;
@@ -326,9 +327,15 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 serverToClientId
             );
             try {
-                BatchExchangeStatusResponse response = failure == null
-                    ? new BatchExchangeStatusResponse()
-                    : new BatchExchangeStatusResponse(failure);
+                BatchExchangeStatusResponse response;
+                if (failure == null) {
+                    long bytesRead = batchDriver != null
+                        ? DriverCompletionInfo.excludingProfiles(List.of(batchDriver), 0L).bytesRead()
+                        : 0L;
+                    response = new BatchExchangeStatusResponse(bytesRead);
+                } else {
+                    response = new BatchExchangeStatusResponse(failure);
+                }
                 listener.onResponse(response);
                 // Clear the listener after sending response to prevent duplicate replies
                 batchExchangeStatusListener = null;

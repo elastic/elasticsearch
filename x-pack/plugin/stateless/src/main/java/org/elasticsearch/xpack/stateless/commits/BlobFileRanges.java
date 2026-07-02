@@ -22,6 +22,7 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.unmodifiableNavigableMap;
 
@@ -264,5 +265,9 @@ public class BlobFileRanges implements Writeable {
     // for tests only
     public @Nullable Long locationOfFirstReplicatedContents() {
         return replicatedRanges.isEmpty() ? null : replicatedRanges.firstEntry().getValue().copy;
+    }
+
+    public void forEachReplicatedRange(BiConsumer<Long, Short> consumer) {
+        replicatedRanges.forEach((position, replicated) -> consumer.accept(replicated.copy(), replicated.length()));
     }
 }

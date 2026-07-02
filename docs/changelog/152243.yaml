@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 152243
+summary: "[DiskBBQ] Fix a bug where we might incorrectly assign to centroid 0"
+type: bug

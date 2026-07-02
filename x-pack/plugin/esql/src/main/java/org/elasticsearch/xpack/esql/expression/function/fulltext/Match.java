@@ -418,11 +418,24 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     @Override
     protected boolean isRuntimeSearch() {
-        return EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled()
-            && configuration.pragmas().runtimeLexicalSearch()
-            && (fieldAsFieldAttribute() == null
-                || (fieldAsFieldAttribute().field() instanceof FunctionEsField functionEsField
-                    && functionEsField.functionConfig().function() == BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD));
+        if (false == EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled()) {
+            // Runtime search is disabled.
+            return false;
+        }
+        if (false == configuration.pragmas().runtimeLexicalSearch()) {
+            // Runtime search is disabled.
+            return false;
+        }
+        if (fieldAsFieldAttribute() == null) {
+            // This *isn't* a field in the index OR a pushed block loader
+            return true;
+        }
+        if (fieldAsFieldAttribute().field() instanceof FunctionEsField functionEsField) {
+            // This is a pushed block loader.
+            // We can only support FIELD_EXTRACT(flattened, "constant"), here named EXTRACT_FLATTENED_SUBFIELD
+            return functionEsField.functionConfig().function() == BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD;
+        }
+        return false;
     }
 
     @Override

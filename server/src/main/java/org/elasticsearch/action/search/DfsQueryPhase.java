@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This search phase fans out to every shards to execute a distributed search with a pre-collected distributed frequencies for all
@@ -130,8 +131,9 @@ class DfsQueryPhase extends SearchPhase {
     }
 
     private void onFinish(AggregatedDfs dfs) {
-        context.getSearchResponseMetrics()
-            .recordSearchPhaseDuration(getName(), System.nanoTime() - phaseStartTimeInNanos, context.getSearchRequestAttributes());
+        long durationNanos = System.nanoTime() - phaseStartTimeInNanos;
+        context.getSearchResponseMetrics().recordSearchPhaseDuration(getName(), durationNanos, context.getSearchRequestAttributes());
+        context.getCpsMetrics().ifPresent(c -> c.trackSearchPhaseTookTime(getName(), TimeUnit.NANOSECONDS.toMillis(durationNanos)));
         context.executeNextPhase(NAME, () -> nextPhase(dfs));
     }
 

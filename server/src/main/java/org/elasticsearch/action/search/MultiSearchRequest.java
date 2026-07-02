@@ -20,11 +20,9 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.SliceIndexing;
-import org.elasticsearch.rest.action.search.SearchParamsParser;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -236,7 +234,6 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
     ) throws IOException {
         int from = 0;
         byte marker = xContent.bulkSeparator();
-        boolean warnedMrtForCps = false;
         final boolean topLevelFromSlice = routingOrSlice != null && routingOrSlice.fromSlice();
         final boolean topLevelHasRouting = routingOrSlice != null
             && routingOrSlice.fromSlice() == false
@@ -260,8 +257,8 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
             }
             /*
              * This `ccsMinimizeRoundtrips` refers to the value specified as the query parameter and is extracted in
-             * `RestMultiSearchAction#parseMultiLineRequest()`. If in a Cross Project Search environment, it is
-             * guaranteed to be `true`. Otherwise, its value is whatever that the user is provided.
+             * `RestMultiSearchAction#parseMultiLineRequest()`. In a Cross Project Search environment, this defaults
+             * to `true` only when omitted.
              */
             if (ccsMinimizeRoundtrips != null) {
                 searchRequest.setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
@@ -299,11 +296,7 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
                         } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
                             searchRequest.searchType(nodeStringValue(value, null));
                         } else if ("ccs_minimize_roundtrips".equals(entry.getKey()) || "ccsMinimizeRoundtrips".equals(entry.getKey())) {
-                            searchRequest.setCcsMinimizeRoundtrips(crossProjectEnabled.orElse(false) || nodeBooleanValue(value));
-                            if (crossProjectEnabled.orElse(false) && warnedMrtForCps == false) {
-                                HeaderWarning.addWarning(SearchParamsParser.MRT_SET_IN_CPS_WARN);
-                                warnedMrtForCps = true;
-                            }
+                            searchRequest.setCcsMinimizeRoundtrips(nodeBooleanValue(value));
                         } else if ("request_cache".equals(entry.getKey()) || "requestCache".equals(entry.getKey())) {
                             searchRequest.requestCache(nodeBooleanValue(value, entry.getKey()));
                         } else if ("preference".equals(entry.getKey())) {

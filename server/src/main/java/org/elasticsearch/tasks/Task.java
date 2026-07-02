@@ -70,6 +70,13 @@ public class Task implements Traceable {
     public static final String TRACE_START_TIME = "trace.starttime";
 
     /**
+     * Signifies the time at which a particular request arrived. You can subtract the "current" time
+     * at any point to figure out how much time was spent at a particular stage, say, in the auth
+     * code, for example.
+     */
+    public static final String REQUEST_ARRIVAL_NANOS = "request_arrival_nanos";
+
+    /**
      * Used internally to pass the apm trace context between the nodes
      */
     public static final String APM_TRACE_CONTEXT = "apm.local.context";

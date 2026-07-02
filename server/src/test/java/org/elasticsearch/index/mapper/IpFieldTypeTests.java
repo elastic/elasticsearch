@@ -18,7 +18,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
 import org.elasticsearch.script.ScriptCompiler;
 
@@ -75,8 +74,6 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             false,
             true,
             false,
-            false,
-            IndexVersion.current(),
             null
         );
 
@@ -132,8 +129,6 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             false,
-            false,
-            IndexVersion.current(),
             null
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("::1", MOCK_CONTEXT));
@@ -371,8 +366,6 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             false,
-            false,
-            IndexVersion.current(),
             null
         );
         IllegalArgumentException e = expectThrows(

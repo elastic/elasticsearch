@@ -147,8 +147,8 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         // CRUD actions can be constructed — esql couples the datasources feature to the encryption
         // feature, so a bound service is required wherever esql runs.
         return CollectionUtils.appendToCopy(
-            CollectionUtils.appendToCopy(super.nodePlugins(), EsqlPluginWithEnterpriseOrTrialLicense.class),
-            TestEncryptionServicePlugin.class
+            CollectionUtils.appendToCopy(super.nodePlugins(), TestEncryptionServicePlugin.class),
+            EsqlPluginWithEnterpriseOrTrialLicense.class
         );
     }
 

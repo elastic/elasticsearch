@@ -62,14 +62,15 @@ final class FileSourceFactory implements ExternalSourceFactory {
     static final Set<String> COORDINATOR_KEYS;
 
     /**
-     * Coordinator keys deliberately NOT exposed as dataset settings: the {@link #CONFIG_FORMAT} and
-     * {@link FormatNameResolver#CONFIG_READER} overrides remain EXTERNAL-only development knobs (a
-     * dataset implies its format from the registered resource's extension). Pinned against
-     * {@link #COORDINATOR_KEYS} and the dataset key set by {@code FileSourceFactoryValidationTests}
-     * so neither can drift: any new coordinator key must either be added to the dataset vocabulary or
-     * explicitly listed here.
+     * Coordinator keys deliberately NOT exposed as dataset settings: the
+     * {@link FormatNameResolver#CONFIG_READER} override remains an EXTERNAL-only development knob
+     * (a reader alias selects between interchangeable readers for one format). {@link #CONFIG_FORMAT}
+     * is a first-class dataset setting and is therefore part of the dataset vocabulary, not listed
+     * here. Pinned against {@link #COORDINATOR_KEYS} and the dataset key set by
+     * {@code FileSourceFactoryValidationTests} so neither can drift: any new coordinator key must
+     * either be added to the dataset vocabulary or explicitly listed here.
      */
-    static final Set<String> EXTERNAL_ONLY_KEYS = Set.of(CONFIG_FORMAT, FormatNameResolver.CONFIG_READER);
+    static final Set<String> EXTERNAL_ONLY_KEYS = Set.of(FormatNameResolver.CONFIG_READER);
 
     static {
         Set<String> keys = new HashSet<>();
@@ -183,6 +184,40 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 return true;
             }
             return false;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    @Override
+    public boolean canHandle(String location, Map<String, Object> config) {
+        // The path-only form already claims any resource whose extension maps to a known format.
+        if (canHandle(location)) {
+            return true;
+        }
+        // Otherwise the resource carries no extension to infer a format from (an extensionless object, a
+        // bare prefix, or an authority). An explicit `format` (or `reader` alias) in the config is
+        // authoritative: it names the reader directly, so detection is moot and we claim the resource
+        // regardless of its object name — matching resolveReader, which honors an explicit format
+        // unconditionally. `auto`/absent leave `format` null here and stay on the extension-based
+        // path-only form above.
+        if (location == null || config == null || config.isEmpty()) {
+            return false;
+        }
+        try {
+            StoragePath path = StoragePath.of(location);
+            if (storageRegistry.hasProvider(path.scheme()) == false) {
+                return false;
+            }
+            // Reject a location that names nothing to read — neither an authority nor a path (e.g. "s3://").
+            // A file:// URI has an empty authority but a real absolute path, so it is not rejected here.
+            boolean noHost = path.host() == null || path.host().isEmpty();
+            boolean noPath = path.path() == null || path.path().isEmpty();
+            if (noHost && noPath) {
+                return false;
+            }
+            String format = FormatNameResolver.resolve(config, "");
+            return format != null && formatRegistry.hasFormat(format);
         } catch (IllegalArgumentException e) {
             return false;
         }

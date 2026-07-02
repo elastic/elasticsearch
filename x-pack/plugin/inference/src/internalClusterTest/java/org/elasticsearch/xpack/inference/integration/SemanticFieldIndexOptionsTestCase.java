@@ -274,6 +274,13 @@ public abstract class SemanticFieldIndexOptionsTestCase extends ESIntegTestCase 
         assertLicense(License.LicenseType.BASIC);
     }
 
+    /**
+     * Default {@code index_options} can only be resolved once the inference endpoint exists. Before the
+     * endpoint is created, {@code index_options} serializes as an explicit {@code null} under
+     * {@code include_defaults}. Once a float-model endpoint is created, {@code include_defaults=true}
+     * resolves the defaults and applies the {@code bfloat16} element-type default, while
+     * {@code include_defaults=false} omits {@code index_options} entirely.
+     */
     public void testGetDefaultIndexOptionsAppliesBfloat16ElementType() throws Exception {
         final String inferenceId = randomIdentifier();
         final String inferenceFieldName = "inference_field";
@@ -309,6 +316,12 @@ public abstract class SemanticFieldIndexOptionsTestCase extends ESIntegTestCase 
         assertThat(actualFieldMappings, equalTo(expectedFieldMappingWithoutDefaults));
     }
 
+    /**
+     * The {@code bfloat16} element-type default is layered on top of a user-specified vector index type.
+     * With a float model and an explicit {@code int4_hnsw} index type (but no explicit element type),
+     * {@code include_defaults=false} serializes only the user's index options, and
+     * {@code include_defaults=true} additionally serializes the {@code bfloat16} element-type default.
+     */
     public void testSerializeDefaultToBfloat16WithExplicitVectorIndexType() throws Exception {
         final String inferenceId = randomIdentifier();
         final String inferenceFieldName = "inference_field";
@@ -345,6 +358,12 @@ public abstract class SemanticFieldIndexOptionsTestCase extends ESIntegTestCase 
         assertThat(actualFieldMappings, equalTo(expectedFieldMappingWithDefaults));
     }
 
+    /**
+     * No element-type default is added when the model already produces {@code bfloat16}. With no
+     * user-specified index options, {@code element_type} is excluded from the serialized default
+     * {@code index_options} even under {@code include_defaults=true}, because there is no
+     * float-to-bfloat16 defaulting to apply.
+     */
     public void testElementTypeNotDefaultedToBfloat16WhenModelIsBfloat16() throws Exception {
         final String inferenceId = randomIdentifier();
         final String inferenceFieldName = "inference_field";
@@ -358,6 +377,11 @@ public abstract class SemanticFieldIndexOptionsTestCase extends ESIntegTestCase 
         assertThat(actualFieldMappings, equalTo(expectedFieldMapping));
     }
 
+    /**
+     * An explicit user element type is never overwritten by the default. With a float model that
+     * would otherwise default to {@code bfloat16}, a user-specified {@code element_type=float} is
+     * preserved unchanged for both {@code include_defaults=false} and {@code include_defaults=true}.
+     */
     public void testExplicitElementTypePreservedOverBfloat16Default() throws Exception {
         final String inferenceId = randomIdentifier();
         final String inferenceFieldName = "inference_field";

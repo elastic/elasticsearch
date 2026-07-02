@@ -13,11 +13,11 @@ import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class PreconditionerTests extends LuceneTestCase {
+public class PreconditionerTests extends ESTestCase {
     public void testRandomProviderConfigurations() throws IOException {
         int dim = random().nextInt(128, 1024);
 
@@ -66,5 +66,37 @@ public class PreconditionerTests extends LuceneTestCase {
         IndexOutput output = new ByteBuffersIndexOutput(byteBuffersDataOutput, "test", "test");
         preconditioner.write(output);
         Preconditioner.read(new ByteBuffersIndexInput(byteBuffersDataOutput.toDataInput(), "test"));
+    }
+
+    /**
+     * Verifies that the byte applyTransform path produces identical results to manually
+     * widening bytes to float and calling the float applyTransform path.
+     * Exercises both single-block (matrixVectorMultiplyBytes) and multi-block (applyMultiBlock
+     * with lambda) paths via randomized blockDim.
+     */
+    public void testByteFloatEquivalency() {
+        int dim = random().nextInt(128, 1024);
+        int blockDim = random().nextInt(8, dim);
+
+        Preconditioner preconditioner = Preconditioner.createPreconditioner(dim, blockDim);
+
+        byte[] byteVector = new byte[dim];
+        random().nextBytes(byteVector);
+
+        // Path A: byte applyTransform (uses matrixVectorMultiplyBytes or applyMultiBlock with byte lambda)
+        float[] byteOut = new float[dim];
+        preconditioner.applyTransform(byteVector, byteOut);
+
+        // Path B: manually widen bytes to float, then float applyTransform
+        float[] floatVector = new float[dim];
+        for (int i = 0; i < dim; i++) {
+            floatVector[i] = byteVector[i];
+        }
+        float[] floatOut = new float[dim];
+        preconditioner.applyTransform(floatVector, floatOut);
+
+        // Both paths must produce identical output — the arithmetic is the same,
+        // only the source element access differs.
+        assertArrayEquals(floatOut, byteOut, 0f);
     }
 }

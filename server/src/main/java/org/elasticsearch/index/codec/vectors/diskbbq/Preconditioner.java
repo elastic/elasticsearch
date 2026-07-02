@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.function.IntToDoubleFunction;
 
 // TODO: apply to formats other than ESNextDiskBBQVectorsFormat
 // TODO: instead of manually having to indicate preconditioning add the ability to decide when to use it given the data on the segment
@@ -72,7 +73,7 @@ public class Preconditioner {
      * Shared multi-block rotation loop. Extracts input elements via {@code elementAt} to support
      * both float[] and byte[] source vectors.
      */
-    private void applyMultiBlock(java.util.function.IntToDoubleFunction elementAt, float[] out) {
+    private void applyMultiBlock(IntToDoubleFunction elementAt, float[] out) {
         int blockIdx = 0;
         float[] x = new float[blockDim];
         float[] blockOut = new float[blockDim];

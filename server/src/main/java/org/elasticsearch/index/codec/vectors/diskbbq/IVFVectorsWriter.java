@@ -810,10 +810,12 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
                 if (wroteBytes
                     && supportsByteVectorClustering()
                     && fieldInfo.getVectorSimilarityFunction() != VectorSimilarityFunction.COSINE) {
-                    // Byte path: cluster with ClusteringByteVectorValues, write byte centroids to temp file
+                    // Byte path: cluster with ClusteringByteVectorValues, write byte centroids to temp file.
+                    // Clone the IndexInput to avoid sharing seek state with floatVectorValues, which is
+                    // accessed later in buildAndWritePostingsLists.
                     ClusteringByteVectorValues byteClusterValues = KMeansByteVectorValues.build(
-                        vectors,
-                        docs,
+                        vectors.clone(),
+                        docs != null ? docs.clone() : null,
                         numVectors,
                         fieldInfo.getVectorDimension()
                     );

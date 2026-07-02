@@ -240,9 +240,16 @@ public class WorkerBulkByPaginatedSearchTaskState implements SuccessfullyProcess
         }
     }
 
+    /**
+     * Calculates the remaining throttle wait for the previous bulk batch. The target batch time is based on the batch size
+     * and the current requests-per-second limit, then reduced by the elapsed time since the batch started. Callers that wait
+     * for a new scroll or PIT response should pass the response arrival time as the baseline so that search response wait time
+     * does not reduce the next throttle delay.
+     */
     public TimeValue throttleWaitTime(long lastBatchStartTimeNS, long nowNS, int lastBatchSize) {
-        long earliestNextBatchStartTime = nowNS + (long) perfectlyThrottledBatchTime(lastBatchSize);
-        long waitTime = min(MAX_THROTTLE_WAIT_TIME.nanos(), max(0, earliestNextBatchStartTime - System.nanoTime()));
+        long targetBatchTime = round((double) perfectlyThrottledBatchTime(lastBatchSize));
+        long elapsedBatchTime = max(0, nowNS - lastBatchStartTimeNS);
+        long waitTime = min(MAX_THROTTLE_WAIT_TIME.nanos(), max(0, targetBatchTime - elapsedBatchTime));
         return timeValueNanos(waitTime);
     }
 

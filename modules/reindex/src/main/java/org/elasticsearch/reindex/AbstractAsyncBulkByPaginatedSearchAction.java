@@ -516,9 +516,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     void onPaginatedSearchResponse(ScrollConsumableHitsResponse asyncResponse) {
-        // TODO - https://github.com/elastic/elasticsearch/issues/150875
-        // lastBatchStartTime is essentially unused (see WorkerBulkByPaginatedSearchTaskState.throttleWaitTime).
-        // Leaving it for now, since it seems like a bug?
+        // Use the scroll/PIT response arrival time as the next throttle baseline so time spent waiting for the search response does not
+        // count as elapsed bulk processing time.
         onPaginatedSearchResponse(System.nanoTime(), this.lastBatchSize, asyncResponse);
     }
 
@@ -764,7 +763,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
 
         if (asyncResponse.hasRemainingHits()) {
             // NB this means the next bulk task will be traced as a child of the current one, but it should really be a sibling
-            onPaginatedSearchResponse(asyncResponse);
+            onPaginatedSearchResponse(thisBatchStartTimeNS, batchSize, asyncResponse);
             return;
         }
         if (task.isRelocationRequested()) {

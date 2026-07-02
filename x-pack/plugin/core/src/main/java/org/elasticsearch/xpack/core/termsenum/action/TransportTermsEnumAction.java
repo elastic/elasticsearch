@@ -10,14 +10,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -51,6 +54,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
@@ -80,12 +85,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
 public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRequest, TermsEnumResponse> {
@@ -100,6 +107,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
     private final ScriptService scriptService;
     private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     final String transportShardAction;
     private final Executor coordinationExecutor;
@@ -119,7 +127,8 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         XPackLicenseState licenseState,
         Settings settings,
         ProjectResolver projectResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         super(
             TermsEnumAction.NAME,
@@ -134,6 +143,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         this.transportService = transportService;
         this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.crossProjectModeDecider = crossProjectModeDecider;
         this.transportShardAction = actionName + "[s]";
         this.coordinationExecutor = clusterService.threadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
         this.shardExecutor = clusterService.threadPool().executor(ThreadPool.Names.AUTO_COMPLETE);
@@ -304,7 +314,16 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         }
 
         List<String> ans = termsList.size() == 1 ? termsList.get(0) : mergeResponses(termsList, request.size());
-        return new TermsEnumResponse(ans, (failedShards + successfulShards), successfulShards, failedShards, shardFailures, complete);
+        ResolvedIndexExpressions resolvedLocally = request.includeResolvedTo() ? request.getResolvedIndexExpressions() : null;
+        return new TermsEnumResponse(
+            ans,
+            (failedShards + successfulShards),
+            successfulShards,
+            failedShards,
+            shardFailures,
+            complete,
+            resolvedLocally
+        );
     }
 
     private static List<String> mergeResponses(List<List<String>> termsList, int size) {
@@ -518,6 +537,9 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         private final Map<String, Set<ShardId>> nodeBundles;
         private final OriginalIndices localIndices;
         private final Map<String, OriginalIndices> remoteClusterIndices;
+        private final boolean resolveCrossProject;
+        private final Map<String, Exception> remoteExceptions = new ConcurrentHashMap<>();
+        private final Map<String, ResolvedIndexExpressions> resolvedRemotely = new ConcurrentHashMap<>();
 
         protected AsyncBroadcastAction(Task task, TermsEnumRequest request, ActionListener<TermsEnumResponse> listener) {
             this.task = task;
@@ -531,7 +553,11 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 throw blockException;
             }
 
-            this.remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices());
+            this.resolveCrossProject = crossProjectModeDecider.resolvesCrossProject(request);
+            IndicesOptions groupingOptions = resolveCrossProject
+                ? indicesOptionsForCrossProjectFanout(request.indicesOptions())
+                : request.indicesOptions();
+            this.remoteClusterIndices = remoteClusterService.groupIndices(groupingOptions, request.indices());
             this.localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
             // update to concrete indices
@@ -642,7 +668,9 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
         void performRemoteClusterOperation(final String clusterAlias, final OriginalIndices remoteIndices, final int opsIndex) {
             try {
-                TermsEnumRequest req = new TermsEnumRequest(request).indices(remoteIndices.indices());
+                TermsEnumRequest req = new TermsEnumRequest(request).indices(remoteIndices.indices())
+                    .indicesOptions(remoteIndices.indicesOptions());
+                req.includeResolvedTo(request.includeResolvedTo() || resolveCrossProject);
 
                 var remoteClient = remoteClusterService.getRemoteClusterClient(
                     clusterAlias,
@@ -665,7 +693,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     }
                 });
             } catch (Exception exc) {
-                onRemoteClusterFailure(clusterAlias, opsIndex, null);
+                onRemoteClusterFailure(clusterAlias, opsIndex, exc);
             }
         }
 
@@ -682,6 +710,9 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         private void onRemoteClusterResponse(String clusterAlias, int opsIndex, RemoteClusterTermsEnumResponse response) {
             logger.trace("received response for cluster {}", clusterAlias);
             atomicResponses.set(opsIndex, response);
+            if (resolveCrossProject && response.resp().getResolvedLocally() != null) {
+                resolvedRemotely.put(clusterAlias, response.resp().getResolvedLocally());
+            }
             if (expectedOps == counterOps.incrementAndGet()) {
                 finishHim(true);
             } else {
@@ -699,7 +730,9 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
         private void onRemoteClusterFailure(String clusterAlias, int opsIndex, Exception exc) {
             logger.trace("received failure {} for cluster {}", exc, clusterAlias);
-            // TODO: Handle exceptions in the atomic response array
+            if (exc != null && resolveCrossProject) {
+                remoteExceptions.put(clusterAlias, exc);
+            }
             if (expectedOps == counterOps.incrementAndGet()) {
                 finishHim(true);
             }
@@ -711,6 +744,22 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 return;
             }
             try {
+                if (resolveCrossProject) {
+                    ResolvedIndexExpressions localResolved = request.getResolvedIndexExpressions();
+                    if (localResolved != null) {
+                        ElasticsearchException validationEx = CrossProjectIndexResolutionValidator.validate(
+                            request.indicesOptions(),
+                            request.getProjectRouting(),
+                            localResolved,
+                            resolvedRemotely,
+                            remoteExceptions
+                        );
+                        if (validationEx != null) {
+                            listener.onFailure(validationEx);
+                            return;
+                        }
+                    }
+                }
                 listener.onResponse(mergeResponses(request, atomicResponses, complete, nodeBundles));
             } catch (Exception e) {
                 listener.onFailure(e);

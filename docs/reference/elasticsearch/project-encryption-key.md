@@ -9,25 +9,21 @@ products:
 
 # Project encryption key [project-encryption-key]
 
-:::{tip}
-**Draft for review.** This page was generated from PR history and source code (#145990, #147418, #148203, #148568, #149668, #150466, #151405, #151609, #152290) because no existing docs covered this feature. Before publishing, confirm with the feature owner: the target GA version (the feature flag was only removed on `main` on 2026-06-26), whether `POST /_encryption/_reset` should be documented as a public API given it has no `rest-api-spec` entry, and whether the settings below belong in [Security settings](/reference/elasticsearch/configuration-reference/security-settings.md) instead of a standalone page.
-:::
-
 Some {{es}} features need to store sensitive values, such as credentials for external data sources, in cluster state. The **project encryption key** encrypts this data at rest and in transit between nodes, so that secrets are never persisted or replicated in plain text.
 
-{{es}} generates a single, cluster-wide encryption key automatically. Features that need to persist secrets never handle the key directly — they call an internal encryption service that encrypts and decrypts values on their behalf. The key itself is never exposed through any API.
+{{es}} generates a single, cluster-wide encryption key automatically. Features that need to persist secrets never handle the key directly. They call an internal encryption service that encrypts and decrypts values on their behalf. The key itself is never exposed through any API.
 
 The first feature to use this mechanism is [ES|QL data source credentials](docs-content://explore-analyze/query-filter/languages/esql.md). Other features may adopt it over time.
 
 ## How the key works [project-encryption-key-lifecycle]
 
-{{es}} generates the project encryption key automatically, once every node in the cluster supports it, so the key is safe to generate mid rolling-upgrade. The key is stored in cluster state and distributed to every node; it's excluded from cluster state REST responses and from snapshots.
+{{es}} generates the project encryption key automatically and stores it in cluster state, where it's distributed to every node. It's excluded from cluster state REST responses and from snapshots.
 
 Each node keeps a copy of the key in memory. To survive a restart, a node also persists a copy of the key to local disk, protected by a password so it isn't stored in plain text.
 
 ## Set the encryption password [project-encryption-key-password]
 
-To let a node persist the key to disk, configure a password in the {{es}} keystore:
+To let a node persist the key to disk, it needs a password configured in the {{es}} keystore:
 
 `cluster.state.encryption.password.<id>`
 :   A secure setting holding an encryption password, identified by `<id>`.
@@ -35,15 +31,18 @@ To let a node persist the key to disk, configure a password in the {{es}} keysto
 `cluster.state.encryption.active_password_id`
 :   The `<id>` of the password currently used to protect newly written keys.
 
+**On {{ecloud}}, {{ece}}, and {{eck}}**, the control plane supplies this password automatically.
+
+**On self-managed** deployments, the password is normally generated for you: when [security auto-configuration](docs-content://deploy-manage/deploy/self-managed/installing-elasticsearch.md) runs on a node's first start, alongside setting up TLS, it also generates a random password, stores it in the node's keystore as `cluster.state.encryption.password.autoconfigured`, and sets it as the active password ID. You only need to configure a password yourself using [`elasticsearch-keystore`](/reference/elasticsearch/command-line-tools/elasticsearch-keystore.md) if auto-configuration didn't run, for example because it was skipped or the node joined a cluster through a different provisioning path.
+
+### The `required` escape hatch [project-encryption-key-required]
+
 `cluster.state.encryption.required`
 :   Whether a password is required before {{es}} will store secrets using the project encryption key. Defaults to `true`.
 
-On {{ecloud}}, {{ece}}, and {{eck}}, the control plane supplies this password automatically. On self-managed (stateful) deployments, you must set it yourself using [`elasticsearch-keystore`](/reference/elasticsearch/command-line-tools/elasticsearch-keystore.md).
+If no password is configured and `cluster.state.encryption.required` is left at its default (`true`), requests that would store a secret are rejected until a password is available.
 
-If no password is configured:
-
-* With `cluster.state.encryption.required` set to `true` (the default), requests that would store a secret are rejected until a password is configured.
-* If you explicitly set `cluster.state.encryption.required` to `false`, {{es}} stores the secret in plain text instead, and logs a warning.
+Setting `cluster.state.encryption.required` to `false` is **not recommended**: it tells {{es}} to fall back to storing secrets in plain text when no password is configured, and logs a warning each time it does. Only use it for local testing or if you understand and accept that consequence.
 
 ## Automatic key rotation [project-encryption-key-rotation]
 

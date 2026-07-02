@@ -37,6 +37,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.WelfordVariance;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
+import org.elasticsearch.index.codec.vectors.cluster.ClusteringByteVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValuesSlice;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
@@ -753,8 +754,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
 
     @Override
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#closeWhileHandlingException(...)")
-    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues, MergeState mergeState)
-        throws IOException {
+    public CentroidAssignments<float[]> calculateCentroids(
+        FieldInfo fieldInfo,
+        KMeansFloatVectorValues floatVectorValues,
+        MergeState mergeState
+    ) throws IOException {
         // Sliced indices treat each slice as an independent partition that must be clustered on its
         // own. The tiered merge strategy operates on the merged segment as a flat whole, which would
         // silently collapse slice boundaries, so always fall back to the sliced full rebuild here.
@@ -776,9 +780,20 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                     reader = perFieldReader.getFieldReader(fieldInfo.name);
                 }
                 if (reader instanceof IVFVectorsReader<?> ivfReader && mergeState.fieldInfos[i].fieldInfo(fieldInfo.name) != null) {
-                    segmentSizes[i] = ivfReader.getFloatVectorValues(fieldInfo.name).size();
-                    segmentCentroidData[i] = ivfReader.readCentroidData(fieldInfo.name);
-                    segmentCentroidCounts[i] = segmentCentroidData[i] != null ? segmentCentroidData[i].numCentroids() : 0;
+                    // Get segment size — use the appropriate vector values accessor based on encoding
+                    if (fieldInfo.getVectorEncoding() == org.apache.lucene.index.VectorEncoding.BYTE) {
+                        var bvv = ivfReader.getByteVectorValues(fieldInfo.name);
+                        segmentSizes[i] = bvv != null ? bvv.size() : 0;
+                        // Centroid data reading not yet supported for byte fields in the reader;
+                        // will be enabled in a follow-up PR. Skip priors for now.
+                        segmentCentroidData[i] = null;
+                        segmentCentroidCounts[i] = 0;
+                    } else {
+                        var fvv = ivfReader.getFloatVectorValues(fieldInfo.name);
+                        segmentSizes[i] = fvv != null ? fvv.size() : 0;
+                        segmentCentroidData[i] = ivfReader.readCentroidData(fieldInfo.name);
+                        segmentCentroidCounts[i] = segmentCentroidData[i] != null ? segmentCentroidData[i].numCentroids() : 0;
+                    }
                 } else {
                     segmentSizes[i] = 0;
                     segmentCentroidCounts[i] = 0;
@@ -833,7 +848,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             }
 
             // TODO: swap out SOAR for SRAIR when HNSW graphs are used for the centroids
-            return new CentroidAssignments(
+            return new CentroidAssignments<>(
                 fieldInfo.getVectorDimension(),
                 kMeansResult.centroids(),
                 kMeansResult.assignments(),
@@ -846,7 +861,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         }
     }
 
-    private CentroidAssignments calculateCentroidsFullRebuildSliced(
+    private CentroidAssignments<float[]> calculateCentroidsFullRebuildSliced(
         KMeansFloatVectorValues floatVectorValues,
         FieldInfo fieldInfo,
         MergeState mergeState
@@ -918,7 +933,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             logger.debug("final centroid count: {}", merged.centroids().length);
         }
         final CentroidSlices centroidSlices = new CentroidSlices(sliceOffsets, sliceLengths);
-        return new CentroidAssignments(
+        return new CentroidAssignments<>(
             floatVectorValues.dimension(),
             merged.centroids(),
             merged.assignments(),
@@ -979,7 +994,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
      * @throws IOException if an I/O error occurs
      */
     @Override
-    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues) throws IOException {
+    public CentroidAssignments<float[]> calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues)
+        throws IOException {
         if (sliceField != null) {
             // for sliced indexed, we don't cluster the data during flush so we can search our vectors by docId range
             return buildFlatCentroidAssignments(fieldInfo, floatVectorValues);
@@ -990,8 +1006,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             logger.debug("final centroid count: {}", kMeansResult.centroids().length);
         }
 
-        // TODO: swap out SOAR for SRAIR when HNSW graphs are used for the centroids
-        return new CentroidAssignments(
+        return new CentroidAssignments<>(
             fieldInfo.getVectorDimension(),
             kMeansResult.centroids(),
             kMeansResult.assignments(),
@@ -1004,6 +1019,26 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         ClusteringFloatVectorValues floatVectorValues
     ) throws IOException {
         return hierarchicalKMeans.cluster(floatVectorValues, vectorPerCluster);
+    }
+
+    @Override
+    public CentroidAssignments<byte[]> calculateByteCentroids(FieldInfo fieldInfo, ClusteringByteVectorValues byteVectorValues)
+        throws IOException {
+        throw new UnsupportedOperationException("byte vector clustering not yet supported in ESNext format");
+    }
+
+    @Override
+    public CentroidAssignments<byte[]> calculateByteCentroids(
+        FieldInfo fieldInfo,
+        ClusteringByteVectorValues byteVectorValues,
+        MergeState mergeState
+    ) throws IOException {
+        throw new UnsupportedOperationException("byte vector clustering not yet supported in ESNext format");
+    }
+
+    @Override
+    public CentroidSupplier createCentroidSupplier(FieldInfo info, byte[][] centroids, float[] globalCentroid) throws IOException {
+        throw new UnsupportedOperationException("byte centroid supplier not yet supported in ESNext format");
     }
 
     static void writeQuantizedValue(IndexOutput indexOutput, byte[] binaryValue, OptimizedScalarQuantizer.QuantizationResult corrections)

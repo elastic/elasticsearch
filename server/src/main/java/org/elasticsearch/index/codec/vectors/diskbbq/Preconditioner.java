@@ -43,26 +43,72 @@ public class Preconditioner {
         if (blocks.length == 1) {
             matrixVectorMultiply(blocks[0], vector, out);
         } else {
-            int blockIdx = 0;
-            float[] x = new float[blockDim];
-            float[] blockOut = new float[blockDim];
-            for (int j = 0; j < blocks.length; j++) {
-                float[][] block = blocks[j];
-                int blockDim = blocks[j].length;
-                // blockDim is only ever smaller for the tail
-                if (blockDim != this.blockDim) {
-                    x = new float[blockDim];
-                    blockOut = new float[blockDim];
-                }
-                for (int k = 0; k < permutationMatrix[j].length; k++) {
-                    int idx = permutationMatrix[j][k];
-                    x[k] = vector[idx];
-                }
-                // TODO: can be optimized to do all blocks in one pass?
-                matrixVectorMultiply(block, x, blockOut);
-                System.arraycopy(blockOut, 0, out, blockIdx, blockDim);
-                blockIdx += blockDim;
+            applyMultiBlock(i -> vector[i], out);
+        }
+    }
+
+    /**
+     * Applies the preconditioner rotation to a byte vector, converting each byte value [-128, 127]
+     * to the corresponding float before rotation. The result is written to {@code out}.
+     * <p>
+     * This avoids the need for a separate byte-to-float conversion step before preconditioning,
+     * enabling byte vectors to be stored compactly (1 byte/dim) and lazily preconditioned on read.
+     *
+     * @param vector the byte vector to transform
+     * @param out the output float array for the transformed vector
+     */
+    public void applyTransform(byte[] vector, float[] out) {
+        assert vector != null;
+        assert vector.length == blockDim * (blocks.length - 1) + (blocks[blocks.length - 1].length);
+
+        if (blocks.length == 1) {
+            matrixVectorMultiplyBytes(blocks[0], vector, out);
+        } else {
+            applyMultiBlock(i -> (float) vector[i], out);
+        }
+    }
+
+    /**
+     * Shared multi-block rotation loop. Extracts input elements via {@code elementAt} to support
+     * both float[] and byte[] source vectors.
+     */
+    private void applyMultiBlock(java.util.function.IntToDoubleFunction elementAt, float[] out) {
+        int blockIdx = 0;
+        float[] x = new float[blockDim];
+        float[] blockOut = new float[blockDim];
+        for (int j = 0; j < blocks.length; j++) {
+            float[][] block = blocks[j];
+            int blockDim = blocks[j].length;
+            if (blockDim != this.blockDim) {
+                x = new float[blockDim];
+                blockOut = new float[blockDim];
             }
+            for (int k = 0; k < permutationMatrix[j].length; k++) {
+                int idx = permutationMatrix[j][k];
+                x[k] = (float) elementAt.applyAsDouble(idx);
+            }
+            // TODO: can be optimized to do all blocks in one pass?
+            matrixVectorMultiply(block, x, blockOut);
+            System.arraycopy(blockOut, 0, out, blockIdx, blockDim);
+            blockIdx += blockDim;
+        }
+    }
+
+    /**
+     * Matrix-vector multiply where the input vector is byte[], converting each byte to float inline.
+     * Used only for the single-block fast path in {@link #applyTransform(byte[], float[])}.
+     */
+    private static void matrixVectorMultiplyBytes(float[][] m, byte[] x, float[] out) {
+        assert m.length == out.length;
+        assert m.length > 0 && m[0].length == x.length;
+        int dim = out.length;
+        for (int i = 0; i < dim; i++) {
+            float sum = 0;
+            float[] row = m[i];
+            for (int j = 0; j < x.length; j++) {
+                sum += row[j] * x[j];
+            }
+            out[i] = sum;
         }
     }
 

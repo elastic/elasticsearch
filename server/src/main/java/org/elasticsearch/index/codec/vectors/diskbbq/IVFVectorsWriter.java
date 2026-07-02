@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -33,6 +34,8 @@ import org.apache.lucene.util.IORunnable;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.vectors.cluster.ClusteringByteVectorValues;
+import org.elasticsearch.index.codec.vectors.cluster.KMeansByteVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -100,27 +103,45 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public final KnnFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
-        if (fieldInfo.getVectorSimilarityFunction() == VectorSimilarityFunction.COSINE) {
-            throw new IllegalArgumentException("IVF does not support cosine similarity");
-        }
         final FlatFieldVectorsWriter<?> rawVectorDelegate = this.rawVectorDelegate.addField(fieldInfo);
-        if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
-            @SuppressWarnings("unchecked")
-            final FlatFieldVectorsWriter<float[]> floatWriter = (FlatFieldVectorsWriter<float[]>) rawVectorDelegate;
-            fieldWriters.add(new FieldWriter(fieldInfo, floatWriter));
+        if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32) || fieldInfo.getVectorEncoding().equals(VectorEncoding.BYTE)) {
+            fieldWriters.add(new FieldWriter(fieldInfo, rawVectorDelegate));
         } else {
-            // we simply write information that the field is present but we don't do anything with it.
+            // unknown encoding; write meta presence only
             fieldWriters.add(new FieldWriter(fieldInfo, null));
         }
         return rawVectorDelegate;
     }
 
-    public abstract CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues)
+    public abstract CentroidAssignments<float[]> calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues)
         throws IOException;
 
-    public abstract CentroidAssignments calculateCentroids(
+    public abstract CentroidAssignments<float[]> calculateCentroids(
         FieldInfo fieldInfo,
         KMeansFloatVectorValues floatVectorValues,
+        MergeState mergeState
+    ) throws IOException;
+
+    /**
+     * Whether this writer supports native byte vector clustering.
+     * When {@code false}, byte vectors are clustered via the float path (widening byte→float).
+     */
+    protected boolean supportsByteVectorClustering() {
+        return false;
+    }
+
+    /**
+     * Calculates centroids for byte-backed vectors during flush.
+     */
+    public abstract CentroidAssignments<byte[]> calculateByteCentroids(FieldInfo fieldInfo, ClusteringByteVectorValues byteVectorValues)
+        throws IOException;
+
+    /**
+     * Calculates centroids for byte-backed vectors during merge.
+     */
+    public abstract CentroidAssignments<byte[]> calculateByteCentroids(
+        FieldInfo fieldInfo,
+        ClusteringByteVectorValues byteVectorValues,
         MergeState mergeState
     ) throws IOException;
 
@@ -178,6 +199,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     public abstract CentroidSupplier createCentroidSupplier(FieldInfo info, float[][] centroids, float[] globalCentroid) throws IOException;
 
+    public abstract CentroidSupplier createCentroidSupplier(FieldInfo info, byte[][] centroids, float[] globalCentroid) throws IOException;
+
     protected abstract Preconditioner inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig ivfSegmentConfig)
         throws IOException;
 
@@ -221,30 +244,92 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             // write preconditioner subsequently in the centroids file
             Preconditioner preconditioner = createPreconditioner(fieldWriter.fieldInfo().getVectorDimension(), ivfSegmentConfig);
             if (fieldWriter.delegate == null) {
-                // field is not float, we just write meta information
+                // field has unknown encoding; just write meta information
                 writeMeta(fieldWriter.fieldInfo, 0, 0, 0, 0, 0, null, 0, 0, 0, 0, ivfSegmentConfig);
                 continue;
             }
             // build a float vector values with random access
-            KMeansFloatVectorValues floatVectorValues = getKMeansFloatVectorValues(
-                fieldWriter.fieldInfo,
-                fieldWriter.delegate,
-                maxDoc,
-                preconditionVectors(preconditioner, ivfSegmentConfig),
-                sortMap
-            );
-
-            // build centroids
-            final CentroidAssignments centroidAssignments = floatVectorValues.size() > 0
-                && flatVectorThreshold > 0
-                && floatVectorValues.size() <= flatVectorThreshold
-                    ? buildFlatCentroidAssignments(fieldWriter.fieldInfo, floatVectorValues)
-                    : calculateCentroids(fieldWriter.fieldInfo, floatVectorValues);
-            final CentroidSupplier centroidSupplier = createCentroidSupplier(
-                fieldWriter.fieldInfo,
-                centroidAssignments.centroids(),
-                centroidAssignments.globalCentroid()
-            );
+            final KMeansFloatVectorValues floatVectorValues;
+            final CentroidSupplier centroidSupplier;
+            final int[] clusterAssignments;
+            final OverspillAssignments clusterOverspillAssignments;
+            final float[] globalCentroid;
+            if (fieldWriter.fieldInfo.getVectorEncoding().equals(VectorEncoding.BYTE)) {
+                @SuppressWarnings("unchecked")
+                final FlatFieldVectorsWriter<byte[]> byteWriter = (FlatFieldVectorsWriter<byte[]>) fieldWriter.delegate;
+                boolean normalizeCosine = fieldWriter.fieldInfo.getVectorSimilarityFunction() == VectorSimilarityFunction.COSINE;
+                floatVectorValues = getKMeansNativeByteVectorValues(
+                    fieldWriter.fieldInfo,
+                    byteWriter,
+                    maxDoc,
+                    sortMap,
+                    normalizeCosine,
+                    preconditioner
+                );
+                if (supportsByteVectorClustering()
+                    && fieldWriter.fieldInfo.getVectorSimilarityFunction() != VectorSimilarityFunction.COSINE) {
+                    // Build ClusteringByteVectorValues for native byte clustering
+                    final ClusteringByteVectorValues byteVectorValues = getClusteringByteVectorValues(
+                        fieldWriter.fieldInfo,
+                        byteWriter,
+                        maxDoc,
+                        sortMap
+                    );
+                    // build centroids using byte clustering
+                    final CentroidAssignments<byte[]> centroidAssignments = byteVectorValues.size() > 0
+                        && flatVectorThreshold > 0
+                        && byteVectorValues.size() <= flatVectorThreshold
+                            ? buildFlatByteCentroidAssignments(fieldWriter.fieldInfo, byteVectorValues)
+                            : calculateByteCentroids(fieldWriter.fieldInfo, byteVectorValues);
+                    centroidSupplier = createCentroidSupplier(
+                        fieldWriter.fieldInfo,
+                        centroidAssignments.centroids(),
+                        centroidAssignments.globalCentroid()
+                    );
+                    clusterAssignments = centroidAssignments.assignments();
+                    clusterOverspillAssignments = centroidAssignments.overspillAssignments();
+                    globalCentroid = centroidAssignments.globalCentroid();
+                } else {
+                    // Fall back to float-based clustering for byte vectors
+                    final CentroidAssignments<float[]> centroidAssignments = floatVectorValues.size() > 0
+                        && flatVectorThreshold > 0
+                        && floatVectorValues.size() <= flatVectorThreshold
+                            ? buildFlatCentroidAssignments(fieldWriter.fieldInfo, floatVectorValues)
+                            : calculateCentroids(fieldWriter.fieldInfo, floatVectorValues);
+                    centroidSupplier = createCentroidSupplier(
+                        fieldWriter.fieldInfo,
+                        centroidAssignments.centroids(),
+                        centroidAssignments.globalCentroid()
+                    );
+                    clusterAssignments = centroidAssignments.assignments();
+                    clusterOverspillAssignments = centroidAssignments.overspillAssignments();
+                    globalCentroid = centroidAssignments.globalCentroid();
+                }
+            } else {
+                @SuppressWarnings("unchecked")
+                final FlatFieldVectorsWriter<float[]> floatWriter = (FlatFieldVectorsWriter<float[]>) fieldWriter.delegate;
+                floatVectorValues = getKMeansFloatVectorValues(
+                    fieldWriter.fieldInfo,
+                    floatWriter,
+                    maxDoc,
+                    preconditionVectors(preconditioner, ivfSegmentConfig),
+                    sortMap
+                );
+                // build centroids
+                final CentroidAssignments<float[]> centroidAssignments = floatVectorValues.size() > 0
+                    && flatVectorThreshold > 0
+                    && floatVectorValues.size() <= flatVectorThreshold
+                        ? buildFlatCentroidAssignments(fieldWriter.fieldInfo, floatVectorValues)
+                        : calculateCentroids(fieldWriter.fieldInfo, floatVectorValues);
+                centroidSupplier = createCentroidSupplier(
+                    fieldWriter.fieldInfo,
+                    centroidAssignments.centroids(),
+                    centroidAssignments.globalCentroid()
+                );
+                clusterAssignments = centroidAssignments.assignments();
+                clusterOverspillAssignments = centroidAssignments.overspillAssignments();
+                globalCentroid = centroidAssignments.globalCentroid();
+            }
             // write posting lists
             final long postingListOffset = ivfClusters.alignFilePointer(Float.BYTES);
             final CentroidOffsetAndLength centroidOffsetAndLength = buildAndWritePostingsLists(
@@ -253,18 +338,17 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 floatVectorValues,
                 ivfClusters,
                 postingListOffset,
-                centroidAssignments.assignments(),
-                centroidAssignments.overspillAssignments(),
+                clusterAssignments,
+                clusterOverspillAssignments,
                 ivfSegmentConfig
             );
             final long postingListLength = ivfClusters.getFilePointer() - postingListOffset;
             // write centroids
-            final float[] globalCentroid = centroidAssignments.globalCentroid();
             final long centroidOffset = ivfCentroids.alignFilePointer(Float.BYTES);
             writeCentroids(
                 fieldWriter.fieldInfo,
                 centroidSupplier,
-                centroidAssignments.assignments(),
+                clusterAssignments,
                 globalCentroid,
                 centroidOffsetAndLength,
                 ivfCentroids
@@ -337,6 +421,111 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     }
 
     /**
+     * Builds a byte-backed {@link KMeansFloatVectorValues} from a {@link FlatFieldVectorsWriter}
+     * of byte vectors. Keeps the raw byte data, enabling native byte[] quantization via
+     * {@link KMeansFloatVectorValues#byteVectorValue(int)}.
+     * <p>
+     * Byte-to-float conversion happens lazily on {@link KMeansFloatVectorValues#vectorValue(int)} calls.
+     * When {@code normalize} is true (cosine similarity), the converted float vector is L2-normalized.
+     * When a non-null {@code preconditioner} is provided, it is applied lazily during float conversion.
+     */
+    private static KMeansFloatVectorValues getKMeansNativeByteVectorValues(
+        FieldInfo fieldInfo,
+        FlatFieldVectorsWriter<byte[]> fieldVectorsWriter,
+        int maxDoc,
+        Sorter.DocMap sortMap,
+        boolean normalize,
+        Preconditioner preconditioner
+    ) throws IOException {
+        List<byte[]> byteVectors = fieldVectorsWriter.getVectors();
+        if (byteVectors.size() == maxDoc && sortMap == null) {
+            return KMeansFloatVectorValues.buildFromBytes(byteVectors, null, fieldInfo.getVectorDimension(), normalize, preconditioner);
+        } else if (sortMap == null) {
+            final DocIdSetIterator iterator = fieldVectorsWriter.getDocsWithFieldSet().iterator();
+            final int[] docIds = new int[byteVectors.size()];
+            for (int i = 0; i < docIds.length; i++) {
+                docIds[i] = iterator.nextDoc();
+            }
+            assert iterator.nextDoc() == NO_MORE_DOCS;
+            return KMeansFloatVectorValues.buildFromBytes(byteVectors, docIds, fieldInfo.getVectorDimension(), normalize, preconditioner);
+        } else {
+            DocsWithFieldSet newDocsWithField = new DocsWithFieldSet();
+            final int[] ordMap = new int[fieldVectorsWriter.getDocsWithFieldSet().cardinality()];
+            KnnVectorsWriter.mapOldOrdToNewOrd(fieldVectorsWriter.getDocsWithFieldSet(), sortMap, null, ordMap, newDocsWithField);
+            final DocIdSetIterator iterator = newDocsWithField.iterator();
+            final int[] docIds = new int[byteVectors.size()];
+            for (int i = 0; i < docIds.length; i++) {
+                docIds[i] = iterator.nextDoc();
+            }
+            assert iterator.nextDoc() == NO_MORE_DOCS;
+            List<byte[]> orderedVectors = new AbstractList<>() {
+                @Override
+                public int size() {
+                    return byteVectors.size();
+                }
+
+                @Override
+                public byte[] get(int index) {
+                    return byteVectors.get(ordMap[index]);
+                }
+            };
+            return KMeansFloatVectorValues.buildFromBytes(
+                orderedVectors,
+                docIds,
+                fieldInfo.getVectorDimension(),
+                normalize,
+                preconditioner
+            );
+        }
+    }
+
+    /**
+     * Builds a {@link ClusteringByteVectorValues} from a {@link FlatFieldVectorsWriter} of byte vectors.
+     * Used for native byte clustering during flush.
+     */
+    private static ClusteringByteVectorValues getClusteringByteVectorValues(
+        FieldInfo fieldInfo,
+        FlatFieldVectorsWriter<byte[]> fieldVectorsWriter,
+        int maxDoc,
+        Sorter.DocMap sortMap
+    ) throws IOException {
+        List<byte[]> byteVectors = fieldVectorsWriter.getVectors();
+        if (byteVectors.size() == maxDoc && sortMap == null) {
+            return KMeansByteVectorValues.build(byteVectors, null, fieldInfo.getVectorDimension());
+        } else if (sortMap == null) {
+            final DocIdSetIterator iterator = fieldVectorsWriter.getDocsWithFieldSet().iterator();
+            final int[] docIds = new int[byteVectors.size()];
+            for (int i = 0; i < docIds.length; i++) {
+                docIds[i] = iterator.nextDoc();
+            }
+            assert iterator.nextDoc() == NO_MORE_DOCS;
+            return KMeansByteVectorValues.build(byteVectors, docIds, fieldInfo.getVectorDimension());
+        } else {
+            DocsWithFieldSet newDocsWithField = new DocsWithFieldSet();
+            final int[] ordMap = new int[fieldVectorsWriter.getDocsWithFieldSet().cardinality()];
+            KnnVectorsWriter.mapOldOrdToNewOrd(fieldVectorsWriter.getDocsWithFieldSet(), sortMap, null, ordMap, newDocsWithField);
+            final DocIdSetIterator iterator = newDocsWithField.iterator();
+            final int[] docIds = new int[byteVectors.size()];
+            for (int i = 0; i < docIds.length; i++) {
+                docIds[i] = iterator.nextDoc();
+            }
+            assert iterator.nextDoc() == NO_MORE_DOCS;
+            List<byte[]> orderedVectors = new AbstractList<>() {
+                @Override
+                public int size() {
+                    return byteVectors.size();
+                }
+
+                @Override
+                public byte[] get(int index) {
+                    return byteVectors.get(ordMap[index]);
+                }
+            };
+            return KMeansByteVectorValues.build(orderedVectors, docIds, fieldInfo.getVectorDimension());
+        }
+    }
+
+    /**
      * Builds a flat centroid assignment for a small set of vectors.
      * <p>
      * When the number of vectors is below the IVF flush threshold, we do not
@@ -349,7 +538,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
      * @return a {@link CentroidAssignments} instance with one centroid and
      *         all vectors assigned to it
      */
-    protected final CentroidAssignments buildFlatCentroidAssignments(FieldInfo fieldInfo, FloatVectorValues floatVectorValues)
+    protected final CentroidAssignments<float[]> buildFlatCentroidAssignments(FieldInfo fieldInfo, FloatVectorValues floatVectorValues)
         throws IOException {
         int dimension = fieldInfo.getVectorDimension();
         int count = floatVectorValues.size();
@@ -363,10 +552,80 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         for (int d = 0; d < dimension; d++) {
             centroid[d] /= count;
         }
+        // Scale centroid magnitude to match the average magnitude of assigned vectors.
+        VectorSimilarityFunction sim = fieldInfo.getVectorSimilarityFunction();
+        if (sim == VectorSimilarityFunction.COSINE
+            || sim == VectorSimilarityFunction.DOT_PRODUCT
+            || sim == VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT) {
+            double magnitudeSum = 0;
+            for (int i = 0; i < count; i++) {
+                float[] vector = floatVectorValues.vectorValue(i);
+                magnitudeSum += Math.sqrt(ESVectorUtil.dotProduct(vector, vector));
+            }
+            double avgMagnitude = magnitudeSum / count;
+            double centroidNorm = Math.sqrt(ESVectorUtil.dotProduct(centroid, centroid));
+            if (Math.abs(avgMagnitude - centroidNorm) > 1e-8) {
+                if (centroidNorm > 0) {
+                    float scale = (float) (avgMagnitude / centroidNorm);
+                    for (int d = 0; d < dimension; d++) {
+                        centroid[d] *= scale;
+                    }
+                }
+            }
+        }
         // For flat centroid assignments there is a single global centroid and no SOAR (secondary) centroid assignments,
         // so we pass an empty array for soarAssignments.
         int[] assignments = new int[count];
-        return new CentroidAssignments(dimension, new float[][] { centroid }, assignments, new SoarAssignments(new int[0]));
+        return new CentroidAssignments<>(dimension, new float[][] { centroid }, assignments, new SoarAssignments(new int[0]));
+    }
+
+    /**
+     * Builds a flat centroid assignment for a small set of byte vectors.
+     * Computes the centroid by averaging widened byte values and then rounding back to byte.
+     */
+    protected final CentroidAssignments<byte[]> buildFlatByteCentroidAssignments(
+        FieldInfo fieldInfo,
+        ClusteringByteVectorValues byteVectorValues
+    ) throws IOException {
+        int dimension = fieldInfo.getVectorDimension();
+        int count = byteVectorValues.size();
+        // Accumulate in float for precision
+        float[] floatCentroid = new float[dimension];
+        for (int i = 0; i < count; i++) {
+            byte[] vector = byteVectorValues.vectorValue(i);
+            for (int d = 0; d < dimension; d++) {
+                floatCentroid[d] += vector[d];
+            }
+        }
+        for (int d = 0; d < dimension; d++) {
+            floatCentroid[d] /= count;
+        }
+        // Scale centroid magnitude to match the average magnitude of assigned vectors.
+        VectorSimilarityFunction sim = fieldInfo.getVectorSimilarityFunction();
+        if (sim == VectorSimilarityFunction.DOT_PRODUCT || sim == VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT) {
+            double magnitudeSum = 0;
+            for (int i = 0; i < count; i++) {
+                byte[] vector = byteVectorValues.vectorValue(i);
+                magnitudeSum += Math.sqrt(ESVectorUtil.dotProduct(vector, vector));
+            }
+            double avgMagnitude = magnitudeSum / count;
+            double centroidNorm = Math.sqrt(ESVectorUtil.dotProduct(floatCentroid, floatCentroid));
+            if (Math.abs(avgMagnitude - centroidNorm) > 1e-8) {
+                if (centroidNorm > 0) {
+                    float scale = (float) (avgMagnitude / centroidNorm);
+                    for (int d = 0; d < dimension; d++) {
+                        floatCentroid[d] *= scale;
+                    }
+                }
+            }
+        }
+        // Round to byte
+        byte[] byteCentroid = new byte[dimension];
+        for (int d = 0; d < dimension; d++) {
+            byteCentroid[d] = (byte) Math.clamp(Math.round(floatCentroid[d]), -128, 127);
+        }
+        int[] assignments = new int[count];
+        return CentroidAssignments.ofBytes(dimension, new byte[][] { byteCentroid }, assignments, new int[0]);
     }
 
     @Override
@@ -376,7 +635,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         // not used in this base implementation - the float path re-resolves it inside mergeOneFieldIVF and the byte path
         // writes IvfSegmentConfig.NONE below.
         beginIvfFieldMerge(fieldInfo, mergeState);
-        if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
+        if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32) || fieldInfo.getVectorEncoding().equals(VectorEncoding.BYTE)) {
             mergeOneFieldIVF(fieldInfo, mergeState);
         } else {
             // we simply write information that the field is present but we don't do anything with it.
@@ -451,35 +710,65 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         String tempRawVectorsFileName = null;
         String docsFileName = null;
         Preconditioner preconditioner;
+        // Track whether we wrote raw bytes (true) or floats (false) to the temp file
+        final boolean wroteBytes;
+        // For byte fields, track whether cosine normalization is needed for the lazy float conversion
+        final boolean normalizeCosine;
+
         // build a float vector values with random access. In order to do that we dump the vectors to
         // a temporary file and if the segment is not dense, the docs to another file/
         try (
             IndexOutput vectorsOut = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivfvec_", IOContext.DEFAULT)
         ) {
             tempRawVectorsFileName = vectorsOut.getName();
-            FloatVectorValues mergedFloatVectorValues = MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
+
             // TODO: we only want to write this once but we'll wind up doing it for every field with the same dim and blockdim
             preconditioner = inheritPreconditioner(fieldInfo, mergeState, ivfSegmentConfig);
-            mergedFloatVectorValues = preconditionVectors(preconditioner, mergedFloatVectorValues, ivfSegmentConfig);
+            boolean isByteField = fieldInfo.getVectorEncoding().equals(VectorEncoding.BYTE);
+            normalizeCosine = isByteField && fieldInfo.getVectorSimilarityFunction() == VectorSimilarityFunction.COSINE;
 
-            // if the segment is dense, we don't need to do anything with docIds.
-            boolean dense = mergedFloatVectorValues.size() == mergeState.segmentInfo.maxDoc();
-            try (
-                IndexOutput docsOut = dense
-                    ? null
-                    : mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivfdoc_", IOContext.DEFAULT)
-            ) {
-                if (docsOut != null) {
-                    docsFileName = docsOut.getName();
+            final int vectorCount;
+            if (isByteField) {
+                // Write raw bytes (1 byte/dim) — 4x more compact than float path.
+                // Preconditioning (if enabled) is applied lazily when reading from the temp file.
+                ByteVectorValues mergedByteValues = MergedVectorValues.mergeByteVectorValues(fieldInfo, mergeState);
+                boolean dense = mergedByteValues.size() == mergeState.segmentInfo.maxDoc();
+                try (
+                    IndexOutput docsOut = dense
+                        ? null
+                        : mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivfdoc_", IOContext.DEFAULT)
+                ) {
+                    if (docsOut != null) {
+                        docsFileName = docsOut.getName();
+                    }
+                    vectorCount = writeByteVectorValues(fieldInfo, docsOut, vectorsOut, mergedByteValues);
+                    CodecUtil.writeFooter(vectorsOut);
+                    if (docsOut != null) {
+                        CodecUtil.writeFooter(docsOut);
+                    }
                 }
-                // TODO do this better, we shouldn't have to write to a temp file, we should be able to
-                // to just from the merged vector values, the tricky part is the random access.
-                numVectors = writeFloatVectorValues(fieldInfo, docsOut, vectorsOut, mergedFloatVectorValues);
-                CodecUtil.writeFooter(vectorsOut);
-                if (docsOut != null) {
-                    CodecUtil.writeFooter(docsOut);
+                wroteBytes = true;
+            } else {
+                FloatVectorValues mergedFloatVectorValues = MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
+                mergedFloatVectorValues = preconditionVectors(preconditioner, mergedFloatVectorValues, ivfSegmentConfig);
+                boolean dense = mergedFloatVectorValues.size() == mergeState.segmentInfo.maxDoc();
+                try (
+                    IndexOutput docsOut = dense
+                        ? null
+                        : mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivfdoc_", IOContext.DEFAULT)
+                ) {
+                    if (docsOut != null) {
+                        docsFileName = docsOut.getName();
+                    }
+                    vectorCount = writeFloatVectorValues(fieldInfo, docsOut, vectorsOut, mergedFloatVectorValues);
+                    CodecUtil.writeFooter(vectorsOut);
+                    if (docsOut != null) {
+                        CodecUtil.writeFooter(docsOut);
+                    }
                 }
+                wroteBytes = false;
             }
+            numVectors = vectorCount;
         } catch (Throwable t) {
             if (tempRawVectorsFileName != null) {
                 org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
@@ -506,7 +795,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 ? null
                 : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL))
         ) {
-            final KMeansFloatVectorValues floatVectorValues = getKMeansFloatVectorValues(fieldInfo, docs, vectors, numVectors);
+            final KMeansFloatVectorValues floatVectorValues = wroteBytes
+                ? getKMeansFloatVectorValuesFromBytes(fieldInfo, docs, vectors, numVectors, normalizeCosine, preconditioner)
+                : getKMeansFloatVectorValues(fieldInfo, docs, vectors, numVectors);
 
             final long centroidOffset;
             final long centroidLength;
@@ -522,18 +813,42 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             try {
                 centroidTemp = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "civf_", IOContext.DEFAULT);
                 centroidTempName = centroidTemp.getName();
-                CentroidAssignments centroidAssignments = calculateCentroids(fieldInfo, floatVectorValues, mergeState);
-                // write the centroids to a temporary file so we are not holding them on heap
-                final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-                for (float[] centroid : centroidAssignments.centroids()) {
-                    buffer.asFloatBuffer().put(centroid);
-                    centroidTemp.writeBytes(buffer.array(), buffer.array().length);
+                if (wroteBytes
+                    && supportsByteVectorClustering()
+                    && fieldInfo.getVectorSimilarityFunction() != VectorSimilarityFunction.COSINE) {
+                    // Byte path: cluster with ClusteringByteVectorValues, write byte centroids to temp file
+                    ClusteringByteVectorValues byteClusterValues = KMeansByteVectorValues.build(
+                        vectors,
+                        docs,
+                        numVectors,
+                        fieldInfo.getVectorDimension()
+                    );
+                    CentroidAssignments<byte[]> centroidAssignments = calculateByteCentroids(fieldInfo, byteClusterValues, mergeState);
+                    // write byte centroids to temp file (1 byte per dim)
+                    for (byte[] centroid : centroidAssignments.centroids()) {
+                        centroidTemp.writeBytes(centroid, centroid.length);
+                    }
+                    numCentroids = centroidAssignments.numCentroids();
+                    assignments = centroidAssignments.assignments();
+                    calculatedGlobalCentroid = centroidAssignments.globalCentroid();
+                    overspillAssignments = centroidAssignments.overspillAssignments();
+                    centroidSlices = centroidAssignments.centroidSlices();
+                } else {
+                    // Float path: unchanged (also used as fallback for byte vectors when byte clustering not supported)
+                    CentroidAssignments<float[]> centroidAssignments = calculateCentroids(fieldInfo, floatVectorValues, mergeState);
+                    // write float centroids to temp file
+                    final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES)
+                        .order(ByteOrder.LITTLE_ENDIAN);
+                    for (float[] centroid : centroidAssignments.centroids()) {
+                        buffer.asFloatBuffer().put(centroid);
+                        centroidTemp.writeBytes(buffer.array(), buffer.array().length);
+                    }
+                    numCentroids = centroidAssignments.numCentroids();
+                    assignments = centroidAssignments.assignments();
+                    calculatedGlobalCentroid = centroidAssignments.globalCentroid();
+                    overspillAssignments = centroidAssignments.overspillAssignments();
+                    centroidSlices = centroidAssignments.centroidSlices();
                 }
-                numCentroids = centroidAssignments.numCentroids();
-                assignments = centroidAssignments.assignments();
-                calculatedGlobalCentroid = centroidAssignments.globalCentroid();
-                overspillAssignments = centroidAssignments.overspillAssignments();
-                centroidSlices = centroidAssignments.centroidSlices();
             } catch (Throwable t) {
                 if (centroidTempName != null) {
                     IOUtils.closeWhileHandlingException(centroidTemp);
@@ -631,6 +946,22 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         return KMeansFloatVectorValues.build(vectors, docs, numVectors, fieldInfo.getVectorDimension());
     }
 
+    /**
+     * Opens byte-backed temp files as a {@link KMeansFloatVectorValues} that lazily converts
+     * byte vectors to float. When {@code normalize} is true (cosine similarity), each converted
+     * float vector is L2-normalized.
+     */
+    private static KMeansFloatVectorValues getKMeansFloatVectorValuesFromBytes(
+        FieldInfo fieldInfo,
+        IndexInput docs,
+        IndexInput vectors,
+        int numVectors,
+        boolean normalize,
+        Preconditioner preconditioner
+    ) throws IOException {
+        return KMeansFloatVectorValues.buildFromBytes(vectors, docs, numVectors, fieldInfo.getVectorDimension(), normalize, preconditioner);
+    }
+
     private static int writeFloatVectorValues(
         FieldInfo fieldInfo,
         IndexOutput docsOut,
@@ -644,6 +975,29 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             numVectors++;
             buffer.asFloatBuffer().put(floatVectorValues.vectorValue(iterator.index()));
             vectorsOut.writeBytes(buffer.array(), buffer.array().length);
+            if (docsOut != null) {
+                docsOut.writeInt(iterator.docID());
+            }
+        }
+        return numVectors;
+    }
+
+    /**
+     * Writes raw byte vectors (1 byte per dimension) and doc IDs to temporary output streams.
+     * This is 4x more compact than {@link #writeFloatVectorValues} for byte-encoded fields.
+     */
+    private static int writeByteVectorValues(
+        FieldInfo fieldInfo,
+        IndexOutput docsOut,
+        IndexOutput vectorsOut,
+        ByteVectorValues byteVectorValues
+    ) throws IOException {
+        int numVectors = 0;
+        final KnnVectorValues.DocIndexIterator iterator = byteVectorValues.iterator();
+        for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
+            numVectors++;
+            byte[] bytes = byteVectorValues.vectorValue(iterator.index());
+            vectorsOut.writeBytes(bytes, bytes.length);
             if (docsOut != null) {
                 docsOut.writeInt(iterator.docID());
             }
@@ -686,6 +1040,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         return rawVectorDelegate.ramBytesUsed();
     }
 
-    private record FieldWriter(FieldInfo fieldInfo, FlatFieldVectorsWriter<float[]> delegate) {}
+    private record FieldWriter(FieldInfo fieldInfo, FlatFieldVectorsWriter<?> delegate) {}
 
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.core.WelfordVariance;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
+import org.elasticsearch.index.codec.vectors.cluster.ClusteringByteVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
@@ -665,8 +666,11 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues, MergeState mergeState)
-        throws IOException {
+    public CentroidAssignments<float[]> calculateCentroids(
+        FieldInfo fieldInfo,
+        KMeansFloatVectorValues floatVectorValues,
+        MergeState mergeState
+    ) throws IOException {
         // 9.2 indices intentionally do not participate in the tiered merge strategy: the on-disk
         // layout would require a bespoke streaming centroid reader to surface priors, and the
         // payoff (a transitional format that ages out) does not justify the added complexity.
@@ -684,12 +688,13 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
      * @throws IOException if an I/O error occurs
      */
     @Override
-    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues) throws IOException {
+    public CentroidAssignments<float[]> calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues)
+        throws IOException {
         HierarchicalKMeans<float[]> hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
         return calculateCentroids(hierarchicalKMeans, floatVectorValues, fieldInfo);
     }
 
-    private CentroidAssignments calculateCentroids(
+    private CentroidAssignments<float[]> calculateCentroids(
         HierarchicalKMeans<float[]> hierarchicalKMeans,
         KMeansFloatVectorValues floatVectorValues,
         FieldInfo fieldInfo
@@ -701,7 +706,27 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
         int[] assignments = kMeansResult.assignments();
         int[] soarAssignments = kMeansResult.soarAssignments();
-        return new CentroidAssignments(fieldInfo.getVectorDimension(), centroids, assignments, new SoarAssignments(soarAssignments));
+        return new CentroidAssignments<>(fieldInfo.getVectorDimension(), centroids, assignments, new SoarAssignments(soarAssignments));
+    }
+
+    @Override
+    public CentroidAssignments<byte[]> calculateByteCentroids(FieldInfo fieldInfo, ClusteringByteVectorValues byteVectorValues)
+        throws IOException {
+        throw new UnsupportedOperationException("byte vector clustering not supported in ES920 format");
+    }
+
+    @Override
+    public CentroidAssignments<byte[]> calculateByteCentroids(
+        FieldInfo fieldInfo,
+        ClusteringByteVectorValues byteVectorValues,
+        MergeState mergeState
+    ) throws IOException {
+        throw new UnsupportedOperationException("byte vector clustering not supported in ES920 format");
+    }
+
+    @Override
+    public CentroidSupplier createCentroidSupplier(FieldInfo info, byte[][] centroids, float[] globalCentroid) throws IOException {
+        throw new UnsupportedOperationException("byte centroid supplier not supported in ES920 format");
     }
 
     static void writeQuantizedValue(IndexOutput indexOutput, byte[] binaryValue, OptimizedScalarQuantizer.QuantizationResult corrections)

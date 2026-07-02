@@ -112,6 +112,15 @@ public class ExternalSourceResolver {
         CONFIG_DECLARED_ID_PATH
     );
 
+    /**
+     * The subset of {@link #CONFIG_KEYS} that {@code resolve} <b>derives</b> from the dataset's declared mapping and
+     * injects into the query-path config — never user-settable dataset settings. Like {@link #DATASOURCE_CONFIG_KEY}
+     * they are internal envelopes: the user declares {@code mappings} (a {@code path} rename, {@code _id.path}), and the
+     * resolver turns that into these keys. {@code FileSourceFactoryValidationTests} excludes them (with
+     * {@link #DATASOURCE_CONFIG_KEY}) when pinning the user-settable dataset vocabulary against {@code COORDINATOR_KEYS}.
+     */
+    public static final Set<String> DERIVED_CONFIG_KEYS = Set.of(CONFIG_DECLARED_RENAMES, CONFIG_DECLARED_ID_PATH);
+
     private static final int MAX_PARALLEL_METADATA_READS = 16;
 
     private static final String RESOLUTION_CANCELLED_MESSAGE = "ES|QL external source resolution cancelled";

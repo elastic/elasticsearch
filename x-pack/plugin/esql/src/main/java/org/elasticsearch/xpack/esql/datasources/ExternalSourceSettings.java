@@ -116,6 +116,19 @@ public final class ExternalSourceSettings {
         Setting.Property.OperatorDynamic
     );
 
+    /**
+     * Allowlist of local filesystem root paths from which ES|QL {@code file://} external sources are permitted to read.
+     * Mirrors {@code path.repo}: the list <em>is</em> the enable — an empty list (the default) disables local-disk reads
+     * entirely. When non-empty, a {@code file://} path is allowed only if it normalizes to a location under one of the
+     * listed roots; {@code ..}-escapes and anything outside every root are rejected.
+     * <p>
+     * This is a node-scope setting; a node restart is required for changes to take effect.
+     */
+    public static final Setting<List<String>> LOCAL_ALLOWED_PATHS = Setting.stringListSetting(
+        "esql.datasource.local_allowed_paths",
+        Setting.Property.NodeScope
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             MAX_CONNECTIONS,
@@ -123,7 +136,8 @@ public final class ExternalSourceSettings {
             MAX_DISCOVERED_FILES,
             MAX_GLOB_EXPANSION,
             WORKLOAD_IDENTITY_ENABLED,
-            MANAGED_IDENTITY_ENABLED
+            MANAGED_IDENTITY_ENABLED,
+            LOCAL_ALLOWED_PATHS
         );
     }
 }

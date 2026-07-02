@@ -447,44 +447,15 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                 return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new); // just defaults
             }
         });
-        if (indexMode.isStrictColumnar()) {
-            String columnarUnwrapMarker = "_columnar_inner_";
-            coreHandlers.add(new DataSourceHandler() {
-                @Override
-                public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
-                    if (request.fieldName().startsWith(columnarUnwrapMarker)) {
-                        return null;
-                    }
-                    var dataSource = request.dataSource();
-                    return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
-                        var mapping = new HashMap<>(
-                            dataSource.get(
-                                new DataSourceRequest.LeafMappingParametersGenerator(
-                                    dataSource,
-                                    // Delegate to the downstream handler under a new name to avoid self-recursion.
-                                    columnarUnwrapMarker + request.fieldName(),
-                                    request.fieldType(),
-                                    request.eligibleCopyToFields(),
-                                    request.dynamicMapping()
-                                )
-                            ).mappingGenerator().get()
-                        );
-                        // synthetic_source_keep and store are forbidden on strict-columnar indices
-                        mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
-                        mapping.remove("store");
-                        // doc_values cannot be disabled on strict-columnar indices (a disabled field would not be
-                        // reconstructable from doc values), so let it fall back to the (enabled) default.
-                        mapping.remove(FieldMapper.DocValuesParameter.PARAMETER_NAME);
-                        return mapping;
-                    });
-                }
-            });
-        }
+        // DefaultMappingParametersHandler is index-mode aware and never emits a parameter (doc_values, store,
+        // synthetic_source_keep, copy_to, subobjects, dynamic:runtime) that's invalid for a strict-columnar index, so no
+        // stripping/unwrapping is needed here beyond passing the actual indexMode through.
         return DataGeneratorSpecification.builder()
             .withFullyDynamicMapping(false)
             // Disable dynamic mapping and disabled objects
             .withDataSourceHandlers(coreHandlers)
             .withDataSourceHandlers(customHandlers)
+            .withIndexMode(indexMode)
             .build();
     }
 

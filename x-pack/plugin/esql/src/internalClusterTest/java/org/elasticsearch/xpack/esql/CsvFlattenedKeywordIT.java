@@ -1308,7 +1308,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "LESS_THAN:rhs is missing",
         "LESS_THAN_OR_EQUAL:rhs is missing",
         "LIKE:pattern is missing",
-        "MATCH:field is missing",
         "MATCH:query is missing",
         "MATCH_OPERATOR:field is missing",
         "MATCH_OPERATOR:query is missing",

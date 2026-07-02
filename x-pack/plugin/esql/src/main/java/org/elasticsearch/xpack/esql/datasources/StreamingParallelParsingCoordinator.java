@@ -1113,15 +1113,17 @@ public final class StreamingParallelParsingCoordinator {
 
         private ByteArrayStorageObject chunkStorageObject(int chunkIndex, byte[] buffer, int offset, int length) {
             StoragePath path = storageObject != null ? storageObject.path() : StoragePath.of("mem://chunk-" + chunkIndex);
-            Instant mtime = Instant.EPOCH;
+            // Leave the chunk mtime NULL (not Instant.EPOCH) when the source has no reliable last-modified: the
+            // readers gate stats caching on pinnedMtimeMillis >= 0, and EPOCH (0) would PASS that gate and cache
+            // the chunk under a fabricated mtime — risking a stale warm hit if the file later changes. A null
+            // mtime leaves pinnedMtimeMillis at -1, so the chunk's stats are uncacheable (safe-miss). A real
+            // last-modified (including a genuine EPOCH) still flows through and stays cacheable.
+            Instant mtime = null;
             if (storageObject != null) {
                 try {
-                    Instant fileMtime = storageObject.lastModified();
-                    if (fileMtime != null) {
-                        mtime = fileMtime;
-                    }
+                    mtime = storageObject.lastModified();
                 } catch (IOException e) {
-                    // Fall back to EPOCH — chunk stats may be uncacheable without a pinned mtime.
+                    // Fall back to null — the chunk cannot be safely cached without a pinned mtime.
                 }
             }
             return new ByteArrayStorageObject(path, buffer, offset, length, mtime);

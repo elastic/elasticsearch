@@ -319,6 +319,34 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         }
     }
 
+    public void testNullMtimeIsUncacheable() throws Exception {
+        // A source with no reliable last-modified (lastModified() == null) must NOT cache its stats: the reader
+        // keeps pinnedMtimeMillis at -1 and safe-misses. This is the invariant chunkStorageObject in
+        // StreamingParallelParsingCoordinator relies on — it now passes a null mtime rather than a fabricated
+        // Instant.EPOCH, which (being 0, i.e. >= 0) would pass the caching gate and cache the chunk under mtime 0.
+        StorageObject o = memoryObject(asciiCsv(1, 10), null);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .splitStartByte(0)
+            .stats(0, 7, true)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false)
+            ).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        assertNull("a source with no last-modified must be uncacheable (safe-miss)", sink.get(o.path().toString()));
+    }
+
     private List<Map<String, Object>> captureRaw(
         byte[] bytes,
         long baseOffset,
@@ -756,8 +784,11 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
     }
 
     private StorageObject memoryObject(byte[] bytes) {
+        return memoryObject(bytes, Instant.ofEpochMilli(1000L));
+    }
+
+    private StorageObject memoryObject(byte[] bytes, Instant fixedMtime) {
         String uniquePath = "memory://" + UUID.randomUUID() + ".csv";
-        Instant fixedMtime = Instant.ofEpochMilli(1000L);
         return new StorageObject() {
             @Override
             public InputStream newStream() {

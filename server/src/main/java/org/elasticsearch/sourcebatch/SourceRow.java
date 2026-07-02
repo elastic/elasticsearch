@@ -10,7 +10,6 @@
 package org.elasticsearch.sourcebatch;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.eirf.EirfKeyValueReader;
 import org.elasticsearch.xcontent.Text;
 
 /**
@@ -19,7 +18,7 @@ import org.elasticsearch.xcontent.Text;
  *
  * <p>Column indices match the leaf indices of the batch's {@link SourceSchema}: column {@code i}
  * is the leaf at position {@code i}. Columns not present in this row report type
- * {@link org.elasticsearch.eirf.EirfType#ABSENT}.
+ * {@link org.elasticsearch.sourcebatch.SourceValueType#ABSENT}.
  */
 public interface SourceRow {
 
@@ -58,7 +57,7 @@ public interface SourceRow {
 
     BytesRef getBinaryValue(int col);
 
-    EirfKeyValueReader getKeyValue(int col);
+    KeyValueReader getKeyValue(int col);
 
     ArrayReader getArrayValue(int col);
 }

@@ -12,6 +12,7 @@ package org.elasticsearch.eirf;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -448,7 +449,7 @@ public class EirfRowXContentParserTests extends ESTestCase {
                 0,
                 0,
                 'x',
-                EirfType.INT,
+                SourceValueType.INT,
                 42,
                 0,
                 0,
@@ -459,7 +460,7 @@ public class EirfRowXContentParserTests extends ESTestCase {
                 0,
                 0,
                 's',
-                EirfType.STRING,
+                SourceValueType.STRING,
                 2,
                 0,
                 0,

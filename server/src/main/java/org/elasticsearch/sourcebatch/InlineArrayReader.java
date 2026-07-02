@@ -7,10 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.eirf;
+package org.elasticsearch.sourcebatch;
 
 import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.sourcebatch.ArrayReader;
 
 import java.nio.charset.StandardCharsets;
 
@@ -32,7 +31,7 @@ import java.nio.charset.StandardCharsets;
  * and do not advance the cursor. There is no need to call {@code advance()} or consume
  * the value before calling {@code next()} again.
  */
-public final class EirfArrayReader implements ArrayReader {
+public final class InlineArrayReader implements ArrayReader {
 
     private final byte[] data;
     private final int endOffset;
@@ -51,7 +50,7 @@ public final class EirfArrayReader implements ArrayReader {
      * @param length total byte length of the array payload
      * @param fixed true for FIXED_ARRAY format, false for UNION_ARRAY
      */
-    public EirfArrayReader(byte[] data, int offset, int length, boolean fixed) {
+    public InlineArrayReader(byte[] data, int offset, int length, boolean fixed) {
         this.data = data;
         this.endOffset = offset + length;
         this.fixed = fixed;
@@ -59,7 +58,7 @@ public final class EirfArrayReader implements ArrayReader {
             this.fixedType = data[offset];
             this.pos = offset + 1; // past shared type byte
         } else if (fixed) {
-            this.fixedType = EirfType.NULL;
+            this.fixedType = SourceValueType.NULL;
             this.pos = offset;
         } else {
             this.fixedType = 0;
@@ -69,7 +68,7 @@ public final class EirfArrayReader implements ArrayReader {
     }
 
     /** Creates an array reader over the full byte array. */
-    public EirfArrayReader(byte[] data, boolean fixed) {
+    public InlineArrayReader(byte[] data, boolean fixed) {
         this(data, 0, data.length, fixed);
     }
 
@@ -90,7 +89,7 @@ public final class EirfArrayReader implements ArrayReader {
             pos++;
         }
         currentStart = pos;
-        int size = EirfType.elemDataSize(elemType);
+        int size = SourceValueType.elemDataSize(elemType);
         nextStart = size >= 0 ? pos + size : pos + 4 + ByteUtils.readIntLE(data, pos);
         return true;
     }
@@ -102,18 +101,18 @@ public final class EirfArrayReader implements ArrayReader {
 
     @Override
     public boolean isNull() {
-        return elemType == EirfType.NULL;
+        return elemType == SourceValueType.NULL;
     }
 
     @Override
     public boolean booleanValue() {
-        if (elemType == EirfType.TRUE) {
+        if (elemType == SourceValueType.TRUE) {
             return true;
         }
-        if (elemType == EirfType.FALSE) {
+        if (elemType == SourceValueType.FALSE) {
             return false;
         }
-        throw new IllegalStateException("Element is not a boolean, type=" + EirfType.name(elemType));
+        throw new IllegalStateException("Element is not a boolean, type=" + SourceValueType.name(elemType));
     }
 
     @Override
@@ -143,25 +142,25 @@ public final class EirfArrayReader implements ArrayReader {
     }
 
     /**
-     * Creates a child {@link EirfArrayReader} reader over the current compound array element's payload.
+     * Creates a child {@link InlineArrayReader} reader over the current compound array element's payload.
      * The current element must be a UNION_ARRAY or FIXED_ARRAY.
      */
     @Override
-    public EirfArrayReader nestedArray() {
+    public InlineArrayReader nestedArray() {
         int len = ByteUtils.readIntLE(data, currentStart);
         int off = currentStart + 4;
-        boolean isFixed = elemType == EirfType.FIXED_ARRAY;
-        return new EirfArrayReader(data, off, len, isFixed);
+        boolean isFixed = elemType == SourceValueType.FIXED_ARRAY;
+        return new InlineArrayReader(data, off, len, isFixed);
     }
 
     /**
-     * Creates a child {@link EirfKeyValueReader} reader over the current compound element's payload.
+     * Creates a child {@link KeyValueReader} reader over the current compound element's payload.
      * The current element must be of type KEY_VALUE.
      */
     @Override
-    public EirfKeyValueReader nestedKeyValue() {
+    public KeyValueReader nestedKeyValue() {
         int len = ByteUtils.readIntLE(data, currentStart);
         int off = currentStart + 4;
-        return new EirfKeyValueReader(data, off, len);
+        return new KeyValueReader(data, off, len);
     }
 }

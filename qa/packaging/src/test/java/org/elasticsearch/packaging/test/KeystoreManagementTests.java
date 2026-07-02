@@ -226,7 +226,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that we can mount a password-protected keystore to a docker image
      * and provide a password via an environment variable.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/144198")
     public void test40DockerEnvironmentVariablePassword() throws Exception {
         assumeTrue(distribution().isDocker());
 
@@ -247,7 +246,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that we can mount a password-protected keystore to a docker image
      * and provide a password via a file, pointed at from an environment variable.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/144198")
     public void test41DockerEnvironmentVariablePasswordFromFile() throws Exception {
         assumeTrue(distribution().isDocker());
 
@@ -283,7 +281,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that if we provide the wrong password for a mounted and password-protected
      * keystore, Elasticsearch doesn't start.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/144198")
     public void test42DockerEnvironmentVariableBadPassword() throws Exception {
         assumeTrue(distribution().isDocker());
 
@@ -368,7 +365,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         sh.run("bash " + dockerTemp.resolve("set-pass.sh"));
 
         // copy keystore to temp file to make it available to docker host
-        sh.run("cp -arf" + dockerKeystore + " " + dockerTemp);
+        sh.run("cp -arf " + dockerKeystore + " " + dockerTemp);
         return tempDirectory;
     }
 

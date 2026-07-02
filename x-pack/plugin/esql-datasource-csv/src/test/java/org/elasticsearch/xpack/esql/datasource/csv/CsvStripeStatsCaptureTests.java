@@ -406,6 +406,34 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
     }
 
     /**
+     * Byte-exactness tripwire: a MALFORMED UTF-8 byte (bare Latin-1 {@code 0xE9}) is decoder-replaced with
+     * U+FFFD, which the byte tracker counts at 3 bytes vs 1 actual -- every subsequent record offset is
+     * skewed, so differently-chunked scans would attribute boundary records to different stripes and
+     * interleave into a wrong warm count under a "complete" cover. The emit-time inferred-vs-actual byte
+     * check must SAFE-MISS the whole chunk (commit no stripe fragment) rather than publish mis-attributed
+     * offsets. The multibyte tests above pin that WELL-FORMED multibyte input does not trip it.
+     */
+    public void testMalformedUtf8SafeMissesStripeCapture() throws Exception {
+        byte[] clean = asciiCsv(0, 10);
+        // One more SINGLE-COLUMN row whose value is a bare Latin-1 'é' (0xE9): invalid UTF-8, the decoder
+        // REPLACEs it with U+FFFD. The row parses cleanly (one column, matching the schema) -- this is a
+        // byte-width skew, not a structural drop -- so the tracker over-counts its width (3 vs 1 actual).
+        byte[] badRow = new byte[] { (byte) 0xE9, '\n' };
+        byte[] full = new byte[clean.length + badRow.length];
+        System.arraycopy(clean, 0, full, 0, clean.length);
+        System.arraycopy(badRow, 0, full, clean.length, badRow.length);
+        long stripe = 7; // small grid -> multiple stripes, so a skewed offset would mis-attribute
+
+        List<Map<String, Object>> frags = captureRaw(full, 0, true, true, 1000, stripe);
+        for (Map<String, Object> f : frags) {
+            assertFalse(
+                "malformed UTF-8 must safe-miss stripe capture, not commit skewed offsets: " + f,
+                f.containsKey(ExternalStats.STRIPE_SIZE_KEY)
+            );
+        }
+    }
+
+    /**
      * F1 regression: the FUSED BRACKET path ({@code multi_value_syntax:brackets}) is a SECOND CSV page-builder
      * ({@code convertLinesToPage}) alongside {@code convertRowsToPage}. When {@code _rowPosition} is projected it
      * tracks per-record byte offsets, so on a row drop its emitted stripe stats must stay byte-aligned. Stripe

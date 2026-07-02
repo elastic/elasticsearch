@@ -2209,6 +2209,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // a delegating layer (DecompressingStorageObject), so byteCounter counts decompressed bytes. The
             // byte-range cover loop itself lives in the shared StripeStatsHarvester.
             long chunkBytes = byteCounter != null ? byteCounter.getBytesRead() : -1L;
+            // Byte-exactness tripwire for the tracked-Jackson path. The tracker INFERS byte widths from
+            // decoded chars, which assumes well-formed UTF-8: a malformed sequence the decoder replaced with
+            // U+FFFD is counted at the replacement's width, skewing every subsequent record offset -- and
+            // differently-chunked scans of the same file would then attribute boundary records to DIFFERENT
+            // stripes (a chunk starting after the bad bytes restarts byte-exact), interleaving into a wrong
+            // warm count under a "complete" cover. This emit only runs after a clean full drain, where the
+            // inferred end must equal the actual bytes consumed; a mismatch means the offsets are not
+            // byte-exact -- safe-miss the whole chunk rather than commit mis-attributed stripes. Data
+            // condition, not a bug: no assert.
+            if (bulkByteTracker != null && chunkBytes >= 0 && bulkByteTracker.inferredEndOffset() != splitStartByte + chunkBytes) {
+                stripeCaptureDisabled = true;
+                return;
+            }
             stripeHarvester.emit(sourceLocation, splitStartByte, chunkBytes, pinnedMtimeMillis, computeConfigFingerprint(), schema);
         }
 

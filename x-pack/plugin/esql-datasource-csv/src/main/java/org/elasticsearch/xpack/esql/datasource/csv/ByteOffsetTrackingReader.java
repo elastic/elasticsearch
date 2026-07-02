@@ -147,6 +147,19 @@ final class ByteOffsetTrackingReader extends Reader {
         return cursorByteOffset;
     }
 
+    /**
+     * The file-global byte offset just past the last character produced — i.e. the tracker's INFERRED end
+     * of the consumed input. Width inference assumes well-formed UTF-8: a malformed byte sequence that the
+     * decoder replaced with {@code U+FFFD} is counted at the replacement char's width (3 bytes), not the
+     * actual malformed byte count, skewing this offset and every per-record offset after the bad bytes.
+     * Callers that attribute records to byte positions (canonical stripes) compare this against the ACTUAL
+     * bytes consumed from the underlying stream after a full drain; a mismatch means the per-record offsets
+     * are not byte-exact and must not be used (safe-miss). Advances the query cursor to the end.
+     */
+    long inferredEndOffset() {
+        return byteOffsetAtChar(charsProduced);
+    }
+
     @Override
     public void close() throws IOException {
         delegate.close();

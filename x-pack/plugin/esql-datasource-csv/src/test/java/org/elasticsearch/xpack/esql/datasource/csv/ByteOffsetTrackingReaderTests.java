@@ -85,4 +85,35 @@ public class ByteOffsetTrackingReaderTests extends ESTestCase {
         reader.byteOffsetAtChar(3);
         expectThrows(IllegalArgumentException.class, () -> reader.byteOffsetAtChar(2));
     }
+
+    /**
+     * The tripwire condition: a MALFORMED byte sequence (Latin-1 0xE9 in a "UTF-8" stream) is replaced by
+     * the decoder with one U+FFFD, which the tracker counts at the replacement char's width (3 bytes) --
+     * not the 1 actual malformed byte -- so the inferred end offset diverges from the true byte count.
+     * {@code CsvBatchIterator.emitPerStripe} compares inferred vs actual after a full drain and safe-misses
+     * stripe capture on mismatch; this pins the divergence the tripwire keys on, and that well-formed input
+     * does NOT trip it.
+     */
+    public void testMalformedUtf8SkewsInferredEndOffset() throws Exception {
+        byte[] wellFormed = "a,b\u00e9c\n".getBytes(StandardCharsets.UTF_8); // 'é' properly encoded (2 bytes)
+        byte[] malformed = new byte[] { 'a', ',', 'b', (byte) 0xE9, 'c', '\n' }; // bare Latin-1 é (1 byte, invalid UTF-8)
+
+        assertEquals("well-formed input: inferred end == actual bytes", wellFormed.length, drainInferredEnd(wellFormed));
+        long inferred = drainInferredEnd(malformed);
+        assertNotEquals("malformed input: inferred end diverges from actual bytes (the tripwire condition)", malformed.length, inferred);
+        assertEquals("U+FFFD counted at 3 bytes vs 1 actual -> inferred overshoots by 2", malformed.length + 2, inferred);
+    }
+
+    /** Drains {@code bytes} through an UTF-8 decoder (REPLACE on malformed) + tracker; returns the inferred end offset (base 0). */
+    private static long drainInferredEnd(byte[] bytes) throws Exception {
+        try (
+            var in = new java.io.InputStreamReader(new java.io.ByteArrayInputStream(bytes), StandardCharsets.UTF_8);
+            ByteOffsetTrackingReader reader = new ByteOffsetTrackingReader(in, 0L)
+        ) {
+            char[] buf = new char[16];
+            while (reader.read(buf, 0, buf.length) >= 0) {
+            }
+            return reader.inferredEndOffset();
+        }
+    }
 }

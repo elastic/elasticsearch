@@ -34,7 +34,6 @@ public class ReindexClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("lang-painless")
         .module("parent-join")
         .module("rest-root")
-        .module("test-slice-indexing-validation")
         .feature(FeatureFlag.SLICE_INDEXING)
         .setting("reindex.remote.whitelist", "127.0.0.1:*,[::1]:*")
         .build();

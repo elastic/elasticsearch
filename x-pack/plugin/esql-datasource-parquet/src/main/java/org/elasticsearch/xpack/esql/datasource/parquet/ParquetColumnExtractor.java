@@ -74,10 +74,10 @@ import java.util.concurrent.ExecutionException;
  *       in-flight S3 reads for the slower buckets — the synchronous barrier of
  *       <em>"wait for the slowest GET, then start any decode"</em> is removed.</li>
  *   <li><b>Stitch back to caller order.</b> Each bucket produces one per-(bucket, column) block
- *       sized {@code bucket.bucketLength}; per-column blocks are concatenated in
+ *       sized to that bucket's unique positions; per-column blocks are concatenated in
  *       bucket-visit order (independent of decode arrival order). A gather permutation then
  *       routes each caller slot to its position in the concatenated block via
- *       {@link Block#filter(boolean, int...)}, supporting duplicate requests for the same row.</li>
+ *       {@link Block#filter(boolean, int...)}, replaying duplicate requests for the same row.</li>
  * </ol>
  * <p>
  * I/O cost: one async coalesced fetch per visited row group, all dispatched in parallel up to
@@ -444,37 +444,33 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * blocks instead of decoding inside the loop.
      */
     private Block stitchAndGather(Block[] perBucketBlocks, List<Bucket> buckets, int totalCount, BlockFactory blockFactory) {
-        Block.Builder builder = null;
         Block concatenated = null;
         try {
-            for (int b = 0; b < perBucketBlocks.length; b++) {
-                Block bucketBlock = perBucketBlocks[b];
-                if (bucketBlock == null) {
-                    throw new IllegalStateException("missing decoded block for bucket [" + buckets.get(b).rowGroupIndex + "]");
-                }
-                if (builder == null) {
-                    builder = bucketBlock.elementType().newBlockBuilder(totalCount, blockFactory);
-                }
-                builder.copyFrom(bucketBlock, 0, bucketBlock.getPositionCount());
-            }
-            if (builder == null) {
+            if (perBucketBlocks.length == 0) {
                 throw new IllegalStateException("no row groups visited for [" + storageObject.path() + "] (count=" + totalCount + ")");
             }
-            concatenated = builder.build();
+            for (int b = 0; b < perBucketBlocks.length; b++) {
+                if (perBucketBlocks[b] == null) {
+                    throw new IllegalStateException("missing decoded block for bucket [" + buckets.get(b).rowGroupIndex + "]");
+                }
+            }
+            // The shared helper resolves the element type from the first non-NULL bucket block, so
+            // an all-null leading bucket cannot poison a ConstantNullBlock builder. It closes the
+            // per-bucket blocks on success; null the slots so the finally below and the caller's
+            // defensive cleanup do not double-close. On a throw it leaves them for the finally.
+            concatenated = BlockChunks.concat(Arrays.asList(perBucketBlocks), blockFactory);
+            Arrays.fill(perBucketBlocks, null);
             int[] gather = buildGatherPermutation(buckets, totalCount);
             // mayContainDuplicates is true: the same bucket position may serve multiple caller
             // slots when localPositions repeats a row.
             return concatenated.filter(true, gather);
         } finally {
-            if (builder != null) {
-                Releasables.closeExpectNoException(builder);
-            }
             if (concatenated != null) {
                 Releasables.closeExpectNoException(concatenated);
             }
-            // Per-bucket blocks live until stitch completes; release them here so the caller
-            // doesn't have to track them. Null the slots out so the caller's defensive cleanup
-            // doesn't double-close.
+            // Per-bucket blocks live until stitch completes; release any still-present slot here so
+            // the caller doesn't have to track them. Null the slots out so the caller's defensive
+            // cleanup doesn't double-close.
             for (int i = 0; i < perBucketBlocks.length; i++) {
                 Block b = perBucketBlocks[i];
                 if (b != null) {
@@ -525,9 +521,10 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
     /**
      * Builds the permutation {@code gather} where {@code gather[callerSlot]} is the position in
-     * the concatenated block (whose layout is {@code bucket0 ++ bucket1 ++ …} in visit order)
-     * holding the value for that caller slot. Combines the per-bucket concatenation offset with
-     * each entry's {@code runToBucketSlot} index to produce every gather index in one pass.
+     * the concatenated unique-position block (whose layout is {@code bucket0 ++ bucket1 ++ …} in
+     * visit order) holding the value for that caller slot. Combines the per-bucket concatenation
+     * offset with each entry's {@code runToBucketSlot} index to produce every gather index in one
+     * pass.
      */
     private static int[] buildGatherPermutation(List<Bucket> buckets, int totalCount) {
         int[] gather = new int[totalCount];
@@ -539,16 +536,17 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 int posInBucket = b.runToBucketSlot[i];
                 gather[callerSlot] = offset + posInBucket;
             }
-            offset += b.bucketLength;
+            offset += b.uniqueCount;
         }
         return gather;
     }
 
     /**
      * Decodes the surviving rows for one row group, dispatching to the flat (rep-level 0) or
-     * list (rep-level &gt; 0) sparse-read path. Returns a block with {@code bucket.bucketLength}
-     * positions ordered by ascending in-row-group position; the caller stitches per-bucket
-     * blocks into the concatenated output and uses the gather permutation to route caller slots.
+     * list (rep-level &gt; 0) sparse-read path. Returns a block with {@code bucket.uniqueCount}
+     * positions ordered by ascending in-row-group position; the caller stitches per-bucket blocks
+     * into the concatenated output and uses the gather permutation to route caller slots and replay
+     * duplicates.
      */
     private Block decodeBucket(
         Bucket bucket,
@@ -665,11 +663,13 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             if (chunks.size() == 1) {
                 Block only = chunks.get(0);
                 chunks.clear();
-                return expandWithRunMapping(only, bucket);
+                return only;
             }
-            Block joined = concatBlocks(chunks, unique, blockFactory);
+            // BlockChunks.concat closes the run chunks on success; clear the list so the catch
+            // below does not double-close. On a throw it leaves them for the catch to release.
+            Block joined = BlockChunks.concat(chunks, blockFactory);
             chunks.clear();
-            return expandWithRunMapping(joined, bucket);
+            return joined;
         } catch (RuntimeException e) {
             for (Block c : chunks) {
                 Releasables.closeExpectNoException(c);
@@ -702,39 +702,6 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 }
                 cr.consume();
             }
-        }
-    }
-
-    /**
-     * Maps the unique-positions block produced by the per-RG decode back to the bucket's full
-     * length, replaying duplicate positions when the bucket asked for the same row more than
-     * once. {@code mayContainDuplicates} is true only when the bucket actually holds duplicates;
-     * the cheap path returns {@code unique} unchanged.
-     */
-    private static Block expandWithRunMapping(Block unique, Bucket bucket) {
-        if (bucket.bucketLength == bucket.uniqueCount) {
-            return unique;
-        }
-        try {
-            return unique.filter(true, bucket.runToBucketSlot);
-        } finally {
-            Releasables.closeExpectNoException(unique);
-        }
-    }
-
-    /** Concatenate same-element-type blocks via a builder; closes the source chunks. */
-    private static Block concatBlocks(List<Block> chunks, int totalPositions, BlockFactory blockFactory) {
-        Block.Builder b = chunks.get(0).elementType().newBlockBuilder(totalPositions, blockFactory);
-        try {
-            for (Block c : chunks) {
-                b.copyFrom(c, 0, c.getPositionCount());
-            }
-            return b.build();
-        } finally {
-            for (Block c : chunks) {
-                Releasables.closeExpectNoException(c);
-            }
-            Releasables.closeExpectNoException(b);
         }
     }
 
@@ -777,18 +744,12 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         int[] uniquePositions;
         int uniqueCount;
         /**
-         * For input slot {@code i}, the index in the per-bucket output block (length =
-         * {@link #bucketLength}) holding the value for that input. When the bucket has no
-         * duplicates this is the identity {@code [0, bucketLength)}; with duplicates it routes
-         * each duplicate to its single read in the unique block.
+         * For sorted input slot {@code i}, the index in the per-bucket unique-position output
+         * block holding the value for that input. When the bucket has no duplicates this is the
+         * identity {@code [0, uniqueCount)}; with duplicates it routes each duplicate to its
+         * single decoded value.
          */
         int[] runToBucketSlot;
-        /**
-         * Number of rows the per-bucket output block carries. Equals {@link #size} regardless of
-         * duplicates: duplicates are replayed via {@link #runToBucketSlot} so caller slots line
-         * up one-to-one with concatenated-block positions.
-         */
-        int bucketLength;
 
         Bucket(int rowGroupIndex) {
             this.rowGroupIndex = rowGroupIndex;
@@ -853,7 +814,6 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 runToBucketSlot[i] = u - 1;
             }
             uniqueCount = u;
-            bucketLength = size;
         }
     }
 

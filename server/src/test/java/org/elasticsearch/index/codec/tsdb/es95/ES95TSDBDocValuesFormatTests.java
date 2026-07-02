@@ -29,6 +29,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesFormatTests;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
@@ -37,10 +38,14 @@ import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor.DataType;
+import org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineConfigResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -278,7 +283,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             for (int v = 0; v < valueCount; v++) {
                 expected[i][v] = random().nextLong();
             }
-            java.util.Arrays.sort(expected[i]);
+            Arrays.sort(expected[i]);
         }
 
         try (Directory dir = newDirectory()) {
@@ -305,6 +310,95 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
                         count++;
                     }
                     assertEquals(leaf.reader().maxDoc(), count);
+                }
+            }
+        }
+    }
+
+    public void testSparseNumericWithPipeline() throws IOException {
+        final int numDocs = ESTestCase.randomIntBetween(1024, 4096);
+        final long[] expected = new long[numDocs];
+        final boolean[] present = new boolean[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            // NOTE: leave every third doc without a value to exercise the sparse IndexedDISI path.
+            if (i % 3 != 0) {
+                present[i] = true;
+                expected[i] = random().nextLong();
+            }
+        }
+
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, writerConfig(buildPerFieldBlockSizeFormat(randomBlockShift(), 256)))) {
+                for (int i = 0; i < numDocs; i++) {
+                    final Document doc = new Document();
+                    if (present[i]) {
+                        doc.add(new NumericDocValuesField("sparse_numeric", expected[i]));
+                    }
+                    writer.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    final NumericDocValues ndv = leaf.reader().getNumericDocValues("sparse_numeric");
+                    assertNotNull(ndv);
+                    for (int docId = 0; docId < leaf.reader().maxDoc(); docId++) {
+                        final int globalDoc = leaf.docBase + docId;
+                        if (present[globalDoc]) {
+                            assertTrue(ndv.advanceExact(docId));
+                            assertEquals(expected[globalDoc], ndv.longValue());
+                        } else {
+                            assertFalse(ndv.advanceExact(docId));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void testSparseSortedNumericWithPipeline() throws IOException {
+        final int numDocs = ESTestCase.randomIntBetween(1024, 4096);
+        final long[][] expected = new long[numDocs][];
+        for (int i = 0; i < numDocs; i++) {
+            // NOTE: leave every third doc without a value to exercise the sparse IndexedDISI path.
+            if (i % 3 == 0) {
+                expected[i] = new long[0];
+            } else {
+                final int valueCount = ESTestCase.randomIntBetween(1, 4);
+                expected[i] = new long[valueCount];
+                for (int v = 0; v < valueCount; v++) {
+                    expected[i][v] = random().nextLong();
+                }
+                Arrays.sort(expected[i]);
+            }
+        }
+
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, writerConfig(buildPerFieldBlockSizeFormat(randomBlockShift(), 256)))) {
+                for (int i = 0; i < numDocs; i++) {
+                    final Document doc = new Document();
+                    for (long val : expected[i]) {
+                        doc.add(new SortedNumericDocValuesField("sparse_multi", val));
+                    }
+                    writer.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    final SortedNumericDocValues sndv = leaf.reader().getSortedNumericDocValues("sparse_multi");
+                    assertNotNull(sndv);
+                    for (int docId = 0; docId < leaf.reader().maxDoc(); docId++) {
+                        final long[] docExpected = expected[leaf.docBase + docId];
+                        final boolean present = sndv.advanceExact(docId);
+                        if (docExpected.length == 0) {
+                            assertFalse(present);
+                        } else {
+                            assertTrue(present);
+                            assertEquals(docExpected.length, sndv.docValueCount());
+                            for (int v = 0; v < docExpected.length; v++) {
+                                assertEquals(docExpected[v], sndv.nextValue());
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -353,6 +447,84 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
                     assertTrue(count > 0);
                 }
             }
+        }
+    }
+
+    public void testDoubleGaugeRoundTripThroughFormat() throws IOException {
+        final int blockShift = randomBlockShift();
+        assertResolvesTo("alpDouble>delta>offset>gcd>bitPack", DOUBLE_GAUGE_FIELD, blockShift, DataType.DOUBLE, MetricRole.GAUGE);
+        assertDoubleRoundTrip(DOUBLE_GAUGE_FIELD, blockShift, gaugeDoubles(blockShift));
+    }
+
+    public void testDoubleCounterRoundTripThroughFormat() throws IOException {
+        final int blockShift = randomBlockShift();
+        assertResolvesTo(
+            "alpDouble>splitDelta>delta>offset>gcd>bitPack",
+            DOUBLE_COUNTER_FIELD,
+            blockShift,
+            DataType.DOUBLE,
+            MetricRole.COUNTER
+        );
+        assertDoubleRoundTrip(DOUBLE_COUNTER_FIELD, blockShift, counterDoubles(blockShift));
+    }
+
+    public void testLongCounterSplitDeltaRoundTripThroughFormat() throws IOException {
+        final int blockShift = randomBlockShift();
+        assertResolvesTo("splitDelta>delta>offset>gcd>bitPack", LONG_COUNTER_FIELD, blockShift, DataType.LONG, MetricRole.COUNTER);
+        assertLongRoundTrip(LONG_COUNTER_FIELD, blockShift, monotonicLongs(blockShift));
+    }
+
+    public void testTimestampSplitDeltaRoundTripThroughFormat() throws IOException {
+        final int blockShift = randomBlockShift();
+        assertResolvesTo("splitDelta>delta>offset>gcd>bitPack", TIMESTAMP_FIELD, blockShift, null, null);
+        assertLongRoundTrip(TIMESTAMP_FIELD, blockShift, monotonicLongs(blockShift));
+    }
+
+    public void testDoubleGaugeSortedNumericRoundTripThroughFormat() throws IOException {
+        final int blockShift = randomBlockShift();
+        final int numDocs = (1 << blockShift) * 2;
+        final double[][] values = new double[numDocs][];
+        for (int i = 0; i < numDocs; i++) {
+            final int valueCount = ESTestCase.randomIntBetween(1, 5);
+            values[i] = new double[valueCount];
+            for (int v = 0; v < valueCount; v++) {
+                values[i][v] = twoDecimalPlaces(ESTestCase.randomDoubleBetween(0.0, 1000.0, true));
+            }
+            Arrays.sort(values[i]);
+        }
+        assertSortedNumericDoubleRoundTrip(DOUBLE_GAUGE_FIELD, blockShift, values);
+    }
+
+    public void testDoubleGaugeSpecialValuesRoundTripThroughFormat() throws IOException {
+        final int blockShift = randomBlockShift();
+        final int numDocs = (1 << blockShift) * 2;
+        final double[] values = gaugeDoubles(blockShift);
+        values[0] = Double.POSITIVE_INFINITY;
+        values[1] = Double.NEGATIVE_INFINITY;
+        values[2] = -0.0;
+        values[3] = Double.MAX_VALUE;
+        values[4] = Double.NaN;
+        values[numDocs - 1] = Double.MIN_NORMAL;
+        assertDoubleRoundTrip(DOUBLE_GAUGE_FIELD, blockShift, values);
+    }
+
+    public void testDoubleGaugeForceMergeRoundTripThroughFormat() throws IOException {
+        final int blockShift = randomBlockShift();
+        final double[] values = gaugeDoubles(blockShift);
+        final DocValuesFormat format = buildRolePipelineFormat(blockShift);
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, writerConfig(format))) {
+                for (int i = 0; i < values.length; i++) {
+                    final Document doc = new Document();
+                    doc.add(new NumericDocValuesField(DOUBLE_GAUGE_FIELD, NumericUtils.doubleToSortableLong(values[i])));
+                    writer.addDocument(doc);
+                    if (i == values.length / 2) {
+                        writer.commit();
+                    }
+                }
+                writer.forceMerge(1);
+            }
+            assertDoubleValues(dir, DOUBLE_GAUGE_FIELD, values);
         }
     }
 
@@ -699,6 +871,93 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         }
     }
 
+    public void testPerFieldBlockSizeWithMixedDensity() throws IOException {
+        // Three numeric fields at three block sizes in one segment, with three densities: CUSTOM_BS_FIELD
+        // dense, DEMOTED_BS_FIELD (128) one third missing, DEFAULT_BS_FIELD (512) half missing. Locks the
+        // interaction of per-field block-size resolution with the sparse presence path across multiple blocks.
+        // NOTE: random promoted block size (1024-4096), distinct from the 512 default and 128 demoted.
+        final int promotedBlockSize = 1 << ESTestCase.randomIntBetween(10, 12);
+        final int numDocs = promotedBlockSize * 2 + ESTestCase.randomIntBetween(0, promotedBlockSize);
+        try (Directory dir = newDirectory()) {
+            try (
+                IndexWriter writer = new IndexWriter(
+                    dir,
+                    writerConfig(buildPerFieldBlockSizeFormat(NUMERIC_LARGE_BLOCK_SHIFT, promotedBlockSize))
+                )
+            ) {
+                for (int i = 0; i < numDocs; i++) {
+                    final Document doc = new Document();
+                    doc.add(new NumericDocValuesField(CUSTOM_BS_FIELD, (long) i * 17L));
+                    if (i % 3 != 0) {
+                        doc.add(new NumericDocValuesField(DEMOTED_BS_FIELD, (long) i * 11L));
+                    }
+                    if (i % 2 != 0) {
+                        doc.add(new NumericDocValuesField(DEFAULT_BS_FIELD, (long) i * 5L));
+                    }
+                    writer.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    assertNumericSequence(leaf, CUSTOM_BS_FIELD, i -> (long) i * 17L);
+                    assertSparseNumeric(leaf, DEMOTED_BS_FIELD, g -> g % 3 != 0, i -> (long) i * 11L);
+                    assertSparseNumeric(leaf, DEFAULT_BS_FIELD, g -> g % 2 != 0, i -> (long) i * 5L);
+                }
+            }
+        }
+    }
+
+    public void testPerFieldBlockSizeSortedNumericWithMixedDensity() throws IOException {
+        // Three sorted numeric fields at three block sizes in one segment, with three densities:
+        // CUSTOM_BS_SORTED_FIELD dense, DEMOTED_BS_SORTED_FIELD (128) one third missing,
+        // DEFAULT_BS_SORTED_FIELD (512) half missing, each spanning multiple blocks.
+        // NOTE: random promoted block size (1024-4096), distinct from the 512 default and 128 demoted.
+        final int promotedBlockSize = 1 << ESTestCase.randomIntBetween(10, 12);
+        final int numDocs = promotedBlockSize * 2 + ESTestCase.randomIntBetween(0, promotedBlockSize);
+        final int valuesPerDoc = 3;
+        try (Directory dir = newDirectory()) {
+            try (
+                IndexWriter writer = new IndexWriter(
+                    dir,
+                    writerConfig(buildPerFieldBlockSizeFormat(NUMERIC_LARGE_BLOCK_SHIFT, promotedBlockSize))
+                )
+            ) {
+                for (int i = 0; i < numDocs; i++) {
+                    final Document doc = new Document();
+                    for (int j = 0; j < valuesPerDoc; j++) {
+                        doc.add(new SortedNumericDocValuesField(CUSTOM_BS_SORTED_FIELD, ((long) i * valuesPerDoc + j) * 23L));
+                        if (i % 3 != 0) {
+                            doc.add(new SortedNumericDocValuesField(DEMOTED_BS_SORTED_FIELD, ((long) i * valuesPerDoc + j) * 11L));
+                        }
+                        if (i % 2 != 0) {
+                            doc.add(new SortedNumericDocValuesField(DEFAULT_BS_SORTED_FIELD, ((long) i * valuesPerDoc + j) * 6L));
+                        }
+                    }
+                    writer.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    assertSortedNumericAscending(leaf, CUSTOM_BS_SORTED_FIELD, valuesPerDoc, (i, j) -> ((long) i * valuesPerDoc + j) * 23L);
+                    assertSparseSortedNumeric(
+                        leaf,
+                        DEMOTED_BS_SORTED_FIELD,
+                        g -> g % 3 != 0,
+                        valuesPerDoc,
+                        (i, j) -> ((long) i * valuesPerDoc + j) * 11L
+                    );
+                    assertSparseSortedNumeric(
+                        leaf,
+                        DEFAULT_BS_SORTED_FIELD,
+                        g -> g % 2 != 0,
+                        valuesPerDoc,
+                        (i, j) -> ((long) i * valuesPerDoc + j) * 6L
+                    );
+                }
+            }
+        }
+    }
+
     private void doTestPerFieldBlockSizeRoundTrip(int formatShift, int customBlockSize, int numDocs) throws IOException {
         try (Directory dir = newDirectory()) {
             try (IndexWriter writer = new IndexWriter(dir, writerConfig(buildPerFieldBlockSizeFormat(formatShift, customBlockSize)))) {
@@ -736,6 +995,49 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
     @FunctionalInterface
     private interface ExpectedTerm {
         String at(int globalDocIndex, int valueIndex);
+    }
+
+    @FunctionalInterface
+    private interface DocPresence {
+        boolean at(int globalDoc);
+    }
+
+    private static void assertSparseNumeric(LeafReaderContext leaf, String field, DocPresence present, ExpectedValue expected)
+        throws IOException {
+        final NumericDocValues ndv = leaf.reader().getNumericDocValues(field);
+        assertNotNull("missing doc values for " + field, ndv);
+        for (int docId = 0; docId < leaf.reader().maxDoc(); docId++) {
+            final int globalDoc = leaf.docBase + docId;
+            if (present.at(globalDoc)) {
+                assertTrue(ndv.advanceExact(docId));
+                assertEquals("field " + field + " mismatch at doc " + globalDoc, expected.at(globalDoc), ndv.longValue());
+            } else {
+                assertFalse("field " + field + " should be missing at doc " + globalDoc, ndv.advanceExact(docId));
+            }
+        }
+    }
+
+    private static void assertSparseSortedNumeric(
+        LeafReaderContext leaf,
+        String field,
+        DocPresence present,
+        int valuesPerDoc,
+        ExpectedMultiValue expected
+    ) throws IOException {
+        final SortedNumericDocValues sndv = leaf.reader().getSortedNumericDocValues(field);
+        assertNotNull("missing sorted numeric doc values for " + field, sndv);
+        for (int docId = 0; docId < leaf.reader().maxDoc(); docId++) {
+            final int globalDoc = leaf.docBase + docId;
+            if (present.at(globalDoc)) {
+                assertTrue(sndv.advanceExact(docId));
+                assertEquals("doc value count mismatch on field " + field + " at doc " + globalDoc, valuesPerDoc, sndv.docValueCount());
+                for (int j = 0; j < valuesPerDoc; j++) {
+                    assertEquals("field " + field + " doc " + globalDoc + " value " + j, expected.at(globalDoc, j), sndv.nextValue());
+                }
+            } else {
+                assertFalse("field " + field + " should be missing at doc " + globalDoc, sndv.advanceExact(docId));
+            }
+        }
     }
 
     private static void assertNumericSequence(LeafReaderContext leaf, String field, ExpectedValue expected) throws IOException {
@@ -860,6 +1162,186 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
     private static final String CUSTOM_BS_SORTED_FIELD = "custom_bs_sorted";
     private static final String DEFAULT_BS_SORTED_FIELD = "default_bs_sorted";
     private static final String DEMOTED_BS_SORTED_FIELD = "demoted_bs_sorted";
+
+    private static final String DOUBLE_GAUGE_FIELD = "double_gauge";
+    private static final String DOUBLE_COUNTER_FIELD = "double_counter";
+    private static final String LONG_COUNTER_FIELD = "long_counter";
+    private static final String TIMESTAMP_FIELD = "@timestamp";
+
+    private static final FieldContextResolver ROLE_RESOLVER = (fieldName, blockSize) -> {
+        if (DOUBLE_GAUGE_FIELD.equals(fieldName)) {
+            return new FieldContext(blockSize, fieldName, DataType.DOUBLE, MetricRole.GAUGE, null, false);
+        }
+        if (DOUBLE_COUNTER_FIELD.equals(fieldName)) {
+            return new FieldContext(blockSize, fieldName, DataType.DOUBLE, MetricRole.COUNTER, null, false);
+        }
+        if (LONG_COUNTER_FIELD.equals(fieldName)) {
+            return new FieldContext(blockSize, fieldName, DataType.LONG, MetricRole.COUNTER, null, false);
+        }
+        return new FieldContext(blockSize, fieldName, null, null, null, false);
+    };
+
+    private void assertDoubleRoundTrip(final String field, int blockShift, final double[] values) throws IOException {
+        final DocValuesFormat format = buildRolePipelineFormat(blockShift);
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, writerConfig(format))) {
+                for (final double value : values) {
+                    final Document doc = new Document();
+                    doc.add(new NumericDocValuesField(field, NumericUtils.doubleToSortableLong(value)));
+                    writer.addDocument(doc);
+                }
+            }
+            assertDoubleValues(dir, field, values);
+        }
+    }
+
+    private static void assertDoubleValues(final Directory dir, final String field, final double[] values) throws IOException {
+        try (DirectoryReader reader = DirectoryReader.open(dir)) {
+            int total = 0;
+            for (final LeafReaderContext leaf : reader.leaves()) {
+                final NumericDocValues ndv = leaf.reader().getNumericDocValues(field);
+                assertNotNull(ndv);
+                int count = 0;
+                while (ndv.nextDoc() != NumericDocValues.NO_MORE_DOCS) {
+                    final double expected = values[leaf.docBase + count];
+                    final double actual = NumericUtils.sortableLongToDouble(ndv.longValue());
+                    assertEquals(Double.doubleToRawLongBits(expected), Double.doubleToRawLongBits(actual));
+                    count++;
+                }
+                total += count;
+            }
+            assertEquals(values.length, total);
+        }
+    }
+
+    private void assertLongRoundTrip(final String field, int blockShift, final long[] values) throws IOException {
+        final DocValuesFormat format = buildRolePipelineFormat(blockShift);
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, writerConfig(format))) {
+                for (final long value : values) {
+                    final Document doc = new Document();
+                    doc.add(new NumericDocValuesField(field, value));
+                    writer.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                int total = 0;
+                for (final LeafReaderContext leaf : reader.leaves()) {
+                    final NumericDocValues ndv = leaf.reader().getNumericDocValues(field);
+                    assertNotNull(ndv);
+                    int count = 0;
+                    while (ndv.nextDoc() != NumericDocValues.NO_MORE_DOCS) {
+                        assertEquals(values[leaf.docBase + count], ndv.longValue());
+                        count++;
+                    }
+                    total += count;
+                }
+                assertEquals(values.length, total);
+            }
+        }
+    }
+
+    private void assertSortedNumericDoubleRoundTrip(final String field, int blockShift, final double[][] values) throws IOException {
+        final DocValuesFormat format = buildRolePipelineFormat(blockShift);
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, writerConfig(format))) {
+                for (final double[] docValues : values) {
+                    final Document doc = new Document();
+                    for (final double value : docValues) {
+                        doc.add(new SortedNumericDocValuesField(field, NumericUtils.doubleToSortableLong(value)));
+                    }
+                    writer.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                int total = 0;
+                for (final LeafReaderContext leaf : reader.leaves()) {
+                    final SortedNumericDocValues sndv = leaf.reader().getSortedNumericDocValues(field);
+                    assertNotNull(sndv);
+                    int count = 0;
+                    while (sndv.nextDoc() != SortedNumericDocValues.NO_MORE_DOCS) {
+                        final double[] expected = values[leaf.docBase + count];
+                        assertEquals(expected.length, sndv.docValueCount());
+                        for (int v = 0; v < sndv.docValueCount(); v++) {
+                            final double actual = NumericUtils.sortableLongToDouble(sndv.nextValue());
+                            assertEquals(Double.doubleToRawLongBits(expected[v]), Double.doubleToRawLongBits(actual));
+                        }
+                        count++;
+                    }
+                    total += count;
+                }
+                assertEquals(values.length, total);
+            }
+        }
+    }
+
+    private static void assertResolvesTo(
+        final String expectedStages,
+        final String fieldName,
+        int blockShift,
+        final DataType dataType,
+        final MetricRole metricRole
+    ) {
+        final FieldContext context = new FieldContext(1 << blockShift, fieldName, dataType, metricRole, null, false);
+        assertEquals(expectedStages, StaticPipelineConfigResolver.INSTANCE.resolve(context).describeStages());
+    }
+
+    private static double[] gaugeDoubles(int blockShift) {
+        final int numDocs = (1 << blockShift) * 2;
+        final double[] values = new double[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            values[i] = twoDecimalPlaces(22.5 + i * 0.01);
+        }
+        return values;
+    }
+
+    private static double[] counterDoubles(int blockShift) {
+        final int numDocs = (1 << blockShift) * 2;
+        final double[] values = new double[numDocs];
+        double running = 0.0;
+        for (int i = 0; i < numDocs; i++) {
+            running += 0.25;
+            values[i] = twoDecimalPlaces(running);
+        }
+        return values;
+    }
+
+    private static long[] monotonicLongs(int blockShift) {
+        final int numDocs = (1 << blockShift) * 2;
+        final long[] values = new long[numDocs];
+        values[0] = 1_700_000_000_000L;
+        for (int i = 1; i < numDocs; i++) {
+            values[i] = values[i - 1] + ESTestCase.randomLongBetween(1, 1000);
+        }
+        return values;
+    }
+
+    private static double twoDecimalPlaces(double value) {
+        return Math.round(value * 100.0) / 100.0;
+    }
+
+    private static int randomBlockShift() {
+        return ESTestCase.randomIntBetween(7, 12);
+    }
+
+    private static DocValuesFormat buildRolePipelineFormat(int blockShift) {
+        return new ES95TSDBDocValuesFormat(
+            DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
+            ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
+            true,
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            true,
+            blockShift,
+            false,
+            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
+            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
+            NumericCodecFactory.DEFAULT,
+            blockSize -> (input, values, count) -> {
+                throw new AssertionError("fallback decoder should not be reached for pipeline-encoded numeric fields");
+            },
+            ROLE_RESOLVER
+        );
+    }
 
     private static IndexWriterConfig writerConfig(final DocValuesFormat format) {
         final IndexWriterConfig config = new IndexWriterConfig();

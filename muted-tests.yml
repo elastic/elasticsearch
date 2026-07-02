@@ -614,9 +614,6 @@ tests:
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/152115
-- class: org.elasticsearch.index.engine.InternalEngineTests
-  method: testLookupSeqNoByIdInLucene
-  issue: https://github.com/elastic/elasticsearch/issues/152120
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
@@ -856,3 +853,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
   method: testCrankyEvaluateBlockWithoutNulls {TestCase=<long>, <dense_vector>}
   issue: https://github.com/elastic/elasticsearch/issues/152795
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testSourceRelocationDuringReshard
+  issue: https://github.com/elastic/elasticsearch/issues/152800
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:inlinestats.groupByMultipleRenamedColumns_AndTwoExpressions}
+  issue: https://github.com/elastic/elasticsearch/issues/152801

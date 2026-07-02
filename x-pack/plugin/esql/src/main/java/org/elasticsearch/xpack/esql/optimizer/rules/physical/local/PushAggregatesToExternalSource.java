@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
-import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -115,7 +114,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             return aggregateExec;
         }
 
-        var stats = SplitStats.resolveEffectiveStats(externalExec.splits(), externalExec.sourceMetadata());
+        var stats = externalExec.effectiveSplitStats();
         if (stats == null) {
             return aggregateExec;
         }

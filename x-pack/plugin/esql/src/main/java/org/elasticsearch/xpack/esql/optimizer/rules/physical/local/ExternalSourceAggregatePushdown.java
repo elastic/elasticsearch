@@ -363,7 +363,7 @@ public final class ExternalSourceAggregatePushdown {
                 stats = splits.getFirst().splitStats();
             }
             if (stats == null) {
-                stats = SplitStats.of(externalExec.sourceMetadata());
+                stats = externalExec.sourceMetadataStats();
             }
             if (stats == null) {
                 return null;

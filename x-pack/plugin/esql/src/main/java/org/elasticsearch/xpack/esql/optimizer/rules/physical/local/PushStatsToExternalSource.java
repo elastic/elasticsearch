@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
-import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -150,7 +149,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.Parameteri
                 implicitNullsForAbsentColumn
             );
         } else {
-            stats = SplitStats.resolveEffectiveStats(externalExec.splits(), externalExec.sourceMetadata());
+            stats = externalExec.effectiveSplitStats();
         }
         if (stats == null) {
             return aggregateExec;

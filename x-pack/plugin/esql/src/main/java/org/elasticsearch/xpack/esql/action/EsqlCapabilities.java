@@ -3251,6 +3251,11 @@ public class EsqlCapabilities {
         PROMQL_HISTOGRAM_QUANTILE_IMPLICIT_LE,
 
         /**
+         * Support for PromQL {@code histogram_quantile()} over exponential (native) histograms.
+         */
+        PROMQL_HISTOGRAM_QUANTILE_EXPONENTIAL,
+
+        /**
          * Fixes a bug in the planner where {@code TS} queries without an outer aggregation (group by all)
          * would wrongly fail with an {@link IllegalStateException} if any aggregation had a filter.
          */

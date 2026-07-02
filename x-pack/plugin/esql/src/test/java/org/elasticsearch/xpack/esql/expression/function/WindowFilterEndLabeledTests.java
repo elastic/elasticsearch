@@ -38,9 +38,9 @@ import static org.hamcrest.Matchers.equalTo;
  * {@code (B - bucket, B]}.
  * <p>
  * The sibling {@link WindowFilterTests} only covers start-labeled ({@code DOWN}) buckets.
- * For an end-labeled bucket, a sample at timestamp {@code ts} must be
- * kept exactly when it falls in the last {@code window} of its bucket, i.e. {@code ts >= rightEdge(ts) - window},
- * where {@code rightEdge(ts)} is the right boundary of the bucket containing {@code ts}.
+ * For an end-labeled bucket, a sample at timestamp {@code ts} must be kept exactly when it falls in the trailing,
+ * left-open {@code window} of its bucket, i.e. {@code ts > rightEdge(ts) - window}, where {@code rightEdge(ts)} is
+ * the right boundary of the bucket containing {@code ts}.
  */
 public class WindowFilterEndLabeledTests extends AbstractConfigurationFunctionTestCase {
 
@@ -53,22 +53,23 @@ public class WindowFilterEndLabeledTests extends AbstractConfigurationFunctionTe
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         // 5m bucket, 1m window: for the bucket (0m, 5m] only (4m, 5m] passes; for (5m, 10m] only (9m, 10m] passes.
-        // Note how this differs from the start-labeled convention: here the right edge (5m, 10m) is INCLUDED.
+        // The window is left-open, so its lower edge (4m, 9m) is EXCLUDED while the bucket's right edge (5m, 10m) is
+        // INCLUDED. Note how this differs from the start-labeled convention.
         utcCase(suppliers, "5m/1m: 30s excluded", 5, 1, seconds(30), false);
         utcCase(suppliers, "5m/1m: 3m59s excluded", 5, 1, minutes(3) + seconds(59), false);
-        utcCase(suppliers, "5m/1m: 4m included", 5, 1, minutes(4), true);
+        utcCase(suppliers, "5m/1m: 4m excluded (window lower edge)", 5, 1, minutes(4), false);
         utcCase(suppliers, "5m/1m: 4m30s included", 5, 1, minutes(4) + seconds(30), true);
         utcCase(suppliers, "5m/1m: 4m59s included", 5, 1, minutes(4) + seconds(59), true);
         utcCase(suppliers, "5m/1m: 5m included (right edge)", 5, 1, minutes(5), true);
         utcCase(suppliers, "5m/1m: 5m30s excluded", 5, 1, minutes(5) + seconds(30), false);
         utcCase(suppliers, "5m/1m: 6m excluded", 5, 1, minutes(6), false);
-        utcCase(suppliers, "5m/1m: 9m included", 5, 1, minutes(9), true);
+        utcCase(suppliers, "5m/1m: 9m excluded (window lower edge)", 5, 1, minutes(9), false);
         utcCase(suppliers, "5m/1m: 9m59s included", 5, 1, minutes(9) + seconds(59), true);
         utcCase(suppliers, "5m/1m: 10m included (right edge)", 5, 1, minutes(10), true);
 
         // 5m bucket, 2m window: for the bucket (0m, 5m] only (3m, 5m] passes.
         utcCase(suppliers, "5m/2m: 2m59s excluded", 5, 2, minutes(2) + seconds(59), false);
-        utcCase(suppliers, "5m/2m: 3m included", 5, 2, minutes(3), true);
+        utcCase(suppliers, "5m/2m: 3m excluded (window lower edge)", 5, 2, minutes(3), false);
         utcCase(suppliers, "5m/2m: 4m included", 5, 2, minutes(4), true);
         utcCase(suppliers, "5m/2m: 5m included (right edge)", 5, 2, minutes(5), true);
         utcCase(suppliers, "5m/2m: 5m30s excluded", 5, 2, minutes(5) + seconds(30), false);
@@ -124,7 +125,8 @@ public class WindowFilterEndLabeledTests extends AbstractConfigurationFunctionTe
 
         suppliers.add(new TestCaseSupplier(name, List.of(DataType.TIME_DURATION, DataType.TIME_DURATION, DataType.DATETIME), () -> {
             ZoneId zone = randomZone();
-            boolean expected = timestampMillis >= endLabeledRightEdge(timestampMillis, bucket, zone) - window.toMillis();
+            // Left-open trailing window (rightEdge - window, rightEdge]: the lower edge is excluded, so use strict >.
+            boolean expected = timestampMillis > endLabeledRightEdge(timestampMillis, bucket, zone) - window.toMillis();
 
             List<TestCaseSupplier.TypedData> args = new ArrayList<>();
             args.add(new TestCaseSupplier.TypedData(window, DataType.TIME_DURATION, "window").forceLiteral());

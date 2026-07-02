@@ -551,9 +551,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.precommit.PomValidationPrecommitPluginFuncTest
   method: detects missing POM elements and reports structured problems
   issue: https://github.com/elastic/elasticsearch/issues/151636
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=scroll/10_basic/Basic scroll}
-  issue: https://github.com/elastic/elasticsearch/issues/151698
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
   issue: https://github.com/elastic/elasticsearch/issues/151709

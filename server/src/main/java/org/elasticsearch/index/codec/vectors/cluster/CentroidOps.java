@@ -73,8 +73,17 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
     /** Element-wise deep copy from {@code source} to {@code destination}. */
     void deepCopy(V[] source, V[] destination);
 
-    /** Copy elements of the centroid array ({@code System.arraycopy} semantics). */
+    /** Copy elements of the centroid array ({@code System.arraycopy} semantics for the outer array of references). */
     void arrayCopy(V[] src, int srcPos, V[] dest, int destPos, int length);
+
+    /**
+     * Deep copy {@code length} vectors starting at {@code srcPos} into {@code dest} starting at
+     * {@code destPos}, copying each inner array's <em>contents</em> rather than the reference.
+     * Destination slots {@code dest[destPos..destPos+length)} must be pre-allocated to at least
+     * the source vector length (e.g. via {@link #newCentroidArray}); a {@code null} or shorter
+     * destination inner array may throw {@code NullPointerException} or silently truncate.
+     */
+    void arrayCopyDeep(V[] src, int srcPos, V[] dest, int destPos, int length);
 
     /** Returns the length (dimension) of the vector. */
     int length(V vector);
@@ -351,6 +360,13 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         }
 
         @Override
+        public void arrayCopyDeep(float[][] src, int srcPos, float[][] dest, int destPos, int length) {
+            for (int i = 0; i < length; i++) {
+                System.arraycopy(src[srcPos + i], 0, dest[destPos + i], 0, src[srcPos + i].length);
+            }
+        }
+
+        @Override
         public int length(float[] vector) {
             return vector.length;
         }
@@ -581,6 +597,13 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         @Override
         public void arrayCopy(byte[][] src, int srcPos, byte[][] dest, int destPos, int length) {
             System.arraycopy(src, srcPos, dest, destPos, length);
+        }
+
+        @Override
+        public void arrayCopyDeep(byte[][] src, int srcPos, byte[][] dest, int destPos, int length) {
+            for (int i = 0; i < length; i++) {
+                System.arraycopy(src[srcPos + i], 0, dest[destPos + i], 0, src[srcPos + i].length);
+            }
         }
 
         @Override

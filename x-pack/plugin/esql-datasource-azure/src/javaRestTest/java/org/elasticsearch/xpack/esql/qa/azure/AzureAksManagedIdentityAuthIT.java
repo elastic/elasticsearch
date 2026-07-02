@@ -56,10 +56,10 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * AKS Workload Identity end-to-end regression guard for {@code auth=workload_identity} on the
+ * AKS Workload Identity end-to-end regression guard for {@code auth=managed_identity} on the
  * {@code esql-datasource-azure} plugin.
  *
- * <p>Sibling of {@link AzureWorkloadIdentityAuthIT}, which exercises the IMDS / Managed Identity
+ * <p>Sibling of {@link AzureManagedIdentityAuthIT}, which exercises the IMDS / Managed Identity
  * branch of the same chain. This class spawns a separate ES cluster JVM with the AKS env triple
  * set ({@code AZURE_FEDERATED_TOKEN_FILE}, {@code AZURE_CLIENT_ID}, {@code AZURE_TENANT_ID}), the
  * federated token symlinked at the entitled config path, and the Azure SDK's OAuth authority host
@@ -69,19 +69,19 @@ import static org.hamcrest.Matchers.hasSize;
  * read the seeded blob over HTTPS.
  *
  * <p>A non-empty query result proves every step of the AKS path:
- * {@code PUT data_source(auth=workload_identity) → cluster setting gate → AzureStorageProvider
+ * {@code PUT data_source(auth=managed_identity) → cluster setting gate → AzureStorageProvider
  * builds a chained credential → WorkloadIdentityCredential reads the entitled token symlink →
  * exchanges it at the OAuth fixture → that bearer reads the blob through the strict workload-
  * identity bearer predicate → NDJSON reader returns rows}.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-public class AzureAksWorkloadIdentityAuthIT extends ESRestTestCase {
+public class AzureAksManagedIdentityAuthIT extends ESRestTestCase {
 
     private static final String ACCOUNT = "testaccount";
     private static final String CONTAINER = "testcontainer";
     private static final String OBJECT_KEY = "data/aks-rows.ndjson";
-    private static final String DATASOURCE_NAME = "aks_workload_identity_azure_ds";
-    private static final String DATASET_NAME = "aks_workload_identity_azure_rows";
+    private static final String DATASOURCE_NAME = "aks_managed_identity_azure_ds";
+    private static final String DATASET_NAME = "aks_managed_identity_azure_rows";
     private static final byte[] NDJSON_CONTENT = "{\"id\":1,\"city\":\"Paris\"}\n{\"id\":2,\"city\":\"Rome\"}\n".getBytes(
         StandardCharsets.UTF_8
     );
@@ -110,7 +110,7 @@ public class AzureAksWorkloadIdentityAuthIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting("esql.datasource.workload_identity.enabled", "true")
+        .setting("esql.datasource.managed_identity.enabled", "true")
         // Operator-managed symlink that the Azure SDK is pointed at via tokenFilePath().
         .configFile("esql-datasource-azure/azure-federated-token", Resource.fromString(fixture.getFederatedToken()))
         // Redirect the SDK's authority host to the fixture's OAuth token endpoint so federated
@@ -148,8 +148,8 @@ public class AzureAksWorkloadIdentityAuthIT extends ESRestTestCase {
         putBlockBlob(bearer, OBJECT_KEY, NDJSON_CONTENT);
     }
 
-    public void testAksWorkloadIdentityAuthQueryReturnsRows() throws IOException {
-        putWorkloadIdentityDataSource(DATASOURCE_NAME, fixture.getAddress());
+    public void testAksManagedIdentityAuthQueryReturnsRows() throws IOException {
+        putManagedIdentityDataSource(DATASOURCE_NAME, fixture.getAddress());
         putDataset(DATASET_NAME, DATASOURCE_NAME, "wasbs://" + ACCOUNT + ".blob.core.windows.net/" + CONTAINER + "/" + OBJECT_KEY);
 
         Map<String, Object> result = runEsql("FROM " + DATASET_NAME + " | STATS count = COUNT(*) | LIMIT 1");
@@ -160,20 +160,20 @@ public class AzureAksWorkloadIdentityAuthIT extends ESRestTestCase {
         assertThat("AKS workload identity query must count both seeded NDJSON rows", count.intValue(), equalTo(2));
     }
 
-    public void testAksWorkloadIdentityAuthRejectedWhenClusterSettingDisabled() throws IOException {
+    public void testAksManagedIdentityAuthRejectedWhenClusterSettingDisabled() throws IOException {
         try {
-            setWorkloadIdentityCredentialsEnabled(false);
+            setManagedIdentityCredentialsEnabled(false);
             ResponseException ex = expectThrows(
                 ResponseException.class,
-                () -> putWorkloadIdentityDataSource(DATASOURCE_NAME + "_disabled", fixture.getAddress())
+                () -> putManagedIdentityDataSource(DATASOURCE_NAME + "_disabled", fixture.getAddress())
             );
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(
                 org.apache.http.util.EntityUtils.toString(ex.getResponse().getEntity()),
-                containsString("esql.datasource.workload_identity.enabled")
+                containsString("esql.datasource.managed_identity.enabled")
             );
         } finally {
-            setWorkloadIdentityCredentialsEnabled(true);
+            setManagedIdentityCredentialsEnabled(true);
         }
     }
 
@@ -250,13 +250,13 @@ public class AzureAksWorkloadIdentityAuthIT extends ESRestTestCase {
     // REST helpers
     // -----------------------------------------------------------------------------------------
 
-    private static void putWorkloadIdentityDataSource(String name, String endpoint) throws IOException {
+    private static void putManagedIdentityDataSource(String name, String endpoint) throws IOException {
         Request req = new Request("PUT", "/_query/data_source/" + name);
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject()
                 .field("type", "azure")
                 .startObject("settings")
-                .field("auth", "workload_identity")
+                .field("auth", "managed_identity")
                 .field("endpoint", endpoint)
                 .endObject()
                 .endObject();
@@ -287,10 +287,10 @@ public class AzureAksWorkloadIdentityAuthIT extends ESRestTestCase {
         return entityAsMap(r);
     }
 
-    private static void setWorkloadIdentityCredentialsEnabled(boolean enabled) throws IOException {
+    private static void setManagedIdentityCredentialsEnabled(boolean enabled) throws IOException {
         Request req = new Request("PUT", "/_cluster/settings");
         try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().startObject("persistent").field("esql.datasource.workload_identity.enabled", enabled).endObject().endObject();
+            b.startObject().startObject("persistent").field("esql.datasource.managed_identity.enabled", enabled).endObject().endObject();
             req.setJsonEntity(Strings.toString(b));
         }
         Response r = client().performRequest(req);

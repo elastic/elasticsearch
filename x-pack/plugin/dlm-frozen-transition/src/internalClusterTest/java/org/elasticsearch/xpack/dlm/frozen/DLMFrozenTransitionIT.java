@@ -505,40 +505,20 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
             logger.info("--> candidate index for frozen conversion: {}", candidateIndex);
 
             // --- Wait for the frozen transition to complete ---
-            assertBusy(() -> {
-                ClusterStateResponse stateResp = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
-                var projectMetadata = stateResp.getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
-                assertThat("Project metadata should not be null", projectMetadata, notNullValue());
-
-                GetDataStreamAction.Response dsResp = client().execute(
-                    GetDataStreamAction.INSTANCE,
-                    new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { DATA_STREAM_NAME })
-                ).actionGet();
-                assertThat(dsResp.getDataStreams().size(), equalTo(1));
-                List<Index> backingIndices = dsResp.getDataStreams().getFirst().getDataStream().getIndices();
-
-                assertThat(
-                    "Frozen index should be in the data stream's backing indices",
-                    backingIndices.stream().anyMatch(idx -> idx.getName().equals(expectedFrozenIndexName)),
-                    is(true)
-                );
-                assertThat(
-                    "Original index [" + candidateIndex + "] should have been deleted",
-                    projectMetadata.index(candidateIndex),
-                    nullValue()
-                );
-                assertThat(
-                    "Clone index [" + cloneIndexName + "] should have been deleted",
-                    projectMetadata.index(cloneIndexName),
-                    nullValue()
-                );
-            }, 60, TimeUnit.SECONDS);
+            awaitClusterState(state -> {
+                var project = state.metadata().getProject();
+                DataStream dataStream = project.dataStreams().get(DATA_STREAM_NAME);
+                return dataStream != null
+                    && dataStream.getIndices().stream().anyMatch(idx -> idx.getName().equals(expectedFrozenIndexName))
+                    && project.index(candidateIndex) == null
+                    && project.index(cloneIndexName) == null;
+            });
 
             logger.info("--> frozen transition of [{}] to [{}] complete", candidateIndex, expectedFrozenIndexName);
 
             // --- Capture the exact snapshot backing the mounted frozen index ---
             ClusterStateResponse afterTransition = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
-            var projectMetadata = afterTransition.getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+            var projectMetadata = afterTransition.getState().metadata().getProject();
             IndexMetadata frozenMeta = projectMetadata.index(expectedFrozenIndexName);
             assertThat("Frozen index [" + expectedFrozenIndexName + "] should exist", frozenMeta, notNullValue());
             String backingSnapshotUuid = frozenMeta.getSettings()
@@ -596,17 +576,15 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
             );
 
             ClusterStateResponse afterCleanup = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
-            var projectMetadataAfterCleanup = afterCleanup.getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+            var projectMetadataAfterCleanup = afterCleanup.getState().metadata().getProject();
             assertThat(
                 "Mounted frozen index should still exist",
                 projectMetadataAfterCleanup.index(expectedFrozenIndexName),
                 notNullValue()
             );
-            DataStream dataStream = projectMetadataAfterCleanup.dataStreams().get(DATA_STREAM_NAME);
-            assertThat("Data stream should still exist", dataStream, notNullValue());
             assertThat(
                 "Frozen index should still be a backing index of the data stream",
-                dataStream.getIndices().stream().map(Index::getName).toList(),
+                getDataStreamBackingIndexNames(DATA_STREAM_NAME),
                 hasItem(expectedFrozenIndexName)
             );
 

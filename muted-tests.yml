@@ -755,9 +755,6 @@ tests:
 - class: org.elasticsearch.reindex.ReindexScriptTests
   method: testSetSliceRejectedWhenFeatureFlagDisabled
   issue: https://github.com/elastic/elasticsearch/issues/152547
-- class: org.elasticsearch.xpack.diskbbq.DiskBBQClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/47_knn_search_bbq_disk_slice/KNN search with a different _slice returns that slice's nearest neighbor}
-  issue: https://github.com/elastic/elasticsearch/issues/152520
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.SumSerializationTests
   method: testSerializeSumWithOverflowingLongSupplier
   issue: https://github.com/elastic/elasticsearch/issues/152506
@@ -836,9 +833,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/pull/152637
 - class: org.elasticsearch.xpack.esql.qa.mixed.SparklineWithEveryAggIT
   issue: https://github.com/elastic/elasticsearch/pull/152637
-- class: org.elasticsearch.xpack.diskbbq.DiskBBQClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/47_knn_search_bbq_disk_slice/KNN search with multiple _slice values and duplicatessearches across the requested slices}
-  issue: https://github.com/elastic/elasticsearch/issues/152722
 - class: org.elasticsearch.xpack.stateless.HollowIndexShardsMergesIT
   method: testQueuedOrOnGoingMergesPreventHollowing
   issue: https://github.com/elastic/elasticsearch/issues/152723

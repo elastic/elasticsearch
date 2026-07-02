@@ -253,6 +253,54 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("data source [no_such_parent] not found"));
     }
 
+    public void testPutDatasetAcceptsExplicitFormatOnExtensionlessResource() throws IOException {
+        // The headline fix: an extensionless resource carries no inferable format, but an explicit
+        // `format` dataset setting lets the validator accept that format's settings (here CSV's
+        // `delimiter`). Both must round-trip into cluster state so they reach the reader at query time.
+        final String parent = "explicit_format_parent";
+        final String dataset = "explicit_format_child";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+        putDataset(dataset, parent, "s3://bucket/data", Map.of("format", "csv", "delimiter", "|"));
+
+        Map<String, Object> got = getDataset(dataset);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> hits = (List<Map<String, Object>>) got.get("datasets");
+        assertThat(hits, hasSize(1));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> settings = (Map<String, Object>) hits.get(0).get("settings");
+        assertThat("explicit format round-trips in its canonical lowercase form", settings.get("format"), equalTo("csv"));
+        assertThat("the csv-specific delimiter round-trips", settings.get("delimiter"), equalTo("|"));
+
+        deleteDataset(dataset);
+        deleteDataSource(parent);
+    }
+
+    public void testPutDatasetRejectsUnknownFormat() throws IOException {
+        final String parent = "unknown_format_parent";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> putDataset("unknown_format_child", parent, "s3://bucket/data", Map.of("format", "bogus"))
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("unknown format [bogus]"));
+        deleteDataSource(parent);
+    }
+
+    public void testPutDatasetRejectsFormatSpecificSettingWithoutResolvableFormat() throws IOException {
+        // Extensionless resource + a format-specific setting but no `format`: the validator cannot tell
+        // which format the setting belongs to, so it fails with the targeted "cannot determine format" hint.
+        final String parent = "no_format_parent";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> putDataset("no_format_child", parent, "s3://bucket/data", Map.of("delimiter", "|"))
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("cannot determine format"));
+        deleteDataSource(parent);
+    }
+
     public void testPutDatasetRejectsUnknownTopLevelField() throws IOException {
         final String parent = "reject_field_parent";
         putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));

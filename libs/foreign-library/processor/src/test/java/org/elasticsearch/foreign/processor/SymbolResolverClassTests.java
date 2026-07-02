@@ -9,11 +9,14 @@
 
 package org.elasticsearch.foreign.processor;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.lang.invoke.MethodHandle;
 
 /**
  * Tests for the {@code @SymbolResolverClass} annotation support in the processor.
  */
+@SuppressForbidden(reason = "tests verify private fields of processor-generated classes")
 public class SymbolResolverClassTests extends ProcessorTestCase {
 
     /**

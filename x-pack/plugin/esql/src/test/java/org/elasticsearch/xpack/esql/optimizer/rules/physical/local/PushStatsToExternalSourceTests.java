@@ -580,6 +580,24 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         assertEquals(0L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
     }
 
+    public void testFilteredCountSafeMissesOnPartialWholeFileStats() {
+        // F2 (elastic/elasticsearch#150920): with no per-split stats (e.g. a CoalescedSplit whose stat-less
+        // child collapsed splitStats() to null), a FILTERED count falls back to the whole-file cache stats. If
+        // those are STATS_PARTIAL, it must safe-miss exactly as the unfiltered path (resolveEffectiveStats) does
+        // — serving the partial row_count would emit a wrong COUNT. Pushes the partial 1000 without the guard.
+        Map<String, Object> partial = new HashMap<>();
+        partial.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
+        partial.put(SourceStatisticsSerializer.columnMinKey("age"), 30L);
+        partial.put(SourceStatisticsSerializer.columnMaxKey("age"), 50L);
+        partial.put(SourceStatisticsSerializer.columnNullCountKey("age"), 0L); // no nulls -> the filter can classify MATCH
+        partial.put(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.TRUE);
+        Expression filterCondition = greaterThanOf(AGE, of(20L)); // MATCH against min=30/nc=0, so it would push absent the guard
+        var agg = aggregateExec(new FilterExec(Source.EMPTY, externalSource(partial), filterCondition), countStarAlias());
+
+        // Must NOT push — a partial whole-file row_count cannot answer a filtered count. AggregateExec stays.
+        as(applyRule(agg), AggregateExec.class);
+    }
+
     // --- helpers ---
 
     @SafeVarargs

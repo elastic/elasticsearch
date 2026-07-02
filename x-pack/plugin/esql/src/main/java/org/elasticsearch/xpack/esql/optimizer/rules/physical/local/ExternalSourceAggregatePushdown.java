@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.MergedSplitStats;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Shared helpers for aggregate pushdown rules ({@link PushStatsToExternalSource} and
@@ -392,6 +394,14 @@ public final class ExternalSourceAggregatePushdown {
                 stats = splits.getFirst().splitStats();
             }
             if (stats == null) {
+                // Fall back to the whole-file cache stats — but honor STATS_PARTIAL exactly as the unfiltered
+                // path does (SplitStats.resolveEffectiveStats): a partial whole-file row_count (e.g. a single
+                // CoalescedSplit whose stat-less child collapsed splitStats() to null) cannot answer a FILTERED
+                // count. Serving it would emit a partial COUNT. Safe-miss instead.
+                Map<String, Object> sourceMetadata = externalExec.sourceMetadata();
+                if (sourceMetadata != null && Boolean.TRUE.equals(sourceMetadata.get(SourceStatisticsSerializer.STATS_PARTIAL))) {
+                    return null;
+                }
                 stats = externalExec.sourceMetadataStats();
             }
             if (stats == null) {

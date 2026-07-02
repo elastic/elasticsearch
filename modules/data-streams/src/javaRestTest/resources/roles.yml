@@ -22,10 +22,15 @@ only_get:
       privileges:
         - read
         - view_index_metadata
-tsdb_limited_writer:
+tsdb_writer:
   indices:
     - names: [ 'metrics-tsdb-test*' ]
       privileges:
         - auto_configure
+        - index
+tsdb_limited_writer:
+  indices:
+    - names: [ 'metrics-tsdb-test*' ]
+      privileges:
         - index
 no_privilege:

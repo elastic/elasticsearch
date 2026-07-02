@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -44,7 +45,8 @@ public class TsdbDataStreamWithSecurityIT extends ESRestTestCase {
         .setting("xpack.security.http.ssl.enabled", "false")
         .setting("data_streams.time_series.create_past_indices_enabled", "true")
         .user("test_admin", PASSWORD, "superuser", false)
-        .user("tsdb_writer", PASSWORD, "tsdb_limited_writer", false)
+        .user("tsdb_writer", PASSWORD, "tsdb_writer", false)
+        .user("tsdb_limited_writer", PASSWORD, "tsdb_limited_writer", false)
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .build();
 
@@ -65,24 +67,38 @@ public class TsdbDataStreamWithSecurityIT extends ESRestTestCase {
     }
 
     private Settings tsdbWriterRestClientSettings() {
-        // Note: This user is assigned the role "tsdb_limited_writer". That role is defined in roles.yml.
+        // Note: This user is assigned the role "tsdb_writer". That role is defined in roles.yml.
         String token = basicAuthHeaderValue("tsdb_writer", new SecureString(PASSWORD.toCharArray()));
         return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    private Settings tsdbLimitedWriterRestClientSettings() {
+        // Note: This user is assigned the role "tsdb_limited_writer". That role is defined in roles.yml.
+        String token = basicAuthHeaderValue("tsdb_limited_writer", new SecureString(PASSWORD.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
+
     /**
-     * Verifies that a user with only {@code auto_configure} and {@code index} privileges can backfill a TSDB data stream
-     * up to the point allowed by the data lifecycle retention, and that documents with timestamps older than the retention
-     * window are rejected.
-     * <p>
-     * Sequence:
-     * <ol>
-     *   <li>Create TSDB data stream (admin).</li>
-     *   <li>Index a document 30 days in the past with the limited user — accepted, no retention is configured.</li>
-     *   <li>Configure a 7-day DLM retention (admin).</li>
-     *   <li>Index a document 6 days in the past with the limited user — accepted, within the 7-day window.</li>
-     *   <li>Index a document 32 days in the past with the limited user — rejected, outside the 7-day window.</li>
-     * </ol>
+     * The test asserts that backfill writes to a TSDB data stream can create new past-generation indices only when:
+     * (a) the writer has the necessary security privilege
+     * (b) the cluster feature flag is enabled and
+     * (c) the timestamp falls within the configured DLM retention window.violating any one of these produces the
+     *     correct distinct error (security_exception vs timestamp_error).
+     * Violating any one of these produces the correct distinct error (security_exception vs timestamp_error). More
+     * specifically, the test uses 3 different users:
+     * - an admin for cluster management tasks, flag updating and index template creation
+     * - a writer that can create past indices when needed
+     * - a limited writer that cannot create past indices, this path might give a security exception.
+     * The feature is enabled and we try to index the following timestamps (we use unique dimensions to ensure we will not create
+     * a document conflict):
+     * - 30 minutes and 1 hour ago, both writers should be able to index these docs and the target index should be the first one,
+     *   so generation is 1.
+     * - 30 days ago, the limited writer got a security exception, while the other writer creates it second, so generation is 2.
+     * - 6 days ago, the writer created it third in line, so generation is 3.
+     * - 32 days ago, comes after the lifecycle has been updated and falls out of the write window so the writer gets a timestamp_error.
+     * - We disable the feature.
+     * - 3 days ago, both users get a timestamp_error since the feature cannot create past indices.
+     * - However, both can keep indexing on the past indices already created before the feature was disabled.
      */
     @SuppressWarnings("unchecked")
     public void testTsdbBackfillWriteWindowEnforcedByLimitedUser() throws Exception {
@@ -113,14 +129,38 @@ public class TsdbDataStreamWithSecurityIT extends ESRestTestCase {
         assertAcknowledged(adminClient().performRequest(putTemplateRequest));
         assertAcknowledged(adminClient().performRequest(new Request("PUT", "/_data_stream/" + TSDB_DATA_STREAM_NAME)));
 
-        try (var writerClient = buildClient(tsdbWriterRestClientSettings(), getClusterHosts().toArray(new HttpHost[0]))) {
-            String thirtyTwoDaysAgo = Instant.now().minus(32, ChronoUnit.DAYS).toString();
-            String thirtyDaysAgo = Instant.now().minus(30, ChronoUnit.DAYS).toString();
-            String sixDaysAgo = Instant.now().minus(6, ChronoUnit.DAYS).toString();
+        Instant now = Instant.now();
+        String thirtyTwoDaysAgo = now.minus(32, ChronoUnit.DAYS).toString();
+        String thirtyDaysAgo = now.minus(30, ChronoUnit.DAYS).toString();
+        String sixDaysAgo = now.minus(6, ChronoUnit.DAYS).toString();
+        String threeDaysAgo = now.minus(3, ChronoUnit.DAYS).toString();
+        String oneHourAgo = now.minus(1, ChronoUnit.HOURS).toString();
+        String halfHourAgo = now.minus(30, ChronoUnit.MINUTES).toString();
 
+        try (var limitedWriterClient = buildClient(tsdbLimitedWriterRestClientSettings(), getClusterHosts().toArray(new HttpHost[0]))) {
+            // No retention configured — but the writer doesn't have enough privileges to create past indices
+            Map<String, Object> response = entityAsMap(
+                limitedWriterClient.performRequest(bulkCreateRequest(thirtyDaysAgo, oneHourAgo, halfHourAgo))
+            );
+            assertThat(response.get("errors"), is(true));
+            List<Map<String, Object>> responseItems = getResponseItems(response);
+            assertThat(responseItems.size(), is(3));
+            assertThat(((Map<String, String>) responseItems.get(0).get("error")).get("type"), equalTo("security_exception"));
+            assertThat((String) responseItems.get(1).get("_index"), endsWith("-000001"));
+            assertThat((String) responseItems.get(2).get("_index"), endsWith("-000001"));
+        }
+
+        try (var writerClient = buildClient(tsdbWriterRestClientSettings(), getClusterHosts().toArray(new HttpHost[0]))) {
             // No retention configured — the write window is unlimited so documents 30 days ago are accepted.
-            Map<String, Object> response30Before = entityAsMap(writerClient.performRequest(bulkCreateRequest(thirtyDaysAgo)));
-            assertThat(response30Before.get("errors"), is(false));
+            Map<String, Object> response = entityAsMap(
+                writerClient.performRequest(bulkCreateRequest(thirtyDaysAgo, oneHourAgo, halfHourAgo))
+            );
+            assertThat(response.get("errors"), is(false));
+            List<Map<String, Object>> responseItems = getResponseItems(response);
+            assertThat(responseItems.size(), is(3));
+            assertThat((String) responseItems.get(0).get("_index"), endsWith("-000002"));
+            assertThat((String) responseItems.get(1).get("_index"), endsWith("-000001"));
+            assertThat((String) responseItems.get(2).get("_index"), endsWith("-000001"));
 
             // Set 7-day DLM retention.
             Request putLifecycle = new Request("PUT", "/_data_stream/" + TSDB_DATA_STREAM_NAME + "/_lifecycle");
@@ -129,27 +169,67 @@ public class TsdbDataStreamWithSecurityIT extends ESRestTestCase {
                 """);
             assertAcknowledged(adminClient().performRequest(putLifecycle));
 
-            // 6 days ago is within the 7-day write window, so the document is accepted.
-            Map<String, Object> response6d = entityAsMap(writerClient.performRequest(bulkCreateRequest(sixDaysAgo)));
-            assertThat(response6d.get("errors"), is(false));
+            // 6 days should be accepted, but 32 days should be rejected; 30 days has already been created so it can be accepted.
+            response = entityAsMap(writerClient.performRequest(bulkCreateRequest(sixDaysAgo, thirtyDaysAgo, thirtyTwoDaysAgo)));
+            assertThat(response.get("errors"), is(true));
+            responseItems = getResponseItems(response);
+            assertThat(responseItems.size(), is(3));
+            assertThat((String) responseItems.get(0).get("_index"), endsWith("-000003"));
+            assertThat((String) responseItems.get(1).get("_index"), endsWith("-000002"));
+            assertThat(((Map<String, String>) responseItems.get(2).get("error")).get("type"), equalTo("timestamp_error"));
 
-            // 32 days ago is outside the 7-day write window — the item must fail.
-            Map<String, Object> response32d = entityAsMap(writerClient.performRequest(bulkCreateRequest(thirtyTwoDaysAgo)));
-            assertThat(response32d.get("errors"), equalTo(true));
-            Map<String, Object> firstItem = ((List<Map<String, Object>>) response32d.get("items")).getFirst();
-            Map<String, Object> create = (Map<String, Object>) firstItem.get("create");
-            Map<String, Object> error = (Map<String, Object>) create.get("error");
-            assertThat(error.get("type"), equalTo("timestamp_error"));
+            // Disable past index creation
+            updateClusterSettings(
+                adminClient(),
+                Settings.builder().put("data_streams.time_series.create_past_indices_enabled", false).build()
+            );
+
+            // 3 and 32 days should be rejected; 6 and 30 days has already been created so it can be accepted.
+            // Half-hour is current, so it should be accepted.
+            response = entityAsMap(
+                writerClient.performRequest(bulkCreateRequest(threeDaysAgo, sixDaysAgo, thirtyDaysAgo, halfHourAgo, thirtyTwoDaysAgo))
+            );
+            assertThat(response.get("errors"), is(true));
+            responseItems = getResponseItems(response);
+            assertThat(responseItems.size(), is(5));
+            assertThat(((Map<String, String>) responseItems.get(0).get("error")).get("type"), equalTo("timestamp_error"));
+            assertThat((String) responseItems.get(1).get("_index"), endsWith("-000003"));
+            assertThat((String) responseItems.get(2).get("_index"), endsWith("-000002"));
+            assertThat((String) responseItems.get(3).get("_index"), endsWith("-000001"));
+            assertThat(((Map<String, String>) responseItems.get(4).get("error")).get("type"), equalTo("timestamp_error"));
+        }
+
+        try (var limitedWriterClient = buildClient(tsdbLimitedWriterRestClientSettings(), getClusterHosts().toArray(new HttpHost[0]))) {
+            // This time the limited writer can write in previously created indices. And since the feature is disabled,
+            // the error is a timestamp error.
+            Map<String, Object> response = entityAsMap(
+                limitedWriterClient.performRequest(bulkCreateRequest(threeDaysAgo, sixDaysAgo, thirtyDaysAgo, halfHourAgo))
+            );
+            assertThat(response.get("errors"), is(true));
+            List<Map<String, Object>> responseItems = getResponseItems(response);
+            assertThat(responseItems.size(), is(4));
+            assertThat(((Map<String, String>) responseItems.get(0).get("error")).get("type"), equalTo("timestamp_error"));
+            assertThat((String) responseItems.get(1).get("_index"), endsWith("-000003"));
+            assertThat((String) responseItems.get(2).get("_index"), endsWith("-000002"));
+            assertThat((String) responseItems.get(3).get("_index"), endsWith("-000001"));
         }
     }
 
-    private static Request bulkCreateRequest(String timestamp) {
+    private static Request bulkCreateRequest(String... timestamps) {
         Request request = new Request("POST", "/" + TSDB_DATA_STREAM_NAME + "/_bulk");
-        request.setJsonEntity(String.format(Locale.ROOT, """
-            {"create":{}}
-            {"@timestamp":"%s","pod_name":"test-pod"}
-            """, timestamp));
+        StringBuilder payloadBuilder = new StringBuilder();
+        for (String timestamp : timestamps) {
+            payloadBuilder.append(String.format(Locale.ROOT, """
+                {"create":{}}
+                {"@timestamp":"%s","pod_name":"%s"}
+                """, timestamp, randomAlphaOfLength(10)));
+        }
+        request.setJsonEntity(payloadBuilder.toString());
         return request;
     }
 
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> getResponseItems(Map<String, Object> response) {
+        return ((List<Map<String, Object>>) response.get("items")).stream().map(item -> (Map<String, Object>) item.get("create")).toList();
+    }
 }

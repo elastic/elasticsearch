@@ -310,8 +310,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             DataStreamsPlugin.class,
             LocalStateCompositeXPackPlugin.class,
             AggregateMetricMapperPlugin.class,
-            EsqlPluginWithEnterpriseOrTrialLicense.class,
-            TestEncryptionServicePlugin.class
+            TestEncryptionServicePlugin.class,
+            EsqlPluginWithEnterpriseOrTrialLicense.class
         );
     }
 

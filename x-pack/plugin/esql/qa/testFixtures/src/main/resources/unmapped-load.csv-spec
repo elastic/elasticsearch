@@ -2291,3 +2291,792 @@ FROM (FROM partial_mapping_mv_sample_data | EVAL n = MV_COUNT(unmapped_mv) | KEE
 total:long | rows:long
 13         | 7
 ;
+
+
+//
+// unmapped_fields="load" over views (see views.csv-spec for the non-load counterparts).
+//
+loadViewSingleEvalNonExistent
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_all
+| EVAL extra = nonexistent_field
+| WHERE extra IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
+loadViewSingleStatsByNonExistent
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_all
+| STATS c = COUNT(*) BY nonexistent_field
+;
+
+c:long | nonexistent_field:keyword
+100    | null
+;
+
+loadViewSingleSortByNonExistent
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_all
+| SORT nonexistent_field ASC, emp_no ASC
+| KEEP emp_no, nonexistent_field
+| LIMIT 3
+;
+
+emp_no:integer | nonexistent_field:keyword
+10001          | null
+10002          | null
+10003          | null
+;
+
+loadViewSingleRenameNonExistent
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_all
+| RENAME nonexistent_field AS missing
+| STATS c = COUNT(*), m = COUNT(missing) BY missing
+;
+
+c:long | m:long | missing:keyword
+100    | 0      | null
+;
+
+loadViewSingleWhereNonExistentNotNull
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_all
+| WHERE nonexistent_field IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+loadViewSingleKeepNonExistent
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_all
+| SORT emp_no ASC
+| KEEP emp_no, nonexistent_field
+| LIMIT 2
+;
+
+emp_no:integer | nonexistent_field:keyword
+10001          | null
+10002          | null
+;
+
+loadViewWithSubqueryBody_EvalNonExistent
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM view_with_subquery
+| EVAL extra = nonexistent_field
+| STATS c = COUNT(emp_no), missing = COUNT(extra)
+;
+
+c:long | missing:long
+100    | 0
+;
+
+loadViewInternallyBranchingEmployeesExtra_EvalNonExistent
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_deduplication_bugfix
+
+SET unmapped_fields="load"\;
+FROM employees_extra
+| EVAL extra = nonexistent_field
+| STATS c = COUNT(emp_no), missing = COUNT(extra)
+;
+
+c:long | missing:long
+200    | 0
+;
+
+loadViewBranchingPassthroughNonExistent
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_deduplication_bugfix
+
+SET unmapped_fields="load"\;
+FROM employees_all, employees_extra
+| EVAL extra = nonexistent_field
+| STATS c = COUNT(emp_no), missing = COUNT(extra)
+;
+
+c:long | missing:long
+300    | 0
+;
+
+loadViewWrappedInOuterSubqueryNonExistent
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM employees_all | WHERE emp_no < 10005)
+| EVAL extra = nonexistent_field
+| STATS rows = COUNT(), missing = COUNT(extra)
+;
+
+rows:long | missing:long
+4         | 0
+;
+
+loadViewInSubqueryWithIndex_CountNonExistent
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM sample_data, (FROM country_airports)
+| STATS sd = COUNT(client_ip), ca = COUNT(count), missing = COUNT(nonexistent_field), total = COUNT()
+;
+
+sd:long | ca:long | missing:long | total:long
+7       | 15      | 0            | 22
+;
+
+loadInSubqueryReferencingViewNonExistent
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+SET unmapped_fields="load"\;
+FROM employees
+| WHERE emp_no IN (FROM employees_all | SORT emp_no | LIMIT 3 | KEEP emp_no)
+| EVAL extra = nonexistent_field
+| SORT emp_no
+| KEEP emp_no, first_name, extra
+;
+
+emp_no:integer | first_name:keyword | extra:keyword
+10001          | Georgi             | null
+10002          | Bezalel            | null
+10003          | Parto              | null
+;
+
+loadViewContainingInSubqueryNonExistent
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_without_view
+
+SET unmapped_fields="load"\;
+FROM employees_in_subquery
+| EVAL extra = nonexistent_field
+| SORT emp_no
+| KEEP emp_no, first_name, extra
+;
+
+emp_no:integer | first_name:keyword | extra:keyword
+10001          | Georgi             | null
+10002          | Bezalel            | null
+10003          | Parto              | null
+;
+
+loadViewDedupIndexAndView_CountNonExistent
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_deduplication_bugfix
+
+SET unmapped_fields="load"\;
+FROM employees, employees_all
+| STATS c = COUNT(emp_no), missing = COUNT(nonexistent_field)
+;
+
+c:long | missing:long
+200    | 0
+;
+
+loadViewDedupViewAndView_CountNonExistent
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_all, employees_all
+| STATS c = COUNT(emp_no), missing = COUNT(nonexistent_field)
+;
+
+c:long | missing:long
+100    | 0
+;
+
+loadViewBranchingCountryViewsLoadMode
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM country_addresses, country_airports
+| STATS count=SUM(count) BY country
+| WHERE count > 11
+| SORT count DESC, country ASC
+;
+
+count:long | country:keyword
+130        | United States
+50         | India
+45         | Mexico
+41         | China
+37         | Canada
+31         | Brazil
+26         | Russia
+17         | Australia
+17         | United Kingdom
+13         | Argentina
+12         | France
+12         | Indonesia
+;
+
+loadViewBranchingThreeCountryViewsLoadMode
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM country_addresses, country_airports, country_languages
+| STATS count=SUM(count) BY country
+| WHERE count > 11
+| SORT count DESC, country ASC
+;
+
+count:long | country:keyword
+131        | United States
+50         | India
+45         | Mexico
+41         | China
+38         | Canada
+31         | Brazil
+26         | Russia
+18         | United Kingdom
+17         | Australia
+13         | Argentina
+13         | Germany
+12         | France
+12         | Indonesia
+;
+
+loadViewWildcardCountryViewsLoadMode
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM country_*
+| STATS count=SUM(count) BY country
+| WHERE count > 11
+| SORT count DESC, country ASC
+;
+
+count:long | country:keyword
+131        | United States
+50         | India
+45         | Mexico
+41         | China
+38         | Canada
+31         | Brazil
+26         | Russia
+18         | United Kingdom
+17         | Australia
+13         | Argentina
+13         | Germany
+12         | France
+12         | Indonesia
+;
+
+loadViewRowConstantsLoadMode
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+SET unmapped_fields="load"\;
+FROM view_row_constants
+| SORT seed, label
+;
+
+seed:integer | label:keyword
+1            | row_view_constants
+;
+
+loadViewRowEvalLoadMode
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+SET unmapped_fields="load"\;
+FROM view_row_eval
+| SORT multiplier
+;
+
+multiplier:integer | triple:integer
+3                  | 9
+;
+
+loadViewTsMaxBytesLoadMode
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+SET unmapped_fields="load"\;
+FROM view_k8s_max_bytes_by_cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10277          | prod
+10797          | qa
+7403           | staging
+;
+
+loadViewTsBranchingStatsLoadMode
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+SET unmapped_fields="load"\;
+FROM view_k8s_max_bytes_by_cluster, view_k8s_downsampled_low_tx_count
+| STATS bytes=MAX(max_bytes), low_tx=SUM(count) BY cluster
+| SORT cluster
+;
+
+bytes:long | low_tx:long | cluster:keyword
+10277      | 3           | prod
+10797      | 2           | qa
+7403       | 2           | staging
+;
+
+loadViewPassthroughLoadsFromSource_KeepUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_view
+| WHERE message == "42"
+| KEEP @timestamp, message, unmapped_message
+;
+
+@timestamp:date          | message:keyword | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 42              | 43
+;
+
+loadViewPassthroughLoadsFromSource_WithStatsUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_view
+| STATS loaded = COUNT(unmapped_message), rows = COUNT(*)
+;
+
+loaded:long | rows:long
+7           | 7
+;
+
+loadViewBranchingLoadsFromSourceInOneBranch_KeepUnmappedInsideAndOut
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | KEEP message, unmapped_message), (FROM employees | KEEP emp_no)
+| WHERE unmapped_message IS NOT NULL
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+Connected to 10.1.0.2! | Disconnected from 10.1.0.2
+Connected to 10.1.0.3! | Disconnected from 10.1.0.3
+Connection error?      | Disconnection error
+Connection error?      | Disconnection error
+Connection error?      | Disconnection error
+;
+
+loadViewBranchingUnmappedFieldReferencedOnlyAboveUnion
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"), (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+loadMvViewExpandCount_MvExpandUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_view
+| MV_EXPAND unmapped_mv
+| STATS c = COUNT(*)
+;
+
+c:long
+13
+;
+
+loadMvViewExpandValues_MvExpandUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_view
+| WHERE message == "Connection error?"
+| MV_EXPAND unmapped_mv
+| KEEP message, unmapped_mv
+| SORT unmapped_mv
+;
+
+message:keyword   | unmapped_mv:keyword
+Connection error? | c
+Connection error? | d
+Connection error? | e
+Connection error? | f
+Connection error? | g
+;
+
+loadMvViewFunctions_WithUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_view
+| WHERE message == "42"
+| EVAL n = MV_COUNT(unmapped_mv), lo = MV_MIN(unmapped_mv), hi = MV_MAX(unmapped_mv)
+| KEEP message, n, lo, hi
+;
+
+message:keyword | n:integer | lo:keyword | hi:keyword
+42              | 2         | h          | i
+;
+
+loadDissectViewLoadedUnmappedField
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_mv_view
+| WHERE message == "Connected to 10.1.0.3!"
+| DISSECT unmapped_message "%{action} from %{host}"
+| KEEP message, action, host
+;
+
+message:keyword        | action:keyword | host:keyword
+Connected to 10.1.0.3! | Disconnected   | 10.1.0.3
+;
+
+loadMvViewBranching_ExpandUnmapped_InOneBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_mv_view | WHERE message == "42" | MV_EXPAND unmapped_mv | KEEP message, unmapped_mv), (FROM partial_mapping_mv_view | WHERE message == "Connected to 10.1.0.1!" | KEEP message, unmapped_mv)
+| SORT message, unmapped_mv
+;
+
+message:keyword        | unmapped_mv:keyword
+42                     | h
+42                     | i
+Connected to 10.1.0.1! | [a, b]
+;
+
+loadViewOuterEvalFunction_MaterializesUnmapped_AllBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| EVAL upper = TO_UPPER(unmapped_message)
+| KEEP message, unmapped_message, upper
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword   | upper:keyword
+42                     | 43                         | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | DISCONNECTED FROM 10.1.0.1
+;
+
+loadViewOuterStatsBy_MaterializesUnmapped_AllBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| STATS c = COUNT(*) BY unmapped_message
+| SORT unmapped_message
+;
+
+c:long | unmapped_message:keyword
+1      | 43
+1      | Disconnected from 10.1.0.1
+;
+
+loadViewOuterSortDesc_MaterializesUnmapped_ThreeBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!"),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.2!")
+| KEEP message, unmapped_message
+| SORT unmapped_message DESC
+;
+
+message:keyword        | unmapped_message:keyword
+Connected to 10.1.0.2! | Disconnected from 10.1.0.2
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+42                     | 43
+;
+
+loadViewDropUnmapped_InOneBranch_MaterializesUnmapped_Sibling
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | DROP unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+loadViewRenameUnmappedAway_OuterReferences_OriginalUnmappedName
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_message AS renamed),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message, renamed
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword   | renamed:keyword
+42                     | null                       | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | null
+;
+
+loadViewWhereThenDropUnmappedInOneBranch_MaterializesUnmappedSibling
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE unmapped_message == "43" | DROP unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+loadViewEvalUnmappedInOneBranch_ScopesFieldToBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | EVAL tag = unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message, tag
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword | tag:keyword
+42                     | 43                       | 43
+Connected to 10.1.0.1! | null                     | null
+;
+
+loadViewKeepUnmapped_InOneBranch_ScopesFieldToBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!" | KEEP message)
+| EVAL has = unmapped_message IS NOT NULL
+| KEEP message, unmapped_message, has
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword | has:boolean
+42                     | 43                       | true
+Connected to 10.1.0.1! | null                     | false
+;
+
+loadViewRenameUnmapped_InOneBranch_OuterReferencesNewName
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_message AS renamed),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, renamed
+| SORT message
+;
+
+message:keyword        | renamed:keyword
+42                     | 43
+Connected to 10.1.0.1! | null
+;
+
+loadViewMixedViewAndIndex_BranchesMaterializeUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+loadViewDropInView_BranchMaterializeUnmappedIndexBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | DROP unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword        | unmapped_message:keyword
+42                     | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+loadViewPassthrough_OuterEvalMaterializesUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_view
+| WHERE message == "Connected to 10.1.0.3!"
+| EVAL upper = TO_UPPER(unmapped_message), len = LENGTH(unmapped_message)
+| KEEP message, upper, len
+;
+
+message:keyword        | upper:keyword              | len:integer
+Connected to 10.1.0.3! | DISCONNECTED FROM 10.1.0.3 | 26
+;
+
+loadViewInSubqueryAfterSubqueryIn_FromWhereUnmapped_KeepBranchesUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: where_in_subquery_with_view
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped_message),
+     (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.3!" | KEEP message, unmapped_message)
+| WHERE unmapped_message IN (FROM partial_mapping_view | WHERE message == "42" | KEEP unmapped_message)
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword | unmapped_message:keyword
+42              | 43
+;

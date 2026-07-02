@@ -71,8 +71,13 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
         return isPotentiallyUnmapped() && types().size() == 1;
     }
 
-    /** The single mapped source type (e.g. {@code SHORT}). Only valid when {@link #isSingleTypePotentiallyUnmapped()}. */
+    /**
+     * The single mapped source type (e.g. {@code SHORT}). Only valid when {@link #isSingleTypePotentiallyUnmapped()}.
+     */
     public DataType singleMappedType() {
+        if (isSingleTypePotentiallyUnmapped() == false) {
+            throw new IllegalStateException("Unexpected call for a non-single type unmapped field");
+        }
         return types().iterator().next();
     }
 

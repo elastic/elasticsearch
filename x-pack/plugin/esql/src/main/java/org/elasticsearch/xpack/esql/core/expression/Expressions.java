@@ -71,10 +71,10 @@ public final class Expressions {
             Attribute existing = existingByName.get(exp.name());
             NameId id = existing != null ? existing.id() : new NameId();
             Attribute refAttr = switch (exp) {
-                case FieldAttribute fa when fa.field() instanceof TypeConflictedField tcf -> {
+                case FieldAttribute fa when fa.field() instanceof TypeConflictedField tcf ->
                     // A two-legged PUNK is not a genuine conflict: keep its single mapped type instead of flagging it.
-                    if (tcf.isSingleTypePotentiallyUnmapped()) {
-                        yield new ReferenceAttribute(
+                    tcf.isSingleTypePotentiallyUnmapped()
+                        ? new ReferenceAttribute(
                             fa.source(),
                             null,
                             fa.name(),
@@ -82,10 +82,8 @@ public final class Expressions {
                             fa.nullable(),
                             id,
                             fa.synthetic()
-                        );
-                    }
-                    yield fa.flagTypeConflicts();
-                }
+                        )
+                        : fa.flagTypeConflicts();
                 case UnsupportedAttribute ua -> new UnsupportedAttribute(
                     ua.source(),
                     ua.qualifier(),

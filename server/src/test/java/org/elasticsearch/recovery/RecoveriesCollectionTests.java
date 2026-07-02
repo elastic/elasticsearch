@@ -235,7 +235,6 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             int failCount = firstCount.get();
             int cancelCount = secondCount.get();
             assertThat("expected exactly one recovery outcome trace", failCount + cancelCount, equalTo(1));
-            assertTrue("fail and cancel must not both log", failCount == 0 || cancelCount == 0);
         }
     }
 }

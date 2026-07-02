@@ -3041,11 +3041,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * barrier until all threads are started and ready to execute their task.
      */
     public static void startInParallel(Runnable... tasks) {
-        final CyclicBarrier barrier = new CyclicBarrier(tasks.length);
-        runInParallel(tasks.length, i -> {
-            safeAwait(barrier);
-            tasks[i].run();
-        });
+        startInParallel(tasks.length, i -> tasks[i].run());
     }
 
     /**

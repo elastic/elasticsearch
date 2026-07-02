@@ -63,7 +63,7 @@ public final class DeclaredSchemaResolver {
 
     /**
      * The declared columns as ES|QL attributes, keyed by <b>logical</b> name and in declaration order. Returns an empty
-     * list when there is no {@code mappings} block (role-only declarations contribute no columns). A {@code copy_to} does
+     * list when there is no {@code mappings} block (an _id/_source-only mappings block contributes no columns). A {@code copy_to} does
      * not appear here — it is materialized as an {@code EVAL} above the relation, not a base column.
      */
     public static List<Attribute> declaredAttributes(DatasetMapping mapping) {

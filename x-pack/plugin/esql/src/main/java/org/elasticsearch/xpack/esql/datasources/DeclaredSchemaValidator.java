@@ -32,7 +32,7 @@ import java.util.TreeSet;
  * </ul>
  *
  * <p>What is deliberately <b>not</b> checked here (deferred to first-query mapping resolution, because PUT does no
- * I/O and the files may not exist yet): that a role designation pointing at an <i>inferred</i> column exists; that
+ * I/O and the files may not exist yet): that the {@code _id.path} column exists when it is inferred rather than declared; that
  * a declared {@code path}/type matches the physical file; per-format narrowing (e.g. {@code unsigned_long} is
  * Parquet-only) — the producing format is authoritative at read time.
  */

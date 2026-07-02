@@ -53,7 +53,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
     private static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField MAPPINGS = new ParseField("mappings");
 
-    /** Gates the optional {@link DatasetMapping} (declared mapping + role designations) on the wire. */
+    /** Gates the optional {@link DatasetMapping} (the declared {@code mappings} block) on the wire. */
     private static final TransportVersion DATASET_DECLARED_SCHEMA = TransportVersion.fromName("dataset_declared_schema");
 
     @SuppressWarnings("unchecked")
@@ -159,7 +159,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         return settings;
     }
 
-    /** The user-declared mapping (mapping + role designations), or {@code null} when the dataset relies on inference. */
+    /** The user-declared {@code mappings} block, or {@code null} when the dataset relies on inference. */
     @Nullable
     public DatasetMapping mapping() {
         return mapping;

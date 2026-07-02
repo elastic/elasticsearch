@@ -213,7 +213,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             return rawSettings;
         }
 
-        /** The parsed declared mapping (mapping + role designations), or {@code null} when none was supplied. */
+        /** The parsed declared mapping (the declared mappings block), or {@code null} when none was supplied. */
         @Nullable
         public DatasetMapping mapping() {
             return mapping;

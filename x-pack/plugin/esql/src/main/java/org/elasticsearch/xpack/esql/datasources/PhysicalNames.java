@@ -17,10 +17,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Single source of truth for the declared-schema logical&rarr;physical column rename ({@code source}).
+ * Single source of truth for the declared-schema logical&rarr;physical column rename ({@code path}).
  *
  * <p>The whole external-read stack — plan, reconciliation ({@link SchemaReconciliation} / {@link ColumnMapping} /
- * {@link FilterAdaptation}), projection intersection — works in <b>logical</b> names. A {@code source} rename is
+ * {@link FilterAdaptation}), projection intersection — works in <b>logical</b> names. A {@code path} rename is
  * applied only at the last mile, on the names handed to a format reader or its pushdown SPI, so readers are fully
  * rename-agnostic and reconciliation is never disturbed. Every reader-facing name surface (projection, read schema,
  * pushed filter, TopN threshold, aggregate-stats refs) routes its names through this class; deferred extraction rides

@@ -263,7 +263,7 @@ public class ExternalSourceResolver {
      * column renames; {@code pathsRequiringStats} gates the FIRST_FILE_WINS eager all-file stats aggregation.
      *
      * @param declaredMappings    per-path declared mapping — strict skips inference, non-strict overlays it, and its
-     *        {@code source} renames ride config to the reader boundary; {@code null} when no path declares a mapping.
+     *        {@code path} renames ride config to the reader boundary; {@code null} when no path declares a mapping.
      * @param pathsRequiringStats paths whose multi-file FFW resolution must eagerly aggregate global
      *        statistics across all files (the ungrouped-aggregate metadata fast path). A {@code null}
      *        value selects legacy behavior — every path resolves eagerly — preserving existing call
@@ -454,7 +454,7 @@ public class ExternalSourceResolver {
      * Strict single-file resolution: the declared mapping is the entire schema, so no inference and no schema-cache
      * lookup happen — the declaration is content-independent. Only the file's size/mtime is read (for split planning,
      * the same data-read requirement the inferred path has). Both the user-facing output and the per-file schema carry
-     * the declared <b>logical</b> names (identity column mapping); a {@code source} rename is applied to physical only at
+     * the declared <b>logical</b> names (identity column mapping); a {@code path} rename is applied to physical only at
      * the reader boundary via {@link PhysicalNames}, so the operator and reconciliation stay in logical space.
      */
     private ExternalSourceResolution.ResolvedSource resolveStrictSingleFile(

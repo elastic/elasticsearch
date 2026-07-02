@@ -29,24 +29,22 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * A user-declared mapping attached to a {@link Dataset}. Entirely optional — a dataset with no
  * {@code DatasetMapping} resolves its schema by inference, exactly as before.
  *
- * <p>Groups the declaration surfaces of the dataset PUT body:
- * <ul>
- *   <li>the {@code mappings} block ({@link Mappings}: a {@code dynamic} mode + per-column {@code properties}),
- *       which may be absent (a role-only declaration);</li>
- *   <li>{@code id_field} — names the column whose value is copied into {@code _id}.</li>
- * </ul>
+ * <p>Currently this wraps a single {@code mappings} block ({@link Mappings}): a {@code dynamic} mode, per-column
+ * {@code properties}, and the meta-fields {@code _source} ({@code enabled}) and {@code _id} ({@code path}). The
+ * wrapper is retained (rather than inlining {@code mappings} onto {@link Dataset}) so future top-level declaration
+ * keys have a home.
  *
- * <p>There is <b>no timestamp role</b>: a time axis is just a column named {@code @timestamp}, declared as an
- * ordinary rename (e.g. {@code "@timestamp": {"type":"date","source":"ts"}}) and recognized by the stack by
- * name — a rename ("move"), not a designation. {@code id_field} stays a role because {@code _id} is a metadata
- * slot, not a nameable column: it <i>copies</i> a column's value (the column remains). {@code id_field} is
- * orthogonal to the mappings — it may be present without them, points at a column in the <i>resolved</i> schema
- * (declared or inferred), and is stored as a plain String; validation that it references a real column happens
- * in the ES|QL layer — at put time when the column is declared, otherwise at first query.
+ * <p>There are <b>no role designations</b>. A time axis is just a column named {@code @timestamp}, declared as an
+ * ordinary rename ({@code "@timestamp": {"type":"date","path":"ts"}}) and recognized by the stack by name — a
+ * "move", not a designation. Setting {@code _id} from a column is likewise a meta-field
+ * ({@code "_id": {"path": "col"}}), sibling of {@code _source} inside {@code mappings} — the ES meta-field shape,
+ * not a separate top-level role — so it always rides a {@code mappings} wrapper (exactly as {@code _source.enabled}
+ * does). Whether the named column exists is validated in the ES|QL layer: at put time when it is declared, otherwise
+ * at first query.
  *
  * <p>Like {@link DataSourceReference}, this has no standalone XContent: {@link Dataset#toXContent} emits the
- * flat {@code mappings}/{@code id_field} keys and {@link Dataset#PARSER} reads them back, assembling this
- * object via {@link #assemble}. That keeps a single on-disk JSON shape.
+ * {@code mappings} key and {@link Dataset#PARSER} reads it back, assembling this object via {@link #assemble}.
+ * That keeps a single on-disk JSON shape.
  */
 public final class DatasetMapping implements Writeable {
 

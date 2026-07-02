@@ -13,6 +13,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 
@@ -27,10 +28,12 @@ public class PlanExecutorTests extends ESTestCase {
      * Locks the PR-A wiring invariants that would otherwise only hold implicitly across
      * {@link TransportEsqlQueryAction} and {@link PlanExecutor#esql}: external discovery must run on the
      * {@code esql_worker} pool (isolated from {@code SEARCH}, so a wide wildcard cannot starve regular searches) and its
-     * multi-file metadata fan-out must be bounded by exactly that pool's configured max, so a wide discovery cannot
-     * outrun the pool it shares with query execution.
+     * multi-file metadata fan-out must be bounded by the shared blob-store access concurrency
+     * ({@link ExternalSourceSettings#defaultBlobStoreConcurrency(Settings)}) — the same formula the data-read path
+     * uses — so discovery and data retrieval throttle object-store access consistently. The fan-out may exceed the
+     * pool size because footer reads are async (the worker is released across the read).
      * <p>
-     * The pool selection and the {@code getMax()} fan-out bound live in {@link TransportEsqlQueryAction}
+     * The pool selection and the fan-out bound live in {@link TransportEsqlQueryAction}
      * ({@code externalSourceExecutorName()} / {@code externalSourceConcurrency()}); this test pins both there and then
      * confirms {@link PlanExecutor#createExternalSourceResolver} binds the supplied executor and concurrency onto the
      * resolver verbatim (no silent re-homing back to a blocking or SEARCH pool).
@@ -52,7 +55,7 @@ public class PlanExecutorTests extends ESTestCase {
         List<ExecutorBuilder<?>> builders = plugin.getExecutorBuilders(settings);
         ThreadPool threadPool = new TestThreadPool("test", settings, builders.toArray(new ExecutorBuilder<?>[0]));
         try {
-            int esqlWorkerMax = threadPool.info(ESQL_WORKER_THREAD_POOL_NAME).getMax();
+            int fanOut = ExternalSourceSettings.defaultBlobStoreConcurrency(settings);
             Executor esqlWorker = threadPool.executor(ESQL_WORKER_THREAD_POOL_NAME);
 
             ExternalSourceResolver resolver = PlanExecutor.createExternalSourceResolver(
@@ -61,10 +64,10 @@ public class PlanExecutorTests extends ESTestCase {
                 Settings.EMPTY,
                 null,
                 () -> false,
-                esqlWorkerMax
+                fanOut
             );
 
-            assertEquals("fan-out permit must equal the esql_worker pool size", esqlWorkerMax, resolver.metadataReadConcurrency());
+            assertEquals("fan-out permit must be the shared blob-store access concurrency", fanOut, resolver.metadataReadConcurrency());
             assertSame("discovery must run on the esql_worker executor", esqlWorker, resolver.executor());
             assertNotSame("discovery must not run on the SEARCH pool", threadPool.executor(ThreadPool.Names.SEARCH), resolver.executor());
         } finally {

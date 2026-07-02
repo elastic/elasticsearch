@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -293,13 +294,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     /**
      * Maximum number of in-flight per-file metadata (footer) reads a single multi-file resolution may have
      * outstanding, passed to {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver} as its fan-out
-     * bound. Sized to the {@link #externalSourceExecutor()} pool's max ({@code esql_worker.getMax()}) so that a wide
-     * wildcard discovery cannot exceed the pool it runs on: footer reads are async (the worker is released across the
-     * read), so this caps concurrent in-flight reads rather than pinning that many threads. Kept alongside
-     * {@link #externalSourceExecutor()} so the executor and its fan-out bound stay wired to the same pool.
+     * bound. Because footer reads are async (the {@code esql_worker} thread is released across the read), this caps
+     * concurrent in-flight reads rather than pinning that many threads, so the bound may safely exceed the pool
+     * size. It is the shared {@link ExternalSourceSettings#defaultBlobStoreConcurrency(org.elasticsearch.common.settings.Settings)}
+     * value so metadata
+     * discovery and data retrieval throttle blob-store access with one consistent, node-size-scaled formula
+     * ({@code snapshot_meta} shape, capped at 100) instead of the raw {@code esql_worker.getMax()} pool size.
      */
     protected int externalSourceConcurrency() {
-        return threadPool.info(externalSourceExecutorName()).getMax();
+        return ExternalSourceSettings.defaultBlobStoreConcurrency(clusterService.getSettings());
     }
 
     /**

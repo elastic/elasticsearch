@@ -20,9 +20,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.mapper.BinaryDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -528,6 +526,13 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
     }
 
     @Override
+    protected boolean supportsParsingObject() {
+        // semantic_text parses an object value only in the legacy format (where the value is the full {text, inference} object). The
+        // new format takes a plain text input, so under subobjects:false (columnar) the field must not be handed an object.
+        return fieldType().useLegacyFormat;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         final XContentParser parser = context.parser();
         final XContentLocation xContentLocation = parser.getTokenLocation();
@@ -592,22 +597,11 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
-        if (storesOriginalValuesInDocValues()) {
-            // Reconstruct _source from the original input column only; the inference sub-fields are sub-mappers (like multi-fields)
-            // and are never part of synthetic source. See SemanticFieldMapper#syntheticSourceSupport.
-            return new SyntheticSourceSupport.Native(
-                () -> new CompositeSyntheticFieldLoader(
-                    leafName(),
-                    fullPath(),
-                    new BinaryDocValuesSyntheticFieldLoaderLayer(
-                        SemanticTextField.getOriginalValuesFieldName(fullPath()),
-                        indexCreatedVersion
-                    )
-                )
-            );
-        }
-        return super.syntheticSourceSupport();
+    protected void writeOriginalValue(XContentBuilder b, BytesRef value) throws IOException {
+        // semantic_text stores its input as raw UTF-8 text, so it is written back verbatim (no encoder decoding). _source is rebuilt
+        // from the original input column only; the inference sub-fields are sub-mappers (like multi-fields) and never part of synthetic
+        // source. See SemanticFieldMapper#syntheticSourceSupport.
+        b.utf8Value(value.bytes, value.offset, value.length);
     }
 
     @Override

@@ -13,6 +13,7 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.simdvec.MathUtils;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Encapsulates all vector/centroid-type-specific arithmetic for k-means clustering.
@@ -72,16 +73,39 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
     /** Element-wise deep copy from {@code source} to {@code destination}. */
     void deepCopy(V[] source, V[] destination);
 
-    /** Copy elements of the centroid array ({@code System.arraycopy} semantics). */
+    /** Copy elements of the centroid array ({@code System.arraycopy} semantics for the outer array of references). */
     void arrayCopy(V[] src, int srcPos, V[] dest, int destPos, int length);
+
+    /**
+     * Deep copy {@code length} vectors starting at {@code srcPos} into {@code dest} starting at
+     * {@code destPos}, copying each inner array's <em>contents</em> rather than the reference.
+     * Destination slots {@code dest[destPos..destPos+length)} must be pre-allocated to at least
+     * the source vector length (e.g. via {@link #newCentroidArray}); a {@code null} or shorter
+     * destination inner array may throw {@code NullPointerException} or silently truncate.
+     */
+    void arrayCopyDeep(V[] src, int srcPos, V[] dest, int destPos, int length);
 
     /** Returns the length (dimension) of the vector. */
     int length(V vector);
+
+    /** Returns a deep copy of the given vector. */
+    V copyOf(V vector);
 
     // ---- Centroid update operations ----
 
     /** Copy the first {@code dim} elements of {@code vector} into {@code centroid}. */
     void initCentroid(V centroid, V vector, int dim);
+
+    /**
+     * Creates a native-type centroid from a float-precision intermediate result.
+     * For float centroids this returns the input array directly (zero-copy).
+     * For byte centroids this allocates a new byte[] and rounds/clamps each element.
+     *
+     * @param floatVector the float-precision source (caller must not use after this call)
+     * @param dim number of dimensions to use
+     * @return a centroid in the native type V
+     */
+    V centroidFromFloat(float[] floatVector, int dim);
 
     /**
      * Creates a reusable accumulator state for mean-based centroid updates via
@@ -241,6 +265,12 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
     /** Convenience constant for the byte ops singleton. */
     CentroidOps<byte[]> BYTE = ByteOps.INSTANCE;
 
+    /**
+     * Concatenates multiple {@link ClusteringVectorValues} instances into a single view.
+     * Used by the tiered merge strategy to combine centroids from multiple segments.
+     */
+    ClusteringVectorValues<V> concatenate(List<ClusteringVectorValues<V>> parts);
+
     // ---- Implementations ----
 
     /**
@@ -309,11 +339,7 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
 
         @Override
         public float[][] newCentroidArray(int k, int dims) {
-            float[][] result = new float[k][];
-            for (int i = 0; i < k; i++) {
-                result[i] = new float[dims];
-            }
-            return result;
+            return new float[k][dims];
         }
 
         @Override
@@ -334,13 +360,30 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         }
 
         @Override
+        public void arrayCopyDeep(float[][] src, int srcPos, float[][] dest, int destPos, int length) {
+            for (int i = 0; i < length; i++) {
+                System.arraycopy(src[srcPos + i], 0, dest[destPos + i], 0, src[srcPos + i].length);
+            }
+        }
+
+        @Override
         public int length(float[] vector) {
             return vector.length;
         }
 
         @Override
+        public float[] copyOf(float[] vector) {
+            return vector.clone();
+        }
+
+        @Override
         public void initCentroid(float[] centroid, float[] vector, int dim) {
             System.arraycopy(vector, 0, centroid, 0, dim);
+        }
+
+        @Override
+        public float[] centroidFromFloat(float[] floatVector, int dim) {
+            return floatVector;
         }
 
         private void accumulate(float[] centroid, float[] vector, int dim) {
@@ -457,6 +500,15 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
                 }
             };
         }
+
+        @Override
+        public ClusteringVectorValues<float[]> concatenate(List<ClusteringVectorValues<float[]>> parts) {
+            ClusteringFloatVectorValues[] floatParts = new ClusteringFloatVectorValues[parts.size()];
+            for (int i = 0; i < parts.size(); i++) {
+                floatParts[i] = (ClusteringFloatVectorValues) parts.get(i);
+            }
+            return new ConcatenatedClusteringFloatVectorValues(floatParts);
+        }
     }
 
     /**
@@ -548,13 +600,34 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         }
 
         @Override
+        public void arrayCopyDeep(byte[][] src, int srcPos, byte[][] dest, int destPos, int length) {
+            for (int i = 0; i < length; i++) {
+                System.arraycopy(src[srcPos + i], 0, dest[destPos + i], 0, src[srcPos + i].length);
+            }
+        }
+
+        @Override
         public int length(byte[] vector) {
             return vector.length;
         }
 
         @Override
+        public byte[] copyOf(byte[] vector) {
+            return vector.clone();
+        }
+
+        @Override
         public void initCentroid(byte[] centroid, byte[] vector, int dim) {
             System.arraycopy(vector, 0, centroid, 0, dim);
+        }
+
+        @Override
+        public byte[] centroidFromFloat(float[] floatVector, int dim) {
+            byte[] centroid = new byte[dim];
+            for (int d = 0; d < dim; d++) {
+                centroid[d] = (byte) Math.clamp(Math.round(floatVector[d]), -128, 127);
+            }
+            return centroid;
         }
 
         private void accumulate(int[] centroid, byte[] vector, int dim) {
@@ -717,6 +790,15 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
             for (int d = 0; d < dim; d++) {
                 byteCentroid[d] = (byte) Math.clamp(Math.round(floatBuffer[d]), -128, 127);
             }
+        }
+
+        @Override
+        public ClusteringVectorValues<byte[]> concatenate(List<ClusteringVectorValues<byte[]>> parts) {
+            ClusteringByteVectorValues[] byteParts = new ClusteringByteVectorValues[parts.size()];
+            for (int i = 0; i < parts.size(); i++) {
+                byteParts[i] = (ClusteringByteVectorValues) parts.get(i);
+            }
+            return new ConcatenatedClusteringByteVectorValues(byteParts);
         }
 
     }

@@ -20,6 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.license.License;
@@ -186,6 +187,11 @@ public abstract class SemanticFieldIndexOptionsTestCase extends ESIntegTestCase 
                 || indexOptions instanceof ExtendedDenseVectorIndexOptions) {
                 builder.field("dense_vector");
                 indexOptions.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            } else if (indexOptions instanceof SparseVectorFieldMapper.SparseVectorIndexOptions) {
+                builder.field("sparse_vector");
+                indexOptions.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            } else {
+                throw new IllegalArgumentException("Unsupported index options type: " + indexOptions.getClass());
             }
             builder.endObject();
         }

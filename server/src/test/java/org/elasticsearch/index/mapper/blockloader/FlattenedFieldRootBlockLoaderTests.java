@@ -120,9 +120,13 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         SORTED_UNIQUE;
 
         static ValuesMode from(Map<String, Object> fieldMapping, Params params) {
-            if ("exact".equals(fieldMapping.get("preserve_leaf_arrays"))) {
+            var configuredValue = fieldMapping.get("preserve_leaf_arrays");
+            if ("exact".equals(configuredValue)) {
                 // preserve_leaf_arrays: exact preserves duplicates, null slots, and original order
                 // in both the doc values path (via offset stream) and the source path.
+                return AS_IS;
+            }
+            if (configuredValue == null && params.indexMode().isStrictColumnar()) {
                 return AS_IS;
             }
             return SORTED_UNIQUE;
@@ -259,8 +263,13 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
 
     public void testBlockLoaderDottedKeyAndNestedObject() throws IOException {
         runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
-        // "a.b" as a dotted key and "a":{"b":...} as a nested object both flatten to the same key
-        runner.document(Map.of("field", Map.of("a.b", "cat", "a", Map.of("b", "dog"))));
+        // "a.b" as a dotted key and "a":{"b":...} as a nested object both flatten to the same key.
+        // LinkedHashMap ensures "a.b" is serialized before "a" so insertion order matches sorted
+        // order — the expected value is valid for both LOSSY (sorted) and EXACT (insertion-order) modes.
+        var fieldValue = new LinkedHashMap<String, Object>();
+        fieldValue.put("a.b", "cat");
+        fieldValue.put("a", Map.of("b", "dog"));
+        runner.document(Map.of("field", fieldValue));
         runner.fieldName("field");
 
         Mapping mapping = new Mapping(
@@ -268,7 +277,6 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
             Map.of("field", Map.of("type", "flattened"))
         );
 
-        // Both paths produce keyed value "a.b" — doc values deduplicates and sorts
         String expected = "{\"a.b\":[\"cat\",\"dog\"]}";
 
         var settings = getSettingsForParams();

@@ -848,13 +848,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (colStats == null) {
                 continue;
             }
-            // Publish the null count whenever the row group recorded it (num_nulls >= 0), ahead of the
-            // isEmpty() short-circuit below, mirroring the metadata path in extractStatistics so the two
-            // stay consistent. Omitting the key for a physically-present column (its size_bytes key is
-            // written above) signals "null count unknown" downstream, so COUNT(col) falls back to a scan
-            // instead of being answered as num_values. See SourceStatisticsSerializer#mergeStatistics
-            // (poisonedNullCounts). Note isNumNullsSet() implies isEmpty() == false, so ordering the
-            // publish before the isEmpty() continue is a safety/clarity guard rather than a behaviour change.
+            // Publish the null count ahead of the isEmpty() short-circuit, mirroring extractStatistics.
+            // isNumNullsSet() implies isEmpty() == false, so this ordering is a clarity/consistency guard,
+            // not a behaviour change. Omitting the key (unset) signals "unknown" downstream so COUNT(col)
+            // falls back to a scan instead of being answered as num_values.
             if (colStats.isNumNullsSet()) {
                 stats.put(SourceStatisticsSerializer.columnNullCountKey(colName), colStats.getNumNulls());
             }

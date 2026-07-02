@@ -2,4 +2,4 @@ area: ES|QL
 issues: []
 pr: 152759
 summary: Fix Parquet COUNT(col) missing `null_count` stat
-type: enhancement
+type: bug

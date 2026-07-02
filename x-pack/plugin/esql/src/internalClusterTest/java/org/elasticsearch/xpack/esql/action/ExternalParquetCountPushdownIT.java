@@ -265,6 +265,9 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
      * Asserts that no Async* operator appears in any driver profile.
      * When pushdown fires, the plan is a LocalSourceExec — there is no
      * AsyncExternalSourceOperatorFactory executing file reads.
+     * <p>
+     * Weaker than {@link #assertPushdownFired}, which matches the actual {@code External*} profile
+     * operator names; prefer that for new assertions. This helper stays for the COUNT(*) tests below.
      */
     private static void assertNoPushdownBypass(EsqlQueryResponse response) {
         var profile = response.profile();

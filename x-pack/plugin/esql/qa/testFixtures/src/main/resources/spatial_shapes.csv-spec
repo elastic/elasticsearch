@@ -64,7 +64,7 @@ abbrev:keyword | name:text    | location:geo_shape                         | cou
 "VLC"          | "Valencia"   | POINT(-0.473474930771676 39.4914597884489) | "Spain"         | "Paterna"    | POINT(-0.4406 39.5028)
 ;
 
-simpleLoadFromCityBoundaries#[skip:-8.13.99, reason:chunked CSV import support added in 8.14]
+simpleLoadFromCityBoundaries
 FROM airport_city_boundaries
 | WHERE abbrev == "CPH"
 | EVAL boundary_wkt_length = LENGTH(TO_STRING(city_boundary))

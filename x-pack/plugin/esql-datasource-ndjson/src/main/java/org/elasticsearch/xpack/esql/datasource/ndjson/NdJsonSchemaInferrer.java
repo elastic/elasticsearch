@@ -50,7 +50,7 @@ public class NdJsonSchemaInferrer {
     // The default format for date fields in ES is "strict_date_optional_time||epoch_millis".
     // Use the string part of this default for schema inference (we cannot assume that a number
     // is a date)
-    public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
+    public static final DateFormatter STRICT_DATE_OPTIONAL_TIME = DateFormatter.forPattern("strict_date_optional_time");
 
     private static final Logger logger = LogManager.getLogger(NdJsonSchemaInferrer.class);
 
@@ -61,13 +61,18 @@ public class NdJsonSchemaInferrer {
     private final List<FieldInfo> fields = new ArrayList<>();
     private int lineCount = 0;
 
-    private NdJsonSchemaInferrer() {}
+    private final DateFormatter dateFormatter;
+
+    private NdJsonSchemaInferrer(DateFormatter dateFormatter) {
+        this.dateFormatter = dateFormatter != null ? dateFormatter : STRICT_DATE_OPTIONAL_TIME;
+    }
 
     /**
      * Infers schema from an NDJSON input stream, reading up to maxLines.
+     * When {@code datetimeFormatter} is null, falls back to {@link #STRICT_DATE_OPTIONAL_TIME}.
      */
-    public static List<Attribute> inferSchema(InputStream inputStream, int maxLines) throws IOException {
-        return new NdJsonSchemaInferrer().doInferSchema(inputStream, maxLines);
+    public static List<Attribute> inferSchema(InputStream inputStream, int maxLines, DateFormatter datetimeFormatter) throws IOException {
+        return new NdJsonSchemaInferrer(datetimeFormatter).doInferSchema(inputStream, maxLines);
     }
 
     private List<Attribute> doInferSchema(InputStream inputStream, int maxLines) throws IOException {
@@ -120,7 +125,7 @@ public class NdJsonSchemaInferrer {
         return attributes;
     }
 
-    private static void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
+    private void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
         JsonToken token = parser.currentToken();
         if (token != JsonToken.START_OBJECT) {
             throw new NdJsonParseException(parser, "Expected JSON object");
@@ -135,7 +140,7 @@ public class NdJsonSchemaInferrer {
         }
     }
 
-    private static void inferValueSchema(JsonParser parser, FieldInfo field) throws IOException {
+    private void inferValueSchema(JsonParser parser, FieldInfo field) throws IOException {
         switch (parser.currentToken()) {
             case START_ARRAY -> {
                 field.isArray = true;
@@ -147,8 +152,7 @@ public class NdJsonSchemaInferrer {
             case START_OBJECT -> inferObjectSchema(parser, field);
             case VALUE_STRING -> {
                 String text = parser.getText();
-                // All-digit strings (e.g. book ids) must not be inferred as years / partial dates.
-                if (field.types.contains(DataType.KEYWORD) == false && isLikelyDateString(text) && DATE_FORMATTER.tryParse(text) != null) {
+                if (field.types.contains(DataType.KEYWORD) == false && isDateTimeString(text)) {
                     field.addType(DataType.DATETIME);
                 } else {
                     field.addType(DataType.KEYWORD);
@@ -291,19 +295,16 @@ public class NdJsonSchemaInferrer {
     }
 
     /**
-     * {@code strict_date_optional_time} accepts year-only forms that collide with numeric identifiers
-     * (e.g. book numbers). Skip date inference for all-ASCII-digit tokens.
+     * Check if a string parses as a datetime. We filter out 4-digit years accepted by strict_date_optional_time
+     * and other Iso8601 parsers where {@code MONTH_OF_YEAR} is optional. These are the only 4-digit values they
+     * accept, and we don't want to treat an all-4-digit column as DATETIME.
      */
-    private static boolean isLikelyDateString(String text) {
-        if (text.isEmpty()) {
-            return false;
-        }
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (c < '0' || c > '9') {
-                return true;
+    private boolean isDateTimeString(String text) {
+        if (dateFormatter == STRICT_DATE_OPTIONAL_TIME) {
+            if (text.length() == 4 && text.chars().allMatch(Character::isDigit)) {
+                return false;
             }
         }
-        return false;
+        return dateFormatter.tryParse(text) != null;
     }
 }

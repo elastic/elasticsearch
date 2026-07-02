@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -212,6 +213,28 @@ public class VirtualColumnIteratorTests extends ESTestCase {
     }
 
     /**
+     * Regression: when the reader does not emit a {@code _rowPosition} column (CSV / NDJSON / ORC),
+     * the iterator must synthesize {@code _id} from a per-file running counter rather than reading a
+     * (non-existent) {@code _rowPosition} data block. The counter continues across pages of the
+     * same file.
+     */
+    public void testIdRequiresRowPositionChannel() {
+        // The split-local counter fallback was removed: every file reader now emits the _rowPosition
+        // channel (the optimizer injects it for _id / _file.record_ref), and a split-local counter
+        // would break _id repeatability across split layouts. When _id is requested but the reader
+        // did not emit the channel, the iterator fails loud rather than synthesizing wrong ids.
+        List<Attribute> fullOutput = List.of(attr("data", DataType.INTEGER), partAttr(ExternalMetadataColumns.ID, DataType.KEYWORD));
+        Set<String> partitionCols = new LinkedHashSet<>(List.of(ExternalMetadataColumns.ID));
+        BytesRef idPrefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"), 1700000000000L);
+
+        Exception e = expectThrows(
+            org.elasticsearch.xpack.esql.core.QlIllegalArgumentException.class,
+            () -> new VirtualColumnIterator(emptyDelegate(), fullOutput, partitionCols, Map.of(), blockFactory, idPrefix)
+        );
+        assertThat(e.getMessage(), containsString("_rowPosition"));
+    }
+
+    /**
      * Regression test for the ~44KB-per-query parquet circuit-breaker leak:
      * https://github.com/elastic/elasticsearch/issues/149393.
      * <p>
@@ -296,6 +319,44 @@ public class VirtualColumnIteratorTests extends ESTestCase {
             injected.releaseBlocks();
         }
         assertEquals("iterator must release surplus blocks; breaker must return to zero", 0L, rootBreaker.getUsed());
+    }
+
+    /**
+     * Failure mid-partition-allocation with a surplus-emitting producer must propagate the original
+     * throwable, not an {@code IllegalStateException} from double-closing a surplus block. The fix
+     * defers surplus close to the success path: in the catch arm,
+     * {@link Page#releaseBlocks()} on the input page closes the surplus once. An earlier shape
+     * closed the surplus pre-emptively and then re-released it via {@code releaseBlocks()},
+     * masking the real failure cause.
+     */
+    public void testInjectPropagatesOriginalThrowableWhenSurplusPresent() {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(1)).withCircuitBreaking();
+        CircuitBreaker rootBreaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory rootFactory = BlockFactory.builder(bigArrays).breaker(rootBreaker).build();
+
+        // Two partition columns. The second's value type is unenumerated, so createConstantBlock's
+        // fail-loud default throws — a stand-in for any allocation-time failure after partial success.
+        List<Attribute> fullOutput = List.of(partAttr("year", DataType.INTEGER), partAttr("tag", DataType.KEYWORD));
+        Set<String> partitionCols = new LinkedHashSet<>(List.of("year", "tag"));
+        Object unenumeratedValue = new Object();
+        Map<String, Object> partitionValues = Map.of("year", 2024, "tag", unenumeratedValue);
+        VirtualColumnIterator it = new VirtualColumnIterator(
+            new SinglePageIterator(new Page(0)),
+            fullOutput,
+            partitionCols,
+            partitionValues,
+            rootFactory
+        );
+
+        // Producer over-projects: data page carries two surplus blocks the iterator never references.
+        IntBlock surplus1 = rootFactory.newConstantIntBlockWith(1, 4);
+        IntBlock surplus2 = rootFactory.newConstantIntBlockWith(2, 4);
+        Page overProjected = new Page(4, new Block[] { surplus1, surplus2 });
+        assertTrue("producer must reserve breaker bytes", rootBreaker.getUsed() > 0L);
+
+        RuntimeException thrown = expectThrows(RuntimeException.class, () -> it.inject(overProjected));
+        assertThat(thrown.getMessage(), containsString("cannot render constant column [tag]"));
+        assertEquals("breaker must return to zero — partial partition allocs + surplus all released", 0L, rootBreaker.getUsed());
     }
 
     public void testIteratorWrapsDelegate() {
@@ -460,5 +521,11 @@ public class VirtualColumnIteratorTests extends ESTestCase {
 
     private static Attribute partAttr(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, null, name, type);
+    }
+
+    private static String asString(BytesRefBlock block, int position) {
+        BytesRef ref = new BytesRef();
+        block.getBytesRef(block.getFirstValueIndex(position), ref);
+        return ref.utf8ToString();
     }
 }

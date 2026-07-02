@@ -267,7 +267,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 value instanceof Boolean b ? b : Booleans.parseBoolean(value.toString()),
                 1
             );
-            case KEYWORD, TEXT -> blockFactory.newConstantBytesRefBlockWith(new BytesRef(value.toString()), 1);
+            case KEYWORD, TEXT -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(value), 1);
             default -> {
                 if (value instanceof Number n) {
                     yield blockFactory.newConstantLongBlockWith(n.longValue(), 1);
@@ -275,6 +275,24 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
                 yield blockFactory.newConstantNullBlock(1);
             }
         };
+    }
+
+    /**
+     * Coerces a stat value to a {@link BytesRef} suitable for a constant KEYWORD / TEXT block. The
+     * {@link Object#toString} fallback is reserved for stat values whose {@code toString} is
+     * documented to return the underlying UTF-8 string (e.g. Parquet's {@code Binary}). Direct
+     * {@link BytesRef} and raw {@code byte[]} stat values bypass {@code toString} entirely because
+     * {@link BytesRef#toString} returns a hex dump (e.g. {@code [61 6c 70 68 61]}) and a
+     * round-trip through it would corrupt the warm-path result.
+     */
+    private static BytesRef toBytesRef(Object value) {
+        if (value instanceof BytesRef br) {
+            return br;
+        }
+        if (value instanceof byte[] bytes) {
+            return new BytesRef(bytes);
+        }
+        return new BytesRef(value.toString());
     }
 
     private List<Expression> extractAggregateFunctions(List<? extends NamedExpression> aggregates) {

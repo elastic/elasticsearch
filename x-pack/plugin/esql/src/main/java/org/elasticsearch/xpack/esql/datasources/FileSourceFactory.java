@@ -12,12 +12,13 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -31,7 +32,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -61,6 +61,17 @@ final class FileSourceFactory implements ExternalSourceFactory {
      */
     static final Set<String> COORDINATOR_KEYS;
 
+    /**
+     * Coordinator keys deliberately NOT exposed as dataset settings: the
+     * {@link FormatNameResolver#CONFIG_READER} override remains an EXTERNAL-only development knob
+     * (a reader alias selects between interchangeable readers for one format). {@link #CONFIG_FORMAT}
+     * is a first-class dataset setting and is therefore part of the dataset vocabulary, not listed
+     * here. Pinned against {@link #COORDINATOR_KEYS} and the dataset key set by
+     * {@code FileSourceFactoryValidationTests} so neither can drift: any new coordinator key must
+     * either be added to the dataset vocabulary or explicitly listed here.
+     */
+    static final Set<String> EXTERNAL_ONLY_KEYS = Set.of(FormatNameResolver.CONFIG_READER);
+
     static {
         Set<String> keys = new HashSet<>();
         keys.add(CONFIG_FORMAT);
@@ -88,6 +99,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
      */
     @Nullable
     private final BlockFactory blockFactory;
+    // Node telemetry sink, threaded into the operator factory so opened storage objects publish read metrics.
+    private final ExternalSourceMetrics externalSourceMetrics;
 
     FileSourceFactory(
         StorageProviderRegistry storageRegistry,
@@ -116,6 +129,18 @@ final class FileSourceFactory implements ExternalSourceFactory {
         @Nullable ExecutorService splitDiscoveryExecutor,
         @Nullable BlockFactory blockFactory
     ) {
+        this(storageRegistry, formatRegistry, codecRegistry, settings, splitDiscoveryExecutor, blockFactory, ExternalSourceMetrics.NOOP);
+    }
+
+    FileSourceFactory(
+        StorageProviderRegistry storageRegistry,
+        FormatReaderRegistry formatRegistry,
+        DecompressionCodecRegistry codecRegistry,
+        Settings settings,
+        @Nullable ExecutorService splitDiscoveryExecutor,
+        @Nullable BlockFactory blockFactory,
+        ExternalSourceMetrics externalSourceMetrics
+    ) {
         Check.notNull(storageRegistry, "storageRegistry cannot be null");
         Check.notNull(formatRegistry, "formatRegistry cannot be null");
         this.storageRegistry = storageRegistry;
@@ -124,6 +149,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.splitDiscoveryExecutor = splitDiscoveryExecutor;
         this.blockFactory = blockFactory;
+        this.externalSourceMetrics = externalSourceMetrics != null ? externalSourceMetrics : ExternalSourceMetrics.NOOP;
     }
 
     @Override
@@ -158,6 +184,40 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 return true;
             }
             return false;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    @Override
+    public boolean canHandle(String location, Map<String, Object> config) {
+        // The path-only form already claims any resource whose extension maps to a known format.
+        if (canHandle(location)) {
+            return true;
+        }
+        // Otherwise the resource carries no extension to infer a format from (an extensionless object, a
+        // bare prefix, or an authority). An explicit `format` (or `reader` alias) in the config is
+        // authoritative: it names the reader directly, so detection is moot and we claim the resource
+        // regardless of its object name — matching resolveReader, which honors an explicit format
+        // unconditionally. `auto`/absent leave `format` null here and stay on the extension-based
+        // path-only form above.
+        if (location == null || config == null || config.isEmpty()) {
+            return false;
+        }
+        try {
+            StoragePath path = StoragePath.of(location);
+            if (storageRegistry.hasProvider(path.scheme()) == false) {
+                return false;
+            }
+            // Reject a location that names nothing to read — neither an authority nor a path (e.g. "s3://").
+            // A file:// URI has an empty authority but a real absolute path, so it is not rejected here.
+            boolean noHost = path.host() == null || path.host().isEmpty();
+            boolean noPath = path.path() == null || path.path().isEmpty();
+            if (noHost && noPath) {
+                return false;
+            }
+            String format = FormatNameResolver.resolve(config, "");
+            return format != null && formatRegistry.hasFormat(format);
         } catch (IllegalArgumentException e) {
             return false;
         }
@@ -254,24 +314,22 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 ? format.filterPushdownSupport()
                 : null;
 
+            // No per-query concurrency wrap here. Storage already carries reactive retry/backoff (per-store 503
+            // backoff) from the registry (see StorageProviderRegistry#wrapProvider). Per-node read concurrency is
+            // bounded by the dedicated esql_external_blocking_io thread pool (blocking backends — GCS/local, via
+            // fileReadExecutor) and by the S3/Azure SDK connection pools — not by any per-read permit. The old
+            // per-query budget self-throttled a single query against its own shrunk share and failed it on a 60s
+            // timeout; removed in favor of these standing bounds plus reactive backoff.
             Closeable onClose = null;
-            ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
-            if (allocator != null) {
-                QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, allocator.register());
-                storage = budgeted;
-                onClose = budgeted;
-            }
 
             Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
-            // Auto-detect the deferred-extraction signal: the synthetic _rowPosition column in the
-            // projection means InsertExternalFieldExtraction injected a paired
-            // ExternalFieldExtractExec downstream and expects this source to register a
-            // ColumnExtractor per opened file plus emit encoded row references. Only enable it
-            // when the resolved reader actually advertises ColumnExtractorAware — without that
-            // capability the builder would refuse to set the flag.
-            boolean deferredExtraction = format instanceof ColumnExtractorAware
-                && context.projectedColumns() != null
-                && context.projectedColumns().contains(ColumnExtractor.ROW_POSITION_COLUMN);
+            // Deferred extraction fires when both signals are present: the reader is
+            // ColumnExtractorAware AND the plan paired this source with an ExternalFieldExtractExec
+            // (the context flag InsertExternalFieldExtraction sets). _rowPosition presence in the
+            // projection is NOT a valid signal on its own — InjectRowPositionForExternalId also
+            // injects it for plain _id composition, where enabling deferred mode would create a
+            // SourceExtractors registry no extract operator ever closes.
+            boolean deferredExtraction = format instanceof ColumnExtractorAware && context.deferredExtraction();
 
             return AsyncExternalSourceOperatorFactory.builder(
                 storage,
@@ -282,6 +340,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 context.maxBufferSize(),
                 readExecutor
             )
+                .externalSourceMetrics(externalSourceMetrics)
                 .rowLimit(context.rowLimit())
                 .fileList(context.fileList())
                 .schemaMap(context.schemaMap())
@@ -298,8 +357,35 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .pushdownSupport(pushdownSupport)
                 .onClose(onClose)
                 .deferredExtraction(deferredExtraction)
+                // datasetName drives the per-file _index synthesizer in
+                // {@link ExternalMetadataColumns#extractPerFileConstants}; null when the query
+                // came from inline EXTERNAL (no dataset mapping), populated when it came from
+                // FROM <dataset>.
+                .datasetName(context.datasetName())
+                // Single-file producer paths (sync-wrapper, native-async) carry no per-file mtime
+                // carrier; without this wire-up _version would silently render as SQL NULL even
+                // on resolved single-file plans. The slice-queue / multi-file paths still source
+                // mtime from FileSplit.partitionValues / per-FileList entry respectively and
+                // ignore this builder value.
+                .lastModifiedMillis(firstFileMtime(context.fileList()))
                 .build();
         };
+    }
+
+    /**
+     * Returns the {@code lastModifiedMillis} of the first entry in {@code fileList}, or {@code null}
+     * when the list is absent / unresolved / empty. Threaded into
+     * {@link AsyncExternalSourceOperatorFactory.Builder#lastModifiedMillis(Long)} so that the
+     * single-file producer paths render {@code _version} from the file's mtime instead of SQL
+     * {@code NULL}. Returning a boxed {@code Long} lets the builder distinguish "no mtime available"
+     * from "mtime is zero (epoch)".
+     */
+    @Nullable
+    private static Long firstFileMtime(@Nullable FileList fileList) {
+        if (fileList == null || fileList.fileCount() == 0) {
+            return null;
+        }
+        return fileList.lastModifiedMillis(0);
     }
 
     /** Delegates to {@link ErrorPolicy#fromConfig(Map, ErrorPolicy)} with the format's default

@@ -2,11 +2,13 @@ notify:
   - slack:
       channels:
         - "#es-delivery-alerts"
+      message: "<!subteam^S08QCN4G2N4|es-delivery-team> Version bump to ${NEW_VERSION} — ${BUILDKITE_BUILD_URL}"
     if: (build.branch == 'main' || build.branch =~ /^[0-9]+\.[0-9x]+\$/) && (build.state == 'passed' || build.state == 'failed')
   - slack:
       channels:
         - "#es-delivery-alerts"
       message: |
+        <!subteam^S08QCN4G2N4|es-delivery-team>
         🚦 Pipeline waiting for approval 🚦
         Repo: `${REPO}`
 

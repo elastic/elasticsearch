@@ -14,12 +14,15 @@ import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.TimeStampMilliVector;
+import org.apache.arrow.vector.TimeStampNanoVector;
+import org.apache.arrow.vector.TimeStampVector;
 import org.apache.arrow.vector.UInt8Vector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.complex.impl.UnionListWriter;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
 import org.apache.arrow.vector.ipc.ArrowStreamWriter;
@@ -38,9 +41,12 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder.LongRange;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.AfterClass;
@@ -49,8 +55,10 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -108,6 +116,14 @@ public class ArrowResponseTests extends ESTestCase {
         block -> block.appendLong(randomLong()),
         (block, i, scratch) -> block.getLong(i),
         TimeStampMilliVector::get
+    );
+
+    static final ValueType DATE_NANOS_VALUES = new ValueTypeImpl<LongBlock.Builder, LongBlock, TimeStampNanoVector>(
+        "date_nano",
+        factory -> factory.newLongBlockBuilder(0),
+        block -> block.appendLong(randomLong()),
+        (block, i, scratch) -> block.getLong(i),
+        TimeStampNanoVector::get
     );
 
     static final ValueType DOUBLE_VALUES = new ValueTypeImpl<DoubleBlock.Builder, DoubleBlock, Float8Vector>(
@@ -178,6 +194,20 @@ public class ArrowResponseTests extends ESTestCase {
         (v, i) -> v.isNull(i) ? null : "non-null in vector"
     );
 
+    // DATE_RANGE: struct with "from" and "to" timestamp[ms] children.
+    static final ValueType DATE_RANGE_VALUES = new ValueTypeImpl<LongRangeBlock.Builder, LongRangeBlock, StructVector>(
+        "date_range",
+        factory -> factory.newLongRangeBlockBuilder(0),
+        block -> block.appendLongRange(new LongRange(randomLong(), randomLong())),
+        (block, valueIndex, scratch) -> {
+            return block.getLongRange(valueIndex, new LongRange());
+        },
+        (vec, position) -> new LongRange(
+            ((TimeStampVector) vec.getChild("from")).get(position),
+            ((TimeStampVector) vec.getChild("to")).get(position)
+        )
+    );
+
     static final Map<DataType, ValueType> VALUE_TYPES = Map.ofEntries(
         Map.entry(DataType.INTEGER, INTEGER_VALUES),
         Map.entry(DataType.COUNTER_INTEGER, INTEGER_VALUES),
@@ -192,6 +222,7 @@ public class ArrowResponseTests extends ESTestCase {
 
         Map.entry(DataType.BOOLEAN, BOOLEAN_VALUES),
         Map.entry(DataType.DATETIME, DATE_VALUES),
+        Map.entry(DataType.DATE_NANOS, DATE_NANOS_VALUES),
         Map.entry(DataType.IP, IP_VALUES),
         Map.entry(DataType.VERSION, VERSION_VALUES),
         Map.entry(DataType.SOURCE, SOURCE_VALUES),
@@ -203,11 +234,32 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.GEO_POINT, BINARY_VALUES),
         Map.entry(DataType.GEO_SHAPE, BINARY_VALUES),
         Map.entry(DataType.CARTESIAN_POINT, BINARY_VALUES),
-        Map.entry(DataType.CARTESIAN_SHAPE, BINARY_VALUES)
+        Map.entry(DataType.CARTESIAN_SHAPE, BINARY_VALUES),
+
+        Map.entry(DataType.DATE_RANGE, DATE_RANGE_VALUES)
     );
 
     // ---------------------------------------------------------------------------------------------
     // Tests
+
+    /**
+     * Test that we support Arrow output for the same set of ESQL types as the text output
+     * (ignoring those explicitly marked as not yet implemented).
+     */
+    public void testTypeSupportConsistency() {
+        var arrowTypes = ArrowResponse.ESQL_FORMATTERS.keySet().stream().map(DataType::outputType).sorted().toList();
+
+        var textTypes = DataType.types().stream().filter(t -> {
+            try {
+                ResponseValueUtils.valueExtractorFor(t, ZoneOffset.UTC);
+                return ArrowResponse.TO_BE_IMPLEMENTED_FORMATTERS.contains(t) == false;
+            } catch (Exception e) {
+                return false;
+            }
+        }).map(DataType::outputType).sorted().toList();
+
+        assertEquals("Text and Arrow formats don't have the same ESQL DataType support", textTypes, arrowTypes);
+    }
 
     public void testTestHarness() {
         TestColumn testColumn = TestColumn.create("foo", DataType.INTEGER);
@@ -232,8 +284,14 @@ public class ArrowResponseTests extends ESTestCase {
         }
         assertEquals(3 + 5 + 7, count);
 
-        // Test that we have value types for all types
-        assertEquals("Missing test value types", ArrowResponse.ESQL_FORMATTERS.keySet(), VALUE_TYPES.keySet());
+        // Test that we have value generator types for all ESQL types
+        var arrowTypes = EnumSet.noneOf(DataType.class);
+        arrowTypes.addAll(ArrowResponse.ESQL_FORMATTERS.keySet());
+
+        var valueTypes = EnumSet.noneOf(DataType.class);
+        valueTypes.addAll(VALUE_TYPES.keySet());
+
+        assertEquals("Missing test value types", arrowTypes, valueTypes);
     }
 
     /**
@@ -461,7 +519,7 @@ public class ArrowResponseTests extends ESTestCase {
 
             // Check esql type in the metadata
             var metadata = root.getSchema().getFields().get(i).getMetadata();
-            assertEquals(testCase.columns.get(i).type.outputType(), metadata.get("elastic:type"));
+            assertEquals(testCase.columns.get(i).type.outputType(), metadata.get(BlockArrowFormatter.ESQL_TYPE_METADATA));
 
             // Check values
             var esqlValuesIterator = new EsqlValuesIterator(testCase, i);
@@ -755,7 +813,7 @@ public class ArrowResponseTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         public Object valueAt(ValueVector arrowVec, int position) {
             if (arrowVec instanceof ListVector listVector) {
-                var type = listVector.getField().getMetadata().get("elastic:type");
+                var type = listVector.getField().getMetadata().get(BlockArrowFormatter.ESQL_TYPE_METADATA);
                 // Build the list of values
                 var valueVec = listVector.getDataVector();
                 var values = new ArrayList<>();

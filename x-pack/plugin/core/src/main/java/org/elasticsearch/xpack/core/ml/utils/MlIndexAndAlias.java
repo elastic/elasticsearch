@@ -29,7 +29,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -116,6 +120,34 @@ public final class MlIndexAndAlias {
      */
     public static void createIndexAndAliasIfNecessary(
         Client client,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver resolver,
+        String indexPatternPrefix,
+        String alias,
+        TimeValue masterNodeTimeout,
+        ActiveShardCount waitForShardCount,
+        ActionListener<Boolean> finalListener
+    ) {
+        createIndexAndAliasIfNecessary(
+            client,
+            projectMetadata,
+            resolver,
+            indexPatternPrefix,
+            FIRST_INDEX_SIX_DIGIT_SUFFIX,
+            alias,
+            masterNodeTimeout,
+            waitForShardCount,
+            finalListener
+        );
+    }
+
+    /** @deprecated Use {@link #createIndexAndAliasIfNecessary(
+     *      Client, ProjectMetadata, IndexNameExpressionResolver, String, String, TimeValue, ActiveShardCount, ActionListener)}
+     */
+    @Deprecated(forRemoval = true)
+    @FixForMultiProject(description = "Migrate callers to the ProjectMetadata overload and remove this one.")
+    public static void createIndexAndAliasIfNecessary(
+        Client client,
         ClusterState clusterState,
         IndexNameExpressionResolver resolver,
         String indexPatternPrefix,
@@ -126,10 +158,9 @@ public final class MlIndexAndAlias {
     ) {
         createIndexAndAliasIfNecessary(
             client,
-            clusterState,
+            clusterState.getMetadata().getProject(ProjectId.DEFAULT),
             resolver,
             indexPatternPrefix,
-            FIRST_INDEX_SIX_DIGIT_SUFFIX,
             alias,
             masterNodeTimeout,
             waitForShardCount,
@@ -143,7 +174,7 @@ public final class MlIndexAndAlias {
      */
     public static void createIndexAndAliasIfNecessary(
         Client client,
-        ClusterState clusterState,
+        ProjectMetadata projectMetadata,
         IndexNameExpressionResolver resolver,
         String indexPatternPrefix,
         String indexNumber,
@@ -152,7 +183,6 @@ public final class MlIndexAndAlias {
         ActiveShardCount waitForShardCount,
         ActionListener<Boolean> finalListener
     ) {
-
         final ActionListener<Boolean> loggingListener = ActionListener.wrap(finalListener::onResponse, e -> {
             logger.error(() -> format("Failed to create alias and index with pattern [%s] and alias [%s]", indexPatternPrefix, alias), e);
             finalListener.onFailure(e);
@@ -171,9 +201,9 @@ public final class MlIndexAndAlias {
         String indexPattern = indexPatternPrefix + "*";
         // The initial index name must be suitable for rollover functionality.
         String firstConcreteIndex = indexPatternPrefix + indexNumber;
-        String[] concreteIndexNames = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandHidden(), indexPattern);
-        Optional<String> indexPointedByCurrentWriteAlias = clusterState.getMetadata().getProject().hasAlias(alias)
-            ? clusterState.getMetadata().getProject().getIndicesLookup().get(alias).getIndices().stream().map(Index::getName).findFirst()
+        String[] concreteIndexNames = resolver.concreteIndexNames(projectMetadata, IndicesOptions.lenientExpandHidden(), indexPattern);
+        Optional<String> indexPointedByCurrentWriteAlias = projectMetadata.hasAlias(alias)
+            ? projectMetadata.getIndicesLookup().get(alias).getIndices().stream().map(Index::getName).findFirst()
             : Optional.empty();
 
         if (concreteIndexNames.length == 0) {
@@ -241,6 +271,35 @@ public final class MlIndexAndAlias {
         loggingListener.onResponse(false);
     }
 
+    /** @deprecated Use {@link #createIndexAndAliasIfNecessary(
+     * Client, ProjectMetadata, IndexNameExpressionResolver, String, String, String, TimeValue, ActiveShardCount, ActionListener)}
+     */
+    @Deprecated(forRemoval = true)
+    @FixForMultiProject(description = "Migrate callers to the ProjectMetadata overload and remove this one.")
+    public static void createIndexAndAliasIfNecessary(
+        Client client,
+        ClusterState clusterState,
+        IndexNameExpressionResolver resolver,
+        String indexPatternPrefix,
+        String indexNumber,
+        String alias,
+        TimeValue masterNodeTimeout,
+        ActiveShardCount waitForShardCount,
+        ActionListener<Boolean> finalListener
+    ) {
+        createIndexAndAliasIfNecessary(
+            client,
+            clusterState.getMetadata().getProject(ProjectId.DEFAULT),
+            resolver,
+            indexPatternPrefix,
+            indexNumber,
+            alias,
+            masterNodeTimeout,
+            waitForShardCount,
+            finalListener
+        );
+    }
+
     /**
      * Creates a system index based on the provided descriptor if it does not already exist.
      * <p>
@@ -251,14 +310,14 @@ public final class MlIndexAndAlias {
      * is handled gracefully and treated as a success.
      *
      * @param client            The client to use for the create index request.
-     * @param clusterState      The current cluster state, used for the initial existence check.
+     * @param projectMetadata      The current project metadata, used for the initial existence check.
      * @param descriptor        The descriptor containing the index name, settings, and mappings.
      * @param masterNodeTimeout The timeout for waiting on the master node.
      * @param finalListener     Async listener
      */
     public static void createSystemIndexIfNecessary(
         Client client,
-        ClusterState clusterState,
+        ProjectMetadata projectMetadata,
         SystemIndexDescriptor descriptor,
         TimeValue masterNodeTimeout,
         ActionListener<Boolean> finalListener
@@ -267,7 +326,7 @@ public final class MlIndexAndAlias {
         final String primaryIndex = descriptor.getPrimaryIndex();
 
         // The check for existence of the index is against the cluster state, so very cheap
-        if (clusterState.getMetadata().getProject().hasIndexAbstraction(primaryIndex)) {
+        if (projectMetadata.hasIndexAbstraction(primaryIndex)) {
             finalListener.onResponse(true);
             return;
         }
@@ -298,6 +357,25 @@ public final class MlIndexAndAlias {
             createIndexRequest,
             indexCreatedListener.<CreateIndexResponse>delegateFailureAndWrap((l, r) -> l.onResponse(r.isAcknowledged())),
             client.admin().indices()::create
+        );
+    }
+
+    /** @deprecated Use {@link #createSystemIndexIfNecessary(Client, ProjectMetadata, SystemIndexDescriptor, TimeValue, ActionListener)} */
+    @Deprecated(forRemoval = true)
+    @FixForMultiProject(description = "Migrate callers to the ProjectMetadata overload and remove this one.")
+    public static void createSystemIndexIfNecessary(
+        Client client,
+        ClusterState clusterState,
+        SystemIndexDescriptor descriptor,
+        TimeValue masterNodeTimeout,
+        ActionListener<Boolean> finalListener
+    ) {
+        createSystemIndexIfNecessary(
+            client,
+            clusterState.getMetadata().getProject(ProjectId.DEFAULT),
+            descriptor,
+            masterNodeTimeout,
+            finalListener
         );
     }
 
@@ -397,20 +475,20 @@ public final class MlIndexAndAlias {
     }
 
     /**
-     * Installs the index template specified by {@code templateConfig} if it is not in already
-     * installed in {@code clusterState}.
+     * Installs the index template specified by {@code templateConfig} if it is not already
+     * installed in {@code projectMetadata}.
      * <p>
      * The check for presence is simple and will return the listener on
      * the calling thread if successful. If the template has to be installed
      * an async call will be made.
      *
-     * @param clusterState The cluster state
-     * @param client For putting the template
-     * @param templateConfig The config
-     * @param listener Async listener
+     * @param projectMetadata The project metadata to check for template existence
+     * @param client          For putting the template
+     * @param templateConfig  The config
+     * @param listener        Async listener
      */
     public static void installIndexTemplateIfRequired(
-        ClusterState clusterState,
+        ProjectMetadata projectMetadata,
         Client client,
         IndexTemplateConfig templateConfig,
         TimeValue masterTimeout,
@@ -419,7 +497,7 @@ public final class MlIndexAndAlias {
         String templateName = templateConfig.getTemplateName();
 
         // The check for existence of the template is against the cluster state, so very cheap
-        if (hasIndexTemplate(clusterState, templateName, templateConfig.getVersion())) {
+        if (hasIndexTemplate(projectMetadata, templateName, templateConfig.getVersion())) {
             listener.onResponse(true);
             return;
         }
@@ -433,28 +511,47 @@ public final class MlIndexAndAlias {
             throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);
         }
 
-        installIndexTemplateIfRequired(clusterState, client, templateConfig.getVersion(), request, listener);
+        installIndexTemplateIfRequired(projectMetadata, client, templateConfig.getVersion(), request, listener);
+    }
+
+    /** @deprecated Use {@link #installIndexTemplateIfRequired(ProjectMetadata, Client, IndexTemplateConfig, TimeValue, ActionListener)} */
+    @Deprecated(forRemoval = true)
+    @FixForMultiProject(description = "Migrate callers to the ProjectMetadata overload and remove this one.")
+    public static void installIndexTemplateIfRequired(
+        ClusterState clusterState,
+        Client client,
+        IndexTemplateConfig templateConfig,
+        TimeValue masterTimeout,
+        ActionListener<Boolean> listener
+    ) {
+        installIndexTemplateIfRequired(
+            clusterState.getMetadata().getProject(ProjectId.DEFAULT),
+            client,
+            templateConfig,
+            masterTimeout,
+            listener
+        );
     }
 
     /**
-     * See {@link #installIndexTemplateIfRequired(ClusterState, Client, IndexTemplateConfig, TimeValue, ActionListener)}.
+     * See {@link #installIndexTemplateIfRequired(ProjectMetadata, Client, IndexTemplateConfig, TimeValue, ActionListener)}.
      *
-     * Overload takes a {@code PutIndexTemplateRequest} instead of {@code IndexTemplateConfig}
+     * Overload takes a {@code PutIndexTemplateRequest} instead of {@code IndexTemplateConfig}.
      *
-     * @param clusterState The cluster state
-     * @param client For putting the template
+     * @param projectMetadata The project metadata to check for template existence
+     * @param client          For putting the template
      * @param templateRequest The Put template request
-     * @param listener Async listener
+     * @param listener        Async listener
      */
     public static void installIndexTemplateIfRequired(
-        ClusterState clusterState,
+        ProjectMetadata projectMetadata,
         Client client,
         int templateVersion,
         TransportPutComposableIndexTemplateAction.Request templateRequest,
         ActionListener<Boolean> listener
     ) {
-        // The check for existence of the template is against the cluster state, so very cheap
-        if (hasIndexTemplate(clusterState, templateRequest.name(), templateVersion)) {
+        // The check for existence of the template is against the project metadata, so very cheap
+        if (hasIndexTemplate(projectMetadata, templateRequest.name(), templateVersion)) {
             listener.onResponse(true);
             return;
         }
@@ -469,8 +566,29 @@ public final class MlIndexAndAlias {
         executeAsyncWithOrigin(client, ML_ORIGIN, TransportPutComposableIndexTemplateAction.TYPE, templateRequest, innerListener);
     }
 
-    private static boolean hasIndexTemplate(ClusterState state, String templateName, long version) {
-        var template = state.getMetadata().getProject().templatesV2().get(templateName);
+    /** @deprecated Use {@link #installIndexTemplateIfRequired(
+     *      ProjectMetadata, Client, int, TransportPutComposableIndexTemplateAction.Request, ActionListener)}
+     */
+    @Deprecated(forRemoval = true)
+    @FixForMultiProject(description = "Migrate callers to the ProjectMetadata overload and remove this one.")
+    public static void installIndexTemplateIfRequired(
+        ClusterState clusterState,
+        Client client,
+        int templateVersion,
+        TransportPutComposableIndexTemplateAction.Request templateRequest,
+        ActionListener<Boolean> listener
+    ) {
+        installIndexTemplateIfRequired(
+            clusterState.getMetadata().getProject(ProjectId.DEFAULT),
+            client,
+            templateVersion,
+            templateRequest,
+            listener
+        );
+    }
+
+    private static boolean hasIndexTemplate(ProjectMetadata projectMetadata, String templateName, long version) {
+        var template = projectMetadata.templatesV2().get(templateName);
         return template != null && Long.valueOf(version).equals(template.version());
     }
 
@@ -555,17 +673,115 @@ public final class MlIndexAndAlias {
 
     /**
      * Returns an array of indices that match the given base index name.
+     *
      * @param baseIndexName         The base part of an index name, without the 6 digit suffix.
      * @param expressionResolver    The expression resolver
-     * @param latestState           The latest cluster state
+     * @param projectMetadata       The project metadata to resolve indices against
      * @return                      An array of matching indices.
      */
     public static String[] indicesMatchingBasename(
         String baseIndexName,
         IndexNameExpressionResolver expressionResolver,
+        ProjectMetadata projectMetadata
+    ) {
+        return expressionResolver.concreteIndexNames(projectMetadata, IndicesOptions.lenientExpandOpenHidden(), baseIndexName + "*");
+    }
+
+    /** @deprecated Use {@link #indicesMatchingBasename(String, IndexNameExpressionResolver, ProjectMetadata)} */
+    @Deprecated(forRemoval = true)
+    @FixForMultiProject(description = "Migrate callers to the ProjectMetadata overload and remove this one.")
+    public static String[] indicesMatchingBasename(
+        String baseIndexName,
+        IndexNameExpressionResolver expressionResolver,
         ClusterState latestState
     ) {
-        return expressionResolver.concreteIndexNames(latestState, IndicesOptions.lenientExpandOpenHidden(), baseIndexName + "*");
+        return indicesMatchingBasename(baseIndexName, expressionResolver, latestState.getMetadata().getProject(ProjectId.DEFAULT));
+    }
+
+    /**
+     * Filters {@code candidates} to only those exactly matching {@code baseIndexName-NNNNNN}.
+     * Complements {@link #indicesMatchingBasename} by excluding indices that just share the prefix.
+     * Use when dealing with rollover generations to avoid matching unrelated indices.
+
+     *
+     * @param baseIndexName The base part of an index name, without the 6 digit suffix.
+     * @param candidates    The candidate index names to filter (typically the result of
+     *                      {@link #indicesMatchingBasename}).
+     * @return              The subset of {@code candidates} that belong to exactly this family.
+     */
+    public static String[] strictFamily(String baseIndexName, String[] candidates) {
+        int expectedLength = baseIndexName.length() + FIRST_INDEX_SIX_DIGIT_SUFFIX.length();
+        return Arrays.stream(candidates).filter(i -> has6DigitSuffix(i) && i.length() == expectedLength).toArray(String[]::new);
+    }
+
+    /**
+     * Convenience method combining {@link #indicesMatchingBasename} and {@link #strictFamily}:
+     * resolves all cluster indices that match {@code baseIndexName + "*"} and then filters
+     * to the exact family (i.e. exactly {@code baseIndexName-NNNNNN} names).
+     *
+     * @param baseIndexName      The base part of an index name, without the 6 digit suffix.
+     * @param expressionResolver The expression resolver.
+     * @param state              The cluster state.
+     * @return                   The exact rollover family for {@code baseIndexName}.
+     */
+    public static String[] strictFamilyOf(String baseIndexName, IndexNameExpressionResolver expressionResolver, ClusterState state) {
+        return strictFamily(baseIndexName, indicesMatchingBasename(baseIndexName, expressionResolver, state));
+    }
+
+    /**
+     * Returns the lowest suffix integer (≥ 1) not yet occupied by any member of
+     * {@code exactFamily}.  If {@code exactFamily} is empty, returns {@code 1},
+     * which will produce the first {@code base-000001} index.
+     * <p>
+     * Only family members with a parseable numeric 6-digit suffix are considered;
+     * anything else is silently skipped.
+     *
+     * @param exactFamily The strict (length-exact) rollover family array, as returned by
+     *                    {@link #strictFamily} or {@link #strictFamilyOf}.
+     * @return            The next free suffix integer.
+     */
+    public static int nextSuffix(String[] exactFamily) {
+        int highest = 0;
+        for (String idx : exactFamily) {
+            if (has6DigitSuffix(idx)) {
+                String suffixStr = idx.substring(idx.length() - 6);
+                try {
+                    highest = Math.max(highest, Integer.parseInt(suffixStr));
+                } catch (NumberFormatException ignored) {
+                    // non-numeric suffix; skip
+                }
+            }
+        }
+        return highest + 1;
+    }
+
+    /**
+     * Returns {@code true} if the top-level mapping of {@code indexMetadata} contains a field
+     * named {@code fieldName} whose {@code "type"} attribute equals {@code expectedType}.
+     * <p>
+     * Returns {@code false} for absent metadata, missing mappings, missing {@code properties}
+     * block, missing field, or non-matching type — i.e. all failure modes are collapsed to
+     * {@code false} so callers do not need defensive null-checks.
+     *
+     * @param indexMetadata The index metadata to inspect. May be {@code null}.
+     * @param fieldName     The field to look up inside the top-level {@code properties} block.
+     * @param expectedType  The expected Elasticsearch field type string (e.g. {@code "keyword"}).
+     * @return              {@code true} iff the field exists and has the expected type.
+     */
+    @SuppressWarnings("unchecked")
+    public static boolean hasFieldTypedAs(IndexMetadata indexMetadata, String fieldName, String expectedType) {
+        if (indexMetadata == null || indexMetadata.mapping() == null) {
+            return false;
+        }
+        var rawProperties = indexMetadata.mapping().sourceAsMap().get("properties");
+        if (rawProperties instanceof Map<?, ?> == false) {
+            return false;
+        }
+        var rawField = ((Map<String, Object>) rawProperties).get(fieldName);
+        if (rawField instanceof Map<?, ?> == false) {
+            return false;
+        }
+        return expectedType.equals(((Map<String, Object>) rawField).get("type"));
     }
 
     /**
@@ -573,39 +789,42 @@ public final class MlIndexAndAlias {
      * that match the base name. Then return the latest index from the
      * matching ones.
      *
-     * @param index The index to check
+     * @param index              The index to check
      * @param expressionResolver The expression resolver
-     * @param latestState The latest cluster state
+     * @param projectMetadata    The project metadata to resolve indices against
      * @return The latest index that matches the base name of the given index
      */
     public static String latestIndexMatchingBaseName(
         String index,
         IndexNameExpressionResolver expressionResolver,
-        ClusterState latestState
-    ) {
+        ProjectMetadata projectMetadata
 
+    ) {
         String baseIndexName = baseIndexName(index);
 
-        var matching = indicesMatchingBasename(baseIndexName, expressionResolver, latestState);
+        var matching = indicesMatchingBasename(baseIndexName, expressionResolver, projectMetadata);
 
         // We used to assert here if no matching indices could be found. However, when called _before_ a job is created it may be the case
-        // that no .ml-anomalies-shared* indices yet exist
-        if (matching.length == 0) {
-            return index;
-        }
-
-        // Exclude indices that start with the same base name but are a different index
-        // e.g. .ml-anomalies-foobar should not be included when the index name is
-        // .ml-anomalies-foo
-        String[] filtered = Arrays.stream(matching).filter(i -> {
-            return i.equals(index) || (has6DigitSuffix(i) && i.length() == baseIndexName.length() + FIRST_INDEX_SIX_DIGIT_SUFFIX.length());
-        }).toArray(String[]::new);
+        // that no .ml-anomalies-shared* indices yet exist.
+        // strictFamily also excludes prefix-siblings (e.g. .ml-anomalies-foobar when the base is .ml-anomalies-foo).
+        String[] filtered = strictFamily(baseIndexName, matching);
 
         if (filtered.length == 0) {
             return index;
         }
 
         return MlIndexAndAlias.latestIndex(filtered);
+    }
+
+    /** @deprecated Use {@link #latestIndexMatchingBaseName(String, IndexNameExpressionResolver, ProjectMetadata)} */
+    @Deprecated(forRemoval = true)
+    @FixForMultiProject(description = "Migrate callers to the ProjectMetadata overload and remove this one.")
+    public static String latestIndexMatchingBaseName(
+        String index,
+        IndexNameExpressionResolver expressionResolver,
+        ClusterState latestState
+    ) {
+        return latestIndexMatchingBaseName(index, expressionResolver, latestState.getMetadata().getProject(ProjectId.DEFAULT));
     }
 
     /**
@@ -704,17 +923,17 @@ public final class MlIndexAndAlias {
      *
      * @param aliasRequestBuilder The request builder to add actions to.
      * @param newIndex            The new index to which the alias will be moved.
-     * @param clusterState        The current cluster state, used to inspect existing aliases on the old index.
+     * @param projectMetadata     The current project metadata, used to inspect existing indices.
      * @param allStateIndices     A list of all current .ml-state indices
      * @return The modified {@link IndicesAliasesRequestBuilder}.
      */
     public static IndicesAliasesRequestBuilder addStateIndexRolloverAliasActions(
         IndicesAliasesRequestBuilder aliasRequestBuilder,
         String newIndex,
-        ClusterState clusterState,
+        ProjectMetadata projectMetadata,
         List<String> allStateIndices
     ) {
-        allStateIndices.stream().filter(index -> clusterState.metadata().getProject().index(index) != null).forEach(index -> {
+        allStateIndices.stream().filter(index -> projectMetadata.index(index) != null).forEach(index -> {
             // Remove the write alias from ALL state indices to handle any inconsistencies where it might exist on more than one.
             aliasRequestBuilder.addAliasAction(
                 IndicesAliasesRequest.AliasActions.remove().indices(index).alias(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
@@ -731,7 +950,23 @@ public final class MlIndexAndAlias {
         );
 
         return aliasRequestBuilder;
+    }
 
+    /** @deprecated Use {@link #addStateIndexRolloverAliasActions(IndicesAliasesRequestBuilder, String, ProjectMetadata, List)} */
+    @Deprecated(forRemoval = true)
+    @FixForMultiProject(description = "Migrate callers to the ProjectMetadata overload and remove this one.")
+    public static IndicesAliasesRequestBuilder addStateIndexRolloverAliasActions(
+        IndicesAliasesRequestBuilder aliasRequestBuilder,
+        String newIndex,
+        ClusterState clusterState,
+        List<String> allStateIndices
+    ) {
+        return addStateIndexRolloverAliasActions(
+            aliasRequestBuilder,
+            newIndex,
+            clusterState.getMetadata().getProject(ProjectId.DEFAULT),
+            allStateIndices
+        );
     }
 
     private static Optional<String> findEarliestIndexWithAlias(Map<String, List<AliasMetadata>> aliasesMap, String targetAliasName) {
@@ -771,19 +1006,19 @@ public final class MlIndexAndAlias {
      *
      * @param aliasRequestBuilder       The request builder to add actions to.
      * @param newIndex                  The new index to which aliases will be moved.
-     * @param clusterState              The current cluster state, used to inspect existing aliases on the old index.
+     * @param projectMetadata       The project metadata to resolve indices against
      * @param currentJobResultsIndices  A list of all current .ml-anomalies indices
      * @return The modified {@link IndicesAliasesRequestBuilder}.
      */
     public static IndicesAliasesRequestBuilder addResultsIndexRolloverAliasActions(
         IndicesAliasesRequestBuilder aliasRequestBuilder,
         String newIndex,
-        ClusterState clusterState,
+        ProjectMetadata projectMetadata,
         List<String> currentJobResultsIndices
     ) {
         // Multiple jobs can share the same index, each job should have
         // a read and write alias that needs updating after the rollover
-        var aliasesMap = clusterState.metadata().getProject().findAllAliases(currentJobResultsIndices.toArray(new String[0]));
+        var aliasesMap = projectMetadata.findAllAliases(currentJobResultsIndices.toArray(new String[0]));
         if (aliasesMap == null) {
             // This should not happen in practice, but we defend against it.
             return aliasRequestBuilder;
@@ -814,6 +1049,23 @@ public final class MlIndexAndAlias {
             });
 
         return aliasRequestBuilder;
+    }
+
+    /** @deprecated Use {@link #addResultsIndexRolloverAliasActions(IndicesAliasesRequestBuilder, String, ProjectMetadata, List)} */
+    @Deprecated(forRemoval = true)
+    @FixForMultiProject(description = "Migrate callers to the ProjectMetadata overload and remove this one.")
+    public static IndicesAliasesRequestBuilder addResultsIndexRolloverAliasActions(
+        IndicesAliasesRequestBuilder aliasRequestBuilder,
+        String newIndex,
+        ClusterState clusterState,
+        List<String> currentJobResultsIndices
+    ) {
+        return addResultsIndexRolloverAliasActions(
+            aliasRequestBuilder,
+            newIndex,
+            clusterState.getMetadata().getProject(ProjectId.DEFAULT),
+            currentJobResultsIndices
+        );
     }
 
     private static void moveWriteAlias(

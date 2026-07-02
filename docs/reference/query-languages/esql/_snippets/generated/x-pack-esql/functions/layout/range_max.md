@@ -5,6 +5,10 @@ stack: preview
 serverless: preview
 ```
 
+
+:::{include} ../briefSummary/range_max.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/range_max.svg

@@ -1359,6 +1359,46 @@ min:double | max:double | std_dev:double | pod:keyword
 438.0      | 1716.0     | 450.5833552    | two
 ;
 
+DefaultMetricWithTSImplicitCastingPromqlMin
+required_capability: ts_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: time_series_translation_in_analyzer
+PROMQL index=k8s,k8s-downsampled step=2d min=(min by (pod) (network.eth0.tx))
+| SORT pod
+;
+min:double | step:datetime            | pod:keyword
+176.0      | 2024-05-11T00:00:00.000Z | one
+239.0      | 2024-05-11T00:00:00.000Z | three
+438.0      | 2024-05-11T00:00:00.000Z | two
+;
+
+DefaultMetricWithTSImplicitCastingPromqlMax
+required_capability: ts_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: time_series_translation_in_analyzer
+PROMQL index=k8s,k8s-downsampled step=2d max=(max by (pod) (network.eth0.tx))
+| SORT pod
+;
+
+max:double | step:datetime            | pod:keyword
+1380.0     | 2024-05-11T00:00:00.000Z | one
+1241.0     | 2024-05-11T00:00:00.000Z | three
+1716.0     | 2024-05-11T00:00:00.000Z | two
+;
+
+DefaultMetricWithTSImplicitCastingPromqlStdDev
+required_capability: ts_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: time_series_translation_in_analyzer
+PROMQL index=k8s,k8s-downsampled step=2d std_dev=(round(stddev by (pod) (network.eth0.tx), 0.0000001))
+| SORT pod
+;
+std_dev:double | step:datetime            | pod:keyword
+428.6282305    | 2024-05-11T00:00:00.000Z | one
+366.7649929    | 2024-05-11T00:00:00.000Z | three
+450.5833552    | 2024-05-11T00:00:00.000Z | two
+;
+
 Case statement for Aggregate Metric Double (Standard Mode)
 required_capability: case_support_for_summary_fields
 

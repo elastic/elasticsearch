@@ -118,10 +118,8 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         return plugins;
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createFieldCapsIndices() throws Exception {
 
         XContentBuilder oldIndexMapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -398,6 +396,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     }
 
     public void testMetadataFields() {
+        assumeNoColumnarId("test relies on not loading id by setting stored field spect to _none_", "old_index", "new_index");
         for (int i = 0; i < 2; i++) {
             String[] fields = i == 0 ? new String[] { "*" } : new String[] { "_id", "_test" };
             FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields(fields).get();

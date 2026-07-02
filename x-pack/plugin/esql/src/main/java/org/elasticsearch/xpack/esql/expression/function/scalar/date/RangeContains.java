@@ -54,6 +54,7 @@ public class RangeContains extends EsqlScalarFunction implements OnlySurrogateEx
         returnType = "boolean",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        briefSummary = "Returns true if a date range contains a given date or sub-range.",
         description = """
             Returns true if the first argument
             [contains](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-range-query) the second argument.

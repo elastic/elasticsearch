@@ -129,8 +129,8 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected DocValuesType expectedSingleValuedDocValuesType() {
-        return DocValuesType.NUMERIC;
+    protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
+        return DocValuesType.SORTED_NUMERIC;
     }
 
     public void testNoDocValues() throws Exception {
@@ -608,16 +608,21 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return syntheticSourceSupportInternal(ignoreMalformed, true);
+        return syntheticSourceSupportInternal(ignoreMalformed, true, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        return syntheticSourceSupportInternal(ignoreMalformed, true, true);
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
         // Serializing and deserializing BigDecimal values may lead to parsing errors, a test artifact.
-        return syntheticSourceSupportInternal(ignoreMalformed, false);
+        return syntheticSourceSupportInternal(ignoreMalformed, false, false);
     }
 
-    private SyntheticSourceSupport syntheticSourceSupportInternal(boolean ignoreMalformed, boolean allowBigDecimal) {
+    private SyntheticSourceSupport syntheticSourceSupportInternal(boolean ignoreMalformed, boolean allowBigDecimal, boolean isColumnar) {
         return new SyntheticSourceSupport() {
             private final DateFieldMapper.Resolution resolution = randomFrom(DateFieldMapper.Resolution.values());
             private final Object nullValue = usually()
@@ -629,10 +634,23 @@ public class DateFieldMapperTests extends MapperTestCase {
             private final DateFormatter formatter = resolution == DateFieldMapper.Resolution.MILLISECONDS
                 ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER
                 : DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER;
+            // date fields have doc_values enabled by default, so multi_value: false can be requested in columnar mode.
+            private final boolean enforceSingleValue = isColumnar && randomBoolean();
+
+            @Override
+            public boolean isColumnar() {
+                return isColumnar;
+            }
+
+            @Override
+            public boolean enforcesSingleValue() {
+                return enforceSingleValue;
+            }
 
             @Override
             public SyntheticSourceExample example(int maxValues) {
-                if (randomBoolean()) {
+                // When multi_value is disabled a document may only have a single value, so never take the multi-valued branch below.
+                if (enforceSingleValue || randomBoolean()) {
                     Value v = generateValue();
                     if (v.malformedOutput != null) {
                         return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
@@ -644,15 +662,15 @@ public class DateFieldMapperTests extends MapperTestCase {
                 List<Value> values = randomList(1, maxValues, this::generateValue);
                 List<Object> in = values.stream().map(Value::input).toList();
 
-                List<String> outputFromDocValues = values.stream()
-                    .filter(v -> v.malformedOutput == null)
-                    .sorted(
+                Stream<Value> nonMalformed = values.stream().filter(v -> v.malformedOutput == null);
+                if (isColumnar == false) {
+                    nonMalformed = nonMalformed.sorted(
                         Comparator.comparing(
                             v -> Instant.from(formatter.parse(v.input == null ? nullValue.toString() : v.input.toString()))
                         )
-                    )
-                    .map(Value::output)
-                    .toList();
+                    );
+                }
+                List<String> outputFromDocValues = nonMalformed.map(Value::output).toList();
 
                 List<Object> malformedOutput = values.stream()
                     .filter(v -> v.malformedOutput != null)
@@ -716,6 +734,11 @@ public class DateFieldMapperTests extends MapperTestCase {
                 }
                 if (ignoreMalformed) {
                     b.field("ignore_malformed", true);
+                }
+                if (enforceSingleValue) {
+                    b.startObject("doc_values");
+                    b.field("multi_value", false);
+                    b.endObject();
                 }
             }
 

@@ -65,7 +65,7 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(Match.process(p, fieldBlockBlock, this.queryString, this.analyzer));
+          result.appendBoolean(Match.processText(p, fieldBlockBlock, this.queryString, this.analyzer));
         } catch (IOException e) {
           warnings().registerException(e);
           result.appendNull();

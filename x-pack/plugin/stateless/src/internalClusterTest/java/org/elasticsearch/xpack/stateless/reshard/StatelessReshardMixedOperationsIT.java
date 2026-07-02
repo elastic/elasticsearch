@@ -29,6 +29,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -667,6 +668,11 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                 logger.info("--> Split round complete");
             }
 
+            logger.info("--> Stopping disruption");
+            disruptor.stop();
+            ensureStableCluster(clusterSize, masterNode);
+            logger.info("--> Disruptions stopped");
+
             var threadExceptions = Collections.synchronizedList(new ArrayList<>());
 
             // We need to join all threads even if there are failures so that they don't continue doing operations
@@ -674,20 +680,24 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             logger.info("--> Waiting for operations to complete");
             for (int i = 0; i < threadsCount; i++) {
                 try {
-                    threads.get(i).join(SAFE_AWAIT_TIMEOUT.millis());
+                    Thread thread = threads.get(i);
+                    // The amount of work threads do is finite and limited by `threadOperations`.
+                    // This timeout is to detect rogue threads without waiting for suite timeout.
+                    boolean terminated = thread.join(Duration.ofMinutes(5));
+                    if (terminated == false) {
+                        for (int j = i; j < threadsCount; j++) {
+                            threads.get(j).interrupt();
+                        }
+                        fail("Operations thread did not terminate in time");
+                    }
                 } catch (Exception e) {
                     threadExceptions.add(e);
                 }
             }
             logger.info("--> Operations are done");
 
-            assertTrue("There are failed operations: " + Arrays.toString(threadExceptions.toArray()), threadExceptions.isEmpty());
+            assertTrue("--> There are failed operations: " + Arrays.toString(threadExceptions.toArray()), threadExceptions.isEmpty());
         } finally {
-            logger.info("--> Stopping disruption");
-            disruptor.stop();
-            ensureStableCluster(clusterSize, masterNode);
-            logger.info("--> Disruptions stopped");
-
             /// This is a workaround for assertion that `REQUEST` circuit breaker has outstanding bytes in
             /// [InternalTestCluster#ensureEstimatedStats()].
             /// Under disruption it is possible that shard fails in the middle of a bulk request.

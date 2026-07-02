@@ -431,7 +431,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
     public void testMatchWithRow() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_SUPPORT_RUNTIME_TEXT.isEnabled());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
         var query = """
             ROW content = to_text(["This is a brown fox", "This is a brown dog", "This dog is really brown"])
             | MV_EXPAND content
@@ -449,7 +449,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
     public void testMatchRuntimeExpression() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_SUPPORT_RUNTIME_TEXT.isEnabled());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
         var query = """
             FROM test
             | EVAL new_content = to_text(concat(content, " and a white cat"))

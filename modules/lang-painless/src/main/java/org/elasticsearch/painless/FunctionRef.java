@@ -14,6 +14,7 @@ import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.objectweb.asm.Type;
@@ -93,6 +94,7 @@ public class FunctionRef {
             String delegateMethodName;
             MethodType delegateMethodType;
             Object[] delegateInjections;
+            boolean isScriptAware = false;
 
             Class<?> delegateMethodReturnType;
             List<Class<?>> delegateMethodParameters;
@@ -221,13 +223,24 @@ public class FunctionRef {
                 delegateMethodName = painlessMethod.javaMethod().getName();
                 delegateMethodType = painlessMethod.methodType();
 
+                // @script_aware augmentations carry a leading PainlessScript parameter in methodType
+                // (and the underlying Java method) so the body can use the script instance. Strip it
+                // from the delegate so the capture/SAM split below treats it like a plain augmentation;
+                // it is reinstated as a synthetic leading factory capture (typed as the interface
+                // PainlessScript, matching the augmentation's actual parameter) so LambdaBootstrap
+                // rebuilds the correct delegate descriptor.
+                isScriptAware = painlessMethod.annotations().containsKey(ScriptAwareAnnotation.class);
+                if (isScriptAware) {
+                    delegateMethodType = delegateMethodType.dropParameterTypes(0, 1);
+                }
+
                 // interfaces that override a method from Object receive the method handle for
                 // Object rather than for the interface; we change the first parameter to match
                 // the interface type so the constant interface method reference is correctly
                 // written to the constant pool
                 if (delegateInvokeType != H_INVOKESTATIC
-                    && painlessMethod.javaMethod().getDeclaringClass() != painlessMethod.methodType().parameterType(0)) {
-                    if (painlessMethod.methodType().parameterType(0) != Object.class) {
+                    && painlessMethod.javaMethod().getDeclaringClass() != delegateMethodType.parameterType(0)) {
+                    if (delegateMethodType.parameterType(0) != Object.class) {
                         throw new IllegalStateException("internal error");
                     }
 
@@ -264,6 +277,15 @@ public class FunctionRef {
             );
             delegateMethodType = delegateMethodType.dropParameterTypes(0, numberOfCaptures);
 
+            // Reinstate the stripped script parameter as a synthetic leading factory capture. It is
+            // typed as the interface PainlessScript (the augmentation's declared parameter type), not
+            // the concrete script class, so the delegate handle LambdaBootstrap rebuilds resolves to
+            // the real augmentation method. The construction site pushes the script via the
+            // instance-capture path.
+            if (isScriptAware) {
+                factoryMethodType = factoryMethodType.insertParameterTypes(0, PainlessScript.class);
+            }
+
             return new FunctionRef(
                 interfaceMethodName,
                 interfaceMethodType,
@@ -275,7 +297,8 @@ public class FunctionRef {
                 delegateMethodType,
                 delegateInjections,
                 factoryMethodType,
-                needsScriptInstance ? WriterConstants.CLASS_TYPE : null
+                needsScriptInstance ? WriterConstants.CLASS_TYPE : null,
+                isScriptAware
             );
         } catch (IllegalArgumentException iae) {
             if (location != null) {
@@ -308,6 +331,8 @@ public class FunctionRef {
     private final MethodType factoryMethodType;
     /** factory (CallSite) method receiver, this modifies the method descriptor for the factory method */
     public final Type factoryMethodReceiver;
+    /** whether the delegate is a {@code @script_aware} augmentation (script captured as a leading factory parameter) */
+    public final boolean isScriptAware;
 
     private FunctionRef(
         String interfaceMethodName,
@@ -320,7 +345,8 @@ public class FunctionRef {
         MethodType delegateMethodType,
         Object[] delegateInjections,
         MethodType factoryMethodType,
-        Type factoryMethodReceiver
+        Type factoryMethodReceiver,
+        boolean isScriptAware
     ) {
 
         this.interfaceMethodName = interfaceMethodName;
@@ -334,6 +360,7 @@ public class FunctionRef {
         this.delegateInjections = delegateInjections;
         this.factoryMethodType = factoryMethodType;
         this.factoryMethodReceiver = factoryMethodReceiver;
+        this.isScriptAware = isScriptAware;
     }
 
     /** Get the factory method type, with updated receiver if {@code factoryMethodReceiver} is set */
@@ -365,7 +392,8 @@ public class FunctionRef {
             delegateMethodType,
             delegateInjections,
             factoryMethodType.insertParameterTypes(0, scriptClass),
-            factoryMethodReceiver
+            factoryMethodReceiver,
+            isScriptAware
         );
     }
 

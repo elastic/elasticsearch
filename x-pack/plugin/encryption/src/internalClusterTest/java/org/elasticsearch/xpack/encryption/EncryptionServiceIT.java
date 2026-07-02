@@ -14,7 +14,6 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -26,14 +25,6 @@ public class EncryptionServiceIT extends SecurityIntegTestCase {
 
     private static final String PASSWORD_ID = "v1";
     private static final String PASSWORD = "encryption-test-password";
-
-    @Before
-    public void checkFeatureFlag() {
-        assumeTrue(
-            "project encryption key feature flag must be enabled",
-            ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()
-        );
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

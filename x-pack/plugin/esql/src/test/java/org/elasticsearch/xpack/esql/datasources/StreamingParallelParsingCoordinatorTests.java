@@ -8,13 +8,16 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -22,26 +25,40 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
+import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -129,6 +146,174 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Mirror of {@code ParallelParsingCoordinatorTests#testParallelReadPropagatesPerSegmentPartialsToSink}
+     * for the streaming coordinator: the per-chunk parser tasks run on worker threads, so without an
+     * explicit sink parameter the reader's close hook publishes into a {@link ThreadLocal} that's
+     * never bound there and every per-chunk contribution is dropped. The 9-arg {@code parallelRead}
+     * overload threads a consumer-owned sink; this test asserts the worker bind actually wires the
+     * publish into it.
+     */
+    public void testParallelReadPropagatesPerChunkPartialsToSink() throws Exception {
+        // Content needs to span > 2 chunk-buffers so the segmentator dispatches more than one chunk;
+        // chunkSize == reader.minimumSegmentSize() (= 512 here), so ~5000 bytes gives ~10 chunks.
+        int lineCount = 500;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        String path = "mem://streaming-capture-test";
+        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, path);
+
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                null,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink,
+                null
+            );
+            try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
+        long partialCount = contributions.stream().filter(m -> Boolean.TRUE.equals(m.get(ExternalStats.PARTIAL_CHUNK_KEY))).count();
+        assertThat(
+            "Streaming parallel parsing must propagate per-chunk partials to the bound sink. Saw "
+                + contributions.size()
+                + " total contributions, "
+                + partialCount
+                + " partials. Contributions: "
+                + contributions,
+            partialCount,
+            Matchers.greaterThanOrEqualTo(2L)
+        );
+    }
+
+    /**
+     * Each per-chunk partial must carry a coverage range, and those ranges must tile the decompressed
+     * stream contiguously from 0 with the final chunk flagged last — the property the coordinator-side
+     * reconciler checks before committing the summed per-chunk counts.
+     */
+    public void testCleanClosePublishesTilingCoverageToSink() throws Exception {
+        int lineCount = 500;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        String path = "mem://streaming-finalize-test";
+        Instant mtime = Instant.parse("2020-01-01T00:00:00Z");
+        StorageObject file = new TestFileStorageObject(path, mtime);
+        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, path);
+
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                file,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink,
+                null
+            );
+            try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
+        List<Map<String, Object>> partials = contributions.stream()
+            .filter(m -> Boolean.TRUE.equals(m.get(ExternalStats.PARTIAL_CHUNK_KEY)))
+            .sorted(java.util.Comparator.comparingLong(m -> ((Number) m.get(ExternalStats.COVERAGE_START_KEY)).longValue()))
+            .toList();
+        assertThat(partials.size(), Matchers.greaterThanOrEqualTo(2));
+        long expectedStart = 0;
+        boolean lastFlagged = false;
+        for (Map<String, Object> p : partials) {
+            long start = ((Number) p.get(ExternalStats.COVERAGE_START_KEY)).longValue();
+            long end = ((Number) p.get(ExternalStats.COVERAGE_END_KEY)).longValue();
+            assertEquals("chunk coverage must tile the decompressed stream with no gap", expectedStart, start);
+            assertTrue("coverage end must advance", end > start);
+            expectedStart = end;
+            lastFlagged = Boolean.TRUE.equals(p.get(ExternalStats.COVERAGE_IS_LAST_KEY));
+        }
+        assertTrue("the final chunk must be flagged last (observed end-of-input)", lastFlagged);
+    }
+
+    /**
+     * An early close (the consumer stops before draining the file — e.g. a LIMIT) must poison the
+     * file's captured stats. Otherwise a chunk cut off mid-parse would publish a partial row count
+     * under its full byte range, which the coordinator's coverage tiling would accept as a complete
+     * cover and cache an under-count. The poison marker makes the reconciler discard the file.
+     */
+    public void testEarlyClosePoisonsCapturedStats() throws Exception {
+        // Large content so many chunks are dispatched; consuming a single page then closing leaves
+        // the consumer well short of full consumption (currentChunk < chunksDispatched), i.e. not clean.
+        int lineCount = 5000;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        String path = "mem://streaming-early-close-test";
+        Instant mtime = Instant.parse("2020-01-01T00:00:00Z");
+        StorageObject file = new TestFileStorageObject(path, mtime);
+        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, path);
+
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                file,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink,
+                null
+            );
+            CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
+            // Consume one page, then close without draining — an early termination.
+            if (iter.hasNext()) {
+                iter.next().releaseBlocks();
+            }
+            iter.close();
+        } finally {
+            executor.shutdownNow();
+        }
+
+        List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
+        boolean poisoned = contributions.stream().anyMatch(m -> Boolean.TRUE.equals(m.get(ExternalStats.CHUNK_HAD_ERRORS_KEY)));
+        assertTrue("an early close must publish a poison marker so the reconciler discards the incomplete cover", poisoned);
+    }
+
     public void testParserErrorPropagates() throws Exception {
         String content = buildContent(100);
         InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
@@ -146,6 +331,54 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 "Expected injected failure message but got: " + ex.getMessage(),
                 ex.getMessage().contains("injected") || (ex.getCause() != null && ex.getCause().getMessage().contains("injected"))
             );
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Pins the typed-failure contract from elastic/esql-planning#836 on the streaming coordinator: a raw
+     * {@link IOException} thrown by a worker (here, {@code FailingFormatReader.read}) is stored in
+     * {@code firstError} and surfaced by {@code checkError()}'s {@code surface()} as a typed
+     * {@link ExternalClientException} (HTTP 400) — including the coordinator's "Streaming parallel parsing
+     * failed" prefix — rather than a status-neutral {@link RuntimeException} that would later be
+     * misclassified as 500. The injected "injected failure" mirrors the path real failures take (e.g. a
+     * record exceeding {@code max_record_size}).
+     */
+    public void testParserIoFailureSurfacesAsExternalClientException() throws Exception {
+        String content = buildContent(100);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            FailingFormatReader reader = new FailingFormatReader(5, 1024);
+            RuntimeException ex = expectThrows(
+                RuntimeException.class,
+                () -> collectLines(
+                    StreamingParallelParsingCoordinator.parallelRead(reader, stream, List.of("line"), 50, 4, executor, ErrorPolicy.STRICT)
+                )
+            );
+            assertThat(
+                "stored IOException must surface as a typed ExternalClientException, not a generic RuntimeException",
+                ex,
+                Matchers.instanceOf(ExternalClientException.class)
+            );
+            assertEquals(
+                "ExternalClientException must classify as HTTP 400 so the read failure stops being labeled as a server fault",
+                RestStatus.BAD_REQUEST,
+                ExceptionsHelper.status(ex)
+            );
+            assertThat(
+                "the original IOException must remain reachable as the cause",
+                ex.getCause(),
+                Matchers.instanceOf(IOException.class)
+            );
+            assertThat(
+                "the coordinator's context prefix must survive in the surfaced message",
+                ex.getMessage(),
+                Matchers.containsString("Streaming parallel parsing failed")
+            );
+            assertThat("the injected detail must survive end-to-end", ex.getMessage(), Matchers.containsString("injected"));
         } finally {
             executor.shutdownNow();
         }
@@ -708,13 +941,17 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             var iterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
                 reader,
                 new ByteArrayInputStream(bytes),
+                null,
                 List.of("line"),
                 50,
                 4,
                 executor,
                 ErrorPolicy.STRICT,
                 null,
-                maxRecordBytes
+                0L,
+                maxRecordBytes,
+                null,
+                null
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
@@ -722,6 +959,185 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    /**
+     * A {@code max_record_size} cap-hit must honor the read {@link ErrorPolicy}: a strict policy keeps
+     * hard-failing (as before), while a non-strict policy degrades gracefully — it truncates the read
+     * at the undelimitable record and returns the records parsed before it (truncate-at-failure, since
+     * an unclosed record has no resumption point). The fixture is a handful of clean records followed
+     * by an unclosed quoted field that the quote-aware splitter can never close, so the grow loop
+     * exceeds the (small, injected) cap.
+     */
+    public void testCapHitFailsUnderStrictButTruncatesToPartialUnderLenient() throws Exception {
+        int leadingRecords = 6;
+        int maxRecordBytes = 4096;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < leadingRecords; i++) {
+            sb.append("rec-").append(String.format(Locale.ROOT, "%04d", i)).append('\n');
+        }
+        // Unclosed quoted field, no terminator and no record after it: the quote-aware splitter stays
+        // "in quotes" forever so no boundary is found and the grow loop trips the cap.
+        sb.append('"').append("x".repeat(8 * 1024));
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        // Strict: the cap-hit is still a hard failure.
+        ExecutorService strictExecutor = Executors.newFixedThreadPool(6);
+        try {
+            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(512);
+            var strictIterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
+                reader,
+                new ByteArrayInputStream(bytes),
+                null,
+                List.of("line"),
+                50,
+                4,
+                strictExecutor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                maxRecordBytes,
+                null,
+                null
+            );
+            RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(strictIterator));
+            String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
+            assertTrue(
+                "strict policy must still hard-fail on the cap-hit, got: " + chain,
+                chain.contains("record exceeded max_record_size")
+            );
+        } finally {
+            strictExecutor.shutdownNow();
+        }
+
+        // Non-strict: truncate at the cap-hit and return the prefix records parsed so far.
+        ExecutorService lenientExecutor = Executors.newFixedThreadPool(6);
+        try {
+            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(512);
+            var lenientIterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
+                reader,
+                new ByteArrayInputStream(bytes),
+                null,
+                List.of("line"),
+                50,
+                4,
+                lenientExecutor,
+                ErrorPolicy.LENIENT,
+                null,
+                0L,
+                maxRecordBytes,
+                null,
+                null
+            );
+            List<String> got = collectLines(lenientIterator);
+            assertEquals("non-strict policy must return the records parsed before the cap-hit", leadingRecords, got.size());
+            for (int i = 0; i < leadingRecords; i++) {
+                assertEquals("rec-" + String.format(Locale.ROOT, "%04d", i), got.get(i));
+            }
+        } finally {
+            lenientExecutor.shutdownNow();
+        }
+    }
+
+    /**
+     * Under a non-strict policy the truncation must surface a partial-results warning the operator can
+     * relay to the client. The segmentator records that warning through the {@code partialResultsWarningSink}
+     * rather than emitting a {@link HeaderWarning} directly, precisely because it runs on a forked worker
+     * whose response headers never reach the client (see {@code AsyncExternalSourceOperator}, #835). This
+     * runs on a real multi-threaded executor and asserts the sink receives the message regardless of which
+     * thread the segmentator ran on — the property a same-thread executor would have masked. The cap is hit
+     * on the very first record (the splitter never reports a boundary), so no chunk is dispatched.
+     */
+    public void testTruncationRoutesWarningToSinkUnderLenient() throws Exception {
+        int maxRecordBytes = 4096;
+        StringBuilder sb = new StringBuilder();
+        while (sb.length() < 64 * 1024) {
+            sb.append("some-row-of-bytes-with-a-trailing-newline-and-a-bit-of-padding\n");
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        List<String> sink = new CopyOnWriteArrayList<>();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            NeverBoundaryFormatReader reader = new NeverBoundaryFormatReader(64);
+            var iterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
+                reader,
+                new ByteArrayInputStream(bytes),
+                null,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.LENIENT,
+                null,
+                0L,
+                maxRecordBytes,
+                null,
+                sink::add
+            );
+            List<String> got = collectLines(iterator);
+            assertEquals("an undelimitable first record yields no rows under truncation", 0, got.size());
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertEquals("truncation must record exactly one partial-results warning", 1, sink.size());
+        assertTrue(
+            "expected a partial-results truncation warning, got: " + sink,
+            sink.get(0).contains("results are partial")
+                && sink.get(0).contains("truncated at byte")
+                && sink.get(0).contains("record exceeded max_record_size")
+        );
+    }
+
+    /**
+     * When no sink is wired (tests, benchmarks, and any non-operator caller), the truncation warning
+     * falls back to a direct {@link HeaderWarning} on the segmentator thread. A same-thread executor runs
+     * the segmentator on the test thread so {@link org.elasticsearch.test.ESTestCase}'s registered
+     * {@code ThreadContext} can observe the emitted warning. This locks the fallback contract; the
+     * client-facing propagation is covered by {@code ExternalMaxRecordSizeTruncationIT}.
+     */
+    public void testTruncationFallsBackToHeaderWarningWhenNoSink() throws Exception {
+        int maxRecordBytes = 4096;
+        StringBuilder sb = new StringBuilder();
+        while (sb.length() < 64 * 1024) {
+            sb.append("some-row-of-bytes-with-a-trailing-newline-and-a-bit-of-padding\n");
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        Executor sameThread = Runnable::run;
+        NeverBoundaryFormatReader reader = new NeverBoundaryFormatReader(64);
+        var iterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
+            reader,
+            new ByteArrayInputStream(bytes),
+            null,
+            List.of("line"),
+            50,
+            4,
+            sameThread,
+            ErrorPolicy.LENIENT,
+            null,
+            0L,
+            maxRecordBytes,
+            null,
+            null
+        );
+        List<String> got = collectLines(iterator);
+        assertEquals("an undelimitable first record yields no rows under truncation", 0, got.size());
+
+        List<String> warnings = drainWarnings();
+        assertTrue(
+            "expected a client-visible partial-results warning, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("results are partial") && w.contains("record exceeded max_record_size"))
+        );
+    }
+
+    /** Drain and clear the response {@code Warning} headers accumulated on the test thread context. */
+    private List<String> drainWarnings() {
+        List<String> raw = threadContext.getResponseHeaders().getOrDefault("Warning", List.of());
+        List<String> messages = raw.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false)).toList();
+        threadContext.stashContext();
+        return messages;
     }
 
     /**
@@ -974,6 +1390,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * dispatches every parser-thread read to the schema-bound variant.
      */
     private static class LineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final long minSegment;
         private final List<Attribute> resolvedSchema;
@@ -1118,6 +1538,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * grow-loop bound fails fast.
      */
     private static class NeverBoundaryFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final long minSegment;
 
@@ -1181,9 +1605,124 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * Wraps {@link LineFormatReader} so each chunk's iterator publishes a per-chunk
+     * {@code _stats.*} contribution via {@link ExternalStatsCapture#record} on natural EOF — same
+     * close-hook pattern as the production CSV / NDJSON chunk paths. Used by
+     * {@link #testParallelReadPropagatesPerChunkPartialsToSink} to observe whether streaming
+     * parallel-parsing worker threads can reach a bound sink. Publishes under a fixed
+     * {@code path} (not the per-chunk synthetic path the coordinator constructs) so the test can
+     * key into the sink by a known string.
+     */
+    private static class StatsPublishingLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        private final LineFormatReader delegate;
+        private final String path;
+
+        StatsPublishingLineReader(long minSegment, String path) {
+            this(new LineFormatReader(minSegment), path);
+        }
+
+        private StatsPublishingLineReader(LineFormatReader delegate, String path) {
+            this.delegate = delegate;
+            this.path = path;
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return delegate.recordSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return delegate.minimumSegmentSize();
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return delegate.metadata(object);
+        }
+
+        @Override
+        public FormatReader withSchema(List<Attribute> schema) {
+            // Streaming coordinator swaps `reader` for the result; keep the publishing wrapper so
+            // post-inference chunk reads still record under `path`.
+            LineFormatReader bound = (LineFormatReader) delegate.withSchema(schema);
+            return new StatsPublishingLineReader(bound, path);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            return wrapPublishing(delegate.read(object, context), context);
+        }
+
+        CloseableIterator<Page> wrapPublishing(CloseableIterator<Page> inner, FormatReadContext context) {
+            boolean chunkMode = context.recordAligned();
+            return new CloseableIterator<>() {
+                long rowsEmitted = 0;
+                boolean naturallyExhausted = false;
+
+                @Override
+                public boolean hasNext() {
+                    if (inner.hasNext()) {
+                        return true;
+                    }
+                    naturallyExhausted = true;
+                    return false;
+                }
+
+                @Override
+                public Page next() {
+                    Page p = inner.next();
+                    rowsEmitted += p.getPositionCount();
+                    return p;
+                }
+
+                @Override
+                public void close() throws IOException {
+                    try {
+                        inner.close();
+                    } finally {
+                        if (naturallyExhausted) {
+                            Map<String, Object> stats = new HashMap<>();
+                            stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowsEmitted);
+                            if (chunkMode) {
+                                stats.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
+                            }
+                            ExternalStatsCapture.record(path, stats);
+                        }
+                    }
+                }
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "test-stats-publishing-streaming-line";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return delegate.fileExtensions();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+    }
+
+    /**
      * A format reader that fails after reading a configured number of lines.
      */
     private static class FailingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final int failAfterLines;
         private final long minSegment;
@@ -1271,6 +1810,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * logic but does not model full RFC 4180 quoting.
      */
     private static class QuoteAwareLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final long minSegment;
         private final List<Attribute> resolvedSchema;
@@ -1381,5 +1924,46 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /** Path + mtime only — bytes come from the decompressed stream, not this object. */
+    private static final class TestFileStorageObject implements StorageObject {
+        private final StoragePath path;
+        private final Instant mtime;
+
+        TestFileStorageObject(String path, Instant mtime) {
+            this.path = StoragePath.of(path);
+            this.mtime = mtime;
+        }
+
+        @Override
+        public InputStream newStream() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long length() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Instant lastModified() {
+            return mtime;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
     }
 }

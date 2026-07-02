@@ -28,6 +28,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InferenceStringGroupTests;
+import org.elasticsearch.inference.InferenceStringTests;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -96,8 +97,10 @@ import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.DataFormat.BASE64;
 import static org.elasticsearch.inference.DataType.IMAGE;
+import static org.elasticsearch.inference.InferenceString.ofText;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
+import static org.elasticsearch.inference.InferenceStringTests.inferenceStringToMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
@@ -694,16 +697,11 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var modelId = randomAlphaOfLength(8);
             var model = ElasticInferenceServiceRerankModelTests.createModel(elasticInferenceServiceURL, modelId);
 
-            var docsStrings = List.of(randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8));
-            var queryString = randomAlphaOfLength(8);
+            var docs = InferenceString.fromStringList(List.of(randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8)));
+            var query = ofText(randomAlphaOfLength(8));
             var topN = randomNonNegativeIntOrNull();
-            var rerankRequest = new RerankRequest(
-                InferenceString.fromStringList(docsStrings),
-                InferenceString.ofText(queryString),
-                topN,
-                null,
-                Map.of()
-            );
+
+            var rerankRequest = new RerankRequest(docs, query, topN, null, Map.of());
 
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.rerankInfer(model, rerankRequest, null, listener);
@@ -731,7 +729,14 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             // Verify the outgoing request body
             Map<String, Object> requestMap = entityAsMap(request.getBody());
             Map<String, Object> expectedRequestMap = new HashMap<>(
-                Map.of("query", queryString, "model", modelId, "documents", docsStrings)
+                Map.of(
+                    "query",
+                    inferenceStringToMap(query),
+                    "model",
+                    modelId,
+                    "documents",
+                    docs.stream().map(InferenceStringTests::inferenceStringToMap).toList()
+                )
             );
             if (topN != null) {
                 expectedRequestMap.put("top_n", topN);

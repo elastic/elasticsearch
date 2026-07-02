@@ -10,11 +10,18 @@
 //   - LIST<STRUCT> (arrays of structs)
 //   - MAP types
 //   - CSV / NDJSON dotted-name pruning (NDJSON already flattens but does not prune)
+//
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. On dataset-capable
+// backends (S3) ParquetFormatSpecIT (Java reader) registers the dataset and runs the FROM query verbatim; the
+// other backends — and ParquetRsFormatSpecIT, which skips these tests — rebuild the equivalent EXTERNAL query.
+// The fixture template has no index twin, so the dataset keeps the bare name nested_events.
 
 nestedKeepSingleSubfield
 required_capability: external_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | KEEP id, event.action
 | SORT id
 | LIMIT 10;
@@ -31,7 +38,9 @@ id:integer | event.action:keyword
 nestedKeepTwoSubfieldsSameParent
 required_capability: external_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | KEEP id, event.action, event.outcome
 | SORT id
 | LIMIT 10;
@@ -48,7 +57,9 @@ id:integer | event.action:keyword | event.outcome:keyword
 nestedKeepMixedTopLevelAndNested
 required_capability: external_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | KEEP id, event.action
 | SORT id
 | LIMIT 3;
@@ -62,7 +73,9 @@ id:integer | event.action:keyword
 nestedStatsByNested
 required_capability: external_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | STATS c = COUNT(*) BY event.action
 | SORT event.action;
 
@@ -76,7 +89,9 @@ c:long | event.action:keyword
 nestedNullPropagation
 required_capability: external_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | KEEP id, event.action
 | WHERE event.action IS NULL
 | SORT id;
@@ -93,7 +108,9 @@ id:integer | event.action:keyword
 nestedWhereEquals
 required_capability: external_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | WHERE event.action == "login"
 | KEEP id, event.action
 | SORT id;
@@ -108,7 +125,9 @@ id:integer | event.action:keyword
 nestedWhereIsNull
 required_capability: external_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | WHERE event.outcome IS NULL
 | KEEP id, event.outcome
 | SORT id;
@@ -125,7 +144,9 @@ id:integer | event.outcome:keyword
 nestedStatsMinMax
 required_capability: external_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | STATS min_id = MIN(id), max_id = MAX(id) BY event.action
 | SORT event.action;
 
@@ -143,7 +164,9 @@ min_id:integer | max_id:integer | event.action:keyword
 nestedFilterAndProjectMixed
 required_capability: external_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | WHERE event.action == "login" AND id > 2
 | KEEP id, event.outcome
 | SORT id;

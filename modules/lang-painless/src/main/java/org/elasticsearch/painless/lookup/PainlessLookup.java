@@ -38,6 +38,8 @@ public final class PainlessLookup {
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
     private final Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings;
 
+    private final Map<Class<?>, Set<String>> annotationsToMethodKeys;
+
     PainlessLookup(
         Map<String, Class<?>> javaClassNamesToClasses,
         Map<String, Class<?>> canonicalClassNamesToClasses,
@@ -45,7 +47,8 @@ public final class PainlessLookup {
         Map<Class<?>, Set<Class<?>>> classesToDirectSubClasses,
         Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods,
         Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings,
-        Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings
+        Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings,
+        Map<Class<?>, Set<String>> annotationsToMethodKeys
     ) {
         this.javaClassNamesToClasses = Map.copyOf(javaClassNamesToClasses);
         this.canonicalClassNamesToClasses = Map.copyOf(canonicalClassNamesToClasses);
@@ -55,6 +58,13 @@ public final class PainlessLookup {
         this.painlessMethodKeysToImportedPainlessMethods = Map.copyOf(painlessMethodKeysToImportedPainlessMethods);
         this.painlessMethodKeysToPainlessClassBindings = Map.copyOf(painlessMethodKeysToPainlessClassBindings);
         this.painlessMethodKeysToPainlessInstanceBindings = Map.copyOf(painlessMethodKeysToPainlessInstanceBindings);
+
+        this.annotationsToMethodKeys = Map.copyOf(annotationsToMethodKeys);
+    }
+
+    public boolean hasAnnotationAwareMethod(Class<?> annotationType, String methodName, int methodArity) {
+        Set<String> methodKeys = annotationsToMethodKeys.get(annotationType);
+        return methodKeys != null && methodKeys.contains(buildPainlessMethodKey(methodName, methodArity));
     }
 
     public Class<?> javaClassNameToClass(String javaClassName) {

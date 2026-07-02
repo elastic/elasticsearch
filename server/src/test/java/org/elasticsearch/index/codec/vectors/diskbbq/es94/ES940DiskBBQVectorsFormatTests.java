@@ -88,7 +88,7 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
             random(),
             List.of(
                 ES940DiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-                ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
+                ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_PACKED,
                 ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED,
                 ES940DiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC
             )
@@ -216,6 +216,38 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
     }
 
     public void testbitEncodingVersionEnforcement() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ES940DiskBBQVectorsFormat(
+                ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_PACKED,
+                64,
+                2,
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                false,
+                null,
+                1,
+                false,
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                0,
+                ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ES940DiskBBQVectorsFormat(
+                ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_STRIPED,
+                64,
+                2,
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                false,
+                null,
+                1,
+                false,
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                0,
+                ES940DiskBBQVectorsFormat.VERSION_CURRENT
+            )
+        );
         expectThrows(
             IllegalArgumentException.class,
             () -> new ES940DiskBBQVectorsFormat(

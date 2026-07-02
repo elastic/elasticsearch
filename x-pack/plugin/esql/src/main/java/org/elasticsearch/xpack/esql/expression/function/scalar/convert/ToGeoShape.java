@@ -55,6 +55,7 @@ public class ToGeoShape extends AbstractConvertFunction {
 
     @FunctionInfo(
         returnType = "geo_shape",
+        briefSummary = "Converts a value to a geo_shape.",
         description = """
             Converts an input value to a `geo_shape` value.
             A string will only be successfully converted if it respects the

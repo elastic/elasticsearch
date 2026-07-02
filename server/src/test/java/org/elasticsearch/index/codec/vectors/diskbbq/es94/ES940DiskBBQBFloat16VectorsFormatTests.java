@@ -52,7 +52,7 @@ public class ES940DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
             random(),
             List.of(
                 ES940DiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-                ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
+                ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_PACKED,
                 ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED,
                 ES940DiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC
             )

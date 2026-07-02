@@ -121,15 +121,22 @@ public final class CentroidAssignment {
 
     /**
      * Recompute centroid positions as the mean of their assigned vectors.
+     * <p>
+     * The {@code accumulatorState} encapsulates type-specific accumulation logic:
+     * for float centroids it accumulates in place; for byte centroids it uses int-precision
+     * accumulators internally and rounds back on divide.
+     *
+     * @param accumulatorState reusable state from {@link CentroidOps#newAccumulatorState}.
+     *                         Callers should allocate once and reuse across iterations.
      */
     static <V> void updateCentroids(
         ClusteringVectorValues<V> vectors,
-        CentroidOps<V> ops,
         V[] centroids,
         IntToIntFunction ordTranslator,
         FixedBitSet[] centroidChangedSlices,
         int[] centroidCounts,
-        int[] assignments
+        int[] assignments,
+        CentroidOps.AccumulatorState<V> accumulatorState
     ) throws IOException {
         Arrays.fill(centroidCounts, 0);
         FixedBitSet centroidChanged = centroidChangedSlices[0];
@@ -138,37 +145,14 @@ public final class CentroidAssignment {
         }
         int dim = vectors.dimension();
 
-        updateCentroidsFloat(
-            vectors,
-            (CentroidOps.FloatOps) ops,
-            centroids,
-            centroidChanged,
-            centroidCounts,
-            ordTranslator,
-            assignments,
-            dim
-        );
-    }
-
-    private static <V> void updateCentroidsFloat(
-        ClusteringVectorValues<V> vectors,
-        CentroidOps.FloatOps ops,
-        V[] centroids,
-        FixedBitSet centroidChanged,
-        int[] centroidCounts,
-        IntToIntFunction ordTranslator,
-        int[] assignments,
-        int dim
-    ) throws IOException {
         for (int idx = 0; idx < vectors.size(); idx++) {
             final int assignment = assignments[ordTranslator.apply(idx)];
             if (centroidChanged.get(assignment)) {
-                float[] centroid = (float[]) centroids[assignment];
-                float[] vector = (float[]) vectors.vectorValue(idx);
+                V vector = vectors.vectorValue(idx);
                 if (centroidCounts[assignment]++ == 0) {
-                    ops.initCentroid(centroid, vector, dim);
+                    accumulatorState.init(assignment, vector, dim);
                 } else {
-                    ops.accumulate(centroid, vector, dim);
+                    accumulatorState.accumulate(assignment, vector, dim);
                 }
             }
         }
@@ -177,7 +161,7 @@ public final class CentroidAssignment {
             if (centroidChanged.get(clusterIdx)) {
                 float count = (float) centroidCounts[clusterIdx];
                 if (count > 0) {
-                    ops.divide((float[]) centroids[clusterIdx], count, dim);
+                    accumulatorState.divide(centroids, clusterIdx, count, dim);
                 }
             }
         }
@@ -216,12 +200,26 @@ public final class CentroidAssignment {
     ) throws IOException {
         for (int i = startOrd; i < endOrd; i++) {
             V vector = vectors.vectorValue(i);
-            final int bestCentroid = assigner.apply(i);
-            squaredDistances[i][0] = ops.squareDistance(vector, centroids[bestCentroid]);
+            int bestCentroid = assigner.apply(i);
+
+            float[] ordDists = squaredDistances[i];
+            ordDists[0] = ops.squareDistance(vector, centroids[bestCentroid]);
+
             int[] neighbors = neighborhoods[bestCentroid].neighbors();
-            for (int j = 0; j < neighbors.length; j++) {
-                int neigh = neighbors[j];
-                squaredDistances[i][j + 1] = ops.squareDistance(vector, centroids[neigh]);
+            int j = 0;
+            for (; j < neighbors.length - 3; j += 4) {
+                ops.squareDistanceBulk(
+                    vector,
+                    centroids[neighbors[j]],
+                    centroids[neighbors[j + 1]],
+                    centroids[neighbors[j + 2]],
+                    centroids[neighbors[j + 3]],
+                    j + 1,
+                    ordDists
+                );
+            }
+            for (; j < neighbors.length; j++) {
+                ordDists[j + 1] = ops.squareDistance(vector, centroids[neighbors[j]]);
             }
         }
     }

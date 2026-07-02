@@ -21,6 +21,7 @@ import org.apache.hadoop.hive.ql.exec.vector.TimestampColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.orc.BooleanColumnStatistics;
 import org.apache.orc.ColumnStatistics;
@@ -38,6 +39,7 @@ import org.apache.orc.impl.ReaderImpl;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
@@ -51,18 +53,22 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -575,6 +581,13 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             attributeMap.put(attr.name(), attr);
         }
         for (String columnName : projectedColumns) {
+            if (ColumnExtractor.ROW_POSITION_COLUMN.equals(columnName)) {
+                // Synthetic file-global row index, not an ORC column. Typed LONG (not NULL) so the
+                // producer pipeline reads it as a LongBlock; OrcPageIterator fills it from
+                // RecordReader.getRowNumber() rather than from the ORC vectors.
+                projected.add(SyntheticColumns.newRowPositionAttribute());
+                continue;
+            }
             Attribute attr = attributeMap.get(columnName);
             projected.add(
                 attr != null ? attr : new ReferenceAttribute(Source.EMPTY, null, columnName, DataType.NULL, Nullability.TRUE, null, false)
@@ -729,6 +742,13 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     }
 
     @Override
+    public RowPositionStrategy rowPositionStrategy() {
+        // OrcPageIterator fills the {@code _rowPosition} slot natively from
+        // {@code RecordReader#getRowNumber()}; nothing for the dispatcher to splice.
+        return PassThroughRowPositionStrategy.INSTANCE;
+    }
+
+    @Override
     public void close() throws IOException {
         // No resources to close at the reader level
     }
@@ -853,6 +873,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         private final long[] nullCounts;
         private final long[] rawMins;
         private final long[] rawMaxs;
+        // Populated instead of rawMins/rawMaxs when the threshold is BYTES_REF (keyword/text).
+        private final BytesRef[] rawMinBytes;
+        private final BytesRef[] rawMaxBytes;
 
         private StripeSkipTable(
             DynamicThreshold threshold,
@@ -862,7 +885,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             boolean[] nullOnly,
             long[] nullCounts,
             long[] rawMins,
-            long[] rawMaxs
+            long[] rawMaxs,
+            BytesRef[] rawMinBytes,
+            BytesRef[] rawMaxBytes
         ) {
             this.threshold = threshold;
             this.startRows = startRows;
@@ -872,6 +897,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             this.nullCounts = nullCounts;
             this.rawMins = rawMins;
             this.rawMaxs = rawMaxs;
+            this.rawMinBytes = rawMinBytes;
+            this.rawMaxBytes = rawMaxBytes;
         }
 
         static StripeSkipTable build(Reader reader, TypeDescription schema, DynamicThreshold threshold, long rangeStart, long rangeEnd)
@@ -888,6 +915,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             if (stripes.isEmpty() || stripeStats.isEmpty()) {
                 return null;
             }
+            boolean bytesRef = threshold.elementType() == ElementType.BYTES_REF;
             long[] startRows = new long[stripes.size() + 1];
             boolean[] active = new boolean[stripes.size()];
             boolean[] hasStats = new boolean[stripes.size()];
@@ -895,6 +923,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             long[] nullCounts = new long[stripes.size()];
             long[] rawMins = new long[stripes.size()];
             long[] rawMaxs = new long[stripes.size()];
+            BytesRef[] rawMinBytes = bytesRef ? new BytesRef[stripes.size()] : null;
+            BytesRef[] rawMaxBytes = bytesRef ? new BytesRef[stripes.size()] : null;
             long row = 0L;
             int columnId = sortType.getId();
             for (int i = 0; i < stripes.size(); i++) {
@@ -910,23 +940,49 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                             continue;
                         }
                         long nulls = stripe.getNumberOfRows() - stats.getNumberOfValues();
-                        Long min = rawMin(stats, sortType, threshold.elementType());
-                        Long max = rawMax(stats, sortType, threshold.elementType());
-                        if (min != null && max != null) {
-                            hasStats[i] = true;
-                            nullCounts[i] = nulls;
-                            rawMins[i] = min;
-                            rawMaxs[i] = max;
-                        } else if (stats.getNumberOfValues() == 0 && nulls > 0) {
-                            hasStats[i] = true;
-                            nullOnly[i] = true;
-                            nullCounts[i] = nulls;
+                        if (bytesRef) {
+                            BytesRef min = rawMinBytes(stats, sortType);
+                            BytesRef max = rawMaxBytes(stats, sortType);
+                            if (min != null && max != null) {
+                                hasStats[i] = true;
+                                nullCounts[i] = nulls;
+                                rawMinBytes[i] = min;
+                                rawMaxBytes[i] = max;
+                            } else if (stats.getNumberOfValues() == 0 && nulls > 0) {
+                                hasStats[i] = true;
+                                nullOnly[i] = true;
+                                nullCounts[i] = nulls;
+                            }
+                        } else {
+                            Long min = rawMin(stats, sortType, threshold.elementType());
+                            Long max = rawMax(stats, sortType, threshold.elementType());
+                            if (min != null && max != null) {
+                                hasStats[i] = true;
+                                nullCounts[i] = nulls;
+                                rawMins[i] = min;
+                                rawMaxs[i] = max;
+                            } else if (stats.getNumberOfValues() == 0 && nulls > 0) {
+                                hasStats[i] = true;
+                                nullOnly[i] = true;
+                                nullCounts[i] = nulls;
+                            }
                         }
                     }
                 }
             }
             startRows[stripes.size()] = row;
-            return new StripeSkipTable(threshold, startRows, active, hasStats, nullOnly, nullCounts, rawMins, rawMaxs);
+            return new StripeSkipTable(
+                threshold,
+                startRows,
+                active,
+                hasStats,
+                nullOnly,
+                nullCounts,
+                rawMins,
+                rawMaxs,
+                rawMinBytes,
+                rawMaxBytes
+            );
         }
 
         boolean noFurtherCandidates() {
@@ -950,13 +1006,16 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         }
 
         boolean dominated(int stripeIndex) {
-            return stripeIndex >= 0
-                && stripeIndex < active.length
-                && active[stripeIndex]
-                && hasStats[stripeIndex]
-                && (nullOnly[stripeIndex]
-                    ? threshold.dominatesNulls(nullCounts[stripeIndex])
-                    : threshold.dominates(rawMins[stripeIndex], rawMaxs[stripeIndex], nullCounts[stripeIndex]));
+            if (stripeIndex < 0 || stripeIndex >= active.length || active[stripeIndex] == false || hasStats[stripeIndex] == false) {
+                return false;
+            }
+            if (nullOnly[stripeIndex]) {
+                return threshold.dominatesNulls(nullCounts[stripeIndex]);
+            }
+            if (rawMinBytes != null) {
+                return threshold.dominates(rawMinBytes[stripeIndex], rawMaxBytes[stripeIndex], nullCounts[stripeIndex]);
+            }
+            return threshold.dominates(rawMins[stripeIndex], rawMaxs[stripeIndex], nullCounts[stripeIndex]);
         }
 
         int nextNonDominatedStripe(int fromStripe) {
@@ -978,7 +1037,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     ? intStats.getMinimum()
                     : null;
                 case INT -> sortType.getCategory() == TypeDescription.Category.INT && stats instanceof IntegerColumnStatistics intStats
-                    ? (long) intStats.getMinimum()
+                    ? intStats.getMinimum()
                     : null;
                 case DOUBLE -> stats instanceof DoubleColumnStatistics doubleStats ? rawDouble(doubleStats.getMinimum()) : null;
                 case BOOLEAN -> stats instanceof BooleanColumnStatistics booleanStats ? (booleanStats.getFalseCount() > 0 ? 0L : 1L) : null;
@@ -992,7 +1051,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     ? intStats.getMaximum()
                     : null;
                 case INT -> sortType.getCategory() == TypeDescription.Category.INT && stats instanceof IntegerColumnStatistics intStats
-                    ? (long) intStats.getMaximum()
+                    ? intStats.getMaximum()
                     : null;
                 case DOUBLE -> stats instanceof DoubleColumnStatistics doubleStats ? rawDouble(doubleStats.getMaximum()) : null;
                 case BOOLEAN -> stats instanceof BooleanColumnStatistics booleanStats ? (booleanStats.getTrueCount() > 0 ? 1L : 0L) : null;
@@ -1002,6 +1061,36 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
 
         private static Long rawDouble(double value) {
             return Double.isNaN(value) ? null : NumericUtils.doubleToSortableLong(value);
+        }
+
+        /**
+         * Lexicographic min/max for a {@code BYTES_REF} threshold. Only string-family columns carry a
+         * comparable byte range; {@link StringColumnStatistics} min/max use UTF-8 (Text) ordering,
+         * which matches {@link BytesRef#compareTo}. Truncated stats stay safe because ORC reports a
+         * lower bound for the minimum and an upper bound for the maximum, so the true value range is
+         * always contained within {@code [min, max]} and we never skip a stripe that could contribute.
+         * Returns {@code null} for any other column type so a coerced (non-string) column is never
+         * skipped.
+         */
+        private static BytesRef rawMinBytes(ColumnStatistics stats, TypeDescription sortType) {
+            if (isStringFamily(sortType) && stats instanceof StringColumnStatistics strStats && strStats.getMinimum() != null) {
+                return new BytesRef(strStats.getMinimum());
+            }
+            return null;
+        }
+
+        private static BytesRef rawMaxBytes(ColumnStatistics stats, TypeDescription sortType) {
+            if (isStringFamily(sortType) && stats instanceof StringColumnStatistics strStats && strStats.getMaximum() != null) {
+                return new BytesRef(strStats.getMaximum());
+            }
+            return null;
+        }
+
+        private static boolean isStringFamily(TypeDescription sortType) {
+            return switch (sortType.getCategory()) {
+                case STRING, VARCHAR, CHAR -> true;
+                default -> false;
+            };
         }
     }
 
@@ -1021,6 +1110,14 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
          * Attributes absent from the file map to {@code null}.
          */
         private final Map<String, int[]> fieldNameToPath;
+        /** Index of the synthetic {@code _rowPosition} attribute, or {@code -1} when not projected. */
+        private final int rowPositionColumnIndex;
+        /**
+         * File-global row number of the first row in the current batch, captured from
+         * {@link RecordReader#getRowNumber()} immediately before each {@code nextBatch}. ORC reports
+         * an absolute, file-global row number even on stripe-ranged reads, so it is split-invariant.
+         */
+        private long batchStartRow;
 
         private final OrcReaderCounters counters;
 
@@ -1041,6 +1138,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             this.batch = schema.createRowBatch(batchSize);
             this.stripeSkipTable = stripeSkipTable;
             this.counters = counters;
+
+            this.rowPositionColumnIndex = SyntheticColumns.rowPositionIndexInAttributes(attributes);
 
             this.fieldNameToPath = new HashMap<>(attributes.size());
             // Top-level field index, computed once for literal-name lookups.
@@ -1111,7 +1210,11 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                         }
                         continue;
                     }
+                    // Capture the absolute file-global row number BEFORE reading the batch: after
+                    // nextBatch advances the cursor, getRowNumber() points past the batch.
+                    long startRow = rows.getRowNumber();
                     if (rows.nextBatch(batch)) {
+                        batchStartRow = startRow;
                         batchReady = true;
                         return true;
                     } else {
@@ -1163,6 +1266,10 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 DataType dataType = attribute.dataType();
 
                 try {
+                    if (col == rowPositionColumnIndex) {
+                        blocks[col] = buildRowPositionBlock(rowCount);
+                        continue;
+                    }
                     int[] path = fieldNameToPath.get(fieldName);
                     if (path == null) {
                         blocks[col] = blockFactory.newConstantNullBlock(rowCount);
@@ -1212,6 +1319,27 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             }
 
             return new Page(blocks);
+        }
+
+        /**
+         * Emits the synthetic {@code _rowPosition} column: the file-global row index of each row in
+         * the batch, {@code [batchStartRow, batchStartRow + rowCount)}. Never null. This is the
+         * opaque, split-invariant per-record token the producer pipeline renders as
+         * {@code _file.record_ref} / composes into {@code _id}.
+         *
+         * <p>Direct array fill + {@link BlockFactory#newLongArrayVector} rather than
+         * {@link LongVector.Builder#appendLong}: the values are a known-size arithmetic sequence,
+         * so we skip the builder's per-element method-call overhead and finalization copy. The
+         * tight primitive loop is SIMD-vectorizable; circuit-breaker accounting is preserved by
+         * {@code newLongArrayVector}.
+         */
+        private Block buildRowPositionBlock(int rowCount) {
+            long[] values = new long[rowCount];
+            long base = batchStartRow;
+            for (int i = 0; i < rowCount; i++) {
+                values[i] = base + i;
+            }
+            return blockFactory.newLongArrayVector(values, rowCount).asBlock();
         }
 
         /**

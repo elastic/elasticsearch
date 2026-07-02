@@ -59,17 +59,17 @@ class LloydKMeansLocalConcurrent<V> extends LloydKMeansLocal<V> {
     }
 
     @Override
-    protected void assignSpilled(
+    protected int[] assignSpilled(
         ClusteringVectorValues<V> vectors,
         KMeansIntermediate<V> kmeansIntermediate,
         NeighborHood[] neighborhoods,
         float soarLambda
     ) throws IOException {
-        assignSpilledConcurrent(executor, numWorkers, vectors, ops, kmeansIntermediate, neighborhoods, soarLambda);
+        return assignSpilledConcurrent(executor, numWorkers, vectors, ops, kmeansIntermediate, neighborhoods, soarLambda);
     }
 
     @Override
     protected NeighborHood[] computeNeighborhoods(V[] centroids, int clustersPerNeighborhood) throws IOException {
-        return NeighborHood.computeNeighborhoods(executor, numWorkers, ops.toFloatCentroids(centroids), clustersPerNeighborhood);
+        return NeighborHood.computeNeighborhoods(ops, executor, numWorkers, centroids, clustersPerNeighborhood);
     }
 }

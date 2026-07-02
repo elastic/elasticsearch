@@ -130,16 +130,18 @@ public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalys
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        boolean hasTsSource = child().anyMatch(p -> p instanceof EsRelation er && er.indexMode() == IndexMode.TIME_SERIES);
-        if (hasTsSource == false) {
-            failures.add(fail(this, "METRICS_INFO can only be used with TS source command"));
-        }
-
         child().forEachDown(p -> {
             if (p instanceof PipelineBreaker) {
                 failures.add(fail(this, "METRICS_INFO cannot be used after {} command", pipelineBreakerCommandName(p)));
             }
         });
+        if (failures.hasFailures()) {
+            return;
+        }
+        boolean hasTsSource = child().anyMatch(p -> p instanceof EsRelation er && er.indexMode() == IndexMode.TIME_SERIES);
+        if (hasTsSource == false) {
+            failures.add(fail(this, "METRICS_INFO can only be used with TS source command"));
+        }
     }
 
     private static String pipelineBreakerCommandName(LogicalPlan plan) {

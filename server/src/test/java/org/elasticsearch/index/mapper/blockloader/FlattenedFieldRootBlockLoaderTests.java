@@ -293,6 +293,79 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         runner.run(new BytesRef(expected));
     }
 
+    public void testBlockLoaderForcesSourceWhenMappedTextSubfieldPresent() throws IOException {
+        assumeFalse("a bare text sub-field is not allowed under synthetic source", params.syntheticSource());
+        assumeFalse("columnar-stored source does not retain a bare text sub-field", params.isColumnarStored());
+
+        runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
+        Map<String, Object> labels = Map.of("env", "prod", "status_code", 200, "message", "hello");
+        runner.document(Map.of("field", labels));
+        runner.fieldName("field");
+
+        // status_code is a mapped long (doc values), message is a mapped text (no doc values, not stored), env is unmapped.
+        Map<String, Object> flattenedMapping = Map.of(
+            "type",
+            "flattened",
+            "properties",
+            Map.of("status_code", Map.of("type", "long"), "message", Map.of("type", "text"))
+        );
+        Mapping mapping = new Mapping(
+            Map.of("_doc", Map.of("properties", Map.of("field", flattenedMapping))),
+            Map.of("field", flattenedMapping)
+        );
+
+        String expected = "{\"env\":\"prod\",\"message\":\"hello\",\"status_code\":\"200\"}";
+
+        var settings = getSettingsForParams();
+        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.run(new BytesRef(expected));
+    }
+
+    public void testBlockLoaderStringifiesMappedRootViaSource() throws IOException {
+        runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
+        // status is a mapped keyword, code a mapped long; unmapped_key lands in the keyed channel.
+        runner.document(Map.of("field", Map.of("status", "ok", "code", 200, "unmapped_key", "some_value")));
+        runner.fieldName("field");
+
+        Map<String, Object> flattenedMapping = Map.of(
+            "type",
+            "flattened",
+            "properties",
+            Map.of("status", Map.of("type", "keyword"), "code", Map.of("type", "long"))
+        );
+        Mapping mapping = new Mapping(
+            Map.of("_doc", Map.of("properties", Map.of("field", flattenedMapping))),
+            Map.of("field", flattenedMapping)
+        );
+
+        String expected = "{\"code\":\"200\",\"status\":\"ok\",\"unmapped_key\":\"some_value\"}";
+
+        var settings = getSettingsForParams();
+        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.run(new BytesRef(expected));
+    }
+
+    public void testBlockLoaderMappedPropertyOnlyViaSource() throws IOException {
+        runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
+        // Only the mapped keyword sub-field has a value; the keyed channel is empty.
+        runner.document(Map.of("field", Map.of("status", "active")));
+        runner.fieldName("field");
+
+        Map<String, Object> flattenedMapping = Map.of("type", "flattened", "properties", Map.of("status", Map.of("type", "keyword")));
+        Mapping mapping = new Mapping(
+            Map.of("_doc", Map.of("properties", Map.of("field", flattenedMapping))),
+            Map.of("field", flattenedMapping)
+        );
+
+        // A mapped sub-field forces _source even with no unmapped keys, so the single mapped leaf renders as a string
+        // and the blob is identical on every loading path.
+        String expected = "{\"status\":\"active\"}";
+
+        var settings = getSettingsForParams();
+        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.run(new BytesRef(expected));
+    }
+
     @Override
     protected boolean supportsMultiField() {
         return false;

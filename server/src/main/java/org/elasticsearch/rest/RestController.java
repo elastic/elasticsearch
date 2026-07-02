@@ -825,7 +825,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         // we use rawPath since we don't want to decode it while processing the path resolution
         // so we can handle things like:
         // my_index/my_type/http%3A%2F%2Fwww.google.com
-        return handlers.retrieveAll(rawPath, paramsSupplier).iterator();
+        return handlers.retrieveAll(rawPath, paramsSupplier);
     }
 
     /**

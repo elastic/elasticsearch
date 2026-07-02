@@ -18,6 +18,10 @@ The match operator is equivalent to the [match function](../../../functions-oper
 
 For using the function syntax, or adding [match query parameters](/reference/query-languages/query-dsl/query-dsl-match-query.md#match-field-params), you can use the [match function](../../../functions-operators/search-functions/match.md).
 
+:::{tip}
+Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+:::
+
 :::{include} ../../generated/x-pack-esql/operators/types/match_operator.md
 :::
 

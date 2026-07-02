@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.encryption;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -18,15 +19,15 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.xpack.encryption.spi.EncryptedData;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 // 3 master-eligible nodes so testKeySurvivesMasterFailover keeps a quorum after stopping one
@@ -35,14 +36,6 @@ public class ProjectEncryptionKeyIT extends SecurityIntegTestCase {
 
     private static final String PASSWORD_ID = "v1";
     private static final String PASSWORD = "encryption-test-password";
-
-    @Before
-    public void checkFeatureFlag() {
-        assumeTrue(
-            "project encryption key feature flag must be enabled",
-            ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()
-        );
-    }
 
     @Override
     protected boolean addMockHttpTransport() {
@@ -79,17 +72,9 @@ public class ProjectEncryptionKeyIT extends SecurityIntegTestCase {
             assertThat("Project encryption key should be generated", pek, notNullValue());
             assertNotNull(pek.getActiveKeyId());
             assertEquals(PASSWORD_ID, pek.getPasswordId());
-            EncryptedData encryptedActive = pek.getEncryptedKey(pek.getActiveKeyId());
-            assertThat(encryptedActive, notNullValue());
-            // Canonical wrap layout: [kdf_version(1) | salt(16) | AesGcm output(version+iv+ciphertext+tag)] over a 32-byte PEK.
-            assertThat(
-                encryptedActive.payload().length,
-                equalTo(
-                    PasswordBasedEncryption.SALT_OFFSET + PasswordBasedEncryption.SALT_LENGTH_BYTES + AesGcm.OVERHEAD_BYTES
-                        + PasswordBasedEncryption.PEK_LENGTH_BYTES
-                )
-            );
-            assertThat(encryptedActive.keyId(), equalTo(PASSWORD_ID));
+            byte[] keyBytes = pek.getKeys().get(pek.getActiveKeyId()).bytes();
+            assertThat(keyBytes, notNullValue());
+            assertThat(keyBytes.length, equalTo(PasswordBasedEncryption.PEK_LENGTH_BYTES));
         });
     }
 
@@ -160,10 +145,67 @@ public class ProjectEncryptionKeyIT extends SecurityIntegTestCase {
                 response.evaluate(typePath + ".keys." + keyId + ".generated_at")
             );
             assertNull(
-                "wrapped key bytes must not be exposed via the cluster state API for key " + keyId,
+                "key bytes must not be exposed via the cluster state API for key " + keyId,
                 response.evaluate(typePath + ".keys." + keyId + ".bytes")
             );
         }
+    }
+
+    public void testResetWithoutAcceptDataLossIsRejected() throws Exception {
+        ensureGreen();
+        assertBusy(() -> assertThat(getKeyFromClusterState(internalCluster().getMasterName()), notNullValue()));
+
+        Request request = new Request("POST", "/_encryption/_reset");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader(
+            "Authorization",
+            basicAuthHeaderValue(
+                SecuritySettingsSource.TEST_USER_NAME,
+                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())
+            )
+        );
+        request.setOptions(options);
+        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+    }
+
+    public void testResetRemovesProjectEncryptionKeyMetadata() throws Exception {
+        ensureGreen();
+        assertBusy(() -> assertThat(getKeyFromClusterState(internalCluster().getMasterName()), notNullValue()));
+
+        performReset();
+
+        // The cluster state update is acknowledged before the REST response returns, so the PEK is already removed.
+        assertNull(getKeyFromClusterState(internalCluster().getMasterName()));
+    }
+
+    public void testResetTriggersNewKeyGeneration() throws Exception {
+        ensureGreen();
+        assertBusy(() -> assertThat(getKeyFromClusterState(internalCluster().getMasterName()), notNullValue()));
+        String originalKeyId = getKeyFromClusterState(internalCluster().getMasterName()).getActiveKeyId();
+
+        performReset();
+
+        assertBusy(() -> {
+            ProjectEncryptionKeyMetadata pek = getKeyFromClusterState(internalCluster().getMasterName());
+            assertThat(pek, notNullValue());
+            assertThat("reset should produce a new key ID", pek.getActiveKeyId(), not(equalTo(originalKeyId)));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    private void performReset() throws IOException {
+        Request request = new Request("POST", "/_encryption/_reset");
+        request.addParameter("accept_data_loss", "true");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader(
+            "Authorization",
+            basicAuthHeaderValue(
+                SecuritySettingsSource.TEST_USER_NAME,
+                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())
+            )
+        );
+        request.setOptions(options);
+        getRestClient().performRequest(request);
     }
 
     private Response performClusterStateRequest() throws IOException {

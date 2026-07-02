@@ -10,6 +10,8 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
@@ -321,6 +323,10 @@ public abstract class AggregationContext implements Releasable {
         Term term = new Term(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME);
         for (LeafReaderContext c : searcher().getLeafContexts()) {
             if (c.reader().docFreq(term) > 0) {
+                return true;
+            }
+            FieldInfo fi = c.reader().getFieldInfos().fieldInfo(DocCountFieldMapper.NAME);
+            if (fi != null && fi.getDocValuesType() != DocValuesType.NONE) {
                 return true;
             }
         }

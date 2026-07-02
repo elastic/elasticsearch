@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ReplaceSampledStatsBySampleAndStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimensionFieldsAfterAggregation;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InjectRowPositionForExternalId;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertExternalFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushAggregatesToExternalSource;
@@ -119,7 +120,12 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             // The narrowed source projection ({@code [sortKey, _rowPosition]}) this rule produces
             // is also the precondition the planner's {@code tryBuildNumericTopN} checks before
             // swapping in the specialised {@code NumericTopNOperator}.
-            new InsertExternalFieldExtraction()
+            new InsertExternalFieldExtraction(),
+            // Sibling injection: when _id is referenced on an external source, add the
+            // synthetic _rowPosition column so the producer pipeline can compose
+            // the opaque (location, mtime, rowPosition) hash id per row. Idempotent and independent of deferred
+            // extraction (no TopN/ColumnExtractorAware preconditions).
+            new InjectRowPositionForExternalId()
         );
 
         return List.of(pushdown, substitutionRules, fieldExtraction);

@@ -41,7 +41,6 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
-import org.elasticsearch.index.mapper.SingleValuedLongField;
 import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -407,8 +406,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return new LongsBlockLoader(name(), readInArrayOrder);
             }
+            // columnar_stored pre-builds _source as a single blob; skip the per-field fallback loader.
             // Multi fields don't have fallback synthetic source.
-            if (isSyntheticSource && blContext.parentField(name()) == null) {
+            if (isSyntheticSource && blContext.mappingLookup().isSourceColumnarStored() == false && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(
                     fallbackSyntheticSourceBlockLoaderReader(),
                     name(),
@@ -844,12 +844,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         if (numericValue != null) {
             if (indexed && docValuesParameters.enabled()) {
-                context.doc()
-                    .add(
-                        docValuesParameters.multiValue()
-                            ? new LongField(fieldType().name(), numericValue, Field.Store.NO)
-                            : new SingleValuedLongField(fieldType().name(), numericValue)
-                    );
+                context.doc().add(new LongField(fieldType().name(), numericValue, Field.Store.NO));
             } else if (docValuesParameters.enabled()) {
                 dvFactory.addNumericField(context.doc(), fieldType().name(), numericValue);
             } else if (indexed) {

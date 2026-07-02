@@ -396,7 +396,7 @@ To regenerate everything for all functions and operators in a module:
 
 ### Settings
 
-Query settings (see [SET](commands/set.md)) are documented in [`_snippets/generated/x-pack-esql/commands/settings/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/generated/x-pack-esql/commands/settings). To regenerate, run `QuerySettingsTests` in the `x-pack/plugin/esql` module. Only settings with `snapshot=false` are included.
+Query settings (see [SET](directives/set.md)) are documented in [`_snippets/generated/x-pack-esql/commands/settings/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/generated/x-pack-esql/commands/settings). To regenerate, run `QuerySettingsTests` in the `x-pack/plugin/esql` module. Only settings with `snapshot=false` are included.
 
 ## Understand how generated content works
 
@@ -423,18 +423,24 @@ To help differentiate between the static and generated content, the generated co
 
 ## Generate PromQL definitions
 
-PromQL documentation is generated separately and stored in:
+PromQL reference documentation is auto-generated and stored in:
 ```
-docs/reference/query-languages/promql/kibana/generated/x-pack-esql/definition/**/*.json
+docs/reference/query-languages/promql/_snippets/generated/x-pack-esql/functions/    # function markdown snippets: per-function pages, per-category lists, and the "Not yet supported" list
+docs/reference/query-languages/promql/_snippets/generated/x-pack-esql/operators/    # operator markdown snippets: per-operator pages, per-category lists, and the "Not yet supported" list
+docs/reference/query-languages/promql/kibana/generated/x-pack-esql/                 # Kibana definition JSON files for functions and operators
 ```
-For PromQL function documentation, see: https://prometheus.io/docs/prometheus/latest/querying/functions/
+For functions, the descriptions, examples, and "Differences from Prometheus" notes come from each function's `PromqlFunctionDefinition` (see `PromqlBuiltinFunctionDefinitions` and the `PROMQL_DEFINITION` fields on the individual function classes). For operators, the same metadata (plus the documentation category and per-operator stack availability) comes from `OPERATOR_DEFS` in `PromqlDocsSupport`, because operators have no runtime registry. Edit those sources rather than the generated files.
 
-To generate the PromQL definition files, run:
+The hand-written hub pages (`promql/functions.md`, `promql/operators.md`) and the per-category wrapper pages (`promql/functions/<category>.md`, `promql/operators/<category>.md`) include the generated snippets; update them by hand when adding a category.
+
+For PromQL function and operator documentation, see: https://prometheus.io/docs/prometheus/latest/querying/functions/ and https://prometheus.io/docs/prometheus/latest/querying/operators/
+
+To regenerate these files, run:
 
 ```bash
 ./gradlew :x-pack:plugin:esql:test --tests "PromqlKibanaDefinitionGeneratorTests"
 ```
-The result will be in `x-pack/plugin/esql/build/testrun/test/temp/promql/kibana/definition/`.
+Locally this writes the generated files straight into the directories above (`generateDocs=write`). In CI the same test runs with `generateDocs=assert` and fails if the committed files are out of date, so commit the regenerated files.
 
 ## Elastic docs resources
 

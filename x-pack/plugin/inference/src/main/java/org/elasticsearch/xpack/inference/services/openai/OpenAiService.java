@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.inference.services.openai;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
@@ -25,8 +28,14 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.common.InferenceIdAndProject;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
+import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -46,13 +55,15 @@ import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbedd
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.request.OpenAiUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.openai.secrets.OpenAiOAuth2SecretsSettings;
+import org.elasticsearch.xpack.inference.services.openai.secrets.OpenAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -68,6 +79,8 @@ import static org.elasticsearch.xpack.inference.services.openai.action.OpenAiAct
 
 public class OpenAiService extends SenderService<OpenAiModel> {
     public static final String NAME = "openai";
+
+    private static final Logger logger = LogManager.getLogger(OpenAiService.class);
 
     private static final String SERVICE_NAME = "OpenAI";
     // The task types exposed via the _inference/_services API
@@ -85,32 +98,76 @@ public class OpenAiService extends SenderService<OpenAiModel> {
         "openai completion",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
-    private static final OpenAiChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new OpenAiChatCompletionModelCreator();
-    public static final OpenAiEmbeddingsModelCreator EMBEDDINGS_MODEL_CREATOR = new OpenAiEmbeddingsModelCreator();
 
-    private static Map<TaskType, ModelCreator<? extends OpenAiModel>> initModelCreators() {
+    private static Map<TaskType, ModelCreator<? extends OpenAiModel>> initModelCreators(
+        TokenCache tokenCache,
+        ThreadPool threadPool,
+        OAuth2ClusterSettings oauth2ClusterSettings
+    ) {
+        var embeddingsCreator = new OpenAiEmbeddingsModelCreator(threadPool, tokenCache, oauth2ClusterSettings);
+        var completionCreator = new OpenAiChatCompletionModelCreator(threadPool, tokenCache, oauth2ClusterSettings);
         return Map.of(
             TaskType.TEXT_EMBEDDING,
-            EMBEDDINGS_MODEL_CREATOR,
+            embeddingsCreator,
             TaskType.COMPLETION,
-            COMPLETION_MODEL_CREATOR,
+            completionCreator,
             TaskType.CHAT_COMPLETION,
-            COMPLETION_MODEL_CREATOR,
+            completionCreator,
             TaskType.EMBEDDING,
-            EMBEDDINGS_MODEL_CREATOR
+            embeddingsCreator
         );
+    }
+
+    private final TokenCache tokenCache;
+    private final ProjectResolver projectResolver;
+    private final OAuth2ClusterSettings oauth2ClusterSettings;
+
+    public OpenAiService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context,
+        TokenCache tokenCache,
+        ProjectResolver projectResolver
+    ) {
+        this(factory, serviceComponents, context.clusterService(), tokenCache, projectResolver);
     }
 
     public OpenAiService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
-        InferenceServiceExtension.InferenceServiceFactoryContext context
+        ClusterService clusterService,
+        TokenCache tokenCache,
+        ProjectResolver projectResolver
     ) {
-        this(factory, serviceComponents, context.clusterService());
+        this(
+            factory,
+            serviceComponents,
+            clusterService,
+            tokenCache,
+            projectResolver,
+            new OAuth2ClusterSettings(serviceComponents.settings(), clusterService)
+        );
     }
 
-    public OpenAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService, initModelCreators());
+    // Package-private for testing — accepts a pre-built OAuth2ClusterSettings to avoid registering
+    // duplicate cluster-settings consumers when tests construct multiple service instances.
+    OpenAiService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        ClusterService clusterService,
+        TokenCache tokenCache,
+        ProjectResolver projectResolver,
+        OAuth2ClusterSettings oauth2ClusterSettings
+    ) {
+        super(
+            factory,
+            serviceComponents,
+            clusterService,
+            initModelCreators(tokenCache, serviceComponents.threadPool(), oauth2ClusterSettings)
+        );
+        this.tokenCache = Objects.requireNonNull(tokenCache);
+        this.projectResolver = Objects.requireNonNull(projectResolver);
+        this.oauth2ClusterSettings = Objects.requireNonNull(oauth2ClusterSettings);
     }
 
     @Override
@@ -177,7 +234,13 @@ public class OpenAiService extends SenderService<OpenAiModel> {
 
         OpenAiChatCompletionModel openAiModel = (OpenAiChatCompletionModel) model;
 
-        var overriddenModel = OpenAiChatCompletionModel.of(openAiModel, inputs.getRequest());
+        var overriddenModel = OpenAiChatCompletionModel.of(
+            openAiModel,
+            inputs.getRequest(),
+            getServiceComponents().threadPool(),
+            tokenCache,
+            oauth2ClusterSettings
+        );
 
         var manager = new GenericRequestManager<>(
             getServiceComponents().threadPool(),
@@ -242,6 +305,71 @@ public class OpenAiService extends SenderService<OpenAiModel> {
     }
 
     @Override
+    public void stop(Model model, ActionListener<Boolean> listener) {
+        if (model instanceof OpenAiModel openAiModel && hasOAuth2Settings(openAiModel)) {
+            var key = new InferenceIdAndProject(model.getInferenceEntityId(), projectResolver.getProjectId());
+            tokenCache.invalidate(key, ActionListener.wrap(v -> listener.onResponse(true), e -> {
+                logger.warn(
+                    () -> Strings.format(
+                        "Failed to invalidate OAuth2 token cache on stop for inference id [%s]",
+                        model.getInferenceEntityId()
+                    ),
+                    e
+                );
+                listener.onResponse(true);
+            }));
+        } else {
+            listener.onResponse(true);
+        }
+    }
+
+    @Override
+    public void onModelUpdated(Model oldModel, Model newModel, ActionListener<Void> listener) {
+        if (oAuth2FieldsChanged(oldModel, newModel) == false) {
+            listener.onResponse(null);
+            return;
+        }
+
+        var key = new InferenceIdAndProject(newModel.getInferenceEntityId(), projectResolver.getProjectId());
+        tokenCache.invalidate(key, ActionListener.wrap(v -> listener.onResponse(null), e -> {
+            logger.warn(
+                () -> Strings.format(
+                    "Failed to invalidate OAuth2 token cache on update for inference id [%s]",
+                    newModel.getInferenceEntityId()
+                ),
+                e
+            );
+            listener.onResponse(null);
+        }));
+    }
+
+    private static boolean hasOAuth2Settings(OpenAiModel model) {
+        var serviceSettings = model.getServiceSettings();
+        return serviceSettings instanceof OpenAiServiceSettings oss && oss.oAuth2Settings() != null;
+    }
+
+    private static boolean oAuth2FieldsChanged(Model oldModel, Model newModel) {
+        var oldOAuth2 = extractOAuth2(oldModel);
+        var newOAuth2 = extractOAuth2(newModel);
+        if (Objects.equals(oldOAuth2, newOAuth2) == false) {
+            return true;
+        }
+        var oldSecret = extractClientSecret(oldModel);
+        var newSecret = extractClientSecret(newModel);
+        return Objects.equals(oldSecret, newSecret) == false;
+    }
+
+    private static OpenAiOAuth2Settings extractOAuth2(Model model) {
+        var ss = model.getConfigurations().getServiceSettings();
+        return ss instanceof OpenAiServiceSettings oss ? oss.oAuth2Settings() : null;
+    }
+
+    private static SecureString extractClientSecret(Model model) {
+        var secrets = model.getSecrets() == null ? null : model.getSecrets().getSecretSettings();
+        return secrets instanceof OpenAiOAuth2SecretsSettings oa ? oa.clientSecret() : null;
+    }
+
+    @Override
     public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
         if (model instanceof OpenAiEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
@@ -256,7 +384,8 @@ public class OpenAiService extends SenderService<OpenAiModel> {
                 embeddingSize,
                 serviceSettings.maxInputTokens(),
                 serviceSettings.dimensionsSetByUser(),
-                serviceSettings.rateLimitSettings()
+                serviceSettings.rateLimitSettings(),
+                serviceSettings.oAuth2Settings()
             );
 
             return new OpenAiEmbeddingsModel(embeddingsModel, updatedServiceSettings);
@@ -375,13 +504,7 @@ public class OpenAiService extends SenderService<OpenAiModel> {
                         .build()
                 );
 
-                configurationMap.putAll(
-                    DefaultSecretSettings.toSettingsConfigurationWithDescription(
-                        "The OpenAI API authentication key. For more details about generating OpenAI API keys, "
-                            + "refer to the https://platform.openai.com/account/api-keys.",
-                        SUPPORTED_TASK_TYPES_FOR_SERVICES_API
-                    )
-                );
+                configurationMap.putAll(OpenAiSecretSettings.configurations(SUPPORTED_TASK_TYPES_FOR_SERVICES_API));
                 configurationMap.putAll(
                     RateLimitSettings.toSettingsConfigurationWithDescription(
                         "Default number of requests allowed per minute. For text_embedding and embedding it is 3000. "

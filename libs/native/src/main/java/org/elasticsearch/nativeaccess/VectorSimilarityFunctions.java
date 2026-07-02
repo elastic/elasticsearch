@@ -111,6 +111,10 @@ public interface VectorSimilarityFunctions {
          */
         D1Q1((byte) 1, (byte) 1, Layout.STRIPED),
         /**
+         * 2-bit data, 2-bit queries, bit-plane striped layout.
+         */
+        D2Q2((byte) 2, (byte) 2, Layout.STRIPED),
+        /**
          * 1-bit data, 4-bit queries, bit-plane striped layout.
          */
         D1Q4((byte) 1, (byte) 4, Layout.STRIPED),

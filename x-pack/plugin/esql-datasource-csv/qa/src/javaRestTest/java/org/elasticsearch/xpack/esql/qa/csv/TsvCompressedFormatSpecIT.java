@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.csv;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Parameterized integration tests for compressed TSV files (.tsv.gz, .tsv.zst, .tsv.zstd, .tsv.bz2, .tsv.bz).
@@ -26,7 +28,11 @@ import java.util.List;
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class TsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
-    private static final List<String> COMPRESSED_FORMATS = List.of("tsv.gz", "tsv.zst", "tsv.zstd", "tsv.bz2", "tsv.bz");
+    // bzip2 is outside the GA text-format codec surface (uncompressed/gzip/zstd) and is rejected on release
+    // builds, so .tsv.bz2/.tsv.bz are exercised on snapshot builds only. See elastic/esql-planning#938.
+    private static final List<String> COMPRESSED_FORMATS = Build.current().isSnapshot()
+        ? List.of("tsv.gz", "tsv.zst", "tsv.zstd", "tsv.bz2", "tsv.bz")
+        : List.of("tsv.gz", "tsv.zst", "tsv.zstd");
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
@@ -47,6 +53,13 @@ public class TsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCas
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    // Migrated specs run via FROM <dataset> on S3 (the anonymous-capable fixture backs a dataset without
+    // a cluster encryption key) and via the rebuilt EXTERNAL query on the other backends, so none are skipped.
+    @Override
+    protected Set<StorageBackend> datasetModeBackends() {
+        return Set.of(StorageBackend.S3);
     }
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")

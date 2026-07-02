@@ -1,10 +1,5 @@
 #!/bin/bash
 
-# On Windows, we need to refresh PATH
-if command -v choco > /dev/null; then
-  export PATH=$(cmd.exe //c "refreshenv > nul & bash -c 'echo \$PATH' ")
-fi
-
 if [[ -f build/task-status.json ]]; then
   # pnpm creates symlinks for the packages inside node_modules
   # But something in our build is deleting those symlinks (I'm not sure what)
@@ -22,6 +17,7 @@ if [[ -f build/task-status.json ]]; then
     "$WORKSPACE/build/task-status.json" \
     "$WORKSPACE/build/previous-task-status.json" \
     "$WORKSPACE/build/task-status-merged.json" \
+    "$WORKSPACE/build/.buildscan-id" \
     && mv "$WORKSPACE/build/task-status-merged.json" "$WORKSPACE/build/task-status.json"
 
   cd "$WORKSPACE/build"

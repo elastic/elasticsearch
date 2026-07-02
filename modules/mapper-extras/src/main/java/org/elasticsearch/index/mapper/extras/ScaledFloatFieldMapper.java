@@ -219,10 +219,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (indexed.getValue()) {
                 return IndexType.points(true, docValuesParameters.getValue().enabled());
             }
-            if (docValuesParameters.getValue().enabled()
-                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)
-                && indexSettings.useDocValuesSkipper()) {
-                return IndexType.skippers();
+            if (docValuesParameters.getValue().enabled()) {
+                if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)
+                    && indexSettings.useDocValuesSkipper()) {
+                    return IndexType.skippers();
+                }
             }
             return IndexType.points(false, docValuesParameters.getValue().enabled());
         }
@@ -413,8 +414,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return new DoublesBlockLoader(name(), l -> l / scalingFactor, readInArrayOrder);
             }
+            // columnar_stored pre-builds _source as a single blob; skip the per-field fallback loader.
             // Multi fields don't have fallback synthetic source.
-            if (isSyntheticSource && blContext.parentField(name()) == null) {
+            if (isSyntheticSource && blContext.mappingLookup().isSourceColumnarStored() == false && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(
                     fallbackSyntheticSourceBlockLoaderReader(),
                     name(),

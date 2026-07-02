@@ -453,7 +453,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public Map<String, Object> sourceAsMap() {
-        return indexSource.sourceAsMap();
+        return indexSource.sourceAsMap(includeSourceOnError);
     }
 
     /**

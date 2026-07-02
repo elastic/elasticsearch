@@ -18,6 +18,7 @@ import org.elasticsearch.action.datastreams.GetDataStreamMappingsAction;
 import org.elasticsearch.action.datastreams.GetDataStreamSettingsAction;
 import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
+import org.elasticsearch.action.datastreams.PastTimeSeriesIndexCreationAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.datastreams.PutDataStreamOptionsAction;
 import org.elasticsearch.action.datastreams.UpdateDataStreamMappingsAction;
@@ -40,6 +41,7 @@ import org.elasticsearch.datastreams.action.TransportGetDataStreamSettingsAction
 import org.elasticsearch.datastreams.action.TransportGetDataStreamsAction;
 import org.elasticsearch.datastreams.action.TransportMigrateToDataStreamAction;
 import org.elasticsearch.datastreams.action.TransportModifyDataStreamsAction;
+import org.elasticsearch.datastreams.action.TransportPastTimeSeriesIndexCreationAction;
 import org.elasticsearch.datastreams.action.TransportPromoteDataStreamAction;
 import org.elasticsearch.datastreams.action.TransportUpdateDataStreamMappingsAction;
 import org.elasticsearch.datastreams.action.TransportUpdateDataStreamSettingsAction;
@@ -200,6 +202,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DLM_CREATED_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING);
+        pluginSettings.add(TransportPastTimeSeriesIndexCreationAction.PAST_TSDB_INDEX_INTERVAL);
         return pluginSettings;
     }
 
@@ -248,6 +251,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     @Override
     public List<ActionHandler> getActions() {
         List<ActionHandler> actions = new ArrayList<>();
+        actions.add(new ActionHandler(PastTimeSeriesIndexCreationAction.INSTANCE, TransportPastTimeSeriesIndexCreationAction.class));
         actions.add(new ActionHandler(CreateDataStreamAction.INSTANCE, TransportCreateDataStreamAction.class));
         actions.add(new ActionHandler(DeleteDataStreamAction.INSTANCE, TransportDeleteDataStreamAction.class));
         actions.add(new ActionHandler(GetDataStreamAction.INSTANCE, TransportGetDataStreamsAction.class));

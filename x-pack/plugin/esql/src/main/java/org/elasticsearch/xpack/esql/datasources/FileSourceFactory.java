@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -97,6 +98,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
      */
     @Nullable
     private final BlockFactory blockFactory;
+    // Node telemetry sink, threaded into the operator factory so opened storage objects publish read metrics.
+    private final ExternalSourceMetrics externalSourceMetrics;
 
     FileSourceFactory(
         StorageProviderRegistry storageRegistry,
@@ -125,6 +128,18 @@ final class FileSourceFactory implements ExternalSourceFactory {
         @Nullable ExecutorService splitDiscoveryExecutor,
         @Nullable BlockFactory blockFactory
     ) {
+        this(storageRegistry, formatRegistry, codecRegistry, settings, splitDiscoveryExecutor, blockFactory, ExternalSourceMetrics.NOOP);
+    }
+
+    FileSourceFactory(
+        StorageProviderRegistry storageRegistry,
+        FormatReaderRegistry formatRegistry,
+        DecompressionCodecRegistry codecRegistry,
+        Settings settings,
+        @Nullable ExecutorService splitDiscoveryExecutor,
+        @Nullable BlockFactory blockFactory,
+        ExternalSourceMetrics externalSourceMetrics
+    ) {
         Check.notNull(storageRegistry, "storageRegistry cannot be null");
         Check.notNull(formatRegistry, "formatRegistry cannot be null");
         this.storageRegistry = storageRegistry;
@@ -133,6 +148,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.splitDiscoveryExecutor = splitDiscoveryExecutor;
         this.blockFactory = blockFactory;
+        this.externalSourceMetrics = externalSourceMetrics != null ? externalSourceMetrics : ExternalSourceMetrics.NOOP;
     }
 
     @Override
@@ -289,6 +305,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 context.maxBufferSize(),
                 readExecutor
             )
+                .externalSourceMetrics(externalSourceMetrics)
                 .rowLimit(context.rowLimit())
                 .fileList(context.fileList())
                 .schemaMap(context.schemaMap())

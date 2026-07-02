@@ -1090,6 +1090,20 @@ public class NdJsonPageDecoder implements Closeable {
             }
         }
 
+        /**
+         * Decodes the current JSON value into this decoder's block (or, for a structural prefix node, recurses into
+         * its children). NDJSON is schema-on-read: the inferred/bound schema flattens nested objects to dotted leaf
+         * columns, so a value whose shape does not match the schema is not a hard error. Type mismatches are
+         * null-filled for the affected column(s) rather than failing the query:
+         * <ul>
+         *   <li>a JSON {@code null} (or a scalar) where an object was expected on a structural prefix node leaves its
+         *       leaf columns null for that row;</li>
+         *   <li>a scalar of the wrong primitive type is reported via {@link #unexpectedValue} and null-filled.</li>
+         * </ul>
+         * These mismatches are logged at {@code DEBUG} only, never {@code WARN}: they are per-row data-shape quirks
+         * (e.g. an intermittently-null nested object across millions of records), so surfacing them at a
+         * default-enabled level would flood the log without giving the cluster admin an actionable signal.
+         */
         private void decodeValue(JsonParser parser, boolean inArray) throws IOException {
             JsonToken token = parser.currentToken();
 
@@ -1105,7 +1119,26 @@ public class NdJsonPageDecoder implements Closeable {
                 // Note: the `inArray` flag is needed because blockBuilder.beginPositionEntry() is not idempotent.
                 // Calling it twice implicitly calls endPositionEntry().
                 if (!inArray) {
+                    // `includeChildren` gates opening the child MV entries and must reflect whether the array
+                    // actually contains an object: otherwise later objects append into never-opened child builders,
+                    // misaligning rows across columns. Skip leading elements that cannot open this node's MV entry:
+                    // - a leaf node only skips leading JSON nulls (its scalars are real values);
+                    // - a structural (prefix) node carries no scalar values of its own, so it also skips leading
+                    // stray scalars (e.g. [null, "x", {"type":"a"}]) until the first object or the array end.
                     JsonToken first = parser.nextToken();
+                    while (first == JsonToken.VALUE_NULL
+                        || (blockBuilder == null && first != null && first != JsonToken.START_OBJECT && first != JsonToken.END_ARRAY)) {
+                        if (blockBuilder == null && first != JsonToken.VALUE_NULL && logger.isDebugEnabled()) {
+                            logger.debug(
+                                "Expected object in array for nested field [{}] but got {} at {}",
+                                parser.getParsingContext().pathAsPointer(),
+                                first,
+                                parser.getTokenLocation()
+                            );
+                        }
+                        parser.skipChildren(); // no-op for scalar/null tokens; safe to call here
+                        first = parser.nextToken();
+                    }
                     if (first == JsonToken.END_ARRAY) {
                         appendNullsForEmptyArray();
                         return;
@@ -1127,6 +1160,28 @@ public class NdJsonPageDecoder implements Closeable {
 
             if (token == JsonToken.START_OBJECT) {
                 decodeObject(parser, inArray);
+                return;
+            }
+
+            if (blockBuilder == null) {
+                // Structural (prefix) node with no scalar builder of its own: the schema only knows dotted leaf
+                // columns for this field (e.g. "address.city"/"address.zip"), but this row holds a JSON null or a
+                // scalar where an object was expected. Leave the leaf descendants untracked so the end-of-row fill
+                // assigns them null, mirroring how missing fields and empty arrays are handled. This keeps datasets
+                // with occasionally-null nested objects (e.g. CloudTrail "responseElements": null) queryable.
+                if (token != JsonToken.VALUE_NULL && logger.isDebugEnabled()) {
+                    // Structural nodes never receive setAttribute(), so `name` is null here; derive the JSON path
+                    // (e.g. /userIdentity/sessionContext) from the parser context so large files can be diagnosed.
+                    // Guarded by isDebugEnabled() so the JsonPointer/JsonLocation allocations are skipped when DEBUG
+                    // is off, since this can fire per-row across millions of records.
+                    logger.debug(
+                        "Expected object for nested field [{}] but got {} at {}",
+                        parser.getParsingContext().pathAsPointer(),
+                        token,
+                        parser.getTokenLocation()
+                    );
+                }
+                parser.skipChildren();
                 return;
             }
 

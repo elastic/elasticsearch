@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 150290
+pr: 152773
+summary: "Aggs: Account memory on `InternalCardinality` reduction"
+type: bug

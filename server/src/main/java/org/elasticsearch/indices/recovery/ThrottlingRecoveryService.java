@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -96,8 +97,7 @@ public final class ThrottlingRecoveryService implements Closeable {
         }
         if (pendingRecovery == null) {
             logger.debug("service is closed, aborting recovery: {}", recoveryState);
-            // Recovery was never enqueued, keep caller thread context
-            recoveryListener.onRecoveryAborted();
+            RecoveryListener.wrapPreservingContext(recoveryListener, context).onRecoveryAborted();
             return;
         }
         logger.trace("enqueued recovery: {}", recoveryState);
@@ -127,8 +127,7 @@ public final class ThrottlingRecoveryService implements Closeable {
         }
         for (PendingRecovery pending : recoveriesToAbort) {
             logger.trace("service closing, aborting recovery: {}", pending.recoveryState());
-            // Keep close() caller thread context
-            pending.listener.onRecoveryAborted();
+            RecoveryListener.wrapPreservingContext(pending.listener, pending.context).onRecoveryAborted();
             schedulingListeners.onQueuedRecoveryDiscarded(pending.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
         }
     }
@@ -191,9 +190,9 @@ public final class ThrottlingRecoveryService implements Closeable {
     }
 
     private Supplier<ThreadContext.StoredContext> restorableContextForProject(ProjectId projectId) {
-        try (ThreadContext.StoredContext ignored = projectResolver.storeContextForProject(projectId, threadContext)) {
-            return threadContext.newRestorableContext(false);
-        }
+        final var context = new AtomicReference<ThreadContext.StoredContext>();
+        projectResolver.executeOnProject(projectId, () -> context.set(threadContext.newStoredContext()));
+        return threadContext.wrapRestorable(context.get());
     }
 
     /// Metadata holder for a recovery that has been enqueued but not yet dispatched.

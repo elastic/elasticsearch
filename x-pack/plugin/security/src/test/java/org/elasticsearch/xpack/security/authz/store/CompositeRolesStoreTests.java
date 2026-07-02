@@ -4102,11 +4102,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
             }
 
             @Override
-            public ThreadContext.StoredContext storeContextForProject(ProjectId projectId, ThreadContext threadContext) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
             public ProjectId getProjectId() {
                 return activeProject.get();
             }

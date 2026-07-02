@@ -1613,7 +1613,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                 newFields.add(field);
                             }
                         }
-                        return newFields.isEmpty() ? esr : esr.withAdditionalAttributes(newFields);
+                        return esr.withAdditionalAttributes(newFields);
                     });
                     // mark changed only if the relation gained fields, else the fixed-point iteration never terminates
                     if (withLoaded != logicalPlan) {
@@ -1710,22 +1710,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Whether a keyword loaded at this branch's source would reach the branch output: true only if walking column-preserving
          * unary plans from the root reaches a non-LOOKUP {@link EsRelation} (a Project/Aggregate in the way drops it).
          */
-        private static boolean branchCanSurfaceLoadedField(LogicalPlan branch) {
-            LogicalPlan plan = branch;
-            while (true) {
-                if (plan instanceof EsRelation esRelation) {
-                    return esRelation.indexMode() != IndexMode.LOOKUP;
-                }
-                if (plan instanceof Project || plan instanceof Aggregate) {
-                    return false;
-                }
-                if (plan instanceof Join join && join.config().type() == JoinTypes.LEFT) {
-                    plan = join.left();
-                } else if (plan instanceof UnaryPlan unaryPlan) {
-                    plan = unaryPlan.child();
-                } else {
-                    return false;
-                }
+        private static boolean branchCanSurfaceLoadedField(LogicalPlan plan) {
+            if (plan instanceof EsRelation esRelation) {
+                return esRelation.indexMode() != IndexMode.LOOKUP;
+            }
+            if (plan instanceof Project || plan instanceof Aggregate) {
+                return false;
+            }
+            if (plan instanceof Join join && join.config().type() == JoinTypes.LEFT) {
+                return branchCanSurfaceLoadedField(join.left());
+            } else if (plan instanceof UnaryPlan unaryPlan) {
+                return branchCanSurfaceLoadedField(unaryPlan.child());
+            } else {
+                return false;
             }
         }
 
@@ -3141,14 +3138,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, TypeConflictedField tcf) {
-            EsField field = new EsField(tcf.getName(), type, Map.of(), tcf.isAggregatable(), tcf.getTimeSeriesFieldType());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,
                 originalFieldAttr.parentName(),
                 originalFieldAttr.qualifier(),
                 originalFieldAttr.name(),
-                field,
+                typedEsField(type, tcf),
                 originalFieldAttr.nullable(),
                 originalFieldAttr.id(),
                 true
@@ -3614,16 +3610,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private Expression countConvert(UnaryScalarFunction convert, Source source, DataType type, TypeConflictedField tcf) {
-            // Same reasoning as ResolveUnionTypes#typeSpecificConvert: the conversion input is a scalar leaf read of the field, so its
-            // multi-field children are irrelevant here and would otherwise serialize an un-transportable subfield conflict to data nodes.
-            EsField field = new EsField(tcf.getName(), type, Map.of(), tcf.isAggregatable(), tcf.getTimeSeriesFieldType());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,
                 originalFieldAttr.parentName(),
                 originalFieldAttr.qualifier(),
                 originalFieldAttr.name(),
-                field,
+                typedEsField(type, tcf),
                 originalFieldAttr.nullable(),
                 originalFieldAttr.id(),
                 true
@@ -3662,6 +3655,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             return AggregateMetricDoubleBlockBuilder.Metric.DEFAULT;
         }
+    }
+
+    /**
+     * Create an EsField from a TypeConflictedField instance, casted to a specific type, but ignoring its sub-fields which are irrelevant
+     * here and are resolved independently as their own attributes. Carrying them would serialize the field's subfield properties to
+     * data nodes, which fails when a subfield is itself an un-transportable conflict field (e.g. CompactInvalidMappedField from a
+     * multi-index partially-unmapped multi-field).
+     */
+    private static EsField typedEsField(DataType type, TypeConflictedField tcf) {
+        return new EsField(tcf.getName(), type, Map.of(), tcf.isAggregatable(), tcf.getTimeSeriesFieldType());
     }
 
     /**

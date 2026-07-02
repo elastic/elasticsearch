@@ -465,8 +465,7 @@ public class Verifier {
     }
 
     /**
-     * {@code unmapped_fields="load"} does not yet support PROMQL. FORK, subqueries and views are handled by
-     * {@code ResolveUnmapped#load}; cross-branch type conflicts by {@code UnionAll#checkUnionAll}. See #142033.
+     * {@code unmapped_fields="load"} does not yet support PROMQL
      */
     private static void checkLoadModeDisallowedCommands(LogicalPlan plan, Failures failures) {
         plan.forEachDown(p -> {

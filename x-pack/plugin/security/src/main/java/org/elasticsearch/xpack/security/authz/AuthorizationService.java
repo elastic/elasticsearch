@@ -764,7 +764,7 @@ public class AuthorizationService {
         if (request instanceof CreateDataStreamAction.Request
             || (request instanceof MigrateToDataStreamAction.Request)
             || (request instanceof PastTimeSeriesIndexCreationAction.Request)
-            // Casting to CreateIndexRequest is safe only because it's the last possible option; alwats keep it last!
+            // Casting to CreateIndexRequest is safe only because it's the last possible option; always keep it last!
             || ((CreateIndexRequest) request).aliases().isEmpty()) {
             runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
             return;

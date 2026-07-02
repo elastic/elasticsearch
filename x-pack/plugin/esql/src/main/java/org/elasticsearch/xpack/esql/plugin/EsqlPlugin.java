@@ -46,7 +46,6 @@ import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -264,17 +263,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     );
 
     /**
-     * Maximum time (in milliseconds) that a GROK matcher is allowed to run before being interrupted.
-     * Limits how long a GROK matcher can run to protect against expensive regex patterns.
-     */
-    public static final Setting<TimeValue> GROK_WATCHDOG_MAX_EXECUTION_TIME = Setting.timeSetting(
-        "esql.grok.watchdog.max_execution_time",
-        TimeValue.timeValueMillis(1000),
-        TimeValue.timeValueMillis(0),
-        Setting.Property.NodeScope
-    );
-
-    /**
      * Tuning parameter for deciding when to use the "merge" stored field loader.
      * Think of it as "how similar to a sequential block of documents do I have to
      * be before I'll use the merge reader?" So a value of {@code 1} means I have to
@@ -379,12 +367,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             workloadIdentityEnabled::get,
             services.threadPool(),
             services.environment(),
-            services.resourceWatcherService()
+            services.resourceWatcherService(),
+            services.telemetryProvider().getMeterRegistry()
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        MatcherWatchdog grokWatchdog = MatcherWatchdog.newInstance(GROK_WATCHDOG_MAX_EXECUTION_TIME.get(settings).millis());
-        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry, grokWatchdog));
+        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
 
         services.ipLocationService()
@@ -540,8 +528,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
                 DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING,
-                DatasetService.MAX_DATASETS_COUNT_SETTING,
-                GROK_WATCHDOG_MAX_EXECUTION_TIME
+                DatasetService.MAX_DATASETS_COUNT_SETTING
             )
         );
         settings.addAll(PlannerSettings.settings());

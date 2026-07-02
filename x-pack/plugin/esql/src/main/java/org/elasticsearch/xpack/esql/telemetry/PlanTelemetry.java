@@ -25,6 +25,7 @@ public class PlanTelemetry {
     private final Map<String, Integer> functions = new HashMap<>();
     private final Map<String, Integer> settings = new HashMap<>();
     private Integer linkedProjectsCount = null;
+    private boolean externalSource = false;
 
     public PlanTelemetry(EsqlFunctionRegistry functionRegistry) {
         this.functionRegistry = functionRegistry;
@@ -44,6 +45,20 @@ public class PlanTelemetry {
 
     public Integer linkedProjectsCount() {
         return linkedProjectsCount;
+    }
+
+    /**
+     * Marks that the query touched an ES|QL external data source (an {@code ExternalRelation} was present in the
+     * analyzed plan). Read at query completion so the coordinator emits external-source-scoped operational metrics
+     * only for queries that actually scanned an external source.
+     */
+    public void externalSource(boolean externalSource) {
+        this.externalSource = externalSource;
+    }
+
+    /** Whether the analyzed plan touched an ES|QL external data source; gates the external-source query metrics at completion. */
+    public boolean externalSource() {
+        return externalSource;
     }
 
     public void command(TelemetryAware command) {

@@ -31,6 +31,16 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 
 public class DefaultMappingParametersHandler implements DataSourceHandler {
+    private final IndexMode indexMode;
+
+    public DefaultMappingParametersHandler() {
+        this(IndexMode.STANDARD);
+    }
+
+    public DefaultMappingParametersHandler(IndexMode indexMode) {
+        this.indexMode = indexMode;
+    }
+
     @Override
     public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
         var fieldType = FieldType.tryParse(request.fieldType());
@@ -312,7 +322,9 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
     }
 
     protected Object extendedDocValuesParams() {
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false || indexMode.isStrictColumnar() == false) {
+            // The object form of doc_values (including multi_value) is only accepted in strict-columnar index modes. Callers that
+            // actually generate for a strict-columnar index must construct this handler with that IndexMode.
             return ESTestCase.randomBoolean();
         }
 

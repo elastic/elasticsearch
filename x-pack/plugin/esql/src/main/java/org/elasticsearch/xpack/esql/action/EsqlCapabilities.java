@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
@@ -1414,12 +1415,12 @@ public class EsqlCapabilities {
         /**
          * Support ROW as a source command inside subquery in the from command.
          */
-        SUBQUERY_WITH_ROW(Build.current().isSnapshot()),
+        SUBQUERY_WITH_ROW,
 
         /**
          * Support TS as a source command inside subquery in the from command.
          */
-        SUBQUERY_WITH_TS(Build.current().isSnapshot()),
+        SUBQUERY_WITH_TS,
 
         /**
          * Fixed {@code TranslateTimeSeriesWithout} and {@code TranslateTimeSeriesAggregate} to associate time-series attributes with the
@@ -3262,6 +3263,14 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/151540
          */
         FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING,
+
+        /**
+         * Support for the {@code _slice} metadata field in ES|QL, available on indices with
+         * {@code index.slice.enabled: true}. Backed by the {@code _routing} sorted doc values field.
+         * Enables {@code FROM index METADATA _slice}, {@code KEEP _slice}, and pushable
+         * {@code WHERE _slice ==} / {@code LIKE} / {@code RLIKE} filters.
+         */
+        METADATA_SLICE(SliceIndexing.SLICE_FEATURE_FLAG),
 
         /**
          * Support LAST and LATEST aggregation on the same extended field types as FIRST and EARLIEST

@@ -191,10 +191,11 @@ public class GcsStorageProvider implements StorageProvider {
             throw new IllegalStateException("GCS keyless authentication requires the workload-identity feature to be enabled on this node");
         }
 
+        String jwtAudience = Strings.hasText(config.jwtAudience()) ? config.jwtAudience() : config.stsAudience();
         IdentityPoolCredentials.Builder credentialsBuilder = IdentityPoolCredentials.newBuilder()
             .setAudience(config.stsAudience())
             .setSubjectTokenType(ExternalAccountCredentials.SubjectTokenTypes.JWT)
-            .setSubjectTokenSupplier(new GcsWorkloadIdentitySubjectTokenSupplier(issuerClient, config.jwtAudience()));
+            .setSubjectTokenSupplier(new GcsWorkloadIdentitySubjectTokenSupplier(issuerClient, jwtAudience));
 
         // Optional: when absent, the federated identity maps directly to a principal without impersonation.
         if (config.serviceAccountImpersonationUrl() != null) {

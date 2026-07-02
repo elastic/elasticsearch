@@ -59,7 +59,9 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * registered on each configuration regardless, so a PUT carrying them produces the explicit
      * {@link #FEDERATED_IDENTITY_DISABLED_MESSAGE} rather than an "unknown setting" error.
      */
-    public static final FeatureFlag ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY_FEATURE_FLAG = new FeatureFlag("esql_external_datasources_federated_identity");
+    public static final FeatureFlag ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY_FEATURE_FLAG = new FeatureFlag(
+        "esql_external_datasources_federated_identity"
+    );
 
     /**
      * Error shown when a data source is provisioned with keyless authentication settings while the

@@ -134,7 +134,9 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
     }
 
     public void testValidateDatasourceAcceptsKeylessWhenEnabled() {
-        var keylessValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs")).withFederatedIdentityEnabled(() -> true);
+        var keylessValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs")).withFederatedIdentityEnabled(
+            () -> true
+        );
         var result = keylessValidator.validateDatasource(Map.of("jwt_audience", "//aud", "sts_audience", "//sts"));
         assertEquals("//sts", result.get("sts_audience").nonSecretValue());
         assertFalse(result.get("sts_audience").secret());

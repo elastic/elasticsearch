@@ -546,7 +546,10 @@ public class ComputeService {
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_COORDINATION
+            ThreadPool.Names.SEARCH_COORDINATION,
+            // execute() is invoked downstream of EsqlSession's analyzed-plan callback, which may complete on
+            // esql_worker after ExternalSourceResolver dispatches resolution there.
+            EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME
         );
         // Check if the plan contains subqueries (UnionAll) vs fork branches before breaking it apart.
         // Batching is only applied to subqueries, not fork branches.
@@ -1242,6 +1245,10 @@ public class ComputeService {
         );
 
         try {
+            var workerThreadPool = transportService.getThreadPool();
+            var parallelWorkerExecutor = workerThreadPool.executor(ESQL_WORKER_THREAD_POOL_NAME);
+            int esqlWorkerPoolSize = workerThreadPool.info(ESQL_WORKER_THREAD_POOL_NAME).getMax();
+
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
                 context.clusterAlias(),
@@ -1259,7 +1266,9 @@ public class ComputeService {
                 ipLocationService,
                 projectResolver,
                 physicalOperationProviders,
-                operatorFactoryRegistry
+                operatorFactoryRegistry,
+                parallelWorkerExecutor,
+                esqlWorkerPoolSize
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

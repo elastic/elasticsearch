@@ -622,6 +622,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 tail.close();
             }
 
+            if (tailBytes.length != tailLen) {
+                // readBytesAsync's SPI contract permits a short read (fewer than the requested bytes). The parse path
+                // treats these bytes as a suffix ending at the file length (TailBackedInputFile offsets by
+                // length - tailBytes.length), so a short read would misalign every footer offset. Fall back to the
+                // synchronous parse, which reads the exact ranges it needs itself, rather than relying on the
+                // trailing-magic scan below happening to reject the misaligned bytes.
+                parseFooterOnExecutor(object, executor, listener);
+                return;
+            }
+
             int footerLength = footerLengthFromTrailer(tailBytes);
             if (footerLength <= 0) {
                 // Missing/foreign magic or a nonsensical length — let the sync path produce the
@@ -652,6 +662,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     footerBytes = copyToArray(footer);
                 } finally {
                     footer.close();
+                }
+                if (footerBytes.length != exactLen) {
+                    // Short read (see the tail-read guard above): the bytes would not align to the file suffix the
+                    // parse path assumes, so fall back to the synchronous exact-range read.
+                    parseFooterOnExecutor(object, executor, listener);
+                    return;
                 }
                 parseTailOnExecutor(object, length, footerBytes, cacheKey, executor, listener);
             }, listener::onFailure));

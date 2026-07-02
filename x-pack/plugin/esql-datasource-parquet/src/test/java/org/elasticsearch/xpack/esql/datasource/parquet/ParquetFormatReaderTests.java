@@ -392,6 +392,115 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Short-read fallback: {@code readBytesAsync}'s SPI contract permits returning fewer bytes than
+     * requested. The async parse treats the prefetched bytes as a suffix ending at the file length, so a
+     * short read would misalign every footer offset. This mock returns a short buffer whose trailing 8
+     * bytes forge a valid-looking Parquet trailer (small footer length + {@code PAR1}) — enough to send
+     * the unguarded path straight into {@code parseTailOnExecutor} with a misaligned window (which then
+     * mis-parses or throws). {@code metadataAsync} must instead detect the short read and fall back to the
+     * synchronous parse, yielding metadata identical to the fully-synchronous path.
+     */
+    public void testMetadataAsyncShortReadFallsBackToSync() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .named("short_read_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("id", 42L);
+            g.add("name", "Bob");
+            return List.of(g);
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata syncMeta = reader.metadata(createStorageObject(parquetData));
+
+        // A deliberately short buffer with a forged trailer: footerLength=20 (LE int32) followed by PAR1.
+        // footerRegion (20 + 8) <= buffer length (40), so the unguarded path would parse straight from
+        // these misaligned bytes instead of the real file suffix.
+        byte[] shortBuffer = new byte[40];
+        int forgedFooterLength = 20;
+        int base = shortBuffer.length - 8;
+        shortBuffer[base] = (byte) (forgedFooterLength & 0xFF);
+        shortBuffer[base + 1] = (byte) ((forgedFooterLength >> 8) & 0xFF);
+        shortBuffer[base + 2] = (byte) ((forgedFooterLength >> 16) & 0xFF);
+        shortBuffer[base + 3] = (byte) ((forgedFooterLength >> 24) & 0xFF);
+        shortBuffer[base + 4] = 'P';
+        shortBuffer[base + 5] = 'A';
+        shortBuffer[base + 6] = 'R';
+        shortBuffer[base + 7] = '1';
+
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger asyncReadCount = new AtomicInteger();
+        try {
+            StorageObject asyncObject = new StorageObject() {
+                @Override
+                public InputStream newStream() {
+                    return new ByteArrayInputStream(parquetData);
+                }
+
+                @Override
+                public InputStream newStream(long position, long length) {
+                    int pos = (int) position;
+                    int len = (int) Math.min(length, parquetData.length - position);
+                    return new ByteArrayInputStream(parquetData, pos, len);
+                }
+
+                @Override
+                public void readBytesAsync(
+                    long position,
+                    long length,
+                    DirectBufferFactory factory,
+                    Executor ignored,
+                    ActionListener<DirectReadBuffer> listener
+                ) {
+                    asyncReadCount.incrementAndGet();
+                    probePool.execute(() -> listener.onResponse(new DirectReadBuffer(ByteBuffer.wrap(shortBuffer), () -> {})));
+                }
+
+                @Override
+                public long length() {
+                    return parquetData.length;
+                }
+
+                @Override
+                public Instant lastModified() {
+                    return Instant.ofEpochMilli(0);
+                }
+
+                @Override
+                public boolean exists() {
+                    return true;
+                }
+
+                @Override
+                public StoragePath path() {
+                    return StoragePath.of("memory://short-read-test.parquet");
+                }
+            };
+
+            PlainActionFuture<SourceMetadata> future = new PlainActionFuture<>();
+            reader.metadataAsync(asyncObject, probePool, future);
+            SourceMetadata asyncMeta = future.actionGet(30, TimeUnit.SECONDS);
+
+            assertEquals("the tail prefetch must be attempted once before falling back", 1, asyncReadCount.get());
+            assertEquals(syncMeta.schema().size(), asyncMeta.schema().size());
+            for (int i = 0; i < syncMeta.schema().size(); i++) {
+                assertEquals(syncMeta.schema().get(i).name(), asyncMeta.schema().get(i).name());
+                assertEquals(syncMeta.schema().get(i).dataType(), asyncMeta.schema().get(i).dataType());
+            }
+            assertStatisticsEqual(syncMeta, asyncMeta);
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
     public void testReadDataFromSimpleParquet() throws Exception {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)

@@ -83,16 +83,18 @@ public class ParquetColumnExtractorTests extends ESTestCase {
      */
     private ParquetColumnExtractor newFullFileExtractor(StorageObject so) throws IOException {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        ParquetMetadata footer;
+        return new ParquetColumnExtractor(so, reader, loadFooter(so));
+    }
+
+    private ParquetMetadata loadFooter(StorageObject so) throws IOException {
         try (
             ParquetFileReader fr = ParquetFileReader.open(
                 new ParquetStorageObjectAdapter(so, blockFactory.arrowAllocator()),
                 PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
             )
         ) {
-            footer = fr.getFooter();
+            return fr.getFooter();
         }
-        return new ParquetColumnExtractor(so, reader, footer);
     }
 
     public void testRowCount() throws IOException {
@@ -158,6 +160,48 @@ public class ParquetColumnExtractorTests extends ESTestCase {
                 }
             } finally {
                 block.close();
+            }
+        }
+    }
+
+    public void testExtractFlatAcrossRowGroupsWithDuplicates() throws IOException {
+        byte[] data = writeMultiRowGroupFile(500);
+        StorageObject so = createStorageObject(data);
+        ParquetMetadata fullFooter = loadFooter(so);
+        assertTrue("expected multiple row groups", fullFooter.getBlocks().size() >= 2);
+
+        long secondRowGroupFirstRow = fullFooter.getBlocks().get(0).getRowCount();
+        long[] positions = { 0, secondRowGroupFirstRow, secondRowGroupFirstRow, 0 };
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, fullFooter);
+            Block block = extractor.extract("v", positions, blockFactory)
+        ) {
+            IntBlock ints = (IntBlock) block;
+            assertEquals(positions.length, ints.getPositionCount());
+            for (int i = 0; i < positions.length; i++) {
+                assertEquals((int) positions[i], ints.getInt(i));
+            }
+        }
+    }
+
+    public void testExtractNullableFlatAcrossRowGroupsWithDuplicateNulls() throws IOException {
+        byte[] data = writeNullableIntMultiRowGroupFile(500);
+        StorageObject so = createStorageObject(data);
+        ParquetMetadata fullFooter = loadFooter(so);
+        assertTrue("expected multiple row groups", fullFooter.getBlocks().size() >= 2);
+
+        long firstNullInSecondRowGroup = nextRowDivisibleByFive(fullFooter.getBlocks().get(0).getRowCount());
+        long[] positions = { 0, firstNullInSecondRowGroup, firstNullInSecondRowGroup, 0 };
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, fullFooter);
+            Block block = extractor.extract("v", positions, blockFactory)
+        ) {
+            IntBlock ints = (IntBlock) block;
+            assertEquals(positions.length, ints.getPositionCount());
+            for (int i = 0; i < positions.length; i++) {
+                assertTrue("slot " + i + " should be null", ints.isNull(i));
             }
         }
     }
@@ -286,6 +330,28 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         }
     }
 
+    public void testExtractListAcrossRowGroupsWithDuplicates() throws IOException {
+        byte[] data = writeMultiRowGroupIntListFile(500);
+        StorageObject so = createStorageObject(data);
+        ParquetMetadata fullFooter = loadFooter(so);
+        assertTrue("expected multiple row groups", fullFooter.getBlocks().size() >= 2);
+
+        long rowInSecondGroup = fullFooter.getBlocks().get(0).getRowCount() + 1;
+        long emptyRowInSecondGroup = nextRowDivisibleByFive(fullFooter.getBlocks().get(0).getRowCount());
+        long[] positions = { 1, rowInSecondGroup, rowInSecondGroup, 1, 0, emptyRowInSecondGroup, emptyRowInSecondGroup, 0 };
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, fullFooter);
+            Block block = extractor.extract("vals", positions, blockFactory)
+        ) {
+            IntBlock ints = (IntBlock) block;
+            assertEquals(positions.length, ints.getPositionCount());
+            for (int i = 0; i < positions.length; i++) {
+                assertIntListRow(ints, i, (int) positions[i]);
+            }
+        }
+    }
+
     /**
      * List-column variant of the null-leading concat coverage. Non-adjacent survivor positions
      * whose leading run(s) are empty lists ({@code i % 5 == 0}) force {@code decodeList} to emit
@@ -328,15 +394,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         // never touched" assertion.
         byte[] data = writeMultiRowGroupFile(2000);
         TrackingStorageObject so = new TrackingStorageObject(data);
-        ParquetMetadata fullFooter;
-        try (
-            ParquetFileReader fr = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(so, blockFactory.arrowAllocator()),
-                PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
-            )
-        ) {
-            fullFooter = fr.getFooter();
-        }
+        ParquetMetadata fullFooter = loadFooter(so);
         // Sanity check: the writer's small budget produces multiple row groups so there is a
         // real opportunity to skip groups.
         assertTrue("expected multiple row groups, got " + fullFooter.getBlocks().size(), fullFooter.getBlocks().size() >= 3);
@@ -422,15 +480,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
      */
     public void testExtractMultipleColumnsCoalescesIO() throws IOException {
         byte[] data = writeMixedTypeMultiRowGroupFile(2000);
-        ParquetMetadata fullFooter;
-        try (
-            ParquetFileReader fr = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(new TrackingStorageObject(data), blockFactory.arrowAllocator()),
-                PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
-            )
-        ) {
-            fullFooter = fr.getFooter();
-        }
+        ParquetMetadata fullFooter = loadFooter(new TrackingStorageObject(data));
         assertTrue("expected multiple row groups, got " + fullFooter.getBlocks().size(), fullFooter.getBlocks().size() >= 3);
 
         // Pick three survivors spread across row groups so the multi-column path has to visit
@@ -499,15 +549,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
      */
     public void testExtractDispatchesPrefetchesInParallel() throws Exception {
         byte[] data = writeMultiRowGroupFile(2000);
-        ParquetMetadata fullFooter;
-        try (
-            ParquetFileReader fr = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(new TrackingStorageObject(data), blockFactory.arrowAllocator()),
-                PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
-            )
-        ) {
-            fullFooter = fr.getFooter();
-        }
+        ParquetMetadata fullFooter = loadFooter(new TrackingStorageObject(data));
         assertTrue("expected at least 3 row groups", fullFooter.getBlocks().size() >= 3);
 
         // Survivors landing in three distinct row groups → three buckets → three prefetches.
@@ -621,15 +663,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         int rows = 2000;
         byte[] data = writeNullLeadingMultiRowGroupFile(rows);
         StorageObject so = createStorageObject(data);
-        ParquetMetadata footer;
-        try (
-            ParquetFileReader fr = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(so, blockFactory.arrowAllocator()),
-                PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
-            )
-        ) {
-            footer = fr.getFooter();
-        }
+        ParquetMetadata footer = loadFooter(so);
         // Multiple row groups are required so position 0 (a null row, first row group -> first
         // visited bucket) and the last valued row land in different buckets, producing the
         // null-leading concatenation the fix targets.
@@ -722,6 +756,21 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         }, /* rowGroupBytes = */ 1024L);
     }
 
+    private byte[] writeNullableIntMultiRowGroupFile(int rows) throws IOException {
+        MessageType schema = Types.buildMessage().optional(PrimitiveType.PrimitiveTypeName.INT32).named("v").named("ints");
+        return writeFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>(rows);
+            for (int i = 0; i < rows; i++) {
+                Group g = factory.newGroup();
+                if (i % 5 != 0) {
+                    g.append("v", i);
+                }
+                groups.add(g);
+            }
+            return groups;
+        }, /* rowGroupBytes = */ 1024L);
+    }
+
     /**
      * Single-int-list-column file with {@code rows} rows; row {@code r} has list length
      * {@code r % 5} and values {@code r*10, r*10+1, ...}. Empty lists at every fifth row exercise
@@ -729,6 +778,14 @@ public class ParquetColumnExtractorTests extends ESTestCase {
      * enough rep-level transitions to catch off-by-one bugs in the sparse skip loop.
      */
     private byte[] writeIntListFile(int rows) throws IOException {
+        return writeIntListFile(rows, /* rowGroupBytes = */ 64 * 1024 * 1024L);
+    }
+
+    private byte[] writeMultiRowGroupIntListFile(int rows) throws IOException {
+        return writeIntListFile(rows, /* rowGroupBytes = */ 1024L);
+    }
+
+    private byte[] writeIntListFile(int rows, long rowGroupBytes) throws IOException {
         org.apache.parquet.schema.Type intList = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("vals");
         MessageType schema = new MessageType("ints_list", intList);
         return writeFile(schema, factory -> {
@@ -747,7 +804,21 @@ public class ParquetColumnExtractorTests extends ESTestCase {
                 groups.add(g);
             }
             return groups;
-        }, /* rowGroupBytes = */ 64 * 1024 * 1024L);
+        }, rowGroupBytes);
+    }
+
+    private static long nextRowDivisibleByFive(long row) {
+        long remainder = row % 5;
+        return remainder == 0 ? row : row + (5 - remainder);
+    }
+
+    private static void assertIntListRow(IntBlock ints, int outputSlot, int row) {
+        int listLen = row % 5;
+        assertEquals("position count mismatch at output slot " + outputSlot, listLen, ints.getValueCount(outputSlot));
+        int firstValue = ints.getFirstValueIndex(outputSlot);
+        for (int k = 0; k < listLen; k++) {
+            assertEquals("value at row " + row + " element " + k, row * 10 + k, ints.getInt(firstValue + k));
+        }
     }
 
     /**

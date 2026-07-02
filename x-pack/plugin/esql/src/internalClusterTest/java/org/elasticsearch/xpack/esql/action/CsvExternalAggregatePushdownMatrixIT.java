@@ -15,7 +15,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.function.IntFunction;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -111,4 +113,39 @@ public class CsvExternalAggregatePushdownMatrixIT extends AbstractExternalAggreg
             assertThat("MAX(addr)", String.valueOf(rows.get(0).get(1)), equalTo("10.0.0." + (ROWS - 1)));
         });
     }
+
+    /**
+     * Systematic cold==warm coverage for EVERY warm-servable {@code MIN/MAX} type ({@code MIN_MAX_TYPES}:
+     * BOOLEAN, INTEGER, LONG, DOUBLE, DATETIME, DATE_NANOS, KEYWORD/TEXT, IP). CSV declares TEXT as KEYWORD,
+     * so they share one column; the warm-serve / {@code buildBlock} path under test is format-agnostic, so
+     * CSV exercises it for all types. Each type gets its own fixture + dataset to isolate the warm-cache flip.
+     * This is the anti-piecemeal guard: a supported type without warm coverage (like {@code MIN/MAX(ip)}
+     * once was — it served NULL) shows up here rather than being found one type at a time.
+     */
+    public void testAllMinMaxTypesColdThenWarmShortCircuit() throws Exception {
+        record TypeCase(String token, String col, IntFunction<String> value) {}
+        List<TypeCase> cases = List.of(
+            new TypeCase("boolean", "b_flag", i -> (i % 2 == 0) ? "true" : "false"),
+            new TypeCase("integer", "i_n", i -> Integer.toString(i)),
+            new TypeCase("long", "l_n", i -> Long.toString(i)),
+            new TypeCase("double", "d_v", i -> Double.toString(i + 0.5)),
+            new TypeCase("datetime", "dt_ts", i -> String.format(Locale.ROOT, "2020-01-01T00:00:%02d.000Z", i)),
+            new TypeCase("date_nanos", "dn_ts", i -> String.format(Locale.ROOT, "2020-01-01T00:00:%02d.000000000Z", i)),
+            new TypeCase("keyword", "k_lbl", i -> label(i)),
+            new TypeCase("ip", "ip_addr", i -> "10.0.0." + i)
+        );
+        for (TypeCase c : cases) {
+            Path dir = createTempDir();
+            StringBuilder sb = new StringBuilder("id:long," + c.col() + ":" + c.token() + "\n");
+            for (int i = 0; i < ROWS; i++) {
+                sb.append(i).append(',').append(c.value().apply(i)).append('\n');
+            }
+            Path file = dir.resolve(c.col() + ".csv");
+            Files.writeString(file, sb.toString());
+            String ds = "mmtype_" + c.col();
+            registerDataset(ds, StoragePath.fileUri(file));
+            assertColdEqualsWarmMinMax(ds, c.col());
+        }
+    }
+
 }

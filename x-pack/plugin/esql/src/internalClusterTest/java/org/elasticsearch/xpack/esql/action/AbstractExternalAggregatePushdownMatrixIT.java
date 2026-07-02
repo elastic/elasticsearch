@@ -197,6 +197,34 @@ public abstract class AbstractExternalAggregatePushdownMatrixIT extends Abstract
         }
     }
 
+    /**
+     * Type-agnostic cold==warm check for {@code MIN}/{@code MAX} over one column: a cold pass scans and
+     * harvests the column's extrema, then the warm pass MUST short-circuit (0 docs) and return values EQUAL
+     * to the cold pass's, and non-null. This does not hard-code the rendered value, so it works for any
+     * supported type — it catches the whole class of "warm serves the wrong/NULL value for a type that has
+     * no (or a wrong) buildBlock arm" bugs (the shape of the {@code MIN/MAX(ip)}-returns-NULL defect). If a
+     * type is not harvested/servable at all, the warm pass won't short-circuit and this fails loudly.
+     */
+    protected void assertColdEqualsWarmMinMax(String dataset, String column) {
+        String query = "FROM " + dataset + " | STATS lo = MIN(" + column + "), hi = MAX(" + column + ")";
+        Object coldMin;
+        Object coldMax;
+        try (var cold = run(syncEsqlQueryRequest(query).profile(true), TIMEOUT)) {
+            assertThat("cold pass scans every row [" + column + "]", cold.documentsFound(), equalTo((long) ROWS));
+            List<Object> row = getValuesList(cold).get(0);
+            coldMin = row.get(0);
+            coldMax = row.get(1);
+            assertNotNull("cold MIN(" + column + ")", coldMin);
+            assertNotNull("cold MAX(" + column + ")", coldMax);
+        }
+        try (var warm = run(syncEsqlQueryRequest(query).profile(true), TIMEOUT)) {
+            assertThat("warm pass must short-circuit [" + column + "]", warm.documentsFound(), equalTo(0L));
+            List<Object> row = getValuesList(warm).get(0);
+            assertThat("warm MIN(" + column + ") == cold", String.valueOf(row.get(0)), equalTo(String.valueOf(coldMin)));
+            assertThat("warm MAX(" + column + ") == cold", String.valueOf(row.get(1)), equalTo(String.valueOf(coldMax)));
+        }
+    }
+
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
         return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
     }

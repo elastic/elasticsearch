@@ -697,7 +697,7 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error(
             "from test | stats max(emp_no) by bucket(hire_date, 5, 1 day, 1 month)",
             containsString(
-                "third argument of [bucket(hire_date, 5, 1 day, 1 month)] must be [datetime or string], "
+                "third argument of [bucket(hire_date, 5, 1 day, 1 month)] must be [datetime, date_nanos or string], "
                     + "found value [1 day] type [date_period]"
             )
         );
@@ -705,7 +705,7 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error(
             "from test | stats max(emp_no) by bucket(hire_date, 5, \"2000-01-01\", 1 month)",
             containsString(
-                "fourth argument of [bucket(hire_date, 5, \"2000-01-01\", 1 month)] must be [datetime or string], "
+                "fourth argument of [bucket(hire_date, 5, \"2000-01-01\", 1 month)] must be [datetime, date_nanos or string], "
                     + "found value [1 month] type [date_period]"
             )
         );

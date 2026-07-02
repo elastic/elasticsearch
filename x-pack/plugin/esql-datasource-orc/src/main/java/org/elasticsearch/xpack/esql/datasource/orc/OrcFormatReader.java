@@ -21,6 +21,7 @@ import org.apache.hadoop.hive.ql.exec.vector.TimestampColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.orc.BooleanColumnStatistics;
 import org.apache.orc.ColumnStatistics;
@@ -853,6 +854,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         private final long[] nullCounts;
         private final long[] rawMins;
         private final long[] rawMaxs;
+        // Populated instead of rawMins/rawMaxs when the threshold is BYTES_REF (keyword/text).
+        private final BytesRef[] rawMinBytes;
+        private final BytesRef[] rawMaxBytes;
 
         private StripeSkipTable(
             DynamicThreshold threshold,
@@ -862,7 +866,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             boolean[] nullOnly,
             long[] nullCounts,
             long[] rawMins,
-            long[] rawMaxs
+            long[] rawMaxs,
+            BytesRef[] rawMinBytes,
+            BytesRef[] rawMaxBytes
         ) {
             this.threshold = threshold;
             this.startRows = startRows;
@@ -872,6 +878,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             this.nullCounts = nullCounts;
             this.rawMins = rawMins;
             this.rawMaxs = rawMaxs;
+            this.rawMinBytes = rawMinBytes;
+            this.rawMaxBytes = rawMaxBytes;
         }
 
         static StripeSkipTable build(Reader reader, TypeDescription schema, DynamicThreshold threshold, long rangeStart, long rangeEnd)
@@ -888,6 +896,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             if (stripes.isEmpty() || stripeStats.isEmpty()) {
                 return null;
             }
+            boolean bytesRef = threshold.elementType() == ElementType.BYTES_REF;
             long[] startRows = new long[stripes.size() + 1];
             boolean[] active = new boolean[stripes.size()];
             boolean[] hasStats = new boolean[stripes.size()];
@@ -895,6 +904,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             long[] nullCounts = new long[stripes.size()];
             long[] rawMins = new long[stripes.size()];
             long[] rawMaxs = new long[stripes.size()];
+            BytesRef[] rawMinBytes = bytesRef ? new BytesRef[stripes.size()] : null;
+            BytesRef[] rawMaxBytes = bytesRef ? new BytesRef[stripes.size()] : null;
             long row = 0L;
             int columnId = sortType.getId();
             for (int i = 0; i < stripes.size(); i++) {
@@ -910,23 +921,49 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                             continue;
                         }
                         long nulls = stripe.getNumberOfRows() - stats.getNumberOfValues();
-                        Long min = rawMin(stats, sortType, threshold.elementType());
-                        Long max = rawMax(stats, sortType, threshold.elementType());
-                        if (min != null && max != null) {
-                            hasStats[i] = true;
-                            nullCounts[i] = nulls;
-                            rawMins[i] = min;
-                            rawMaxs[i] = max;
-                        } else if (stats.getNumberOfValues() == 0 && nulls > 0) {
-                            hasStats[i] = true;
-                            nullOnly[i] = true;
-                            nullCounts[i] = nulls;
+                        if (bytesRef) {
+                            BytesRef min = rawMinBytes(stats, sortType);
+                            BytesRef max = rawMaxBytes(stats, sortType);
+                            if (min != null && max != null) {
+                                hasStats[i] = true;
+                                nullCounts[i] = nulls;
+                                rawMinBytes[i] = min;
+                                rawMaxBytes[i] = max;
+                            } else if (stats.getNumberOfValues() == 0 && nulls > 0) {
+                                hasStats[i] = true;
+                                nullOnly[i] = true;
+                                nullCounts[i] = nulls;
+                            }
+                        } else {
+                            Long min = rawMin(stats, sortType, threshold.elementType());
+                            Long max = rawMax(stats, sortType, threshold.elementType());
+                            if (min != null && max != null) {
+                                hasStats[i] = true;
+                                nullCounts[i] = nulls;
+                                rawMins[i] = min;
+                                rawMaxs[i] = max;
+                            } else if (stats.getNumberOfValues() == 0 && nulls > 0) {
+                                hasStats[i] = true;
+                                nullOnly[i] = true;
+                                nullCounts[i] = nulls;
+                            }
                         }
                     }
                 }
             }
             startRows[stripes.size()] = row;
-            return new StripeSkipTable(threshold, startRows, active, hasStats, nullOnly, nullCounts, rawMins, rawMaxs);
+            return new StripeSkipTable(
+                threshold,
+                startRows,
+                active,
+                hasStats,
+                nullOnly,
+                nullCounts,
+                rawMins,
+                rawMaxs,
+                rawMinBytes,
+                rawMaxBytes
+            );
         }
 
         boolean noFurtherCandidates() {
@@ -950,13 +987,16 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         }
 
         boolean dominated(int stripeIndex) {
-            return stripeIndex >= 0
-                && stripeIndex < active.length
-                && active[stripeIndex]
-                && hasStats[stripeIndex]
-                && (nullOnly[stripeIndex]
-                    ? threshold.dominatesNulls(nullCounts[stripeIndex])
-                    : threshold.dominates(rawMins[stripeIndex], rawMaxs[stripeIndex], nullCounts[stripeIndex]));
+            if (stripeIndex < 0 || stripeIndex >= active.length || active[stripeIndex] == false || hasStats[stripeIndex] == false) {
+                return false;
+            }
+            if (nullOnly[stripeIndex]) {
+                return threshold.dominatesNulls(nullCounts[stripeIndex]);
+            }
+            if (rawMinBytes != null) {
+                return threshold.dominates(rawMinBytes[stripeIndex], rawMaxBytes[stripeIndex], nullCounts[stripeIndex]);
+            }
+            return threshold.dominates(rawMins[stripeIndex], rawMaxs[stripeIndex], nullCounts[stripeIndex]);
         }
 
         int nextNonDominatedStripe(int fromStripe) {
@@ -1002,6 +1042,36 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
 
         private static Long rawDouble(double value) {
             return Double.isNaN(value) ? null : NumericUtils.doubleToSortableLong(value);
+        }
+
+        /**
+         * Lexicographic min/max for a {@code BYTES_REF} threshold. Only string-family columns carry a
+         * comparable byte range; {@link StringColumnStatistics} min/max use UTF-8 (Text) ordering,
+         * which matches {@link BytesRef#compareTo}. Truncated stats stay safe because ORC reports a
+         * lower bound for the minimum and an upper bound for the maximum, so the true value range is
+         * always contained within {@code [min, max]} and we never skip a stripe that could contribute.
+         * Returns {@code null} for any other column type so a coerced (non-string) column is never
+         * skipped.
+         */
+        private static BytesRef rawMinBytes(ColumnStatistics stats, TypeDescription sortType) {
+            if (isStringFamily(sortType) && stats instanceof StringColumnStatistics strStats && strStats.getMinimum() != null) {
+                return new BytesRef(strStats.getMinimum());
+            }
+            return null;
+        }
+
+        private static BytesRef rawMaxBytes(ColumnStatistics stats, TypeDescription sortType) {
+            if (isStringFamily(sortType) && stats instanceof StringColumnStatistics strStats && strStats.getMaximum() != null) {
+                return new BytesRef(strStats.getMaximum());
+            }
+            return null;
+        }
+
+        private static boolean isStringFamily(TypeDescription sortType) {
+            return switch (sortType.getCategory()) {
+                case STRING, VARCHAR, CHAR -> true;
+                default -> false;
+            };
         }
     }
 

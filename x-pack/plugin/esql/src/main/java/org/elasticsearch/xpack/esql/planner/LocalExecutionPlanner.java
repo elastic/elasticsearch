@@ -72,6 +72,7 @@ import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
@@ -758,6 +759,13 @@ public class LocalExecutionPlanner {
             return source.with(numericFactory, source.layout);
         }
         var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
+        // For a single keyword/text sort key directly over an external source, publish the generic
+        // TopNOperator's competitive BytesRef bound to DynamicThresholdAware format readers so they
+        // can skip row groups/stripes that cannot contain a globally competitive row. This is the
+        // BYTES_REF counterpart to the numeric NumericTopNOperator + SharedNumericThreshold path.
+        // Wiring the readers and obtaining the supplier are done together so a pre-set supplier on
+        // the TopNExec can never reach the operator without the readers also being wired to it.
+        SharedMinCompetitive.Supplier minCompetitive = tryBuildExternalMinCompetitive(topNExec, source, topNExec.minCompetitive());
         return source.with(
             new TopNOperatorFactory(
                 common.limit,
@@ -767,10 +775,93 @@ public class LocalExecutionPlanner {
                 context.pageSize(topNExec, rowSize),
                 context.plannerSettings.valuesLoadingJumboSize().getBytes(),
                 topNExec.inputOrdering(),
-                topNExec.minCompetitive()
+                minCompetitive
             ),
             source.layout
         );
+    }
+
+    /**
+     * Builds and wires a {@link SharedMinCompetitive} side-channel so the generic
+     * {@code TopNOperator} can publish a competitive {@code BYTES_REF} bound to the external source's
+     * {@code DynamicThresholdAware} format readers, or returns {@code null} when the plan shape does
+     * not qualify. The same supplier is handed back to the caller so the operator and the readers
+     * share one channel.
+     *
+     * <p>Preconditions, all checked here:
+     * <ul>
+     *     <li>Exactly one sort {@link Order} (the channel exposes a single comparable bound).</li>
+     *     <li>The sort attribute is a plain keyword/text {@link Attribute} that is a real column of
+     *         the external source (same id in {@link ExternalSourceExec#output()}). A computed sort
+     *         key would publish a bound that does not line up with the file column statistics the
+     *         reader compares against, so it is rejected.</li>
+     *     <li>The source operator factory is an {@link AsyncExternalSourceOperatorFactory}.</li>
+     *     <li>The source carries no {@code pushedTopN} hint (the source already prunes; layering a
+     *         threshold on top would be redundant).</li>
+     * </ul>
+     *
+     * <p>When {@code preexisting} is non-null it is reused (e.g. a supplier already carried on the
+     * {@link TopNExec}) instead of building a fresh one, but the readers are always wired to whichever
+     * supplier is returned. Wiring and supplier creation are intentionally kept together so a supplier
+     * can never reach the operator without the format readers being wired to the same channel.
+     *
+     * @param preexisting a supplier already attached to the plan node, or {@code null} to build one
+     */
+    @Nullable
+    private SharedMinCompetitive.Supplier tryBuildExternalMinCompetitive(
+        TopNExec topNExec,
+        PhysicalOperation source,
+        @Nullable SharedMinCompetitive.Supplier preexisting
+    ) {
+        List<Order> orders = topNExec.order();
+        if (orders.size() != 1) {
+            return null;
+        }
+        Order order = orders.get(0);
+        Attribute sortAttribute = Expressions.attribute(order.child());
+        if (sortAttribute == null) {
+            return null;
+        }
+        if (isBytesRefThresholdSupportedSortType(sortAttribute.dataType()) == false) {
+            return null;
+        }
+        if (source.sourceOperatorFactory instanceof AsyncExternalSourceOperatorFactory == false) {
+            return null;
+        }
+        AsyncExternalSourceOperatorFactory externalSourceFactory = (AsyncExternalSourceOperatorFactory) source.sourceOperatorFactory;
+        ExternalSourceExec externalSource = findExternalSourceBelow(topNExec.child());
+        if (externalSource == null || externalSource.pushedTopN() != null) {
+            return null;
+        }
+        // The sort key must be a column the source reads straight from the file (matched by id), so
+        // the published bound and the reader's column statistics speak about the same values.
+        boolean sortIsSourceColumn = false;
+        for (Attribute attribute : externalSource.output()) {
+            if (attribute.id().equals(sortAttribute.id())) {
+                sortIsSourceColumn = true;
+                break;
+            }
+        }
+        if (sortIsSourceColumn == false) {
+            return null;
+        }
+        boolean asc = order.direction() == Order.OrderDirection.ASC;
+        boolean nullsFirst = order.nullsPosition() == Order.NullsPosition.FIRST;
+        SharedMinCompetitive.Supplier supplier = preexisting != null
+            ? preexisting
+            : new SharedMinCompetitive.Supplier(blockFactory.breaker(), topNExec.minCompetitiveKeyConfig());
+        externalSourceFactory.setMinCompetitiveSupplier(supplier, sortAttribute.name(), asc, nullsFirst);
+        return supplier;
+    }
+
+    /**
+     * Sort-key data types eligible for the {@code BYTES_REF} external threshold. Scoped to
+     * keyword/text, whose {@code UTF8} TopN encoding decodes back to the same raw UTF-8 bytes that
+     * Parquet/ORC publish as string min/max statistics, so the reader's lexicographic comparison is
+     * exact. IP and VERSION encode to a different byte form than the file stats and are deferred.
+     */
+    private static boolean isBytesRefThresholdSupportedSortType(DataType dataType) {
+        return dataType == DataType.KEYWORD || dataType == DataType.TEXT;
     }
 
     /**

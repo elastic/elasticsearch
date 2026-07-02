@@ -22,10 +22,10 @@ import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.problems.Problem;
 import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
-import org.gradle.api.problems.Severity;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
@@ -48,6 +48,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -234,18 +235,17 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
                 .count();
             if (bogousExcludesCount != 0 && bogousExcludesCount == missingClassExcludes.size() + violationsExcludes.size()) {
                 logForbiddenAPIsOutput(forbiddenApisOutput);
-                problemReporter.report(
+                throw problemReporter.throwing(
+                    new IllegalStateException(
+                        "All excluded classes seem to have no issues. This is sometimes an indication that the check silently failed "
+                            + "or that exclusions are configured unnecessarily"
+                    ),
                     ProblemId.create("pointless-exclusions", "All exclusions are unnecessary", ElasticsearchBuildProblems.FORBIDDEN_APIS),
                     spec -> spec.contextualLabel("All excluded classes seem to have no issues")
                         .details(
                             "This is sometimes an indication that the check silently failed or that exclusions are configured unnecessarily"
                         )
-                        .severity(Severity.ERROR)
                         .solution("Remove unnecessary exclusions or investigate why the check found no issues")
-                );
-                throw new IllegalStateException(
-                    "All excluded classes seem to have no issues. This is sometimes an indication that the check silently failed "
-                        + "or that exclusions are configured unnecessarily"
                 );
             }
             assertNoPointlessExclusions("are not missing", missingClassExcludes, missingClasses);
@@ -264,29 +264,32 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
             getLogger().info("Third party audit passed successfully");
         } else {
             logForbiddenAPIsOutput(forbiddenApisOutput);
+            List<Problem> problems = new ArrayList<>();
             if (missingClasses.isEmpty() == false) {
                 getLogger().error("Missing classes:\n{}", formatClassList(missingClasses));
                 missingClasses.forEach(
-                    cls -> problemReporter.report(
-                        ProblemId.create("missing-class", "Missing third-party class", ElasticsearchBuildProblems.MISSING_CLASSES),
-                        spec -> spec.contextualLabel("Missing class: " + cls)
-                            .severity(Severity.ERROR)
-                            .solution("Add the missing dependency or exclude the class via ignoreMissingClasses()")
+                    cls -> problems.add(
+                        problemReporter.create(
+                            ProblemId.create("missing-class", "Missing third-party class", ElasticsearchBuildProblems.MISSING_CLASSES),
+                            spec -> spec.contextualLabel("Missing class: " + cls)
+                                .solution("Add the missing dependency or exclude the class via ignoreMissingClasses()")
+                        )
                     )
                 );
             }
             if (violationsClasses.isEmpty() == false) {
                 getLogger().error("Classes with violations:\n{}", formatClassList(violationsClasses));
                 violationsClasses.forEach(
-                    cls -> problemReporter.report(
-                        ProblemId.create("api-violation", "Forbidden API violation", ElasticsearchBuildProblems.FORBIDDEN_APIS),
-                        spec -> spec.contextualLabel("Forbidden API violation in: " + cls)
-                            .severity(Severity.ERROR)
-                            .solution("Fix the API violation or exclude the class via ignoreViolations()")
+                    cls -> problems.add(
+                        problemReporter.create(
+                            ProblemId.create("api-violation", "Forbidden API violation", ElasticsearchBuildProblems.FORBIDDEN_APIS),
+                            spec -> spec.contextualLabel("Forbidden API violation in: " + cls)
+                                .solution("Fix the API violation or exclude the class via ignoreViolations()")
+                        )
                     )
                 );
             }
-            throw new IllegalStateException("Audit of third party dependencies failed");
+            throw problemReporter.throwing(new IllegalStateException("Audit of third party dependencies failed"), problems);
         }
 
         assertNoJarHell(jdkJarHellClasses);
@@ -349,16 +352,20 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
     private void assertNoJarHell(Set<String> jdkJarHellClasses) {
         jdkJarHellClasses.removeAll(jdkJarHellExcludes);
         if (jdkJarHellClasses.isEmpty() == false) {
-            jdkJarHellClasses.forEach(
-                cls -> problemReporter.report(
-                    ProblemId.create("jdk-jar-hell", "JDK jar hell conflict", ElasticsearchBuildProblems.JAR_HELL),
-                    spec -> spec.contextualLabel("JDK jar hell conflict: " + cls)
-                        .severity(Severity.ERROR)
-                        .solution("Remove the conflicting class or exclude it via ignoreJarHellWithJDK()")
+            List<Problem> problems = jdkJarHellClasses.stream()
+                .map(
+                    cls -> problemReporter.create(
+                        ProblemId.create("jdk-jar-hell", "JDK jar hell conflict", ElasticsearchBuildProblems.JAR_HELL),
+                        spec -> spec.contextualLabel("JDK jar hell conflict: " + cls)
+                            .solution("Remove the conflicting class or exclude it via ignoreJarHellWithJDK()")
+                    )
                 )
-            );
-            throw new IllegalStateException(
-                "Audit of third party dependencies failed:\n  Jar Hell with the JDK:\n" + formatClassList(jdkJarHellClasses)
+                .toList();
+            throw problemReporter.throwing(
+                new IllegalStateException(
+                    "Audit of third party dependencies failed:\n  Jar Hell with the JDK:\n" + formatClassList(jdkJarHellClasses)
+                ),
+                problems
             );
         }
     }

@@ -14,6 +14,7 @@ import org.elasticsearch.common.Rounding.RoundingConvention;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -300,7 +301,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         ) Expression to,
         Configuration configuration
     ) {
-        this(source, field, buckets, from, to, configuration, 0L, DOWN);
+        this(source, field, buckets, from, to, configuration, 0L, null);
     }
 
     public Bucket(
@@ -320,7 +321,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         this.to = to;
         this.configuration = configuration;
         this.offset = offset;
-        this.roundingConvention = roundingConvention;
+        this.roundingConvention = roundingConvention != null ? roundingConvention : DOWN;
     }
 
     private Bucket(StreamInput in) throws IOException {
@@ -334,7 +335,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             in.getTransportVersion().supports(ESQL_BUCKET_OFFSET) ? in.readZLong() : 0L,
             in.getTransportVersion().supports(ESQL_SUPPORT_EXPLICIT_BUCKET_ROUNDING_CONFIGURATION)
                 ? in.readEnum(RoundingConvention.class)
-                : DOWN
+                : null
         );
     }
 
@@ -539,7 +540,15 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     public static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        return isType(e, exp -> DataType.isString(exp) || DataType.isDateTime(exp), operationName, paramOrd, "datetime", "string");
+        return isType(
+            e,
+            exp -> DataType.isString(exp) || DataType.isMillisOrNanos(exp),
+            operationName,
+            paramOrd,
+            "datetime",
+            "date_nanos",
+            "string"
+        );
     }
 
     @Override
@@ -553,7 +562,13 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     private long foldToLong(FoldContext ctx, Expression e) {
         Object value = Foldables.valueOf(ctx, e);
-        return DataType.isDateTime(e.dataType()) ? ((Number) value).longValue() : dateTimeToLong(((BytesRef) value).utf8ToString());
+        if (DataType.isDateTime(e.dataType())) {
+            return ((Number) value).longValue();
+        }
+        if (e.dataType() == DataType.DATE_NANOS) {
+            return DateUtils.toMilliSeconds(((Number) value).longValue());
+        }
+        return dateTimeToLong(((BytesRef) value).utf8ToString());
     }
 
     @Override

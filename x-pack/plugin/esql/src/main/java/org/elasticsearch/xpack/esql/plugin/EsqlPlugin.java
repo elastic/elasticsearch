@@ -66,6 +66,8 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
 import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
@@ -93,6 +95,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.LocalFileAccess;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.dataset.DatasetService;
@@ -333,9 +336,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Build capabilities from plugin declarations (cheap -- no I/O, no heavy deps)
         DataSourceCapabilities dataSourceCapabilities = DataSourceCapabilities.build(allDataSourcePlugins);
 
-        // createComponents can't reach the encryption plugin's binding, so TransportPutDataSourceAction's
-        // ctor pushes the EncryptionService into this shared holder for the read-path wrappers.
-        DataSourceCredentials dataSourceCredentials = new DataSourceCredentials();
+        EncryptionService encryptionService = EncryptionServiceRegistry.getEncryptionService();
+        DataSourceCredentials dataSourceCredentials = new DataSourceCredentials(encryptionService);
 
         boolean isStateless = DiscoveryNode.isStateless(settings);
         // Read through MANAGED_IDENTITY_ENABLED, which falls back to the deprecated workload_identity key, so a
@@ -350,6 +352,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ExternalSourceSettings.MANAGED_IDENTITY_ENABLED,
                 v -> managedIdentityEnabled.set(isStateless == false && v)
             );
+
+        // Local-disk gate: parsed once at startup (NodeScope setting — no update consumer needed).
+        LocalFileAccess localFileAccess = LocalFileAccess.create(settings);
 
         // Kill switch for the flattened data type. The IndexResolver is a node-level singleton, so the dynamic
         // setting is tracked here in an AtomicBoolean and read (at field-caps resolution time) through a supplier.
@@ -371,7 +376,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.threadPool(),
             services.environment(),
             services.resourceWatcherService(),
-            services.telemetryProvider().getMeterRegistry()
+            services.telemetryProvider().getMeterRegistry(),
+            localFileAccess
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -495,7 +501,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.crossProjectModeDecider()
             ),
             new ViewService(services.clusterService(), parser),
-            new DataSourceService(services.clusterService(), crudValidators),
+            new DataSourceService(services.clusterService(), crudValidators, encryptionService),
             new DatasetService(services.clusterService(), crudValidators)
         );
     }

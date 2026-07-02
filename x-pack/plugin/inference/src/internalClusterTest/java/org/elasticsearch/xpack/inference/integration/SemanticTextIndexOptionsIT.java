@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.integration;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xpack.inference.mapper.ExtendedDenseVectorIndexOptions;
@@ -34,27 +33,6 @@ public class SemanticTextIndexOptionsIT extends SemanticFieldIndexOptionsTestCas
     @Override
     protected TaskType taskType() {
         return TaskType.TEXT_EMBEDDING;
-    }
-
-    public void testValidateIndexOptionsWithBasicLicense() throws Exception {
-        final String inferenceId = randomIdentifier();
-        final String inferenceFieldName = "inference_field";
-        createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, FLOAT_SERVICE_SETTINGS);
-        downgradeLicenseAndRestartCluster();
-
-        IndexOptions indexOptions = new DenseVectorFieldMapper.Int8HnswIndexOptions(
-            randomIntBetween(1, 100),
-            randomIntBetween(1, 10_000),
-            randomBoolean(),
-            null,
-            -1
-        );
-        assertAcked(
-            safeGet(prepareCreate(INDEX_NAME).setMapping(generateMapping(inferenceFieldName, inferenceId, indexOptions)).execute())
-        );
-
-        final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(inferenceFieldName, inferenceId, indexOptions);
-        assertThat(getFieldMappings(inferenceFieldName, false), equalTo(expectedFieldMapping));
     }
 
     public void testSetDefaultBBQIndexOptionsWithBasicLicense() throws Exception {

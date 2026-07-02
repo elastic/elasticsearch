@@ -275,6 +275,33 @@ public abstract class SemanticFieldIndexOptionsTestCase extends ESIntegTestCase 
     }
 
     /**
+     * User-specified {@code index_options} are accepted and preserved even under a basic license. After
+     * downgrading to a basic license (which rebuilds the model registry), an index created with an
+     * explicit {@code int8_hnsw} dense-vector index type round-trips those options unchanged when
+     * serialized with {@code include_defaults=false}.
+     */
+    public void testValidateIndexOptionsWithBasicLicense() throws Exception {
+        final String inferenceId = randomIdentifier();
+        final String inferenceFieldName = "inference_field";
+        createInferenceEndpoint(taskType(), inferenceId, FLOAT_SERVICE_SETTINGS);
+        downgradeLicenseAndRestartCluster();
+
+        IndexOptions indexOptions = new DenseVectorFieldMapper.Int8HnswIndexOptions(
+            randomIntBetween(1, 100),
+            randomIntBetween(1, 10_000),
+            randomBoolean(),
+            null,
+            -1
+        );
+        assertAcked(
+            safeGet(prepareCreate(INDEX_NAME).setMapping(generateMapping(inferenceFieldName, inferenceId, indexOptions)).execute())
+        );
+
+        final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(inferenceFieldName, inferenceId, indexOptions);
+        assertThat(getFieldMappings(inferenceFieldName, false), equalTo(expectedFieldMapping));
+    }
+
+    /**
      * Default {@code index_options} can only be resolved once the inference endpoint exists. Before the
      * endpoint is created, {@code index_options} serializes as an explicit {@code null} under
      * {@code include_defaults}. Once a float-model endpoint is created, {@code include_defaults=true}

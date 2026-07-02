@@ -841,12 +841,6 @@ tests:
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testConsecutiveRotations
   issue: https://github.com/elastic/elasticsearch/issues/152472
-- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
-  method: testSupportsParsingObject {p0=true p1=BASIC}
-  issue: https://github.com/elastic/elasticsearch/issues/152790
-- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
-  method: testSupportsParsingObject {p0=true p1=ENTERPRISE}
-  issue: https://github.com/elastic/elasticsearch/issues/152791
 - class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
   method: testCrankyEvaluateBlockWithoutNulls {TestCase=<double>, <dense_vector>}
   issue: https://github.com/elastic/elasticsearch/issues/152794

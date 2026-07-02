@@ -284,9 +284,7 @@ public class SearchCommitPrefetcher {
 
                 var cacheBlobReader = cacheBlobReaderSupplier.getCacheBlobReaderForPreFetching(blobFile);
 
-                final long timestampMillis = cacheService.isCacheBoostPreferenceEnabled()
-                    ? timestampPerBlob.getOrDefault(blobFile, SharedBlobCacheService.UNKNOWN_TIMESTAMP)
-                    : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+                final long timestampMillis = timestampPerBlob.getOrDefault(blobFile, SharedBlobCacheService.UNKNOWN_TIMESTAMP);
 
                 // Calculate regions from the full range first, then compute the adjusted range per-region.
                 // This avoids Integer.MAX_VALUE truncation for > 2GB blobs.

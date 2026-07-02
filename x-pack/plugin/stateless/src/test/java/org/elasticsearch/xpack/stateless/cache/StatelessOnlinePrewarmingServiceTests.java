@@ -247,18 +247,10 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
         }
     }
 
-    public void testOnlinePrewarmingStampsRegionsWhenBoostEnabled() throws Exception {
-        assertOnlinePrewarmingStampsRegions(true);
-    }
-
-    public void testOnlinePrewarmingStampsRegionsWhenBoostDisabled() throws Exception {
-        assertOnlinePrewarmingStampsRegions(false);
-    }
-
-    private void assertOnlinePrewarmingStampsRegions(boolean boostEnabled) throws Exception {
+    public void testOnlinePrewarmingStampsRegions() throws Exception {
         final long primaryTerm = 1L;
         final var capturingPolicy = new TimestampCapturingEvictionPolicy();
-        try (FakeStatelessNode fakeNode = createCapturingFakeNode(primaryTerm, boostEnabled, capturingPolicy)) {
+        try (FakeStatelessNode fakeNode = createCapturingFakeNode(primaryTerm, capturingPolicy)) {
             final int regionSize = fakeNode.sharedCacheService.getRegionSize();
             final var range = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
             final var siLocation = createBlobLocation(primaryTerm, 1L, 0L, regionSize * 2L);
@@ -270,19 +262,14 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
             safeAwait((ActionListener<Void> l) -> fakeNode.onlinePrewarmingService.prewarm(searchShard, l));
 
             final var cacheKey = new FileCacheKey(fakeNode.shardId, primaryTerm, siLocation.blobName());
-            final long expected = boostEnabled ? BlobFileRanges.midpointMillisOrUnknown(range) : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+            final long expected = BlobFileRanges.midpointMillisOrUnknown(range);
             final var captured = capturingPolicy.capturedTimestamps(cacheKey);
             assertThat("online prewarming should have stamped two regions", captured, hasSize(2));
-            assertThat(
-                "every online-prewarmed region should carry " + (boostEnabled ? "the per-CC midpoint" : "UNKNOWN_TIMESTAMP"),
-                captured,
-                everyItem(equalTo(expected))
-            );
+            assertThat("every online-prewarmed region should carry the per-CC midpoint", captured, everyItem(equalTo(expected)));
         }
     }
 
-    private FakeStatelessNode createCapturingFakeNode(long primaryTerm, boolean boostEnabled, EvictionPolicy<FileCacheKey> capturingPolicy)
-        throws IOException {
+    private FakeStatelessNode createCapturingFakeNode(long primaryTerm, EvictionPolicy<FileCacheKey> capturingPolicy) throws IOException {
         return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected Settings nodeSettings() {
@@ -291,7 +278,6 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(8))
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(128))
                     .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(128))
-                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), boostEnabled)
                     .build();
             }
 

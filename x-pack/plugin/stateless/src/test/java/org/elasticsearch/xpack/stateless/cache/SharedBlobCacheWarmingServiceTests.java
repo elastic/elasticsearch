@@ -1749,23 +1749,14 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         };
     }
 
-    public void testOfflineWarmingStampsRegionsWhenBoostEnabled() throws Exception {
-        assertOfflineWarmingStampsRegions(true);
-    }
-
-    public void testOfflineWarmingStampsRegionsWhenBoostDisabled() throws Exception {
-        assertOfflineWarmingStampsRegions(false);
-    }
-
     /**
-     * Check that offline (recovery) warming stamps the live cache region with the per-blob timestamp supplied in
-     * {@code timestampsPerBlob} when the cache boost preference is enabled, and with {@code UNKNOWN_TIMESTAMP} when it is disabled.
+     * Check that offline (recovery) warming stamps the live cache region with the per-blob timestamp supplied in {@code timestampsPerBlob}.
      */
-    private void assertOfflineWarmingStampsRegions(boolean boostEnabled) throws Exception {
+    public void testOfflineWarmingStampsRegions() throws Exception {
         final long primaryTerm = randomLongBetween(1, 42);
         final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
         final var capturingPolicy = new TimestampCapturingEvictionPolicy();
-        try (FakeStatelessNode fakeNode = createCacheCapturingFakeNode(primaryTerm, regionSizeInBytes, boostEnabled, capturingPolicy)) {
+        try (FakeStatelessNode fakeNode = createCacheCapturingFakeNode(primaryTerm, regionSizeInBytes, capturingPolicy)) {
             // Build a VBCC larger than a single region (offline warming skips region 0) and upload it to the blob store.
             var indexCommits = fakeNode.generateIndexCommits(randomIntBetween(1, 10), false);
             var vbcc = new VirtualBatchedCompoundCommit(
@@ -1809,32 +1800,25 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 indexShard,
                 fakeNode.searchDirectory,
                 Map.of(blobFile, vbcc.getTotalSizeInBytes()),
-                boostEnabled ? BlobFileTimestampResolver.fromMap(Map.of(blobFile, knownTimestamp)) : BlobFileTimestampResolver.ALL_UNKNOWN,
+                BlobFileTimestampResolver.fromMap(Map.of(blobFile, knownTimestamp)),
                 warmListener
             );
             safeGet(warmListener);
 
             final var cacheKey = new FileCacheKey(fakeNode.shardId, primaryTerm, vbcc.getBlobName());
-            final long expected = boostEnabled ? knownTimestamp : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
             final var captured = capturingPolicy.capturedTimestamps(cacheKey);
             assertThat("offline warming should have stamped at least one region", captured, not(empty()));
             assertThat(
-                "every offline-warmed region should carry " + (boostEnabled ? "the provided per-blob timestamp" : "UNKNOWN_TIMESTAMP"),
+                "every offline-warmed region should carry the provided per-blob timestamp",
                 captured,
-                everyItem(equalTo(expected))
+                everyItem(equalTo(knownTimestamp))
             );
         }
     }
 
-    public void testShardRecoveryWarmingStampsRegionsWhenBoostEnabled() throws Exception {
-        assertShardRecoveryWarmingPropagatesTimestamp(true);
-    }
-
-    public void testShardRecoveryWarmingUsesUnknownTimestampWhenBoostDisabled() throws Exception {
-        assertShardRecoveryWarmingPropagatesTimestamp(false);
-    }
-
-    private void assertShardRecoveryWarmingPropagatesTimestamp(boolean boostEnabled) throws Exception {
+    public void testShardRecoveryWarmingPropagatesTimestamp() throws Exception {
+        // The per-file timestamp is resolved and passed to the cache regardless of the cache boost preference setting, randomized here.
+        final boolean boostEnabled = randomBoolean();
         final long primaryTerm = randomLongBetween(1, 42);
         final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
         final long knownTimestamp = randomLongBetween(1, 1_000_000_000_000L);
@@ -1888,15 +1872,11 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             safeGet(warmListener);
 
             assertFalse("ShardWarmer recovery prewarming should have warmed at least one region", capturedTimestamps.isEmpty());
-            final long expected = boostEnabled ? knownTimestamp : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
             for (var entry : capturedTimestamps.entrySet()) {
                 assertThat(
-                    "ShardWarmer-warmed blob "
-                        + entry.getKey()
-                        + " should be fetched with "
-                        + (boostEnabled ? "the per-CC timestamp" : "UNKNOWN_TIMESTAMP"),
+                    "ShardWarmer-warmed blob " + entry.getKey() + " should be fetched with the per-CC timestamp",
                     entry.getValue(),
-                    equalTo(expected)
+                    equalTo(knownTimestamp)
                 );
             }
         }
@@ -1965,7 +1945,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     private FakeStatelessNode createCacheCapturingFakeNode(
         long primaryTerm,
         long regionSizeInBytes,
-        boolean boostEnabled,
         EvictionPolicy<FileCacheKey> capturingPolicy
     ) throws IOException {
         return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
@@ -1976,7 +1955,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "2MB")
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
                     .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
-                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), boostEnabled)
                     .build();
             }
 

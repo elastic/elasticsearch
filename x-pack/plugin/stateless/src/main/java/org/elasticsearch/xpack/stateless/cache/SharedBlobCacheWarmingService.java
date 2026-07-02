@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -1196,9 +1195,7 @@ public class SharedBlobCacheWarmingService {
             assert warmingRun.type() != Type.SEARCH
                 || cacheService.isCacheBoostPreferenceEnabled() == false
                 || directory.knowsFile(fileName) : "search directory does not yet know file [" + fileName + "] during warming";
-            final long timestampMillis = cacheService.isCacheBoostPreferenceEnabled()
-                ? directory.getTimestampMillis(fileName)
-                : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+            final long timestampMillis = directory.getTimestampMillis(fileName);
 
             if (startRegion == endRegion) {
                 BlobRegion blobRegion = new BlobRegion(location.blobFile(), startRegion);

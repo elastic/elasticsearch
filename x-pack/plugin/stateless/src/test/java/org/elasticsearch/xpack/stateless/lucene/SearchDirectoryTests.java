@@ -565,15 +565,7 @@ public class SearchDirectoryTests extends ESTestCase {
         }
     }
 
-    public void testOnDemandReadStampsRegionsWhenBoostEnabled() throws IOException {
-        assertOnDemandReadStampsRegions(true);
-    }
-
-    public void testOnDemandReadStampsRegionsWhenBoostDisabled() throws IOException {
-        assertOnDemandReadStampsRegions(false);
-    }
-
-    private void assertOnDemandReadStampsRegions(boolean boostEnabled) throws IOException {
+    public void testOnDemandReadStampsRegions() throws IOException {
         var regionSize = ByteSizeValue.ofBytes(4096);
         var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L);
         final var capturingPolicy = new TimestampCapturingEvictionPolicy();
@@ -584,7 +576,6 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(super.nodeSettings())
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
-                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), boostEnabled)
                     .build();
             }
 
@@ -635,23 +626,18 @@ public class SearchDirectoryTests extends ESTestCase {
 
             final var keyWithTs = new FileCacheKey(node.shardId, 1L, locationWithTs.blobName());
             final var keyWithoutTs = new FileCacheKey(node.shardId, 1L, locationWithoutTs.blobName());
-            final long expectedForKnownRange = boostEnabled
-                ? BlobFileRanges.midpointMillisOrUnknown(range)
-                : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+            final long expectedForKnownRange = BlobFileRanges.midpointMillisOrUnknown(range);
             final var capturedWithTs = capturingPolicy.capturedTimestamps(keyWithTs);
             assertThat("file-with-ts should have cached one region", capturedWithTs, hasSize(1));
             assertThat(
-                "live CacheRegion for file-with-ts (non-null range, boostEnabled="
-                    + boostEnabled
-                    + ") should carry "
-                    + (boostEnabled ? "the per-CC midpoint" : "UNKNOWN_TIMESTAMP"),
+                "live CacheRegion for file-with-ts (non-null range) should carry the per-CC midpoint",
                 capturedWithTs.getFirst(),
                 equalTo(expectedForKnownRange)
             );
             final var capturedWithoutTs = capturingPolicy.capturedTimestamps(keyWithoutTs);
             assertThat("file-without-ts should have cached one region", capturedWithoutTs, hasSize(1));
             assertThat(
-                "live CacheRegion for file-without-ts (null range, boostEnabled=" + boostEnabled + ") should carry UNKNOWN_TIMESTAMP",
+                "live CacheRegion for file-without-ts (null range) should carry UNKNOWN_TIMESTAMP",
                 capturedWithoutTs.getFirst(),
                 equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP)
             );

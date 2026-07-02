@@ -250,15 +250,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         );
     }
 
-    public void testPrefetchPropagatesPerCcTimestampWhenBoostEnabled() throws Exception {
-        assertPrefetchPropagatesTimestamp(true);
-    }
-
-    public void testPrefetchUsesUnknownTimestampWhenBoostDisabled() throws Exception {
-        assertPrefetchPropagatesTimestamp(false);
-    }
-
-    private void assertPrefetchPropagatesTimestamp(boolean boostEnabled) throws Exception {
+    public void testPrefetchPropagatesPerCcTimestamp() throws Exception {
         final ShardId shardId = new ShardId("index", "_na_", 0);
         final BlobFile internalBlob = blobFile(4);
         final Map<String, BlobLocation> commitFiles = new HashMap<>();
@@ -285,7 +277,6 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(16))
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(1))
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), boostEnabled)
             .put("path.home", createTempDir())
             .build();
 
@@ -367,7 +358,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
             safeGet(future);
 
             final FileCacheKey internalBlobKey = new FileCacheKey(shardId, internalBlob.primaryTerm(), internalBlob.blobName());
-            final long expectedTimestamp = boostEnabled ? notificationRange.midpointMillis() : UNKNOWN_TIMESTAMP;
+            final long expectedTimestamp = notificationRange.midpointMillis();
             final var internalBlobStamps = capturedTimestamps.entrySet()
                 .stream()
                 .filter(e -> e.getKey().key().equals(internalBlobKey))
@@ -375,11 +366,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
                 .toList();
             assertThat("prefetch should have fetched at least one region of the internal blob", internalBlobStamps, not(empty()));
             assertThat(
-                "every prefetched region of the internal blob should be fetched with "
-                    + (boostEnabled ? "the notification commit midpoint" : "UNKNOWN_TIMESTAMP")
-                    + " (boostEnabled="
-                    + boostEnabled
-                    + ")",
+                "every prefetched region of the internal blob should be fetched with the notification commit midpoint",
                 internalBlobStamps,
                 everyItem(equalTo(expectedTimestamp))
             );

@@ -13,7 +13,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.support.RefCountingListener;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -187,9 +186,7 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                 var cacheBlobReader = searchDirectory.getCacheBlobReaderForSearchOnlineWarming(siRange.blobLocation().blobFile());
                 // We warm the first (and possibly second) region of the blob; both regions are stamped with the timestamp of the compound
                 // commit for the highestSegmentInfoRanges, which is acceptable since the warmed regions include it.
-                final long timestampMillis = cacheService.isCacheBoostPreferenceEnabled()
-                    ? BlobFileRanges.midpointMillisOrUnknown(siRange.timestampRange())
-                    : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+                final long timestampMillis = BlobFileRanges.midpointMillisOrUnknown(siRange.timestampRange());
 
                 for (int i = 0; i <= endRegion; i++) {
                     if (store.isClosing() || store.tryIncRef() == false) {

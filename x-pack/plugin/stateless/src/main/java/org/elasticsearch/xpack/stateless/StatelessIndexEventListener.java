@@ -493,15 +493,13 @@ class StatelessIndexEventListener implements IndexEventListener {
                                     var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
                                     return maxOffsetToWarm == null ? offset : Math.max(maxOffsetToWarm, offset);
                                 });
-                                if (cacheService.isCacheBoostPreferenceEnabled()) {
-                                    // Aggregate a single representative timestamp per BCC blob (most recent among the referenced CCs).
-                                    long ccTimestamp = BlobFileRanges.midpointMillisOrUnknown(
-                                        referencedCompoundCommit.statelessCompoundCommitReference()
-                                            .compoundCommit()
-                                            .getTimestampFieldValueRange()
-                                    );
-                                    timestampsPerBlob.merge(bccBlobFile, ccTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
-                                }
+                                // Aggregate a single representative timestamp per BCC blob (most recent among the referenced CCs).
+                                long ccTimestamp = BlobFileRanges.midpointMillisOrUnknown(
+                                    referencedCompoundCommit.statelessCompoundCommitReference()
+                                        .compoundCommit()
+                                        .getTimestampFieldValueRange()
+                                );
+                                timestampsPerBlob.merge(bccBlobFile, ccTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
                             },
                             l2.map(aVoid -> new SearchRecoveryWarmingInputs(blobFileRanges, offsetsToWarm, timestampsPerBlob))
                         );

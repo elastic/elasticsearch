@@ -33,12 +33,6 @@
  * the directory we keep its owning CC's timestamp, exposed via
  * {@link org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory}#getTimestampMillis.
  *
- * <h3>Enabling condition</h3>
- *
- * All the behavior below applies only when the cache-boost-preference setting is enabled, which also implies that replicated ranges are
- * enabled. When it is disabled, every region is populated with
- * {@link org.elasticsearch.blobcache.shared.SharedBlobCacheService#UNKNOWN_TIMESTAMP}.
- *
  * <h3>Entry points into the cache and their granularity</h3>
  *
  * The list below documents, for each way a search node populates the cache, which timestamp is used and at what granularity. This is the

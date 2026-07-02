@@ -333,9 +333,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             blobFileRanges.fileOffset() + blobFileRanges.fileLength(),
             // todo: time-source
             new CacheMissHandler(metricsHolder.singleThreaded(), System::nanoTime),
-            cacheService.isCacheBoostPreferenceEnabled()
-                ? BlobFileRanges.midpointMillisOrUnknown(blobFileRanges.timestampRange())
-                : SharedBlobCacheService.UNKNOWN_TIMESTAMP
+            BlobFileRanges.midpointMillisOrUnknown(blobFileRanges.timestampRange())
         );
     }
 

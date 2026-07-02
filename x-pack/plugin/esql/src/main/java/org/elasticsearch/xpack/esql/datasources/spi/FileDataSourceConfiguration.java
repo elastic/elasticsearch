@@ -27,9 +27,9 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  *   <li>{@link #AUTH_AUTO auto} (the default when {@code auth} is omitted) — resolve the mode from
  *       the fields present: keyless settings → {@code federated_identity}, a stored secret →
  *       {@code static_credentials} (the {@code auth} value itself stays {@code auto} and is not rewritten).
- *       A credential-less {@code auto} config parses and is rejected later, at credential-resolution time, by
- *       the storage provider (matching the pre-existing behavior of an omitted {@code auth}). Never resolves to
- *       {@code anonymous} or {@code managed_identity} — those are opt-in only.</li>
+ *       A credential-less {@code auto} config is unresolvable and is rejected at create time by
+ *       {@link #validate} — not deferred to the storage provider. Never resolves to {@code anonymous} or
+ *       {@code managed_identity} — those are opt-in only.</li>
  *   <li>{@link #AUTH_ANONYMOUS anonymous} — public / unauthenticated access (no credentials).</li>
  *   <li>{@link #AUTH_STATIC_CREDENTIALS static_credentials} — a stored long-lived secret.</li>
  *   <li>{@link #AUTH_FEDERATED_IDENTITY federated_identity} — issuer-minted OIDC federation

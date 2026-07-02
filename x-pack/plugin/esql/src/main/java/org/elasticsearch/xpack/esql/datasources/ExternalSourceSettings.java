@@ -97,7 +97,7 @@ public final class ExternalSourceSettings {
     );
 
     /**
-     * Enables {@code auth=managed_identity} for EXTERNAL cloud reads, which resolves credentials from the node's
+     * Enables {@code auth=managed_identity} for external data source reads, which resolves credentials from the node's
      * ambient cloud identity (IAM instance profile / IMDS on AWS and Azure, GCE metadata server on GCP)
      * rather than requiring explicit credentials in the query or datasource.
      * <p>

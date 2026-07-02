@@ -13,23 +13,12 @@ import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 import java.util.HashMap;
 
 public class GeoShapeDataSourceHandler implements DataSourceHandler {
-    private final IndexMode indexMode;
-
-    public GeoShapeDataSourceHandler() {
-        this(IndexMode.STANDARD);
-    }
-
-    public GeoShapeDataSourceHandler(IndexMode indexMode) {
-        this.indexMode = indexMode;
-    }
-
     @Override
     public DataSourceResponse.GeoShapeGenerator handle(DataSourceRequest.GeoShapeGenerator request) {
         return new DataSourceResponse.GeoShapeGenerator(this::generateValidGeoShape);
@@ -43,11 +32,9 @@ public class GeoShapeDataSourceHandler implements DataSourceHandler {
 
         return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
             var map = new HashMap<String, Object>();
-            // store cannot be enabled in strict-columnar mode.
-            map.put("store", indexMode.isStrictColumnar() == false && ESTestCase.randomBoolean());
+            map.put("store", ESTestCase.randomBoolean());
             map.put("index", ESTestCase.randomBoolean());
-            // doc_values cannot be disabled in strict-columnar mode.
-            map.put("doc_values", indexMode.isStrictColumnar() || ESTestCase.randomBoolean());
+            map.put("doc_values", ESTestCase.randomBoolean());
 
             if (ESTestCase.randomBoolean()) {
                 map.put("ignore_malformed", ESTestCase.randomBoolean());

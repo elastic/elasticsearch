@@ -53,8 +53,6 @@ public class TsdbDataStreamWithSecurityIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-
-
     @Override
     protected Settings restClientSettings() {
         // If this test is running in a test framework that handles its own authorization, we don't want to overwrite it.

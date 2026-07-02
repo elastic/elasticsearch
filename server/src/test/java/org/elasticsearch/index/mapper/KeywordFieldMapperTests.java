@@ -1595,7 +1595,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         }));
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
-        assertTrue(mapper.fieldType().indexType().hasDocValuesSkipper());
+        // Index sort fields in LOGSDB_COLUMNAR stay at cardinality:high (binary doc values); no doc values skipper.
+        assertFalse(mapper.fieldType().indexType().hasDocValuesSkipper());
         assertFalse(mapper.fieldType().indexType().hasTerms());
     }
 
@@ -1796,36 +1797,19 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(doc.rootDoc().getFields("field"), empty());
     }
 
-    public void testHighCardinalityDowngradedToLowForIndexSortField() throws IOException {
+    public void testHighCardinalityAllowedForIndexSortField() throws IOException {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        // A strictly columnar index defaults keyword fields to HIGH cardinality (binary doc values). When such a field is also an index
-        // sort field it must be silently downgraded to LOW cardinality so it retains the sortable doc values an index sort requires.
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.name())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
             .build();
-        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+        // BinarySortField makes high-cardinality binary doc values index-sortable, so this must succeed.
+        MapperService ms = createMapperService(settings, mapping(b -> {
             b.startObject("host.name");
             b.field("type", "keyword");
             b.endObject();
-            b.startObject("@timestamp");
-            b.field("type", "date");
-            b.endObject();
-        })).documentMapper();
-
-        ParsedDocument doc = mapper.parse(
-            source(b -> b.field("@timestamp", "2000-01-01T00:00:00Z").field("host.name", randomAlphanumericOfLength(8)))
-        );
-        List<IndexableField> fields = doc.rootDoc().getFields("host.name");
-        // LOW cardinality writes sortable SORTED_SET doc values; HIGH would write BINARY doc values, which an index sort cannot use.
-        assertTrue(
-            "index sort field must be downgraded to LOW cardinality (SORTED_SET doc values)",
-            fields.stream().anyMatch(f -> f.fieldType().docValuesType() == DocValuesType.SORTED_SET)
-        );
-        assertFalse(
-            "downgraded index sort field must not use BINARY (HIGH cardinality) doc values",
-            fields.stream().anyMatch(f -> f.fieldType().docValuesType() == DocValuesType.BINARY)
-        );
+        }));
+        assertNotNull(ms.fieldType("host.name"));
     }
 
     public void testColumnarKeywordArrayOrderRoundTrip() throws IOException {

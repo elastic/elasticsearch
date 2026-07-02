@@ -104,7 +104,8 @@ public class SharedBlobCacheWarmingService {
         // index shards are served at page rather than region granularity.
         SEARCH(false),
         HOLLOWING(true),
-        UNHOLLOWING(true);
+        UNHOLLOWING(true),
+        INDEXING_BCC_HEADER_PREWARM(false);
 
         final boolean skipsWarmingForRegion0Locations;
 
@@ -852,6 +853,29 @@ public class SharedBlobCacheWarmingService {
         return race;
     }
 
+    public void warmCacheForBCCHeadersRead(
+        IndexShard indexShard,
+        BlobStoreCacheDirectory directory,
+        Set<BlobFile> lastCommitBlobs,
+        ActionListener<Void> listener
+    ) {
+        final Store store = indexShard.store();
+        final ShardId shardId = indexShard.shardId();
+        final Type warmingType = Type.INDEXING_BCC_HEADER_PREWARM;
+        final var bccPrewarmLabels = new HashMap<>(StatelessRecoveryMetricsCollector.commonMetricLabels(indexShard));
+        bccPrewarmLabels.put("prewarming_type", warmingType.name());
+        final var warmingRun = new WarmingRun(warmingType, shardId, "prewarm", Collections.unmodifiableMap(bccPrewarmLabels));
+        if (store.isClosing()) {
+            listener.onFailure(
+                new AlreadyClosedException("Failed to warm cache [" + warmingType + "] for " + shardId + ", store is closing")
+            );
+        } else {
+            try (var warmer = new Region0Warmer(warmingRun, store::isClosing, lastCommitBlobs, directory, listener)) {
+                warmer.run();
+            }
+        }
+    }
+
     private static boolean isRelocationTarget(ShardRouting self) {
         return self.initializing() && self.relocatingNodeId() != null;
     }
@@ -1341,6 +1365,52 @@ public class SharedBlobCacheWarmingService {
                 duration,
                 byteRangeToWarm,
                 tasksCount.get(),
+                totalBytesCopied.get()
+            );
+        }
+    }
+
+    /**
+     * Warms only region 0 (the first {@code regionSize} bytes) of each blob file referenced by a compound commit.
+     * This is used before BCC header reads during indexing shard recovery to avoid cache misses in the read chain.
+     */
+    private class Region0Warmer extends AbstractWarmer {
+        private final Set<BlobFile> blobFiles;
+
+        Region0Warmer(
+            WarmingRun warmingRun,
+            Supplier<Boolean> isStoreClosing,
+            Set<BlobFile> blobFiles,
+            BlobStoreCacheDirectory directory,
+            ActionListener<Void> listener
+        ) {
+            super(warmingRun, isStoreClosing, directory, listener);
+            this.blobFiles = blobFiles;
+        }
+
+        void run() {
+            for (var blobFile : blobFiles) {
+                scheduleWarmingTask(
+                    new WarmBlobLocationTask(
+                        // We want to prewarm the entire region 0, and the blob location file length is used
+                        // just to compute the ending region. With this we avoid having to know the blob length
+                        // upfront and we can just let the cache to fetch the entire region 0.
+                        new BlobLocation(blobFile, 0, 1),
+                        listeners.acquire()
+                    )
+                );
+            }
+        }
+
+        @Override
+        protected void onWarmingSuccess(long duration) {
+            logger.log(
+                duration >= 5000 ? Level.INFO : Level.DEBUG,
+                "{} {} pre-warming region 0 of {} blobs completed in {} ms ({} bytes copied to cache)",
+                warmingRun.shardId(),
+                warmingRun.type(),
+                blobFiles.size(),
+                duration,
                 totalBytesCopied.get()
             );
         }

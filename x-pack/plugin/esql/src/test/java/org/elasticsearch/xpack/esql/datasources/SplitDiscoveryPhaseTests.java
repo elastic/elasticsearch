@@ -208,6 +208,40 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertEquals(2, recorder.lastContext.filterHints().size());
     }
 
+    public void testCancellationSignalThreadedIntoContext() {
+        FileList fileList = createFileList(2);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            exec,
+            factories,
+            org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> true
+        );
+
+        assertNotNull(recorder.lastContext);
+        assertTrue(
+            "cancellation signal must be threaded into the split discovery context",
+            recorder.lastContext.isCancelled().getAsBoolean()
+        );
+    }
+
+    public void testDefaultContextIsNotCancelled() {
+        FileList fileList = createFileList(2);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
+
+        RecordingSplitProvider recorder = new RecordingSplitProvider();
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(recorder));
+
+        SplitDiscoveryPhase.resolveExternalSplits(exec, factories);
+
+        assertNotNull(recorder.lastContext);
+        assertFalse(recorder.lastContext.isCancelled().getAsBoolean());
+    }
+
     public void testNoFiltersWhenNoFilterExecInPlan() {
         FileList fileList = createFileList(2);
         ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
@@ -233,7 +267,9 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
 
     private static ExternalSourceExec createExternalSourceExec(FileList fileList, String sourceType) {
         List<Attribute> attrs = List.of(fieldAttr("id", DataType.LONG), fieldAttr("name", DataType.KEYWORD));
-        return new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", sourceType, attrs, Map.of(), Map.of(), null, null, fileList);
+        return new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", sourceType, attrs, Map.of(), Map.of(), null, null).withFileList(
+            fileList
+        );
     }
 
     private static Attribute fieldAttr(String name, DataType type) {

@@ -87,6 +87,30 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         assertEqualSource(mappingXContent, Map.of("message", "foo bar"), randomBoolean());
     }
 
+    /**
+     * A dynamic field inside a nested object must be mapped inside the nested mapper rather than flattened to a root leaf (the
+     * columnar default is {@code subobjects:false}). Indexing such a document used to never converge its dynamic mapping and trip
+     * the noop-mapping-update retry guard. Verify the document indexes and both source modes reconstruct identical {@code _source}.
+     */
+    public void testDynamicFieldInsideNested() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("n")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("leaf")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        // 'extra' is not in the mapping, so it is dynamically mapped inside the nested object.
+        var document = Map.of("n", List.of(Map.of("leaf", "a", "extra", "x"), Map.of("leaf", "b", "extra", "y")));
+        assertEqualSource(mappingXContent, document, randomBoolean());
+    }
+
     private void runTest(boolean useTimeSeriesDocValuesFormat) throws Exception {
         var spec = buildSpec();
         var template = new TemplateGenerator(spec).generate();
@@ -136,7 +160,10 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         return DataGeneratorSpecification.builder()
             .withMaxFieldCountPerLevel(5)
             .withMaxObjectDepth(2)
-            .withNestedFieldsLimit(0)
+            // Allow a single nested field so the equivalence check also covers nested reconstruction across both source modes.
+            // The limit of 1 means at most one nested field total, so the generator can never produce nested-inside-nested, which
+            // columnar rejects (columnar supports only a single level of nesting).
+            .withNestedFieldsLimit(1)
             .withDataSourceHandlers(List.of(new ASCIIStringsHandler()))
             .withDataSourceHandlers(List.of(new DataSourceHandler() {
                 @Override

@@ -9,8 +9,8 @@
 
 package org.elasticsearch.escf;
 
-import org.elasticsearch.eirf.EirfKeyValueReader;
 import org.elasticsearch.sourcebatch.ArrayReader;
+import org.elasticsearch.sourcebatch.KeyValueReader;
 
 /**
  * An {@link ArrayReader} over an {@link ElasticsearchArrayColumn} row: a forward cursor across the
@@ -81,7 +81,7 @@ final class ElasticsearchArrayReader implements ArrayReader {
     }
 
     @Override
-    public EirfKeyValueReader nestedKeyValue() {
+    public KeyValueReader nestedKeyValue() {
         throw new UnsupportedOperationException("ESCF Arrow arrays hold only primitive elements");
     }
 }

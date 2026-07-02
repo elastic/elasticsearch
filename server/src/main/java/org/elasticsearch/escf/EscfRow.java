@@ -10,11 +10,11 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.eirf.EirfKeyValueReader;
-import org.elasticsearch.eirf.EirfType;
 import org.elasticsearch.sourcebatch.ArrayReader;
+import org.elasticsearch.sourcebatch.KeyValueReader;
 import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.Text;
 
 /**
@@ -60,7 +60,7 @@ final class EscfRow implements SourceRow {
     @Override
     public byte getTypeByte(int col) {
         if (col < 0 || col >= batch.columnCount()) {
-            return EirfType.ABSENT;
+            return SourceValueType.ABSENT;
         }
         return batch.column(col).getTypeByte(docIndex);
     }
@@ -117,7 +117,7 @@ final class EscfRow implements SourceRow {
     }
 
     @Override
-    public EirfKeyValueReader getKeyValue(int col) {
+    public KeyValueReader getKeyValue(int col) {
         return batch.column(col).getKeyValue(docIndex);
     }
 

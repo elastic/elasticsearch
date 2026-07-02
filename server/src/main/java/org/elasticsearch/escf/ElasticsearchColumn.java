@@ -12,9 +12,9 @@ package org.elasticsearch.escf;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.eirf.EirfKeyValueReader;
-import org.elasticsearch.eirf.EirfType;
 import org.elasticsearch.sourcebatch.ArrayReader;
+import org.elasticsearch.sourcebatch.KeyValueReader;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.Text;
 
 /**
@@ -143,16 +143,16 @@ abstract class ElasticsearchColumn {
 
     final byte getTypeByte(int d) {
         if (d < 0 || d >= docCount || isAbsent(d)) {
-            return EirfType.ABSENT;
+            return SourceValueType.ABSENT;
         }
         return typeByteForPresent(d);
     }
 
-    /** The {@link EirfType} byte for document {@code d}, which is known to be present. */
+    /** The {@link SourceValueType} byte for document {@code d}, which is known to be present. */
     abstract byte typeByteForPresent(int d);
 
     final boolean isNull(int d) {
-        return getTypeByte(d) == EirfType.NULL;
+        return getTypeByte(d) == SourceValueType.NULL;
     }
 
     // Typed value getters — default to throwing; subtypes override what they support.
@@ -195,7 +195,7 @@ abstract class ElasticsearchColumn {
         throw notA("array");
     }
 
-    EirfKeyValueReader getKeyValue(int d) {
+    KeyValueReader getKeyValue(int d) {
         throw notA("key-value");
     }
 

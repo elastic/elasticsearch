@@ -11,8 +11,8 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.eirf.EirfType;
 import org.elasticsearch.sourcebatch.ArrayReader;
+import org.elasticsearch.sourcebatch.SourceValueType;
 
 /**
  * An ESCF column whose values are all arrays of a single fixed primitive element kind, stored
@@ -22,7 +22,7 @@ import org.elasticsearch.sourcebatch.ArrayReader;
  *
  * <p>The child is itself an {@link ElasticsearchColumn} (a long/double/string column over the
  * flattened element space, with no validity), so element access reuses the primitive column getters.
- * Every row reports {@link EirfType#FIXED_ARRAY} since elements are homogeneous.
+ * Every row reports {@link SourceValueType#FIXED_ARRAY} since elements are homogeneous.
  */
 final class ElasticsearchArrayColumn extends ElasticsearchColumn {
 
@@ -69,7 +69,7 @@ final class ElasticsearchArrayColumn extends ElasticsearchColumn {
 
     @Override
     byte typeByteForPresent(int d) {
-        return EirfType.FIXED_ARRAY;
+        return SourceValueType.FIXED_ARRAY;
     }
 
     @Override

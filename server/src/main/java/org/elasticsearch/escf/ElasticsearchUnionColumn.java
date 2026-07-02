@@ -12,19 +12,19 @@ package org.elasticsearch.escf;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.eirf.EirfArrayReader;
-import org.elasticsearch.eirf.EirfKeyValueReader;
-import org.elasticsearch.eirf.EirfType;
 import org.elasticsearch.sourcebatch.ArrayReader;
+import org.elasticsearch.sourcebatch.InlineArrayReader;
+import org.elasticsearch.sourcebatch.KeyValueReader;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
 
 /**
- * A heterogeneous ESCF column: a per-document {@link EirfType} vector gives each row's type, and a
+ * A heterogeneous ESCF column: a per-document {@link SourceValueType} vector gives each row's type, and a
  * dense value buffer delimited by a {@code (docCount + 1)}-entry offset vector holds the payload.
  * Zero-byte types (NULL/TRUE/FALSE/ABSENT) occupy no payload, fixed numerics (LONG/DOUBLE) occupy 8
  * bytes, and variable types occupy their offset-delta bytes. Array and key-value rows are stored as
- * inline EIRF bytes and read with {@link EirfArrayReader} / {@link EirfKeyValueReader}. This is the
+ * inline EIRF bytes and read with {@link InlineArrayReader} / {@link KeyValueReader}. This is the
  * one ESCF kind that diverges from Arrow and the only one that branches on type at read time.
  */
 final class ElasticsearchUnionColumn extends ElasticsearchColumn {
@@ -66,13 +66,13 @@ final class ElasticsearchUnionColumn extends ElasticsearchColumn {
     @Override
     boolean getBooleanValue(int d) {
         byte t = typeVec[typeVecBase + d];
-        if (t == EirfType.TRUE) {
+        if (t == SourceValueType.TRUE) {
             return true;
         }
-        if (t == EirfType.FALSE) {
+        if (t == SourceValueType.FALSE) {
             return false;
         }
-        throw new IllegalStateException("Column " + columnIndex + " doc " + d + " is not boolean, type=" + EirfType.name(t));
+        throw new IllegalStateException("Column " + columnIndex + " doc " + d + " is not boolean, type=" + SourceValueType.name(t));
     }
 
     @Override
@@ -99,14 +99,14 @@ final class ElasticsearchUnionColumn extends ElasticsearchColumn {
 
     @Override
     ArrayReader getArrayValue(int d) {
-        boolean fixed = typeVec[typeVecBase + d] == EirfType.FIXED_ARRAY;
+        boolean fixed = typeVec[typeVecBase + d] == SourceValueType.FIXED_ARRAY;
         int off0 = offsets[d];
-        return new EirfArrayReader(data, base + off0, offsets[d + 1] - off0, fixed);
+        return new InlineArrayReader(data, base + off0, offsets[d + 1] - off0, fixed);
     }
 
     @Override
-    EirfKeyValueReader getKeyValue(int d) {
+    KeyValueReader getKeyValue(int d) {
         int off0 = offsets[d];
-        return new EirfKeyValueReader(data, base + off0, offsets[d + 1] - off0);
+        return new KeyValueReader(data, base + off0, offsets[d + 1] - off0);
     }
 }

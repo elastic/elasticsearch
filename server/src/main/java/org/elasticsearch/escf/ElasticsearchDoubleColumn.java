@@ -10,7 +10,7 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.eirf.EirfType;
+import org.elasticsearch.sourcebatch.SourceValueType;
 
 /** An ESCF column whose values are all {@code double}s (JSON floats and doubles upcast to 64-bit raw bits). */
 final class ElasticsearchDoubleColumn extends AbstractFixed64Column {
@@ -26,7 +26,7 @@ final class ElasticsearchDoubleColumn extends AbstractFixed64Column {
 
     @Override
     byte typeByteForPresent(int d) {
-        return EirfType.DOUBLE;
+        return SourceValueType.DOUBLE;
     }
 
     @Override

@@ -122,7 +122,7 @@ public class FollowingEngine extends InternalEngine {
     protected long generateSeqNoForOperationOnPrimary(final Operation operation) {
         assert operation.origin() == Operation.Origin.PRIMARY;
         assert operation.seqNo() >= 0 : "ops should have an assigned seq no. but was: " + operation.seqNo();
-        markSeqNoAsSeen(operation.seqNo()); // even though we're not generating a sequence number, we mark it as seen
+        advanceMaxSeqNo(operation.seqNo()); // even though we're not generating a sequence number, we advance max_seq_no
         return operation.seqNo();
     }
 

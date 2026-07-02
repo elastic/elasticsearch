@@ -55,7 +55,7 @@ public final class ElasticsearchColumnKind {
     public static final byte ARRAY = 0x06;
 
     /**
-     * A heterogeneous column: a per-row type vector gives each row's {@link org.elasticsearch.eirf.EirfType},
+     * A heterogeneous column: a per-row type vector gives each row's {@link org.elasticsearch.sourcebatch.SourceValueType},
      * and a dense value buffer holds the payload. Array and key-value rows are stored as inline EIRF
      * bytes here. Handles any type combination, including explicit null and mixed long/double.
      */

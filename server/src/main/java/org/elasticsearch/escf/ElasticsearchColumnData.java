@@ -16,7 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
  * pre-concatenated blob:
  * <ul>
  *   <li>{@code absentBitset} — LE-long bitset, bit set = absent; {@code null} when no document is absent.</li>
- *   <li>{@code typeVector} — one {@link org.elasticsearch.eirf.EirfType} byte per document; {@code null}
+ *   <li>{@code typeVector} — one {@link org.elasticsearch.sourcebatch.SourceValueType} byte per document; {@code null}
  *       for kinds whose per-document type is implied by {@link #kind} (everything except UNION).</li>
  *   <li>{@code offsets} — {@code (docCount + 1)} little-endian {@code i32} values; {@code null} for
  *       fixed-width kinds (LONG, DOUBLE) and BOOL. For STRING/BINARY/UNION these are byte offsets into

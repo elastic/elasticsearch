@@ -10,7 +10,7 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.eirf.EirfType;
+import org.elasticsearch.sourcebatch.SourceValueType;
 
 /**
  * An ESCF column whose values are all raw binary bytes (Arrow varbinary layout). JSON never produces
@@ -29,6 +29,6 @@ final class ElasticsearchBinaryColumn extends AbstractVarColumn {
 
     @Override
     byte typeByteForPresent(int d) {
-        return EirfType.BINARY;
+        return SourceValueType.BINARY;
     }
 }

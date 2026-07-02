@@ -16,8 +16,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.eirf.EirfArrayReader;
-import org.elasticsearch.eirf.EirfType;
+import org.elasticsearch.sourcebatch.InlineArrayReader;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -89,7 +89,7 @@ final class ElasticsearchColumnBuilder {
 
     /**
      * Adds an array value parsed into its inline EIRF form ({@code arrayType} is
-     * {@code EirfType.FIXED_ARRAY} or {@code EirfType.UNION_ARRAY}). A fixed array of one primitive
+     * {@code SourceValueType.FIXED_ARRAY} or {@code SourceValueType.UNION_ARRAY}). A fixed array of one primitive
      * element kind is accumulated Arrow-list style; anything else (heterogeneous, nested, object
      * elements, empty, or a child-kind change) promotes the column to a union holding inline arrays.
      */
@@ -192,13 +192,13 @@ final class ElasticsearchColumnBuilder {
      * not eligible and are stored inline on a union column.
      */
     private static byte arrowChildKind(byte arrayType, byte[] packed) {
-        if (arrayType != EirfType.FIXED_ARRAY || packed.length == 0) {
+        if (arrayType != SourceValueType.FIXED_ARRAY || packed.length == 0) {
             return ElasticsearchColumnKind.NONE;
         }
         return switch (packed[0]) {
-            case EirfType.INT, EirfType.LONG -> ElasticsearchColumnKind.LONG;
-            case EirfType.FLOAT, EirfType.DOUBLE -> ElasticsearchColumnKind.DOUBLE;
-            case EirfType.STRING -> ElasticsearchColumnKind.STRING;
+            case SourceValueType.INT, SourceValueType.LONG -> ElasticsearchColumnKind.LONG;
+            case SourceValueType.FLOAT, SourceValueType.DOUBLE -> ElasticsearchColumnKind.DOUBLE;
+            case SourceValueType.STRING -> ElasticsearchColumnKind.STRING;
             default -> ElasticsearchColumnKind.NONE;
         };
     }
@@ -332,11 +332,11 @@ final class ElasticsearchColumnBuilder {
 
         @Override
         public UnionBuilder promote(Recycler<BytesRef> recycler) {
-            byte present = kind == ElasticsearchColumnKind.LONG ? EirfType.LONG : EirfType.DOUBLE;
+            byte present = kind == ElasticsearchColumnKind.LONG ? SourceValueType.LONG : SourceValueType.DOUBLE;
             byte[] typeVec = new byte[count];
             int[] offsets = new int[count + 1];
             for (int i = 0; i < count; i++) {
-                typeVec[i] = isAbsentAt(i) ? EirfType.ABSENT : present;
+                typeVec[i] = isAbsentAt(i) ? SourceValueType.ABSENT : present;
                 offsets[i] = i * 8;
             }
             offsets[count] = count * 8;
@@ -384,9 +384,9 @@ final class ElasticsearchColumnBuilder {
             byte[] typeVec = new byte[count];
             for (int i = 0; i < count; i++) {
                 if (isAbsentAt(i)) {
-                    typeVec[i] = EirfType.ABSENT;
+                    typeVec[i] = SourceValueType.ABSENT;
                 } else {
-                    typeVec[i] = (values != null && values.get(i)) ? EirfType.TRUE : EirfType.FALSE;
+                    typeVec[i] = (values != null && values.get(i)) ? SourceValueType.TRUE : SourceValueType.FALSE;
                 }
             }
             return new UnionBuilder(newStream(recycler), typeVec, new int[count + 1], 0, count, absent);
@@ -454,10 +454,10 @@ final class ElasticsearchColumnBuilder {
 
         @Override
         public UnionBuilder promote(Recycler<BytesRef> recycler) {
-            byte present = kind == ElasticsearchColumnKind.STRING ? EirfType.STRING : EirfType.BINARY;
+            byte present = kind == ElasticsearchColumnKind.STRING ? SourceValueType.STRING : SourceValueType.BINARY;
             byte[] typeVec = new byte[count];
             for (int i = 0; i < count; i++) {
-                typeVec[i] = isAbsentAt(i) ? EirfType.ABSENT : present;
+                typeVec[i] = isAbsentAt(i) ? SourceValueType.ABSENT : present;
             }
             offsets = ensureIntCapacity(offsets, count + 1);
             offsets[count] = dataLen;
@@ -526,7 +526,7 @@ final class ElasticsearchColumnBuilder {
                 if (packed == null) {
                     union.addAbsent();
                 } else {
-                    union.addArrayInline(EirfType.FIXED_ARRAY, packed);
+                    union.addArrayInline(SourceValueType.FIXED_ARRAY, packed);
                 }
             }
             return union;
@@ -549,7 +549,7 @@ final class ElasticsearchColumnBuilder {
                         byte[] packed = rows.get(r);
                         rowOffsets[r] = elemTotal;
                         if (packed != null) {
-                            EirfArrayReader reader = new EirfArrayReader(packed, 0, packed.length, true);
+                            InlineArrayReader reader = new InlineArrayReader(packed, 0, packed.length, true);
                             while (reader.next()) {
                                 elems.add(reader.stringValue().getBytes(java.nio.charset.StandardCharsets.UTF_8));
                                 elemTotal++;
@@ -576,14 +576,14 @@ final class ElasticsearchColumnBuilder {
                         byte[] packed = rows.get(r);
                         rowOffsets[r] = elemTotal;
                         if (packed != null) {
-                            EirfArrayReader reader = new EirfArrayReader(packed, 0, packed.length, true);
+                            InlineArrayReader reader = new InlineArrayReader(packed, 0, packed.length, true);
                             while (reader.next()) {
                                 long bits;
                                 if (isDouble) {
-                                    double v = reader.type() == EirfType.FLOAT ? reader.floatValue() : reader.doubleValue();
+                                    double v = reader.type() == SourceValueType.FLOAT ? reader.floatValue() : reader.doubleValue();
                                     bits = Double.doubleToRawLongBits(v);
                                 } else {
-                                    bits = reader.type() == EirfType.INT ? reader.intValue() : reader.longValue();
+                                    bits = reader.type() == SourceValueType.INT ? reader.intValue() : reader.longValue();
                                 }
                                 childData.writeLongLE(bits);
                                 elemTotal++;
@@ -606,7 +606,7 @@ final class ElasticsearchColumnBuilder {
         }
     }
 
-    /** UNION: a per-document {@link EirfType} vector, an offset vector, and a dense value buffer. */
+    /** UNION: a per-document {@link SourceValueType} vector, an offset vector, and a dense value buffer. */
     private static final class UnionBuilder extends BaseBuilder {
         private final RecyclerBytesStreamOutput data;
         private int[] offsets = new int[16];
@@ -633,7 +633,7 @@ final class ElasticsearchColumnBuilder {
 
         @Override
         public void addLong(long value) {
-            prep(EirfType.LONG);
+            prep(SourceValueType.LONG);
             writeLongLE(data, value);
             dataLen += 8;
             count++;
@@ -641,7 +641,7 @@ final class ElasticsearchColumnBuilder {
 
         @Override
         public void addDouble(double value) {
-            prep(EirfType.DOUBLE);
+            prep(SourceValueType.DOUBLE);
             writeLongLE(data, Double.doubleToRawLongBits(value));
             dataLen += 8;
             count++;
@@ -649,13 +649,13 @@ final class ElasticsearchColumnBuilder {
 
         @Override
         public void addBoolean(boolean value) {
-            prep(value ? EirfType.TRUE : EirfType.FALSE);
+            prep(value ? SourceValueType.TRUE : SourceValueType.FALSE);
             count++;
         }
 
         @Override
         public void addString(XContentString.UTF8Bytes utf8) {
-            prep(EirfType.STRING);
+            prep(SourceValueType.STRING);
             writeBytes(data, utf8.bytes(), utf8.offset(), utf8.length());
             dataLen += utf8.length();
             count++;
@@ -663,7 +663,7 @@ final class ElasticsearchColumnBuilder {
 
         @Override
         public void addBinary(XContentString.UTF8Bytes bytes) {
-            prep(EirfType.BINARY);
+            prep(SourceValueType.BINARY);
             writeBytes(data, bytes.bytes(), bytes.offset(), bytes.length());
             dataLen += bytes.length();
             count++;
@@ -679,13 +679,13 @@ final class ElasticsearchColumnBuilder {
 
         @Override
         public void addNull() {
-            prep(EirfType.NULL);
+            prep(SourceValueType.NULL);
             count++;
         }
 
         @Override
         public void addAbsent() {
-            prep(EirfType.ABSENT);
+            prep(SourceValueType.ABSENT);
             markAbsent();
             count++;
         }

@@ -16,7 +16,7 @@ import org.apache.lucene.util.FixedBitSet;
  * Shared base for the variable-length columns (STRING and BINARY), whose values are a contiguous
  * {@code data} payload delimited by a {@code (docCount + 1)}-entry offset vector
  * ({@code [offsets[d], offsets[d + 1])} within {@code data} starting at {@code base}). Subclasses
- * differ only in the value type they expose and the {@link org.elasticsearch.eirf.EirfType} byte they
+ * differ only in the value type they expose and the {@link org.elasticsearch.sourcebatch.SourceValueType} byte they
  * report.
  */
 abstract class AbstractVarColumn extends ElasticsearchColumn {

@@ -10,12 +10,12 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.eirf.EirfType;
+import org.elasticsearch.sourcebatch.SourceValueType;
 
 /**
  * An ESCF column whose values are all booleans, stored as a value bitset (bit set = {@code true})
- * over little-endian 64-bit words. A present document's type byte is {@link EirfType#TRUE} or
- * {@link EirfType#FALSE} depending on its value bit. This is the only kind with no value {@code byte[]}.
+ * over little-endian 64-bit words. A present document's type byte is {@link SourceValueType#TRUE} or
+ * {@link SourceValueType#FALSE} depending on its value bit. This is the only kind with no value {@code byte[]}.
  */
 final class ElasticsearchBoolColumn extends ElasticsearchColumn {
 
@@ -33,7 +33,7 @@ final class ElasticsearchBoolColumn extends ElasticsearchColumn {
 
     @Override
     byte typeByteForPresent(int d) {
-        return bitSet(d) ? EirfType.TRUE : EirfType.FALSE;
+        return bitSet(d) ? SourceValueType.TRUE : SourceValueType.FALSE;
     }
 
     @Override

@@ -17,10 +17,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.eirf.EirfEncoder;
-import org.elasticsearch.eirf.EirfType;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatchEncoder;
 import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -173,15 +173,15 @@ public final class EscfEncoder implements SourceBatchEncoder {
     private void appendScratchValue(ElasticsearchColumnBuilder builder, int columnIndex) {
         final byte type = scratchType[columnIndex];
         switch (type) {
-            case EirfType.ABSENT -> builder.addAbsent();
-            case EirfType.NULL -> builder.addNull();
-            case EirfType.TRUE -> builder.addBoolean(true);
-            case EirfType.FALSE -> builder.addBoolean(false);
-            case EirfType.INT, EirfType.LONG -> builder.addLong(scratchNumeric[columnIndex]);
-            case EirfType.FLOAT, EirfType.DOUBLE -> builder.addDouble(Double.longBitsToDouble(scratchNumeric[columnIndex]));
-            case EirfType.STRING -> builder.addString((XContentString.UTF8Bytes) scratchVar[columnIndex]);
-            case EirfType.FIXED_ARRAY, EirfType.UNION_ARRAY -> builder.addArray(type, (byte[]) scratchVar[columnIndex]);
-            default -> throw new IllegalStateException("unexpected scratch EIRF type [" + EirfType.name(type) + "]");
+            case SourceValueType.ABSENT -> builder.addAbsent();
+            case SourceValueType.NULL -> builder.addNull();
+            case SourceValueType.TRUE -> builder.addBoolean(true);
+            case SourceValueType.FALSE -> builder.addBoolean(false);
+            case SourceValueType.INT, SourceValueType.LONG -> builder.addLong(scratchNumeric[columnIndex]);
+            case SourceValueType.FLOAT, SourceValueType.DOUBLE -> builder.addDouble(Double.longBitsToDouble(scratchNumeric[columnIndex]));
+            case SourceValueType.STRING -> builder.addString((XContentString.UTF8Bytes) scratchVar[columnIndex]);
+            case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> builder.addArray(type, (byte[]) scratchVar[columnIndex]);
+            default -> throw new IllegalStateException("unexpected scratch EIRF type [" + SourceValueType.name(type) + "]");
         }
     }
 
@@ -225,10 +225,10 @@ public final class EscfEncoder implements SourceBatchEncoder {
                 }
                 case VALUE_STRING -> {
                     XContentString.UTF8Bytes str = parser.optimizedText().bytes();
-                    scratchType[colIdx] = EirfType.STRING;
+                    scratchType[colIdx] = SourceValueType.STRING;
                     scratchVar[colIdx] = str;
                     if (firePathSink) {
-                        sink.onTextPrimitive(colIdx, columnPath(colIdx), EirfType.STRING, str);
+                        sink.onTextPrimitive(colIdx, columnPath(colIdx), SourceValueType.STRING, str);
                     }
                 }
                 case VALUE_NUMBER -> {
@@ -236,7 +236,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
                     switch (numType) {
                         case INT, LONG -> {
                             long val = parser.longValue();
-                            byte type = (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) ? EirfType.INT : EirfType.LONG;
+                            byte type = (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) ? SourceValueType.INT : SourceValueType.LONG;
                             scratchType[colIdx] = type;
                             scratchNumeric[colIdx] = val;
                             if (rawTextMode) {
@@ -248,7 +248,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
                         case FLOAT, DOUBLE -> {
                             double val = parser.doubleValue();
                             float fval = (float) val;
-                            byte type = ((double) fval == val) ? EirfType.FLOAT : EirfType.DOUBLE;
+                            byte type = ((double) fval == val) ? SourceValueType.FLOAT : SourceValueType.DOUBLE;
                             scratchType[colIdx] = type;
                             scratchNumeric[colIdx] = Double.doubleToRawLongBits(val);
                             if (rawTextMode) {
@@ -259,17 +259,17 @@ public final class EscfEncoder implements SourceBatchEncoder {
                         }
                         default -> {
                             XContentString.UTF8Bytes str = parser.optimizedText().bytes();
-                            scratchType[colIdx] = EirfType.STRING;
+                            scratchType[colIdx] = SourceValueType.STRING;
                             scratchVar[colIdx] = str;
                             if (firePathSink) {
-                                sink.onTextPrimitive(colIdx, columnPath(colIdx), EirfType.STRING, str);
+                                sink.onTextPrimitive(colIdx, columnPath(colIdx), SourceValueType.STRING, str);
                             }
                         }
                     }
                 }
                 case VALUE_BOOLEAN -> {
                     boolean v = parser.booleanValue();
-                    byte type = v ? EirfType.TRUE : EirfType.FALSE;
+                    byte type = v ? SourceValueType.TRUE : SourceValueType.FALSE;
                     scratchType[colIdx] = type;
                     if (rawTextMode) {
                         sink.onTextPrimitive(colIdx, columnPath(colIdx), type, parser.optimizedText().bytes());
@@ -277,7 +277,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
                         sink.onBooleanPrimitive(colIdx, columnPath(colIdx), v);
                     }
                 }
-                case VALUE_NULL -> scratchType[colIdx] = EirfType.NULL;
+                case VALUE_NULL -> scratchType[colIdx] = SourceValueType.NULL;
                 default -> throw new IllegalStateException("Unexpected token: " + token);
             }
             token = parser.nextToken();

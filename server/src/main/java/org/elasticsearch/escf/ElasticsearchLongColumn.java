@@ -10,7 +10,7 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.eirf.EirfType;
+import org.elasticsearch.sourcebatch.SourceValueType;
 
 /** An ESCF column whose values are all {@code long}s (JSON ints and longs upcast to 64-bit). */
 final class ElasticsearchLongColumn extends AbstractFixed64Column {
@@ -26,7 +26,7 @@ final class ElasticsearchLongColumn extends AbstractFixed64Column {
 
     @Override
     byte typeByteForPresent(int d) {
-        return EirfType.LONG;
+        return SourceValueType.LONG;
     }
 
     @Override

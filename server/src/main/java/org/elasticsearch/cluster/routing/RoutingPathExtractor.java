@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.xcontent.XContentString;
 
 /**
@@ -22,7 +23,7 @@ import org.elasticsearch.xcontent.XContentString;
  * ({@link IndexRouting.ExtractFromSource.ForRoutingPath#hashSource}) is preserved by feeding the
  * exact same UTF-8 byte slice ({@link XContentString.UTF8Bytes}) the parser already emits at every
  * leaf — see {@link RoutingHashBuilder#addHash(String, BytesRef)}. Hence
- * {@link org.elasticsearch.sourcebatch.LeafSink#passRawText()} returns {@code true}.
+ * {@link LeafSink#passRawText()} returns {@code true}.
  */
 final class RoutingPathExtractor extends RoutingExtractor {
 

@@ -15,7 +15,7 @@ import org.elasticsearch.common.util.ByteUtils;
 /**
  * Shared base for the fixed-width 64-bit columns (LONG and DOUBLE), whose values are contiguous
  * little-endian 8-byte slots ({@code data[base + d * 8]}). Subclasses differ only in how they
- * interpret the raw long and which {@link org.elasticsearch.eirf.EirfType} byte they report.
+ * interpret the raw long and which {@link org.elasticsearch.sourcebatch.SourceValueType} byte they report.
  */
 abstract class AbstractFixed64Column extends ElasticsearchColumn {
 

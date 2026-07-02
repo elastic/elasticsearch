@@ -9,7 +9,7 @@
 
 package org.elasticsearch.escf;
 
-import org.elasticsearch.eirf.EirfType;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -33,7 +33,7 @@ public class ElasticsearchColumnBuilderTests extends ESTestCase {
         assertEquals(1L, col.getLongValue(0));
         assertEquals(2L, col.getLongValue(1));
         assertEquals(3L, col.getLongValue(2));
-        assertEquals(EirfType.LONG, col.getTypeByte(0));
+        assertEquals(SourceValueType.LONG, col.getTypeByte(0));
     }
 
     public void testValidityBitsetOnlyWhenAbsent() {
@@ -74,8 +74,8 @@ public class ElasticsearchColumnBuilderTests extends ESTestCase {
         assertTrue(col.getBooleanValue(0));
         assertFalse(col.getBooleanValue(1));
         assertTrue(col.getBooleanValue(2));
-        assertEquals(EirfType.TRUE, col.getTypeByte(0));
-        assertEquals(EirfType.FALSE, col.getTypeByte(1));
+        assertEquals(SourceValueType.TRUE, col.getTypeByte(0));
+        assertEquals(SourceValueType.FALSE, col.getTypeByte(1));
     }
 
     public void testPromoteOnTypeConflictPreservesValues() {
@@ -86,11 +86,11 @@ public class ElasticsearchColumnBuilderTests extends ESTestCase {
         ElasticsearchColumnData data = b.finish(3);
         assertEquals(ElasticsearchColumnKind.UNION, data.kind());
         ElasticsearchColumn col = ElasticsearchColumn.from(0, data);
-        assertEquals(EirfType.LONG, col.getTypeByte(0));
+        assertEquals(SourceValueType.LONG, col.getTypeByte(0));
         assertEquals(7L, col.getLongValue(0));
-        assertEquals(EirfType.STRING, col.getTypeByte(1));
+        assertEquals(SourceValueType.STRING, col.getTypeByte(1));
         assertEquals("text", col.getStringValue(1).string());
-        assertEquals(EirfType.DOUBLE, col.getTypeByte(2));
+        assertEquals(SourceValueType.DOUBLE, col.getTypeByte(2));
         assertEquals(2.5, col.getDoubleValue(2), 0.0);
     }
 
@@ -103,7 +103,7 @@ public class ElasticsearchColumnBuilderTests extends ESTestCase {
         ElasticsearchColumn col = ElasticsearchColumn.from(0, data);
         assertEquals(1L, col.getLongValue(0));
         assertTrue(col.isNull(1));
-        assertEquals(EirfType.NULL, col.getTypeByte(1));
+        assertEquals(SourceValueType.NULL, col.getTypeByte(1));
     }
 
     public void testAllAbsentFinishesAsLong() {
@@ -115,7 +115,7 @@ public class ElasticsearchColumnBuilderTests extends ESTestCase {
         ElasticsearchColumn col = ElasticsearchColumn.from(0, data);
         assertTrue(col.isAbsent(0));
         assertTrue(col.isAbsent(1));
-        assertEquals(EirfType.ABSENT, col.getTypeByte(0));
+        assertEquals(SourceValueType.ABSENT, col.getTypeByte(0));
     }
 
     private static XContentString.UTF8Bytes utf8(String s) {

@@ -17,9 +17,7 @@ import java.io.IOException;
 
 /**
  * Encodes source documents into a {@link SourceBatch}, fanning rows out to one or more partitions
- * (typically one per destination shard). Implementations choose the physical layout (row-major EIRF
- * or column-major ESCF); the coordinating layer depends only on this interface so the format can be
- * swapped at a single construction point.
+ * (typically one per destination shard).
  *
  * <p>Usage: {@link #parseToScratch} stages a single document, then {@link #commitScratchTo} appends
  * it to a partition; once all documents are committed, {@link #buildPartition} produces the batch for

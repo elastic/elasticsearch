@@ -10,7 +10,7 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.eirf.EirfType;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -28,7 +28,7 @@ final class ElasticsearchStringColumn extends AbstractVarColumn {
 
     @Override
     byte typeByteForPresent(int d) {
-        return EirfType.STRING;
+        return SourceValueType.STRING;
     }
 
     @Override

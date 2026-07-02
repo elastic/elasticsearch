@@ -96,7 +96,7 @@ public class AdaptiveReplicaSelectionIT extends ESIntegTestCase {
     /**
      * Under uniform conditions, ARS should distribute requests equally across all nodes.
      * No node should be permanently starved or monopolize traffic.
-     * This test asserts that each node handles >0% and <50% of traffic (these are, for the most part, overly safe bounds, chosen to
+     * This test asserts that each node handles between 0% and 50% of traffic (these are, for the most part, overly safe bounds, chosen to
      * minimize the chance of transient failures).
      */
     public void testFairDistributionUnderUniformLoad() throws Exception {

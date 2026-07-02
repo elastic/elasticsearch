@@ -52,6 +52,11 @@ $$$data-streams-lifecycle-signalling-error-retry-interval$$$
 `data_streams.lifecycle.signalling.error_retry_interval`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) The number of retries the data stream lifecycle has to perform for an index in an error step to signal that the index is not progressing (for example, it's stuck in an error step). The current signalling mechanism is a log statement at the `error` level. However, the signalling mechanism can be extended in the future. Defaults to 10 retries.
 
+$$$data-streams-lifecycle-downsampling-max-indices-in-progress$$$
+
+`data_streams.lifecycle.downsampling.max_indices_in_progress` {applies_to}`serverless: ga` {applies_to}`stack: ga 9.5`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) The maximum number of indices per data stream that can be submitted for downsampling by data stream lifecycle. Defaults to `10`.
+
 ## Frozen tier transition settings [_frozen_tier_transition_settings]
 ```{applies_to}
 stack: ga 9.5

@@ -96,7 +96,7 @@ public abstract class BaseFlatQuantizedKnnVectorsFormatTestCase extends BaseQuan
         int numFiltered = random().nextInt(1, numVectors);
         int dims = random().nextInt(4, 65);
         VectorSimilarityFunction similarityFunction = randomSimilarity();
-        KnnFloatVectorField knnField = new KnnFloatVectorField(fieldName, new float[dims], similarityFunction);
+        KnnFloatVectorField knnField = new KnnFloatVectorField(fieldName, randomVector(dims), similarityFunction);
         IndexWriterConfig iwc = newIndexWriterConfig();
         try (Directory dir = newDirectory()) {
             try (IndexWriter w = new IndexWriter(dir, iwc)) {

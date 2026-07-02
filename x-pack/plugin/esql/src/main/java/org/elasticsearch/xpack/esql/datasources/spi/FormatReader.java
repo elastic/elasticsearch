@@ -111,6 +111,25 @@ public interface FormatReader extends Closeable {
 
     SourceMetadata metadata(StorageObject object) throws IOException;
 
+    /**
+     * Asynchronously resolves metadata for the given storage object.
+     * <p>
+     * The default wraps the synchronous {@link #metadata(StorageObject)} in the provided executor,
+     * mirroring {@link #readAsync}. Formats whose footer/metadata read can be issued without holding
+     * an executor thread across the network round-trip (e.g. Parquet via
+     * {@link StorageObject#readBytesAsync}) should override this so that a wide discovery fan-out is
+     * bounded by an in-flight permit rather than by the number of executor threads it pins.
+     */
+    default void metadataAsync(StorageObject object, Executor executor, ActionListener<SourceMetadata> listener) {
+        executor.execute(() -> {
+            try {
+                listener.onResponse(metadata(object));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
     default List<Attribute> schema(StorageObject object) throws IOException {
         return metadata(object).schema();
     }
@@ -265,5 +284,17 @@ public interface FormatReader extends Closeable {
     default FormatReaderStatus statusSnapshot() {
         return null;
     }
+
+    /**
+     * Returns this reader's {@link RowPositionStrategy} — the dispatcher applies it polymorphically
+     * to wrap (or pass through) the reader's emitted page iterator so each page has the
+     * {@code _rowPosition} slot populated. Every reader must explicitly declare a strategy:
+     * a {@link PassThroughRowPositionStrategy} when the reader natively fills the slot in its own
+     * iterator (parquet-mr, ORC, CSV, NDJSON), a {@link NullSpliceRowPositionStrategy} when the
+     * reader has no row-position channel and the slot must surface NULL (parquet-rs), or a future
+     * strategy that injects the column from per-page reader state. There is no default — readers
+     * that "don't care" still participate, by returning {@link PassThroughRowPositionStrategy}.
+     */
+    RowPositionStrategy rowPositionStrategy();
 
 }

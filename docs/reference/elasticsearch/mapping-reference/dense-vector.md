@@ -723,6 +723,47 @@ stack: preview 9.3
 {{es}} can leverage  [GPU acceleration](gpu-vector-indexing.md)  to speed up the indexing of dense vectors.
 
 
+## Index modes for vector search [dense-vector-index-modes]
+
+### `vectordb_document` [dense-vector-vectordb-document-mode]
+
+{applies_to}`stack: ga 9.5` {applies_to}`serverless: ga`
+
+The `vectordb_document` [index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) optimizes an index for vector search workloads.
+
+In {{serverless-short}}, this mode is automatically applied to indices in Vector DB projects. On {{ech}}, you must set it explicitly at index creation time:
+
+```console
+PUT my-vector-index
+{
+  "settings": {
+    "index": {
+      "mode": "vectordb_document"
+    }
+  }
+}
+```
+
+When `vectordb_document` mode is active, the following settings are applied automatically unless you explicitly configure them:
+
+`element_type` (dense_vector)
+:   Defaults to `bfloat16` instead of `float`, halving the storage cost of raw vectors while preserving most recall quality.
+
+Dynamic float array mapping
+:   Float arrays with at least 32 elements are automatically mapped to `dense_vector` during dynamic mapping, compared to the 128-element threshold used in other index modes.
+
+`index.mapping.exclude_source_vectors`
+:   Set to `true`. Vector field values are excluded from the stored `_source`, reducing storage overhead. This setting is required and cannot be overridden to `false`.
+
+`index.store.preload`
+:   Set to `["vex", "veq", "veb", "cenivf"]`. These vector index file extensions (HNSW graph, scalar-quantized data, binary-quantized data, and IVF centroid data) are preloaded into the file system cache.
+
+`index.merge.intra_merge_parallelism_enabled`
+:   Set to `true`. Enables parallel execution within a single merge operation, which speeds up merging of segments.
+
+`index.merge.scheduler.auto_throttle`
+:   Set to `false`. Disables automatic throttling of merge I/O, allowing merges to proceed at full speed.
+
 ## Updatable field type [_updatable_field_type]
 
 To better accommodate scaling and performance needs, updating the `type` setting in `index_options` is possible with the [Update Mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping), according to the following graph (jumps allowed):

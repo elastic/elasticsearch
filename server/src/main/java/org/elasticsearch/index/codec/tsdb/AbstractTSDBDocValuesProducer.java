@@ -81,9 +81,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     final int version;
     private final int primarySortFieldNumber;
     private final boolean merging;
-    private final int numericBlockShift;
-    protected final int numericBlockSize;
-    private final int numericBlockMask;
     private final long[] skipIndexJumpLengthPerLevel;
     private static final int DEFAULT_NUMERIC_BLOCK_SHIFT = 7;
     private final TSDBDocValuesFormatConfig formatConfig;
@@ -143,18 +140,17 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 if (version >= TSDBDocValuesFormatConfig.VERSION_NUMERIC_LARGE_BLOCKS) {
                     blockShift = in.readByte();
                 }
-                this.readContext = new NumericReadContext(1 << blockShift, formatConfig);
+                this.readContext = new NumericReadContext(1 << blockShift, formatConfig, version);
                 readFields(in, state.fieldInfos, version, blockShift);
+                if (version < TSDBDocValuesFormatConfig.VERSION_SKIPPER_MAX_VALUE_COUNT) {
+                    inferMaxValueCounts(state.fieldInfos);
+                }
             } catch (Throwable exception) {
                 priorE = exception;
             } finally {
                 CodecUtil.checkFooter(in, priorE);
             }
         }
-
-        this.numericBlockShift = blockShift;
-        this.numericBlockSize = 1 << blockShift;
-        this.numericBlockMask = numericBlockSize - 1;
 
         String dataName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, dataExtension);
         this.data = state.directory.openInput(dataName, state.context);
@@ -195,7 +191,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     tempIn,
                     skipCodec,
                     TSDBDocValuesFormatConfig.VERSION_START,
-                    TSDBDocValuesFormatConfig.VERSION_SEPARATE_SKIPLIST,
+                    TSDBDocValuesFormatConfig.VERSION_CURRENT,
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
@@ -230,9 +226,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         this.version = original.version;
         this.primarySortFieldNumber = original.primarySortFieldNumber;
         this.merging = true;
-        this.numericBlockShift = original.numericBlockShift;
-        this.numericBlockSize = original.numericBlockSize;
-        this.numericBlockMask = original.numericBlockMask;
         this.skipIndexJumpLengthPerLevel = original.skipIndexJumpLengthPerLevel;
         this.formatConfig = original.formatConfig;
     }
@@ -559,6 +552,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 public DocIdSetIterator tryContainsIterator(BytesRef containsTerm) throws IOException {
                     return decoder.containsTermTwoPhase(entry.numCompressedBlocks, containsTerm, maxDoc);
                 }
+
+                @Override
+                public DocIdSetIterator tryTermEqualIterator(BytesRef term) throws IOException {
+                    return decoder.termEqualTwoPhase(entry.numCompressedBlocks, term, maxDoc);
+                }
             };
         } else {
             // sparse
@@ -652,13 +650,22 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         private void decompressBlock(long blockId, int numDocsInBlock) throws IOException {
             var header = decompressOffsets(blockId, numDocsInBlock);
+            decompressValues(header.isCompressed(), numDocsInBlock);
+        }
 
+        /**
+         * Decompresses the value bytes of the block whose offsets were just loaded by
+         * {@link #decompressOffsets}. Precondition: {@code compressedData} is still positioned
+         * immediately after that block's encoded offsets — no intervening seek or read on this
+         * decoder since the offsets were loaded.
+         */
+        private void decompressValues(boolean compressed, int numDocsInBlock) throws IOException {
             int uncompressedBlockLength = uncompressedDocStarts[numDocsInBlock];
             assert uncompressedBlockLength <= uncompressedBlock.length;
             uncompressedBytesRef.offset = 0;
             uncompressedBytesRef.length = uncompressedBlock.length;
 
-            if (header.isCompressed()) {
+            if (compressed) {
                 decompressor.decompress(compressedData, uncompressedBlockLength, 0, uncompressedBlockLength, uncompressedBytesRef);
             } else {
                 compressedData.readBytes(uncompressedBlock, 0, uncompressedBlockLength);
@@ -766,7 +773,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             abstract void loadBlock(long blockId, int numDocsInBlock) throws IOException;
 
             /** Per-doc predicate evaluated against the currently-loaded block. */
-            abstract boolean matchesInBlock(int idxInBlock);
+            abstract boolean matchesInBlock(int idxInBlock) throws IOException;
         }
 
         /**
@@ -816,6 +823,60 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 public float matchCost() {
                     // SIMD substring check amortized over the decompressed block.
                     return 10f;
+                }
+            });
+        }
+
+        /**
+         * Term-equality predicate: block offsets are decompressed eagerly; the value bytes are
+         * decompressed lazily — only on the first doc in a block whose stored length matches
+         * {@code term.length}. Blocks where no doc has the matching length are rejected on offsets
+         * alone, paying only the offset decode and skipping the full Zstd/LZ4 decompression.
+         *
+         * <p>For a length-discriminating term (e.g. a hostname that is longer or shorter than most
+         * values in the field), the majority of blocks never touch the value bytes. For a
+         * non-discriminating length, the worst case is identical to decompressing every block
+         * eagerly; no work is added.
+         *
+         * <p>Only valid for single-valued docs (no length-prefix framing from the multi-valued
+         * encoding). The caller must gate on
+         * {@code countsSkipper == null || countsSkipper.maxValue() == 1} before calling this.
+         */
+        DocIdSetIterator termEqualTwoPhase(int numBlocks, BytesRef term, int leafMaxDoc) {
+            return TwoPhaseIterator.asDocIdSetIterator(new BlockAwareTwoPhase(DocIdSetIterator.all(leafMaxDoc), numBlocks) {
+                private boolean valuesLoaded;
+                private boolean blockCompressed;
+                private int blockNumDocs;
+
+                @Override
+                void loadBlock(long blockId, int numDocsInBlock) throws IOException {
+                    // Offsets only — value bytes are decompressed on demand in matchesInBlock.
+                    blockCompressed = decompressOffsets(blockId, numDocsInBlock).isCompressed();
+                    blockNumDocs = numDocsInBlock;
+                    valuesLoaded = false;
+                }
+
+                @Override
+                boolean matchesInBlock(int idx) throws IOException {
+                    int offset = uncompressedDocStarts[idx];
+                    int length = uncompressedDocStarts[idx + 1] - offset;
+                    if (length != term.length) {
+                        return false; // rejected on offsets alone — value bytes never touched
+                    }
+                    if (valuesLoaded == false) {
+                        // First length-match in this block: decompress values now. compressedData is
+                        // still positioned immediately after this block's encoded offsets.
+                        decompressValues(blockCompressed, blockNumDocs);
+                        valuesLoaded = true;
+                    }
+                    return Arrays.equals(uncompressedBlock, offset, offset + length, term.bytes, term.offset, term.offset + term.length);
+                }
+
+                @Override
+                public float matchCost() {
+                    // Most docs are rejected on offsets alone; the equality scan over matching-length
+                    // docs is one intrinsified call — cheaper than contains' SIMD substring search (10f).
+                    return 5f;
                 }
             });
         }
@@ -1223,7 +1284,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         return block;
                     }
                     try (var builder = factory.singletonOrdinalsBuilder(this, docs.count() - offset, true)) {
-                        BlockLoader.SingletonLongBuilder delegate = new SingletonLongToSingletonOrdinalDelegate(builder, numericBlockSize);
+                        BlockLoader.SingletonLongBuilder delegate = new SingletonLongToSingletonOrdinalDelegate(
+                            builder,
+                            entry.ordsEntry.blockSize
+                        );
                         var result = denseOrds.tryRead(delegate, docs, offset);
                         if (result != null) {
                             return result;
@@ -1940,6 +2004,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             public int docCount() {
                 return entry.docCount;
             }
+
+            @Override
+            public int maxValueCount() {
+                return entry.maxValueCount;
+            }
         };
     }
 
@@ -1982,7 +2051,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             }
             byte type = meta.readByte();
             if (info.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
-                skippers.put(info.number, readDocValueSkipperMeta(meta));
+                skippers.put(info.number, readDocValueSkipperMeta(meta, version));
             }
             if (type == AbstractTSDBDocValuesConsumer.NUMERIC) {
                 numerics.put(info.number, readNumeric(meta, numericBlockShift));
@@ -2018,15 +2087,66 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         return entry;
     }
 
-    private static DocValuesSkipperEntry readDocValueSkipperMeta(IndexInput meta) throws IOException {
+    private static DocValuesSkipperEntry readDocValueSkipperMeta(IndexInput meta, int version) throws IOException {
         long offset = meta.readLong();
         long length = meta.readLong();
         long maxValue = meta.readLong();
         long minValue = meta.readLong();
         int docCount = meta.readInt();
         int maxDocID = meta.readInt();
+        int maxValueCount = docCount == 0 ? 0 : -1;
+        if (version >= TSDBDocValuesFormatConfig.VERSION_SKIPPER_MAX_VALUE_COUNT) {
+            maxValueCount = meta.readInt();
+        }
 
-        return new DocValuesSkipperEntry(offset, length, minValue, maxValue, docCount, maxDocID);
+        return new DocValuesSkipperEntry(offset, length, minValue, maxValue, docCount, maxDocID, maxValueCount);
+    }
+
+    private void inferMaxValueCounts(FieldInfos fieldInfos) {
+        for (IntObjectHashMap.IntObjectCursor<DocValuesSkipperEntry> cursor : skippers) {
+            DocValuesSkipperEntry entry = cursor.value;
+            if (entry.maxValueCount == -1 && entry.docCount != 0) {
+                FieldInfo info = fieldInfos.fieldInfo(cursor.key);
+                if (info != null) {
+                    int inferred = -1;
+                    switch (info.getDocValuesType()) {
+                        case NUMERIC, SORTED -> inferred = 1;
+                        case SORTED_NUMERIC -> {
+                            SortedNumericEntry sne = sortedNumerics.get(cursor.key);
+                            if (sne != null && sne.numValues == sne.numDocsWithField) {
+                                inferred = 1;
+                            }
+                        }
+                        case SORTED_SET -> {
+                            SortedSetEntry sse = sortedSets.get(cursor.key);
+                            if (sse != null) {
+                                if (sse.singleValueEntry != null) {
+                                    inferred = 1;
+                                } else if (sse.ordsEntry != null && sse.ordsEntry.numValues == sse.ordsEntry.numDocsWithField) {
+                                    inferred = 1;
+                                }
+                            }
+                        }
+                        case BINARY, NONE -> {
+                        }
+                    }
+                    if (inferred != -1) {
+                        skippers.put(
+                            cursor.key,
+                            new DocValuesSkipperEntry(
+                                entry.offset,
+                                entry.length,
+                                entry.minValue,
+                                entry.maxValue,
+                                entry.docCount,
+                                entry.maxDocId,
+                                inferred
+                            )
+                        );
+                    }
+                }
+            }
+        }
     }
 
     private void readNumericField(IndexInput meta, NumericEntry entry, int numericBlockShift) throws IOException {
@@ -2195,13 +2315,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     private BlockDecoder blockDecoder(NumericEntry entry, long maxOrd) {
         if (maxOrd != AbstractTSDBDocValuesConsumer.NO_MAX_ORD) {
             final int bitsPerOrd = PackedInts.bitsRequired(maxOrd - 1);
-            var ordinalFieldReader = ordinalCodec.createReader(readContext);
-            final OrdinalFieldReader.Decoder decoder = ordinalFieldReader.decoder();
+            final OrdinalFieldReader.Decoder decoder = ordinalCodec.createReader(readContext).decoder(entry.blockSize);
             return (input, values) -> decoder.decodeOrdinals(input, values, bitsPerOrd);
         } else {
             var numericFieldReader = numericCodec.createReader(readContext);
             final NumericFieldReader.Decoder decoder = numericFieldReader.decoder(entry.pipelineDescriptor);
-            return (input, values) -> decoder.decodeBlock(input, values, numericBlockSize);
+            final int blockSize = entry.blockSize;
+            return (input, values) -> decoder.decodeBlock(input, values, blockSize);
         }
     }
 
@@ -2293,6 +2413,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         final RandomAccessInput indexSlice = data.randomAccessSlice(entry.indexOffset, entry.indexLength);
         final DirectMonotonicReader indexReader = DirectMonotonicReader.getInstance(entry.indexMeta, indexSlice, merging);
         final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
+
+        final int numericBlockSize = entry.blockSize;
+        final int numericBlockShift = Integer.numberOfTrailingZeros(numericBlockSize);
+        final int numericBlockMask = numericBlockSize - 1;
 
         if (entry.docsWithFieldOffset == -1) {
             // dense
@@ -2800,6 +2924,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
 
+        final int numericBlockSize = entry.blockSize;
+        final int numericBlockShift = Integer.numberOfTrailingZeros(numericBlockSize);
+        final int numericBlockMask = numericBlockSize - 1;
         final long[] currentBlockIndex = { -1 };
         final long[] currentBlock = new long[numericBlockSize];
         final BlockDecoder decoder = blockDecoder(entry, maxOrd);
@@ -2980,7 +3107,15 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private record DocValuesSkipperEntry(long offset, long length, long minValue, long maxValue, int docCount, int maxDocId) {}
+    private record DocValuesSkipperEntry(
+        long offset,
+        long length,
+        long minValue,
+        long maxValue,
+        int docCount,
+        int maxDocId,
+        int maxValueCount
+    ) {}
 
     public static class NumericEntry {
         public long docsWithFieldOffset;
@@ -2996,6 +3131,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         public long valuesLength;
         public DirectMonotonicReader.Meta sortedOrdinals;
         public PipelineDescriptor pipelineDescriptor;
+        // NOTE: per-field block size. Equals pipelineDescriptor.blockSize() when present
+        // (ES95 pipeline-encoded entries); otherwise the format-level default read from
+        // the numeric block shift header byte, used by ES819 entries and ordinal entries.
+        public int blockSize;
     }
 
     static class BinaryEntry {

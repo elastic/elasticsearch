@@ -1,0 +1,11 @@
+area: Data streams
+issues:
+  - 150624
+pr: 150802
+summary: >
+  Throttle concurrent downsampling operations in data stream lifecycle. A new dynamic cluster
+  setting, `data_streams.lifecycle.downsampling.max_indices_in_progress` (default 10), caps the
+  number of backing indices per data stream that data stream lifecycle will submit to downsampling
+  in a single run. Indices that are deferred are recorded in the error store with a warning and will be
+  retried in a subsequent run.
+type: enhancement

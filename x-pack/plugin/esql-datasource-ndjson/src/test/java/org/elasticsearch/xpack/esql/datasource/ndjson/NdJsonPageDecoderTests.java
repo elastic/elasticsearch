@@ -9,15 +9,20 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.hamcrest.Matchers;
+import org.junit.After;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -39,6 +44,17 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+    }
+
+    /**
+     * Non-strict {@link ErrorPolicy} shape-conflict tests below emit response-header warnings via
+     * {@code HeaderWarning.addWarning(...)}; drop them so the parent {@code ensureNoWarnings} post-check passes.
+     */
+    @After
+    public void clearWarningHeaders() {
+        if (threadContext != null) {
+            threadContext.stashContext();
+        }
     }
 
     /**
@@ -105,6 +121,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         try (
             NdJsonPageDecoder decoder = new NdJsonPageDecoder(
                 new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null, // DateFormatter
                 List.of(attribute("k", DataType.KEYWORD)),
                 null,
                 10,
@@ -171,6 +188,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         try (
             NdJsonPageDecoder decoder = new NdJsonPageDecoder(
                 new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null, // DateFormatter
                 List.of(attribute("i", DataType.INTEGER)),
                 null,
                 10,
@@ -223,21 +241,259 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A dotted-prefix column such as {@code address.city} builds a structural (intermediate) decoder node with no
+     * scalar block builder of its own. When a row provides a JSON {@code null} where an object was expected, the
+     * leaf columns must be filled with null for that row instead of throwing a {@link NullPointerException}.
+     * Regression test for https://github.com/elastic/elasticsearch/issues/152574. A JSON {@code null} is a common,
+     * legitimate shape (e.g. an intermittently-null nested object) and stays silent under every {@link ErrorPolicy}
+     * — unlike an actual scalar value where an object was expected, which is a genuine schema conflict (see
+     * {@link #testScalarWhereNestedObjectExpectedStrictFails}).
+     * <p>
+     * This drives the decoder with an explicit dotted schema, i.e. the planner-resolved (bound) read-schema path
+     * where {@code address} exists only as a nested-object prefix. It deliberately does not go through per-file
+     * schema inference: when a mixed object/scalar field is <em>sampled</em>, inference now resolves a single shape
+     * (see {@link NdJsonSchemaInferrerTests}); that inference interaction is exercised end-to-end in the iterator
+     * tests.
+     */
+    public void testNullWhereNestedObjectExpected() throws IOException {
+        String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}}\n"
+            + "{\"address\": null}\n"
+            + "{\"address\": {\"city\": \"London\", \"zip\": \"SW1A\"}}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(attribute("address.city", DataType.KEYWORD), attribute("address.zip", DataType.KEYWORD)),
+                ErrorPolicy.STRICT
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(3, page.getPositionCount());
+            BytesRefBlock city = page.getBlock(0);
+            BytesRefBlock zip = page.getBlock(1);
+            BytesRef scratch = new BytesRef();
+            assertEquals(new BytesRef("NYC"), BytesRef.deepCopyOf(city.getBytesRef(0, scratch)));
+            assertEquals(new BytesRef("10001"), BytesRef.deepCopyOf(zip.getBytesRef(0, scratch)));
+            assertTrue("null object row -> city null", city.isNull(1));
+            assertTrue("null object row -> zip null", zip.isNull(1));
+            assertEquals(new BytesRef("London"), BytesRef.deepCopyOf(city.getBytesRef(2, scratch)));
+            assertEquals(new BytesRef("SW1A"), BytesRef.deepCopyOf(zip.getBytesRef(2, scratch)));
+        }
+    }
+
+    /**
+     * A scalar value where a nested object was expected (the schema only knows dotted leaf columns for this field,
+     * e.g. {@code address.city}/{@code address.zip}, but a row's {@code address} is a plain string) is a genuine
+     * scalar/object schema conflict: core ES dynamic mapping treats the same ambiguity as a hard document-parsing
+     * conflict, so under {@link ErrorPolicy#STRICT} it must fail the query with an actionable message naming the
+     * field and both shapes rather than silently null-filling (elastic/esql-planning#1028). Before that fix, this
+     * mismatch was silently null-filled even under {@code STRICT} (see the pre-#1028 revision of
+     * {@code testNullOrScalarWhereNestedObjectExpected}).
+     */
+    public void testScalarWhereNestedObjectExpectedStrictFails() {
+        String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}}\n" + "{\"address\": \"unstructured\"}\n";
+
+        EsqlIllegalArgumentException ex = expectThrows(
+            EsqlIllegalArgumentException.class,
+            () -> decodePage(
+                ndjson,
+                List.of(attribute("address.city", DataType.KEYWORD), attribute("address.zip", DataType.KEYWORD)),
+                ErrorPolicy.STRICT
+            )
+        );
+        assertThat(ex.getMessage(), Matchers.containsString("address"));
+        assertThat(ex.getMessage(), Matchers.containsString("a string"));
+        assertThat(ex.getMessage(), Matchers.containsString("an object"));
+    }
+
+    /**
+     * Same conflict as {@link #testScalarWhereNestedObjectExpectedStrictFails}, but under a non-strict policy: the
+     * conflicting field is null-filled and a client warning is surfaced, while the row's other columns (and other
+     * rows) still decode normally. This is a per-field null-fill, not a whole-row skip — elastic/esql-planning#1028
+     * notes the conflict path already decodes the rest of the record, so there is no need to drop it wholesale.
+     */
+    public void testScalarWhereNestedObjectExpectedLenientWarnsAndNullFills() throws IOException {
+        String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}, \"id\": 1}\n"
+            + "{\"address\": \"unstructured\", \"id\": 2}\n"
+            + "{\"address\": {\"city\": \"London\", \"zip\": \"SW1A\"}, \"id\": 3}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(
+                    attribute("address.city", DataType.KEYWORD),
+                    attribute("address.zip", DataType.KEYWORD),
+                    attribute("id", DataType.INTEGER)
+                ),
+                ErrorPolicy.LENIENT
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(3, page.getPositionCount());
+            BytesRefBlock city = page.getBlock(0);
+            BytesRefBlock zip = page.getBlock(1);
+            IntBlock id = page.getBlock(2);
+            BytesRef scratch = new BytesRef();
+            assertEquals(new BytesRef("NYC"), BytesRef.deepCopyOf(city.getBytesRef(0, scratch)));
+            assertTrue("scalar-where-object row -> city null", city.isNull(1));
+            assertTrue("scalar-where-object row -> zip null", zip.isNull(1));
+            assertFalse("scalar-where-object row's sibling column must still decode", id.isNull(1));
+            assertEquals(2, id.getInt(id.getFirstValueIndex(1)));
+            assertEquals(new BytesRef("London"), BytesRef.deepCopyOf(city.getBytesRef(2, scratch)));
+            assertEquals(new BytesRef("SW1A"), BytesRef.deepCopyOf(zip.getBytesRef(2, scratch)));
+        }
+
+        List<String> warnings = drainWarnings();
+        assertFalse("expected a client warning for the shape conflict", warnings.isEmpty());
+        assertTrue("warning should name the conflicting field, got: " + warnings, warnings.stream().anyMatch(w -> w.contains("address")));
+    }
+
+    /**
+     * A {@code null} element inside a JSON array of objects (e.g. {@code "events": [{"type":"a"}, null]}) reaches a
+     * structural decoder node with {@code inArray == true}. The null element must be ignored (nulls in arrays are not
+     * supported) without throwing on the null {@code blockBuilder}, leaving the surrounding multi-value entry intact.
+     * Companion to {@link #testNullWhereNestedObjectExpected} for the in-array path (#152574).
+     */
+    public void testNullElementInArrayOfObjects() throws IOException {
+        String ndjson = "{\"events\": [{\"type\": \"click\"}, {\"type\": \"view\"}]}\n" + "{\"events\": [{\"type\": \"scroll\"}, null]}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("events.type", DataType.KEYWORD)))) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            BytesRefBlock type = page.getBlock(0);
+            BytesRef scratch = new BytesRef();
+            assertMvAt(type, 0, scratch, List.of("click", "view"));
+            assertMvAt(type, 1, scratch, List.of("scroll"));
+        }
+    }
+
+    /**
+     * An array of objects with a leading (or all-)null element must still align with sibling columns. The MV shape is
+     * decided from the first non-null element; a leading null previously left the child columns without an open
+     * multi-value entry while later objects appended values, misaligning rows across columns (#152574). Covers
+     * leading-null, mid-null, and all-null arrays against a scalar {@code id} column that pins the expected row count.
+     */
+    public void testArrayOfObjectsWithNullElements() throws IOException {
+        String ndjson = "{\"events\": [{\"type\": \"a\"}, {\"type\": \"b\"}], \"id\": 1}\n"
+            + "{\"events\": [null, {\"type\": \"c\"}, {\"type\": \"d\"}], \"id\": 2}\n"
+            + "{\"events\": [{\"type\": \"e\"}, null, {\"type\": \"f\"}], \"id\": 3}\n"
+            + "{\"events\": [null, null], \"id\": 4}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("events.type", DataType.KEYWORD), attribute("id", DataType.INTEGER)))) {
+            assertNotNull(page);
+            assertEquals(4, page.getPositionCount());
+            BytesRefBlock type = page.getBlock(0);
+            IntBlock id = page.getBlock(1);
+            assertEquals(type.getPositionCount(), id.getPositionCount());
+            BytesRef scratch = new BytesRef();
+            assertMvAt(type, 0, scratch, List.of("a", "b"));
+            assertMvAt(type, 1, scratch, List.of("c", "d"));
+            assertMvAt(type, 2, scratch, List.of("e", "f"));
+            assertTrue("all-null array -> type null", type.isNull(3));
+            for (int p = 0; p < 4; p++) {
+                assertFalse("id must be present for row " + p, id.isNull(p));
+                assertEquals(p + 1, id.getInt(id.getFirstValueIndex(p)));
+            }
+        }
+    }
+
+    /**
+     * An array of objects on a structural node whose leading element(s) are stray scalars (e.g.
+     * {@code ["x", {"type":"a"}, {"type":"b"}]}) must still align with sibling columns. A structural prefix carries
+     * no scalar values of its own, so leading scalars are skipped when deciding the multi-value shape; otherwise
+     * {@code includeChildren} stayed false and the later objects appended into never-opened child builders,
+     * reproducing the same cross-column misalignment as the leading-null case (#152574). Covers leading-scalar,
+     * mid-scalar, and all-scalar arrays against a scalar {@code id} column that pins the expected row count.
+     */
+    public void testArrayOfObjectsWithScalarElements() throws IOException {
+        String ndjson = "{\"events\": [\"x\", {\"type\": \"a\"}, {\"type\": \"b\"}], \"id\": 1}\n"
+            + "{\"events\": [{\"type\": \"c\"}, \"y\", {\"type\": \"d\"}], \"id\": 2}\n"
+            + "{\"events\": [null, \"z\", {\"type\": \"e\"}], \"id\": 3}\n"
+            + "{\"events\": [\"only-scalars\", \"more\"], \"id\": 4}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("events.type", DataType.KEYWORD), attribute("id", DataType.INTEGER)))) {
+            assertNotNull(page);
+            assertEquals(4, page.getPositionCount());
+            BytesRefBlock type = page.getBlock(0);
+            IntBlock id = page.getBlock(1);
+            assertEquals(type.getPositionCount(), id.getPositionCount());
+            BytesRef scratch = new BytesRef();
+            assertMvAt(type, 0, scratch, List.of("a", "b"));
+            assertMvAt(type, 1, scratch, List.of("c", "d"));
+            assertMvAt(type, 2, scratch, List.of("e"));
+            assertTrue("all-scalar array -> type null", type.isNull(3));
+            for (int p = 0; p < 4; p++) {
+                assertFalse("id must be present for row " + p, id.isNull(p));
+                assertEquals(p + 1, id.getInt(id.getFirstValueIndex(p)));
+            }
+        }
+    }
+
+    /**
+     * Mirror of {@link #testArrayOfObjectsWithScalarElements}: an array of scalars on a leaf column whose
+     * elements are occasionally objects (e.g. {@code ["a", {"x":1}, "b"]}). A stray object among array
+     * scalars is a distinct, supported shape — not the record-level scalar/object conflict
+     * elastic/esql-planning#1028 targets — so it must be silently omitted from the multi-value entry under
+     * every {@link ErrorPolicy}, including {@code STRICT}; only a genuine top-level (non-array) conflict
+     * (see {@link #testScalarWhereNestedObjectExpectedStrictFails}) fails the query. Covers leading-object,
+     * mid-object, and all-object arrays against a scalar {@code id} column that pins the expected row count.
+     */
+    public void testArrayOfScalarsWithObjectElements() throws IOException {
+        String ndjson = "{\"tags\": [\"a\", {\"x\": 1}, \"b\"], \"id\": 1}\n"
+            + "{\"tags\": [{\"x\": 1}, \"c\", \"d\"], \"id\": 2}\n"
+            + "{\"tags\": [null, {\"x\": 1}, \"e\"], \"id\": 3}\n"
+            + "{\"tags\": [{\"x\": 1}, {\"y\": 2}], \"id\": 4}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("tags", DataType.KEYWORD), attribute("id", DataType.INTEGER)))) {
+            assertNotNull(page);
+            assertEquals(4, page.getPositionCount());
+            BytesRefBlock tags = page.getBlock(0);
+            IntBlock id = page.getBlock(1);
+            assertEquals(tags.getPositionCount(), id.getPositionCount());
+            BytesRef scratch = new BytesRef();
+            assertMvAt(tags, 0, scratch, List.of("a", "b"));
+            assertMvAt(tags, 1, scratch, List.of("c", "d"));
+            assertMvAt(tags, 2, scratch, List.of("e"));
+            assertTrue("all-object array -> tags null", tags.isNull(3));
+            for (int p = 0; p < 4; p++) {
+                assertFalse("id must be present for row " + p, id.isNull(p));
+                assertEquals(p + 1, id.getInt(id.getFirstValueIndex(p)));
+            }
+        }
+    }
+
     private Page decodePage(String ndjson, List<Attribute> attributes) throws IOException {
+        return decodePage(ndjson, attributes, ErrorPolicy.STRICT);
+    }
+
+    private Page decodePage(String ndjson, List<Attribute> attributes, ErrorPolicy errorPolicy) throws IOException {
         try (
             NdJsonPageDecoder decoder = new NdJsonPageDecoder(
                 new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null, // DateFormatter
                 attributes,
                 null,
                 1024,
                 blockFactory,
-                ErrorPolicy.STRICT,
+                errorPolicy,
                 "test://decode",
                 new NdJsonReaderCounters()
             )
         ) {
             return decoder.decodePage();
         }
+    }
+
+    /**
+     * Reads the response-header warnings emitted on the test thread and clears them so the parent
+     * {@code ensureNoWarnings} post-check passes. Returns the unwrapped warning messages.
+     */
+    private List<String> drainWarnings() {
+        List<String> raw = threadContext.getResponseHeaders().getOrDefault("Warning", List.of());
+        List<String> messages = raw.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false)).toList();
+        threadContext.stashContext();
+        return messages;
     }
 
     private static Attribute attribute(String name, DataType type) {

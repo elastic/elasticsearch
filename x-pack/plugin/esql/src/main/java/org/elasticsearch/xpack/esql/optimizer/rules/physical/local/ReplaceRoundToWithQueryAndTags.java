@@ -52,6 +52,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.Rounding.RoundingConvention.DOWN;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.elasticsearch.xpack.esql.plugin.QueryPragmas.ROUNDTO_PUSHDOWN_THRESHOLD;
@@ -308,6 +309,12 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             // It is not clear how to push down multiple RoundTos, dealing with multiple RoundTos is out of the scope of this PR.
             if (roundTos.size() == 1) {
                 RoundTo roundTo = roundTos.get(0);
+                // The range queries and tags generated below assume DOWN (floor) semantics: each interval [p_i, p_{i+1})
+                // is tagged with p_i. UP (ceiling) convention would require tagging with p_{i+1} instead, which is not
+                // implemented here. Skip the pushdown for UP convention.
+                if (roundTo.roundingConvention() != DOWN) {
+                    return evalExec;
+                }
                 int count = roundTo.points().size();
                 int roundingPointsUpperLimit = adjustedRoundingPointsThreshold(
                     ctx.searchStats(),

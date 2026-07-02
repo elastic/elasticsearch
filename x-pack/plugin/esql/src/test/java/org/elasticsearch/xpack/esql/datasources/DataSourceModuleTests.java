@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -16,6 +17,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.datasource.brotli.BrotliDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
@@ -31,7 +33,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
@@ -53,6 +57,8 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.mockito.Mockito.mock;
+
 /**
  * Integration tests for DataSourceModule verifying SPI discovery and registration.
  * These tests ensure all data sources work correctly via the plugin discovery mechanism.
@@ -62,6 +68,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * spawn daemon threads which are difficult to clean up in unit tests.
  */
 public class DataSourceModuleTests extends ESTestCase {
+
+    private static final EncryptionService ENCRYPTION_SERVICE = mock(EncryptionService.class);
 
     private BlockFactory blockFactory;
 
@@ -83,7 +91,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         @Override
         public Set<FormatSpec> formatSpecs() {
-            return Set.of(FormatSpec.of("csv", ".csv"), FormatSpec.of("tsv", ".tsv"));
+            return Set.of(FormatSpec.of("csv", ".csv"), FormatSpec.of("tsv", ".tsv"), FormatSpec.of("ndjson", ".ndjson"));
         }
 
         @Override
@@ -93,7 +101,14 @@ public class DataSourceModuleTests extends ESTestCase {
 
         @Override
         public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-            return Map.of("csv", (s, bf) -> new MockCsvFormatReader("csv", List.of(".csv")), "tsv", (s, bf) -> new MockTsvFormatReader());
+            return Map.of(
+                "csv",
+                (s, bf) -> new MockCsvFormatReader("csv", List.of(".csv")),
+                "tsv",
+                (s, bf) -> new MockTsvFormatReader(),
+                "ndjson",
+                (s, bf) -> new MockCsvFormatReader("ndjson", List.of(".ndjson"))
+            );
         }
     }
 
@@ -125,7 +140,7 @@ public class DataSourceModuleTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(),
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
             () -> false
         );
         assertFalse("plugin must not be closed before module close", plugin.closed.get());
@@ -175,6 +190,10 @@ public class DataSourceModuleTests extends ESTestCase {
      * Mock CSV format reader for testing.
      */
     private static class MockCsvFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final String format;
         private final List<String> extensions;
@@ -212,6 +231,10 @@ public class DataSourceModuleTests extends ESTestCase {
      * Mock TSV format reader for testing.
      */
     private static class MockTsvFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         @Override
         public SourceMetadata metadata(StorageObject object) {
@@ -352,6 +375,10 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     private static class SegmentableTestNdjsonReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         @Override
         public SourceMetadata metadata(StorageObject object) {
@@ -421,7 +448,7 @@ public class DataSourceModuleTests extends ESTestCase {
             settings,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials(),
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
             () -> false
         );
     }
@@ -453,11 +480,14 @@ public class DataSourceModuleTests extends ESTestCase {
 
         StorageProviderRegistry registry = module.storageProviderRegistry();
 
-        // Verify file provider is registered
+        // Verify file provider is registered. file:// gets the same reactive retry/backoff wrapping as every
+        // other scheme (the retry layer is inert for file:// — local reads raise plain IOExceptions, not the
+        // throttling-typed exception it retries — but the wrapping is uniform), so the retrieved provider is
+        // the outer RetryableStorageProvider, not the raw MockFileStorageProvider.
         assertTrue("File storage provider should be registered", registry.hasProvider("file"));
         StorageProvider fileProvider = registry.provider(StoragePath.of("file:///tmp/test.csv"));
         assertNotNull("File storage provider should be retrievable", fileProvider);
-        assertTrue("File provider should be MockFileStorageProvider", fileProvider instanceof MockFileStorageProvider);
+        assertTrue("File provider should be wrapped with the retry layer", fileProvider instanceof RetryableStorageProvider);
     }
 
     /**
@@ -698,6 +728,87 @@ public class DataSourceModuleTests extends ESTestCase {
         assertNotNull(registry.byExtension("data.tsv.gz"));
     }
 
+    /**
+     * On release builds the text-format codec surface is gated to {uncompressed, gzip, zstd}: bzip2, snappy,
+     * lz4, and brotli must be rejected at extension-resolution time on every text format (CSV/TSV/NDJSON) with
+     * a message that names the supported set, while gzip and zstd still resolve. See elastic/esql-planning#938.
+     */
+    public void testTextCodecsRejectedOnReleaseBuilds() {
+        assumeFalse("snapshot builds allow all registered codecs", Build.current().isSnapshot());
+
+        List<DataSourcePlugin> plugins = List.of(
+            new TestDataSourcePlugin(),
+            new GzipDataSourcePlugin(),
+            new ZstdDataSourcePlugin(),
+            new Bzip2DataSourcePlugin(),
+            new SnappyDataSourcePlugin(),
+            new Lz4DataSourcePlugin(),
+            new BrotliDataSourcePlugin()
+        );
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        // One disabled codec per text format, covering all four disabled codecs and all three formats.
+        Map<String, String> rejected = new HashMap<>();
+        rejected.put("data.csv.bz2", "bzip2");
+        rejected.put("data.tsv.snappy", "snappy");
+        rejected.put("data.ndjson.lz4", "lz4");
+        rejected.put("data.csv.br", "brotli");
+        for (Map.Entry<String, String> entry : rejected.entrySet()) {
+            String objectName = entry.getKey();
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byExtension(objectName));
+            assertThat(
+                "Expected rejection for " + objectName,
+                ex.getMessage(),
+                org.hamcrest.Matchers.containsString("is not supported; supported: uncompressed, gzip, zstd")
+            );
+            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString(entry.getValue()));
+        }
+
+        // The benchmarked codecs still resolve across the text formats.
+        assertNotNull(registry.byExtension("data.csv.gz"));
+        assertNotNull(registry.byExtension("data.tsv.zst"));
+        assertNotNull(registry.byExtension("data.ndjson.gz"));
+    }
+
+    /**
+     * On snapshot builds the codec gate is bypassed: every registered codec — including bzip2, snappy, lz4, and
+     * brotli — resolves to a {@code CompressionDelegatingFormatReader} for text formats. See elastic/esql-planning#938.
+     */
+    public void testTextCodecsAllowedOnSnapshotBuilds() {
+        assumeTrue("release builds gate the text-format codec surface", Build.current().isSnapshot());
+
+        List<DataSourcePlugin> plugins = List.of(
+            new TestDataSourcePlugin(),
+            new GzipDataSourcePlugin(),
+            new ZstdDataSourcePlugin(),
+            new Bzip2DataSourcePlugin(),
+            new SnappyDataSourcePlugin(),
+            new Lz4DataSourcePlugin(),
+            new BrotliDataSourcePlugin()
+        );
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        List<String> compressed = List.of(
+            "data.csv.gz",
+            "data.tsv.zst",
+            "data.ndjson.gz",
+            "data.csv.bz2",
+            "data.tsv.snappy",
+            "data.ndjson.lz4",
+            "data.csv.br"
+        );
+        for (String objectName : compressed) {
+            FormatReader reader = registry.byExtension(objectName);
+            assertNotNull("Expected " + objectName + " to resolve on snapshot builds", reader);
+            assertTrue(
+                objectName + " should resolve to a CompressionDelegatingFormatReader",
+                reader.getClass().getSimpleName().contains("CompressionDelegating")
+            );
+        }
+    }
+
     public void testFileSourceSplitProviderUsesRegistriesForNdjsonMacroSplits() {
         String fileUri = "file:///tmp/registry-backed.ndjson";
         byte[] payload = buildNdjsonPayload(8_000);
@@ -717,7 +828,7 @@ public class DataSourceModuleTests extends ESTestCase {
             List.of()
         );
 
-        List<ExternalSplit> splits = module.sourceFactories().get("file").splitProvider().discoverSplits(ctx);
+        List<ExternalSplit> splits = module.sourceFactories().get("file").splitProvider().discoverSplits(ctx).splits();
         assertTrue("Expected newline-aligned macro splits from registry-backed provider", splits.size() > 1);
 
         long totalLength = 0;

@@ -61,12 +61,12 @@ import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
-import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.hamcrest.Matchers;
@@ -268,7 +268,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             true,
             false,
-            false,
             DOC_VALUES_DISABLED
         );
 
@@ -293,7 +292,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             IndexVersion.current(),
             true,
-            false,
             false,
             DOC_VALUES_DISABLED
         );
@@ -326,7 +324,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             IndexVersion.current(),
             true,
-            false,
             false,
             DOC_VALUES_DISABLED
         );
@@ -377,7 +374,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             IndexVersion.current(),
             true,
-            false,
             false,
             DOC_VALUES_DISABLED
         );
@@ -432,7 +428,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             true,
             false,
-            false,
             DOC_VALUES_DISABLED
         );
 
@@ -470,7 +465,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             IndexVersion.current(),
             true,
-            false,
             false,
             DOC_VALUES_DISABLED
         );
@@ -523,7 +517,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             true,
             false,
-            false,
             DOC_VALUES_DISABLED
         );
 
@@ -551,7 +544,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             true,
             false,
-            false,
             DOC_VALUES_DISABLED
         );
 
@@ -578,7 +570,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES),
             true,
-            false,
             false,
             DOC_VALUES_DISABLED
         );
@@ -609,8 +600,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         // SortedSet DV, case-insensitive: script-backed query
         assertThat(sortedSet.prefixQuery("foo", null, true, MOCK_CONTEXT), Matchers.instanceOf(StringScriptFieldPrefixQuery.class));
 
-        // Binary DV: SlowCustomBinaryDocValuesPrefixQuery
-        assertThat(binary.prefixQuery("foo", null, false, MOCK_CONTEXT), Matchers.instanceOf(SlowCustomBinaryDocValuesPrefixQuery.class));
+        // Binary DV: ScanningBinaryDocValuesPrefixQuery
+        assertThat(binary.prefixQuery("foo", null, false, MOCK_CONTEXT), Matchers.instanceOf(ScanningBinaryDocValuesPrefixQuery.class));
 
         // Doc-values only, expensive queries disabled
         ElasticsearchException ee = expectThrows(
@@ -635,10 +626,10 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         // SortedSet DV, case-insensitive: script-backed query
         assertThat(sortedSet.wildcardQuery("foo*", null, true, MOCK_CONTEXT), Matchers.instanceOf(StringScriptFieldWildcardQuery.class));
 
-        // Binary DV: SlowCustomBinaryDocValuesWildcardQuery
+        // Binary DV: ScanningBinaryDocValuesWildcardQuery
         assertThat(
             binary.wildcardQuery("foo*", null, false, MOCK_CONTEXT),
-            Matchers.instanceOf(SlowCustomBinaryDocValuesWildcardQuery.class)
+            Matchers.instanceOf(ScanningBinaryDocValuesWildcardQuery.class)
         );
 
         // Doc-values only, expensive queries disabled
@@ -661,8 +652,11 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             )
         );
 
-        // Binary DV: script-backed query
-        assertThat(binary.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT), Matchers.instanceOf(StringScriptFieldRegexpQuery.class));
+        // Binary DV: ScanningBinaryDocValuesRegexpQuery
+        assertThat(
+            binary.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT),
+            Matchers.instanceOf(ScanningBinaryDocValuesRegexpQuery.class)
+        );
 
         // Doc-values only, expensive queries disabled
         ElasticsearchException ee = expectThrows(
@@ -678,10 +672,10 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         assertThat(q, Matchers.instanceOf(RegexpQuery.class));
         assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
 
-        // Binary DV → StringScriptFieldRegexpQuery with ASCII_CASE_INSENSITIVE matchFlag
+        // Binary DV → ScanningBinaryDocValuesRegexpQuery with ASCII_CASE_INSENSITIVE matchFlag
         assertThat(
             binaryDocValuesOnly().regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT),
-            Matchers.instanceOf(StringScriptFieldRegexpQuery.class)
+            Matchers.instanceOf(ScanningBinaryDocValuesRegexpQuery.class)
         );
     }
 
@@ -697,7 +691,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             null,
             false,
             IndexVersion.current(),
-            false,
             false,
             false,
             new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true),
@@ -719,7 +712,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             true,
-            false,
             new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true),
             false
         );

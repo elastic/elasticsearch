@@ -1,5 +1,0 @@
-area: Security
-issues: []
-pr: 151143
-summary: Make Automatons wildcard code-point aware
-type: bug

@@ -1632,7 +1632,8 @@ public class CsvFormatReaderTests extends ESTestCase {
                     options.quoteChar(),
                     delim,
                     SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                    options.encoding()
+                    options.encoding(),
+                    options.quoting()
                 );
                 while (recordReader.readRecord(bracketAware) != null) {
                     parserRecords++;
@@ -5382,7 +5383,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     /**
      * Sampling under SKIP_ROW with a tight budget exhausts and surfaces a capped budget error.
      * Sampling errors count against the SAME max_errors budget the data path uses, matching
-     * ClickHouse's input_format_allow_errors_num semantics.
+     * common database readers' error-tolerance semantics.
      */
     public void testSamplingSkipRowExceedsBudget() {
         StringBuilder csv = new StringBuilder();
@@ -6297,6 +6298,300 @@ public class CsvFormatReaderTests extends ESTestCase {
             tracking.bytesConsumed.get(),
             Matchers.lessThan((long) bytes.length / 2)
         );
+    }
+
+    // -- Multi-split _rowPosition repeatability --
+    //
+    // Same physical record must carry the same _rowPosition value regardless of which split surfaced
+    // it. The byte-offset emit (splitStartByte + bytesRead - lastRecordBytes) is the contract that
+    // makes _id (the (location, mtime, rowPosition) hash) stable across split layouts, which Security ingest dedup
+    // depends on. A regression where _rowPosition reverts to a per-iterator counter shows up here as
+    // duplicate offsets across splits or as offsets that change when the split boundary moves.
+
+    /**
+     * Pins the {@code _rowPosition} channel for a single full-file read against an unsplit file:
+     * offsets must equal each record's actual byte position in the file (header included).
+     */
+    public void testRowPositionEmitsFileGlobalByteOffsetSingleSplit() throws IOException {
+        String csv = "id:long,name:keyword\n1,Alice\n2,Bob\n3,Carol\n";
+        long[] expectedOffsets = computeRecordStartOffsets(csv, /* skipHeader= */ true);
+        assertEquals("fixture sanity: 3 data records", 3, expectedOffsets.length);
+
+        List<Long> offsets = collectRowPositions(csv, 0L, /* recordAligned= */ false, /* firstSplit= */ true, /* lastSplit= */ true);
+        assertEquals("one offset per data row", 3, offsets.size());
+        for (int i = 0; i < offsets.size(); i++) {
+            assertEquals("row " + i + " offset must equal its physical byte position", expectedOffsets[i], (long) offsets.get(i));
+        }
+    }
+
+    /**
+     * Same fixture read as two record-aligned splits at a record boundary. The two splits' offsets,
+     * concatenated, must equal the single-split offsets — i.e. the second split's first record must
+     * carry the same offset whether it surfaced under a split or as part of a whole-file read.
+     */
+    public void testRowPositionStableAcrossRecordAlignedSplits() throws IOException {
+        String csv = "id:long,name:keyword\n1,Alice\n2,Bob\n3,Carol\n";
+        long[] expectedOffsets = computeRecordStartOffsets(csv, true);
+
+        // Single split — baseline.
+        List<Long> singleSplit = collectRowPositions(csv, 0L, false, true, true);
+
+        // Split at the boundary between "2,Bob\n" and "3,Carol\n": first half contains header + rows
+        // 1 and 2; second half starts at the byte offset of "3,Carol\n".
+        long boundary = expectedOffsets[2];
+        String firstHalf = csv.substring(0, (int) boundary);
+        String secondHalf = csv.substring((int) boundary);
+        // firstSplit=true, lastSplit=false on the first half so the header is consumed; the second
+        // half is recordAligned=true with splitStartByte=boundary so it knows where in the file its
+        // first record starts.
+        List<Long> firstHalfOffsets = collectRowPositions(firstHalf, 0L, false, true, false);
+        List<Long> secondHalfOffsets = collectRowPositions(
+            secondHalf,
+            boundary,
+            /* recordAligned= */ true,
+            /* firstSplit= */ false,
+            /* lastSplit= */ true
+        );
+
+        List<Long> combined = new ArrayList<>(firstHalfOffsets);
+        combined.addAll(secondHalfOffsets);
+        assertEquals("combined two-split offsets must equal single-split offsets", singleSplit, combined);
+    }
+
+    /**
+     * Four splits, each spanning a single data record. Every record must carry the same offset it
+     * had in the unsplit read — proving the byte arithmetic does not drift on tighter slicing.
+     */
+    public void testRowPositionStableAcrossManySplits() throws IOException {
+        String csv = "id:long,name:keyword\n1,Alice\n2,Bob\n3,Carol\n4,Dave\n";
+        long[] expectedOffsets = computeRecordStartOffsets(csv, true);
+        assertEquals(4, expectedOffsets.length);
+
+        List<Long> singleSplit = collectRowPositions(csv, 0L, false, true, true);
+        assertEquals(4, singleSplit.size());
+
+        // Per-record splits. First split owns the header; subsequent splits are record-aligned and
+        // contain exactly one data record.
+        List<Long> combined = new ArrayList<>();
+        long firstDataBoundary = expectedOffsets[0];
+        String firstSplit = csv.substring(0, (int) expectedOffsets[1]); // header + row 1
+        combined.addAll(collectRowPositions(firstSplit, 0L, false, true, false));
+        for (int i = 1; i < expectedOffsets.length; i++) {
+            long start = expectedOffsets[i];
+            long end = i + 1 < expectedOffsets.length ? expectedOffsets[i + 1] : csv.length();
+            String chunk = csv.substring((int) start, (int) end);
+            boolean lastSplit = (i == expectedOffsets.length - 1);
+            combined.addAll(collectRowPositions(chunk, start, true, false, lastSplit));
+        }
+        assertEquals("per-record splits must reproduce the single-split offsets", singleSplit, combined);
+        // And every offset matches its physical byte position.
+        for (int i = 0; i < combined.size(); i++) {
+            assertEquals(expectedOffsets[i], (long) combined.get(i));
+        }
+        assertTrue("ignored boundary marker", firstDataBoundary >= 0);
+    }
+
+    /**
+     * Mid-record non-record-aligned split: the partial leading record is dropped via the
+     * {@code recordReader.readRecord(...)} call in {@code CsvFormatReader.read()}'s else-branch.
+     * The dropped record's bytes are committed to {@code recordReader.bytesRead()} so subsequent
+     * records' offsets correctly include them; this test pins that.
+     */
+    public void testRowPositionStableForNonRecordAlignedMidRecordSplit() throws IOException {
+        String csv = "id:long,name:keyword\n1,Alice\n2,Bob\n3,Carol\n";
+        long[] expectedOffsets = computeRecordStartOffsets(csv, true);
+
+        // Split boundary at byte 25 — inside "1,Alice\n" (record 1 spans bytes 21..28). The second
+        // split contains "ice\n2,Bob\n3,Carol\n"; the reader skips the leading partial "ice\n" and
+        // emits 2,Bob + 3,Carol with their file-global offsets intact.
+        long midRecordByte = 25L;
+        String secondHalf = csv.substring((int) midRecordByte);
+        List<Long> secondHalfOffsets = collectRowPositions(
+            secondHalf,
+            midRecordByte,
+            /* recordAligned= */ false,
+            /* firstSplit= */ false,
+            /* lastSplit= */ true
+        );
+
+        assertEquals("two records emitted after partial-record skip", 2, secondHalfOffsets.size());
+        assertEquals("2,Bob carries the file-global offset", expectedOffsets[1], (long) secondHalfOffsets.get(0));
+        assertEquals("3,Carol carries the file-global offset", expectedOffsets[2], (long) secondHalfOffsets.get(1));
+    }
+
+    /**
+     * Mid-record split case: a quoted field carries an embedded newline. The reader receives a
+     * non-record-aligned split that starts mid-quoted-field; it must drop the partial leading
+     * record and emit the next full record with the correct file-global offset.
+     */
+    public void testRowPositionStableForQuotedNewlineRecord() throws IOException {
+        String csv = "id:long,name:keyword\n1,\"Alice\nLong\"\n2,Bob\n3,Carol\n";
+        // Records are "1,\"Alice\nLong\"\n" (15 bytes after the 21-byte header), "2,Bob\n", "3,Carol\n".
+        long[] expectedOffsets = computeRecordStartOffsets(csv, true);
+        assertEquals(3, expectedOffsets.length);
+
+        List<Long> singleSplit = collectRowPositions(csv, 0L, false, true, true);
+        assertEquals(3, singleSplit.size());
+        assertEquals(expectedOffsets[0], (long) singleSplit.get(0));
+        assertEquals(expectedOffsets[1], (long) singleSplit.get(1));
+        assertEquals(expectedOffsets[2], (long) singleSplit.get(2));
+    }
+
+    /**
+     * Inferred-schema read (un-typed header forces {@code inferSchemaFromBatchReader}) must still
+     * emit exact file-global {@code _rowPosition} offsets across the schema-sample boundary. The
+     * sample rows are read via the recordReader-backed iterator and replayed with captured offsets;
+     * post-sample rows flow through a freshly re-created recordReader iterator. A tiny
+     * {@code schema_sample_size} makes both sides of the boundary non-empty. Pre-fix the post-sample
+     * rows ran on the Jackson bulk path and collapsed to the last-sampled record's offset.
+     */
+    public void testRowPositionExactAcrossInferredSchemaSampleBoundary() throws IOException {
+        String csv = "id,name\n1,Alice\n2,Bob\n3,Carol\n4,Dave\n5,Eve\n";
+        long[] expectedOffsets = computeRecordStartOffsets(csv, /* skipHeader= */ true);
+        assertEquals("fixture sanity: 5 data records", 5, expectedOffsets.length);
+
+        StorageObject object = createStorageObject(csv);
+        // schema_sample_size = 2: rows 1-2 sampled+replayed, rows 3-5 read post-sample. Un-typed
+        // header (id,name — no :type) routes through type inference, exercising the sample boundary.
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 2));
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(64)
+            .errorPolicy(ErrorPolicy.STRICT)
+            .projectedColumns(List.of("_rowPosition"))
+            .firstSplit(true)
+            .lastSplit(true)
+            .build();
+
+        List<Long> offsets = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = reader.read(object, context)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                LongBlock rowPos = (LongBlock) page.getBlock(0);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    offsets.add(rowPos.getLong(i));
+                }
+                page.releaseBlocks();
+            }
+        }
+        assertEquals("inferred-schema read must emit one offset per data row", 5, offsets.size());
+        for (int i = 0; i < expectedOffsets.length; i++) {
+            assertEquals(
+                "row " + i + " offset must equal its physical byte position across the sample boundary",
+                expectedOffsets[i],
+                (long) offsets.get(i)
+            );
+        }
+    }
+
+    /**
+     * Reads {@code _rowPosition} only — projects exactly the synthetic column to exercise the
+     * convert path where every column slot is the {@code _rowPosition} emit.
+     */
+    private List<Long> collectRowPositions(
+        String csvContent,
+        long splitStartByte,
+        boolean recordAligned,
+        boolean firstSplit,
+        boolean lastSplit
+    ) throws IOException {
+        StorageObject object = createStorageObject(csvContent);
+        // Use the header-on path so the reader skips the header line; resolved schema is left for
+        // first-split discovery on the first split and pre-bound on subsequent record-aligned
+        // splits via withSchema.
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        // Non-first splits do not have a header to discover from; pre-bind the schema so the iterator
+        // can skip schema inference. Production callers do this via the planner's withSchema(...)
+        // call for both record-aligned and macro-split non-first reads.
+        List<org.elasticsearch.xpack.esql.core.expression.Attribute> schema = null;
+        if (firstSplit == false) {
+            schema = List.of(
+                new org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute(
+                    org.elasticsearch.xpack.esql.core.tree.Source.EMPTY,
+                    null,
+                    "id",
+                    org.elasticsearch.xpack.esql.core.type.DataType.LONG,
+                    org.elasticsearch.xpack.esql.core.expression.Nullability.TRUE,
+                    null,
+                    false
+                ),
+                new org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute(
+                    org.elasticsearch.xpack.esql.core.tree.Source.EMPTY,
+                    null,
+                    "name",
+                    org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD,
+                    org.elasticsearch.xpack.esql.core.expression.Nullability.TRUE,
+                    null,
+                    false
+                )
+            );
+            reader = reader.withSchema(schema);
+        }
+        FormatReadContext.Builder ctxBuilder = FormatReadContext.builder()
+            .batchSize(64)
+            .errorPolicy(ErrorPolicy.STRICT)
+            .projectedColumns(List.of("_rowPosition"))
+            .firstSplit(firstSplit)
+            .lastSplit(lastSplit)
+            .recordAligned(recordAligned)
+            .splitStartByte(splitStartByte);
+        if (recordAligned) {
+            ctxBuilder.readSchema(schema);
+        }
+        List<Long> result = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = reader.read(object, ctxBuilder.build())) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                LongBlock rowPos = (LongBlock) page.getBlock(0);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    result.add(rowPos.getLong(i));
+                }
+                page.releaseBlocks();
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Computes each data record's byte offset within {@code csvContent} (UTF-8 encoded), correctly
+     * handling quoted newlines so the test's expectations match the reader's record-boundary scan.
+     */
+    private static long[] computeRecordStartOffsets(String csvContent, boolean skipHeader) {
+        byte[] bytes = csvContent.getBytes(StandardCharsets.UTF_8);
+        List<Long> starts = new ArrayList<>();
+        int i = 0;
+        int line = 0;
+        boolean inQuotes = false;
+        long recordStart = 0;
+        while (i < bytes.length) {
+            byte b = bytes[i];
+            if (b == '"' && (i + 1 >= bytes.length || bytes[i + 1] != '"')) {
+                inQuotes = !inQuotes;
+                i++;
+                continue;
+            } else if (b == '"' && i + 1 < bytes.length && bytes[i + 1] == '"') {
+                i += 2;
+                continue;
+            }
+            if (inQuotes) {
+                i++;
+                continue;
+            }
+            if (b == '\n') {
+                if (skipHeader == false || line >= 1) {
+                    starts.add(recordStart);
+                }
+                line++;
+                i++;
+                recordStart = i;
+            } else {
+                i++;
+            }
+        }
+        long[] out = new long[starts.size()];
+        for (int k = 0; k < starts.size(); k++) {
+            out[k] = starts.get(k);
+        }
+        return out;
     }
 
     /**

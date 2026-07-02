@@ -114,11 +114,15 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
         }
         Duration foldedWindow = (Duration) window.fold(toEvaluator.foldCtx());
         Rounding.Prepared preparedRounding = bucketBucket.getDateRoundingOrNull(toEvaluator.foldCtx());
+        // For end-labeled (right-closed) buckets the rounding already returns the bucket's right edge, so the bucket end
+        // must be taken directly instead of advancing one more step as for start-labeled buckets.
+        boolean endLabeledBucket = bucketBucket.roundingConfiguration() == Rounding.RoundingConvention.UP;
         var timestampFactory = toEvaluator.apply(timestamp);
         return new WindowFilterEvaluator.Factory(
             source(),
             foldedWindow.toMillis(),
             preparedRounding,
+            endLabeledBucket,
             driverContext -> new HashMap<>(),
             timestampFactory
         );
@@ -141,11 +145,18 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
     static boolean process(
         @Fixed long window,
         @Fixed Rounding.Prepared bucket,
+        @Fixed boolean endLabeledBucket,
         @Fixed(scope = Fixed.Scope.THREAD_LOCAL) Map<Long, Long> nextTimestamps,
         long timestamp
     ) {
-        long bucketStart = bucket.round(timestamp);
-        long bucketEnd = nextTimestamps.computeIfAbsent(bucketStart, bucket::nextRoundingValue);
+        long bucketEnd;
+        if (endLabeledBucket) {
+            // The rounding already maps the timestamp to its bucket's right edge.
+            bucketEnd = bucket.round(timestamp);
+        } else {
+            long bucketStart = bucket.round(timestamp);
+            bucketEnd = nextTimestamps.computeIfAbsent(bucketStart, bucket::nextRoundingValue);
+        }
         return timestamp >= bucketEnd - window;
     }
 }

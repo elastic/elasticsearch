@@ -1,0 +1,6 @@
+area: PromQL
+issues:
+ - 151971
+pr: 152639
+summary: "[PromQL] Fix wrong window filter boundaries"
+type: bug

@@ -652,6 +652,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 && naturallyExhausted
                 && pinnedMtimeMillis >= 0
                 && fingerprinter != null
+                && pageDecoder.capDropped() == false
                 && statsColumnScope != StripeColumnScope.NONE) {
                 // Fingerprint must use the FULL file schema for parity with NdJsonFormatReader.metadata().
                 // Prefer the planner-provided schema (resolvedAttributes), fall back to the decoder's

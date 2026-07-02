@@ -185,6 +185,15 @@ public class NdJsonPageDecoder implements Closeable {
     private boolean truncated = false;
     /** File-global byte offset where the oversized record that triggered {@link #truncated} began. */
     private long truncatedAtByte = -1L;
+    /**
+     * Set when the BYTE-ARRAY path drops an oversized record and keeps decoding. Unlike {@link #truncated}
+     * (streaming, which stops at the record), the byte-array path recovers, so the emitted rows are complete
+     * EXCEPT the dropped one — a {@code max_record_size}-dependent under-count. Since {@code max_record_size}
+     * is a query pragma and not in the cache fingerprint ({@code SchemaCacheKey.FORMAT_AFFECTING_PARAMS}), a
+     * warm aggregate under a different cap would count differently, so {@link NdJsonPageIterator} must keep
+     * this scan out of the stats cache (safe-miss). Mirrors CSV's {@code recordCapDropped} guard.
+     */
+    private boolean capDropped = false;
 
     /** Page block layout: index {@code i} corresponds to {@code projectedAttributes().get(i)}. */
     List<Attribute> projectedAttributes() {
@@ -590,6 +599,14 @@ public class NdJsonPageDecoder implements Closeable {
     }
 
     /**
+     * True when the byte-array path dropped an oversized record and kept decoding — a
+     * {@code max_record_size}-dependent under-count that must not be cached. See {@link #capDropped}.
+     */
+    boolean capDropped() {
+        return capDropped;
+    }
+
+    /**
      * Parser byte offset relative to its current slice. Stable to subtract between two points within
      * a single record's decode (no recovery happens between {@code nextToken} and a successful
      * {@code decodeObject}), so {@code endOffset - startOffset} is the record's parsed JSON span.
@@ -799,7 +816,10 @@ public class NdJsonPageDecoder implements Closeable {
                             truncatedAtByte = recordOffset;
                             break;
                         }
-                        // Byte-array: the oversized record is fully buffered, so drop it and keep decoding.
+                        // Byte-array: the oversized record is fully buffered, so drop it and keep decoding. The
+                        // dropped record makes the row count max_record_size-dependent, so mark the scan
+                        // uncacheable (the iterator safe-misses on capDropped) — the cap is not fingerprinted.
+                        capDropped = true;
                         continue;
                     }
                 }

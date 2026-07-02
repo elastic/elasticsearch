@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -143,6 +144,43 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
     }
 
     /** As {@link #captureStripes} but returns the raw contribution maps for feeding the reconciler. */
+    /**
+     * Byte-array cap-drop safe-miss (mirrors CSV's {@code testMaxRecordSizeDropSafeMissesStripeCapture}).
+     * On the recordAligned (byte-array) path an oversized record is dropped and decoding CONTINUES, so the
+     * harvested row count is {@code max_record_size}-dependent. Because the cap is a query pragma and not in
+     * the cache fingerprint, the whole publish must safe-miss — otherwise a warm aggregate under a different
+     * cap would serve this scan's under-count. Proven to publish an under-count without the capDropped gate.
+     */
+    public void testMaxRecordSizeByteArrayDropSafeMissesCapture() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 10; i++) {
+            sb.append("{\"a\":").append(i).append("}\n");
+        }
+        sb.append("{\"a\":\"").append("x".repeat(200)).append("\"}\n"); // one record far over a 64-byte cap
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .stats(0, 1000, true)
+            .maxRecordBytes(64)
+            .errorPolicy(new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 100, 1.0, false)) // non-strict: drop the oversized record
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        assertNull("byte-array cap-drop must publish no stats (max_record_size is not fingerprinted)", sink.get(o.path().toString()));
+    }
+
     private List<Map<String, Object>> captureRaw(
         byte[] bytes,
         long baseOffset,

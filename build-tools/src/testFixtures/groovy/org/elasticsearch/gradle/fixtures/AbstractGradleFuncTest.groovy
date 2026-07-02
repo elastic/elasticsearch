@@ -71,7 +71,18 @@ abstract class AbstractGradleFuncTest extends Specification {
             minimumCompilerJava = 21
         """
         propertiesFile <<
-            "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
+            "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME\n"
+        // Pin the JAXP TransformerFactory to the JDK built-in implementation.
+        // The plugin-under-test classpath injected via GradleRunner#withPluginClasspath transitively
+        // contains Saxon-HE (pulled in by the nmcp publishing plugin), which registers itself as a
+        // javax.xml.transform.TransformerFactory service provider. Whether the JDK's FactoryFinder
+        // picks up that service registration depends on non-deterministic classpath/ServiceLoader
+        // ordering, so on some platforms (e.g. CI) Gradle's internal XmlFactories resolves to
+        // net.sf.saxon.TransformerFactoryImpl, which the Gradle core classloader cannot load,
+        // failing GenerateMavenPom with a TransformerFactoryConfigurationError. Forcing the JDK
+        // default keeps POM generation deterministic across environments.
+        propertiesFile <<
+            "systemProp.javax.xml.transform.TransformerFactory=com.sun.org.apache.xalan.internal.xsltc.trax.TransformerFactoryImpl"
 
         def nativeLibsProject = subProject(":libs:native:native-libraries")
         // Stub mirrors the real producer: a dedicated `nativeLibs` consumable variant that

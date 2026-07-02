@@ -45,9 +45,10 @@ testFieldExtractFlattenedSubkeyError
 required_capability: fn_field_extract_flattened
 
 FROM cross_cluster_failures
+| WHERE @timestamp == "2023-10-01T10:00:00.000Z"
 | EVAL result = FIELD_EXTRACT_FLATTENED(flattened, "_clusters.details")
 | MV_EXPAND result
-| WHERE FIELD_EXTRACT(result, "error") == "something sane looking"
+| WHERE FIELD_EXTRACT(result, "status") == "failed"
 | KEEP result
 | LIMIT 1
 ;
@@ -59,6 +60,7 @@ testFieldExtractFlattenedMultiValuedExpansions
 required_capability: fn_field_extract_flattened
 
 FROM cross_cluster_failures
+| WHERE @timestamp == "2023-10-01T10:00:00.000Z"
 | EVAL remote1_details = FIELD_EXTRACT_FLATTENED(flattened, "_clusters.details", "cluster")
 | MV_EXPAND remote1_details
 | WHERE FIELD_EXTRACT(remote1_details, "cluster") == "remote1"
@@ -73,9 +75,10 @@ testFieldExtractFlattenedMvExpand
 required_capability: fn_field_extract_flattened
 
 FROM cross_cluster_failures
+| WHERE @timestamp == "2023-10-01T10:00:00.000Z"
 | EVAL cluster = FIELD_EXTRACT_FLATTENED(flattened, "_clusters.details", "cluster")
 | MV_EXPAND cluster
-| WHERE FIELD_EXTRACT(cluster, "error") IS NOT NULL
+| WHERE FIELD_EXTRACT(cluster, "status") == "failed"
 | KEEP cluster
 | LIMIT 1
 ;
@@ -87,10 +90,10 @@ testFieldExtractFlattenedComplex
 required_capability: fn_field_extract_flattened
 
 FROM cross_cluster_failures
+| WHERE @timestamp == "2023-10-01T10:00:00.000Z"
 | EVAL cluster = FIELD_EXTRACT_FLATTENED(flattened, "_clusters.details", "cluster")
 | MV_EXPAND cluster
-| EVAL failed = FIELD_EXTRACT(cluster, "failed")::integer
-| WHERE failed > 0
+| WHERE FIELD_EXTRACT(cluster, "status") == "failed"
 | EVAL error = FIELD_EXTRACT(cluster, "error")
 | KEEP cluster, error
 | LIMIT 1

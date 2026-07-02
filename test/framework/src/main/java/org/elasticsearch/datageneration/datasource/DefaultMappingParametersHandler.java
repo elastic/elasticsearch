@@ -338,7 +338,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
     }
 
     protected Object extendedDocValuesParams() {
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false || indexMode.isStrictColumnar() == false) {
+        if (indexMode.isStrictColumnar() == false) {
             // The object form (including multi_value) is only valid in strict-columnar mode.
             return ESTestCase.randomBoolean();
         }

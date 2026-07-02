@@ -2941,6 +2941,7 @@ avg_cost:double | max_cost:long | min_cost:long
 # Reproducer for #152496
 cast_grouped_punk_after_stats
 required_capability: optional_fields_unmapped_eval_after_stats_fix
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM k8s_unmapped, k8s_retyped METADATA _index

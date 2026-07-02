@@ -584,9 +584,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.InternalDistributionDownloadPluginFuncTest
   method: resolves current version from local build
   issue: https://github.com/elastic/elasticsearch/issues/151851
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testCloseWhileShardsAreHollowed
-  issue: https://github.com/elastic/elasticsearch/issues/151861
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testDeleteIndexAfterRecovery
   issue: https://github.com/elastic/elasticsearch/issues/151884

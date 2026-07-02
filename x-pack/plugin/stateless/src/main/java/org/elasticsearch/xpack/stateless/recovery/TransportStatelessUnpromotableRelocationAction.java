@@ -404,7 +404,12 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         }
     }
 
-    private void fetchOpenPitContextInfo(ShardId shardId, PitReaderContext context, ActionListener<Optional<OpenPITContextInfo>> listener, AtomicLong warningCounter) {
+    private void fetchOpenPitContextInfo(
+        ShardId shardId,
+        PitReaderContext context,
+        ActionListener<Optional<OpenPITContextInfo>> listener,
+        AtomicLong warningCounter
+    ) {
         // In case of a failure we want just to ignore this PIT and continue with the relocation process
         listener = listener.delegateResponse((l, e) -> {
             logger.warn(
@@ -454,11 +459,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                     // The BCC has not been uploaded to the object store yet (e.g. the commit was
                     // created by a flush-by-refresh). Fall back to the SearchDirectory's file metadata.
                     logger.debug(
-                        () -> format(
-                            "BCC blob [%s] not yet uploaded for shard [%s], using SearchDirectory metadata",
-                            bccBlobName,
-                            shardId
-                        )
+                        () -> format("BCC blob [%s] not yet uploaded for shard [%s], using SearchDirectory metadata", bccBlobName, shardId)
                     );
                     metadata = searchDirectory.getBlobLocationForFiles(commitFileNames);
                 }

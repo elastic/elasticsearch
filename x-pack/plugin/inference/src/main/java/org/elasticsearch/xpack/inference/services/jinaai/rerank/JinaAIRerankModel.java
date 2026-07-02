@@ -66,12 +66,12 @@ public class JinaAIRerankModel extends JinaAIModel {
         super(
             new ModelConfigurations(modelId, TaskType.RERANK, JinaAIService.NAME, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
-            Objects.requireNonNullElse(ServiceUtils.createOptionalUri(uri), buildUri("JinaAI", DEFAULT_URI_BUILDER::build))
+            Objects.requireNonNullElse(ServiceUtils.createOptionalUri(uri), buildUri(JinaAIService.NAME, DEFAULT_URI_BUILDER::build))
         );
     }
 
     public JinaAIRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-        super(modelConfigurations, modelSecrets, buildUri("JinaAI", DEFAULT_URI_BUILDER::build));
+        super(modelConfigurations, modelSecrets, buildUri(JinaAIService.NAME, DEFAULT_URI_BUILDER::build));
     }
 
     private JinaAIRerankModel(JinaAIRerankModel model, JinaAIRerankTaskSettings taskSettings) {

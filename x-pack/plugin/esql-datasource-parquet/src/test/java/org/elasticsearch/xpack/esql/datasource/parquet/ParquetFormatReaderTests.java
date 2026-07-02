@@ -3526,6 +3526,149 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    // esql-planning#1030: WHERE pushdown over a uint32 column (physical INT32, widened to
+    // ESQL LONG) used to build a Parquet longColumn FilterPredicate, which parquet-mr rejects
+    // against the file's INT32 schema — every comparator 500d. This exercises the full read
+    // path end to end: the reader must not throw, and must return exactly the matching rows.
+    // A sibling uint16 column (stays ESQL INTEGER, never widened) is the issue's suggested
+    // "already works" control.
+    public void testUint32FilterPushdownDoesNotThrowAndReturnsMatchingRows() throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(32, false)) // unsigned
+            .named("u32")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(16, false)) // unsigned control
+            .named("u16")
+            .named("test_schema");
+
+        // Values straddle Integer.MAX_VALUE, matching the issue's 3,000,000,000-style overflow.
+        long[] u32Values = { 50_000L, 100_000L, 200_000L, 3_000_000_000L, 4_000_000_000L };
+        int[] u16Values = { 10, 50, 150, 200, 300 };
+        byte[] data = createParquetFile(schema, f -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < u32Values.length; i++) {
+                Group g = f.newGroup();
+                g.append("u32", (int) u32Values[i]);
+                g.append("u16", u16Values[i]);
+                groups.add(g);
+            }
+            return groups;
+        });
+        StorageObject storageObject = createStorageObject(data);
+
+        // The issue's exact reproducer: WHERE u32 > 100000.
+        org.elasticsearch.xpack.esql.core.expression.Expression u32Filter =
+            new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan(
+                Source.EMPTY,
+                new ReferenceAttribute(Source.EMPTY, "u32", DataType.LONG),
+                new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, 100_000L, DataType.LONG),
+                null
+            );
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(
+            new ParquetPushedExpressions(List.of(u32Filter))
+        );
+
+        List<Long> survivors = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, List.of("u32"), 10)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                LongBlock block = (LongBlock) page.getBlock(0);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    survivors.add(block.getLong(i));
+                }
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(List.of(200_000L, 3_000_000_000L, 4_000_000_000L), survivors);
+    }
+
+    // Companion IN/AND coverage, per the issue's "every operator fails" list.
+    public void testUint32InAndCombinedAndFilterPushdown() throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(32, false))
+            .named("u32")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(16, false))
+            .named("u16")
+            .named("test_schema");
+
+        long[] u32Values = { 50_000L, 100_000L, 200_000L, 3_000_000_000L, 4_000_000_000L };
+        int[] u16Values = { 10, 50, 150, 200, 300 };
+        byte[] data = createParquetFile(schema, f -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < u32Values.length; i++) {
+                Group g = f.newGroup();
+                g.append("u32", (int) u32Values[i]);
+                g.append("u16", u16Values[i]);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        // IN (100000, 4000000000)
+        org.elasticsearch.xpack.esql.core.expression.Expression inFilter =
+            new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In(
+                Source.EMPTY,
+                new ReferenceAttribute(Source.EMPTY, "u32", DataType.LONG),
+                List.of(
+                    new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, 100_000L, DataType.LONG),
+                    new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, 4_000_000_000L, DataType.LONG)
+                )
+            );
+        ParquetFormatReader inReader = new ParquetFormatReader(blockFactory).withPushedFilter(
+            new ParquetPushedExpressions(List.of(inFilter))
+        );
+        List<Long> inSurvivors = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = inReader.read(createStorageObject(data), List.of("u32"), 10)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                LongBlock block = (LongBlock) page.getBlock(0);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    inSurvivors.add(block.getLong(i));
+                }
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(List.of(100_000L, 4_000_000_000L), inSurvivors);
+
+        // u32 > 100000 AND u16 > 100 (combined predicate across a widened and a non-widened column)
+        org.elasticsearch.xpack.esql.core.expression.Expression u32Gt =
+            new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan(
+                Source.EMPTY,
+                new ReferenceAttribute(Source.EMPTY, "u32", DataType.LONG),
+                new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, 100_000L, DataType.LONG),
+                null
+            );
+        org.elasticsearch.xpack.esql.core.expression.Expression u16Gt =
+            new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan(
+                Source.EMPTY,
+                new ReferenceAttribute(Source.EMPTY, "u16", DataType.INTEGER),
+                new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, 100, DataType.INTEGER),
+                null
+            );
+        org.elasticsearch.xpack.esql.core.expression.Expression combined =
+            new org.elasticsearch.xpack.esql.expression.predicate.logical.And(Source.EMPTY, u32Gt, u16Gt);
+        ParquetFormatReader andReader = new ParquetFormatReader(blockFactory).withPushedFilter(
+            new ParquetPushedExpressions(List.of(combined))
+        );
+        List<Long> andSurvivors = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = andReader.read(createStorageObject(data), List.of("u32"), 10)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                LongBlock block = (LongBlock) page.getBlock(0);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    andSurvivors.add(block.getLong(i));
+                }
+                page.releaseBlocks();
+            }
+        }
+        // u16 > 100 keeps rows [150, 200, 300] -> u32 values [200000, 3000000000, 4000000000];
+        // u32 > 100000 further restricts to the same three (100000 itself is excluded by u16=50 anyway).
+        assertEquals(List.of(200_000L, 3_000_000_000L, 4_000_000_000L), andSurvivors);
+    }
+
     public void testLargeUnsignedLong() throws Exception {
         var schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)

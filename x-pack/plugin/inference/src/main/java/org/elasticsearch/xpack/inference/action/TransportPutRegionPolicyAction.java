@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -90,20 +91,20 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
     }
 
     private void getRegionPolicyOrNullWhenMissing(ActionListener<RegionPolicyDocWithSeqNo> listener) {
-        TransportGetRegionPolicyAction.doSearchRegionPolicy(client, true, ActionListener.wrap(searchResponse -> {
+        TransportGetRegionPolicyAction.doSearchRegionPolicy(client, true, listener.delegateResponse((l, e) -> {
+            if (e instanceof IndexNotFoundException) {
+                l.onResponse(null);
+            } else {
+                l.onFailure(e);
+            }
+        }).<SearchResponse>delegateFailureAndWrap((l, searchResponse) -> {
             SearchHit[] hits = searchResponse.getHits().getHits();
             assert hits.length <= 1 : "multiple region policies found when only one is expected";
             if (hits.length == 0) {
-                listener.onResponse(null);
+                l.onResponse(null);
             } else {
                 RegionPolicyDoc regionPolicyDoc = TransportGetRegionPolicyAction.parseRegionPolicy(hits[0]);
-                listener.onResponse(new RegionPolicyDocWithSeqNo(regionPolicyDoc, hits[0].getSeqNo(), hits[0].getPrimaryTerm()));
-            }
-        }, e -> {
-            if (e instanceof IndexNotFoundException) {
-                listener.onResponse(null);
-            } else {
-                listener.onFailure(e);
+                l.onResponse(new RegionPolicyDocWithSeqNo(regionPolicyDoc, hits[0].getSeqNo(), hits[0].getPrimaryTerm()));
             }
         }));
     }

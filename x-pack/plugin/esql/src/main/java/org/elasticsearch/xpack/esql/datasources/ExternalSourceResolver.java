@@ -582,61 +582,90 @@ public class ExternalSourceResolver {
         // Glob expansion / cache listing above can be slow on wide globs; re-check before the anchor footer read.
         throwIfCancelled();
 
-        ExternalSourceMetadata anchorMetadata;
-        if (cacheable) {
-            String formatType = detectFormatType(anchorPath);
-            SchemaCacheKey schemaKey = SchemaCacheKey.build(anchorPath.toString(), anchorMtime, formatType, config);
-            SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                return SchemaCacheEntry.from(resolveSingleSource(anchorPath.toString(), config));
-            });
-            List<Attribute> schema = schemaEntry.toAttributes();
-            anchorMetadata = buildMetadataFromCache(schemaEntry, schema, config);
-        } else {
-            SourceMetadata metadata = resolveSingleSource(anchorPath.toString(), config);
-            anchorMetadata = wrapAsExternalSourceMetadata(metadata, config);
-        }
-
+        // The anchor's length/mtime are already known from the listing, so seed a ListingHint and resolve it on the
+        // async footer-read path (like the fan-out) rather than a synchronous resolveSingleSource. This both skips
+        // the existence/HEAD + length probe and, more importantly, avoids pinning the metadata-read executor thread
+        // across the anchor footer read. Unlike the single-file getOrComputeSchema path this does not coalesce
+        // concurrent misses for the same anchor key; that matches the fan-out's peek/put trade-off and is safe
+        // because footer resolution is idempotent (see cachedResolveSingleSourceAsync).
+        ListingHint anchorHint = new ListingHint(listing.size(anchor), anchorMtime);
         final FileList finalListing = listing;
-        final ExternalSourceMetadata base = enrichWithFileCount(anchorMetadata, listing.fileCount());
-        if (listing.fileCount() > 1 && requiresStats) {
-            // For multi-file FIRST_FILE_WINS, read all files' metadata during Phase 1 to aggregate statistics
-            // across all files. This allows aggregate pushdown (COUNT/MIN/MAX) to use accurate global stats and
-            // to skip Phase 2 (split discovery) entirely for those queries.
-            //
-            // This eager all-file aggregation is gated on requiresStats: only query shapes that can consume the
-            // global stats — an ungrouped aggregate over the relation, detected by
-            // ExternalStatsRequirementExtractor#pathsRequiringEagerStats — pay the N footer reads. Every other
-            // shape (LIMIT, SELECT *, grouped STATS ... BY, INLINESTATS) takes the defer branch below: it keeps
-            // STATS_FILE_COUNT (from enrichWithFileCount above) but marks stats partial, so Phase 2 split discovery
-            // reads footers once instead of twice. Legacy callers pass requiresStats == true for every path (the
-            // resolve overload with a null pathsRequiringStats set), preserving the original eager-for-all behavior.
-            //
-            // For an eager (requiresStats) resolve the cost is acceptable because:
-            // - the cacheable path consults the schema cache, so repeat resolves are free;
-            // - the non-cacheable path reads footers with an async fan-out bounded by an in-flight permit
-            // (metadataReadConcurrency), releasing the pool thread across each footer read;
-            // - the aggregated stats unlock skipping Phase 2 entirely for pushable aggregates
-            // (see ComputeService#canSkipSplitDiscovery), which dominates the savings.
-            ActionListener<Map<String, Object>> statsListener = ActionListener.wrap(aggregatedStats -> {
-                try {
-                    listener.onResponse(finishFirstFileWins(finalListing, applyFirstFileWinsAggregatedStats(base, aggregatedStats)));
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
-            }, listener::onFailure);
-            if (cacheable) {
-                readAndAggregateAllFileStatsWithCache(listing, config, statsListener);
-            } else {
-                readAndAggregateAllFileStats(listing, config, statsListener);
-            }
-        } else if (listing.fileCount() > 1) {
-            // Defer branch (requiresStats == false): skip the N footer reads. The anchor-only stats are not
-            // representative of the whole glob, so mark them partial — exactly the state the failed-aggregation
-            // path produces, which downstream already handles (SplitStats.resolveEffectiveStats returns null
-            // rather than consuming anchor stats as global). STATS_FILE_COUNT, stamped above, is preserved.
-            listener.onResponse(finishFirstFileWins(finalListing, markStatsAsPartial(base)));
+        ActionListener<ExternalSourceMetadata> anchorListener = ActionListener.wrap(
+            anchorMetadata -> completeFirstFileWins(anchorMetadata, finalListing, config, requiresStats, cacheable, listener),
+            listener::onFailure
+        );
+        if (cacheable) {
+            // cachedResolveSingleSourceAsync always completes with the ExternalSourceMetadata built by
+            // buildMetadataFromCache, so the cast is safe.
+            cachedResolveSingleSourceAsync(anchorPath, anchorHint, config, anchorListener.map(meta -> (ExternalSourceMetadata) meta));
         } else {
-            listener.onResponse(finishFirstFileWins(finalListing, base));
+            resolveSingleSourceAsync(
+                anchorPath.toString(),
+                anchorHint,
+                config,
+                anchorListener.map(meta -> wrapAsExternalSourceMetadata(meta, config))
+            );
+        }
+    }
+
+    /**
+     * Builds the FIRST_FILE_WINS result from the resolved anchor metadata and the discovered listing. Runs as the
+     * continuation of the async anchor footer read, so any synchronous failure here is funnelled to
+     * {@code listener::onFailure} rather than escaping onto the executor thread.
+     */
+    private void completeFirstFileWins(
+        ExternalSourceMetadata anchorMetadata,
+        FileList listing,
+        Map<String, Object> config,
+        boolean requiresStats,
+        boolean cacheable,
+        ActionListener<ExternalSourceResolution.ResolvedSource> listener
+    ) {
+        try {
+            final ExternalSourceMetadata base = enrichWithFileCount(anchorMetadata, listing.fileCount());
+            if (listing.fileCount() > 1 && requiresStats) {
+                // For multi-file FIRST_FILE_WINS, read all files' metadata during Phase 1 to aggregate statistics
+                // across all files. This allows aggregate pushdown (COUNT/MIN/MAX) to use accurate global stats and
+                // to skip Phase 2 (split discovery) entirely for those queries.
+                //
+                // This eager all-file aggregation is gated on requiresStats: only query shapes that can consume the
+                // global stats — an ungrouped aggregate over the relation, detected by
+                // ExternalStatsRequirementExtractor#pathsRequiringEagerStats — pay the N footer reads. Every other
+                // shape (LIMIT, SELECT *, grouped STATS ... BY, INLINESTATS) takes the defer branch below: it keeps
+                // STATS_FILE_COUNT (from enrichWithFileCount above) but marks stats partial, so Phase 2 split
+                // discovery reads footers once instead of twice. Legacy callers pass requiresStats == true for every
+                // path (the resolve overload with a null pathsRequiringStats set), preserving the original
+                // eager-for-all behavior.
+                //
+                // For an eager (requiresStats) resolve the cost is acceptable because:
+                // - the cacheable path consults the schema cache, so repeat resolves are free;
+                // - the non-cacheable path reads footers with an async fan-out bounded by an in-flight permit
+                // (metadataReadConcurrency), releasing the pool thread across each footer read;
+                // - the aggregated stats unlock skipping Phase 2 entirely for pushable aggregates
+                // (see ComputeService#canSkipSplitDiscovery), which dominates the savings.
+                ActionListener<Map<String, Object>> statsListener = ActionListener.wrap(aggregatedStats -> {
+                    try {
+                        listener.onResponse(finishFirstFileWins(listing, applyFirstFileWinsAggregatedStats(base, aggregatedStats)));
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                }, listener::onFailure);
+                if (cacheable) {
+                    readAndAggregateAllFileStatsWithCache(listing, config, statsListener);
+                } else {
+                    readAndAggregateAllFileStats(listing, config, statsListener);
+                }
+            } else if (listing.fileCount() > 1) {
+                // Defer branch (requiresStats == false): skip the N footer reads. The anchor-only stats are not
+                // representative of the whole glob, so mark them partial — exactly the state the failed-aggregation
+                // path produces, which downstream already handles (SplitStats.resolveEffectiveStats returns null
+                // rather than consuming anchor stats as global). STATS_FILE_COUNT, stamped above, is preserved.
+                listener.onResponse(finishFirstFileWins(listing, markStatsAsPartial(base)));
+            } else {
+                listener.onResponse(finishFirstFileWins(listing, base));
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 

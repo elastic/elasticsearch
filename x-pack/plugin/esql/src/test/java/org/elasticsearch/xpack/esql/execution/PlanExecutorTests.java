@@ -28,10 +28,10 @@ public class PlanExecutorTests extends ESTestCase {
      * Locks the PR-A wiring invariants that would otherwise only hold implicitly across
      * {@link TransportEsqlQueryAction} and {@link PlanExecutor#esql}: external discovery must run on the
      * {@code esql_worker} pool (isolated from {@code SEARCH}, so a wide wildcard cannot starve regular searches) and its
-     * multi-file metadata fan-out must be bounded by the shared blob-store access concurrency
-     * ({@link ExternalSourceSettings#defaultBlobStoreConcurrency(Settings)}) — the same formula the data-read path
-     * uses — so discovery and data retrieval throttle object-store access consistently. The fan-out may exceed the
-     * pool size because footer reads are async (the worker is released across the read).
+     * multi-file metadata fan-out must be bounded by discovery's derived default concurrency
+     * ({@link ExternalSourceSettings#defaultBlobStoreConcurrency(Settings)}, the {@code snapshot_meta} shape capped at
+     * 100) rather than the raw pool size. The fan-out may exceed the pool size because footer reads are async (the
+     * worker is released across the read).
      * <p>
      * The pool selection and the fan-out bound live in {@link TransportEsqlQueryAction}
      * ({@code externalSourceExecutorName()} / {@code externalSourceConcurrency()}); this test pins both there and then
@@ -67,7 +67,7 @@ public class PlanExecutorTests extends ESTestCase {
                 fanOut
             );
 
-            assertEquals("fan-out permit must be the shared blob-store access concurrency", fanOut, resolver.metadataReadConcurrency());
+            assertEquals("fan-out permit must be discovery's derived default concurrency", fanOut, resolver.metadataReadConcurrency());
             assertSame("discovery must run on the esql_worker executor", esqlWorker, resolver.executor());
             assertNotSame("discovery must not run on the SEARCH pool", threadPool.executor(ThreadPool.Names.SEARCH), resolver.executor());
         } finally {

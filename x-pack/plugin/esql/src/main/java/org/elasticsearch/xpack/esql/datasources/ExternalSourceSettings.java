@@ -32,19 +32,19 @@ public final class ExternalSourceSettings {
     static final int BLOB_STORE_CONCURRENCY_PER_PROCESSOR = 3;
 
     /**
-     * Ceiling for the CPU-derived blob-store access concurrency. Mirrors the {@code snapshot_meta} thread pool's
-     * {@code min(processors * 3, 50)} shape but lifts the cap to 100: external metadata discovery and data reads
-     * fan out over many small blobs (footers, byte ranges), so they benefit from more in-flight requests than
-     * snapshot metadata does, while still bounding the total against a single store's tolerance.
+     * Ceiling for the CPU-derived metadata-discovery concurrency. Mirrors the {@code snapshot_meta} thread pool's
+     * {@code min(processors * 3, 50)} shape but lifts the cap to 100: external metadata discovery fans out over many
+     * small footer blobs, so it benefits from more in-flight requests than snapshot metadata does, while still
+     * bounding the total against a single store's tolerance.
      */
     static final int BLOB_STORE_CONCURRENCY_CEILING = 100;
 
     /**
-     * The default per-node concurrency for accessing an external blob store, derived from the node's allocated
+     * The default per-node in-flight concurrency for external metadata discovery, derived from the node's allocated
      * processors using the {@code snapshot_meta} thread pool's sizing shape ({@code processors * 3}) with a 100
-     * ceiling. This is the single source of truth for blob-store access concurrency so metadata discovery and
-     * data retrieval stay consistent: both are latency-bound I/O against object stores and should scale the same
-     * way with node size rather than each picking an ad-hoc constant.
+     * ceiling. Discovery is latency-bound I/O against object stores, so it scales with node size rather than an
+     * ad-hoc constant. This is discovery's derived default only: production data reads are bounded separately by
+     * {@link #MAX_CONNECTIONS} (the SDK connection pools and the blocking-read thread pool), not this formula.
      */
     public static int defaultBlobStoreConcurrency(int allocatedProcessors) {
         return Math.min(allocatedProcessors * BLOB_STORE_CONCURRENCY_PER_PROCESSOR, BLOB_STORE_CONCURRENCY_CEILING);

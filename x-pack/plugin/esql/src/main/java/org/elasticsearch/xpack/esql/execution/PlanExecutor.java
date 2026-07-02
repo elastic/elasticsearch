@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -103,9 +104,10 @@ public class PlanExecutor {
      * Builds the {@link ExternalSourceResolver} used for external (Iceberg/Parquet) discovery. The executor,
      * cancellation signal, and in-flight fan-out bound are supplied by the caller ({@link #esql}, ultimately
      * from {@code TransportEsqlQueryAction}) rather than hardcoded here, so the resolver keeps the
-     * caller-owned executor/cancellation seam while the wiring — executor isolation (off {@code SEARCH}) and
-     * {@code metadataReadConcurrency == esql_worker.getMax()} — stays testable without standing up the full
-     * query path. See {@link #esql} for why the pool size is a safe in-flight bound.
+     * caller-owned executor/cancellation seam while the wiring — executor isolation (off {@code SEARCH}) and the
+     * caller-supplied {@code metadataReadConcurrency} (production: the {@code snapshot_meta}-shaped blob-store
+     * default, capped at 100) — stays testable without standing up the full query path. See {@link #esql} for why
+     * an in-flight bound that may exceed the pool size is safe.
      */
     static ExternalSourceResolver createExternalSourceResolver(
         Executor externalSourceExecutor,
@@ -131,9 +133,11 @@ public class PlanExecutor {
      *                               would otherwise starve regular ES searches and other ES|QL queries. Production
      *                               wiring passes {@code esql_worker}.
      * @param externalSourceConcurrency maximum number of in-flight per-file metadata reads during a multi-file
-     *                               resolve. Production wiring passes {@code esql_worker.getMax()}: footer reads are
-     *                               async (the pool thread is released across the network round-trip), so the bound
-     *                               caps concurrent in-flight reads rather than pinning that many threads.
+     *                               resolve. Production wiring passes
+     *                               {@link ExternalSourceSettings#defaultBlobStoreConcurrency(Settings)} (the
+     *                               {@code snapshot_meta} shape, capped at 100): footer reads are async (the pool
+     *                               thread is released across the network round-trip), so the bound caps concurrent
+     *                               in-flight reads rather than pinning that many threads.
      * @param cancellation consulted before each per-file footer read so a wide-glob discovery aborts promptly when
      *                               the originating query is cancelled.
      */
@@ -158,9 +162,9 @@ public class PlanExecutor {
         // Resolution (glob expansion, footer reads, schema reconciliation) runs on the caller-supplied
         // executor rather than the SEARCH pool, so a wildcard external query cannot starve regular ES
         // searches or other ES|QL queries. The per-query multi-file metadata fan-out is bounded by
-        // externalSourceConcurrency (production: esql_worker.getMax()): because footer reads are async
-        // (the pool thread is released across the network round-trip) the bound caps in-flight reads
-        // rather than pinning that many threads, so a wide discovery cannot starve execution.
+        // externalSourceConcurrency (production: the snapshot_meta-shaped blob-store default, capped at 100):
+        // because footer reads are async (the pool thread is released across the network round-trip) the bound
+        // caps in-flight reads rather than pinning that many threads, so a wide discovery cannot starve execution.
         // NOTE: this release-across-the-read guarantee holds for storage backends with native async
         // reads (e.g. S3). Backends whose readBytesAsync is an executor-backed sync read (local, GCS)
         // still occupy a worker thread for the duration of each footer read; the bound limits how

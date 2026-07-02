@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -55,6 +56,9 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -467,17 +471,15 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     /**
-     * {@link PushAggregateThroughUnionAll} must not push aggregates into a {@code UnionAll} whose children are
-     * doubly-wrapped (Project → Project → Relation): this matches neither the direct-leaf shape nor the
-     * {@code Project? > Eval? > Subquery} shape that {@link PushDownUtils#canDecomposeAggregateThroughUnionAll}
-     * accepts.
+     * A doubly-wrapped branch ({@code Project > Project > Relation}) is streaming (no pipeline breaker), so
+     * {@link PushAggregateThroughUnionAll} decomposes across it: the per-branch partial {@code COUNT} sits on top
+     * of the (still intact) nested projections and the coordinator merges with {@code SUM}.
      */
-    public void testNonLeafUnionAllAggNotPushed() {
+    public void testDoubleProjectBranchPushed() {
         ReferenceAttribute unionField = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
         FieldAttribute esEmpNo = getFieldAttribute("emp_no", INTEGER);
         EsRelation esRelation = relation().withAttributes(List.of(esEmpNo));
 
-        // Double-wrap to produce a shape the gate does not recognise (peeling one Project leaves another Project).
         Project innerProject = new Project(EMPTY, esRelation, List.of(esEmpNo));
         Project project = new Project(EMPTY, innerProject, List.of(esEmpNo));
 
@@ -487,9 +489,146 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(countAlias));
 
         LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
 
-        // Rule must not fire: the doubly-wrapped UnionAll is not an eligible shape.
-        assertSame(aggregate, result);
+        Aggregate outerAgg = as(result, Aggregate.class);
+        Alias outerAlias = as(outerAgg.aggregates().get(0), Alias.class);
+        assertThat(outerAlias.id(), equalTo(countAlias.id())); // original output ID preserved
+        assertThat(outerAlias.child(), instanceOf(Sum.class));
+
+        UnionAll newUnionAll = as(outerAgg.child(), UnionAll.class);
+        assertThat(newUnionAll.children(), hasSize(2));
+        for (LogicalPlan branch : newUnionAll.children()) {
+            // The partial aggregate sits on top of the (still intact) nested Project wrappers.
+            Aggregate branchAgg = as(branch, Aggregate.class);
+            Project outerBranchProject = as(branchAgg.child(), Project.class);
+            as(outerBranchProject.child(), Project.class);
+            assertThat(as(branchAgg.aggregates().get(0), Alias.class).child(), instanceOf(Count.class));
+        }
+    }
+
+    /**
+     * A filtered leaf branch ({@code Filter > Relation}, the shape a query-level {@code WHERE} pushes into each
+     * branch) is streaming, so {@link PushAggregateThroughUnionAll} decomposes across it: the per-branch partial
+     * {@code COUNT} runs over the filtered rows next to the data.
+     */
+    public void testFilteredLeafBranchPushed() {
+        ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
+        FieldAttribute esEmpNo = getFieldAttribute("emp_no", INTEGER);
+        Attribute extEmpNo = extAttr("emp_no", INTEGER);
+        EsRelation esRelation = relation().withAttributes(List.of(esEmpNo));
+        ExternalRelation extRelation = externalRelation(List.of(extEmpNo));
+
+        LogicalPlan branch1 = new Filter(EMPTY, esRelation, new GreaterThan(EMPTY, esEmpNo, new Literal(EMPTY, 0, INTEGER)));
+        LogicalPlan branch2 = new Filter(EMPTY, extRelation, new GreaterThan(EMPTY, extEmpNo, new Literal(EMPTY, 0, INTEGER)));
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(branch1, branch2), List.of(unionEmpNo));
+
+        Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(countAlias));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        Aggregate outerAgg = as(result, Aggregate.class);
+        assertThat(as(outerAgg.aggregates().get(0), Alias.class).child(), instanceOf(Sum.class));
+        UnionAll newUnionAll = as(outerAgg.child(), UnionAll.class);
+        for (LogicalPlan branch : newUnionAll.children()) {
+            Aggregate branchAgg = as(branch, Aggregate.class);
+            as(branchAgg.child(), Filter.class); // partial COUNT sits on top of the still-intact Filter
+            assertThat(as(branchAgg.aggregates().get(0), Alias.class).child(), instanceOf(Count.class));
+        }
+    }
+
+    /**
+     * An {@link Eval} directly over a leaf ({@code Project > Eval > Relation}, no {@code Subquery}) is streaming, so
+     * the aggregate decomposes across it. The old positive shape match required a {@code Subquery}; the breaker-free
+     * gate accepts this schema-alignment {@code Eval} too.
+     */
+    public void testEvalWrappedLeafBranchPushed() {
+        ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
+        FieldAttribute esEmpNo = getFieldAttribute("emp_no", INTEGER);
+        Attribute extEmpNo = extAttr("emp_no", INTEGER);
+        EsRelation esRelation = relation().withAttributes(List.of(esEmpNo));
+        ExternalRelation extRelation = externalRelation(List.of(extEmpNo));
+
+        LogicalPlan branch1 = evalLeafBranch(esRelation, esEmpNo);
+        LogicalPlan branch2 = evalLeafBranch(extRelation, extEmpNo);
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(branch1, branch2), List.of(unionEmpNo));
+
+        Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(countAlias));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        UnionAll newUnionAll = as(as(result, Aggregate.class).child(), UnionAll.class);
+        for (LogicalPlan branch : newUnionAll.children()) {
+            Aggregate branchAgg = as(branch, Aggregate.class);
+            Project branchProject = as(branchAgg.child(), Project.class);
+            as(branchProject.child(), Eval.class);
+        }
+    }
+
+    /**
+     * A branch containing a lookup join ({@code Project > Subquery > Join}) is streaming: a {@link Join} is not a
+     * {@link org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker}, so the aggregate decomposes and the per-branch
+     * partial {@code COUNT} runs on top of the join, next to the data.
+     */
+    public void testLookupJoinBranchPushed() {
+        ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
+        FieldAttribute esEmpNo = getFieldAttribute("emp_no", INTEGER);
+        Attribute extEmpNo = extAttr("emp_no", INTEGER);
+        EsRelation esRelation = relation().withAttributes(List.of(esEmpNo));
+        ExternalRelation extRelation = externalRelation(List.of(extEmpNo));
+
+        LogicalPlan branch1 = new Project(EMPTY, new Subquery(EMPTY, lookupJoin(esRelation, esEmpNo)), List.of(esEmpNo));
+        LogicalPlan branch2 = new Project(EMPTY, new Subquery(EMPTY, lookupJoin(extRelation, extEmpNo)), List.of(extEmpNo));
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(branch1, branch2), List.of(unionEmpNo));
+
+        Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(countAlias));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        Aggregate outerAgg = as(result, Aggregate.class);
+        assertThat(as(outerAgg.aggregates().get(0), Alias.class).child(), instanceOf(Sum.class));
+        UnionAll newUnionAll = as(outerAgg.child(), UnionAll.class);
+        for (LogicalPlan branch : newUnionAll.children()) {
+            Aggregate branchAgg = as(branch, Aggregate.class);
+            Project branchProject = as(branchAgg.child(), Project.class);
+            Subquery subquery = as(branchProject.child(), Subquery.class);
+            as(subquery.child(), Join.class);
+            assertThat(as(branchAgg.aggregates().get(0), Alias.class).child(), instanceOf(Count.class));
+        }
+    }
+
+    /**
+     * A join is streaming, but an inner breaker in the same branch still disqualifies the whole {@code UnionAll}.
+     * Here each branch is {@code Project > Subquery > Limit > Join}; the {@link Limit} forces the aggregate to stay
+     * on the coordinator, proving it is the breaker (not the join) that bails out.
+     */
+    public void testLookupJoinBranchWithInnerBreakerNotPushed() {
+        ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
+        FieldAttribute esEmpNo1 = getFieldAttribute("emp_no", INTEGER);
+        FieldAttribute esEmpNo2 = getFieldAttribute("emp_no", INTEGER);
+        EsRelation esRelation1 = relation().withAttributes(List.of(esEmpNo1));
+        EsRelation esRelation2 = relation().withAttributes(List.of(esEmpNo2));
+
+        Limit limit1 = new Limit(EMPTY, new Literal(EMPTY, 10, INTEGER), lookupJoin(esRelation1, esEmpNo1));
+        Limit limit2 = new Limit(EMPTY, new Literal(EMPTY, 10, INTEGER), lookupJoin(esRelation2, esEmpNo2));
+        LogicalPlan branch1 = new Project(EMPTY, new Subquery(EMPTY, limit1), List.of(esEmpNo1));
+        LogicalPlan branch2 = new Project(EMPTY, new Subquery(EMPTY, limit2), List.of(esEmpNo2));
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(branch1, branch2), List.of(unionEmpNo));
+
+        Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(countAlias));
+
+        assertSame(aggregate, new PushAggregateThroughUnionAll().apply(aggregate));
     }
 
     /**
@@ -1572,6 +1711,21 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(countAlias));
 
         assertSame(aggregate, new PushAggregateThroughUnionAll().apply(aggregate));
+    }
+
+    /** A leaf branch with a schema-alignment Eval and no Subquery: {@code Project[exposed] > Eval[derived] > leaf}. */
+    private static LogicalPlan evalLeafBranch(LogicalPlan leaf, Attribute exposed) {
+        Alias derived = new Alias(EMPTY, "derived", new GreaterThan(EMPTY, exposed, new Literal(EMPTY, 0, INTEGER)));
+        Eval eval = new Eval(EMPTY, leaf, List.of(derived));
+        return new Project(EMPTY, eval, List.of(exposed));
+    }
+
+    /** A LEFT lookup join of {@code left} against a two-column {@link IndexMode#LOOKUP} relation on {@code leftKey}. */
+    private static Join lookupJoin(LogicalPlan left, Attribute leftKey) {
+        FieldAttribute lookupKey = getFieldAttribute("emp_no", INTEGER);
+        FieldAttribute lookupValue = getFieldAttribute("language_name", INTEGER);
+        EsRelation lookup = EsqlTestUtils.relation(IndexMode.LOOKUP).withAttributes(List.of(lookupKey, lookupValue));
+        return new Join(EMPTY, left, lookup, new JoinConfig(JoinTypes.LEFT, List.of(leftKey), List.of(lookupKey), null));
     }
 
     /** A subquery-shaped branch: {@code Project > Subquery > plan}, the Project re-exposing {@code plan}'s output. */

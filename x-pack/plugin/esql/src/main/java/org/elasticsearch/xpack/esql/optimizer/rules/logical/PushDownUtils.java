@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 
@@ -284,45 +283,31 @@ class PushDownUtils {
     /**
      * Returns {@code true} when {@link PushAggregateThroughUnionAll} may decompose an
      * {@link Aggregate} over this {@code unionAll} into per-branch partial aggregates plus a
-     * coordinator combine. Every branch must be one of:
-     * <ul>
-     *   <li>the direct-leaf shape {@link #isLeafUnionAll} accepts (heterogeneous-FROM), or</li>
-     *   <li>a subquery shape ({@code Project? > Eval? > Subquery}, or a bare {@link Subquery} that
-     *   {@code CombineProjections} may leave behind) whose wrapped sub-pipeline contains no
-     *   {@link PipelineBreaker}.</li>
-     * </ul>
+     * coordinator combine. The rewrite is legal iff no branch contains a {@link PipelineBreaker}.
      *
-     * <p>A branch carrying its own pipeline breaker (an inner aggregation, sort, or limit) would make
-     * a per-branch partial aggregate redundant. Because a {@code UnionAll}'s branches must keep a
-     * homogeneous output schema, the rewrite is all-or-nothing: a single such branch disqualifies the
-     * whole {@code UnionAll} and the aggregation stays on the coordinator. {@link OrderBy} is a
-     * {@link PipelineBreaker}, so the breaker scan covers sorts too.
+     * <p>The identity {@code Agg(UnionAll(b1..bn)) == Combine(partial(b1)..partial(bn))} depends only
+     * on the multiset of rows each branch emits, not on how the branch produces them. The per-branch
+     * partial aggregate sits on top of the whole branch, so any streaming interior (projections,
+     * evals, filters, subqueries, joins, sample, enrich) simply defines the branch's row-set and folds
+     * into the data-node fragment. A {@link PipelineBreaker} (an inner {@link Aggregate}, {@link OrderBy},
+     * {@link Limit}, or their variants) is the meaningful disqualifier: it forces an exchange anyway, so
+     * a partial aggregate above it buys nothing "next to the data", and for a {@code LIMIT} the branch's
+     * row-set is already gathered.
      *
-     * <p>This positive shape match (rather than a "no breaker anywhere" scan) also keeps the rule from
-     * firing on shapes it must reject, e.g. {@code Filter > Relation} (a pushed-down query filter) or
-     * a double {@code Project}. It also prevents infinite re-firing: after the rewrite each branch is
-     * {@code Aggregate > ...}, whose top node is not a recognised wrapper, so this returns {@code false}
-     * on the combiner's {@code UnionAll}.
+     * <p>Because a {@code UnionAll}'s branches must keep a homogeneous output schema, the rewrite is
+     * all-or-nothing: a single breaker-bearing branch disqualifies the whole {@code UnionAll} and the
+     * aggregation stays on the coordinator.
+     *
+     * <p>The breaker scan is also self-terminating: after the rewrite each branch root is the injected
+     * partial {@link Aggregate}, itself a {@link PipelineBreaker}, so this returns {@code false} on the
+     * combiner's {@code UnionAll} and the rule does not re-fire.
      */
     static boolean canDecomposeAggregateThroughUnionAll(UnionAll unionAll) {
         return unionAll.children().stream().allMatch(PushDownUtils::isDecomposableAggregateBranch);
     }
 
     private static boolean isDecomposableAggregateBranch(LogicalPlan branch) {
-        if (isDirectLeafBranch(branch)) {
-            return true;
-        }
-        LogicalPlan plan = branch;
-        if (plan instanceof Project project) {
-            plan = project.child();
-        }
-        if (plan instanceof Eval eval) {
-            plan = eval.child();
-        }
-        if (plan instanceof Subquery subquery) {
-            return subquery.child().anyMatch(n -> n instanceof PipelineBreaker) == false;
-        }
-        return false;
+        return branch.anyMatch(n -> n instanceof PipelineBreaker) == false;
     }
 
     public static Map<Expression, Expression> outputMap(LogicalPlan plan, LogicalPlan otherPlan) {

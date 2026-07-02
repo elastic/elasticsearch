@@ -75,6 +75,23 @@ distinct_emp:long | gender:keyword
 57                | "M"
 ;
 
+// Query-level WHERE before STATS: the filter is pushed into both leaf branches as a Filter. Because a Filter is
+// streaming (not a pipeline breaker), the heavy aggregate still decomposes and each per-branch partial runs over the
+// filtered rows. Both branches point at the same fixture filtered to the 57 male employees, so COUNT(*) = 57 + 57 =
+// 114 while COUNT_DISTINCT unions back to 57. Proves the filtered-leaf pushdown matches the coordinator aggregation.
+heavyAggregatesMergedAcrossQueryFilteredDatasets
+required_capability: external_command
+dataset: emp_a: "{{employees_no_mv}}"
+dataset: emp_b: "{{employees_no_mv}}"
+
+FROM emp_a, emp_b
+| WHERE gender == "M"
+| STATS total = COUNT(*), distinct_emp = COUNT_DISTINCT(emp_no);
+
+total:long | distinct_emp:long
+114        | 57
+;
+
 // Subquery shape: one branch is a plain dataset, the other a subquery (FROM emp_b | WHERE gender == "M") that filters
 // to the 57 male employees. The partial aggregate is pushed onto each branch (including over the subquery's Filter),
 // then merged. emp_a contributes all 100 rows / 100 distinct emp_no; the subquery branch contributes 57 rows whose

@@ -100,10 +100,11 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
 
     /**
      * Ungrouped {@code STATS} where every aggregate shares one filter: {@code ExtractAggregateCommonFilter} hoists the
-     * predicate to a query-level {@code WHERE} before this rule runs. That {@code WHERE} is pushed into the branches,
-     * making the {@code UnionAll} non-leaf, so the heavy aggregate stays on the coordinator over the filtered rows.
+     * predicate to a query-level {@code WHERE} before this rule runs. That {@code WHERE} is pushed into the branches as a
+     * {@code Filter}; because a {@code Filter} is streaming (not a pipeline breaker), the heavy aggregate still decomposes
+     * and the per-branch partial runs next to the data over the filtered rows.
      */
-    public void testFilteredHeavyExtractedToQueryFilter() {
+    public void testFilteredHeavyExtractedToQueryFilterPushed() {
         runHeavyGoldenTest("FROM heavy_a, heavy_b | STATS d = COUNT_DISTINCT(emp_no) WHERE salary > 0");
     }
 
@@ -132,10 +133,11 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
     }
 
     /**
-     * A query-level {@code WHERE} (before {@code STATS}) is pushed into the branches, which makes the {@code UnionAll}
-     * non-leaf; the heavy aggregate therefore stays on the coordinator over the already-filtered branch rows.
+     * A query-level {@code WHERE} (before {@code STATS}) is pushed into the branches as a {@code Filter}. Since a
+     * {@code Filter} is streaming (not a pipeline breaker), the heavy aggregate decomposes and each per-branch partial
+     * is computed next to the data over the already-filtered branch rows.
      */
-    public void testQueryFilterHeavyNotPushed() {
+    public void testQueryFilterHeavyPushed() {
         runHeavyGoldenTest("FROM heavy_a, heavy_b | WHERE salary > 0 | STATS d = COUNT_DISTINCT(emp_no)");
     }
 

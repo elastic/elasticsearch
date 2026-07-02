@@ -430,6 +430,39 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Mirror of {@link #testArrayOfObjectsWithScalarElements}: an array of scalars on a leaf column whose
+     * elements are occasionally objects (e.g. {@code ["a", {"x":1}, "b"]}). A stray object among array
+     * scalars is a distinct, supported shape — not the record-level scalar/object conflict
+     * elastic/esql-planning#1028 targets — so it must be silently omitted from the multi-value entry under
+     * every {@link ErrorPolicy}, including {@code STRICT}; only a genuine top-level (non-array) conflict
+     * (see {@link #testScalarWhereNestedObjectExpectedStrictFails}) fails the query. Covers leading-object,
+     * mid-object, and all-object arrays against a scalar {@code id} column that pins the expected row count.
+     */
+    public void testArrayOfScalarsWithObjectElements() throws IOException {
+        String ndjson = "{\"tags\": [\"a\", {\"x\": 1}, \"b\"], \"id\": 1}\n"
+            + "{\"tags\": [{\"x\": 1}, \"c\", \"d\"], \"id\": 2}\n"
+            + "{\"tags\": [null, {\"x\": 1}, \"e\"], \"id\": 3}\n"
+            + "{\"tags\": [{\"x\": 1}, {\"y\": 2}], \"id\": 4}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("tags", DataType.KEYWORD), attribute("id", DataType.INTEGER)))) {
+            assertNotNull(page);
+            assertEquals(4, page.getPositionCount());
+            BytesRefBlock tags = page.getBlock(0);
+            IntBlock id = page.getBlock(1);
+            assertEquals(tags.getPositionCount(), id.getPositionCount());
+            BytesRef scratch = new BytesRef();
+            assertMvAt(tags, 0, scratch, List.of("a", "b"));
+            assertMvAt(tags, 1, scratch, List.of("c", "d"));
+            assertMvAt(tags, 2, scratch, List.of("e"));
+            assertTrue("all-object array -> tags null", tags.isNull(3));
+            for (int p = 0; p < 4; p++) {
+                assertFalse("id must be present for row " + p, id.isNull(p));
+                assertEquals(p + 1, id.getInt(id.getFirstValueIndex(p)));
+            }
+        }
+    }
+
     private Page decodePage(String ndjson, List<Attribute> attributes) throws IOException {
         return decodePage(ndjson, attributes, ErrorPolicy.STRICT);
     }

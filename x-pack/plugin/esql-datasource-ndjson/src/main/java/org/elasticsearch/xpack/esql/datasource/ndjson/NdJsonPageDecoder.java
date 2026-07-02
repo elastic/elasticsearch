@@ -1118,7 +1118,9 @@ public class NdJsonPageDecoder implements Closeable {
          *       {@code DEBUG} only, never {@code WARN}, since surfacing it by default would flood the log without
          *       giving the cluster admin an actionable signal;</li>
          *   <li>a stray scalar among a heterogeneous array of objects is likewise null-filled and {@code DEBUG}-logged
-         *       (a distinct, supported shape from the point below);</li>
+         *       (a distinct, supported shape from the point below), and symmetrically a stray object among a
+         *       heterogeneous array of scalars is simply omitted from that column's multi-value entry and
+         *       {@code DEBUG}-logged — neither direction is the record-level conflict below;</li>
          *   <li>a scalar of the wrong primitive type is reported via {@link #unexpectedValue} and null-filled.</li>
          * </ul>
          * The one genuine hard-error case is a top-level (non-array) scalar/object shape conflict — a field that is a
@@ -1145,19 +1147,32 @@ public class NdJsonPageDecoder implements Closeable {
                     // `includeChildren` gates opening the child MV entries and must reflect whether the array
                     // actually contains an object: otherwise later objects append into never-opened child builders,
                     // misaligning rows across columns. Skip leading elements that cannot open this node's MV entry:
-                    // - a leaf node only skips leading JSON nulls (its scalars are real values);
-                    // - a structural (prefix) node carries no scalar values of its own, so it also skips leading
-                    // stray scalars (e.g. [null, "x", {"type":"a"}]) until the first object or the array end.
+                    // - a structural (prefix) node carries no scalar values of its own, so it skips leading
+                    // stray scalars (e.g. [null, "x", {"type":"a"}]) until the first object or the array end;
+                    // - symmetrically, a scalar leaf skips leading stray objects (e.g. [null, {"x":1}, "a"]) until
+                    // the first scalar or the array end: without this, an all-object array on a scalar leaf would
+                    // call beginPositionEntry() and then never append a value before endPositionEntry(), which
+                    // AbstractBlockBuilder#endPositionEntry() asserts against (see appendNullsForEmptyArray).
                     JsonToken first = parser.nextToken();
                     while (first == JsonToken.VALUE_NULL
-                        || (blockBuilder == null && first != null && first != JsonToken.START_OBJECT && first != JsonToken.END_ARRAY)) {
-                        if (blockBuilder == null && first != JsonToken.VALUE_NULL && logger.isDebugEnabled()) {
-                            logger.debug(
-                                "Expected object in array for nested field [{}] but got {} at {}",
-                                parser.getParsingContext().pathAsPointer(),
-                                first,
-                                parser.getTokenLocation()
-                            );
+                        || (blockBuilder == null && first != null && first != JsonToken.START_OBJECT && first != JsonToken.END_ARRAY)
+                        || (dataType != null && first == JsonToken.START_OBJECT)) {
+                        if (first != JsonToken.VALUE_NULL && logger.isDebugEnabled()) {
+                            if (blockBuilder == null) {
+                                logger.debug(
+                                    "Expected object in array for nested field [{}] but got {} at {}",
+                                    parser.getParsingContext().pathAsPointer(),
+                                    first,
+                                    parser.getTokenLocation()
+                                );
+                            } else {
+                                logger.debug(
+                                    "Expected scalar type [{}] for attribute [{}] but got object at {}",
+                                    dataType.typeName(),
+                                    name,
+                                    parser.getTokenLocation()
+                                );
+                            }
                         }
                         parser.skipChildren(); // no-op for scalar/null tokens; safe to call here
                         first = parser.nextToken();
@@ -1183,11 +1198,29 @@ public class NdJsonPageDecoder implements Closeable {
 
             if (token == JsonToken.START_OBJECT) {
                 if (dataType != null) {
-                    // Scalar leaf receiving an object value: a genuine scalar/object schema conflict
-                    // (elastic/esql-planning#1028), not routine schema-on-read flattening. With
+                    if (inArray) {
+                        // A stray object among a heterogeneous array of scalars is a distinct, supported shape
+                        // (mirrors the stray-scalar-among-objects case below), not the record-level scalar/object
+                        // conflict this issue targets: the array's other scalar elements still decode and
+                        // contribute to this column's multi-value entry, this element is simply omitted from it.
+                        // Guarded by isDebugEnabled() so the JsonLocation allocation is skipped when DEBUG is off,
+                        // since this can fire per-element across millions of records.
+                        if (logger.isDebugEnabled()) {
+                            logger.debug(
+                                "Expected scalar type [{}] for attribute [{}] but got object at {}",
+                                dataType.typeName(),
+                                name,
+                                parser.getTokenLocation()
+                            );
+                        }
+                        parser.skipChildren();
+                        return;
+                    }
+                    // Scalar leaf receiving an object value outside an array: a genuine scalar/object schema
+                    // conflict (elastic/esql-planning#1028), not routine schema-on-read flattening. With
                     // single-shape schema inference (see NdJsonSchemaInferrer) this can only happen when
                     // the actual data diverges from the shape observed during sampling, so — unlike the
-                    // routine mismatches below — it is routed through ErrorPolicy instead of silently
+                    // routine mismatches above — it is routed through ErrorPolicy instead of silently
                     // decoded (which would otherwise skip the object's fields with no trace).
                     shapeConflict(parser, name, "an object", "scalar type [" + dataType.typeName() + "]");
                     return;
@@ -1358,13 +1391,21 @@ public class NdJsonPageDecoder implements Closeable {
         }
     }
 
-    /** Short description of a scalar {@link JsonToken}'s JSON type, for {@link BlockDecoder#shapeConflict} messages. */
+    /**
+     * Short description of a scalar {@link JsonToken}'s JSON type, for {@link BlockDecoder#shapeConflict} messages.
+     * Only called for a token that reached the structural-node scalar branch of {@link BlockDecoder#decodeValue},
+     * which has already excluded {@code VALUE_NULL}, {@code START_ARRAY}/{@code START_OBJECT} (handled earlier) and
+     * {@code END_ARRAY}/{@code END_OBJECT}/{@code FIELD_NAME} (never the current token where a value is expected);
+     * {@code VALUE_EMBEDDED_OBJECT} cannot occur either, since {@link NdJsonUtils#JSON_FACTORY} only ever parses
+     * text JSON, never a binary format (CBOR/Smile) that could produce one. The remaining {@link JsonToken} values
+     * are exactly the five enumerated below, so the {@code default} is unreachable.
+     */
     private static String describeScalarShape(JsonToken token) {
         return switch (token) {
             case VALUE_STRING -> "a string";
             case VALUE_NUMBER_INT, VALUE_NUMBER_FLOAT -> "a number";
             case VALUE_TRUE, VALUE_FALSE -> "a boolean";
-            default -> "a scalar value";
+            default -> throw new AssertionError("Unreachable: unexpected scalar token [" + token + "]");
         };
     }
 }

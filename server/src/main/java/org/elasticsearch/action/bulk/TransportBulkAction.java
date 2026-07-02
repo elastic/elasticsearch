@@ -415,9 +415,9 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      * @param projectMetadata                       the project metadata used for looking up backing indices and examining data streams
      * @param dataStream                            the data stream to inspect for start window
      * @param request                               the write request to inspect for timestamp
-     * @param tsdbWriteWindowStart                      any previously located tsds start windows
+     * @param tsdbWriteWindowStart                  any previously located tsds start windows
      * @param requestStartTimestamp                 the timestamp of the request, we use it to calculate the eligible write window
-     * @param tsdbPastTimestampsToCover tracks the timestamps that need to be covered by new indices per tsdb
+     * @param tsdbPastTimestampsToCover             tracks the timestamps that need to be covered by new indices per tsdb
      */
     private void maybeQueueTimeSeriesCreateIndexOperation(
         ProjectMetadata projectMetadata,
@@ -427,25 +427,44 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         long requestStartTimestamp,
         Map<String, List<Instant>> tsdbPastTimestampsToCover
     ) {
-        // We need to check if a tsds is able to accept a document based on its date.
         Instant documentTimestamp;
         try {
             documentTimestamp = DataStream.getTimeSeriesTimestamp(getIndexWriteRequest(request));
         } catch (DataStream.TimestampError ignored) {
-            // just skip and let the error throw in BulkOperation
+            // if we cannot retrieve the timestamp, we skip and let the error throw in BulkOperation
             return;
         }
-        var coveredTimestamp = dataStream.selectTimeSeriesWriteIndex(documentTimestamp, projectMetadata) != null;
-        if (coveredTimestamp) {
+        // If the timestamp is covered by an existing index or it's not eligible for creating a new backing index, we are done.
+        if (isDocumentCoveredByAnExistingBackingIndex(dataStream, documentTimestamp, projectMetadata)
+            || isEligibleForPastIndexCreation(
+                dataStream,
+                projectMetadata,
+                documentTimestamp,
+                requestStartTimestamp,
+                tsdbWriteWindowStart
+            ) == false) {
             return;
         }
+        tsdbPastTimestampsToCover.computeIfAbsent(dataStream.getName(), (ignored) -> new ArrayList<>()).add(documentTimestamp);
+    }
+
+    /**
+     * An uncovered timestamp is not eligible for index creation if it is in newer than the request start time or older than the
+     * start of the eligible write window.
+     */
+    private boolean isEligibleForPastIndexCreation(
+        DataStream dataStream,
+        ProjectMetadata projectMetadata,
+        Instant documentTimestamp,
+        long requestStartTimestamp,
+        Map<String, Long> tsdbWriteWindowStart
+    ) {
         long documentTimestampMillis = documentTimestamp.toEpochMilli();
-        // check if we're trying to write to the future
         if (documentTimestampMillis > requestStartTimestamp) {
-            // just skip and let the error throw in BulkOperation
-            return;
+            logger.trace("Timestamp [{}] is in the future, skipping backing index creation", documentTimestamp);
+            return false;
         }
-        // if there are no matching write indices then locate how far in the past we can create a tsds index
+
         long windowStart = tsdbWriteWindowStart.computeIfAbsent(
             dataStream.getName(),
             ignored -> timeSeriesEligibleWriteWindowLocator.getEligibleWriteWindowStart(
@@ -455,17 +474,24 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 requestStartTimestamp
             )
         );
-
-        if (documentTimestampMillis > windowStart) {
-            tsdbPastTimestampsToCover.computeIfAbsent(dataStream.getName(), (ignored) -> new ArrayList<>()).add(documentTimestamp);
-            logger.info("Timestamp [{}] that can be indexed because it's after [{}]", documentTimestamp, Instant.ofEpochMilli(windowStart));
-        } else {
+        if (documentTimestampMillis < windowStart) {
             logger.trace(
                 "Timestamp [{}] outside of eligible write window which starts at [{}], skipping",
                 documentTimestamp,
                 Instant.ofEpochMilli(windowStart)
             );
+            return false;
         }
+        logger.trace("Timestamp [{}] that can be indexed because it's after [{}]", documentTimestamp, Instant.ofEpochMilli(windowStart));
+        return true;
+    }
+
+    private boolean isDocumentCoveredByAnExistingBackingIndex(
+        DataStream dataStream,
+        Instant documentTimestamp,
+        ProjectMetadata projectMetadata
+    ) {
+        return dataStream.selectTimeSeriesWriteIndex(documentTimestamp, projectMetadata) != null;
     }
 
     /**

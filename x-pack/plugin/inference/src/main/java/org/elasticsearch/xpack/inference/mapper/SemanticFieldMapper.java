@@ -352,6 +352,11 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         /**
          * Returns the {@link MinimalServiceSettings} defined in this builder if set;
          * otherwise, resolves and returns the settings from the registry.
+         * <p>
+         * Returns {@code null} when the settings cannot be resolved (during mapping recovery, or when
+         * the referenced inference endpoint is not registered). Callers decide how to handle this:
+         * some defer (e.g. embedding field creation waits until the endpoint exists), while others
+         * fail loudly (e.g. explicit index options validation requires a resolvable model).
          */
         protected MinimalServiceSettings getResolvedModelSettings(@Nullable MapperService.MergeReason mergeReason, boolean logWarning) {
             if (modelSettings.get() != null) {
@@ -364,20 +369,9 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             }
 
             try {
-                /*
-                 * If the model is not already set and we are not in a recovery scenario, resolve it using the registry.
-                 * Note: We do not set the model in the mapping at this stage. Instead, the model will be added through
-                 * a mapping update during the first ingestion.
-                 * This approach allows mappings to reference inference endpoints that may not yet exist.
-                 * The only requirement is that the referenced inference endpoint must be available at the time of ingestion.
-                 */
                 return modelRegistry.getMinimalServiceSettings(inferenceId.get());
             } catch (ResourceNotFoundException exc) {
                 if (logWarning) {
-                    /* We allow the inference ID to be unregistered at this point.
-                     * This will delay the creation of sub-fields, so indexing and querying for this field won't work
-                     * until the corresponding inference endpoint is created.
-                     */
                     logger().warn(
                         "The field [{}] references an unknown inference ID [{}]. "
                             + "Indexing and querying this field will not work correctly until the corresponding "

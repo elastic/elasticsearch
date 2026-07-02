@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
@@ -340,6 +341,47 @@ public final class ParallelParsingCoordinator {
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
         int maxRecordBytes
     ) throws IOException {
+        return parallelRead(
+            reader,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            splitStartsAtRecordBoundary,
+            splitIncludesFileLeader,
+            readSchema,
+            baseFileOffset,
+            maxConcurrentOpenSegments,
+            captureSink,
+            maxRecordBytes,
+            ExternalSourceMetrics.NOOP
+        );
+    }
+
+    /**
+     * As the {@code captureSink}+{@code maxRecordBytes} overload, plus a node telemetry sink used to record a
+     * {@code reader.pool.rejected} event when a parser-segment submission is rejected (executor saturated /
+     * shutting down). Pass {@link ExternalSourceMetrics#NOOP} to disable (all narrower overloads do).
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        boolean splitStartsAtRecordBoundary,
+        boolean splitIncludesFileLeader,
+        List<Attribute> readSchema,
+        long baseFileOffset,
+        int maxConcurrentOpenSegments,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        int maxRecordBytes,
+        ExternalSourceMetrics metrics
+    ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
 
@@ -391,7 +433,8 @@ public final class ParallelParsingCoordinator {
             readSchema,
             baseFileOffset,
             captureSink,
-            maxRecordBytes
+            maxRecordBytes,
+            metrics
         );
         // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
         iterator.start();
@@ -520,6 +563,8 @@ public final class ParallelParsingCoordinator {
         @Nullable
         private final ConcurrentMap<String, List<Map<String, Object>>> captureSink;
         private final int maxRecordBytes;
+        /** Node telemetry sink for the {@code reader.pool.rejected} event; {@link ExternalSourceMetrics#NOOP} when unwired. */
+        private final ExternalSourceMetrics metrics;
 
         private final List<long[]> segments;
         private final Executor executor;
@@ -556,7 +601,8 @@ public final class ParallelParsingCoordinator {
             List<Attribute> readSchema,
             long baseFileOffset,
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
-            int maxRecordBytes
+            int maxRecordBytes,
+            ExternalSourceMetrics metrics
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
@@ -568,6 +614,7 @@ public final class ParallelParsingCoordinator {
             this.baseFileOffset = baseFileOffset;
             this.captureSink = captureSink;
             this.maxRecordBytes = maxRecordBytes;
+            this.metrics = metrics == null ? ExternalSourceMetrics.NOOP : metrics;
             this.segments = segments;
             this.executor = executor;
             // Single clamp site for the effective window: the configured cap, never more than the parser
@@ -611,6 +658,9 @@ public final class ParallelParsingCoordinator {
                     executor.execute(() -> parseSegment(idx, seg[0], seg[1]));
                     return;
                 } catch (RejectedExecutionException e) {
+                    // Best-effort telemetry: the parser pool refused this segment (saturated / shutting down). The
+                    // record method self-guards, so no inner try/catch is needed here.
+                    metrics.recordPoolRejected();
                     firstError.compareAndSet(null, e);
                     finishSegment();
                     segIdx += maxConcurrentSegments;

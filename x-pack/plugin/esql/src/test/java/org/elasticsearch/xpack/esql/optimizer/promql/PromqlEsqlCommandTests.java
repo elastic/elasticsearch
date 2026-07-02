@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -316,5 +317,49 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(outputTimeBucketUnprepared, instanceOf(Rounding.ToUpperRounding.class));
         assertThat(Rounding.ToUpperRounding.createRounding(timeBucketUnprepared), sameInstance(timeBucketUnprepared));
         assertThat(Rounding.ToUpperRounding.createRounding(outputTimeBucketUnprepared), sameInstance(outputTimeBucketUnprepared));
+    }
+
+    public void testOffsetShiftsTimestampForward() {
+        Instant start = Instant.parse("2024-05-10T00:20:00.000Z");
+        Instant end = Instant.parse("2024-05-10T00:25:00.000Z");
+        Duration window = Duration.ofMinutes(5);
+        Duration offset = Duration.ofMinutes(5);
+        var plan = planPromql(
+            "PROMQL index=k8s start=\"" + start + "\" end=\"" + end + "\" step=5m sum(avg_over_time(network.bytes_in[5m] offset 5m))"
+        );
+        // `offset 5m` evaluates a sample at real time `s` as if it occurred at `s + 5m`: a materialized @timestamp + 5m.
+        assertThat(findTimestampShiftDuration(plan), equalTo(offset));
+        // The source window extends further back by the offset: start - window - offset.
+        long lowerBoundMs = start.toEpochMilli() - window.toMillis() - offset.toMillis();
+        assertHasTimestampLowerBound(plan, lowerBoundMs, "window+offset");
+    }
+
+    public void testNegativeOffsetShiftsTimestampBackward() {
+        Instant start = Instant.parse("2024-05-10T00:20:00.000Z");
+        Instant end = Instant.parse("2024-05-10T00:25:00.000Z");
+        Duration window = Duration.ofMinutes(5);
+        Duration signedOffset = Duration.ofMinutes(-5);
+        var plan = planPromql(
+            "PROMQL index=k8s start=\"" + start + "\" end=\"" + end + "\" step=5m sum(avg_over_time(network.bytes_in[5m] offset -5m))"
+        );
+        // `offset -5m` (look ahead) shifts @timestamp by a negative duration.
+        assertThat(findTimestampShiftDuration(plan), equalTo(signedOffset));
+        // start - (window + (-5m)) = start - 0 = start
+        long lowerBoundMs = start.toEpochMilli() - window.toMillis() - signedOffset.toMillis();
+        assertHasTimestampLowerBound(plan, lowerBoundMs, "window+offset");
+    }
+
+    /** Finds the duration of the materialized {@code @timestamp + offset} shift produced for an offset selector. */
+    private Duration findTimestampShiftDuration(org.elasticsearch.xpack.esql.plan.logical.LogicalPlan plan) {
+        return plan.collect(Eval.class)
+            .stream()
+            .flatMap(e -> e.fields().stream())
+            .map(Alias::child)
+            .filter(Add.class::isInstance)
+            .map(Add.class::cast)
+            .filter(add -> add.left() instanceof FieldAttribute fa && fa.name().equals("@timestamp"))
+            .map(add -> (Duration) ((Literal) add.right()).value())
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no materialized @timestamp offset shift found in plan:\n" + plan));
     }
 }

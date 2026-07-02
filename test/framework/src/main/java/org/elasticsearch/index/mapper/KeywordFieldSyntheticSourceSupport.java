@@ -10,8 +10,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -28,13 +28,15 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     private final FieldMapper.DocValuesParameter.Values docValues;
     private final String nullValue;
     private final boolean allowIgnoredSource;
+    private final boolean isColumnar;
 
     KeywordFieldSyntheticSourceSupport(
         Integer ignoreAbove,
         boolean store,
         String nullValue,
         boolean allowIgnoredSource,
-        FieldMapper.DocValuesParameter.Values docValues
+        FieldMapper.DocValuesParameter.Values docValues,
+        boolean isColumnar
     ) {
         this.ignoreAbove = ignoreAbove;
         this.allIgnored = ignoreAbove != null && LuceneTestCase.rarely();
@@ -42,11 +44,16 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         this.nullValue = nullValue;
         this.allowIgnoredSource = allowIgnoredSource;
         this.docValues = docValues;
+        this.isColumnar = isColumnar;
+    }
+
+    @Override
+    public boolean isColumnar() {
+        return isColumnar;
     }
 
     public static FieldMapper.DocValuesParameter.Values randomDocValuesParams(boolean allowIgnoredSource) {
-        // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
-        if (Build.current().isSnapshot() == false) {
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
             if (allowIgnoredSource && ESTestCase.randomBoolean()) {
                 return FieldMapper.DocValuesParameter.Values.DISABLED;
             } else {
@@ -89,7 +96,8 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
 
     @Override
     public MapperTestCase.SyntheticSourceExample example(int maxValues) {
-        return example(maxValues, false, false, false);
+        // in columnar mode, ignored values (exceeding ignore_above) are stored in sorted binary doc values
+        return example(maxValues, false, false, isColumnar);
     }
 
     public MapperTestCase.SyntheticSourceExample example(int maxValues, boolean loadBlockFromSource, boolean flipOrder) {
@@ -120,7 +128,8 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
                 validValues.add(v);
             }
         });
-        List<String> outputFromDocValues = new HashSet<>(validValues).stream().sorted().toList();
+        // columnar mode preserves insertion order and duplicates; non-columnar deduplicates and sorts
+        List<String> outputFromDocValues = isColumnar ? validValues : new HashSet<>(validValues).stream().sorted().toList();
 
         Object out;
         if (preservesExactSource()) {
@@ -169,18 +178,12 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
 
         if (docValues.enabled() == false) {
             b.field("doc_values", false);
+        } else if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && docValues.multiValue() == false) {
+            b.startObject("doc_values");
+            b.field("multi_value", false);
+            b.endObject();
         } else {
-            // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
-            if (Build.current().isSnapshot() == false) {
-                b.field("doc_values", true);
-            } else {
-                b.startObject("doc_values");
-                b.field("cardinality", docValues.cardinality().toString());
-                if (docValues.multiValue() == false) {
-                    b.field("multi_value", false);
-                }
-                b.endObject();
-            }
+            b.field("doc_values", true);
         }
     }
 

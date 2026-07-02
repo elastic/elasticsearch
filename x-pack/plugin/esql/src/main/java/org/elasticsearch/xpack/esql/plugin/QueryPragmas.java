@@ -180,6 +180,17 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Boolean> FORCE_DOC_SEQUENCE = Setting.boolSetting("force_doc_sequence", false);
 
     /**
+     * Query-level override for the minimum number of docs per Lucene slice (see
+     * {@link LuceneSliceQueue#MIN_DOCS_PER_SLICE}). Defaults to {@code -1}, meaning the compute-engine
+     * default floor is used. When set to a value {@code > 0}, it overrides that floor for this query only.
+     *
+     * <p>Primarily a testing lever: the default floor collapses small indices to a single slice, which
+     * disables {@code DOC}/{@code SEGMENT} parallelism in tests that index only a few documents. Lowering
+     * it lets such tests exercise the multi-slice partitioning paths.
+     */
+    public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
+
+    /**
      *  When {@code true}, allows full-text functions to be used with expressions that are not indexed fields.
      */
     public static final Setting<Boolean> RUNTIME_LEXICAL_SEARCH = Setting.boolSetting("runtime_lexical_search", false);
@@ -392,6 +403,15 @@ public final class QueryPragmas implements Writeable {
             return PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.get(settings);
         }
         return defaultThreshold;
+    }
+
+    /**
+     * Returns the effective minimum number of docs per Lucene slice. When {@link #MIN_DOCS_PER_SLICE} is set
+     * to a positive value it overrides {@code defaultMinDocsPerSlice}; otherwise the default floor is used.
+     */
+    public int minDocsPerSlice(int defaultMinDocsPerSlice) {
+        int override = MIN_DOCS_PER_SLICE.get(settings);
+        return override > 0 ? override : defaultMinDocsPerSlice;
     }
 
     public boolean runtimeLexicalSearch() {

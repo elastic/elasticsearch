@@ -24,7 +24,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -78,7 +77,6 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
 
     @Override
     protected void shardOperationOnPrimary(
-        Task task,
         Request request,
         IndexShard indexShard,
         ActionListener<PrimaryResult<Request, ReplicationResponse>> listener

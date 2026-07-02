@@ -125,6 +125,16 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         EnumSet.of(ClusterBlockLevel.READ, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE)
     );
 
+    public static final ClusterBlock PROJECT_UNDER_CREATION_BLOCK = new ClusterBlock(
+        16,
+        "project is under creation",
+        true,
+        false,
+        false,
+        RestStatus.SERVICE_UNAVAILABLE,
+        EnumSet.of(ClusterBlockLevel.READ, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE)
+    );
+
     @SuppressWarnings("this-escape")
     private ProjectMetadata(
         ProjectId id,
@@ -2459,7 +2469,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             builder.customs(customs.apply(part.customs));
             if (part.indices == updatedIndices
                 && builder.dataStreamMetadata() == part.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY)
-                && builder.viewMetadata() == part.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY)) {
+                && builder.viewMetadata() == part.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY)
+                && builder.datasetMetadata() == part.custom(DatasetMetadata.TYPE, DatasetMetadata.EMPTY)) {
                 builder.previousIndicesLookup = part.indicesLookup;
             }
             return builder.build(true);

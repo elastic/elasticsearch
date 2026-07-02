@@ -35,7 +35,7 @@ import static org.elasticsearch.logging.LogManager.getLogger;
 class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
 
     static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
-        "dlm.frozen_transition.poll_interval",
+        "dlm.frozen.transition.poll_interval",
         TimeValue.timeValueMinutes(5),
         TimeValue.timeValueSeconds(1),
         Setting.Property.NodeScope
@@ -45,18 +45,21 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
 
     private final BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory;
     private final DLMFrozenTransitionExecutor transitionExecutor;
+    private final DLMFrozenTransitionSettings transitionSettings;
 
     DLMFrozenTransitionService(
         ClusterService clusterService,
         Client client,
         Supplier<XPackLicenseState> licenseStateSupplier,
-        DLMFrozenTransitionExecutor transitionExecutor
+        DLMFrozenTransitionExecutor transitionExecutor,
+        DLMFrozenTransitionSettings transitionSettings
     ) {
         this(
             clusterService,
             (index, pid) -> new DLMConvertToFrozen(index, pid, client, clusterService, licenseStateSupplier, Clock.systemUTC()),
             POLL_INTERVAL_SETTING.get(clusterService.getSettings()).millis(),
-            transitionExecutor
+            transitionExecutor,
+            transitionSettings
         );
     }
 
@@ -64,20 +67,23 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
     DLMFrozenTransitionService(
         ClusterService clusterService,
         BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory,
-        DLMFrozenTransitionExecutor transitionExecutor
+        DLMFrozenTransitionExecutor transitionExecutor,
+        DLMFrozenTransitionSettings transitionSettings
     ) {
-        this(clusterService, transitionRunnableFactory, 0, transitionExecutor);
+        this(clusterService, transitionRunnableFactory, 0, transitionExecutor, transitionSettings);
     }
 
     private DLMFrozenTransitionService(
         ClusterService clusterService,
         BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory,
         long initialDelayMillis,
-        DLMFrozenTransitionExecutor transitionExecutor
+        DLMFrozenTransitionExecutor transitionExecutor,
+        DLMFrozenTransitionSettings transitionSettings
     ) {
         super(clusterService, POLL_INTERVAL_SETTING.get(clusterService.getSettings()), initialDelayMillis);
         this.transitionRunnableFactory = transitionRunnableFactory;
         this.transitionExecutor = transitionExecutor;
+        this.transitionSettings = transitionSettings;
     }
 
     @Override
@@ -107,6 +113,13 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
 
     // visible for testing
     void checkForFrozenIndices() {
+        if (transitionSettings.isTransitionEnabled() == false) {
+            logger.debug(
+                "DLM frozen transition is disabled via [{}], skipping scan",
+                DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING.getKey()
+            );
+            return;
+        }
         for (ProjectMetadata projectMetadata : clusterService.state().metadata().projects().values()) {
             for (IndexMetadata indexMetadata : projectMetadata.indices().values()) {
                 if (Thread.currentThread().isInterrupted() || isClosing()) {

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -22,7 +21,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.tasks.TaskId;
@@ -124,7 +122,8 @@ public final class DatafeedManager {
             credentialManagerSupplier,
             client,
             xContentRegistry,
-            datafeedConfigProvider
+            datafeedConfigProvider,
+            crossProjectModeDecider
         );
     }
 
@@ -284,12 +283,7 @@ public final class DatafeedManager {
             BiConsumer<DatafeedConfig, ActionListener<Boolean>> wrappedValidator = (updatedConfig, validatorListener) -> {
                 // Validate project_routing requires CPS to be enabled in the environment
                 if (updatedConfig.getProjectRouting() != null && DatafeedConfig.isCPSAllowed(crossProjectModeDecider) == false) {
-                    validatorListener.onFailure(
-                        new ElasticsearchStatusException(
-                            "project_routing is only supported in environments that support cross-project calls",
-                            RestStatus.BAD_REQUEST
-                        )
-                    );
+                    validatorListener.onFailure(DatafeedConfig.projectRoutingRequiresCpsException());
                     return;
                 }
                 jobConfigProvider.validateDatafeedJob(updatedConfig, validatorListener);
@@ -308,13 +302,25 @@ public final class DatafeedManager {
                     );
                     CredentialTransitions.Intent intent = CredentialTransitions.decideForUpdate(ctx);
                     UpdateDatafeedAction.Request effectiveRequest = maybeDefaultProjectRoutingForMigration(request, current, intent);
-                    ActionListener<PutDatafeedAction.Response> effectiveListener = effectiveRequest != request ? l.map(r -> {
-                        auditor.info(
-                            current.getJobId(),
-                            Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED)
-                        );
-                        return r;
-                    }) : l;
+                    final boolean defaultedProjectRoutingForMigration = effectiveRequest != request;
+                    final String defaultProjectRouting = ProjectRoutingResolver.LOCAL_ONLY;
+                    ActionListener<PutDatafeedAction.Response> updateListener = defaultedProjectRoutingForMigration
+                        ? ActionListener.wrap(response -> {
+                            logger.info(
+                                "[{}] CPS migration: defaulting project_routing to [{}] to preserve local search scope",
+                                current.getId(),
+                                defaultProjectRouting
+                            );
+                            auditor.info(
+                                current.getJobId(),
+                                Messages.getMessage(
+                                    Messages.JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED,
+                                    defaultProjectRouting
+                                )
+                            );
+                            l.onResponse(response);
+                        }, l::onFailure)
+                        : l;
                     credentialTransitions.executeUpdate(
                         intent,
                         effectiveRequest,
@@ -323,7 +329,7 @@ public final class DatafeedManager {
                         threadPool,
                         securityContext,
                         wrappedValidator,
-                        effectiveListener
+                        updateListener
                     );
                 } catch (Exception e) {
                     l.onFailure(e);
@@ -373,11 +379,6 @@ public final class DatafeedManager {
         if (request.getUpdate().getProjectRouting() != null) {
             return request;
         }
-        logger.info(
-            "[{}] CPS migration: defaulting project_routing to [{}] to preserve local search scope",
-            existingConfig.getId(),
-            ProjectRoutingResolver.LOCAL_ONLY
-        );
         DatafeedUpdate augmentedUpdate = new DatafeedUpdate.Builder(request.getUpdate()).setProjectRouting(
             ProjectRoutingResolver.LOCAL_ONLY
         ).build();
@@ -477,12 +478,7 @@ public final class DatafeedManager {
 
         // Validate project_routing requires CPS to be enabled in the environment.
         if (request.getDatafeed().getProjectRouting() != null && DatafeedConfig.isCPSAllowed(crossProjectModeDecider) == false) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    "project_routing is only supported in environments that support cross-project calls",
-                    RestStatus.BAD_REQUEST
-                )
-            );
+            listener.onFailure(DatafeedConfig.projectRoutingRequiresCpsException());
             return;
         }
 

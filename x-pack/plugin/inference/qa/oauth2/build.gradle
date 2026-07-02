@@ -23,4 +23,9 @@ dependencies {
 
 tasks.named("javaRestTest").configure {
   usesDefaultDistribution("OpenAI OAuth2 end-to-end tests")
+  // no.nav.security:mock-oauth2-server pulls in the non-FIPS BouncyCastle (bcpkix-jdk18on) as a
+  // runtime dependency, which collides with the FIPS BouncyCastle (bcpkix-fips) that the build
+  // adds to every test classpath in FIPS mode (jar hell). The mock server is not FIPS-compatible
+  // and the OAuth2 wiring under test is independent of the security provider, so skip on FIPS JVMs.
+  onlyIf("OAuth2 mock server is not FIPS compatible") { buildParams.inFipsJvm == false }
 }

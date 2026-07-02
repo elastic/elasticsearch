@@ -34,6 +34,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
@@ -99,6 +101,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
         plugins.add(PITRelocationTestPlugin.class);
         plugins.add(StatelessMockRepositoryPlugin.class);
+        plugins.add(TestTelemetryPlugin.class);
         return plugins;
     }
 
@@ -513,6 +516,13 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         assertEquals("Open contexts on node " + searchNodeB + ".", 0L, searchService2.getActivePITContexts());
     }
 
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/150288",
+        value = "org.elasticsearch.action.search:TRACE,"
+            + "org.elasticsearch.search.SearchService:TRACE,"
+            + "co.elastic.elasticsearch.stateless.recovery.TransportStatelessUnpromotableRelocationAction:DEBUG,"
+            + "co.elastic.elasticsearch.stateless.recovery.PITRelocationService:DEBUG"
+    )
     public void testPointInTimeRelocationClosingSourceContexts() throws Exception {
         assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         startMasterAndIndexNode(nodeSettings);
@@ -547,7 +557,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
                 logger.info("Executing search t1 #" + i);
                 assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId1.get())), resp -> {
                     final TotalHits totalHits = resp.getHits().getTotalHits();
-                    assertEquals("Wrong hits for search " + i, totalHits.value(), numDocs_pit1);
+                    assertEquals("Wrong hits for search " + i + ", response: " + resp, numDocs_pit1, totalHits.value());
                     pitId1.set(resp.pointInTimeId());
                 });
             }
@@ -560,7 +570,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
                 logger.info("Executing search t2 #" + i);
                 assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId1.get())), resp -> {
                     final TotalHits totalHits = resp.getHits().getTotalHits();
-                    assertEquals("Wrong hits for search " + i, totalHits.value(), numDocs_pit1);
+                    assertEquals("Wrong hits for search " + i + ", response: " + resp, numDocs_pit1, totalHits.value());
                     pitId1.set(resp.pointInTimeId());
                 });
             }
@@ -1308,6 +1318,90 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         assertClosePit(updatedPitFirst.get(), 1);
         assertClosePit(updatedPitMiddle.get(), 1);
         assertClosePit(updatedPitLast.get(), 1);
+    }
+
+    /**
+     * Verifies that the five PIT relocation metrics are emitted with the expected values during a shard relocation.
+     * The funnel invariant — offered == handled == re-created — is the key assertion: if any counter diverges, a
+     * context is being silently dropped during handoff.
+     */
+    public void testPitRelocationMetricsRecorded() throws Exception {
+        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
+        startMasterAndIndexNode(nodeSettings);
+        var searchNodeA = startSearchNode(nodeSettings);
+        var searchNodeB = startSearchNode(nodeSettings);
+
+        var indexName = randomIdentifier();
+        int numberOfShards = randomIntBetween(1, 3);
+        createIndex(indexName, indexSettings(numberOfShards, 1).build());
+        ensureGreen(indexName);
+
+        // Pin all shards to searchNodeA so we have an unambiguous single source and target.
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeB), indexName);
+        ensureGreen(indexName);
+
+        // Open two PITs — each creates one context per shard.
+        var testDataSetup = commonTestdataSetup(indexName, numberOfShards);
+
+        // Extra flush ensures both PIT commits are uploaded to the object store before relocation.
+        // Without this, fetchOpenPitContextInfo may not find the second PIT's BCC blob in time.
+        indexDocs(indexName, randomIntBetween(1, 10));
+        flushAndRefresh(indexName);
+
+        // Reset meters after setup so only the relocation event is captured.
+        getTelemetryPlugin(searchNodeA).resetMeter();
+        getTelemetryPlugin(searchNodeB).resetMeter();
+
+        // Relocate all shards from searchNodeA to searchNodeB.
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeA), indexName);
+        ensureGreen(indexName);
+        assertBusy(
+            () -> assertEquals(
+                "Source node should have no active PIT contexts after handoff.",
+                0,
+                internalCluster().getInstance(SearchService.class, searchNodeA).getActivePITContexts()
+            ),
+            5,
+            TimeUnit.SECONDS
+        );
+
+        getTelemetryPlugin(searchNodeA).collect();
+        getTelemetryPlugin(searchNodeB).collect();
+
+        long sourceHandoffs = getTotalLongCounterValue(PitRelocationMetrics.SOURCE_HANDOFF_COUNTER, getTelemetryPlugin(searchNodeA));
+        long sourceContexts = getTotalLongCounterValue(PitRelocationMetrics.SOURCE_CONTEXTS_COUNTER, getTelemetryPlugin(searchNodeA));
+        long targetResponses = getTotalLongCounterValue(PitRelocationMetrics.TARGET_RESPONSE_COUNTER, getTelemetryPlugin(searchNodeB));
+        long targetContexts = getTotalLongCounterValue(PitRelocationMetrics.TARGET_CONTEXTS_COUNTER, getTelemetryPlugin(searchNodeB));
+        long targetReaderContexts = getTotalLongCounterValue(
+            PitRelocationMetrics.TARGET_READER_CONTEXT_COUNTER,
+            getTelemetryPlugin(searchNodeB)
+        );
+
+        // One doHandleStartHandoff call per shard relocation.
+        assertEquals("Source handoffs should equal number of shards.", (long) numberOfShards, sourceHandoffs);
+        // Two PITs, each with one context per shard.
+        assertEquals("Source contexts offered should be shards × PITs.", (long) numberOfShards * 2, sourceContexts);
+        // One handlePitHandoffResponse call per shard relocation on the target.
+        assertEquals("Target responses should match source handoffs.", sourceHandoffs, targetResponses);
+        // The funnel invariant: offered == handled == re-created (no silent drops).
+        assertEquals("Contexts handled on target must match contexts offered by source.", sourceContexts, targetContexts);
+        assertEquals("Reader contexts created must match contexts handled.", targetContexts, targetReaderContexts);
+
+        // Search with the original PIT IDs to obtain updated IDs carrying the new node routing, then
+        // close those. Closing the original IDs would route to searchNodeA (stale) and free nothing,
+        // leaving relocated contexts on searchNodeB to leak until keep-alive expiry.
+        var updatedPit1 = new AtomicReference<BytesReference>();
+        var updatedPit2 = new AtomicReference<BytesReference>();
+        assertResponse(
+            prepareSearch().setPointInTime(new PointInTimeBuilder(testDataSetup.pitId1)),
+            r -> updatedPit1.set(r.pointInTimeId())
+        );
+        assertResponse(
+            prepareSearch().setPointInTime(new PointInTimeBuilder(testDataSetup.pitId2)),
+            r -> updatedPit2.set(r.pointInTimeId())
+        );
+        assertClosePit(updatedPit1.get(), numberOfShards);
+        assertClosePit(updatedPit2.get(), numberOfShards);
     }
 
     private void assertClosePit(BytesReference pitId, int expectedFreedContexts) {

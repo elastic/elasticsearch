@@ -304,6 +304,41 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         verify(credentialManager).wrapClient(rawClient, credential);
     }
 
+    public void testWrapWithPersistedIfPresentReturnsRawClientWhenPersistedIsNull() {
+        var rawClient = mock(Client.class);
+        var manager = new TransformCloudCredentialManager(
+            mock(ThreadPool.class),
+            null,
+            new CloudCredentialManager.Noop(),
+            mock(InternalCloudApiKeyService.class),
+            mock(TransformConfigManager.class),
+            mock(TransformAuditor.class)
+        );
+
+        assertThat(manager.wrapWithPersistedIfPresent(rawClient, null), sameInstance(rawClient));
+    }
+
+    public void testWrapWithPersistedIfPresentDelegatesToCredentialManagerWhenPersistedPresent() {
+        var rawClient = mock(Client.class);
+        var wrappedClient = mock(Client.class);
+        var persisted = new PersistedCloudCredential("id", new SecureString("key".toCharArray()));
+        var credentialManager = mock(CloudCredentialManager.class);
+        when(credentialManager.wrapClient(rawClient, persisted)).thenReturn(wrappedClient);
+        var manager = new TransformCloudCredentialManager(
+            mock(ThreadPool.class),
+            null,
+            credentialManager,
+            mock(InternalCloudApiKeyService.class),
+            mock(TransformConfigManager.class),
+            mock(TransformAuditor.class)
+        );
+
+        var actual = manager.wrapWithPersistedIfPresent(rawClient, persisted);
+
+        assertThat(actual, sameInstance(wrappedClient));
+        verify(credentialManager).wrapClient(rawClient, persisted);
+    }
+
     public void testCurrentCallerCredentialPrefersSecondaryAuth() {
         assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
 

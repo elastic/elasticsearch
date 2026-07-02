@@ -16,44 +16,14 @@ import java.util.BitSet;
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * Exercises the allocation-tracking runtime scaffolding directly (not yet wired into bytecode): the {@link PainlessScript}
- * counter methods and {@link AllocationGuard#checkAlloc}.
+ * Exercises the allocation-tracking runtime scaffolding directly: the {@link PainlessScript} counter defaults and the
+ * {@link AllocationGuard#allocationLimitExceeded} log-and-throw helper. The charge-and-check itself lives on the generated
+ * {@code $checkAllocBytes} override and is exercised end to end by the pre-check tests.
  */
 public class AllocationGuardTests extends ESTestCase {
 
-    /** Minimal {@link PainlessScript} whose only behaviour is a mutable per-instance allocation counter. */
-    private static class CountingScript implements PainlessScript {
-        private long allocBytes;
-
-        @Override
-        public long $incAllocBytes(long bytes) {
-            allocBytes += bytes;
-            return allocBytes;
-        }
-
-        @Override
-        public long getAllocBytes() {
-            return allocBytes;
-        }
-
-        @Override
-        public String getName() {
-            return "counting";
-        }
-
-        @Override
-        public String getSource() {
-            return "<source>";
-        }
-
-        @Override
-        public BitSet getStatements() {
-            return new BitSet();
-        }
-    }
-
     public void testDefaultsWhenTrackingDisabled() {
-        // A script that does not opt in keeps the interface defaults: a zero total and no usable increment.
+        // A script that does not opt in keeps the interface defaults: a zero total, no usable increment, and a no-op check.
         PainlessScript script = new PainlessScript() {
             @Override
             public String getName() {
@@ -73,35 +43,18 @@ public class AllocationGuardTests extends ESTestCase {
 
         assertEquals(0L, script.getAllocBytes());
         expectThrows(UnsupportedOperationException.class, () -> script.$incAllocBytes(10L));
+        // The check is a no-op when tracking is disabled, so it must not throw.
+        script.$checkAllocBytes(1_000_000L);
     }
 
-    public void testCheckAllocUnderLimitAccumulates() {
-        CountingScript script = new CountingScript();
-
-        assertEquals(10L, AllocationGuard.checkAlloc(script, 10L, 100L, "site-a"));
-        assertEquals(30L, AllocationGuard.checkAlloc(script, 20L, 100L, "site-b"));
-        assertEquals(30L, script.getAllocBytes());
-    }
-
-    public void testCheckAllocAtLimitDoesNotTrip() {
-        CountingScript script = new CountingScript();
-        // Exactly reaching the limit is allowed; only exceeding it trips.
-        assertEquals(100L, AllocationGuard.checkAlloc(script, 100L, 100L, "site"));
-    }
-
-    public void testCheckAllocOverLimitThrows() {
-        CountingScript script = new CountingScript();
-        AllocationGuard.checkAlloc(script, 90L, 100L, "first");
-
-        PainlessError error = expectThrows(PainlessError.class, () -> AllocationGuard.checkAlloc(script, 20L, 100L, "second"));
+    public void testAllocationLimitExceededThrows() {
+        PainlessError error = expectThrows(PainlessError.class, () -> AllocationGuard.allocationLimitExceeded(20L, 110L, 100L));
 
         // PainlessError is an Error, not an Exception, so a script cannot catch it.
         assertFalse("must not be catchable as an Exception", Exception.class.isAssignableFrom(error.getClass()));
-        // The message carries the known byte values and site for diagnostics.
-        assertThat(error.getMessage(), containsString("[20] bytes at [second]"));
+        // The message carries the byte values for diagnostics.
+        assertThat(error.getMessage(), containsString("[20] bytes"));
         assertThat(error.getMessage(), containsString("[110] bytes"));
         assertThat(error.getMessage(), containsString("limit of [100] bytes"));
-        // The counter still reflects the rejected allocation; the guard charges before checking.
-        assertEquals(110L, script.getAllocBytes());
     }
 }

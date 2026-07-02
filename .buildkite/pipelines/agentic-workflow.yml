@@ -1,0 +1,62 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/buildkite/pipeline-schema/main/schema.json
+#
+# elasticsearch-agentic-workflow
+#
+# On-demand agentic CI workflows powered by the self-contained pi-agent CLI
+# (https://github.com/elastic/rene-bk-experiments). pi runs directly on the
+# agent — no remote pipeline trigger and no .pi/ config in this repo. The
+# pre-command hook bootstraps pi-agent and injects secrets when USE_PI_AGENT=true.
+#
+# Supported workflows:
+#   test-analysis          — analyse a test-failure issue        (needs ISSUE_URL)
+#   pull-request-fix       — self-heal a failing pull request    (needs PR_URL)
+#   pull-request-creation  — implement a task and open a PR      (needs ISSUE_URL)
+#
+# Trigger from the Buildkite UI (set WORKFLOW in the Environment Variables field
+# of the New Build dialog) or via the Buildkite API, e.g.:
+#   curl -X POST ".../pipelines/elasticsearch-agentic-workflow/builds" \
+#     -H "Authorization: Bearer $BUILDKITE_API_TOKEN" \
+#     -d '{"branch":"main","env":{
+#            "WORKFLOW":"test-analysis",
+#            "ISSUE_URL":"https://github.com/elastic/elasticsearch/issues/150989"}}'
+
+# Expose trigger vars at pipeline level so they are visible to step `if`
+# conditions and are shown in the Buildkite UI for API-triggered builds.
+# WORKFLOW must be set explicitly when triggering — this pipeline does not
+# run on branch pushes and has no input step (Buildkite skips input steps
+# for webhook-triggered builds, making them unreliable for this use case).
+env:
+  WORKFLOW:  "${WORKFLOW:-}"
+  ISSUE_URL: "${ISSUE_URL:-}"
+  PR_URL:    "${PR_URL:-}"
+
+steps:
+  # ── Run pi-agent ─────────────────────────────────────────────────────────────
+  - label: ":robot_face: Pi — :workflow:"
+    key: pi-run
+    # Serialise the whole pipeline to one run at a time. The agent sessions share
+    # a single LiteLLM service-account key, and per-session cost is measured as a
+    # /key/info spend delta — concurrent runs would contaminate each other's
+    # delta. concurrency_method: ordered keeps queued builds in submission order.
+    concurrency: 1
+    concurrency_group: "elasticsearch-agentic-workflow/pi-run"
+    concurrency_method: ordered
+    timeout_in_minutes: 60
+    env:
+      USE_PI_AGENT: "true"
+      PI_AGENT_SESSION_DIR: "/tmp/pi-agent-sessions"
+    agents:
+      provider:       gcp
+      image:          family/elasticsearch-ubuntu-2404
+      # The pi-run agent is an I/O-bound orchestrator (LLM/gh/git calls); it does
+      # NOT build Elasticsearch — reproduction runs on its own n4-standard-64 job.
+      # 4 vCPU is plenty; the full-history mirror checkout is the only heavy step.
+      machineType:    n4-standard-4
+      diskType:       hyperdisk-balanced
+      buildDirectory: /dev/shm/bk
+    retry:
+      automatic:
+        - exit_status: "*"
+          limit: 1
+    command: bash .buildkite/scripts/run-pi-agent.sh

@@ -1,5 +1,0 @@
-area: Infra/Core
-issues: []
-pr: 151095
-summary: Fix OS stats for cgroup paths containing colons
-type: bug

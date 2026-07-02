@@ -187,6 +187,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private static final String EXPECTED_ROLLUP_WARNING_MESSAGE =
         "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.";
+
     public static final RequestOptions.Builder ROLLUP_REQUESTS_OPTIONS = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
         if (warnings.isEmpty()) {
             return false;

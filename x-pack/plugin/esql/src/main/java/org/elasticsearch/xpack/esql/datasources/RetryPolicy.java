@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -191,6 +192,22 @@ class RetryPolicy {
     }
 
     /**
+     * Best-effort lifecycle callbacks for a retry driver, letting the caller surface terminal give-ups and the
+     * cumulative backoff stall to node telemetry. {@link RetryPolicy} stays decision-only: it computes decisions
+     * and reports the lifecycle here, holding no metric state itself. All methods default to no-ops
+     * ({@link #NONE}), so a driver that does not care about telemetry is unaffected.
+     */
+    interface RetryTelemetry {
+        RetryTelemetry NONE = new RetryTelemetry() {};
+
+        /** The operation gave up on {@code failure} after a cumulative {@code totalBackoffMillis} spent in backoff. */
+        default void onGiveUp(Throwable failure, long totalBackoffMillis) {}
+
+        /** The operation completed after a cumulative {@code totalBackoffMillis} spent in backoff (0 if it never retried). */
+        default void onComplete(long totalBackoffMillis) {}
+    }
+
+    /**
      * The shared retry decision used by every retry driver — sync {@link #execute}, async reads, and the
      * mid-read resume. Classifies the fault, applies the throttle-vs-normal budget against {@code attempt}
      * (retries already made), feeds the adaptive backoff on a throttle, and checks the total-time budget against
@@ -230,10 +247,32 @@ class RetryPolicy {
      * attempt or on a final terminal failure.
      */
     <T> T execute(IOSupplier<T> operation, String operationName, StoragePath path, Runnable onRetry) throws IOException {
+        return execute(operation, operationName, path, onRetry, RetryTelemetry.NONE);
+    }
+
+    /**
+     * As {@link #execute(IOSupplier, String, StoragePath, Runnable)}, plus a best-effort {@link RetryTelemetry}
+     * whose {@link RetryTelemetry#onComplete}/{@link RetryTelemetry#onGiveUp} fire once when the operation ends,
+     * carrying the cumulative backoff time so the caller can publish read-stall / terminal-error metrics. The
+     * policy remains decision-only; it merely reports the lifecycle it already computes.
+     */
+    <T> T execute(IOSupplier<T> operation, String operationName, StoragePath path, Runnable onRetry, RetryTelemetry telemetry)
+        throws IOException {
         if (maxRetries == 0 && throttleMaxRetries == 0) {
-            return operation.get();
+            // Retries disabled: run the operation once, but still fire the lifecycle so a terminal failure is
+            // surfaced to telemetry (there was no backoff, so the cumulative stall is 0). Mirror the retry loop's
+            // catch — a plain RuntimeException propagates without a give-up, exactly as it does with retries on.
+            try {
+                T result = operation.get();
+                telemetry.onComplete(0L);
+                return result;
+            } catch (IOException | ExternalUnavailableException e) {
+                telemetry.onGiveUp(e, 0L);
+                throw e;
+            }
         }
         long startNanos = System.nanoTime();
+        long totalBackoffMillis = 0;
         int maxAttempts = Math.max(maxRetries, throttleMaxRetries);
         for (int attempt = 0; attempt <= maxAttempts; attempt++) {
             try {
@@ -241,14 +280,17 @@ class RetryPolicy {
                 if (adaptiveBackoff != null) {
                     adaptiveBackoff.onSuccess();
                 }
+                telemetry.onComplete(totalBackoffMillis);
                 return result;
             } catch (IOException | ExternalUnavailableException e) {
                 // ExternalUnavailableException is an unchecked QlException (it maps to a 503), so it is caught
                 // explicitly alongside the checked transport IOExceptions; both flow through the one decision point.
                 RetryDecision decision = decide(e, attempt, startNanos);
                 if (decision.retry() == false) {
+                    telemetry.onGiveUp(e, totalBackoffMillis);
                     throw e;
                 }
+                totalBackoffMillis += decision.delayMillis();
                 logger.debug(
                     "retrying [{}] for [{}] after transient failure (attempt [{}], delay [{}]ms): [{}]",
                     operationName,
@@ -257,9 +299,15 @@ class RetryPolicy {
                     decision.delayMillis(),
                     e.getMessage()
                 );
+                // Abort promptly if the originating query was already cancelled (skips the retry-count bump).
+                if (StorageRetryCancellation.isCancelled()) {
+                    throw new TaskCancelledException(StorageRetryCancellation.CANCELLED_MESSAGE);
+                }
                 onRetry.run();
                 try {
-                    Thread.sleep(decision.delayMillis());
+                    // Cancellation-aware sleep: polls during the delay so a cancel that flips mid-sleep aborts
+                    // within ~one poll interval rather than waiting out the full (up to 30s throttle) backoff.
+                    StorageRetryCancellation.sleepWithCancellationChecks(decision.delayMillis());
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     throw e;

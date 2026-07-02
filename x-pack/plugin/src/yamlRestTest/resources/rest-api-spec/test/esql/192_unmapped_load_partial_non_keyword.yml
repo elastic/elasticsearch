@@ -66,17 +66,35 @@ setup:
 
 ---
 rename-punks:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_unmapped_load_auto_cast_two_legged_punks ]
+      reason: "requires auto-casting of two-legged PUNKs"
   - do:
-      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           # [beta] is double in index2
-          # PUNKs should be rejected in RENAME
           query: 'SET unmapped_fields="load"; FROM index1,index2,index3 | RENAME beta AS mu'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: '1:64: Using partially unmapped non-KEYWORD field [beta] is not supported with unmapped_fields="load"' }
+  # auto-cast of the two-legged PUNK into the mapped type
+  - match: { columns.0.name: "a.b.c.d" }
+  - match: { columns.0.type: "boolean" }
+  # no auto-cast: three-legged PUNK with two mapped types (long and integer)
+  - match: { columns.1.name: "alpha" }
+  - match: { columns.1.type: "unsupported" }
+  # auto-cast of the two-legged PUNK resolved to the mapped type
+  - match: { columns.2.name: "mu" }
+  - match: { columns.2.type: "double" }
+  # same type everywhere
+  - match: { columns.3.name: "lambda" }
+  - match: { columns.3.type: "keyword" }
+  # no auto-cast: three-legged PUNK with two mapped types (date and date_nanos).
+  - match: { columns.4.name: "tau" }
+  - match: { columns.4.type: "unsupported" }
 
 ---
 date-nanos-punks:
@@ -134,12 +152,20 @@ where-punks:
 
 ---
 stats-punks:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_unmapped_load_auto_cast_two_legged_punks ]
+      reason: "requires auto-casting of two-legged PUNKs"
   - do:
-      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM index2,index3 | STATS x = AVG(beta::double), y = MIN(a.b.c.d)'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: '1:87: Using partially unmapped non-KEYWORD field [a.b.c.d] is not supported with unmapped_fields="load"' }
+  - match: { columns.0.name: "x" }
+  - match: { columns.0.type: "double" }
+  - match: { columns.1.name: "y" }
+  - match: { columns.1.type: "boolean" }

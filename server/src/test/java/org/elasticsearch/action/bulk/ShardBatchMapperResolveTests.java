@@ -11,7 +11,6 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfRowBuilder;
-import org.elasticsearch.eirf.EirfSchema;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
@@ -22,6 +21,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ import java.io.IOException;
 public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
 
     /** Build a schema with the given (name, EIRF type) leaves by driving an EirfRowBuilder. */
-    private static EirfSchema schemaOf(String... leafNames) {
+    private static SourceSchema schemaOf(String... leafNames) {
         try (EirfRowBuilder b = new EirfRowBuilder()) {
             b.startDocument();
             for (String name : leafNames) {
@@ -54,14 +54,14 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
             b.startObject("value").field("type", "long").endObject();
             b.startObject("score").field("type", "double").endObject();
         }));
-        EirfSchema schema = schemaOf("ts", "host", "value", "score");
+        SourceSchema schema = schemaOf("ts", "host", "value", "score");
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup());
         assertNotNull(resolution);
         assertEquals(4, resolution.columnMappers().length);
         for (int i = 0; i < 4; i++) {
             assertNotNull("column " + i + " should resolve to a mapper", resolution.columnMappers()[i]);
         }
-        // Order of EirfSchema leaves matches insertion order for the row builder above.
+        // Order of SourceSchema leaves matches insertion order for the row builder above.
         assertTrue(resolution.columnMappers()[schema.findLeaf("ts", 0)] instanceof DateFieldMapper);
         assertTrue(resolution.columnMappers()[schema.findLeaf("host", 0)] instanceof KeywordFieldMapper);
         assertTrue(resolution.columnMappers()[schema.findLeaf("value", 0)] instanceof NumberFieldMapper);
@@ -89,7 +89,7 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
             b.startObject("known").field("type", "keyword").endObject();
             b.endObject();
         }));
-        EirfSchema schema = schemaOf("known", "unknown");
+        SourceSchema schema = schemaOf("known", "unknown");
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup());
         assertNotNull(resolution);
         assertNotNull(resolution.columnMappers()[schema.findLeaf("known", 0)]);
@@ -212,7 +212,7 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
             b.endObject();
             b.endObject();
         }));
-        EirfSchema schema = schemaOf("outer.inner");
+        SourceSchema schema = schemaOf("outer.inner");
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup());
         assertNotNull(resolution);
         assertTrue(resolution.columnMappers()[0] instanceof NumberFieldMapper);
@@ -227,7 +227,7 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
             b.endObject();
             b.endObject();
         }));
-        EirfSchema schema = schemaOf("outer.known", "outer.unknown");
+        SourceSchema schema = schemaOf("outer.known", "outer.unknown");
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup());
         assertNotNull(resolution);
         assertNotNull(resolution.columnMappers()[schema.findLeaf("known", schema.findNonLeaf("outer", 0))]);

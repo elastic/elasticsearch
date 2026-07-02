@@ -33,6 +33,8 @@ import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -54,9 +56,8 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
     private final AtomicBoolean unpromotableRefreshRequestReceived = new AtomicBoolean(false);
     private TransportService transportService;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeTransportService() throws Exception {
         transportService = MockTransportService.createNewService(
             Settings.EMPTY,
             VersionInformation.CURRENT,
@@ -74,13 +75,11 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
                 channel.sendResponse(ActionResponse.Empty.INSTANCE);
             }
         );
-
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeTransportService() throws Exception {
         transportService.close();
-        super.tearDown();
     }
 
     public void testWaitUntilRefreshPrimaryShard() throws IOException {

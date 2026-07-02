@@ -33,6 +33,7 @@ public class Cos extends AbstractTrigonometricFunction {
         .unaryValueTransformation(Cos::new)
         .description("Calculates the cosine of all elements in the input vector.")
         .example("cos(some_metric)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("cos");
 
     @FunctionInfo(

@@ -9,17 +9,23 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
@@ -44,6 +50,8 @@ public final class ThrottlingRecoveryService implements Closeable {
     );
 
     private final Executor executor;
+    private final ThreadContext threadContext;
+    private final CompositeRecoverySchedulingListener schedulingListeners;
 
     private int maxConcurrentRecoveries;
     private int runningRecoveries = 0;
@@ -51,19 +59,31 @@ public final class ThrottlingRecoveryService implements Closeable {
 
     private boolean closed;
 
-    public ThrottlingRecoveryService(Executor executor, ClusterService clusterService) {
-        this.executor = executor;
+    public ThrottlingRecoveryService(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        CompositeRecoverySchedulingListener schedulingListeners
+    ) {
+        this.executor = threadPool.generic();
+        this.threadContext = threadPool.getThreadContext();
+        this.schedulingListeners = schedulingListeners;
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
     }
 
     /// Enqueues a recovery task and/or dispatches it to the executor if there are any available slots.
-    public void enqueue(RecoveryListener recoveryListener, RecoveryState recoveryState, Consumer<RecoveryListener> task) {
+    public void enqueue(
+        RecoveryListener recoveryListener,
+        RecoveryState recoveryState,
+        RecoveryStats stats,
+        Consumer<RecoveryListener> task
+    ) {
         final PendingRecovery pendingRecovery;
         synchronized (this) {
             if (closed == false) {
-                pendingRecovery = new PendingRecovery(recoveryState, task, recoveryListener);
+                pendingRecovery = new PendingRecovery(recoveryState, stats, task, recoveryListener);
                 pendingRecoveries.add(pendingRecovery);
+                stats.targetRecoveryQueued(recoveryState.getRecoverySource().getType());
             } else {
                 pendingRecovery = null;
             }
@@ -74,6 +94,8 @@ public final class ThrottlingRecoveryService implements Closeable {
             return;
         }
         logger.trace("enqueued recovery: {}", recoveryState);
+
+        schedulingListeners.onRecoveryQueued(recoveryState.getRecoverySource().getType(), RecoveryRole.TARGET);
         fillSlots();
     }
 
@@ -93,11 +115,14 @@ public final class ThrottlingRecoveryService implements Closeable {
             closed = true;
             recoveriesToAbort = new ArrayList<>(pendingRecoveries);
             pendingRecoveries.clear();
+            for (PendingRecovery pending : recoveriesToAbort) {
+                pending.stats().targetQueuedRecoveryDiscarded(pending.recoveryState().getRecoverySource().getType());
+            }
         }
         for (PendingRecovery pending : recoveriesToAbort) {
-            final RecoveryState state = pending.recoveryState;
-            logger.trace("service closing, aborting recovery: {}", state);
+            logger.trace("service closing, aborting recovery: {}", pending.recoveryState());
             pending.listener.onRecoveryAborted();
+            schedulingListeners.onQueuedRecoveryDiscarded(pending.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
         }
     }
 
@@ -114,25 +139,37 @@ public final class ThrottlingRecoveryService implements Closeable {
                 return;
             }
             while (pendingRecoveries.isEmpty() == false && runningRecoveries < maxConcurrentRecoveries) {
-                recoveriesToDispatch.add(pendingRecoveries.poll());
+                final PendingRecovery recovery = pendingRecoveries.poll();
+                recoveriesToDispatch.add(recovery);
                 runningRecoveries++;
+                recovery.stats().targetRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType());
             }
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
-            final RecoveryState state = recovery.recoveryState;
-            executor.execute(new RecoveryRunnable(recovery, () -> releaseSlot(state)));
-            logger.trace("dispatched recovery: {}", state);
+            assert Set.of(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER).containsAll(threadContext.getRequestHeadersOnly().keySet())
+                : "unexpected headers in thread context when dispatching recovery: " + threadContext.getRequestHeadersOnly();
+
+            // Wipe the projectId header between recoveries.
+            // TODO: Add instead a new `storeContextForProject` method for async code: https://github.com/elastic/elasticsearch/pull/152107
+            try (ThreadContext.StoredContext ignored = threadContext.newEmptySystemContext()) {
+                executor.execute(new RecoveryRunnable(recovery, () -> releaseSlot(recovery)));
+            }
+            logger.trace("dispatched recovery: {}", recovery.recoveryState());
+            schedulingListeners.onRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
         }
     }
 
-    private void releaseSlot(RecoveryState state) {
+    private void releaseSlot(PendingRecovery recovery) {
+        final RecoverySource source = recovery.recoveryState().getRecoverySource();
         final int currentRunning;
         synchronized (this) {
             runningRecoveries--;
             currentRunning = runningRecoveries;
+            assert currentRunning >= 0 : "negative number of running recoveries " + currentRunning;
+            recovery.stats().targetRecoveryCompleted(source.getType());
         }
-        assert currentRunning >= 0 : "negative number of running recoveries " + currentRunning;
-        logger.trace("recovery slot released: {}", state);
+        logger.trace("recovery slot released: {}", recovery.recoveryState());
+        schedulingListeners.onRecoveryCompleted(source.getType(), RecoveryRole.TARGET);
         fillSlots();
     }
 
@@ -150,7 +187,12 @@ public final class ThrottlingRecoveryService implements Closeable {
     /// Metadata holder for a recovery that has been enqueued but not yet dispatched.
     /// The `listener` is the one passed in to [#enqueue] by indicesServices. Slot-release and other wrappers are added
     /// at dispatch time, such that aborting a queued-but-never-dispatched task does not decrement a slot that was never taken
-    private record PendingRecovery(RecoveryState recoveryState, Consumer<RecoveryListener> task, RecoveryListener listener) {}
+    private record PendingRecovery(
+        RecoveryState recoveryState,
+        RecoveryStats stats,
+        Consumer<RecoveryListener> task,
+        RecoveryListener listener
+    ) {}
 
     /// Executable wrapper for a dispatched recovery. The provided recovery listener (from [PendingRecovery]) is wrapped
     /// with `runAfter` (to release a recovery slot on completion) and `assertOnce` (to ensure there is only one terminal callback).

@@ -43,7 +43,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -662,12 +661,13 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         TransformCloudCredentialManager credentialManager
     ) {
         var mockAuditor = mock(TransformAuditor.class);
+        when(credentialManager.wrapWithPersistedIfPresent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
         var transformCheckpointService = new TransformCheckpointService(
             Clock.systemUTC(),
-            Settings.EMPTY,
-            StubLinkedProjectConfigService.INSTANCE,
             configManager,
-            mockAuditor
+            mockAuditor,
+            mock(CrossProjectModeDecider.class),
+            credentialManager
         );
         return new TransformServices(
             configManager,
@@ -873,12 +873,14 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
     private TransformServices transformServices(TransformConfigManager configManager, TransformScheduler scheduler) {
         var mockAuditor = mock(TransformAuditor.class);
+        var cloudCredentialManager = mock(TransformCloudCredentialManager.class);
+        when(cloudCredentialManager.wrapWithPersistedIfPresent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
         var transformCheckpointService = new TransformCheckpointService(
             Clock.systemUTC(),
-            Settings.EMPTY,
-            StubLinkedProjectConfigService.INSTANCE,
             configManager,
-            mockAuditor
+            mockAuditor,
+            mock(CrossProjectModeDecider.class),
+            cloudCredentialManager
         );
         return new TransformServices(
             configManager,

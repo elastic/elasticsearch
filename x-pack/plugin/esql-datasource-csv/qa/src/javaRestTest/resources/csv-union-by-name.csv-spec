@@ -20,6 +20,11 @@
 // This is the end-to-end repro for Costin's Run #44 ask: UBN × CSV covering missing columns,
 // reordered columns, and widening, exercising the full resolver → planner → reader → adapter
 // pipeline against actual fixture files (not synthetic in-memory inputs).
+//
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. On dataset-capable
+// backends (S3) the harness registers the dataset and runs the FROM query verbatim; on the others it rebuilds
+// the equivalent EXTERNAL query. Dataset names encode the WITH options (union) so the same name always carries
+// the same settings.
 // =========================================================================================
 
 multiFileUnionByNameRecipe
@@ -27,8 +32,9 @@ required_capability: external_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
+FROM employees_multifile_ubn_union
 | SORT name ASC
 | LIMIT 10
 ;
@@ -45,8 +51,9 @@ required_capability: external_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
+FROM employees_multifile_ubn_union
 | KEEP name, city
 | SORT name ASC
 | LIMIT 10
@@ -81,8 +88,9 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: external_union_by_name_keyword_fallback
 required_capability: datasource_file_readers_no_text_type
+dataset: employees_type_drift_union: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
 
-EXTERNAL "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
+FROM employees_type_drift_union
 | SORT id ASC
 | LIMIT 10
 ;

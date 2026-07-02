@@ -168,6 +168,11 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     }
 
     @Override
+    public String functionName() {
+        return "TO_STRING";
+    }
+
+    @Override
     protected Map<DataType, BuildFactory> factories() {
         if (lazyEvaluators == null) {
             Map<DataType, BuildFactory> evaluators = new HashMap<>(STATIC_EVALUATORS);

@@ -3123,6 +3123,98 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals(Optional.of(1050L), topIdStats.maxValue());
     }
 
+    /**
+     * Regression for the {@code COUNT(<col>)} correctness bug on external Parquet sources: when a
+     * column's {@code null_count} footer statistic is absent (a conformant writer may omit it, e.g.
+     * an Arrow null-typed / all-null column, reproduced here by disabling statistics for a single
+     * column), the reader must report the null count as <b>unknown</b> — {@link java.util.OptionalLong#empty()}
+     * in {@link org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics.ColumnStatistics#nullCount()}
+     * and no {@code null_count} key in the per-split stats — rather than a known zero. A known zero
+     * would let the aggregate pushdown answer {@code COUNT(col) = rowCount - 0 = rowCount} instead of
+     * the true non-null count, silently returning the row count for an all-null column.
+     * <p>
+     * The file carries three columns over 200 rows: {@code n} (no nulls, stats on), {@code rare}
+     * (196 of 200 null, stats on) and {@code always_null} (all null, stats <b>off</b>). Only
+     * {@code always_null} must surface as unknown; {@code n}/{@code rare} keep exact null counts,
+     * and {@code always_null} keeps its {@code size_bytes} so it still reads as a present column.
+     */
+    public void testMissingNullCountStatisticReportedAsUnknown() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("n")
+            .optional(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("rare")
+            .optional(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("always_null")
+            .named("test_schema");
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(outputStream);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                // Disable statistics only for always_null so its footer carries no null_count, while
+                // n and rare keep theirs — exactly the mixed situation the bug fires on.
+                .withStatisticsEnabled("always_null", false)
+                .build()
+        ) {
+            for (int i = 0; i < 200; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("n", (long) i);
+                if (i < 4) {
+                    g.add("rare", (double) i);
+                }
+                // always_null: never assigned → all 200 rows null.
+                writer.write(g);
+            }
+        }
+        byte[] parquetData = outputStream.toByteArray();
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        StorageObject so = createStorageObject(parquetData);
+
+        // --- extractStatistics path (metadata) ---
+        SourceMetadata metadata = reader.metadata(so);
+        assertTrue("expected source statistics", metadata.statistics().isPresent());
+        assertEquals(java.util.OptionalLong.of(200L), metadata.statistics().get().rowCount());
+        var colStats = metadata.statistics().get().columnStatistics().orElseThrow();
+
+        assertEquals("no-null column keeps a known zero null count", java.util.OptionalLong.of(0L), colStats.get("n").nullCount());
+        assertEquals("partially-null column keeps its exact null count", java.util.OptionalLong.of(196L), colStats.get("rare").nullCount());
+
+        var alwaysNullStats = colStats.get("always_null");
+        assertNotNull("always_null must still be published (it is a present column)", alwaysNullStats);
+        assertEquals(
+            "missing null_count statistic must be reported as unknown, not zero",
+            java.util.OptionalLong.empty(),
+            alwaysNullStats.nullCount()
+        );
+        assertTrue("always_null has no non-null values, so no min", alwaysNullStats.minValue().isEmpty());
+        assertTrue("always_null has no non-null values, so no max", alwaysNullStats.maxValue().isEmpty());
+        assertTrue("always_null column is present, so its size is known", alwaysNullStats.sizeInBytes().isPresent());
+
+        // --- buildRowGroupStats path (discoverSplitRanges) ---
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(so);
+        assertFalse("expected at least one split range", ranges.isEmpty());
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            Map<String, Object> stats = range.statistics();
+            assertFalse(
+                "always_null must not carry a null_count key when the footer omits the statistic",
+                stats.containsKey("_stats.columns.always_null.null_count")
+            );
+            assertTrue(
+                "always_null is a present column, so its size_bytes key must be written",
+                stats.containsKey("_stats.columns.always_null.size_bytes")
+            );
+            assertEquals("rare keeps its exact null count in split stats", 196L, stats.get("_stats.columns.rare.null_count"));
+            assertEquals("n keeps a known zero null count in split stats", 0L, stats.get("_stats.columns.n.null_count"));
+        }
+    }
+
     public void testNestedStructEndToEndWithThreeWayNullPropagation() throws Exception {
         // OPTIONAL event { OPTIONAL action, OPTIONAL outcome }; rows cover:
         // (a) parent null

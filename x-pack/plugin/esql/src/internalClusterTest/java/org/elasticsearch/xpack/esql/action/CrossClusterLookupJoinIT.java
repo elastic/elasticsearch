@@ -840,49 +840,47 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
                 )
             );
         }
-        //
-        // // join and coordinator-only join after
-        // try (EsqlQueryResponse resp = runQuery("""
-        // FROM *:data
-        // | LOOKUP JOIN lookup ON key
-        // | EVAL mode-1 = mode
-        // | LOOKUP JOIN coordinator-lookup ON key
-        // | EVAL mode-2 = mode
-        // | KEEP key, cluster, mode-1, mode-2
-        // | SORT key
-        // """, randomBoolean())) {
-        // assertThat(
-        // getValuesList(resp),
-        // equalTo(
-        // List.of(
-        // //
-        // List.of(1L, "remote-1", "remote", "coordinator-only"),
-        // List.of(2L, "remote-2", "remote", "coordinator-only")
-        // )
-        // )
-        // );
-        // }
-        //
-        // // coordinator-only join and join after
-        // try (EsqlQueryResponse resp = runQuery("""
-        // FROM *:data
-        // | LOOKUP JOIN coordinator-lookup ON key
-        // | EVAL mode-1 = mode
-        // | LOOKUP JOIN lookup ON key
-        // | EVAL mode-2 = mode
-        // | KEEP key, cluster, mode-1, mode-2
-        // | SORT key
-        // """, randomBoolean())) {
-        // assertThat(
-        // getValuesList(resp),
-        // equalTo(
-        // List.of(
-        // List.of(1L, "remote-1", "coordinator-only", "coordinator"),
-        // List.of(2L, "remote-2", "coordinator-only", "coordinator")
-        // )
-        // )
-        // );
-        // }
+
+        // join and coordinator-only join after
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LOOKUP JOIN lookup ON key
+            | EVAL previous = mode::keyword
+            | LOOKUP JOIN coordinator-lookup ON key
+            | KEEP key, cluster, previous, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "remote", "coordinator-only"),
+                        List.of(2L, "remote-2", "remote", "coordinator-only")
+                    )
+                )
+            );
+        }
+
+        // coordinator-only join and join after
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LOOKUP JOIN coordinator-lookup ON key
+            | EVAL previous = mode::keyword
+            | LOOKUP JOIN lookup ON key
+            | KEEP key, cluster, previous, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        List.of(1L, "remote-1", "coordinator-only", "coordinator"),
+                        List.of(2L, "remote-2", "coordinator-only", "coordinator")
+                    )
+                )
+            );
+        }
     }
 
     @SafeVarargs

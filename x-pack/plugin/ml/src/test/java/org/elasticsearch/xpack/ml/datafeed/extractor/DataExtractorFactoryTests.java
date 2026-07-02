@@ -670,7 +670,6 @@ public class DataExtractorFactoryTests extends ESTestCase {
         jobBuilder.setDataDescription(dataDescription);
 
         DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("esql-datafeed", "foo");
-        datafeedConfigBuilder.setIndices(Collections.singletonList("myIndex"));
         datafeedConfigBuilder.setEsqlQuery("FROM myIndex");
         // ChunkingConfig.newAuto() is the default for ESQL; set it explicitly for clarity
         datafeedConfigBuilder.setChunkingConfig(ChunkingConfig.newAuto());
@@ -698,7 +697,6 @@ public class DataExtractorFactoryTests extends ESTestCase {
         jobBuilder.setDataDescription(dataDescription);
 
         DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("esql-datafeed", "foo");
-        datafeedConfigBuilder.setIndices(Collections.singletonList("myIndex"));
         datafeedConfigBuilder.setEsqlQuery("FROM myIndex");
         datafeedConfigBuilder.setChunkingConfig(ChunkingConfig.newOff());
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
@@ -728,7 +726,6 @@ public class DataExtractorFactoryTests extends ESTestCase {
         jobBuilder.setDataDescription(dataDescription);
 
         DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("esql-datafeed", "foo");
-        datafeedConfigBuilder.setIndices(Collections.singletonList("myIndex"));
         datafeedConfigBuilder.setEsqlQuery("FROM myIndex");
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
 

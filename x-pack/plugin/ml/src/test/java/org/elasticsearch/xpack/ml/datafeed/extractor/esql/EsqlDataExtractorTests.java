@@ -306,6 +306,27 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(summary.totalHits(), equalTo(0L));
     }
 
+    public void testGetSummaryDetectsTimeColumnTypesIndependently() {
+        // earliest_time and latest_time are both MIN/MAX over the same time field, so in practice
+        // they always share a type. This test uses mismatched types to prove that each column's
+        // type is detected independently rather than the second column reusing the first's type.
+        TestDataExtractor extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, TIME_FIELD);
+        String latestIso = "1970-01-01T00:00:08.500Z";
+        long expectedLatest = epochMillis(latestIso);
+
+        extractor.enqueueRow(
+            List.of(column("earliest_time", LONG), column("latest_time", DATE), column("total_hits", LONG)),
+            1500L,
+            latestIso,
+            100L
+        );
+
+        DataExtractor.DataSummary summary = extractor.getSummary();
+
+        assertThat(summary.earliestTime(), equalTo(1500L));
+        assertThat(summary.latestTime(), equalTo(expectedLatest));
+    }
+
     private TestDataExtractor createExtractor(long start, long end, String esqlQuery, String timeField) {
         return createExtractor(start, end, esqlQuery, timeField, null);
     }

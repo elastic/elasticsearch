@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -739,15 +740,31 @@ public class JobConfigProvider {
     }
 
     /**
-     * Get the job reference by the datafeed and validate the datafeed config against it
-     * @param config  Datafeed config
+     * Get the job reference by the datafeed and validate the datafeed config against it.
+     * For ESQL datafeeds, also executes the query with {@code | LIMIT 0} to verify that
+     * the required output columns are present.
+     *
+     * @param config   Datafeed config
+     * @param headers  Security headers
      * @param listener Validation listener
      */
-    public void validateDatafeedJob(DatafeedConfig config, ActionListener<Boolean> listener) {
+    public void validateDatafeedJob(DatafeedConfig config, Map<String, String> headers, ActionListener<Boolean> listener) {
         getJob(config.getJobId(), null, ActionListener.wrap(jobBuilder -> {
             try {
-                DatafeedJobValidator.validate(config, jobBuilder.build(), xContentRegistry);
-                listener.onResponse(Boolean.TRUE);
+                Job job = jobBuilder.build();
+                DatafeedJobValidator.validate(config, job, xContentRegistry);
+                if (config.getEsqlQuery() != null) {
+                    EsqlDatafeedQueryValidator.validateQuery(
+                        client,
+                        headers,
+                        config.getEsqlQuery(),
+                        job.getDataDescription().getTimeField(),
+                        EsqlDatafeedQueryValidator.requiredSummaryCountField(config, job),
+                        listener
+                    );
+                } else {
+                    listener.onResponse(Boolean.TRUE);
+                }
             } catch (Exception e) {
                 listener.onFailure(e);
             }

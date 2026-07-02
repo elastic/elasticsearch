@@ -38,13 +38,10 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 /**
  * Delayed data detector for datafeeds that use an ES|QL query.
  *
- * The {@link DatafeedDelayedDataDetector} cannot be used for ES|QL datafeeds because they have no DSL query or aggregation to feed a
- * date-histogram, and because the unit of a bucket's {@code event_count} is the number of ES|QL query output rows which may or may not
- * equal the number of raw documents processed (depending on aggregations used). As such, users with ES|QL datafeeds wanting to use the
- * delayed data check feature must configure the {@code summary_count_field_name} mapping to a field that tracks the number of documents
- * processed by their ES|QL query. This detector will re-run the ES|QL query against current the data in the index and will compare the
- * sum of the summary_count_field_name per bucket with the sum's of the summary_count_field_name values that were seen when the datafeed
- * originally ran.
+ * Users with ES|QL datafeeds wanting to use the delayed data check feature must configure the {@code summary_count_field_name} mapping to
+ * a field that tracks the number of documents processed by their ES|QL query. This detector will re-run the ES|QL query against current
+ * the data in the index and will compare the sum of the summary_count_field_name per bucket with the sum's of the
+ * summary_count_field_name values that were seen when the datafeed originally ran.
  */
 public class EsqlDelayedDataDetector implements DelayedDataDetector {
 
@@ -96,8 +93,6 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
         List<Bucket> finalizedBuckets = checkBucketEvents(start, end);
         Map<Long, Long> indexedData = checkCurrentBucketEventCount(start, end);
         return finalizedBuckets.stream()
-            // We only care about the situation when data is added to the indices
-            // Older data could have been removed from the indices, and should not be considered "missing data"
             .filter(bucket -> calculateMissing(indexedData, bucket) > 0)
             .map(bucket -> BucketWithMissingData.fromMissingAndBucket(calculateMissing(indexedData, bucket), bucket))
             .collect(Collectors.toList());
@@ -123,11 +118,6 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
         }
     }
 
-    /**
-     * Re-runs the datafeed's ES|QL query over {@code [start, end)} and returns, per bucket-span aligned bucket, the sum of the
-     * {@code summary_count_field_name} across the rows whose time field falls in that bucket. This mirrors how the autodetect engine
-     * assigns and sums each record's summary count into buckets at ingest, so the result is directly comparable with bucket event counts.
-     */
     private Map<Long, Long> checkCurrentBucketEventCount(long start, long end) {
         Map<Long, Long> bucketCounts = new HashMap<>();
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
@@ -159,8 +149,6 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
                 Map<String, Object> doc = parseRecord(line);
                 Object countValue = doc.get(summaryCountFieldName);
                 if (countValue == null) {
-                    // The ES|QL extractor omits null fields, so an absent value means the configured summary count field is either not a
-                    // column in the query's output or is null for this row. Either way the comparison would be meaningless, so fail loudly.
                     throw new IllegalStateException(
                         "["
                             + jobId

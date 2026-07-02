@@ -1510,7 +1510,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
                     // supported. This way we can add this missing column containing only null values to the fork branch output.
-                    var attrType = attr.dataType() == UNSUPPORTED ? KEYWORD : attr.dataType();
+                    var attrType = alignmentDataType(attr);
+                    attrType = attrType == UNSUPPORTED ? KEYWORD : attrType;
                     if (attrType.isCounter()) {
                         attrType = attrType.noCounter();
                     }
@@ -3343,6 +3344,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    /**
+     * The effective data type of a branch/output attribute when aligning the branches of a {@link Fork} / {@link UnionAll}.
+     */
+    private static DataType alignmentDataType(Attribute attr) {
+        if (attr instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf && tcf.isSingleTypePotentiallyUnmapped()) {
+            return tcf.singleMappedTypeWidened();
+        }
+        return attr.dataType();
+    }
+
     private static void typeResolutions(
         ConvertFunction convert,
         DataType type,
@@ -3654,7 +3665,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             LogicalPlan planWithConvertFunctionsPushedDown = plan.transformUp(
                 UnionAll.class,
                 unionAll -> unionAll.childrenResolved()
-                    ? maybePushDownConvertFunctions(unionAll, plan, convertFunctionsToAttributes)
+                    ? maybePushDownConvertFunctions(unionAll, plan, convertFunctionsToAttributes, context)
                     : unionAll
             );
 
@@ -3694,7 +3705,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static LogicalPlan maybePushDownConvertFunctions(
             UnionAll unionAll,
             LogicalPlan plan,
-            Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes
+            Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes,
+            AnalyzerContext context
         ) {
             // Collect all conversion functions that convert the UnionAll outputs to a different type
             Map<String, Set<AbstractConvertFunction>> oldOutputToConvertFunctions = collectConvertFunctions(unionAll, plan);
@@ -3710,30 +3722,48 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (LogicalPlan child : unionAll.children()) {
                 List<Attribute> childOutput = child.output();
                 List<Alias> newAliases = new ArrayList<>();
+                List<FieldAttribute> resolvedUnionFields = new ArrayList<>();
+                List<Attribute.IdIgnoringWrapper> branchUnionFieldAttributes = new ArrayList<>();
                 List<Attribute> newChildOutput = new ArrayList<>(childOutput.size());
+
                 for (Attribute oldAttr : childOutput) {
                     newChildOutput.add(oldAttr);
                     Set<AbstractConvertFunction> converts = oldOutputToConvertFunctions.get(oldAttr.name());
                     if (converts != null) {
-                        // create a new alias for each conversion function and add it to the new aliases list
                         for (AbstractConvertFunction convert : converts) {
-                            // create a new alias for the conversion function
-                            String newAliasName = Attribute.rawTemporaryName(oldAttr.name(), "converted_to", convert.dataType().typeName());
-                            Alias newAlias = new Alias(
-                                oldAttr.source(),
-                                newAliasName, // oldAttrName$$converted_to$$targetType
-                                convert.replaceChildren(Collections.singletonList(oldAttr)),
-                                null, // generate a new id
-                                true // this'll be used to Project the synthetic attributes out when finishing analysis
+                            Expression pushedDownConvert = convert.replaceChildren(Collections.singletonList(oldAttr));
+                            // If this branch's input to the convert is itself a multi-typed field, ResolveUnionTypes would resolve the
+                            // pushed-down convert into a synthetic field named exactly like the alias we would create here. Having both
+                            // in the same branch scope makes the alignment Project's by-name reference ambiguous and it never resolves.
+                            // Resolve it once, up front, and expose that field directly so there is no double conversion / name clash.
+                            Expression resolved = ResolveUnionTypes.resolveConvertFunction(
+                                (ConvertFunction) pushedDownConvert,
+                                branchUnionFieldAttributes,
+                                context
                             );
-                            newAliases.add(newAlias);
-                            newChildOutput.add(newAlias.toAttribute());
+                            if (resolved instanceof FieldAttribute resolvedField && resolvedField.synthetic()) {
+                                newChildOutput.add(resolvedField);
+                                resolvedUnionFields.add(resolvedField);
+                                newOutputToConvertFunctions.putIfAbsent(resolvedField.name(), convert);
+                            } else {
+                                String newAliasName = Attribute.rawTemporaryName(
+                                    oldAttr.name(), "converted_to", convert.dataType().typeName());
+                                Alias newAlias = new Alias(
+                                    oldAttr.source(),
+                                    newAliasName, // oldAttrName$$converted_to$$targetType
+                                    pushedDownConvert,
+                                    null, // generate a new id
+                                    true // this'll be used to Project the synthetic attributes out when finishing analysis
+                                );
+                                newAliases.add(newAlias);
+                                newChildOutput.add(newAlias.toAttribute());
+                                newOutputToConvertFunctions.putIfAbsent(newAliasName, convert);
+                            }
                             outputChanged = true;
-                            newOutputToConvertFunctions.putIfAbsent(newAliasName, convert);
                         }
                     }
                 }
-                newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, newChildOutput));
+                newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, resolvedUnionFields, newChildOutput));
             }
 
             // Populate convertFunctionsToAttributes. The values of convertFunctionsToAttributes are the new ReferenceAttributes
@@ -3763,15 +3793,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Push down the conversion functions into the child plan by adding an Eval with the new aliases on top of the child plan.
+         * Push down the conversion functions into the child plan. Single-type inputs are converted by adding an Eval with the new
+         * aliases on top of the child plan; multi-typed inputs were already resolved to synthetic union-type fields (see
+         * {@link #maybePushDownConvertFunctions}) which are instead injected into the branch's {@link EsRelation}.
          */
-        private static LogicalPlan maybePushDownConvertFunctionsToChild(LogicalPlan child, List<Alias> aliases, List<Attribute> output) {
+        private static LogicalPlan maybePushDownConvertFunctionsToChild(
+            LogicalPlan child,
+            List<Alias> aliases,
+            List<FieldAttribute> resolvedUnionFields,
+            List<Attribute> output
+        ) {
             // Fork/UnionAll adds a projection on top of each child plan during resolveFork, check this pattern before pushing down
             // If the pattern doesn't match, something unexpected happened, just return the child as is
-            if (aliases.isEmpty() == false && child instanceof Project project) {
+            if ((aliases.isEmpty() == false || resolvedUnionFields.isEmpty() == false) && child instanceof Project project) {
                 LogicalPlan childOfProject = project.child();
-                Eval eval = new Eval(childOfProject.source(), childOfProject, aliases);
-                return new Project(project.source(), eval, output);
+                if (aliases.isEmpty() == false) {
+                    childOfProject = new Eval(childOfProject.source(), childOfProject, aliases);
+                }
+                if (resolvedUnionFields.isEmpty() == false) {
+                    childOfProject = ResolveUnionTypes.addGeneratedFieldsToEsRelations(childOfProject, resolvedUnionFields);
+                }
+                return new Project(project.source(), childOfProject, output);
             }
             return child;
         }
@@ -3917,7 +3959,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
                 // create a new eval for the casting expressions, and push it down under the projection
-                newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, newChildOutput));
+                newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, List.of(), newChildOutput));
             }
 
             // Update common types: any column with unsupported attributes gets UNSUPPORTED
@@ -3950,9 +3992,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             int columnCount = outputs.get(0).size();
             List<DataType> commonTypes = new ArrayList<>(columnCount);
             for (int i = 0; i < columnCount; i++) {
-                DataType type = outputs.get(0).get(i).dataType();
+                DataType type = alignmentDataType(outputs.get(0).get(i));
                 for (List<Attribute> out : outputs) {
-                    type = commonType(type, out.get(i).dataType());
+                    type = commonType(type, alignmentDataType(out.get(i)));
                 }
                 commonTypes.add(type);
             }
@@ -3993,6 +4035,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ) {
             if (targetType == null) {
                 return createUnsupportedOrNull(oldAttr, columnIndex, outputs, unionAll, outputToPlans, newAliases, unsupportedAttributes);
+            }
+
+            if (alignmentDataType(oldAttr) != oldAttr.dataType()) {
+                return oldAttr;
             }
 
             if (targetType != NULL && oldAttr.dataType() != targetType) {

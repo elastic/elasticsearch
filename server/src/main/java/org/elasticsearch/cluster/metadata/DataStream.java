@@ -1801,7 +1801,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                         + "]"
                 )
                 .collect(Collectors.joining());
-            // PRTODO: consider if we want to re-write this message to account for backfill
             throw new TimestampError(
                 "the document timestamp ["
                     + timestampAsString

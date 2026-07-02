@@ -734,7 +734,6 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             .build();
         mb.put(standaloneIndex, false);
         ProjectMetadata project = mb.build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
 
         String indexName = standaloneIndex.getIndex().getName();
 
@@ -742,7 +741,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> MetadataDataStreamsService.modifyDataStream(
-                    clusterState.projectState(project.id()),
+                    project,
                     List.of(DataStreamAction.addBackingIndex(dataStreamName + "::failures", indexName)),
                     this::getMapperService,
                     Settings.EMPTY
@@ -754,7 +753,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> MetadataDataStreamsService.modifyDataStream(
-                    clusterState.projectState(project.id()),
+                    project,
                     List.of(DataStreamAction.addBackingIndex(dataStreamName + "::data", indexName)),
                     this::getMapperService,
                     Settings.EMPTY
@@ -767,12 +766,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             action.setFailureStore(true);
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> MetadataDataStreamsService.modifyDataStream(
-                    clusterState.projectState(project.id()),
-                    List.of(action),
-                    this::getMapperService,
-                    Settings.EMPTY
-                )
+                () -> MetadataDataStreamsService.modifyDataStream(project, List.of(action), this::getMapperService, Settings.EMPTY)
             );
             assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "::failures] not found"));
         }

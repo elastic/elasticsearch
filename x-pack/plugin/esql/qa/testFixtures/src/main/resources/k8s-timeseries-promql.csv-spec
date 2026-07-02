@@ -1135,7 +1135,6 @@ nullify_unmapped_metric_cross_series
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
-required_capability: optional_fields_nullify_tech_preview
 SET unmapped_fields="nullify"\;
 PROMQL index=k8s step=1h result=(sum by (cluster) (unmapped.metric)) | SORT result
 ;
@@ -1147,7 +1146,6 @@ nullify_cross_series_grouping_on_unmapped_label
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_unmapped_fields_filter_nulls
-required_capability: optional_fields_nullify_tech_preview
 SET unmapped_fields="nullify"\;
 PROMQL index=k8s step=1h result=(sum by (unmapped.label) (network.cost)) | SORT result
 ;

@@ -210,9 +210,6 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         // open a third pit on an unflushed index state
         BytesReference pitId3 = openPointInTime(indexName, TimeValue.timeValueMinutes(5)).getPointInTimeId();
 
-        // enabling the following makes the test pass but we probably should be able to relocate this PIT since its usable before
-        // flush(indexName);
-
         // check all PITs with the initial search node
         assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId1)), resp -> {
             assertThat(resp.pointInTimeId(), equalTo(pitId1));
@@ -1546,7 +1543,6 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         logger.info(
             "Original PIT id2: " + new PointInTimeBuilder(pitId2).getSearchContextId(this.writableRegistry()).toString().replace("},", "\n")
         );
-        flushAndRefresh(indexName);
         TestDataSetup testDataSetup = new TestDataSetup(pitId1, numDocsPit1, pitId2, numDocs_pit2);
         logger.info("TestDataSetup: " + testDataSetup);
         return testDataSetup;

@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -423,38 +424,56 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             assert luceneCommitPointBlobLocation != null : "commit point [" + indexCommit + "] not found in search directory";
             final var bccTermAndGen = luceneCommitPointBlobLocation.getBatchedCompoundCommitTermAndGeneration();
             final var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation());
+            final Collection<String> commitFileNames = indexCommit.getFileNames();
 
-            // We need to fetch the CC header to get the canonical blob location for all the files in the open PIT
-            // reader. We have to do that instead of relying on the SearchDirectory#metadata because generational files
-            // are pinned to the first BCC blob that contains them, this means that generational files from a commit
-            // might point towards different BCCs.
             recoveryExecutor.execute(ActionRunnable.wrap(listener, (innerListener) -> {
-                final var bccIterator = objectStoreService.readBatchedCompoundCommitFromStoreIncrementally(
-                    shardId,
-                    bccTermAndGen,
-                    // We're just interested in fetching up to the CC header of the commit point,
-                    // hence we set the max offset to the Lucene commit point offset
-                    new BlobMetadata(bccBlobName, luceneCommitPointBlobLocation.offset())
-                );
-                while (bccIterator.hasNext()) {
-                    var statelessCompoundCommit = bccIterator.next();
-                    if (statelessCompoundCommit.generation() == indexCommit.getGeneration()) {
-                        innerListener.onResponse(
-                            Optional.of(
-                                new OpenPITContextInfo(
-                                    shardId,
-                                    indexCommit.getSegmentsFileName(),
-                                    context.keepAlive(),
-                                    new SearchContextIdForNode(null, clusterService.localNode().getId(), context.id()),
-                                    statelessCompoundCommit.commitFiles(),
-                                    new OpenPITReshardingState(context.reshardingMetadata(), context.shardCountSummary())
-                                )
-                            )
-                        );
-                        return;
+                final Map<String, BlobLocation> metadata;
+                if (searchDirectory.isBccUploaded(bccTermAndGen)) {
+                    // Fetch the CC header from the object store to get the canonical blob locations.
+                    // This is preferred over SearchDirectory#metadata because generational files
+                    // are pinned to the first BCC blob that contains them, meaning generational files
+                    // from a commit might point towards different BCCs in the SearchDirectory.
+                    final var bccIterator = objectStoreService.readBatchedCompoundCommitFromStoreIncrementally(
+                        shardId,
+                        bccTermAndGen,
+                        new BlobMetadata(bccBlobName, luceneCommitPointBlobLocation.offset())
+                    );
+                    Map<String, BlobLocation> fromStore = null;
+                    while (bccIterator.hasNext()) {
+                        var statelessCompoundCommit = bccIterator.next();
+                        if (statelessCompoundCommit.generation() == indexCommit.getGeneration()) {
+                            fromStore = statelessCompoundCommit.commitFiles();
+                            break;
+                        }
                     }
+                    if (fromStore == null) {
+                        throw new IllegalStateException("commit [" + indexCommit + "] not found in object store");
+                    }
+                    metadata = fromStore;
+                } else {
+                    // The BCC has not been uploaded to the object store yet (e.g. the commit was
+                    // created by a flush-by-refresh). Fall back to the SearchDirectory's file metadata.
+                    logger.debug(
+                        () -> format(
+                            "BCC blob [%s] not yet uploaded for shard [%s], using SearchDirectory metadata",
+                            bccBlobName,
+                            shardId
+                        )
+                    );
+                    metadata = searchDirectory.getBlobLocationForFiles(commitFileNames);
                 }
-                throw new IllegalStateException("commit [" + indexCommit + "] not found in object store");
+                innerListener.onResponse(
+                    Optional.of(
+                        new OpenPITContextInfo(
+                            shardId,
+                            indexCommit.getSegmentsFileName(),
+                            context.keepAlive(),
+                            new SearchContextIdForNode(null, clusterService.localNode().getId(), context.id()),
+                            metadata,
+                            new OpenPITReshardingState(context.reshardingMetadata(), context.shardCountSummary())
+                        )
+                    )
+                );
             }));
         } catch (Exception e) {
             logger.warn(

@@ -114,7 +114,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     protected BlockLoaderTestCase(String fieldType, Collection<DataSourceHandler> customDataSourceHandlers, Params params) {
         this.fieldType = fieldType;
         this.params = params;
-        this.customDataSourceHandlers = withSingleValueDocValues(fieldType, customDataSourceHandlers);
+        this.customDataSourceHandlers = withSingleValueDocValues(fieldType, customDataSourceHandlers, params.indexMode());
         this.runner = new BlockLoaderTestRunner(params);
         if (randomBoolean()) {
             runner.allowDummyDocs();
@@ -146,11 +146,17 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     );
 
     /**
-     * On a random subset of runs (feature-flag permitting), prepend a handler that forces {@code doc_values.multi_value: false} on the
-     * target field while keeping generated documents single-valued, so the enforced mapping is exercised without rejecting documents.
+     * On a random subset of runs (feature-flag permitting, columnar mode only), prepend a handler that forces
+     * {@code doc_values.multi_value: false} on the target field while keeping generated documents single-valued, so the enforced mapping
+     * is exercised without rejecting documents.
      */
-    private static Collection<DataSourceHandler> withSingleValueDocValues(String fieldType, Collection<DataSourceHandler> customHandlers) {
+    private static Collection<DataSourceHandler> withSingleValueDocValues(
+        String fieldType,
+        Collection<DataSourceHandler> customHandlers,
+        IndexMode indexMode
+    ) {
         boolean singleValueRun = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
+            && indexMode.isStrictColumnar()
             && SINGLE_VALUE_ENFORCING_TYPES.contains(fieldType)
             && ESTestCase.randomBoolean();
         if (singleValueRun == false) {
@@ -176,7 +182,9 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                 return null;
             }
             // Delegate directly to the default handler to keep all other generated parameters, then only rewrite doc_values.
-            var defaults = new DefaultMappingParametersHandler().handle(request);
+            // This handler only ever runs when indexMode.isStrictColumnar() (see withSingleValueDocValues), so the delegate
+            // must also know it's columnar-mode aware, or it could emit store/synthetic_source_keep/copy_to that are invalid there.
+            var defaults = new DefaultMappingParametersHandler(IndexMode.COLUMNAR).handle(request);
             if (defaults == null) {
                 return null;
             }

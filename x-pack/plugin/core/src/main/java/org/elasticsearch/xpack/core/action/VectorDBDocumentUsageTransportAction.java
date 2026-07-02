@@ -10,9 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.injection.guice.Inject;
@@ -25,7 +23,6 @@ import org.elasticsearch.xpack.core.application.VectorDBDocumentFeatureSetUsage;
 
 public class VectorDBDocumentUsageTransportAction extends XPackUsageFeatureTransportAction {
     private final Client client;
-    private final ProjectResolver projectResolver;
 
     @Inject
     public VectorDBDocumentUsageTransportAction(
@@ -33,12 +30,10 @@ public class VectorDBDocumentUsageTransportAction extends XPackUsageFeatureTrans
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        Client client,
-        ProjectResolver projectResolver
+        Client client
     ) {
         super(XPackUsageFeatureAction.VECTORDB_DOCUMENT.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
-        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -48,18 +43,13 @@ public class VectorDBDocumentUsageTransportAction extends XPackUsageFeatureTrans
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        int numIndices = 0;
-        for (IndexMetadata indexMetadata : projectResolver.getProjectMetadata(state)) {
-            if (indexMetadata.getIndexMode() == IndexMode.VECTORDB_DOCUMENT) {
-                numIndices++;
-            }
-        }
         final DiscoveryNode[] nodes = state.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
         final var statsRequest = new IndexModeStatsActionType.StatsRequest(nodes);
-        final int finalNumIndices = numIndices;
         client.execute(IndexModeStatsActionType.TYPE, statsRequest, listener.map(statsResponse -> {
             final var indexStats = statsResponse.stats().get(IndexMode.VECTORDB_DOCUMENT);
-            return new XPackUsageFeatureResponse(new VectorDBDocumentFeatureSetUsage(true, true, finalNumIndices, indexStats.numDocs()));
+            return new XPackUsageFeatureResponse(
+                new VectorDBDocumentFeatureSetUsage(true, true, indexStats.numIndices(), indexStats.numDocs())
+            );
         }));
     }
 }

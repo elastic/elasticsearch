@@ -17,6 +17,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 public final class VectorDBDocumentFeatureSetUsage extends XPackFeatureUsage {
+    public static final TransportVersion VECTORDB_DOCUMENT_USAGE = TransportVersion.fromName("vectordb_document_usage");
+
     private final int indicesCount;
     private final long numDocs;
 
@@ -41,7 +43,7 @@ public final class VectorDBDocumentFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return VECTORDB_DOCUMENT_USAGE;
     }
 
     @Override

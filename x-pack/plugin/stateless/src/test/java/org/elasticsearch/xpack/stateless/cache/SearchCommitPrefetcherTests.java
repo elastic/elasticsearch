@@ -250,6 +250,40 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         );
     }
 
+    public void testGetPendingRangesToPrefetchMostRecentSiblingWinsForMixedBlob() {
+        final BlobFile blob = blobFile(1);
+
+        final Map<String, BlobLocation> commitFiles = new HashMap<>();
+        // Sits below the current prefetch mark, so it is already prefetched and NOT part of the ranges to prefetch,
+        // yet it is the most recent file referenced in the blob.
+        commitFiles.put("already_prefetched_recent", new BlobLocation(blob, 0, 10));
+        // Sits at/after the current prefetch mark, so it is pending prefetch, and it carries an older timestamp.
+        commitFiles.put("pending_older", new BlobLocation(blob, 100, 10));
+
+        final Map<String, Long> resolvedTimestamps = Map.of("already_prefetched_recent", 5000L, "pending_older", 1000L);
+        final FileTimestampResolver resolver = fileName -> resolvedTimestamps.getOrDefault(fileName, UNKNOWN_TIMESTAMP);
+
+        final SearchCommitPrefetcher.PendingPrefetchDetails pending = getPendingRangesToPrefetch(
+            new SearchCommitPrefetcher.BCCPreFetchedOffset(termAndGen(1, 1), 100),
+            1,
+            commitFiles,
+            Set.of(),
+            2000L, // notification commit midpoint; unused here because the blob resolves to a known timestamp
+            resolver
+        );
+
+        assertThat(
+            "the blob is prefetched because of its pending file, even though its recent sibling is not",
+            pending.ranges().keySet(),
+            equalTo(Set.of(blob))
+        );
+        assertThat(
+            "the blob timestamp reflects the most recent referenced file, even though that file is not being prefetched",
+            pending.timestampPerBlob().get(blob),
+            equalTo(5000L)
+        );
+    }
+
     public void testPrefetchPropagatesPerCcTimestamp() throws Exception {
         final ShardId shardId = new ShardId("index", "_na_", 0);
         final BlobFile internalBlob = blobFile(4);

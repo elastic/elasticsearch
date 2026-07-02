@@ -413,7 +413,7 @@ class ImplClassWriter {
                 cb.dload(slot);
                 return 2;
             }
-            case ADDRESS -> {
+            case ADDRESS, STRING -> {
                 cb.aload(slot);
                 return 1;
             }

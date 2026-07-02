@@ -19,6 +19,7 @@ import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -27,7 +28,6 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.util.Set;
-import java.util.UUID;
 import java.util.function.Supplier;
 
 /**
@@ -52,7 +52,11 @@ public class RepositoryS3PodIdentityCredentialsRestIT extends AbstractRepository
     private static final String BASE_PATH = PREFIX + "base_path";
     private static final String CLIENT = "pod_identity_credentials_client";
 
-    private static final String POD_IDENTITY_TOKEN_FILE_CONTENTS = "test-pod-identity-auth-token-" + UUID.randomUUID();
+    // Generated lazily (not in static context) so the token is a deterministic function of the test seed, and memoized so the
+    // config file written below and the fixture's Authorization check observe the same value.
+    private static final Supplier<String> podIdentityTokenSupplier = new LazyInitializable<String, RuntimeException>(
+        () -> "test-pod-identity-auth-token-" + randomIdentifier()
+    )::getOrCompute;
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials(regionSupplier, "s3");
@@ -60,6 +64,8 @@ public class RepositoryS3PodIdentityCredentialsRestIT extends AbstractRepository
     private static final Ec2ImdsHttpFixture podIdentityCredentialsFixture = new Ec2ImdsHttpFixture(
         new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).newCredentialsConsumer(dynamicCredentials::addValidCredentials)
             .alternativeCredentialsEndpoints(Set.of("/pod_identity_credentials_endpoint"))
+            // Verify the SDK sends the token read from the entitled file, which is the whole point of this test.
+            .authorizationTokenSupplier(podIdentityTokenSupplier)
     );
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
@@ -75,7 +81,7 @@ public class RepositoryS3PodIdentityCredentialsRestIT extends AbstractRepository
         .module("repository-s3")
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
         // The entitled symlink the operator points the SDK at; in production this symlinks the Kubernetes-injected token.
-        .configFile(S3Service.POD_IDENTITY_TOKEN_FILE_LOCATION, Resource.fromString(POD_IDENTITY_TOKEN_FILE_CONTENTS))
+        .configFile(S3Service.POD_IDENTITY_TOKEN_FILE_LOCATION, Resource.fromString(podIdentityTokenSupplier))
         // Operators override the EKS-injected AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE to point at the entitled symlink above
         // (which ES is granted read access to). ${ES_PATH_CONF} is expanded by the test-clusters framework to the node's
         // config dir, so the SDK reads the token straight from the entitled location with no override by S3Service.

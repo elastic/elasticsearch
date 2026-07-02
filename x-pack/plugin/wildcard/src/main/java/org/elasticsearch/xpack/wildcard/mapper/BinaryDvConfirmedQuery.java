@@ -150,7 +150,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
                     // No matches to be had
                     return null;
                 }
-                final SortedBinaryDocValues values = MultiValuedSortedBinaryDocValues.from(context.reader(), field);
+                final SortedBinaryDocValues values = MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), field);
                 return new ScorerSupplier() {
                     @Override
                     public Scorer get(long leadCost) throws IOException {

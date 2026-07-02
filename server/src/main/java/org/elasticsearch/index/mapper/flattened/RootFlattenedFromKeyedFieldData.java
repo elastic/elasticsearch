@@ -14,6 +14,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
@@ -140,6 +141,7 @@ public final class RootFlattenedFromKeyedFieldData implements IndexFieldData<Lea
         private Iterator<BytesRef> iterator;
 
         KeyStrippingDeduplicatingDocValues(SortedBinaryDocValues delegate) {
+            super(delegate.docIdIterator());
             this.delegate = delegate;
         }
 
@@ -177,18 +179,25 @@ public final class RootFlattenedFromKeyedFieldData implements IndexFieldData<Lea
         private final String rootFieldName;
         private final String keyedFieldName;
         private final boolean usesBinaryDocValues;
+        private final IndexVersion indexVersion;
 
-        public Builder(String rootFieldName, String keyedFieldName, boolean usesBinaryDocValues) {
+        public Builder(String rootFieldName, String keyedFieldName, boolean usesBinaryDocValues, IndexVersion indexVersion) {
             this.rootFieldName = rootFieldName;
             this.keyedFieldName = keyedFieldName;
             this.usesBinaryDocValues = usesBinaryDocValues;
+            this.indexVersion = indexVersion;
         }
 
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             IndexFieldData<?> keyedDelegate;
             if (usesBinaryDocValues) {
-                keyedDelegate = new BytesBinaryIndexFieldData(keyedFieldName, CoreValuesSourceType.KEYWORD, FlattenedDocValuesField::new);
+                keyedDelegate = new BytesBinaryIndexFieldData(
+                    keyedFieldName,
+                    CoreValuesSourceType.KEYWORD,
+                    FlattenedDocValuesField::new,
+                    indexVersion
+                );
             } else {
                 keyedDelegate = new SortedSetOrdinalsIndexFieldData(
                     cache,

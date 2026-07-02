@@ -22,6 +22,7 @@ dependencies {
   internalClusterTestImplementation(project(path: xpackModule('shutdown')))
   internalClusterTestImplementation(project(path: xpackModule('snapshot-based-recoveries')))
   internalClusterTestImplementation(project(path: ':modules:reindex'))
+  internalClusterTestImplementation(project(path: ':modules:reindex-management'))
 }
 
 addQaCheckDependencies(project)

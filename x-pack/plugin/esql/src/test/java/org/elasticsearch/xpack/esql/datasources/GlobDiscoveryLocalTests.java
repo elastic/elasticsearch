@@ -132,6 +132,18 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
         assertEquals(3, result.fileCount());
     }
 
+    public void testFlatBraceOnlyAlternatives() throws IOException {
+        FileList result = GlobExpander.expandGlob(rootUri() + "/{report_2024_01,report_2024_02}.parquet", provider);
+        assertTrue(result.isResolved());
+        assertEquals(2, result.fileCount());
+    }
+
+    public void testFlatBraceOnlyAlternativesSkipsMissing() throws IOException {
+        FileList result = GlobExpander.expandGlob(rootUri() + "/{report_2024_01,nonexistent}.parquet", provider);
+        assertTrue(result.isResolved());
+        assertEquals(1, result.fileCount());
+    }
+
     // -- randomized tests --
 
     public void testRandomTreeStarGlob() throws IOException {

@@ -55,7 +55,7 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
             createServiceSettings(serviceSettings, taskType, context),
             JinaAIEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets),
+            DefaultSecretSettings.fromMap(secrets, context),
             null,
             taskType
         );

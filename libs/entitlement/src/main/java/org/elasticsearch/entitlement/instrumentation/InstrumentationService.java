@@ -17,5 +17,5 @@ import java.util.Map;
  * The SPI service entry point for instrumentation.
  */
 public interface InstrumentationService {
-    Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, InstrumentationInfo> methods);
+    Instrumenter newInstrumenter(Class<?> clazz, Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass);
 }

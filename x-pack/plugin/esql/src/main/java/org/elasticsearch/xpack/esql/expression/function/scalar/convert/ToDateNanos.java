@@ -79,6 +79,7 @@ public class ToDateNanos extends AbstractConvertFunction implements Configuratio
 
     @FunctionInfo(
         returnType = "date_nanos",
+        briefSummary = "Converts a value to a nanosecond-resolution date.",
         description = "Converts an input to a nanosecond-resolution date value (aka date_nanos).",
         note = "The range for date nanos is 1970-01-01T00:00:00.000000000Z to 2262-04-11T23:47:16.854775807Z, attempting to convert "
             + "values outside of that range will result in null with a warning.  Additionally, integers cannot be converted into date "

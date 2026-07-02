@@ -213,6 +213,8 @@ Which returns:
 {
   "took": 28,
   "is_partial": false,
+  "documents_found": 5,
+  "values_loaded": 20,
   "columns": [
     {"name": "author", "type": "text"},
     {"name": "name", "type": "text"},
@@ -265,6 +267,8 @@ Will return:
 {
   "took": 28,
   "is_partial": false,
+  "documents_found": 2,
+  "values_loaded": 2,
   "columns": [
     {"name": "date_string", "type": "keyword"},
     {"name": "date", "type": "date"},
@@ -299,6 +303,30 @@ POST /_query
 % TEST[setup:library]
 % TEST[skip:This can output a warning, and asciidoc doesn't support allowed_warnings]
 
+### Enabling query approximation [esql-approximation-param]
+
+```{applies_to}
+stack: preview 9.4, ga 9.5
+serverless: ga
+```
+
+Use the `approximation` parameter to enable [fast approximation for `STATS` queries](esql-query-approximation.md).
+If not specified, defaults to `false`.
+
+For example:
+```console
+POST /_query
+{
+  "approximation": true,
+  "query": """
+    FROM web_traffic
+    | STATS total_hits = COUNT(), avg_load_time = AVG(page_load_ms)
+  """
+}
+```
+
+For more advanced settings, use a [query approximation settings](directives/set.md#esql-approximation) object.
+
 ## Pass parameters to a query [esql-rest-params]
 
 Instead of embedding values directly in a query string, you can use parameters to separate the query logic from its data. This approach prevents injection attacks when queries include user input and makes queries reusable with different values.
@@ -320,7 +348,7 @@ Don't mix parameter styles in the same query. For example, you cannot use named 
 
 ### Value parameters (`?`) [esql-rest-value-params]
 
-::::{tip} 
+::::{tip}
 :applies_to: stack: ga 9.1.0
 We recommend using the [`??`](#esql-rest-identifier-params) syntax instead in 9.1 and above.
 ::::
@@ -578,3 +606,29 @@ DELETE /_query/async/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJ
 You will also receive the async ID and running status in the `X-Elasticsearch-Async-Id` and `X-Elasticsearch-Async-Is-Running` HTTP headers of the response, respectively.
 Useful if you use a tabular text format like `txt`, `csv` or `tsv`, as you won't receive those fields in the body there.
 ::::
+
+## `documents_found` and `values_loaded` [esql-rest-documents-found]
+
+```{applies_to}
+stack: ga 9.1
+```
+
+In addition to {{es}}'s traditional `took` time, {{esql}} returns `documents_found` and `values_loaded` which you can think
+of as rough proxies for how much effort Elasticsearch had to expend to run the query. Generally, bigger numbers mean the
+query took more effort.
+
+`documents_found` are the number of documents that we had to find to run the query. If this is low, Elasticsearch was able
+to effectively use its search index to return results. A few queries, like `FROM idx | STATS COUNT(*)` can run without
+looking at documents at all. They cheekily report one "found" document per count.
+
+`values_loaded` are the number of values loaded to run the query. If Elasticsearch must load one value per
+document, like it would for `FROM idx | STATS BY DATE_TRUNC(1 hour, @timestamp)`, this will be the same as `documents_found`.
+If Elasticsearch had to load many fields for each document, it will be many times `documents_found`. Again, bigger numbers
+*generally* mean the query took more effort.
+
+Plenty of queries will still be fast even though `documents_found` and `values_loaded` are high. Some queries will be slow
+even with a low `documents_found` and `values_loaded` for various reasons:
+* The query was super fast or slow.
+* Some values load very fast, like `@timestamp`, and other values load much more slowly, like `text` fields.
+* Some functions are quite fast, like `+`, `DATE_TRUNC`, `BUCKET`, etc.
+* Some commands are quite heavy, like `GROK`.

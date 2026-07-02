@@ -19,7 +19,7 @@ public class MatchSerializationTests extends AbstractExpressionSerializationTest
         Source source = randomSource();
         Expression field = randomChild();
         Expression query = randomChild();
-        return new Match(source, field, query, null);
+        return new Match(source, field, query, null, configuration());
     }
 
     @Override
@@ -32,6 +32,6 @@ public class MatchSerializationTests extends AbstractExpressionSerializationTest
         } else {
             query = randomValueOtherThan(query, AbstractExpressionSerializationTests::randomChild);
         }
-        return new Match(source, field, query, null);
+        return new Match(source, field, query, null, configuration());
     }
 }

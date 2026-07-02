@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 145833
+summary: Enable EMBEDDING task for `OpenAiService`
+type: enhancement

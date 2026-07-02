@@ -40,6 +40,12 @@ public @interface FunctionInfo {
     boolean preview() default false;
 
     /**
+     * Whether this function is compatible with the {@code TS} command. By default,
+     * this is {@code true} and not rendered in the docs.
+     */
+    boolean tsdbCompatible() default true;
+
+    /**
      * Whether this function applies to particular versions of Elasticsearch.
      */
     FunctionAppliesTo[] appliesTo() default {};
@@ -75,6 +81,11 @@ public @interface FunctionInfo {
      * Used to create logical nesting between related functions.
      */
     int depthOffset() default 0;
+
+    /**
+     * A verb-first one-liner (~20 words) that opens each function reference page and can be reused to compile list pages.
+     */
+    String briefSummary() default "";
 
     /**
      * The position the function can appear in the language.

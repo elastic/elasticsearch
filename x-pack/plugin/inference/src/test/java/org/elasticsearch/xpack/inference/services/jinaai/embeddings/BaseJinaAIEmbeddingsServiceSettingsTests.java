@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettingsTests;
 
 import java.util.Map;
 
@@ -55,7 +55,7 @@ public class BaseJinaAIEmbeddingsServiceSettingsTests extends ESTestCase {
         @Nullable JinaAIEmbeddingType embeddingType,
         @Nullable Integer requestsPerMinute
     ) {
-        var map = JinaAIServiceSettingsTests.getServiceSettingsMap(modelName, requestsPerMinute);
+        var map = JinaAICommonServiceSettingsTests.buildServiceSettingsMap(modelName, requestsPerMinute);
         if (similarity != null) {
             map.put(SIMILARITY, similarity.toString());
         }

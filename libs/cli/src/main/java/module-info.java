@@ -13,6 +13,7 @@ module org.elasticsearch.cli {
     requires org.elasticsearch.base;
     requires java.logging;
     requires org.elasticsearch.logging;
+    requires transitive org.elasticsearch.cli.terminal;
 
     exports org.elasticsearch.cli;
 }

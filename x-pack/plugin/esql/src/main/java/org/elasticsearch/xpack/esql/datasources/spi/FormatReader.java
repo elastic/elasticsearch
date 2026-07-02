@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
@@ -48,14 +49,53 @@ public interface FormatReader extends Closeable {
     enum SchemaResolution {
         /** Use the schema from the first file; ignore differences in subsequent files. */
         FIRST_FILE_WINS,
-        // TODO: implement strict schema validation across files
+        /** Require all files to share the exact same schema (modulo nullability). */
         STRICT,
-        // TODO: implement union-by-name schema merging across files
-        UNION_BY_NAME
+        /** Merge schemas from all files by column name, with safe type widening. */
+        UNION_BY_NAME;
+
+        /**
+         * Case-insensitive parse of a {@code schema_resolution} option value. This is the single
+         * definition of valid strategy names, shared by the query path
+         * ({@code ExternalSourceResolver.parseSchemaResolution}) and the dataset CRUD validator so
+         * the two cannot diverge.
+         *
+         * @throws IllegalArgumentException if {@code value} is not a recognised strategy
+         */
+        public static SchemaResolution parse(String value) {
+            return switch (value.toLowerCase(Locale.ROOT)) {
+                case "first_file_wins" -> FIRST_FILE_WINS;
+                case "strict" -> STRICT;
+                case "union_by_name" -> UNION_BY_NAME;
+                default -> throw new IllegalArgumentException(
+                    "Unknown schema_resolution value [" + value + "]. Valid values are: first_file_wins, strict, union_by_name"
+                );
+            };
+        }
     }
 
+    /**
+     * Cluster-wide default schema resolution strategy when a query does not specify one.
+     * <p>
+     * This is the single source of truth: it is consulted both by this SPI's
+     * {@link #defaultSchemaResolution()} and by {@code ExternalSourceResolver.parseSchemaResolution}
+     * when no {@code schema_resolution} key is present in the per-query config. The format
+     * detected at glob-expansion time is not yet known when the resolver decides whether to
+     * take the read-all-and-reconcile path versus the FFW fast path, so there is no format
+     * dispatch here today; if per-format defaults become desirable in the future the resolver
+     * will need to peek at the lex-smallest file's format first, and this constant becomes the
+     * fallback only.
+     */
+    SchemaResolution DEFAULT_SCHEMA_RESOLUTION = SchemaResolution.UNION_BY_NAME;
+
+    /**
+     * Returns the cluster-wide default schema resolution for this reader. Format implementations
+     * may override this to advertise a different preferred default, but the resolver does not
+     * consult it today (see {@link #DEFAULT_SCHEMA_RESOLUTION} for the rationale). Override is
+     * effectively informational until that wiring exists.
+     */
     default SchemaResolution defaultSchemaResolution() {
-        return SchemaResolution.FIRST_FILE_WINS;
+        return DEFAULT_SCHEMA_RESOLUTION;
     }
 
     /**
@@ -120,14 +160,30 @@ public interface FormatReader extends Closeable {
     List<String> fileExtensions();
 
     /**
-     * Returns a format reader configured with the given config map (from the WITH clause).
-     * Implementations should parse format-specific options from the config
-     * and return a new reader instance if any options are present.
-     * The default returns {@code this} (no configuration).
+     * Returns a reader configured from the input config map.
+     * Default delegates to {@link #withConfigTrackingConsumedKeys(Map)} and discards the consumed-keys set;
+     * use this overload when the caller does not need to validate against the consumed keys.
+     * <p>
+     * <b>Override target:</b> implementations must override {@link #withConfigTrackingConsumedKeys(Map)},
+     * NOT this method. The default {@code withConfig} delegates through the tracking variant, so an
+     * override here alone would be silently bypassed by every caller. The tracking variant is the
+     * single configuration entry point for the SPI.
      */
     default FormatReader withConfig(Map<String, Object> config) {
-        return this;
+        return withConfigTrackingConsumedKeys(config).value();
     }
+
+    /**
+     * Returns a reader configured from the input config map, paired with the keys consumed from it.
+     * <p>
+     * <b>Required override.</b> Every reader must explicitly declare which keys it claims, even if
+     * the answer is "none" (return {@code Configured.empty(this)}). The previous {@code default}
+     * silently dropped any unknown keys; that footgun is the reason this is no longer optional.
+     * Implementations that read configuration from the map should override this method (not
+     * {@link #withConfig(Map)}); the consumed-keys set is required by {@link ConfigKeyValidator}
+     * for unknown-key rejection at planning time.
+     */
+    Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config);
 
     /**
      * Returns a format reader configured with the given pushed filter from the optimizer.
@@ -189,5 +245,37 @@ public interface FormatReader extends Closeable {
     default boolean supportsNativeAsync() {
         return false;
     }
+
+    /**
+     * Whether this format supports being wrapped in a whole-file, stream-only decompressor
+     * (e.g. {@code .parquet.zst} or {@code .orc.gz}). Sequential formats (CSV, NDJSON) return
+     * the default {@code true}. Tail/footer-based formats (Parquet, ORC) must override to
+     * {@code false} because they require random access and a known decompressed length. This
+     * flag does NOT affect a format's own internal compression (e.g. Parquet column-chunk zstd).
+     */
+    default boolean supportsWholeFileCompression() {
+        return true;
+    }
+
+    /**
+     * Returns a typed snapshot of format-reader I/O counters, or {@code null} when the reader
+     * tracks none. The snapshot is folded into the {@code format_reader} field of the
+     * external-source operator status.
+     */
+    default FormatReaderStatus statusSnapshot() {
+        return null;
+    }
+
+    /**
+     * Returns this reader's {@link RowPositionStrategy} — the dispatcher applies it polymorphically
+     * to wrap (or pass through) the reader's emitted page iterator so each page has the
+     * {@code _rowPosition} slot populated. Every reader must explicitly declare a strategy:
+     * a {@link PassThroughRowPositionStrategy} when the reader natively fills the slot in its own
+     * iterator (parquet-mr, ORC, CSV, NDJSON), a {@link NullSpliceRowPositionStrategy} when the
+     * reader has no row-position channel and the slot must surface NULL (parquet-rs), or a future
+     * strategy that injects the column from per-page reader state. There is no default — readers
+     * that "don't care" still participate, by returning {@link PassThroughRowPositionStrategy}.
+     */
+    RowPositionStrategy rowPositionStrategy();
 
 }

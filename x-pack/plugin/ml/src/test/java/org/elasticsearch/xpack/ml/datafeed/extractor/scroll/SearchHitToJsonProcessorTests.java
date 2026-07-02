@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
@@ -39,10 +40,11 @@ public class SearchHitToJsonProcessorTests extends ESTestCase {
             .addField("single", "a")
             .addField("array", Arrays.asList("b", "c"))
             .build();
+        try (var hitRef = ReleasableRef.of(hit)) {
+            String json = searchHitToString(extractedFields, hitRef.get());
 
-        String json = searchHitToString(extractedFields, hit);
-
-        assertThat(json, equalTo("{\"time\":1000,\"single\":\"a\",\"array\":[\"b\",\"c\"]}"));
+            assertThat(json, equalTo("{\"time\":1000,\"single\":\"a\",\"array\":[\"b\",\"c\"]}"));
+        }
     }
 
     public void testProcessGivenMultipleHits() throws IOException {
@@ -64,12 +66,13 @@ public class SearchHitToJsonProcessorTests extends ESTestCase {
             .addField("single", "a2")
             .addField("array", Arrays.asList("b2", "c2"))
             .build();
+        try (var hit1Ref = ReleasableRef.of(hit1); var hit2Ref = ReleasableRef.of(hit2)) {
+            String json = searchHitToString(extractedFields, hit1Ref.get(), hit2Ref.get());
 
-        String json = searchHitToString(extractedFields, hit1, hit2);
-
-        assertThat(json, equalTo("""
-            {"time":1000,"single":"a1","array":["b1","c1"]} \
-            {"time":2000,"single":"a2","array":["b2","c2"]}"""));
+            assertThat(json, equalTo("""
+                {"time":1000,"single":"a1","array":["b1","c1"]} \
+                {"time":2000,"single":"a2","array":["b2","c2"]}"""));
+        }
     }
 
     private String searchHitToString(ExtractedFields fields, SearchHit... searchHits) throws IOException {

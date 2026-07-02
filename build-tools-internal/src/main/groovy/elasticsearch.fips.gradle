@@ -26,9 +26,10 @@ if (buildParams.inFipsJvm) {
     def bcFips
     def bcTlsFips
     def bcUtilFips
+    def bcPkixFips
     def manualDebug = false; //change this to manually debug bouncy castle in an IDE
     def isFips140_3 = buildParams.fipsMode == '140-3'
-    String javaPolicyFilename = isFips140_3 ? 'fips_java_bc2.policy' : 'fips_java.policy'
+    String javaPolicyFilename = isFips140_3 ? 'fips_java_bc2_bwc.policy' : 'fips_java_bwc.policy'
     File fipsPolicy = new File(fipsResourcesDir, javaPolicyFilename)
 
     if (isFips140_3) {
@@ -36,6 +37,7 @@ if (buildParams.inFipsJvm) {
       bcFips = dependencies.create('org.bouncycastle:bc-fips:2.0.1')
       bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:2.0.22')
       bcUtilFips = dependencies.create('org.bouncycastle:bcutil-fips:2.0.5')
+      bcPkixFips = dependencies.create('org.bouncycastle:bcpkix-fips:2.0.7')
       if (manualDebug) {
         bcFips = dependencies.create('org.bouncycastle:bc-fips-debug:2.0.1')
         bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:2.0.22'){
@@ -50,6 +52,7 @@ if (buildParams.inFipsJvm) {
       bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2.6')
       bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.19')
       bcUtilFips = null
+      bcPkixFips = dependencies.create('org.bouncycastle:bcpkix-fips:1.0.7')
       if (manualDebug) {
         bcFips = dependencies.create('org.bouncycastle:bc-fips-debug:1.0.2.6')
         bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.19'){
@@ -73,6 +76,7 @@ if (buildParams.inFipsJvm) {
           if (bcUtilFips != null) {
             add(bcUtilFips)
           }
+          add(bcPkixFips)
         }
       }
 

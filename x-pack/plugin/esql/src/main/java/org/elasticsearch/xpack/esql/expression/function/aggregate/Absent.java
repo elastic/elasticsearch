@@ -39,10 +39,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  */
 public class Absent extends AggregateFunction implements SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Absent", Absent::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Absent.class).unary(Absent::new).name("absent");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Absent.class)
+        .unary(Absent::new)
+        .capabilities("flattened")
+        .name("absent");
 
     @FunctionInfo(
         returnType = "boolean",
+        briefSummary = "Returns true if the input expression yields no non-null values.",
         description = "Returns true if the input expression yields no non-null values within the current aggregation context. "
             + "Otherwise it returns false.",
         type = FunctionType.AGGREGATE,
@@ -73,6 +77,7 @@ public class Absent extends AggregateFunction implements SurrogateExpression, Ag
                 "date_nanos",
                 "dense_vector",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

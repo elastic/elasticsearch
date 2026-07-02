@@ -118,7 +118,7 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
 
     @Override
     public PhysicalPlan estimateRowSize(State state) {
-        state.add(false, addedFields);
+        state.add(false, addedFields, true);
         return this;
     }
 

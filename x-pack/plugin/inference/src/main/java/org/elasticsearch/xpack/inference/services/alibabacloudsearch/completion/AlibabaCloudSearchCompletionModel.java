@@ -43,7 +43,7 @@ public class AlibabaCloudSearchCompletionModel extends AlibabaCloudSearchModel {
             service,
             AlibabaCloudSearchCompletionServiceSettings.fromMap(serviceSettings, context),
             AlibabaCloudSearchCompletionTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
@@ -63,7 +63,8 @@ public class AlibabaCloudSearchCompletionModel extends AlibabaCloudSearchModel {
         super(
             modelConfigurations,
             modelSecrets,
-            ((AlibabaCloudSearchCompletionServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
+            ((AlibabaCloudSearchCompletionServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings(),
+            null
         );
     }
 

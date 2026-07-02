@@ -72,6 +72,7 @@ public class ToDatetime extends AbstractConvertFunction implements Configuration
 
     @FunctionInfo(
         returnType = "date",
+        briefSummary = "Converts a value to a date.",
         description = """
             Converts an input value to a date value.
             A string will only be successfully converted if it’s respecting the format `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`.

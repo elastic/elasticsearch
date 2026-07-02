@@ -20,6 +20,10 @@ public class InferenceContextTests extends AbstractWireSerializingTestCase<Infer
 
     @Override
     protected InferenceContext createTestInstance() {
+        return createRandom();
+    }
+
+    public static InferenceContext createRandom() {
         return new InferenceContext(randomAlphaOfLength(10));
     }
 

@@ -9,50 +9,45 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
-import org.elasticsearch.nativeaccess.jdk.JdkNativeLibraryProvider;
+import org.elasticsearch.foreign.LibraryProvider;
 
 import java.util.Map;
+import java.util.ServiceLoader;
 import java.util.function.Supplier;
 
 /**
- * Allows loading native library mappings.
+ * Multi-library provider for native libraries not yet migrated to {@code @LibrarySpecification}.
+ * Subclasses register a map of library interfaces to their constructors.
+ * Use {@link LibraryProvider#lookupLibrary(Class)} for libraries that have been migrated.
  */
 public abstract class NativeLibraryProvider {
 
     private final String name;
-    private final Map<Class<? extends NativeLibrary>, Supplier<NativeLibrary>> libraries;
+    private final Map<Class<?>, Supplier<?>> libraries;
 
-    protected NativeLibraryProvider(String name, Map<Class<? extends NativeLibrary>, Supplier<NativeLibrary>> libraries) {
+    protected NativeLibraryProvider(String name, Map<Class<?>, Supplier<?>> libraries) {
         this.name = name;
         this.libraries = libraries;
-
-        // ensure impls actually provide all necessary libraries
-        for (Class<?> libClass : NativeLibrary.class.getPermittedSubclasses()) {
-            if (libraries.containsKey(libClass) == false) {
-                throw new IllegalStateException(getClass().getSimpleName() + " missing implementation for " + libClass.getSimpleName());
-            }
-        }
     }
 
-    /**
-     * Get the one and only instance of {@link NativeLibraryProvider} that is specific to the running JDK version.
-     */
-    public static NativeLibraryProvider instance() {
-        return Holder.INSTANCE;
-    }
-
-    /** Returns a human-understandable name for this provider */
+    /** Returns a human-understandable name for this provider. */
     public String getName() {
         return name;
     }
 
     /**
-     * Construct an instance of the given library class.
-     * @param cls The library class to create
-     * @return An instance of the class
+     * Returns an instance of the given library class. Checks the new per-library
+     * {@link LibraryProvider} lookup first, then falls back to this provider's map.
      */
-    public <T extends NativeLibrary> T getLibrary(Class<T> cls) {
+    public <T> T getLibrary(Class<T> cls) {
+        T result = LibraryProvider.lookupLibrary(cls);
+        if (result != null) {
+            return result;
+        }
         Supplier<?> libraryCtor = libraries.get(cls);
+        if (libraryCtor == null) {
+            throw new IllegalStateException(getClass().getSimpleName() + " missing implementation for " + cls.getSimpleName());
+        }
         Object library = libraryCtor.get();
         assert library != null;
         assert cls.isAssignableFrom(library.getClass());
@@ -62,6 +57,12 @@ public abstract class NativeLibraryProvider {
     private static final class Holder {
         private Holder() {}
 
-        static final NativeLibraryProvider INSTANCE = new JdkNativeLibraryProvider();
+        static final NativeLibraryProvider INSTANCE = ServiceLoader.load(NativeLibraryProvider.class)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("No NativeLibraryProvider found"));
+    }
+
+    public static NativeLibraryProvider instance() {
+        return Holder.INSTANCE;
     }
 }

@@ -15,14 +15,12 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.resolver.DefaultAddressResolverGroup;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.SignalType;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.netty.resources.ConnectionProvider;
 import reactor.netty.resources.LoopResources;
 
 import com.azure.core.http.HttpHeaderName;
-import com.azure.core.http.HttpMethod;
 import com.azure.core.http.HttpPipelineCallContext;
 import com.azure.core.http.HttpPipelineNextPolicy;
 import com.azure.core.http.HttpPipelinePosition;
@@ -44,17 +42,19 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 
-import java.net.URL;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.NETTY_EVENT_LOOP_THREAD_POOL_NAME;
@@ -66,7 +66,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private static final TimeValue DEFAULT_CONNECTION_TIMEOUT = TimeValue.timeValueSeconds(30);
     private static final TimeValue DEFAULT_MAX_CONNECTION_IDLE_TIME = TimeValue.timeValueSeconds(60);
     private static final int DEFAULT_MAX_CONNECTIONS = 50;
-    private static final int DEFAULT_EVENT_LOOP_THREAD_COUNT = 1;
     private static final int PENDING_CONNECTION_QUEUE_SIZE = -1; // see ConnectionProvider.ConnectionPoolSpec.pendingAcquireMaxCount
 
     /**
@@ -82,8 +81,9 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
     static final Setting<Integer> EVENT_LOOP_THREAD_COUNT = Setting.intSetting(
         "repository.azure.http_client.event_loop_executor_thread_count",
-        DEFAULT_EVENT_LOOP_THREAD_COUNT,
+        settings -> Integer.toString(Math.max(1, EsExecutors.allocatedProcessors(settings) / 4)),
         1,
+        Integer.MAX_VALUE,
         Setting.Property.NodeScope
     );
 
@@ -260,22 +260,21 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     protected void doStop() {
         closed = true;
         // Dispose of the connection provider first and wait for it to complete before we close the event loop.
-        connectionProvider.disposeLater()
-            .timeout(Duration.ofSeconds(10))    // Limit how long we wait for the connection provider to close
-            .doFinally(signalType -> {
-                if (signalType != SignalType.ON_COMPLETE) {
-                    logger.info("Got unexpected signal type disposing connection provider: {}", signalType);
-                }
-                // Now safe to shut down the event loop
-                eventLoopGroup.shutdownGracefully().addListener(future -> {
-                    if (future.isSuccess() == false) {
-                        logger.warn("Error shutting down Azure event loop, but resetting schedulers anyway", future.cause());
-                    }
-                    // Now everything is shut down, reset the factory to clear any cached schedulers
-                    Schedulers.resetFactory();
-                });
-            })
-            .subscribe(null, throwable -> logger.warn("Error shutting down connection provider", throwable));
+        try {
+            connectionProvider.disposeLater().block(Duration.ofSeconds(5));
+        } catch (RuntimeException e) {
+            logger.warn("Error disposing connection provider", e);
+        } finally {
+            // Now it's safe to shut down the event loop
+            try {
+                FutureUtils.get(eventLoopGroup.shutdownGracefully(), 5, TimeUnit.SECONDS);
+            } catch (RuntimeException e) {
+                logger.warn("Error shutting down event loop group", e);
+            } finally {
+                // Now everything is shut down, reset the factory to clear any cached schedulers
+                Schedulers.resetFactory();
+            }
+        }
     }
 
     @Override
@@ -426,10 +425,9 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         }
 
         private void trackCompletedRequest(HttpRequest httpRequest, RequestMetrics requestMetrics) {
-            HttpMethod method = httpRequest.getHttpMethod();
-            if (method != null) {
+            if (httpRequest.getHttpMethod() != null) {
                 try {
-                    requestMetricsHandler.requestCompleted(purpose, method, httpRequest.getUrl(), requestMetrics);
+                    requestMetricsHandler.requestCompleted(purpose, httpRequest, requestMetrics);
                 } catch (Exception e) {
                     logger.warn("Unable to notify a successful request", e);
                 }
@@ -451,6 +449,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
      */
     interface RequestMetricsHandler {
 
-        void requestCompleted(OperationPurpose purpose, HttpMethod method, URL url, RequestMetrics metrics);
+        void requestCompleted(OperationPurpose purpose, HttpRequest request, RequestMetrics metrics);
     }
 }

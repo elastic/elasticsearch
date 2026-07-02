@@ -9,7 +9,7 @@ mapped_pages:
 
 Strips HTML elements from a text and replaces HTML entities with their decoded value (e.g, replaces `&amp;` with `&`).
 
-The `html_strip` filter uses Lucene’s [HTMLStripCharFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/charfilter/HTMLStripCharFilter.md).
+The `html_strip` filter uses Lucene’s [HTMLStripCharFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/charfilter/HTMLStripCharFilter.html).
 
 ## Example [analysis-htmlstrip-charfilter-analyze-ex]
 

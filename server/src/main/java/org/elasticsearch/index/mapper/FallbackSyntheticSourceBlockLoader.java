@@ -136,7 +136,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
             this.ignoredSourceFormat = ignoredSourceFormat;
             if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
                 this.ignoredSourceDocValues = Objects.requireNonNull(
-                    MultiValuedSortedBinaryDocValues.from(leafReader, IgnoredSourceFieldMapper.NAME)
+                    MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, IgnoredSourceFieldMapper.NAME)
                 );
             } else {
                 this.ignoredSourceDocValues = null;

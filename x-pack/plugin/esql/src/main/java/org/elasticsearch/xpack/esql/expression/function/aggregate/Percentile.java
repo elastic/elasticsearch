@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentile;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -47,11 +48,28 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         Percentile::new
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Percentile.class).binary(Percentile::new).name("percentile");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .acrossSeriesBinary(
+            PromqlFunctionDefinition.QUANTILE,
+            (source, field, filter, window, phi) -> new Percentile(
+                source,
+                field,
+                filter,
+                window,
+                PromqlFunctionDefinition.quantileToPercentile(source, phi)
+            )
+        )
+        .description("Returns the φ-quantile (0 ≤ φ ≤ 1) of the values across the input vector.")
+        .example("quantile(0.9, http_request_duration_seconds)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.QUANTILE_NOTE)
+        .name("quantile");
 
     private final Expression percentile;
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the value at which a certain percentage of observed values occur.",
         description = "Returns the value at which a certain percentage of observed values occur. "
             + "For example, the 95th percentile is the value which is greater than 95% of the "
             + "observed values and the 50th percentile is the `MEDIAN`.",
@@ -80,12 +98,22 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
                     + "approximating the percentile of the values which were used to construct the histograms.",
                 file = "exponential_histogram",
                 tag = "percentileExpHistoForDocs"
+            ),
+            @Example(
+                description = "`PERCENTILE` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "approximating the percentile of the values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "percentileTDigestForDocs"
             ) }
     )
     public Percentile(
         Source source,
         @Param(name = "number", type = { "double", "integer", "long", "exponential_histogram", "tdigest" }) Expression field,
-        @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile
+        @Param(
+            name = "percentile",
+            type = { "double", "integer", "long" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT)
+        ) Expression percentile
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, percentile);
     }

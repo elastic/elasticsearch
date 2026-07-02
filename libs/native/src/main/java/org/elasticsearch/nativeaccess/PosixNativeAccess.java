@@ -12,6 +12,7 @@ package org.elasticsearch.nativeaccess;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.nativeaccess.jdk.PosixCloseableMappedByteBuffer;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
+import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
@@ -31,6 +32,7 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
 
     protected final PosixCLibrary libc;
     protected final VectorSimilarityFunctions vectorDistance;
+    protected final ParquetRsFunctions parquetRsFunctions;
     protected final PosixConstants constants;
     protected final ProcessLimits processLimits;
 
@@ -38,6 +40,7 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
         super(name, libraryProvider);
         this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
         this.vectorDistance = vectorSimilarityFunctionsOrNull(libraryProvider);
+        this.parquetRsFunctions = parquetRsFunctionsOrNull(libraryProvider);
         this.constants = constants;
         this.processLimits = new ProcessLimits(
             getMaxThreads(),
@@ -72,6 +75,20 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
             var lib = libraryProvider.getLibrary(VectorLibrary.class).getVectorSimilarityFunctions();
             logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
             return lib;
+        }
+        return null;
+    }
+
+    static ParquetRsFunctions parquetRsFunctionsOrNull(NativeLibraryProvider libraryProvider) {
+        if (isNativeRustLibSupported()) {
+            try {
+                var lib = libraryProvider.getLibrary(ParquetRsLibrary.class);
+                logger.info("Loaded parquet-rs native library");
+                return new ParquetRsFunctions(lib);
+            } catch (UnsatisfiedLinkError e) {
+                logger.info("parquet-rs native library not available: {}", e.getMessage());
+                return null;
+            }
         }
         return null;
     }
@@ -195,6 +212,11 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     }
 
     @Override
+    public Optional<ParquetRsFunctions> getParquetRsFunctions() {
+        return Optional.ofNullable(parquetRsFunctions);
+    }
+
+    @Override
     public CloseableMappedByteBuffer map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) throws IOException {
         return PosixCloseableMappedByteBuffer.ofShared(fileChannel, mode, position, size);
     }
@@ -209,6 +231,10 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
 
     static boolean isNativeVectorLibSupported() {
         return Runtime.version().feature() >= 21 && (isMacOrLinuxAarch64() || isLinuxAmd64()) && checkEnableSystemProperty();
+    }
+
+    static boolean isNativeRustLibSupported() {
+        return isMacOrLinuxAarch64() || isLinuxAmd64();
     }
 
     /**

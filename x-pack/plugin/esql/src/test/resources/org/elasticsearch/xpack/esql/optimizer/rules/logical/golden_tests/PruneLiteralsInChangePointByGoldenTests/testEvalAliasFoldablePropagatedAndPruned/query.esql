@@ -1,0 +1,4 @@
+FROM employees
+| KEEP emp_no, salary
+| EVAL x = 5
+| CHANGE_POINT salary ON emp_no BY x

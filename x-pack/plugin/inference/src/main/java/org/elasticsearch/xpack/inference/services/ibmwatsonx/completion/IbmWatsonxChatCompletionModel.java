@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.completion;
 
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.COMPLETIONS;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.ML;
@@ -53,7 +55,7 @@ public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
             taskType,
             service,
             IbmWatsonxChatCompletionServiceSettings.fromMap(serviceSettings, context),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
@@ -98,8 +100,40 @@ public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
         this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings), new ModelSecrets(secretSettings));
     }
 
+    // Should only be used directly for testing.
+    // This constructor allows tests to override the behaviour when setting the auth header, which by default requires making a call to
+    // IBM's token provider API
+    public IbmWatsonxChatCompletionModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        IbmWatsonxChatCompletionServiceSettings serviceSettings,
+        @Nullable DefaultSecretSettings secretSettings,
+        BiConsumer<HttpPost, IbmWatsonxModel> authHeaderDecorator
+    ) {
+        this(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings),
+            new ModelSecrets(secretSettings),
+            authHeaderDecorator
+        );
+    }
+
     public IbmWatsonxChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(modelConfigurations, modelSecrets, (IbmWatsonxChatCompletionServiceSettings) modelConfigurations.getServiceSettings());
+    }
+
+    // Should only be used for testing
+    public IbmWatsonxChatCompletionModel(
+        ModelConfigurations modelConfigurations,
+        ModelSecrets modelSecrets,
+        BiConsumer<HttpPost, IbmWatsonxModel> authHeaderDecorator
+    ) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (IbmWatsonxChatCompletionServiceSettings) modelConfigurations.getServiceSettings(),
+            authHeaderDecorator
+        );
     }
 
     @Override

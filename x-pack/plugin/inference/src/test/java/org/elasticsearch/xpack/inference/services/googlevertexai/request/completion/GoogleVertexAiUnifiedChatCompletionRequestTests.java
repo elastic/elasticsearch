@@ -16,10 +16,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider;
-import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.ThinkingConfig;
-import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiRequest;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -115,24 +113,11 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
             thinkingConfig,
             provider,
             null,
-            null
+            null,
+            AUTH_HEADER_VALUE
         );
         var unifiedChatInput = new UnifiedChatInput(messages, "user", true);
 
-        return new GoogleVertexAiUnifiedChatCompletionWithoutAuthRequest(unifiedChatInput, model);
-    }
-
-    /**
-     * We use this class to fake the auth implementation to avoid static mocking of {@link GoogleVertexAiRequest}
-     */
-    private static class GoogleVertexAiUnifiedChatCompletionWithoutAuthRequest extends GoogleVertexAiUnifiedChatCompletionRequest {
-        GoogleVertexAiUnifiedChatCompletionWithoutAuthRequest(UnifiedChatInput unifiedChatInput, GoogleVertexAiChatCompletionModel model) {
-            super(unifiedChatInput, model);
-        }
-
-        @Override
-        public void decorateWithAuth(HttpPost httpPost) {
-            httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE);
-        }
+        return new GoogleVertexAiUnifiedChatCompletionRequest(unifiedChatInput, model);
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.datafeed.CrossClusterSearchStatsSnapshot;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -34,8 +35,8 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
-import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction.DatafeedTask.StoppedOrIsolated;
+import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction;
+import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction.DatafeedTask.StoppedOrIsolated;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
@@ -257,6 +258,11 @@ public class DatafeedRunner {
     public SearchInterval getSearchInterval(TransportStartDatafeedAction.DatafeedTask task) {
         Holder holder = runningDatafeedsOnThisNode.get(task.getAllocationId());
         return holder == null ? null : holder.datafeedJob.getSearchInterval();
+    }
+
+    public CrossClusterSearchStatsSnapshot getCrossClusterStats(TransportStartDatafeedAction.DatafeedTask task) {
+        Holder holder = runningDatafeedsOnThisNode.get(task.getAllocationId());
+        return holder == null ? null : holder.datafeedJob.getCrossClusterSearchStats().snapshot();
     }
 
     // Important: Holder must be created and assigned to DatafeedTask before setting state to started,

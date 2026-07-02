@@ -19,12 +19,11 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.action.CohereActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import java.net.URI;
 import java.util.Map;
 
 public class CohereEmbeddingsModel extends CohereModel {
-    public static CohereEmbeddingsModel of(CohereEmbeddingsModel model, Map<String, Object> taskSettings) {
-        var requestTaskSettings = CohereEmbeddingsTaskSettings.fromMap(taskSettings);
+    public static CohereEmbeddingsModel createWithOverriddenTaskSettings(CohereEmbeddingsModel model, Map<String, Object> taskSettings) {
+        var requestTaskSettings = CohereEmbeddingsTaskSettings.fromMap(taskSettings, ConfigurationParseContext.REQUEST);
         return new CohereEmbeddingsModel(model, CohereEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
 
@@ -39,9 +38,9 @@ public class CohereEmbeddingsModel extends CohereModel {
         this(
             inferenceId,
             CohereEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            CohereEmbeddingsTaskSettings.fromMap(taskSettings),
+            CohereEmbeddingsTaskSettings.fromMap(taskSettings, context),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
@@ -64,7 +63,7 @@ public class CohereEmbeddingsModel extends CohereModel {
             modelConfigurations,
             modelSecrets,
             (DefaultSecretSettings) modelSecrets.getSecretSettings(),
-            ((CohereEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
+            ((CohereEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).commonSettings()
         );
     }
 
@@ -96,8 +95,4 @@ public class CohereEmbeddingsModel extends CohereModel {
         return visitor.create(this, taskSettings);
     }
 
-    @Override
-    public URI baseUri() {
-        return getServiceSettings().getCommonSettings().uri();
-    }
 }

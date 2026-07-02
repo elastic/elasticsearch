@@ -15,10 +15,15 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
+import org.elasticsearch.common.bytes.PagedBytesTests;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -31,6 +36,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class BytesRefHashTests extends ESTestCase {
 
@@ -338,6 +345,91 @@ public class BytesRefHashTests extends ESTestCase {
     }
 
     // END - tests borrowed from LUCENE
+
+    public void testAddCursor() {
+        testAddCursor(newLimitedBreaker(ByteSizeValue.ofMb(50)));
+    }
+
+    public void testAddCursorCranky() {
+        try {
+            testAddCursor(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testAddCursor(CircuitBreaker breaker) {
+        try (
+            BytesRefHash hash = randomHash();
+            PagedBytesBuilder builder = new PagedBytesBuilder(new MockPageCacheRecycler(Settings.EMPTY), breaker, "test", 64)
+        ) {
+            BytesRefBuilder ref = new BytesRefBuilder();
+            BytesRef scratch = new BytesRef();
+            PagedBytesCursor cursor = new PagedBytesCursor();
+            Set<String> added = new HashSet<>();
+            int uniqueCount = 0;
+            int count = scaledRandomIntBetween(10, 797);
+            for (int i = 0; i < count; i++) {
+                String str = randomValueOtherThanMany(s -> s.length() == 0, () -> TestUtil.randomRealisticUnicodeString(random(), 1000));
+                ref.copyChars(str);
+                builder.clear();
+                builder.append(ref.get());
+                long id = hash.add(builder.view(cursor));
+                if (added.contains(str)) {
+                    assertTrue(id < 0);
+                    assertEquals(str, hash.get(-id - 1, scratch).utf8ToString());
+                    assertEquals(uniqueCount, hash.size());
+                } else {
+                    assertEquals(uniqueCount, id);
+                    assertEquals(uniqueCount + 1, hash.size());
+                    added.add(str);
+                    uniqueCount++;
+                }
+            }
+            // Verify round-trip: cursor-inserted keys are findable via BytesRef
+            for (String str : added) {
+                ref.copyChars(str);
+                long id = hash.find(ref.get());
+                assertTrue(id >= 0);
+                assertEquals(str, hash.get(id, scratch).utf8ToString());
+            }
+        }
+    }
+
+    public void testBytesRefAndPagedBytesCursorCompatible() {
+        byte[] bytes = randomByteArrayOfLength(between(1, 1000));
+        BytesRef bytesRef = new BytesRef(bytes);
+        PagedBytes pagedBytes = PagedBytesTests.newPagedBytes(bytes);
+        PagedBytesCursor cursor = new PagedBytesCursor();
+
+        try (BytesRefHash hash = randomHash()) {
+            // First add - randomly via cursor or BytesRef
+            long firstId;
+            if (randomBoolean()) {
+                firstId = hash.add(bytesRef);
+            } else {
+                firstId = hash.add(pagedBytes.cursor(cursor));
+            }
+            assertTrue(firstId >= 0);
+
+            // Add same bytes 10 more times interleaving cursor and BytesRef
+            for (int i = 0; i < 10; i++) {
+                long id;
+                if (randomBoolean()) {
+                    id = hash.add(bytesRef);
+                } else {
+                    id = hash.add(pagedBytes.cursor(cursor));
+                }
+                assertEquals(-firstId - 1, id);
+            }
+
+            // Find same bytes 10 times
+            for (int i = 0; i < 10; i++) {
+                assertEquals(firstId, hash.find(bytesRef));
+            }
+        }
+    }
 
     public void testAllocation() {
         MockBigArrays.assertFitsIn(ByteSizeValue.ofBytes(512), bigArrays -> new BytesRefHash(1, bigArrays));

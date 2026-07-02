@@ -50,7 +50,7 @@ public class NdJsonSchemaInferrer {
     // The default format for date fields in ES is "strict_date_optional_time||epoch_millis".
     // Use the string part of this default for schema inference (we cannot assume that a number
     // is a date)
-    public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
+    public static final DateFormatter STRICT_DATE_OPTIONAL_TIME = DateFormatter.forPattern("strict_date_optional_time");
 
     private static final Logger logger = LogManager.getLogger(NdJsonSchemaInferrer.class);
 
@@ -61,13 +61,18 @@ public class NdJsonSchemaInferrer {
     private final List<FieldInfo> fields = new ArrayList<>();
     private int lineCount = 0;
 
-    private NdJsonSchemaInferrer() {}
+    private final DateFormatter dateFormatter;
+
+    private NdJsonSchemaInferrer(DateFormatter dateFormatter) {
+        this.dateFormatter = dateFormatter != null ? dateFormatter : STRICT_DATE_OPTIONAL_TIME;
+    }
 
     /**
      * Infers schema from an NDJSON input stream, reading up to maxLines.
+     * When {@code datetimeFormatter} is null, falls back to {@link #STRICT_DATE_OPTIONAL_TIME}.
      */
-    public static List<Attribute> inferSchema(InputStream inputStream, int maxLines) throws IOException {
-        return new NdJsonSchemaInferrer().doInferSchema(inputStream, maxLines);
+    public static List<Attribute> inferSchema(InputStream inputStream, int maxLines, DateFormatter datetimeFormatter) throws IOException {
+        return new NdJsonSchemaInferrer(datetimeFormatter).doInferSchema(inputStream, maxLines);
     }
 
     private List<Attribute> doInferSchema(InputStream inputStream, int maxLines) throws IOException {
@@ -80,6 +85,11 @@ public class NdJsonSchemaInferrer {
                         break; // End of stream
                     }
                 } catch (JsonParseException e) {
+                    // Schema inference is a best-effort sampling pass: malformed lines here are
+                    // safe to skip because every such line will be re-encountered during the
+                    // actual slice read (see NdJsonPageIterator), where the configured
+                    // ErrorPolicy decides whether to log/fail. Logging at debug avoids noisy
+                    // duplicate reports of the same issue.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
@@ -90,6 +100,7 @@ public class NdJsonSchemaInferrer {
                     inferObjectSchema(parser, root);
                     lineCount++;
                 } catch (JsonParseException e) {
+                    // See comment above: deferred to the slice read for policy-driven handling.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
@@ -114,7 +125,7 @@ public class NdJsonSchemaInferrer {
         return attributes;
     }
 
-    private static void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
+    private void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
         JsonToken token = parser.currentToken();
         if (token != JsonToken.START_OBJECT) {
             throw new NdJsonParseException(parser, "Expected JSON object");
@@ -129,7 +140,7 @@ public class NdJsonSchemaInferrer {
         }
     }
 
-    private static void inferValueSchema(JsonParser parser, FieldInfo field) throws IOException {
+    private void inferValueSchema(JsonParser parser, FieldInfo field) throws IOException {
         switch (parser.currentToken()) {
             case START_ARRAY -> {
                 field.isArray = true;
@@ -140,8 +151,8 @@ public class NdJsonSchemaInferrer {
             // Keep in sync with NdJsonPageIterator.Decoder
             case START_OBJECT -> inferObjectSchema(parser, field);
             case VALUE_STRING -> {
-                // Try to parse dates only if we haven't already encountered a non-datetime string
-                if (field.types.contains(DataType.KEYWORD) == false && DATE_FORMATTER.tryParse(parser.getText()) != null) {
+                String text = parser.getText();
+                if (field.types.contains(DataType.KEYWORD) == false && isDateTimeString(text)) {
                     field.addType(DataType.DATETIME);
                 } else {
                     field.addType(DataType.KEYWORD);
@@ -176,6 +187,12 @@ public class NdJsonSchemaInferrer {
 
     /** Build the list of Attribute by recursively traversing the FieldInfo tree */
     private static void buildSchema(FieldInfo field, String parentName, List<Attribute> attributes) {
+        if (field.children == null) {
+            // No children were ever observed. Happens for the root when every sampled line was
+            // malformed (so {@link FieldInfo#getChild} was never called), or legitimately for
+            // leaf fields during recursion. Nothing to contribute to the schema either way.
+            return;
+        }
         for (Map.Entry<String, FieldInfo> entry : field.children.entrySet()) {
             // TODO: disallow dots in names (or replace them) as it may cause issues when decoding
             var name = entry.getKey();
@@ -275,5 +292,19 @@ public class NdJsonSchemaInferrer {
         var copy = EnumSet.copyOf(values);
         copy.removeAll(from);
         return copy.isEmpty();
+    }
+
+    /**
+     * Check if a string parses as a datetime. We filter out 4-digit years accepted by strict_date_optional_time
+     * and other Iso8601 parsers where {@code MONTH_OF_YEAR} is optional. These are the only 4-digit values they
+     * accept, and we don't want to treat an all-4-digit column as DATETIME.
+     */
+    private boolean isDateTimeString(String text) {
+        if (dateFormatter == STRICT_DATE_OPTIONAL_TIME) {
+            if (text.length() == 4 && text.chars().allMatch(Character::isDigit)) {
+                return false;
+            }
+        }
+        return dateFormatter.tryParse(text) != null;
     }
 }

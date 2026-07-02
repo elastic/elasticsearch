@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -48,6 +49,12 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 public class Max extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Max", Max::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Max.class).unary(Max::new).name("max");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .acrossSeries(Max::new)
+        .description("Returns the maximum value across the input vector.")
+        .example("max(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .name("max");
 
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.BOOLEAN, MaxBooleanAggregatorFunctionSupplier::new),
@@ -65,6 +72,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @FunctionInfo(
         returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "unsigned_long", "version" },
+        briefSummary = "Returns the maximum value of a field.",
         description = "The maximum value of a field.",
         type = FunctionType.AGGREGATE,
         examples = {
@@ -81,6 +89,12 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
                     + "returning the maximum of the values which were used to construct the histograms.",
                 file = "exponential_histogram",
                 tag = "maxExpHistoForDocs"
+            ),
+            @Example(
+                description = "`MAX` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "returning the maximum of the values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "maxTDigestForDocs"
             ) }
     )
     public Max(

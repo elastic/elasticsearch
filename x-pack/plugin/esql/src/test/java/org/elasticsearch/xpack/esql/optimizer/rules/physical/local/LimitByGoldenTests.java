@@ -17,41 +17,34 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 
 public class LimitByGoldenTests extends GoldenTestCase {
 
+    private static final EnumSet<Stage> STAGES = EnumSet.of(
+        Stage.ANALYSIS,
+        Stage.LOGICAL_OPTIMIZATION,
+        Stage.PHYSICAL_OPTIMIZATION,
+        Stage.LOCAL_PHYSICAL_OPTIMIZATION,
+        Stage.NODE_REDUCE
+    );
+
     public void testLimitByWithoutSort() {
-        runGoldenTest(
-            """
-                FROM employees
-                | LIMIT 5 BY emp_no + 4, languages
-                """,
-            EnumSet.of(
-                Stage.ANALYSIS,
-                Stage.LOGICAL_OPTIMIZATION,
-                Stage.PHYSICAL_OPTIMIZATION,
-                Stage.LOCAL_PHYSICAL_OPTIMIZATION,
-                Stage.NODE_REDUCE,
-                Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION
-            ),
-            STATS
-        );
+        runGoldenTest("""
+            FROM employees
+            | LIMIT 5 BY emp_no + 4, languages
+            """, STAGES, STATS);
     }
 
     public void testSortLimitBy() {
-        runGoldenTest(
-            """
-                FROM employees
-                | SORT salary
-                | LIMIT 5 BY emp_no + 4, languages
-                """,
-            EnumSet.of(
-                Stage.ANALYSIS,
-                Stage.LOGICAL_OPTIMIZATION,
-                Stage.PHYSICAL_OPTIMIZATION,
-                Stage.LOCAL_PHYSICAL_OPTIMIZATION,
-                Stage.NODE_REDUCE,
-                Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION
-            ),
-            STATS
-        );
+        runGoldenTest("""
+            FROM employees
+            | SORT salary
+            | LIMIT 5 BY emp_no + 4, languages
+            """, STAGES, STATS);
+    }
+
+    public void testLimitByBucket() {
+        runGoldenTest("""
+            FROM employees
+            | LIMIT 1 BY BUCKET(hire_date, 1 year)
+            """, STAGES, STATS);
     }
 
     private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS = new EsqlTestUtils.TestSearchStatsWithMinMax(

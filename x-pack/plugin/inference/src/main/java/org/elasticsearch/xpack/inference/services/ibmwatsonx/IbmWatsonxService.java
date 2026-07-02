@@ -12,24 +12,20 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -39,7 +35,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -51,6 +46,7 @@ import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatso
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 
@@ -60,13 +56,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.PROJECT_ID;
@@ -119,77 +113,6 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
     @Override
     public String name() {
         return NAME;
-    }
-
-    @Override
-    public void parseRequestConfig(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        ActionListener<Model> parsedModelListener
-    ) {
-        try {
-            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-            Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-            ChunkingSettings chunkingSettings = null;
-            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-                chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
-                );
-            }
-
-            IbmWatsonxModel model = createModel(
-                inferenceEntityId,
-                taskType,
-                serviceSettingsMap,
-                taskSettingsMap,
-                chunkingSettings,
-                serviceSettingsMap,
-                ConfigurationParseContext.REQUEST
-            );
-
-            throwIfNotEmptyMap(config, NAME);
-            throwIfNotEmptyMap(serviceSettingsMap, NAME);
-            throwIfNotEmptyMap(taskSettingsMap, NAME);
-
-            parsedModelListener.onResponse(model);
-        } catch (Exception e) {
-            parsedModelListener.onFailure(e);
-        }
-
-    }
-
-    private static IbmWatsonxModel createModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings,
-        ConfigurationParseContext context
-    ) {
-        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
-            inferenceEntityId,
-            taskType,
-            NAME,
-            serviceSettings,
-            taskSettings,
-            chunkingSettings,
-            secretSettings,
-            context
-        );
-    }
-
-    @Override
-    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return retrieveModelCreatorFromMapOrThrow(
-            MODEL_CREATORS,
-            config.getInferenceEntityId(),
-            config.getTaskType(),
-            config.getService(),
-            ConfigurationParseContext.PERSISTENT
-        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -285,6 +208,18 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
         var action = new SenderExecutableAction(getSender(), manager, errorMessage);
 
         action.execute(inputs, timeout, listener);
+    }
+
+    @Override
+    protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        if (!(model instanceof IbmWatsonxRerankModel ibmWatsonxRerankModel)) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+        var actionCreator = new IbmWatsonxActionCreator(getSender(), getServiceComponents());
+
+        var action = ibmWatsonxRerankModel.accept(actionCreator, request.taskSettings());
+        action.execute(fromRerankRequest(request), timeout, listener);
     }
 
     @Override

@@ -99,6 +99,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private String id;
     @Nullable
     private String routing;
+    private boolean routingFromSlice;
 
     private final IndexSource indexSource;
 
@@ -353,6 +354,23 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
+     * Marks whether the effective routing value was provided via the {@code _slice} API parameter.
+     */
+    @Override
+    public IndexRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
+    }
+
+    /**
+     * Returns {@code true} when this request routing came from the {@code _slice} API parameter.
+     */
+    @Override
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
+    }
+
+    /**
      * When {@link IndexMetadata#INDEX_DIMENSIONS} is populated,
      * the coordinating node will calculate _tsid during routing and set it on the request.
      * For time series indices where the setting is not populated, the _tsid will be created in the data node during document parsing.
@@ -435,7 +453,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public Map<String, Object> sourceAsMap() {
-        return indexSource.sourceAsMap();
+        return indexSource.sourceAsMap(includeSourceOnError);
     }
 
     /**

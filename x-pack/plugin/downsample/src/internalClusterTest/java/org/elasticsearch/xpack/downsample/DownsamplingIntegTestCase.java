@@ -46,6 +46,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.encryption.EncryptionPlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
@@ -91,6 +92,7 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
             Downsample.class,
             AggregateMetricMapperPlugin.class,
             EsqlPlugin.class,
+            EncryptionPlugin.class,
             AnalyticsPlugin.class
         );
     }

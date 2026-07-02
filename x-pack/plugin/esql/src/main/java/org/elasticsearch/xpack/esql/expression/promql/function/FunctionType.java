@@ -92,7 +92,7 @@ public enum FunctionType {
      * <br>
      * Output: Instant vector (timestamp replaced with time component)
      * <p>
-     * Examples: day_of_month(), day_of_week(), hour(), minute(), month(), year(), timestamp()
+     * Examples: day_of_month(), day_of_week(), days_in_month(), hour(), minute(), month(), year(), timestamp()
      */
     TIME_EXTRACTION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
 

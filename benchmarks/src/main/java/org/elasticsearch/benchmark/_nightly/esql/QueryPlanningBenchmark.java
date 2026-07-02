@@ -14,6 +14,7 @@ import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -107,7 +109,7 @@ public class QueryPlanningBenchmark {
             mapping.put("field" + i, new EsField("field-" + i, TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         }
 
-        var esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Map.of());
+        var esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of());
 
         var functionRegistry = new EsqlFunctionRegistry();
         parser = new EsqlParser(new EsqlConfig(functionRegistry));
@@ -119,6 +121,8 @@ public class QueryPlanningBenchmark {
             new AnalyzerContext(
                 config,
                 functionRegistry,
+                PromqlFunctionRegistry.INSTANCE,
+                EsqlTestUtils.TEST_ANALYSIS_REGISTRY,
                 Map.of(new IndexPattern(Source.EMPTY, esIndex.name()), IndexResolution.valid(esIndex)),
                 Map.of(),
                 new EnrichResolution(),

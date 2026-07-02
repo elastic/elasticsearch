@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -24,6 +23,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
 
 public class AggregateSerializationTests extends AbstractLogicalPlanSerializationTests<Aggregate> {
     @Override
@@ -40,18 +41,18 @@ public class AggregateSerializationTests extends AbstractLogicalPlanSerializatio
         List<NamedExpression> result = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             Expression agg = switch (between(0, 5)) {
-                case 0 -> new Max(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
-                case 1 -> new Min(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
-                case 2 -> new Count(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
+                case 0 -> new Max(randomSource(), createFieldAttribute(1, true));
+                case 1 -> new Min(randomSource(), createFieldAttribute(1, true));
+                case 2 -> new Count(randomSource(), createFieldAttribute(1, true));
                 case 3 -> new Top(
                     randomSource(),
-                    FieldAttributeTests.createFieldAttribute(1, true),
+                    createFieldAttribute(1, true),
                     new Literal(randomSource(), between(1, 5), DataType.INTEGER),
                     Literal.keyword(randomSource(), randomFrom("ASC", "DESC")),
-                    randomBoolean() ? null : FieldAttributeTests.createFieldAttribute(1, true)
+                    randomBoolean() ? null : createFieldAttribute(1, true)
                 );
-                case 4 -> new Values(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
-                case 5 -> new Sum(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
+                case 4 -> new Values(randomSource(), createFieldAttribute(1, true));
+                case 5 -> new Sum(randomSource(), createFieldAttribute(1, true));
                 default -> throw new IllegalArgumentException();
             };
             result.add(new Alias(randomSource(), randomAlphaOfLength(5), agg));

@@ -20,7 +20,6 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.bulk.SimulateBulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.TransportMultiGetAction;
@@ -284,7 +283,6 @@ public class RBACEngine implements AuthorizationEngine {
     private static boolean shouldAuthorizeIndexActionNameOnly(String action, TransportRequest request) {
         switch (action) {
             case TransportBulkAction.NAME:
-            case SimulateBulkAction.NAME:
             case TransportIndexAction.NAME:
             case TransportDeleteAction.NAME:
             case INDEX_SUB_REQUEST_PRIMARY:
@@ -298,7 +296,10 @@ public class RBACEngine implements AuthorizationEngine {
             case "indices:data/read/msearch/template":
             case "indices:data/read/search/template":
             case "indices:data/write/reindex":
+            case "indices:data/write/reindex/resume":
             case "indices:data/write/otlp/metrics":
+            case "indices:data/write/otlp/traces":
+            case "indices:data/write/otlp/logs":
             case "indices:data/write/prometheus/remote_write":
             case "indices:data/read/sql":
             case "indices:data/read/sql/translate":

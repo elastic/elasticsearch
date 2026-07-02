@@ -9,11 +9,11 @@
 
 package org.elasticsearch.gradle.internal.snyk
 
+import groovy.json.JsonSlurper
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
 import org.gradle.util.GradleVersion
-import org.skyscreamer.jsonassert.JSONAssert
 import spock.lang.Unroll
 
 import static java.net.HttpURLConnection.HTTP_CREATED
@@ -53,130 +53,129 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
         def build = gradleRunner("generateSnykDependencyGraph").build()
         then:
         build.task(":generateSnykDependencyGraph").outcome == TaskOutcome.SUCCESS
-        JSONAssert.assertEquals("""{
-            "meta": {
-                "method": "custom gradle",
-                "id": "gradle",
-                "node": "v16.15.1",
-                "name": "gradle",
-                "plugin": "extern:gradle",
-                "pluginRuntime": "unknown",
-                "monitorGraph": true
-            },
-            "depGraphJSON": {
-                "pkgManager": {
-                    "version": "${GradleVersion.current().version}",
-                    "name": "gradle"
-                },
-                "schemaVersion": "1.2.0",
-                "graph": {
-                    "rootNodeId": "root-node",
-                    "nodes": [
-                        {
-                            "nodeId": "root-node",
-                            "deps": [
-                                {
-                                    "nodeId": "org.apache.lucene:lucene-monitor@9.2.0"
-                                }
-                            ],
-                            "pkgId": "hello-world@$version"
-                        },
-                        {
-                            "nodeId": "org.apache.lucene:lucene-monitor@9.2.0",
-                            "deps": [
-                                {
-                                    "nodeId": "org.apache.lucene:lucene-memory@9.2.0"
-                                },
-                                {
-                                    "nodeId": "org.apache.lucene:lucene-analysis-common@9.2.0"
-                                },
-                                {
-                                    "nodeId": "org.apache.lucene:lucene-core@9.2.0"
-                                }
-                            ],
-                            "pkgId": "org.apache.lucene:lucene-monitor@9.2.0"
-                        },
-                        {
-                            "nodeId": "org.apache.lucene:lucene-memory@9.2.0",
-                            "deps": [
-                                {
-                                    "nodeId": "org.apache.lucene:lucene-core@9.2.0"
-                                }
-                            ],
-                            "pkgId": "org.apache.lucene:lucene-memory@9.2.0"
-                        },
-                        {
-                            "nodeId": "org.apache.lucene:lucene-core@9.2.0",
-                            "deps": [
 
-                            ],
-                            "pkgId": "org.apache.lucene:lucene-core@9.2.0"
-                        },
-                        {
-                            "nodeId": "org.apache.lucene:lucene-analysis-common@9.2.0",
-                            "deps": [
-                                {
-                                    "nodeId": "org.apache.lucene:lucene-core@9.2.0"
-                                }
-                            ],
-                            "pkgId": "org.apache.lucene:lucene-analysis-common@9.2.0"
-                        }
-                    ]
-                },
-                "pkgs": [
-                    {
-                        "id": "hello-world@$version",
-                        "info": {
-                            "name": "hello-world",
-                            "version": "$version"
-                        }
-                    },
-                    {
-                        "id": "org.apache.lucene:lucene-monitor@9.2.0",
-                        "info": {
-                            "name": "org.apache.lucene:lucene-monitor",
-                            "version": "9.2.0"
-                        }
-                    },
-                    {
-                        "id": "org.apache.lucene:lucene-memory@9.2.0",
-                        "info": {
-                            "name": "org.apache.lucene:lucene-memory",
-                            "version": "9.2.0"
-                        }
-                    },
-                    {
-                        "id": "org.apache.lucene:lucene-core@9.2.0",
-                        "info": {
-                            "name": "org.apache.lucene:lucene-core",
-                            "version": "9.2.0"
-                        }
-                    },
-                    {
-                        "id": "org.apache.lucene:lucene-analysis-common@9.2.0",
-                        "info": {
-                            "name": "org.apache.lucene:lucene-analysis-common",
-                            "version": "9.2.0"
-                        }
-                    }
-                ]
-            },
-            "target": {
-                "remoteUrl": "http://acme.org",
-                "branch": "$version"
-            },
-            "targetReference": "$version",
-            "projectAttributes": {
-                "lifecycle": [
-                  "$expectedLifecycle"
-                ]
-            }
-        }""", file("build/snyk/dependencies.json").text, true)
+        and: "the dependency graph payload describes the resolved Lucene closure"
+        // We assert the document structurally rather than via a JSON string comparison: Gradle's
+        // ResolvedDependency iteration order is an implementation detail (it changed in 9.6), and
+        // every collection in the Snyk payload is conceptually a set. Position-sensitive matching
+        // would couple this test to that ordering and break on every Gradle bump.
+        def payload = new JsonSlurper().parse(file("build/snyk/dependencies.json"))
+
+        payload.meta == [
+            method: "custom gradle",
+            id: "gradle",
+            node: "v16.15.1",
+            name: "gradle",
+            plugin: "extern:gradle",
+            pluginRuntime: "unknown",
+            monitorGraph: true
+        ]
+        payload.target == [remoteUrl: "http://acme.org", branch: version]
+        payload.targetReference == version
+        payload.projectAttributes == [lifecycle: [expectedLifecycle]]
+
+        def depGraph = payload.depGraphJSON
+        depGraph.schemaVersion == "1.2.0"
+        depGraph.pkgManager == [version: GradleVersion.current().version, name: "gradle"]
+        depGraph.graph.rootNodeId == "root-node"
+
+        and: "every expected node is present with the right (set of) dependencies"
+        def rootPkgId = "hello-world@$version".toString()
+        def expectedDepsByNodeId = [
+            "root-node"                                      : ["org.apache.lucene:lucene-monitor@9.2.0"] as Set,
+            "org.apache.lucene:lucene-monitor@9.2.0"         : [
+                "org.apache.lucene:lucene-memory@9.2.0",
+                "org.apache.lucene:lucene-analysis-common@9.2.0",
+                "org.apache.lucene:lucene-core@9.2.0"
+            ] as Set,
+            "org.apache.lucene:lucene-memory@9.2.0"          : ["org.apache.lucene:lucene-core@9.2.0"] as Set,
+            "org.apache.lucene:lucene-analysis-common@9.2.0" : ["org.apache.lucene:lucene-core@9.2.0"] as Set,
+            "org.apache.lucene:lucene-core@9.2.0"            : [] as Set,
+        ]
+        def expectedPkgIdByNodeId = expectedDepsByNodeId.keySet().collectEntries { id ->
+            [(id): id == "root-node" ? rootPkgId : id]
+        }
+
+        def actualNodesByNodeId = depGraph.graph.nodes.collectEntries { [(it.nodeId): it] }
+        actualNodesByNodeId.keySet() == expectedDepsByNodeId.keySet()
+        expectedDepsByNodeId.every { nodeId, expectedDeps ->
+            def node = actualNodesByNodeId[nodeId]
+            assert node.pkgId == expectedPkgIdByNodeId[nodeId] : "unexpected pkgId for node ${nodeId}"
+            def actualDeps = node.deps.collect { it.nodeId } as Set
+            assert actualDeps == expectedDeps : "node ${nodeId} deps mismatch: expected ${expectedDeps}, got ${actualDeps}"
+            true
+        }
+
+        and: "the pkgs section enumerates the same set of packages with matching name/version"
+        def actualPkgsById = depGraph.pkgs.collectEntries { [(it.id): it.info] }
+        def expectedPkgsById = [
+            (rootPkgId)                                      : [name: "hello-world", version: version],
+            "org.apache.lucene:lucene-monitor@9.2.0"         : [name: "org.apache.lucene:lucene-monitor", version: "9.2.0"],
+            "org.apache.lucene:lucene-memory@9.2.0"          : [name: "org.apache.lucene:lucene-memory", version: "9.2.0"],
+            "org.apache.lucene:lucene-core@9.2.0"            : [name: "org.apache.lucene:lucene-core", version: "9.2.0"],
+            "org.apache.lucene:lucene-analysis-common@9.2.0" : [name: "org.apache.lucene:lucene-analysis-common", version: "9.2.0"],
+        ]
+        actualPkgsById == expectedPkgsById
 
         where:
         version        | expectedLifecycle
         '1.0-SNAPSHOT' | 'development'
         '1.0'          | 'production'
+    }
+
+    def "snyk dependency graph deduplicates diamond dependencies and stays reachable"() {
+        given:
+        buildFile << """
+            apply plugin:'java'
+            version = "1.0"
+
+            repositories { mavenCentral() }
+
+            dependencies {
+                implementation 'org.apache.lucene:lucene-monitor:9.2.0'
+                implementation 'org.apache.lucene:lucene-grouping:9.2.0'
+                implementation 'org.apache.lucene:lucene-core:9.2.0'
+            }
+
+            tasks.named('generateSnykDependencyGraph').configure {
+                remoteUrl = "http://acme.org"
+            }
+        """
+
+        when:
+        def result = gradleRunner("generateSnykDependencyGraph").build()
+        def json = new JsonSlurper().parse(file("build/snyk/dependencies.json"))
+        def graph = json.depGraphJSON.graph
+        def nodes = graph.nodes
+        def nodesById = nodes.collectEntries { [it.nodeId, it] }
+
+        then:
+        result.task(":generateSnykDependencyGraph").outcome == TaskOutcome.SUCCESS
+
+        and: "lucene-core is deduplicated"
+        nodes.count { it.nodeId == "org.apache.lucene:lucene-core@9.2.0" } == 1
+
+        and: "lucene-core is referenced from multiple parents"
+        def coreParents = nodes.findAll { n ->
+            n.deps?.any { it.nodeId == "org.apache.lucene:lucene-core@9.2.0" }
+        }*.nodeId
+        coreParents.size() >= 2
+
+        and: "every node is reachable from root-node (mirrors Snyk server-side validation)"
+        def visited = [] as Set
+        def stack = [graph.rootNodeId]
+        while (stack) {
+            def cur = stack.pop()
+            if (visited.add(cur)) {
+                def n = nodesById[cur]
+                assert n != null : "deps reference unknown node ${cur}"
+                n.deps?.each { stack.push(it.nodeId) }
+            }
+        }
+        visited == nodes*.nodeId.toSet()
+
+        and: "every nodeId has a matching pkg entry"
+        json.depGraphJSON.pkgs*.id.toSet() == nodes*.pkgId.toSet()
     }
 
     @Unroll

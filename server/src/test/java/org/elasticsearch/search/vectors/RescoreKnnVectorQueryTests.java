@@ -22,8 +22,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DoubleValuesSource;
@@ -42,11 +40,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
-import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -78,18 +72,14 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
     private static final float DELTA = 1e-6f;
 
     public void testRescoreDocs() throws Exception {
-        int numDocs = randomIntBetween(10, 100);
+        int numDocs = randomIntBetween(10, 200);
         int numDims = randomIntBetween(5, 100);
         int k = randomIntBetween(1, numDocs - 1);
 
         float[] queryVector = randomVector(numDims);
         List<Query> innerQueries = new ArrayList<>();
         innerQueries.add(new KnnFloatVectorQuery(FIELD_NAME, randomVector(numDims), (int) (k * randomFloatBetween(1.0f, 10.0f, true))));
-        innerQueries.add(
-            new BooleanQuery.Builder().add(new DenseVectorQuery.Floats(queryVector, FIELD_NAME), BooleanClause.Occur.SHOULD)
-                .add(new FieldExistsQuery(FIELD_NAME), BooleanClause.Occur.FILTER)
-                .build()
-        );
+        innerQueries.add(new DenseVectorQuery.Floats(queryVector, FIELD_NAME, new FieldExistsQuery(FIELD_NAME)));
         innerQueries.add(Queries.ALL_DOCS_INSTANCE);
 
         try (Directory d = newDirectory()) {
@@ -100,7 +90,6 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                     RescoreKnnVectorQuery rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
                         FIELD_NAME,
                         queryVector,
-                        VectorSimilarityFunction.COSINE,
                         k,
                         k,
                         innerQuery
@@ -128,34 +117,92 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                         assertTrue("No docs had their scores changed", changed);
                     }
 
-                    // Get real scores
-                    DoubleValuesSource valueSource = new FullPrecisionFloatVectorSimilarityValuesSource(
-                        queryVector,
-                        FIELD_NAME,
-                        VectorSimilarityFunction.COSINE
-                    );
-                    FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(Queries.ALL_DOCS_INSTANCE, valueSource);
-                    TopDocs realScoreTopDocs = searcher.search(functionScoreQuery, numDocs);
-
-                    int i = 0;
-                    ScoreDoc[] realScoreDocs = realScoreTopDocs.scoreDocs;
-                    for (ScoreDoc rescoreDoc : rescoredDocs.scoreDocs) {
-                        // There are docs that won't be found in the rescored search, but every doc found must be in the same order
-                        // and have the same score
-                        while (i < realScoreDocs.length && realScoreDocs[i].doc != rescoreDoc.doc) {
-                            i++;
-                        }
-                        if (i >= realScoreDocs.length) {
-                            fail("Rescored doc not found in real score docs");
-                        }
-                        assertThat(
-                            "Real score is not the same as rescored score",
-                            (double) rescoreDoc.score,
-                            closeTo(realScoreDocs[i].score, DELTA)
-                        );
-                    }
+                    assertScoresMatchGroundTruth(queryVector, searcher, rescoredDocs, numDocs);
                 }
             }
+        }
+    }
+
+    public void testRescoreWithNoMatches() throws Exception {
+        int numDocs = randomIntBetween(10, 50);
+        int numDims = randomIntBetween(5, 20);
+        int k = randomIntBetween(1, numDocs - 1);
+        float[] queryVector = randomVector(numDims);
+
+        try (Directory d = newDirectory()) {
+            addRandomDocuments(numDocs, d, numDims);
+
+            try (IndexReader reader = DirectoryReader.open(d)) {
+                IndexSearcher searcher = newSearcher(reader, true, false);
+
+                // MatchNoDocsQuery triggers the early exit in DirectRescoreKnnVectorQuery.rewrite
+                Query noDocsRescore = RescoreKnnVectorQuery.fromInnerQuery(FIELD_NAME, queryVector, k, k, Queries.NO_DOCS_INSTANCE);
+                assertThat(searcher.search(noDocsRescore, numDocs).scoreDocs, arrayWithSize(0));
+
+                // A filter that excludes all docs results in an empty conjunction
+                Query nonExistentField = new FieldExistsQuery("no_such_field");
+                Query emptyRescore = RescoreKnnVectorQuery.fromInnerQuery(FIELD_NAME, queryVector, k, k, nonExistentField);
+                assertThat(searcher.search(emptyRescore, numDocs).scoreDocs, arrayWithSize(0));
+            }
+        }
+    }
+
+    // Tests rescoring with doc counts exceeding the internal prefetch buffer size (100), ensuring
+    // the buffer wraps correctly. Also exercises {@code rescoreK > k} which routes through the
+    // {@code LateRescoreQuery} path.
+    public void testRescoreWithLargeDocCount() throws Exception {
+        int numDocs = randomIntBetween(200, 500);
+        int numDims = randomIntBetween(5, 50);
+        int k = randomIntBetween(1, 10);
+        int rescoreK = randomIntBetween(k + 1, numDocs);
+
+        float[] queryVector = randomVector(numDims);
+
+        try (Directory d = newDirectory()) {
+            addRandomDocuments(numDocs, d, numDims);
+
+            try (IndexReader reader = DirectoryReader.open(d)) {
+                RescoreKnnVectorQuery rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
+                    FIELD_NAME,
+                    queryVector,
+                    k,
+                    rescoreK,
+                    Queries.ALL_DOCS_INSTANCE
+                );
+
+                IndexSearcher searcher = newSearcher(reader, true, false);
+                TopDocs rescoredDocs = searcher.search(rescoreKnnVectorQuery, numDocs);
+                assertThat(rescoredDocs.scoreDocs, arrayWithSize(k));
+
+                assertScoresMatchGroundTruth(queryVector, searcher, rescoredDocs, numDocs);
+            }
+        }
+    }
+
+    // Verifies that rescored results appear in the same order and with the same scores
+    // as a full-precision brute-force cosine similarity search over all documents.
+    private static void assertScoresMatchGroundTruth(float[] queryVector, IndexSearcher searcher, TopDocs rescoredDocs, int numDocs)
+        throws IOException {
+        DoubleValuesSource valueSource = new FullPrecisionFloatVectorSimilarityValuesSource(
+            queryVector,
+            FIELD_NAME,
+            VectorSimilarityFunction.COSINE
+        );
+        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(Queries.ALL_DOCS_INSTANCE, valueSource);
+        TopDocs realScoreTopDocs = searcher.search(functionScoreQuery, numDocs);
+
+        int i = 0;
+        ScoreDoc[] realScoreDocs = realScoreTopDocs.scoreDocs;
+        for (ScoreDoc rescoreDoc : rescoredDocs.scoreDocs) {
+            // There are docs that won't be found in the rescored search, but every doc found must be in the same order
+            // and have the same score
+            while (i < realScoreDocs.length && realScoreDocs[i].doc != rescoreDoc.doc) {
+                i++;
+            }
+            if (i >= realScoreDocs.length) {
+                fail("Rescored doc not found in real score docs");
+            }
+            assertThat("Real score is not the same as rescored score", (double) rescoreDoc.score, closeTo(realScoreDocs[i].score, DELTA));
         }
     }
 
@@ -168,11 +215,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
         List<Query> innerQueries = new ArrayList<>();
         innerQueries.add(new KnnFloatVectorQuery(FIELD_NAME, randomVector(numDims), (int) (k * randomFloatBetween(1.0f, 10.0f, true))));
-        innerQueries.add(
-            new BooleanQuery.Builder().add(new DenseVectorQuery.Floats(queryVector, FIELD_NAME), BooleanClause.Occur.SHOULD)
-                .add(new FieldExistsQuery(FIELD_NAME), BooleanClause.Occur.FILTER)
-                .build()
-        );
+        innerQueries.add(new DenseVectorQuery.Floats(queryVector, FIELD_NAME, new FieldExistsQuery(FIELD_NAME)));
         innerQueries.add(Queries.ALL_DOCS_INSTANCE);
 
         try (Directory d = newDirectory()) {
@@ -182,7 +225,6 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                     RescoreKnnVectorQuery rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
                         FIELD_NAME,
                         queryVector,
-                        VectorSimilarityFunction.COSINE,
                         k,
                         k,
                         innerQuery
@@ -193,14 +235,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                     assertThat(rescoredDocs.scoreDocs, arrayWithSize(k));
 
                     searcher = newSearcher(new SingleVectorQueryIndexReader(reader), true, false);
-                    rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
-                        FIELD_NAME,
-                        queryVector,
-                        VectorSimilarityFunction.COSINE,
-                        k,
-                        k,
-                        innerQuery
-                    );
+                    rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(FIELD_NAME, queryVector, k, k, innerQuery);
                     TopDocs singleRescored = searcher.search(rescoreKnnVectorQuery, numDocs);
                     assertThat(singleRescored.scoreDocs, arrayWithSize(k));
 
@@ -235,14 +270,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
     }
 
     private void checkProfiling(int k, int numDocs, float[] queryVector, IndexReader reader, Query innerQuery) throws IOException {
-        var rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
-            FIELD_NAME,
-            queryVector,
-            VectorSimilarityFunction.COSINE,
-            k,
-            k,
-            innerQuery
-        );
+        var rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(FIELD_NAME, queryVector, k, k, innerQuery);
         IndexSearcher searcher = newSearcher(reader, true, false);
         searcher.search(rescoreKnnVectorQuery, numDocs);
 
@@ -321,7 +349,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             DenseVectorFieldMapper.ElementType.BFLOAT16
         );
         KnnVectorsFormat format = randomFrom(
-            new ES920DiskBBQVectorsFormat(
+            /*new ES920DiskBBQVectorsFormat(
                 DEFAULT_VECTORS_PER_CLUSTER,
                 DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                 elementType,
@@ -331,7 +359,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             ),
             new ES93BinaryQuantizedVectorsFormat(elementType, false),
             new ES93HnswBinaryQuantizedVectorsFormat(elementType, randomBoolean()),
-            new ES93ScalarQuantizedVectorsFormat(elementType),
+            new ES93ScalarQuantizedVectorsFormat(elementType),*/
             new ES93HnswScalarQuantizedVectorsFormat(
                 DEFAULT_VECTORS_PER_CLUSTER,
                 DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,

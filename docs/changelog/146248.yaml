@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 146248
+summary: Ensure that indices with auto-expand replicas have refresh blocks
+type: bug

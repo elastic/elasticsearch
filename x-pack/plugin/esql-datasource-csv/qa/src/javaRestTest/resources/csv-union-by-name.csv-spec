@@ -1,0 +1,107 @@
+// =========================================================================================
+// UNION_BY_NAME end-to-end coverage for CSV multi-file globs with divergent per-file schemas.
+//
+// Two fixture files under iceberg-fixtures/multifile_ubn/:
+//   multifile_ubn_a.csv — typed header [name:keyword, age:integer]; rows: alice,30 / bob,40
+//   multifile_ubn_b.csv — typed header [age:long, name:keyword, city:keyword];
+//                         rows: 50,charlie,paris / 60,dave,london
+//
+// Unified schema under UNION_BY_NAME is the column-name union with widening:
+//   name:keyword  (in both files)
+//   age:long      (widened from INTEGER in file A to LONG in file B)
+//   city:keyword  (only in file B; null-filled for file A's rows)
+//
+// File-local readSchema for each file is its own narrowed physical layout (NOT the unified
+// schema). The reader emits a page in that local shape. SchemaAdaptingIterator then applies
+// the per-file ColumnMapping recipe to produce a page in the unified shape:
+//   File A page [name, age:int]      → adapter reorders to [name, age:long-cast, city:null-fill]
+//   File B page [age:long, name, city] → adapter reorders to [name, age, city]
+//
+// This is the end-to-end repro for Costin's Run #44 ask: UBN × CSV covering missing columns,
+// reordered columns, and widening, exercising the full resolver → planner → reader → adapter
+// pipeline against actual fixture files (not synthetic in-memory inputs).
+//
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. On dataset-capable
+// backends (S3) the harness registers the dataset and runs the FROM query verbatim; on the others it rebuilds
+// the equivalent EXTERNAL query. Dataset names encode the WITH options (union) so the same name always carries
+// the same settings.
+// =========================================================================================
+
+multiFileUnionByNameRecipe
+required_capability: external_command
+required_capability: external_csv_header_row_option
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| SORT name ASC
+| LIMIT 10
+;
+
+name:keyword | age:long | city:keyword
+alice        | 30       | null
+bob          | 40       | null
+charlie      | 50       | paris
+dave         | 60       | london
+;
+
+multiFileUnionByNameRecipeWithPruning
+required_capability: external_command
+required_capability: external_csv_header_row_option
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| KEEP name, city
+| SORT name ASC
+| LIMIT 10
+;
+
+name:keyword | city:keyword
+alice        | null
+bob          | null
+charlie      | paris
+dave         | london
+;
+
+// =========================================================================================
+// UNION_BY_NAME × cross-file type drift — KEYWORD fallback end-to-end (issue esql-planning#794).
+//
+// Two fixture files under iceberg-fixtures/multifile_type_drift/:
+//   multifile_type_drift_a.csv — untyped header [id, col, note]; sampler infers col:INTEGER
+//                                rows: (1, 123, alpha), (2, 456, gamma), (3, 789, delta)
+//   multifile_type_drift_b.csv — untyped header [id, col, note]; sampler infers col:KEYWORD
+//                                rows: (4, abc, beta), (5, def, epsilon), (6, ghi, zeta)
+//
+// Pre-fix this threw IllegalArgumentException at planning time ("No compatible supertype for
+// col: integer vs keyword"). With the new KEYWORD fallback the reconciler widens col to KEYWORD,
+// stringifies the INTEGER side of file A, and emits a warning header naming the conflicting
+// types and files. STRICT-mode failure is asserted by the unit tests; the spec runner has no
+// error-assertion syntax.
+// =========================================================================================
+
+multiFileUnionByNameTypeDrift
+required_capability: external_command
+required_capability: external_csv_header_row_option
+required_capability: external_source_read_schema
+required_capability: external_union_by_name_keyword_fallback
+required_capability: datasource_file_readers_no_text_type
+dataset: employees_type_drift_union: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
+
+FROM employees_type_drift_union
+| SORT id ASC
+| LIMIT 10
+;
+warningRegex:Schema reconciliation widened columns to keyword
+warningRegex:Column \[col\].*widened to keyword
+
+id:integer | col:keyword | note:keyword
+1          | 123         | alpha
+2          | 456         | gamma
+3          | 789         | delta
+4          | abc         | beta
+5          | def         | epsilon
+6          | ghi         | zeta
+;

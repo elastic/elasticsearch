@@ -97,6 +97,11 @@ public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$
         return null;
     }
 
+    @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
 $if(BytesRef)$
     @Override
     public OrdinalBytesRefBlock asOrdinals() {
@@ -144,12 +149,13 @@ $if(BytesRef)$
 
 $endif$
     @Override
-    public $Type$Block filter(boolean mayContainDuplicates, int... positions) {
+    public $Type$Block filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
 $if(BytesRef)$
         final BytesRef scratch = new BytesRef();
 $endif$
-        try (var builder = blockFactory().new$Type$BlockBuilder(positions.length)) {
-            for (int pos : positions) {
+        try (var builder = blockFactory().new$Type$BlockBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 if (isNull(pos)) {
                     builder.appendNull();
                     continue;

@@ -964,7 +964,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
         SearchHit[] searchHits = new SearchHit[scoreDocs.length];
         float maxScore = Float.MIN_VALUE;
         for (int i = 0; i < searchHits.length; i++) {
-            searchHits[i] = SearchHit.unpooled(scoreDocs[i].doc);
+            searchHits[i] = new SearchHit(scoreDocs[i].doc);
             searchHits[i].shard(shardTarget);
             searchHits[i].score(scoreDocs[i].score);
             searchHits[i].setDocumentField(new DocumentField(DEFAULT_FIELD, Collections.singletonList(scoreDocs[i].doc)));
@@ -974,7 +974,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
         }
         SearchHits hits = null;
         try {
-            hits = SearchHits.unpooled(searchHits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
+            hits = new SearchHits(searchHits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
             // construct the appropriate RankFeatureDoc objects based on the rank builder
             RankFeaturePhaseRankShardContext rankFeaturePhaseRankShardContext = shardRankBuilder.buildRankFeaturePhaseShardContext();
             RankFeatureShardResult rankShardResult = (RankFeatureShardResult) rankFeaturePhaseRankShardContext.buildRankFeatureShardResult(

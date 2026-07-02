@@ -262,8 +262,19 @@ public interface Role {
             boolean allowRestrictedIndices,
             String... indices
         ) {
+            return add(fieldPermissions, query, privilegesSplitBySelector, allowRestrictedIndices, false, indices);
+        }
+
+        public Builder add(
+            FieldPermissions fieldPermissions,
+            Set<BytesReference> query,
+            Set<IndexPrivilege> privilegesSplitBySelector,
+            boolean allowRestrictedIndices,
+            boolean implicitlyGranted,
+            String... indices
+        ) {
             for (var indexPrivilege : privilegesSplitBySelector) {
-                add(fieldPermissions, query, indexPrivilege, allowRestrictedIndices, indices);
+                add(fieldPermissions, query, indexPrivilege, allowRestrictedIndices, implicitlyGranted, indices);
             }
             return this;
         }
@@ -275,7 +286,20 @@ public interface Role {
             boolean allowRestrictedIndices,
             String... indices
         ) {
-            groups.add(new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, indices));
+            return add(fieldPermissions, query, privilege, allowRestrictedIndices, false, indices);
+        }
+
+        public Builder add(
+            FieldPermissions fieldPermissions,
+            Set<BytesReference> query,
+            IndexPrivilege privilege,
+            boolean allowRestrictedIndices,
+            boolean implicitlyGranted,
+            String... indices
+        ) {
+            groups.add(
+                new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, implicitlyGranted, indices)
+            );
             return this;
         }
 
@@ -302,7 +326,7 @@ public interface Role {
             final String... indices
         ) {
             remoteIndicesGroups.computeIfAbsent(remoteClusterAliases, k -> new ArrayList<>())
-                .add(new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, indices));
+                .add(new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, false, indices));
             return this;
         }
 
@@ -342,6 +366,7 @@ public interface Role {
                         group.fieldPermissions,
                         group.query,
                         group.allowRestrictedIndices,
+                        group.implicitlyGranted,
                         group.indices
                     );
                 }
@@ -391,18 +416,21 @@ public interface Role {
             private final @Nullable Set<BytesReference> query;
             private final boolean allowRestrictedIndices;
             private final String[] indices;
+            private final boolean implicitlyGranted;
 
             private IndicesPermissionGroupDefinition(
                 IndexPrivilege privilege,
                 FieldPermissions fieldPermissions,
                 @Nullable Set<BytesReference> query,
                 boolean allowRestrictedIndices,
+                boolean implicitlyGranted,
                 String... indices
             ) {
                 this.privilege = privilege;
                 this.fieldPermissions = fieldPermissions;
                 this.query = query;
                 this.allowRestrictedIndices = allowRestrictedIndices;
+                this.implicitlyGranted = implicitlyGranted;
                 this.indices = indices;
             }
         }

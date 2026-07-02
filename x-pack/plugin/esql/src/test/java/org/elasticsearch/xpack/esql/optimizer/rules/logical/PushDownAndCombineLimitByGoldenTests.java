@@ -35,7 +35,7 @@ public class PushDownAndCombineLimitByGoldenTests extends GoldenTestCase {
     public void testLimitByNotPushedPastEval() {
         runGoldenTest(
             """
-                FROM *
+                FROM airport_city_boundaries, addresses, all_types, books
                 | ENRICH languages on street
                 | KEEP abbrev, integer, year
                 | LIMIT 1 BY abbrev
@@ -134,6 +134,18 @@ public class PushDownAndCombineLimitByGoldenTests extends GoldenTestCase {
             | EVAL language_name = 2*salary
             | LOOKUP JOIN languages_lookup ON language_code
             | LIMIT 5 BY language_name
+            """, STAGES, STATS);
+    }
+
+    /**
+     * LIMIT BY groups by the MV_EXPAND target, so it must stay above the expand and must not be
+     * duplicated below it. See https://github.com/elastic/elasticsearch/issues/148513
+     */
+    public void testLimitByNotDuplicatedPastMvExpandWhenGroupingByExpandTarget() {
+        runGoldenTest("""
+            ROW x = 1
+            | MV_EXPAND x
+            | LIMIT 1 BY x
             """, STAGES, STATS);
     }
 

@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.stream.IntStream;
 
 public class MMRResultDiversification extends ResultDiversification<MMRResultDiversificationContext> {
@@ -47,9 +48,15 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
 
         // cache the similarity scores for the query vector vs. searchHits
         float[] querySimilarities = getQuerySimilarityForDocs(docs);
-        // always add the highest relevant doc to the list
-        int prevSelectedDocRank = 1 + IntStream.range(0, querySimilarities.length)
-            .reduce(0, (a, b) -> querySimilarities[a] >= querySimilarities[b] ? a : b);
+        OptionalInt bestDocIdx = IntStream.range(0, querySimilarities.length)
+            .filter(i -> context.getFieldVector(i + 1) != null)
+            .reduce((a, b) -> querySimilarities[a] >= querySimilarities[b] ? a : b);
+
+        if (bestDocIdx.isEmpty()) {
+            return new RankDoc[0];
+        }
+
+        int prevSelectedDocRank = 1 + bestDocIdx.getAsInt();
 
         selectedDocRanks.add(prevSelectedDocRank);
         int topDocsSize = context.getSize();

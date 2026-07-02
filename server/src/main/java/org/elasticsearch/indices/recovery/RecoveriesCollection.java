@@ -51,7 +51,7 @@ public class RecoveriesCollection {
         DiscoveryNode sourceNode,
         long clusterStateVersion,
         SnapshotFilesProvider snapshotFilesProvider,
-        PeerRecoveryTargetService.RecoveryListener listener,
+        RecoveryListener listener,
         @Nullable Releasable snapshotFileDownloadsPermit
     ) {
         RecoveryTarget recoveryTarget = new RecoveryTarget(
@@ -84,47 +84,50 @@ public class RecoveriesCollection {
      * @return newly created RecoveryTarget
      */
     public RecoveryTarget resetRecovery(final long recoveryId) {
-        RecoveryTarget oldRecoveryTarget = null;
+        final RecoveryTarget oldRecoveryTarget;
         final RecoveryTarget newRecoveryTarget;
 
-        try {
-            synchronized (onGoingRecoveries) {
-                // swap recovery targets in a synchronized block to ensure that the newly added recovery target is picked up by
-                // cancelRecoveriesForShard whenever the old recovery target is picked up
-                oldRecoveryTarget = onGoingRecoveries.remove(recoveryId);
-                if (oldRecoveryTarget == null) {
-                    return null;
-                }
-
-                newRecoveryTarget = oldRecoveryTarget.retryCopy();
-                startRecoveryInternal(newRecoveryTarget);
-            }
-
-            // Closes the current recovery target
-            boolean successfulReset = oldRecoveryTarget.resetRecovery(newRecoveryTarget.cancellableThreads());
-            if (successfulReset) {
-                logger.trace(
-                    "{} restarted recovery from {}, id [{}], previous id [{}]",
-                    newRecoveryTarget.shardId(),
-                    newRecoveryTarget.sourceNode(),
-                    newRecoveryTarget.recoveryId(),
-                    oldRecoveryTarget.recoveryId()
-                );
-                return newRecoveryTarget;
-            } else {
-                logger.trace(
-                    "{} recovery could not be reset as it is already cancelled, recovery from {}, id [{}], previous id [{}]",
-                    newRecoveryTarget.shardId(),
-                    newRecoveryTarget.sourceNode(),
-                    newRecoveryTarget.recoveryId(),
-                    oldRecoveryTarget.recoveryId()
-                );
-                cancelRecovery(newRecoveryTarget.recoveryId(), "recovery cancelled during reset");
+        synchronized (onGoingRecoveries) {
+            // swap recovery targets in a synchronized block to ensure that the newly added recovery target is picked up by
+            // cancelRecoveriesForShard whenever the old recovery target is picked up
+            oldRecoveryTarget = onGoingRecoveries.remove(recoveryId);
+            if (oldRecoveryTarget == null) {
                 return null;
             }
+            newRecoveryTarget = oldRecoveryTarget.retryCopy();
+            startRecoveryInternal(newRecoveryTarget);
+        }
+
+        final boolean successfulReset;
+        try {
+            // Closes the current recovery target
+            successfulReset = oldRecoveryTarget.resetRecovery(newRecoveryTarget.cancellableThreads());
         } catch (Exception e) {
-            // fail shard to be safe
-            oldRecoveryTarget.notifyListener(new RecoveryFailedException(oldRecoveryTarget.state(), "failed to retry recovery", e), true);
+            failRecovery(
+                newRecoveryTarget.recoveryId(),
+                new RecoveryFailedException(oldRecoveryTarget.state(), "failed to retry recovery", e),
+                true
+            );
+            return null;
+        }
+        if (successfulReset) {
+            logger.trace(
+                "{} restarted recovery from {}, id [{}], previous id [{}]",
+                newRecoveryTarget.shardId(),
+                newRecoveryTarget.sourceNode(),
+                newRecoveryTarget.recoveryId(),
+                oldRecoveryTarget.recoveryId()
+            );
+            return newRecoveryTarget;
+        } else {
+            logger.trace(
+                "{} recovery could not be reset as it is already cancelled, recovery from {}, id [{}], previous id [{}]",
+                newRecoveryTarget.shardId(),
+                newRecoveryTarget.sourceNode(),
+                newRecoveryTarget.recoveryId(),
+                oldRecoveryTarget.recoveryId()
+            );
+            cancelRecovery(newRecoveryTarget.recoveryId(), "recovery cancelled during reset");
             return null;
         }
     }
@@ -134,7 +137,7 @@ public class RecoveriesCollection {
     }
 
     /**
-     * gets the {@link RecoveryTarget } for a given id. The RecoveryStatus returned has it's ref count already incremented
+     * Gets the {@link RecoveryTarget } for a given id. The RecoveryStatus returned has it's ref count already incremented
      * to make sure it's safe to use. However, you must call {@link RecoveryTarget#decRef()} when you are done with it, typically
      * by using this method in a try-with-resources clause.
      * <p>
@@ -158,7 +161,7 @@ public class RecoveriesCollection {
         return recoveryRef;
     }
 
-    /** cancel the recovery with the given id (if found) and remove it from the recovery collection */
+    /** Cancels the recovery with the given id (if found) and remove it from the recovery collection */
     public boolean cancelRecovery(long id, String reason) {
         RecoveryTarget removed = onGoingRecoveries.remove(id);
         boolean cancelled = false;
@@ -177,7 +180,7 @@ public class RecoveriesCollection {
     }
 
     /**
-     * fail the recovery with the given id (if found) and remove it from the recovery collection
+     * Fails the recovery with the given id (if found) and remove it from the recovery collection
      *
      * @param id               id of the recovery to fail
      * @param e                exception with reason for the failure
@@ -197,7 +200,7 @@ public class RecoveriesCollection {
         }
     }
 
-    /** mark the recovery with the given id as done (if found) */
+    /** Marks the recovery with the given id as done (if found) */
     public void markRecoveryAsDone(long id) {
         RecoveryTarget removed = onGoingRecoveries.remove(id);
         if (removed != null) {
@@ -212,7 +215,7 @@ public class RecoveriesCollection {
     }
 
     /**
-     * cancel all ongoing recoveries for the given shard
+     * Cancels all ongoing recoveries for the given shard
      *
      * @param reason       reason for cancellation
      * @param shardId      shardId for which to cancel recoveries
@@ -245,7 +248,7 @@ public class RecoveriesCollection {
     }
 
     /**
-     * a reference to {@link RecoveryTarget}, which implements {@link Releasable}. closing the reference
+     * A reference to {@link RecoveryTarget}, which implements {@link Releasable}. closing the reference
      * causes {@link RecoveryTarget#decRef()} to be called. This makes sure that the underlying resources
      * will not be freed until {@link RecoveryRef#close()} is called.
      */

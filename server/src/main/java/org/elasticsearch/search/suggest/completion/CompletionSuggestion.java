@@ -246,7 +246,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 super(in);
                 this.doc = Lucene.readScoreDoc(in);
                 if (in.readBoolean()) {
-                    this.hit = SearchHit.readFrom(in, false);
+                    this.hit = SearchHit.readFrom(in);
                 }
                 int contextSize = in.readInt();
                 this.contexts = Maps.newLinkedHashMapWithExpectedSize(contextSize);
@@ -284,8 +284,14 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 this.doc.shardIndex = shardIndex;
             }
 
+            /**
+             * Assigns the fetched {@link SearchHit} for this option (merge/fetch path). Must be called at most once.
+             * Score-only options (no embedded hit) leave the field unset instead of passing {@code null}.
+             */
             public void setHit(SearchHit hit) {
-                this.hit = hit == null ? null : hit.asUnpooled();
+                Objects.requireNonNull(hit, "completion option SearchHit");
+                assert this.hit == null : "completion option SearchHit is assigned only once from mergeSuggest";
+                this.hit = hit;
             }
 
             @Override

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 147470
+summary: Fix Parquet sliding-window cache corruption
+type: bug

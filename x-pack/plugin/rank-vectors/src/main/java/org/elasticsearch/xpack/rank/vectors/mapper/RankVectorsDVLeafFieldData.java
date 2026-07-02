@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.rank.vectors.mapper;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
@@ -89,6 +90,11 @@ final class RankVectorsDVLeafFieldData implements LeafFieldData {
                     }
                     return vectors;
                 }
+
+                @Override
+                public DocIdSetIterator docIdIterator() {
+                    return binary;
+                }
             };
             case FLOAT -> new FormattedDocValues() {
                 private final float[] vector = new float[dims];
@@ -129,6 +135,11 @@ final class RankVectorsDVLeafFieldData implements LeafFieldData {
                     }
                     return vectors;
                 }
+
+                @Override
+                public DocIdSetIterator docIdIterator() {
+                    return binary;
+                }
             };
             case BFLOAT16 -> new FormattedDocValues() {
                 private final float[] vector = new float[dims];
@@ -168,6 +179,11 @@ final class RankVectorsDVLeafFieldData implements LeafFieldData {
                         vectors.add(Arrays.copyOf(v, v.length));
                     }
                     return vectors;
+                }
+
+                @Override
+                public DocIdSetIterator docIdIterator() {
+                    return binary;
                 }
             };
         };

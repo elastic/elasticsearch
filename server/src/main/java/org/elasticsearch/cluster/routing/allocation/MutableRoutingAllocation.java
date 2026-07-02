@@ -66,12 +66,14 @@ final class MutableRoutingAllocation extends RoutingAllocation {
                     nodesChangedObserver,
                     indexMetadataUpdater,
                     restoreInProgressUpdater,
-                    resizeSourceIndexUpdater }
+                    resizeSourceIndexUpdater,
+                    new MaxWriteLoadProportionCacheInvalidator() }
                 : new RoutingChangesObserver[] {
                     nodesChangedObserver,
                     indexMetadataUpdater,
                     restoreInProgressUpdater,
                     resizeSourceIndexUpdater,
+                    new MaxWriteLoadProportionCacheInvalidator(),
                     shardChangesObserver }
         );
     }
@@ -178,5 +180,22 @@ final class MutableRoutingAllocation extends RoutingAllocation {
         assert isReconciling == false : "already reconciling";
         isReconciling = true;
         return () -> isReconciling = false;
+    }
+
+    /**
+     * Whenever a shard moves in or out of {@link org.elasticsearch.cluster.routing.ShardRoutingState#STARTED}, we invalidate any
+     * cached max write-load proportion values for the affected node(s)
+     */
+    private class MaxWriteLoadProportionCacheInvalidator implements RoutingChangesObserver {
+
+        @Override
+        public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
+            clusterInfo.invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
+        }
+
+        @Override
+        public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, String reason) {
+            clusterInfo.invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
+        }
     }
 }

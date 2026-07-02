@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.io.IOException;
@@ -385,7 +386,10 @@ class DatafeedJob {
                     extractedData = result.data();
                     searchInterval = result.searchInterval();
                     if (result.linkedClusterStates().isEmpty() == false) {
-                        linkedClusterStates = result.linkedClusterStates();
+                        linkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                            linkedClusterStates,
+                            result.linkedClusterStates()
+                        );
                     }
                 } catch (Exception e) {
                     LOGGER.warn(() -> "[" + jobId + "] error while extracting data", e);

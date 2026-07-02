@@ -48,7 +48,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Map.of(),
             true,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
-            IndexVersion.current()
+            IndexVersion.current(),
+            false
         );
     }
 
@@ -317,7 +318,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Map.of(),
             true,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
-            IndexVersion.current()
+            IndexVersion.current(),
+            false
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -347,7 +349,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Map.of(),
             true,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
-            IndexVersion.current()
+            IndexVersion.current(),
+            false
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -372,7 +375,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Map.of(),
             true,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
-            IndexVersion.current()
+            IndexVersion.current(),
+            false
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -397,7 +401,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Map.of(),
             false,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
-            IndexVersion.current()
+            IndexVersion.current(),
+            false
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -428,7 +433,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Map.of(),
             true,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
-            IndexVersion.current()
+            IndexVersion.current(),
+            false
         );
 
         TestDocumentParserContext configuredContext = new TestDocumentParserContext(createXContentParser(input));

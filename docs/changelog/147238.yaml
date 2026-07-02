@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 147238
+summary: Write skipindex to a separate file in TSDB Codec
+type: enhancement

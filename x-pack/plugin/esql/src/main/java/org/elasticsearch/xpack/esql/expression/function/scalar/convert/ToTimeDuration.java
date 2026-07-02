@@ -28,6 +28,7 @@ public class ToTimeDuration extends FoldablesConvertFunction {
 
     @FunctionInfo(
         returnType = "time_duration",
+        briefSummary = "Converts a value to a time_duration.",
         description = "Converts an input value into a `time_duration` value.",
         examples = @Example(file = "convert", tag = "castToTimeDuration")
     )
@@ -36,6 +37,7 @@ public class ToTimeDuration extends FoldablesConvertFunction {
         @Param(
             name = "field",
             type = { "time_duration", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Input value. The input is a valid constant time duration expression."
         ) Expression v
     ) {

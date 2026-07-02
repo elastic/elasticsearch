@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
+import org.elasticsearch.xpack.encryption.EncryptionPlugin;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -47,7 +48,7 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
         try {
             @SuppressWarnings("unchecked")
             var c = (Class<? extends Plugin>) Class.forName("org.elasticsearch.xpack.esql.plugin.EsqlPlugin");
-            return List.of(c);
+            return List.of(c, EncryptionPlugin.class);
         } catch (ClassNotFoundException e) {
             throw new AssertionError(e); // the ES|QL plugin must be present
         }

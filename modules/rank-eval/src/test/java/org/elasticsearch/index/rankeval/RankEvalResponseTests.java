@@ -62,8 +62,12 @@ public class RankEvalResponseTests extends ESTestCase {
         true,
         a -> new RankEvalResponse(
             (Double) a[0],
-            ((List<EvalQueryQuality>) a[1]).stream().collect(Collectors.toMap(EvalQueryQuality::getId, Function.identity())),
-            ((List<Tuple<String, Exception>>) a[2]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2))
+            a[1] == null
+                ? Collections.emptyMap()
+                : ((List<EvalQueryQuality>) a[1]).stream().collect(Collectors.toMap(EvalQueryQuality::getId, Function.identity())),
+            a[2] == null
+                ? Collections.emptyMap()
+                : ((List<Tuple<String, Exception>>) a[2]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2))
         )
     );
     static {
@@ -124,21 +128,34 @@ public class RankEvalResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         RankEvalResponse randomResponse = createRandomResponse();
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            randomResponse.writeTo(output);
-            try (StreamInput in = output.bytes().streamInput()) {
-                RankEvalResponse deserializedResponse = new RankEvalResponse(in);
-                assertEquals(randomResponse.getMetricScore(), deserializedResponse.getMetricScore(), 0.0000000001);
-                assertEquals(randomResponse.getPartialResults(), deserializedResponse.getPartialResults());
-                assertEquals(randomResponse.getFailures().keySet(), deserializedResponse.getFailures().keySet());
-                assertNotSame(randomResponse, deserializedResponse);
-                assertEquals(-1, in.read());
+        try {
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                randomResponse.writeTo(output);
+                try (StreamInput in = output.bytes().streamInput()) {
+                    try (RankEvalResponse deserializedResponse = new RankEvalResponse(in)) {
+                        assertEquals(randomResponse.getMetricScore(), deserializedResponse.getMetricScore(), 0.0000000001);
+                        assertEquals(randomResponse.getPartialResults(), deserializedResponse.getPartialResults());
+                        assertEquals(randomResponse.getFailures().keySet(), deserializedResponse.getFailures().keySet());
+                        assertNotSame(randomResponse, deserializedResponse);
+                        assertEquals(-1, in.read());
+                    }
+                }
             }
+        } finally {
+            randomResponse.close();
         }
     }
 
     public void testXContentParsing() throws IOException {
         RankEvalResponse testItem = createRandomResponse();
+        try {
+            doTestXContentParsing(testItem);
+        } finally {
+            testItem.close();
+        }
+    }
+
+    private void doTestXContentParsing(RankEvalResponse testItem) throws IOException {
         boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -148,30 +165,36 @@ public class RankEvalResponseTests extends ESTestCase {
         // - everything under `hits` (we test lenient SearchHit parsing elsewhere)
         Predicate<String> pathsToExclude = path -> (path.endsWith("details") || path.contains("failures") || path.contains("hits"));
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
-        RankEvalResponse parsedItem;
-        try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
-            parsedItem = PARSER.apply(parser, null);
-            assertNull(parser.nextToken());
-        }
-        assertNotSame(testItem, parsedItem);
-        // We cannot check equality of object here because some information (e.g.
-        // SearchHit#shard) cannot fully be parsed back.
-        assertEquals(testItem.getMetricScore(), parsedItem.getMetricScore(), 0.0);
-        assertEquals(testItem.getPartialResults().keySet(), parsedItem.getPartialResults().keySet());
-        for (EvalQueryQuality metricDetail : testItem.getPartialResults().values()) {
-            EvalQueryQuality parsedEvalQueryQuality = parsedItem.getPartialResults().get(metricDetail.getId());
-            assertToXContentEquivalent(
-                toXContent(metricDetail, xContentType, humanReadable),
-                toXContent(parsedEvalQueryQuality, xContentType, humanReadable),
-                xContentType
-            );
-        }
-        // Also exceptions that are parsed back will be different since they are re-wrapped during parsing.
-        // However, we can check that there is the expected number
-        assertEquals(testItem.getFailures().keySet(), parsedItem.getFailures().keySet());
-        for (String queryId : testItem.getFailures().keySet()) {
-            Exception ex = parsedItem.getFailures().get(queryId);
-            assertThat(ex, instanceOf(ElasticsearchException.class));
+        RankEvalResponse parsedItem = null;
+        try {
+            try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
+                parsedItem = PARSER.apply(parser, null);
+                assertNull(parser.nextToken());
+            }
+            assertNotSame(testItem, parsedItem);
+            // We cannot check equality of object here because some information (e.g.
+            // SearchHit#shard) cannot fully be parsed back.
+            assertEquals(testItem.getMetricScore(), parsedItem.getMetricScore(), 0.0);
+            assertEquals(testItem.getPartialResults().keySet(), parsedItem.getPartialResults().keySet());
+            for (EvalQueryQuality metricDetail : testItem.getPartialResults().values()) {
+                EvalQueryQuality parsedEvalQueryQuality = parsedItem.getPartialResults().get(metricDetail.getId());
+                assertToXContentEquivalent(
+                    toXContent(metricDetail, xContentType, humanReadable),
+                    toXContent(parsedEvalQueryQuality, xContentType, humanReadable),
+                    xContentType
+                );
+            }
+            // Also exceptions that are parsed back will be different since they are re-wrapped during parsing.
+            // However, we can check that there is the expected number
+            assertEquals(testItem.getFailures().keySet(), parsedItem.getFailures().keySet());
+            for (String queryId : testItem.getFailures().keySet()) {
+                Exception ex = parsedItem.getFailures().get(queryId);
+                assertThat(ex, instanceOf(ElasticsearchException.class));
+            }
+        } finally {
+            if (parsedItem != null) {
+                parsedItem.close();
+            }
         }
     }
 
@@ -183,53 +206,59 @@ public class RankEvalResponseTests extends ESTestCase {
             Collections.singletonMap("coffee_query", coffeeQueryQuality),
             Collections.singletonMap("beer_query", new ParsingException(new XContentLocation(0, 0), "someMsg"))
         );
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        String xContent = BytesReference.bytes(response.toXContent(builder, ToXContent.EMPTY_PARAMS)).utf8ToString();
-        assertEquals(XContentHelper.stripWhitespace("""
-            {
-              "metric_score": 0.123,
-              "details": {
-                "coffee_query": {
-                  "metric_score": 0.1,
-                  "unrated_docs": [ { "_index": "index", "_id": "456" } ],
-                  "hits": [
-                    {
-                      "hit": {
-                        "_index": "index",
-                        "_id": "123",
-                        "_score": 1.0
-                      },
-                      "rating": 5
-                    },
-                    {
-                      "hit": {
-                        "_index": "index",
-                        "_id": "456",
-                        "_score": 1.0
-                      },
-                      "rating": null
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            String xContent = BytesReference.bytes(response.toXContent(builder, ToXContent.EMPTY_PARAMS)).utf8ToString();
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "metric_score": 0.123,
+                  "details": {
+                    "coffee_query": {
+                      "metric_score": 0.1,
+                      "unrated_docs": [ { "_index": "index", "_id": "456" } ],
+                      "hits": [
+                        {
+                          "hit": {
+                            "_index": "index",
+                            "_id": "123",
+                            "_score": 1.0
+                          },
+                          "rating": 5
+                        },
+                        {
+                          "hit": {
+                            "_index": "index",
+                            "_id": "456",
+                            "_score": 1.0
+                          },
+                          "rating": null
+                        }
+                      ]
                     }
-                  ]
-                }
-              },
-              "failures": {
-                "beer_query": {
-                  "error": {
-                    "root_cause": [ { "type": "parsing_exception", "reason": "someMsg", "line": 0, "col": 0 } ],
-                    "type": "parsing_exception",
-                    "reason": "someMsg",
-                    "line": 0,
-                    "col": 0
+                  },
+                  "failures": {
+                    "beer_query": {
+                      "error": {
+                        "root_cause": [ { "type": "parsing_exception", "reason": "someMsg", "line": 0, "col": 0 } ],
+                        "type": "parsing_exception",
+                        "reason": "someMsg",
+                        "line": 0,
+                        "col": 0
+                      }
+                    }
                   }
-                }
-              }
-            }"""), xContent);
+                }"""), xContent);
+        } finally {
+            response.close();
+        }
     }
 
     private static RatedSearchHit searchHit(String index, int docId, Integer rating) {
-        SearchHit hit = SearchHit.unpooled(docId, docId + "");
+        SearchHit hit = new SearchHit(docId, docId + "");
         hit.shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null));
         hit.score(1.0f);
-        return new RatedSearchHit(hit, rating != null ? OptionalInt.of(rating) : OptionalInt.empty());
+        RatedSearchHit rsh = new RatedSearchHit(hit, rating != null ? OptionalInt.of(rating) : OptionalInt.empty());
+        hit.decRef();
+        return rsh;
     }
 }

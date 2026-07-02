@@ -17,7 +17,6 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.ai21.Ai21Service;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -48,7 +47,7 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
         var validationException = new ValidationException();
 
         var modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, Ai21Service.NAME, context);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         validationException.throwIfValidationErrorsExist();
 
@@ -88,7 +87,6 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            Ai21Service.NAME,
             ConfigurationParseContext.REQUEST
         );
 

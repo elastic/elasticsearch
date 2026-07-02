@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -41,6 +40,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.expression.function.grouping.Bucket.isStringOrDate;
 
 /**
  * Splits dates into buckets based on the {@code @timestamp} field.
@@ -75,6 +75,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @FunctionInfo(
         returnType = { "date", "date_nanos" },
+        briefSummary = "Creates timestamp-based buckets aligned to calendar boundaries.",
         description = """
             Creates groups of values - buckets - out of a `@timestamp` attribute.
             The size of the buckets can be provided directly as a duration or period.
@@ -136,6 +137,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
         @Param(
             name = "buckets",
             type = { "integer", "date_period", "time_duration" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Target number of buckets, or desired bucket size. "
                 + "When a number is provided, the actual bucket size is derived from `from`/`to` "
                 + "or the `@timestamp` range in the query filter {applies_to}`stack: ga 9.4`. "
@@ -144,6 +146,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
         @Param(
             name = "from",
             type = { "date", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the "
                 + "query filter {applies_to}`stack: ga 9.4`."
@@ -151,6 +154,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
         @Param(
             name = "to",
             type = { "date", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "End of the range. Required with a numeric `buckets` when no `@timestamp` range is in the "
                 + "query filter {applies_to}`stack: ga 9.4`."
@@ -246,10 +250,6 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
             return new TypeResolution("[from] and [to] in [" + sourceText() + "] must both be provided or both omitted");
         }
         return resolution;
-    }
-
-    private static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        return isType(e, exp -> DataType.isString(exp) || DataType.isDateTime(exp), operationName, paramOrd, "datetime", "string");
     }
 
     @Override

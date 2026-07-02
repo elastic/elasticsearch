@@ -23,7 +23,6 @@ import org.elasticsearch.index.codec.tsdb.SortedFieldObserver;
 import org.elasticsearch.index.codec.tsdb.SortedFieldObserverFactory;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig.TermsDictConfig;
-import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig.VersionConfig;
 
 import java.io.IOException;
 
@@ -53,11 +52,8 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     static final String DATA_EXTENSION = "dvd";
     static final String META_CODEC = "ES819TSDBDocValuesMetadata";
     static final String META_EXTENSION = "dvm";
-    static final int VERSION_START = 0;
-    static final int VERSION_BINARY_DV_COMPRESSION = 1;
-    static final int VERSION_NUMERIC_LARGE_BLOCKS = 2;
-    static final int VERSION_PREFIX_PARTITIONS = 4;
-    static final int VERSION_CURRENT = VERSION_PREFIX_PARTITIONS;
+    static final String SKIP_CODEC = "ES819TSDBDocValuesSkip";
+    static final String SKIP_EXTENSION = "dvs";
 
     static final int TERMS_DICT_BLOCK_LZ4_SHIFT = 6;
     static final int TERMS_DICT_BLOCK_LZ4_SIZE = 1 << TERMS_DICT_BLOCK_LZ4_SHIFT;
@@ -118,14 +114,6 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
      * The block shift used in DirectMonotonicWriter when encoding the start docs of each ordinal with ordinal range encoding.
      */
     static final int ORDINAL_RANGE_ENCODING_BLOCK_SHIFT = 12;
-
-    static final VersionConfig VERSION_CONFIG = new VersionConfig(
-        VERSION_START,
-        VERSION_CURRENT,
-        VERSION_NUMERIC_LARGE_BLOCKS,
-        VERSION_BINARY_DV_COMPRESSION,
-        VERSION_PREFIX_PARTITIONS
-    );
 
     static final TermsDictConfig TERMS_DICT_CONFIG = new TermsDictConfig(
         TERMS_DICT_BLOCK_LZ4_MASK,
@@ -289,7 +277,7 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
         this.enableOptimizedMerge = enableOptimizedMerge;
         this.docOffsetsCodec = docOffsetsCodec;
         this.formatConfig = new TSDBDocValuesFormatConfig(
-            VERSION_CONFIG,
+            TSDBDocValuesFormatConfig.VERSION_CURRENT,
             TERMS_DICT_CONFIG,
             new TSDBDocValuesFormatConfig.SkipIndexConfig(SKIP_INDEX_LEVEL_SHIFT, SKIP_INDEX_MAX_LEVEL, skipIndexIntervalSize),
             new TSDBDocValuesFormatConfig.NumericConfig(
@@ -317,6 +305,8 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
             DATA_EXTENSION,
             META_CODEC,
             META_EXTENSION,
+            SKIP_CODEC,
+            SKIP_EXTENSION,
             formatConfig,
             docOffsetsCodec.getEncoder(),
             formatConfig.writePrefixPartitions()
@@ -335,6 +325,8 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
             DATA_EXTENSION,
             META_CODEC,
             META_EXTENSION,
+            SKIP_CODEC,
+            SKIP_EXTENSION,
             formatConfig,
             docOffsetsCodec.getDecoder()
         );

@@ -261,7 +261,7 @@ PUT bbq_disk-index/_mapping
       "dims": 64,
       "index": true,
       "index_options": {
-        "type": "bbq_disk"
+        "type": "bbq_disk",
         "bits": 2
       }
     }

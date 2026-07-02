@@ -14,6 +14,8 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.ReshardingActionHelper;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -198,7 +200,8 @@ public class TransportMultiGetActionTests extends ESTestCase {
             new ActionFilters(emptySet()),
             projectResolver,
             new Resolver(),
-            mock(IndicesService.class)
+            mock(IndicesService.class),
+            new ReshardingActionHelper(clusterService, projectResolver, threadPool)
         ) {
             @Override
             protected void executeShardAction(
@@ -232,7 +235,8 @@ public class TransportMultiGetActionTests extends ESTestCase {
             new ActionFilters(emptySet()),
             projectResolver,
             new Resolver(),
-            mock(IndicesService.class)
+            mock(IndicesService.class),
+            new ReshardingActionHelper(clusterService, projectResolver, threadPool)
         ) {
             @Override
             protected void executeShardAction(
@@ -248,7 +252,8 @@ public class TransportMultiGetActionTests extends ESTestCase {
             }
         };
 
-        ActionTestUtils.execute(transportAction, task, request.request(), ActionListener.noop());
+        final var result = new PlainActionFuture<MultiGetResponse>();
+        ActionTestUtils.execute(transportAction, task, request.request(), result);
         assertTrue(shardActionInvoked.get());
 
     }

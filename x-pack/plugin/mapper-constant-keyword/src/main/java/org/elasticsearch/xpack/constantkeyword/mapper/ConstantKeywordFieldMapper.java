@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.constantkeyword.mapper;
 
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
@@ -19,10 +21,13 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
@@ -225,6 +230,31 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query wildcardQuery(String pattern, boolean caseInsensitive, QueryRewriteContext context) {
+            // Lucene wildcard semantics support both * and ?; Regex.simpleMatch (used by matches()) only handles *.
+            // See gh-141785. constant_keyword has no Lucene index (IndexType.NONE), so we compile the pattern
+            // to an automaton and run it in-memory against the single constant value, mirroring the
+            // ConstantFieldType#automatonQuery pattern. AutomatonQueries.toWildcardAutomaton tracks
+            // determinization heap with the SearchExecutionContext circuit breaker when one is available.
+            if (value == null) {
+                return Queries.NO_DOCS_INSTANCE;
+            }
+            String matchTarget = caseInsensitive ? value.toLowerCase(Locale.ROOT) : value;
+            String matchPattern = caseInsensitive ? pattern.toLowerCase(Locale.ROOT) : pattern;
+            Term term = new Term(name(), matchPattern);
+            CircuitBreaker circuitBreaker = (context instanceof SearchExecutionContext sec) ? sec.getCircuitBreaker() : null;
+            Automaton automaton;
+            try {
+                automaton = circuitBreaker != null
+                    ? AutomatonQueries.toWildcardAutomaton(term, circuitBreaker)
+                    : WildcardQuery.toAutomaton(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            } catch (TooComplexToDeterminizeException e) {
+                throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+            }
+            return new CharacterRunAutomaton(automaton).run(matchTarget) ? Queries.ALL_DOCS_INSTANCE : Queries.NO_DOCS_INSTANCE;
+        }
+
+        @Override
         public String getConstantFieldValue(SearchExecutionContext context) {
             return value;
         }
@@ -330,6 +360,16 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     @Override
     public ConstantKeywordFieldType fieldType() {
         return (ConstantKeywordFieldType) super.fieldType();
+    }
+
+    @Override
+    public boolean supportsBatchIndexing() {
+        // Constant keyword can be driven through parseCreateField by the bulk batch path only
+        // once the value is pinned. While the value is unset, parseCreateField triggers a
+        // dynamic mapping update, which the v1 batch path does not support. copy_to and
+        // multi-fields pull in behavior that the v1 batch path does not support either; scripts
+        // are not configurable on this mapper.
+        return fieldType().value() != null && copyTo().copyToFields().isEmpty() && multiFields().iterator().hasNext() == false;
     }
 
     @Override

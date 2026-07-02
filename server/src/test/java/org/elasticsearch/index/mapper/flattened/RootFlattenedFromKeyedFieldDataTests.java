@@ -20,6 +20,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -242,7 +243,7 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
     }
 
     private static SortedBinaryDocValues loadRootValues(IndexReader reader, boolean binary) {
-        var builder = new RootFlattenedFromKeyedFieldData.Builder(ROOT_FIELD, KEYED_FIELD, binary);
+        var builder = new RootFlattenedFromKeyedFieldData.Builder(ROOT_FIELD, KEYED_FIELD, binary, IndexVersion.current());
         IndexFieldData<?> fieldData = builder.build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         return fieldData.load(reader.leaves().get(0)).getBytesValues();
     }

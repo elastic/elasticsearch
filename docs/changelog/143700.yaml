@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 143700
-summary: Buffer reuse in `ParquetStorageObjectAdapter` and `StorageObject`
-type: enhancement

@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import java.util.List;
@@ -425,5 +427,49 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
                     + "in non-STANDARD mode [lookup]"
             )
         );
+    }
+
+    public void testMatchWithRow() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
+        var query = """
+            ROW content = to_text(["This is a brown fox", "This is a brown dog", "This dog is really brown"])
+            | MV_EXPAND content
+            | WHERE content:"dog"
+            | SORT content
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+            assertColumnNames(resp.columns(), List.of("content"));
+            assertColumnTypes(resp.columns(), List.of("text"));
+            assertValues(resp.values(), List.of(List.of("This dog is really brown"), List.of("This is a brown dog")));
+        }
+    }
+
+    public void testMatchRuntimeExpression() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
+        var query = """
+            FROM test
+            | EVAL new_content = to_text(concat(content, " and a white cat"))
+            | WHERE new_content:"fox"
+            | SORT new_content
+            | KEEP new_content
+            """;
+
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+            assertColumnNames(resp.columns(), List.of("new_content"));
+            assertColumnTypes(resp.columns(), List.of("text"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("The quick brown fox jumps over the lazy dog and a white cat"),
+                    List.of("This is a brown fox and a white cat")
+                )
+            );
+        }
     }
 }

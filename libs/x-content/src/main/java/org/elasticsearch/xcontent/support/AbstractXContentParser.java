@@ -291,14 +291,20 @@ public abstract class AbstractXContentParser implements XContentParser {
         return charBuffer();
     }
 
+    private void requireSupportsMap() {
+        if (supportsMap() == false) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
     @Override
     public Map<String, Object> map() throws IOException {
-        return readMapSafe(this, SIMPLE_MAP_FACTORY);
+        return readMapSafe(SIMPLE_MAP_FACTORY);
     }
 
     @Override
     public Map<String, Object> mapOrdered() throws IOException {
-        return readMapSafe(this, ORDERED_MAP_FACTORY);
+        return readMapSafe(ORDERED_MAP_FACTORY);
     }
 
     @Override
@@ -309,6 +315,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     @Override
     public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
         throws IOException {
+        requireSupportsMap();
         final Map<String, T> map = mapFactory.get();
         String fieldName = findNonEmptyMapStart(this);
         if (fieldName == null) {
@@ -323,14 +330,22 @@ public abstract class AbstractXContentParser implements XContentParser {
         return map;
     }
 
+    private void requireSupportsList() {
+        if (supportsList() == false) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
     @Override
     public List<Object> list() throws IOException {
+        requireSupportsList();
         skipToListStart(this);
         return readListUnsafe(this, SIMPLE_MAP_FACTORY);
     }
 
     @Override
     public List<Object> listOrderedMap() throws IOException {
+        requireSupportsList();
         skipToListStart(this);
         return readListUnsafe(this, ORDERED_MAP_FACTORY);
     }
@@ -339,10 +354,11 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     private static final Supplier<Map<String, Object>> ORDERED_MAP_FACTORY = LinkedHashMap::new;
 
-    private static Map<String, Object> readMapSafe(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
+    private Map<String, Object> readMapSafe(Supplier<Map<String, Object>> mapFactory) throws IOException {
+        requireSupportsMap();
         final Map<String, Object> map = mapFactory.get();
-        final String firstKey = findNonEmptyMapStart(parser);
-        return firstKey == null ? map : readMapEntries(parser, mapFactory, map, firstKey);
+        final String firstKey = findNonEmptyMapStart(this);
+        return firstKey == null ? map : readMapEntries(this, mapFactory, map, firstKey);
     }
 
     private static Map<String, Object> readMapEntries(

@@ -86,7 +86,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
             .build();
     }
 
-    public static class EsqlTestPluginWithMockBlockFactory extends EsqlPlugin {
+    public static class EsqlTestPluginWithMockBlockFactory extends EsqlPluginWithEnterpriseOrTrialLicense {
         @Override
         protected BlockFactoryProvider blockFactoryProvider(BlockFactoryBuilder builder) {
             return new BlockFactoryProvider(new MockBlockFactory(builder));

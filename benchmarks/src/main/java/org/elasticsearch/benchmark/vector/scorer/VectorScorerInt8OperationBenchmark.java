@@ -62,12 +62,7 @@ public class VectorScorerInt8OperationBenchmark {
     @Param({ "COSINE", "DOT_PRODUCT", "EUCLIDEAN" })
     public VectorSimilarityType function;
 
-    @FunctionalInterface
-    private interface LuceneFunction {
-        float run(byte[] vec1, byte[] vec2);
-    }
-
-    private LuceneFunction luceneImpl;
+    private LuceneFunction<byte[]> luceneImpl;
     private MethodHandle nativeImpl;
 
     @Setup(Level.Iteration)

@@ -1,0 +1,6 @@
+area: Authorization
+issues: []
+pr: 148880
+summary: "[Evaluations] Register .evaluation-* as hidden indices with viewer/editor\
+  \ access"
+type: enhancement

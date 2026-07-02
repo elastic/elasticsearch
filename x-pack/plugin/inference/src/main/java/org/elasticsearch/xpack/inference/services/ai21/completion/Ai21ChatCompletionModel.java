@@ -52,7 +52,7 @@ public class Ai21ChatCompletionModel extends Ai21Model {
             taskType,
             service,
             Ai21ChatCompletionServiceSettings.fromMap(serviceSettings, context),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

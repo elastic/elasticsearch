@@ -14,7 +14,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.response.XContentUtils;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ public class IbmWatsonxEmbeddingsResponseEntity {
 
     private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in IBM watsonx embeddings response";
 
-    public static DenseEmbeddingFloatResults fromResponse(Request request, HttpResult response) throws IOException {
+    public static DenseEmbeddingFloatResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {

@@ -65,6 +65,7 @@ public final class XPackUsageFeatureAction {
     public static final ActionType<XPackUsageFeatureResponse> UNIVERSAL_PROFILING = xpackUsageFeatureAction(XPackField.UNIVERSAL_PROFILING);
     public static final ActionType<XPackUsageFeatureResponse> LOGSDB = xpackUsageFeatureAction(XPackField.LOGSDB);
     public static final ActionType<XPackUsageFeatureResponse> GPU_VECTOR_INDEXING = xpackUsageFeatureAction(XPackField.GPU_VECTOR_INDEXING);
+    public static final ActionType<XPackUsageFeatureResponse> LOGGING = xpackUsageFeatureAction(XPackField.LOGGING);
 
     static final List<ActionType<XPackUsageFeatureResponse>> ALL = List.of(
         AGGREGATE_METRIC,
@@ -97,7 +98,8 @@ public final class XPackUsageFeatureAction {
         UNIVERSAL_PROFILING,
         LOGSDB,
         TIME_SERIES_DATA_STREAMS,
-        GPU_VECTOR_INDEXING
+        GPU_VECTOR_INDEXING,
+        LOGGING
     );
 
     public static ActionType<XPackUsageFeatureResponse> xpackUsageFeatureAction(String suffix) {

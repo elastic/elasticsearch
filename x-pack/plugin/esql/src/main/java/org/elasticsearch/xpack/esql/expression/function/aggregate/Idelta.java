@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.IrateDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.IrateIntAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.IrateLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IdeltaDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IdeltaIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IdeltaLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -42,12 +43,20 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_D
 public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Idelta", Idelta::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Idelta.class).ternary(Idelta::new).name("idelta");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeries(Idelta::new)
+        .description("Calculates the difference between the last two samples of each time series in a range vector.")
+        .extendedDescription(PromqlFunctionDefinition.GAUGE_FAMILY_BEHAVIOR)
+        .example("idelta(cpu_temp_celsius[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .name("idelta");
 
     private final Expression timestamp;
 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
+        briefSummary = "Calculates the absolute change between the last two data points of a gauge.",
         description = "Calculates the idelta of a gauge. idelta is the absolute change between the last two data points ("
             + "it ignores all but the last two data points in each time period). "
             + "This function is very similar to delta, but is more responsive to recent changes.",
@@ -128,12 +137,10 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
     @Override
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
-        final DataType tsType = timestamp().dataType();
-        final boolean isDateNanos = tsType == DataType.DATE_NANOS;
         return switch (type) {
-            case LONG -> new IrateLongAggregatorFunctionSupplier(true, isDateNanos);
-            case INTEGER -> new IrateIntAggregatorFunctionSupplier(true, isDateNanos);
-            case DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(true, isDateNanos);
+            case LONG -> new IdeltaLongAggregatorFunctionSupplier();
+            case INTEGER -> new IdeltaIntAggregatorFunctionSupplier();
+            case DOUBLE -> new IdeltaDoubleAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.inference.services.contextualai;
 
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.contextualai.response.ContextualAiErrorResponseEntity;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 /**
  * Response handler for ContextualAI API calls.
@@ -20,11 +20,11 @@ import org.elasticsearch.xpack.inference.services.contextualai.response.Contextu
 public class ContextualAiResponseHandler extends BaseResponseHandler {
 
     public ContextualAiResponseHandler(String requestType, ResponseParser parseFunction, boolean supportsStreaming) {
-        super(requestType, parseFunction, ContextualAiErrorResponseEntity::fromResponse, supportsStreaming);
+        super(requestType, parseFunction, ErrorResponse::fromResponse, supportsStreaming);
     }
 
     @Override
-    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+    protected void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         if (result.isSuccessfulResponse()) {
             return;
         }
@@ -32,17 +32,19 @@ public class ContextualAiResponseHandler extends BaseResponseHandler {
         // handle error codes
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
-            throw new RetryException(true, buildError(SERVER_ERROR, request, result));
+            throw new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
+        } else if (statusCode == 503) {
+            throw new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode > 500) {
-            throw new RetryException(false, buildError(SERVER_ERROR, request, result));
+            throw new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 429) {
-            throw new RetryException(true, buildError(RATE_LIMIT, request, result));
+            throw new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));
         } else if (statusCode == 401) {
-            throw new RetryException(false, buildError(AUTHENTICATION, request, result));
+            throw new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
         } else if (statusCode >= 300 && statusCode < 400) {
-            throw new RetryException(false, buildError(REDIRECTION, request, result));
+            throw new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
         } else {
-            throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));
+            throw new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
         }
     }
 }

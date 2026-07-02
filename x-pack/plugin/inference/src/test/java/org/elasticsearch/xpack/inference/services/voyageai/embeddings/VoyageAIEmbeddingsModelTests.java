@@ -14,7 +14,6 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
 import org.hamcrest.MatcherAssert;
 
 import java.util.Map;
@@ -82,7 +81,8 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             "service",
             url,
             new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAIServiceSettings(model, null),
+                model,
+                null,
                 VoyageAIEmbeddingType.FLOAT,
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
@@ -108,7 +108,8 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             "service",
             url,
             new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAIServiceSettings(model, null),
+                model,
+                null,
                 VoyageAIEmbeddingType.FLOAT,
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
@@ -134,14 +135,7 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             "id",
             "service",
             url,
-            new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAIServiceSettings(model, null),
-                embeddingType,
-                SimilarityMeasure.DOT_PRODUCT,
-                dimensions,
-                tokenLimit,
-                false
-            ),
+            new VoyageAIEmbeddingsServiceSettings(model, null, embeddingType, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, false),
             taskSettings,
             null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
@@ -162,7 +156,8 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             "service",
             url,
             new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAIServiceSettings(model, null),
+                model,
+                null,
                 VoyageAIEmbeddingType.FLOAT,
                 similarityMeasure,
                 dimensions,

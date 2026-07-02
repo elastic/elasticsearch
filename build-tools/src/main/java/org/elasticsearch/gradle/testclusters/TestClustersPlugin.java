@@ -46,6 +46,7 @@ import org.gradle.tooling.events.task.TaskFinishEvent;
 
 import java.io.File;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -267,6 +268,17 @@ public class TestClustersPlugin implements Plugin<Project> {
                             awareTask.beforeStart();
                             awareTask.getClusters().forEach(awareTask.getRegistry().get()::maybeStartCluster);
                         });
+                        awareTask.doLast("Stop clusters and check for resource leaks", task -> {
+                            TestClustersRegistry registry = awareTask.getRegistry().get();
+                            awareTask.getClusters().forEach(cluster -> registry.stopCluster(cluster, false));
+                            List<String> leaks = awareTask.getClusters()
+                                .stream()
+                                .flatMap(cluster -> cluster.getLeakMessages().stream())
+                                .toList();
+                            if (leaks.isEmpty() == false) {
+                                throw new TestClustersException(String.join("\n", leaks));
+                            }
+                        });
                     });
             });
         }
@@ -283,18 +295,15 @@ public class TestClustersPlugin implements Plugin<Project> {
         @Override
         public void onFinish(FinishEvent finishEvent) {
             if (finishEvent instanceof TaskFinishEvent taskFinishEvent) {
-                // Handle task finish event...
                 String taskPath = taskFinishEvent.getDescriptor().getTaskPath();
                 if (tasksMap.containsKey(taskPath)) {
                     TestClustersAware task = tasksMap.get(taskPath);
-                    // unclaim the cluster if the task has been executed and the cluster has been claimed in the doFirst block.
-                    if (task.getDidWork()) {
-                        task.getClusters()
-                            .forEach(
-                                cluster -> getParameters().getRegistry()
-                                    .get()
-                                    .stopCluster(cluster, taskFinishEvent.getResult() instanceof TaskFailureResult)
-                            );
+                    // Only stop clusters here when the task failed. On the success path, the doLast
+                    // action already stopped clusters and checked for resource leaks. When the task
+                    // fails (test failure or doLast leak exception), doLast may not have run or may
+                    // have only partially completed, so onFinish ensures clusters are cleaned up.
+                    if (task.getDidWork() && taskFinishEvent.getResult() instanceof TaskFailureResult) {
+                        task.getClusters().forEach(cluster -> getParameters().getRegistry().get().stopCluster(cluster, true));
                     }
                 }
             }

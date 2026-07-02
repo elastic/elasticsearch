@@ -1,0 +1,30 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "histogram",
+  "name" : "histogram_quantile",
+  "description" : "Returns the φ-quantile of a classic histogram represented by cumulative `le` buckets.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "φ",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Quantile value (0 ≤ φ ≤ 1)."
+        },
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector input."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "histogram_quantile(0.9, rate(http_request_duration_seconds_bucket[5m]))"
+  ],
+  "snapshot_only" : false
+}

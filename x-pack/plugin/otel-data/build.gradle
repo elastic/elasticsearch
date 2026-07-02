@@ -55,7 +55,8 @@ dependencies {
   testImplementation('org.apache.commons:commons-math3:3.6.1')
   clusterModules project(':modules:data-streams')
   clusterModules project(':modules:ingest-common')
-  clusterModules project(':modules:ingest-geoip')
+  clusterModules project(':modules:ip-location')
+  clusterModules project(':modules:ingest-ip-location')
   clusterModules project(':modules:user-agent')
   clusterModules project(':modules:lang-mustache')
   clusterModules project(':modules:mapper-extras')
@@ -75,6 +76,8 @@ dependencies {
   javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk:$otelVersion"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-common:$otelVersion"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-metrics:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-trace:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-logs:$otelVersion"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-common:$otelVersion"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-otlp:$otelVersion"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-otlp-common:$otelVersion"

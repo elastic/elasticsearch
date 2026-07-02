@@ -21,7 +21,7 @@ public class VoyageAIRequestTests extends ESTestCase {
         var request = new HttpPost("http://www.abc.com");
         var model = VoyageAIEmbeddingsModelTests.createModel("abc", "key", null, "model_id");
 
-        VoyageAIRequest.decorateWithHeaders(request, model);
+        VoyageAIRequestUtils.decorateWithHeaders(request, model);
 
         assertThat(request.getFirstHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(request.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer key"));

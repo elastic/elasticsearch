@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -27,7 +26,6 @@ import org.junit.Before;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -41,9 +39,7 @@ public class ShardSearchRequestInterceptorTests extends ESTestCase {
     @Before
     public void init() {
         threadPool = new TestThreadPool("shard search request interceptor tests");
-        MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
-        interceptor = new ShardSearchRequestInterceptor(threadPool, licenseState);
+        interceptor = new ShardSearchRequestInterceptor(threadPool);
     }
 
     @After

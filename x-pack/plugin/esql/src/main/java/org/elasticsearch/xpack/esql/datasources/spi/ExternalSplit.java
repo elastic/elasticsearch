@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.core.Nullable;
 
 /**
  * A serializable, parallelizable unit of work for an external data source.
@@ -20,5 +21,21 @@ public interface ExternalSplit extends NamedWriteable {
 
     default long estimatedSizeInBytes() {
         return -1;
+    }
+
+    /**
+     * Returns per-split statistics for use by the optimizer (aggregate pushdown, filter pruning).
+     * Returns {@code null} if statistics are unavailable for this split.
+     * <p>
+     * Implementations that carry row-group or stripe metadata should override this method.
+     * {@link org.elasticsearch.xpack.esql.datasources.FileSplit} returns its compact
+     * {@link SplitStats} when present.
+     * {@link org.elasticsearch.xpack.esql.datasources.CoalescedSplit} returns a
+     * {@link org.elasticsearch.xpack.esql.datasources.MergedSplitStats} that lazily
+     * aggregates its children's statistics.
+     */
+    @Nullable
+    default SplitStats splitStats() {
+        return null;
     }
 }

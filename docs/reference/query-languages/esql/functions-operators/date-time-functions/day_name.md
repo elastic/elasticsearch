@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `DAY_NAME` function [esql-day_name]
 
-:::{include} ../../_snippets/functions/layout/day_name.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/day_name.md
 :::

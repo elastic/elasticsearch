@@ -11,6 +11,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
@@ -20,7 +21,7 @@ import java.util.List;
 public class StGeotileLicenseIT extends SpatialGridLicenseTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(SpatialPlugin.class, EsqlPluginWithEnterpriseOrTrialLicense.class);
+        return List.of(SpatialPlugin.class, EsqlPluginWithEnterpriseOrTrialLicense.class, TestEncryptionServicePlugin.class);
     }
 
     @Override

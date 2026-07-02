@@ -1,0 +1,6 @@
+area: Infra/Metrics
+issues:
+ - 149072
+pr: 149220
+summary: "APM OTel SDK: flush metrics and traces under a single shared timeout"
+type: enhancement

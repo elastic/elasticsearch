@@ -10,18 +10,13 @@ package org.elasticsearch.xpack.oteldata.otlp;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-
-import java.io.IOException;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 public class OTLPActionRequest extends ActionRequest implements CompositeIndicesRequest {
-    private final BytesReference request;
 
-    public OTLPActionRequest(StreamInput in) throws IOException {
-        super(in);
-        request = in.readBytesReference();
-    }
+    private final BytesReference request;
 
     public OTLPActionRequest(BytesReference request) {
         this.request = request;
@@ -30,6 +25,12 @@ public class OTLPActionRequest extends ActionRequest implements CompositeIndices
     @Override
     public ActionRequestValidationException validate() {
         return null;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) {
+        // OTLP REST actions execute locally; the request body is not serialized over transport.
+        TransportAction.localOnly();
     }
 
     public BytesReference getRequest() {

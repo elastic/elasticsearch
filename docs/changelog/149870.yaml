@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149870
+summary: Parquet pushdown for CONTAINS and ENDS_WITH
+type: enhancement

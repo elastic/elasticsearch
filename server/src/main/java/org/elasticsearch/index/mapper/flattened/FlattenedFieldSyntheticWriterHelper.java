@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -17,6 +18,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -265,18 +267,27 @@ public class FlattenedFieldSyntheticWriterHelper {
         }
     }
 
+    private interface FlattenedPathXContentWriter {
+        void writeValue(XContentBuilder b, KeyValueWithOffset value, KeyValueWithOffset next) throws IOException;
+    }
+
     /**
-     * Stateful writer that turns a sorted stream of flattened key paths into nested {@link XContentBuilder} output.
+     * {@link FlattenedPathXContentWriter} implementation that splits each key on
+     * {@code .} and opens {@link XContentBuilder} object scopes to reconstruct nested structure from sorted path segments.
      * <p>
-     * It tracks which object scopes are currently open and, when a leaf key collides with a prior scalar at the same
-     * path prefix (e.g. {@code foo} then {@code foo.bar}), emits a single dotted field name instead of nesting so the
-     * reconstructed document matches flattened-field semantics.
+     * It keeps track of which object levels are open and how far into the current path each field belongs, and uses
+     * {@code next} to close the right number of objects when the prefix of the following key changes.
+     * <p>
+     * When a leaf already had a scalar value and a later key extends that path (e.g. {@code foo} then {@code foo.bar}),
+     * a nested object under {@code foo} would collide with the scalar. The writer then emits a single dotted field
+     * name in the current object (for example {@code foo.bar}) instead of opening another object under {@code foo}.
      */
-    private static class FlattenedPathXContentWriter {
+    private static class NestedFlattenedPathXContentWriter implements FlattenedPathXContentWriter {
         Prefix openObjects = new Prefix();
         String lastScalarSingleLeaf = null;
 
-        public void write(XContentBuilder b, KeyValueWithOffset value, KeyValueWithOffset next) throws IOException {
+        @Override
+        public void writeValue(XContentBuilder b, KeyValueWithOffset value, KeyValueWithOffset next) throws IOException {
             // startPrefix is the suffix of the path that is within the currently open object, not including the leaf.
             // For example, if the path is foo.bar.baz.qux, and openObjects is [foo], then startPrefix is bar.baz, and leaf is qux.
             var startPrefix = value.key.prefix.diff(openObjects);
@@ -304,6 +315,20 @@ public class FlattenedFieldSyntheticWriterHelper {
         }
     }
 
+    /**
+     * {@link FlattenedPathXContentWriter} implementation that writes each key with its full dotted path as a single
+     * top-level field name, without opening nested objects.
+     * <p>
+     * Unlike {@link NestedFlattenedPathXContentWriter}, it does not split paths on {@code .} or track open object
+     * scopes; {@code next} is ignored because flattening is stateless.
+     */
+    private static class FlatFlattenedPathXContentWriter implements FlattenedPathXContentWriter {
+        @Override
+        public void writeValue(XContentBuilder b, KeyValueWithOffset value, KeyValueWithOffset next) throws IOException {
+            writeField(b, value.values, value.key.fullPath(), value.offsets);
+        }
+    }
+
     @FunctionalInterface
     public interface SortedKeyedValues {
         BytesRef next() throws IOException;
@@ -318,10 +343,16 @@ public class FlattenedFieldSyntheticWriterHelper {
 
     private final SortedKeyedValues sortedKeyedValues;
     private final SortedOffsetValues sortedOffsetValues;
+    private final List<Map.Entry<String, SourceLoader.SyntheticFieldLoader>> sortedSubFields;
 
-    public FlattenedFieldSyntheticWriterHelper(final SortedKeyedValues sortedKeyedValues, final SortedOffsetValues sortedOffsetValues) {
+    public FlattenedFieldSyntheticWriterHelper(
+        final SortedKeyedValues sortedKeyedValues,
+        final SortedOffsetValues sortedOffsetValues,
+        final List<Map.Entry<String, SourceLoader.SyntheticFieldLoader>> sortedSubFields
+    ) {
         this.sortedKeyedValues = sortedKeyedValues;
         this.sortedOffsetValues = sortedOffsetValues;
+        this.sortedSubFields = sortedSubFields;
     }
 
     private static String concatPath(Prefix prefix, String leaf) {
@@ -333,16 +364,49 @@ public class FlattenedFieldSyntheticWriterHelper {
         return builder.toString();
     }
 
-    public void write(final XContentBuilder b) throws IOException {
-        var producer = new KeyValueProducer(sortedKeyedValues, sortedOffsetValues);
-        var writer = new FlattenedPathXContentWriter();
+    /**
+     * Writes all key-value pairs from doc values using a flat output structure, merging in
+     * the sub-field loaders supplied at construction time in alphabetical order.
+     * <p>
+     * Both the doc-values key stream and the sub-field list are in ascending lexicographic order;
+     * the two streams are merged in a single pass so all keys appear in sorted order. The flat
+     * writer is stateless (no object-scope tracking), making interleaving safe at any point.
+     */
+    public void writeFlattened(final XContentBuilder b) throws IOException {
+        KeyValueProducer producer = new KeyValueProducer(sortedKeyedValues, sortedOffsetValues);
+        FlatFlattenedPathXContentWriter flatWriter = new FlatFlattenedPathXContentWriter();
+        int subIdx = 0;
+        KeyValueWithOffset curr = producer.next();
+        while (curr != null || subIdx < sortedSubFields.size()) {
+            String currKey = curr != null ? curr.key.fullPath() : null;
+            String nextSubKey = subIdx < sortedSubFields.size() ? sortedSubFields.get(subIdx).getKey() : null;
+            if (currKey == null || (nextSubKey != null && nextSubKey.compareTo(currKey) <= 0)) {
+                sortedSubFields.get(subIdx).getValue().write(b);
+                subIdx++;
+            } else {
+                flatWriter.writeValue(b, curr, null);
+                curr = producer.next();
+            }
+        }
+    }
 
-        var curr = producer.next();
-        var next = producer.next();
+    /**
+     * Writes all key-value pairs from doc values by reconstructing nested objects, then appends
+     * the sub-field loaders supplied at construction time at the top level after all objects have
+     * been closed.
+     */
+    public void writeNested(final XContentBuilder b) throws IOException {
+        KeyValueProducer producer = new KeyValueProducer(sortedKeyedValues, sortedOffsetValues);
+        NestedFlattenedPathXContentWriter writer = new NestedFlattenedPathXContentWriter();
+        KeyValueWithOffset curr = producer.next();
+        KeyValueWithOffset next = producer.next();
         while (curr != null) {
-            writer.write(b, curr, next);
+            writer.writeValue(b, curr, next);
             curr = next;
             next = producer.next();
+        }
+        for (Map.Entry<String, SourceLoader.SyntheticFieldLoader> entry : sortedSubFields) {
+            entry.getValue().write(b);
         }
     }
 

@@ -1,0 +1,5 @@
+area: "Machine Learning"
+issues: []
+pr: 145980
+summary: Lookup join and Inline stats support for query approximation
+type: feature

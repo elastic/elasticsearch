@@ -75,6 +75,41 @@ public class FetchPhaseResponseChunkTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that when a chunk is decoded from a pooled (releasable) stream, {@code serializedHits}
+     * is stored as a retained slice of the underlying buffer. The buffer must remain live until
+     * {@link FetchPhaseResponseChunk#close()} is called, even if the outer wire reference is released first.
+     */
+    public void testCoordinatorPathReleasesPooledSerializedHits() throws IOException {
+        SearchHit hit = createHit(1);
+        try {
+            AtomicBoolean released = new AtomicBoolean(false);
+            ReleasableBytesReference serializedHits = new ReleasableBytesReference(serializeHits(hit), () -> released.set(true));
+
+            FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(TEST_SHARD_ID, serializedHits, 1, 10, 0L);
+            ReleasableBytesReference wireBytes = chunk.toReleasableBytesReference(42L);
+
+            FetchPhaseResponseChunk decoded;
+            try (StreamInput in = wireBytes.streamInput()) {
+                in.readVLong(); // coordinatingTaskId written by toReleasableBytesReference
+                decoded = new FetchPhaseResponseChunk(in);
+            }
+
+            // decoded holds a retained slice of wireBytes' buffer; releasing wireBytes alone must not free it
+            wireBytes.decRef();
+            assertFalse("pooled buffer must still be live while decoded chunk holds its retained ref", released.get());
+
+            // the retained bytes are still fully readable
+            assertThat(getIdFromSource(decoded.getHits()[0]), equalTo(1));
+
+            // closing the decoded chunk releases the retained slice → ref count reaches zero → buffer freed
+            decoded.close();
+            assertTrue("pooled buffer must be released once the decoded chunk is closed", released.get());
+        } finally {
+            hit.decRef();
+        }
+    }
+
     public void testGetHitsCachesDeserializedHits() throws IOException {
         SearchHit first = createHit(1);
         SearchHit second = createHit(2);

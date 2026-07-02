@@ -25,6 +25,19 @@ public interface ExternalSourceFactory {
 
     SourceMetadata resolveMetadata(String location, Map<String, Object> config);
 
+    /**
+     * Reject configuration keys this factory doesn't recognize at the given location. Implementations
+     * compose their claimed-key sets and call {@link ConfigKeyValidator#check}.
+     * <p>
+     * <b>Required override.</b> Every factory must explicitly state its validation contract — either
+     * by composing claimed-key sets and delegating to {@link ConfigKeyValidator#check}, or, for
+     * factories with no per-query config keys today, by calling
+     * {@code ConfigKeyValidator.check(config, List.of())} to reject any non-empty config map. An
+     * empty method body would silently accept typo'd configurations — exactly the footgun this
+     * abstract contract exists to prevent — so do not write one.
+     */
+    void validateConfig(String location, Map<String, Object> config);
+
     default FilterPushdownSupport filterPushdownSupport() {
         return null;
     }

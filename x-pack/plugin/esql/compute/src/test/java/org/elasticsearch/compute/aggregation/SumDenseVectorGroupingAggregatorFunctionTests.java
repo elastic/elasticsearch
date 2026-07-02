@@ -103,11 +103,9 @@ public class SumDenseVectorGroupingAggregatorFunctionTests extends GroupingAggre
 
         int start = resultBlock.getFirstValueIndex(position);
         for (int i = 0; i < vectorDimensions; i++) {
-            assertThat(
-                "Dimension " + i + " mismatch",
-                (double) resultBlock.getFloat(start + i),
-                closeTo(expectedSum[i], Math.abs(expectedSum[i]) * 1e-5f)
-            );
+            // Use a relative tolerance since float summation order changes across partitions.
+            double tolerance = Math.abs(expectedSum[i]) * 1e-3f;
+            assertThat("Dimension " + i + " mismatch", (double) resultBlock.getFloat(start + i), closeTo(expectedSum[i], tolerance));
         }
     }
 

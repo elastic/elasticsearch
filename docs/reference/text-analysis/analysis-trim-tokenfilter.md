@@ -9,7 +9,7 @@ mapped_pages:
 
 Removes leading and trailing whitespace from each token in a stream. While this can change the length of a token, the `trim` filter does *not* change a token’s offsets.
 
-The `trim` filter uses Lucene’s [TrimFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/TrimFilter.md).
+The `trim` filter uses Lucene’s [TrimFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/TrimFilter.html).
 
 ::::{tip}
 Many commonly used tokenizers, such as the [`standard`](/reference/text-analysis/analysis-standard-tokenizer.md) or [`whitespace`](/reference/text-analysis/analysis-whitespace-tokenizer.md) tokenizer, remove whitespace by default. When using these tokenizers, you don’t need to add a separate `trim` filter.

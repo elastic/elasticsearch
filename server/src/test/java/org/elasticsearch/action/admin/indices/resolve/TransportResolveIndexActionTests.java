@@ -13,12 +13,20 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
@@ -29,8 +37,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.EnumSet;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -43,6 +55,47 @@ public class TransportResolveIndexActionTests extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+    }
+
+    public void testMetadataReadBlock() throws Exception {
+        ClusterService clusterService = createClusterService(threadPool);
+        try {
+            ClusterBlock block = new ClusterBlock(
+                randomInt(),
+                "test metadata read block",
+                false,
+                true,
+                false,
+                RestStatus.FORBIDDEN,
+                EnumSet.of(ClusterBlockLevel.METADATA_READ)
+            );
+            setState(
+                clusterService,
+                ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder().addGlobalBlock(block)).build()
+            );
+            ActionFilters actionFilters = mock(ActionFilters.class);
+            when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
+            TransportService transportService = MockTransportService.createNewService(
+                Settings.EMPTY,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                threadPool
+            );
+            ResolveIndexAction.TransportAction action = new ResolveIndexAction.TransportAction(
+                transportService,
+                clusterService,
+                actionFilters,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                null,
+                CrossProjectModeDecider.NOOP
+            );
+            PlainActionFuture<ResolveIndexAction.Response> listener = new PlainActionFuture<>();
+            ActionTestUtils.execute(action, null, new ResolveIndexAction.Request(new String[] { "test" }), listener);
+            var exception = expectThrows(ExecutionException.class, listener::get);
+            assertThat(exception.getCause(), org.hamcrest.Matchers.instanceOf(ClusterBlockException.class));
+        } finally {
+            clusterService.close();
+        }
     }
 
     public void testCCSCompatibilityCheck() throws Exception {

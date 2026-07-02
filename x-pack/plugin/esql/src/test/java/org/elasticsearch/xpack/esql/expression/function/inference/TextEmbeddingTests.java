@@ -11,6 +11,8 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
@@ -22,6 +24,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("text_embedding")
@@ -35,11 +38,19 @@ public class TextEmbeddingTests extends AbstractFunctionTestCase {
         return parameterSuppliersFromTypedData(
             List.of(
                 new TestCaseSupplier(
-                    List.of(KEYWORD, KEYWORD),
+                    List.of(KEYWORD, KEYWORD, UNSUPPORTED),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
                             new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), KEYWORD, "text"),
-                            new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), KEYWORD, "inference_id")
+                            new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), KEYWORD, "inference_id"),
+                            new TestCaseSupplier.TypedData(
+                                new MapExpression(
+                                    Source.EMPTY,
+                                    List.of(Literal.keyword(Source.EMPTY, "timeout"), Literal.keyword(Source.EMPTY, "30s"))
+                                ),
+                                UNSUPPORTED,
+                                "options"
+                            ).forceLiteral()
                         ),
                         Matchers.blankOrNullString(),
                         DENSE_VECTOR,
@@ -52,7 +63,7 @@ public class TextEmbeddingTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TextEmbedding(source, args.get(0), args.get(1));
+        return new TextEmbedding(source, args.get(0), args.get(1), null);
     }
 
     @Override

@@ -26,7 +26,7 @@ import java.io.IOException;
  */
 $if(BytesRef)$
 public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
-    OrdinalBytesRefVector, org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector$extraArrowBufVectorPermits$ {
+    OrdinalBytesRefVector, DirectBytesRefVector, org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector$extraArrowBufVectorPermits$ {
 $elseif(boolean)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
     ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector$extraArrowBufVectorPermits$ {
@@ -96,7 +96,12 @@ $if(BytesRef)$
 
 $endif$
     @Override
-    $Type$Vector filter(boolean mayContainDuplicates, int... positions);
+    $Type$Vector filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default $Type$Vector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     $Type$Block keepMask(BooleanVector mask);
@@ -148,6 +153,16 @@ $elseif(boolean)$
      */
     boolean allFalse();
 $endif$
+
+    /**
+     * The maximum size in bytes of any single value stored in this vector, or {@code 0} if there are no values.
+$if(BytesRef)$
+     * Scans all positions to find the maximum.
+$else$
+     * Always {@code $BYTES$} since all $type$ values encode to the same number of bytes.
+$endif$
+     */
+    int valueMaxByteSize();
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the

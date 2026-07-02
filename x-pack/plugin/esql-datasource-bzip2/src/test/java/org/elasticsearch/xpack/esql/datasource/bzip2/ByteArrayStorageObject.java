@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 
@@ -31,22 +32,22 @@ class ByteArrayStorageObject implements StorageObject {
     }
 
     @Override
-    public InputStream newStream() {
+    public InputStream newStream() throws IOException {
         return new ByteArrayInputStream(data);
     }
 
     @Override
-    public InputStream newStream(long position, long length) {
+    public InputStream newStream(long position, long length) throws IOException {
         return new ByteArrayInputStream(data, (int) position, (int) length);
     }
 
     @Override
-    public long length() {
+    public long length() throws IOException {
         return data.length;
     }
 
     @Override
-    public Instant lastModified() {
+    public Instant lastModified() throws IOException {
         return Instant.now();
     }
 

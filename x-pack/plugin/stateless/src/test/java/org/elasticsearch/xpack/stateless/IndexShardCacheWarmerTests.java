@@ -1,0 +1,136 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless;
+
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+public class IndexShardCacheWarmerTests extends IndexShardTestCase {
+
+    public void testPreWarmIndexShardCacheWhenShardIsClosedBeforePrewarmingStarted() throws Exception {
+
+        var taskQueue = new DeterministicTaskQueue();
+        var indexShard = newShard(true);
+
+        var sharedBlobCacheWarmingService = mock(SharedBlobCacheWarmingService.class);
+        var indexShardCacheWarmer = new IndexShardCacheWarmer(
+            mock(ObjectStoreService.class),
+            sharedBlobCacheWarmingService,
+            taskQueue.getThreadPool(),
+            randomBoolean(),
+            taskQueue.getThreadPool().generic()
+        );
+
+        // Prepare shard routing `role` to correspond to indexing shard setup in stateless
+        var copyShardRoutingWithIndexOnlyRole = new TestShardRouting.Builder(
+            indexShard.shardId(),
+            indexShard.routingEntry().currentNodeId(),
+            indexShard.routingEntry().primary(),
+            indexShard.routingEntry().state()
+        ).withAllocationId(indexShard.routingEntry().allocationId())
+            .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
+            .withRole(ShardRouting.Role.INDEX_ONLY)
+            .build();
+
+        updateRoutingEntry(indexShard, copyShardRoutingWithIndexOnlyRole);
+
+        indexShard.markAsRecovering(
+            "simulated",
+            new RecoveryState(
+                indexShard.routingEntry(),
+                DiscoveryNodeUtils.builder("index-node-target").build(),
+                DiscoveryNodeUtils.builder("index-node-source").build()
+            )
+        );
+
+        indexShardCacheWarmer.preWarmIndexShardCache(indexShard);
+
+        var store = indexShard.store();
+        // Created shard without any store level operations has refCount = 1
+        assertThat(store.refCount(), equalTo(1));
+        // Decrement explicitly ref count to simulate shard/store closing
+        // IndexShard#close is not used here since it would require opening an engine beforehand (to attach it to IndexShard `store`)
+        assertThat(store.decRef(), is(true));
+
+        taskQueue.runAllTasks();
+        verify(sharedBlobCacheWarmingService, never()).warmCacheForShardRecoveryOrUnhollowing(any(), any(), any(), any(), any(), any());
+    }
+
+    public void testLogErrorIfPrewarmingFailed() throws Exception {
+        var taskQueue = new DeterministicTaskQueue();
+        var indexShard = newShard(true);
+
+        var objectStoreService = mock(ObjectStoreService.class);
+        // simulate any blob store/bob container runtime error
+        when(objectStoreService.getProjectBlobStore(indexShard.shardId())).thenThrow(new RuntimeException("simulated"));
+
+        var indexShardCacheWarmer = new IndexShardCacheWarmer(
+            objectStoreService,
+            null,
+            taskQueue.getThreadPool(),
+            randomBoolean(),
+            taskQueue.getThreadPool().generic()
+        );
+
+        // Prepare shard routing `role` to correspond to indexing shard setup in stateless
+        var copyShardRoutingWithIndexOnlyRole = new TestShardRouting.Builder(
+            indexShard.shardId(),
+            indexShard.routingEntry().currentNodeId(),
+            indexShard.routingEntry().primary(),
+            indexShard.routingEntry().state()
+        ).withAllocationId(indexShard.routingEntry().allocationId())
+            .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
+            .withRole(ShardRouting.Role.INDEX_ONLY)
+            .build();
+
+        updateRoutingEntry(indexShard, copyShardRoutingWithIndexOnlyRole);
+
+        indexShard.markAsRecovering(
+            "simulated",
+            new RecoveryState(
+                indexShard.routingEntry(),
+                DiscoveryNodeUtils.builder("index-node-target").build(),
+                DiscoveryNodeUtils.builder("index-node-source").build()
+            )
+        );
+
+        try (var mockLog = MockLog.capture(IndexShardCacheWarmer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "expected warn log about failed pre warming index shard cache",
+                    IndexShardCacheWarmer.class.getName(),
+                    Level.INFO,
+                    Strings.format("%s early indexing cache prewarming failed", indexShard.shardId())
+                )
+            );
+            indexShardCacheWarmer.preWarmIndexShardCache(indexShard);
+            taskQueue.runAllTasks();
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+}

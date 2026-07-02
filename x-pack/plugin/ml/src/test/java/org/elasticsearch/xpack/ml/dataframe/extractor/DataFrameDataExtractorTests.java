@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.extractor.ProcessedField;
 import org.elasticsearch.xpack.ml.extractor.SourceField;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
+import org.elasticsearch.xpack.ml.test.SearchHitTestUtil;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -55,6 +57,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -118,20 +121,28 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         assertThat(dataExtractor.hasNext(), is(true));
 
         // First batch
-        Optional<SearchHit[]> rows = dataExtractor.next();
+        Optional<SearchHits> rows = dataExtractor.next();
         assertThat(rows.isPresent(), is(true));
-        assertThat(rows.get().length, equalTo(3));
-        assertThat(dataExtractor.createRow(rows.get()[0]).getValues(), equalTo(new String[] { "11", "21" }));
-        assertThat(dataExtractor.createRow(rows.get()[1]).getValues(), equalTo(new String[] { "12", "22" }));
-        assertThat(dataExtractor.createRow(rows.get()[2]).getValues(), equalTo(new String[] { "13", "23" }));
-        assertThat(dataExtractor.hasNext(), is(true));
+        assertThat(rows.get().getHits().length, equalTo(3));
+        try {
+            assertThat(dataExtractor.createRow(rows.get().getHits()[0]).getValues(), equalTo(new String[] { "11", "21" }));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[1]).getValues(), equalTo(new String[] { "12", "22" }));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[2]).getValues(), equalTo(new String[] { "13", "23" }));
+            assertThat(dataExtractor.hasNext(), is(true));
+        } finally {
+            rows.get().decRef();
+        }
 
         // Second batch
         rows = dataExtractor.next();
         assertThat(rows.isPresent(), is(true));
-        assertThat(rows.get().length, equalTo(1));
-        assertThat(dataExtractor.createRow(rows.get()[0]).getValues(), equalTo(new String[] { "31", "41" }));
-        assertThat(dataExtractor.hasNext(), is(true));
+        assertThat(rows.get().getHits().length, equalTo(1));
+        try {
+            assertThat(dataExtractor.createRow(rows.get().getHits()[0]).getValues(), equalTo(new String[] { "31", "41" }));
+            assertThat(dataExtractor.hasNext(), is(true));
+        } finally {
+            rows.get().decRef();
+        }
 
         // Third batch should return empty
         rows = dataExtractor.next();
@@ -208,19 +219,27 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         assertThat(dataExtractor.hasNext(), is(true));
 
         // First batch expected as normally since we'll retry after the error
-        Optional<SearchHit[]> rows = dataExtractor.next();
+        Optional<SearchHits> rows = dataExtractor.next();
         assertThat(rows.isPresent(), is(true));
-        assertThat(rows.get().length, equalTo(2));
-        assertThat(dataExtractor.createRow(rows.get()[0]).getValues(), equalTo(new String[] { "11", "21" }));
-        assertThat(dataExtractor.createRow(rows.get()[1]).getValues(), equalTo(new String[] { "12", "22" }));
-        assertThat(dataExtractor.hasNext(), is(true));
+        assertThat(rows.get().getHits().length, equalTo(2));
+        try {
+            assertThat(dataExtractor.createRow(rows.get().getHits()[0]).getValues(), equalTo(new String[] { "11", "21" }));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[1]).getValues(), equalTo(new String[] { "12", "22" }));
+            assertThat(dataExtractor.hasNext(), is(true));
+        } finally {
+            rows.get().decRef();
+        }
 
         // We get second batch as we retried after the error
         rows = dataExtractor.next();
         assertThat(rows.isPresent(), is(true));
-        assertThat(rows.get().length, equalTo(1));
-        assertThat(dataExtractor.createRow(rows.get()[0]).getValues(), equalTo(new String[] { "13", "23" }));
-        assertThat(dataExtractor.hasNext(), is(true));
+        assertThat(rows.get().getHits().length, equalTo(1));
+        try {
+            assertThat(dataExtractor.createRow(rows.get().getHits()[0]).getValues(), equalTo(new String[] { "13", "23" }));
+            assertThat(dataExtractor.hasNext(), is(true));
+        } finally {
+            rows.get().decRef();
+        }
 
         // Next batch should return empty
         rows = dataExtractor.next();
@@ -262,11 +281,15 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
         assertThat(dataExtractor.hasNext(), is(true));
 
-        Optional<SearchHit[]> rows = dataExtractor.next();
+        Optional<SearchHits> rows = dataExtractor.next();
         assertThat(rows.isPresent(), is(true));
-        assertThat(rows.get().length, equalTo(1));
-        assertThat(dataExtractor.createRow(rows.get()[0]).getValues(), equalTo(new String[] { "11", "21" }));
-        assertThat(dataExtractor.hasNext(), is(true));
+        assertThat(rows.get().getHits().length, equalTo(1));
+        try {
+            assertThat(dataExtractor.createRow(rows.get().getHits()[0]).getValues(), equalTo(new String[] { "11", "21" }));
+            assertThat(dataExtractor.hasNext(), is(true));
+        } finally {
+            rows.get().decRef();
+        }
 
         assertThat(dataExtractor.next(), isEmpty());
         assertThat(dataExtractor.hasNext(), is(false));
@@ -297,11 +320,15 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
         assertThat(dataExtractor.hasNext(), is(true));
 
-        Optional<SearchHit[]> rows = dataExtractor.next();
+        Optional<SearchHits> rows = dataExtractor.next();
         assertThat(rows.isPresent(), is(true));
-        assertThat(rows.get().length, equalTo(1));
-        assertThat(dataExtractor.createRow(rows.get()[0]).getValues(), equalTo(new String[] { "11", "21" }));
-        assertThat(dataExtractor.hasNext(), is(true));
+        assertThat(rows.get().getHits().length, equalTo(1));
+        try {
+            assertThat(dataExtractor.createRow(rows.get().getHits()[0]).getValues(), equalTo(new String[] { "11", "21" }));
+            assertThat(dataExtractor.hasNext(), is(true));
+        } finally {
+            rows.get().decRef();
+        }
 
         assertThat(dataExtractor.next(), isEmpty());
         assertThat(dataExtractor.hasNext(), is(false));
@@ -364,20 +391,23 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         assertThat(dataExtractor.hasNext(), is(true));
 
         // First batch
-        Optional<SearchHit[]> rows = dataExtractor.next();
+        Optional<SearchHits> rows = dataExtractor.next();
         assertThat(rows.isPresent(), is(true));
-        assertThat(rows.get().length, equalTo(3));
+        assertThat(rows.get().getHits().length, equalTo(3));
+        try {
+            assertThat(dataExtractor.createRow(rows.get().getHits()[0]).getValues(), equalTo(new String[] { "11", "21" }));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[1]).getValues()[0], equalTo(DataFrameDataExtractor.NULL_VALUE));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[1]).getValues()[1], equalTo("22"));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[2]).getValues(), equalTo(new String[] { "13", "23" }));
 
-        assertThat(dataExtractor.createRow(rows.get()[0]).getValues(), equalTo(new String[] { "11", "21" }));
-        assertThat(dataExtractor.createRow(rows.get()[1]).getValues()[0], equalTo(DataFrameDataExtractor.NULL_VALUE));
-        assertThat(dataExtractor.createRow(rows.get()[1]).getValues()[1], equalTo("22"));
-        assertThat(dataExtractor.createRow(rows.get()[2]).getValues(), equalTo(new String[] { "13", "23" }));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[0]).shouldSkip(), is(false));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[1]).shouldSkip(), is(false));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[2]).shouldSkip(), is(false));
 
-        assertThat(dataExtractor.createRow(rows.get()[0]).shouldSkip(), is(false));
-        assertThat(dataExtractor.createRow(rows.get()[1]).shouldSkip(), is(false));
-        assertThat(dataExtractor.createRow(rows.get()[2]).shouldSkip(), is(false));
-
-        assertThat(dataExtractor.hasNext(), is(true));
+            assertThat(dataExtractor.hasNext(), is(true));
+        } finally {
+            rows.get().decRef();
+        }
 
         // Third batch should return empty
         rows = dataExtractor.next();
@@ -399,19 +429,22 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         assertThat(dataExtractor.hasNext(), is(true));
 
         // First batch
-        Optional<SearchHit[]> rows = dataExtractor.next();
+        Optional<SearchHits> rows = dataExtractor.next();
         assertThat(rows.isPresent(), is(true));
-        assertThat(rows.get().length, equalTo(3));
+        assertThat(rows.get().getHits().length, equalTo(3));
+        try {
+            assertThat(dataExtractor.createRow(rows.get().getHits()[0]).getValues(), equalTo(new String[] { "11", "21" }));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[1]).getValues(), is(nullValue()));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[2]).getValues(), equalTo(new String[] { "13", "23" }));
 
-        assertThat(dataExtractor.createRow(rows.get()[0]).getValues(), equalTo(new String[] { "11", "21" }));
-        assertThat(dataExtractor.createRow(rows.get()[1]).getValues(), is(nullValue()));
-        assertThat(dataExtractor.createRow(rows.get()[2]).getValues(), equalTo(new String[] { "13", "23" }));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[0]).shouldSkip(), is(false));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[1]).shouldSkip(), is(true));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[2]).shouldSkip(), is(false));
 
-        assertThat(dataExtractor.createRow(rows.get()[0]).shouldSkip(), is(false));
-        assertThat(dataExtractor.createRow(rows.get()[1]).shouldSkip(), is(true));
-        assertThat(dataExtractor.createRow(rows.get()[2]).shouldSkip(), is(false));
-
-        assertThat(dataExtractor.hasNext(), is(true));
+            assertThat(dataExtractor.hasNext(), is(true));
+        } finally {
+            rows.get().decRef();
+        }
 
         // Third batch should return empty
         rows = dataExtractor.next();
@@ -538,20 +571,27 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         assertThat(dataExtractor.hasNext(), is(true));
 
         // First batch
-        Optional<SearchHit[]> rows = dataExtractor.next();
+        Optional<SearchHits> rows = dataExtractor.next();
         assertThat(rows.isPresent(), is(true));
-        assertThat(rows.get().length, equalTo(3));
+        assertThat(rows.get().getHits().length, equalTo(3));
+        try {
+            assertThat(dataExtractor.createRow(rows.get().getHits()[0]).getValues(), equalTo(new String[] { "21", "dog", "1", "0" }));
+            assertThat(
+                dataExtractor.createRow(rows.get().getHits()[1]).getValues(),
+                equalTo(new String[] { "22", "dog", DataFrameDataExtractor.NULL_VALUE, DataFrameDataExtractor.NULL_VALUE })
+            );
+            assertThat(dataExtractor.createRow(rows.get().getHits()[2]).getValues(), equalTo(new String[] { "23", "dog", "0", "0" }));
 
-        assertThat(dataExtractor.createRow(rows.get()[0]).getValues(), equalTo(new String[] { "21", "dog", "1", "0" }));
-        assertThat(
-            dataExtractor.createRow(rows.get()[1]).getValues(),
-            equalTo(new String[] { "22", "dog", DataFrameDataExtractor.NULL_VALUE, DataFrameDataExtractor.NULL_VALUE })
-        );
-        assertThat(dataExtractor.createRow(rows.get()[2]).getValues(), equalTo(new String[] { "23", "dog", "0", "0" }));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[0]).shouldSkip(), is(false));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[1]).shouldSkip(), is(false));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[2]).shouldSkip(), is(false));
+        } finally {
+            rows.get().decRef();
+        }
 
-        assertThat(dataExtractor.createRow(rows.get()[0]).shouldSkip(), is(false));
-        assertThat(dataExtractor.createRow(rows.get()[1]).shouldSkip(), is(false));
-        assertThat(dataExtractor.createRow(rows.get()[2]).shouldSkip(), is(false));
+        rows = dataExtractor.next();
+        assertThat(rows, isEmpty());
+        assertThat(dataExtractor.hasNext(), is(false));
     }
 
     public void testExtractionWithMultipleScalarTypesInSource() throws IOException {
@@ -577,20 +617,27 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         assertThat(dataExtractor.hasNext(), is(true));
 
         // First batch
-        Optional<SearchHit[]> rows = dataExtractor.next();
+        Optional<SearchHits> rows = dataExtractor.next();
         assertThat(rows.isPresent(), is(true));
-        assertThat(rows.get().length, equalTo(3));
+        assertThat(rows.get().getHits().length, equalTo(3));
+        try {
+            assertThat(dataExtractor.createRow(rows.get().getHits()[0]).getValues(), equalTo(new String[] { "1", "21", }));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[1]).getValues(), equalTo(new String[] { "true", "22" }));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[2]).getValues(), equalTo(new String[] { "false", "23" }));
 
-        assertThat(dataExtractor.createRow(rows.get()[0]).getValues(), equalTo(new String[] { "1", "21", }));
-        assertThat(dataExtractor.createRow(rows.get()[1]).getValues(), equalTo(new String[] { "true", "22" }));
-        assertThat(dataExtractor.createRow(rows.get()[2]).getValues(), equalTo(new String[] { "false", "23" }));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[0]).shouldSkip(), is(false));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[1]).shouldSkip(), is(false));
+            assertThat(dataExtractor.createRow(rows.get().getHits()[2]).shouldSkip(), is(false));
+        } finally {
+            rows.get().decRef();
+        }
 
-        assertThat(dataExtractor.createRow(rows.get()[0]).shouldSkip(), is(false));
-        assertThat(dataExtractor.createRow(rows.get()[1]).shouldSkip(), is(false));
-        assertThat(dataExtractor.createRow(rows.get()[2]).shouldSkip(), is(false));
+        rows = dataExtractor.next();
+        assertThat(rows, isEmpty());
+        assertThat(dataExtractor.hasNext(), is(false));
     }
 
-    public void testExtractionWithProcessedFieldThrows() {
+    public void testExtractionWithProcessedFieldThrows() throws IOException {
         ProcessedField processedField = mock(ProcessedField.class);
         doThrow(new RuntimeException("process field error")).when(processedField).value(any(), any(), any());
 
@@ -610,7 +657,27 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
         assertThat(dataExtractor.hasNext(), is(true));
 
-        expectThrows(RuntimeException.class, () -> Arrays.stream(dataExtractor.next().get()).forEach(dataExtractor::createRow));
+        Optional<SearchHits> rows = dataExtractor.next();
+        assertThat(rows.isPresent(), is(true));
+        try {
+            expectThrows(RuntimeException.class, () -> Arrays.stream(rows.get().getHits()).forEach(dataExtractor::createRow));
+        } finally {
+            rows.get().decRef();
+        }
+    }
+
+    /**
+     * If advancing {@code lastSortKey} fails after {@code SearchHits} was retained for the caller,
+     * {@link DataFrameDataExtractor#next()} must release that ref so the batch is not leaked.
+     */
+    public void testNextReleasesSearchHitsWhenSortKeyExtractionThrows() throws IOException {
+        TestExtractor dataExtractor = createExtractor(true, false);
+
+        SearchResponse response = createSearchResponseWithLastHitEmptySortValues(Arrays.asList(1_1, 1_2), Arrays.asList(2_1, 2_2));
+        dataExtractor.setNextResponse(response);
+
+        assertThat(dataExtractor.hasNext(), is(true));
+        expectThrows(ArrayIndexOutOfBoundsException.class, () -> dataExtractor.next());
     }
 
     private TestExtractor createExtractor(boolean includeSource, boolean supportsRowsWithMissingValues) {
@@ -654,8 +721,34 @@ public class DataFrameDataExtractorTests extends ESTestCase {
             hits.add(searchHitBuilder.build());
         }
         SearchHits searchHits = new SearchHits(hits.toArray(SearchHits.EMPTY), new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
-        when(searchResponse.getHits()).thenReturn(searchHits.asUnpooled());
-        searchHits.decRef();
+        when(searchResponse.getHits()).thenReturn(searchHits);
+        SearchHitTestUtil.stubSearchResponseDecRefsHits(searchResponse, searchHits);
+        return searchResponse;
+    }
+
+    /** Last document has no sort values, so {@code getSortValues()[0]} throws when advancing the batch cursor. */
+    private SearchResponse createSearchResponseWithLastHitEmptySortValues(List<Object> field1Values, List<Object> field2Values) {
+        assertThat(field1Values.size(), equalTo(field2Values.size()));
+        assertThat(field1Values.size(), greaterThan(0));
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        List<SearchHit> hits = new ArrayList<>();
+        for (int i = 0; i < field1Values.size(); i++) {
+            SearchHitBuilder searchHitBuilder = new SearchHitBuilder(randomInt());
+            addField(searchHitBuilder, "field_1", field1Values.get(i));
+            addField(searchHitBuilder, "field_2", field2Values.get(i));
+            searchHitBuilder.setSource("{\"field_1\":" + field1Values.get(i) + ",\"field_2\":" + field2Values.get(i) + "}");
+            if (i < field1Values.size() - 1) {
+                searchHitBuilder.setLongSortValue(searchHitCounter++);
+                hits.add(searchHitBuilder.build());
+            } else {
+                SearchHit lastHit = searchHitBuilder.build();
+                lastHit.sortValues(new Object[0], new DocValueFormat[0]);
+                hits.add(lastHit);
+            }
+        }
+        SearchHits searchHits = new SearchHits(hits.toArray(SearchHits.EMPTY), new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
+        when(searchResponse.getHits()).thenReturn(searchHits);
+        SearchHitTestUtil.stubSearchResponseDecRefsHits(searchResponse, searchHits);
         return searchResponse;
     }
 

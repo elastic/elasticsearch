@@ -774,6 +774,33 @@ public class RelocationIT extends ESIntegTestCase {
         assertActiveCopiesEstablishedPeerRecoveryRetentionLeases();
     }
 
+    public void testRelocationForClosedIndex() {
+        final var oldNodes = internalCluster().startNodes(2);
+        ensureStableCluster(2);
+
+        final var indexName = randomIndexName();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+        indexRandom(randomBoolean(), indexName, 10);
+        safeGet(indicesAdmin().prepareClose(indexName).execute());
+
+        final var newNodes = internalCluster().startNodes(2);
+        ensureStableCluster(4);
+
+        logger.info("--> force relocation to new nodes");
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", String.join(",", oldNodes)), indexName);
+        ensureGreen(indexName);
+
+        assertThat(internalCluster().nodesInclude(indexName), equalTo(Set.copyOf(newNodes)));
+
+        // Re-open works
+        safeGet(indicesAdmin().prepareOpen(indexName).execute());
+        ensureGreen(indexName);
+        // Index also works and we get expected number of docs
+        indexRandom(true, indexName, 10);
+        assertResponse(prepareSearch(indexName).setSize(0), response -> { assertHitCount(response, 20); });
+    }
+
     private void assertActiveCopiesEstablishedPeerRecoveryRetentionLeases() throws Exception {
         assertBusy(() -> {
             for (String index : clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)

@@ -140,7 +140,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
                 listener
             );
         } else {
-            operation(
+            loggedOperation(
                 planExecutor,
                 (SqlQueryTask) task,
                 request,
@@ -154,6 +154,24 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         }
     }
 
+    public static void loggedOperation(
+        PlanExecutor planExecutor,
+        SqlQueryTask task,
+        SqlQueryRequest request,
+        ActionListener<SqlQueryResponse> operationListener,
+        String username,
+        TransportService transportService,
+        ClusterService clusterService,
+        CrossProjectModeDecider crossProjectModeDecider,
+        ActivityLogger<SqlLogContext> activityLogger
+    ) {
+        activityLogger.wrapAndRun(
+            operationListener,
+            new SqlLogContextBuilder(task, request),
+            (l) -> operation(planExecutor, task, request, l, username, transportService, clusterService, crossProjectModeDecider)
+        );
+    }
+
     /**
      * Actual implementation of the action. Statically available to support embedded mode.
      */
@@ -165,10 +183,8 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         String username,
         TransportService transportService,
         ClusterService clusterService,
-        CrossProjectModeDecider crossProjectModeDecider,
-        ActivityLogger<SqlLogContext> activityLogger
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
-        ActionListener<SqlQueryResponse> listener = activityLogger.wrap(operationListener, new SqlLogContextBuilder(task, request));
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
@@ -201,14 +217,14 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
                 cfg,
                 request.query(),
                 request.params(),
-                wrap(p -> listener.onResponse(createResponseWithSchema(request, p, task)), listener::onFailure)
+                wrap(p -> operationListener.onResponse(createResponseWithSchema(request, p, task)), operationListener::onFailure)
             );
         } else {
             Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.cursor(), planExecutor.writeableRegistry());
             planExecutor.nextPage(
                 cfg,
                 decoded.v1(),
-                listener.delegateFailureAndWrap((l, p) -> l.onResponse(createResponse(request, decoded.v2(), null, p, task)))
+                operationListener.delegateFailureAndWrap((l, p) -> l.onResponse(createResponse(request, decoded.v2(), null, p, task)))
             );
         }
     }
@@ -310,7 +326,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
 
     @Override
     public void execute(SqlQueryRequest request, SqlQueryTask task, ActionListener<SqlQueryResponse> listener) {
-        operation(
+        loggedOperation(
             planExecutor,
             task,
             request,

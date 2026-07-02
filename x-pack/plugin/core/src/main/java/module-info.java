@@ -84,6 +84,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ilm;
     exports org.elasticsearch.xpack.core.indexing;
     exports org.elasticsearch.xpack.core.inference.action;
+    exports org.elasticsearch.xpack.core.inference.regionpolicy;
     exports org.elasticsearch.xpack.core.inference.results;
     exports org.elasticsearch.xpack.core.inference.usage;
     exports org.elasticsearch.xpack.core.inference;
@@ -244,6 +245,8 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher;
     exports org.elasticsearch.xpack.core.common.chunks;
     exports org.elasticsearch.xpack.core.inference.chunking;
+    exports org.elasticsearch.xpack.core.security.cloud;
+    exports org.elasticsearch.xpack.core.logging;
 
     provides org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber
         with

@@ -53,6 +53,8 @@ configurations.testCompileClasspath {
 }
 
 dependencies {
+  clusterModules project(':modules:ingest-common')
+
   // take over logging for all dependencies
   api "org.slf4j:slf4j-api:${versions.slf4}"
   api "org.slf4j:jcl-over-slf4j:${versions.slf4}"

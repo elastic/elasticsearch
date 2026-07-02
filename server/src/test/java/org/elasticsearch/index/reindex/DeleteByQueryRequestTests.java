@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCase<DeleteByQueryRequest> {
+public class DeleteByQueryRequestTests extends AbstractBulkByPaginatedSearchRequestTestCase<DeleteByQueryRequest> {
     public void testDeleteteByQueryRequestImplementsIndicesRequestReplaceable() {
         int numIndices = between(1, 100);
         String[] indices = new String[numIndices];

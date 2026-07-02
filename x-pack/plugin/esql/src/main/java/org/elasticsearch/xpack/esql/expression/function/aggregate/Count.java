@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.Extract
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -47,10 +48,21 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOG
 
 public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Count.class).unary(Count::new).name("count");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Count.class)
+        .unary(Count::new)
+        .capabilities("flattened")
+        .name("count");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .acrossSeries(Count::new)
+        .description("Counts the number of elements in the input vector.")
+        .example("count(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.COUNT_NOTE)
+        .name("count");
 
     @FunctionInfo(
         returnType = "long",
+        briefSummary = "Returns the total number of input values.",
         description = "Returns the total number (count) of input values.",
         type = FunctionType.AGGREGATE,
         examples = {
@@ -81,6 +93,12 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                     + "returning the total number of values which were used to construct the histograms.",
                 file = "exponential_histogram",
                 tag = "countExpHistoForDocs"
+            ),
+            @Example(
+                description = "`COUNT` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "returning the total number of values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "countTDigestForDocs"
             ) }
     )
     public Count(
@@ -106,6 +124,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "integer",
                 "ip",
                 "keyword",
+                "flattened",
                 "long",
                 "tdigest",
                 "text",

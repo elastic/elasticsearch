@@ -266,6 +266,14 @@ public final class ZeroBucket {
         }
     }
 
+    public ZeroBucket withCount(long newCount) {
+        if (isIndexBased()) {
+            return new ZeroBucket(index, scale, newCount);
+        } else {
+            return new ZeroBucket(realThreshold, newCount);
+        }
+    }
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.services.openai.request.OpenAiEmbeddingsRequest;
@@ -24,7 +25,7 @@ public class OpenAiEmbeddingsRequestManagerTests {
         @Nullable String user,
         ThreadPool threadPool
     ) {
-        var model = createModel(url, org, apiKey, modelName, user);
+        var model = createModel(url, org, apiKey, modelName, user, TaskType.TEXT_EMBEDDING);
         return new TruncatingRequestManager(
             threadPool,
             model,
@@ -43,7 +44,7 @@ public class OpenAiEmbeddingsRequestManagerTests {
         String inferenceEntityId,
         ThreadPool threadPool
     ) {
-        var model = createModel(url, org, apiKey, modelName, user, inferenceEntityId);
+        var model = createModel(url, org, apiKey, modelName, user, inferenceEntityId, TaskType.TEXT_EMBEDDING);
         return new TruncatingRequestManager(
             threadPool,
             model,

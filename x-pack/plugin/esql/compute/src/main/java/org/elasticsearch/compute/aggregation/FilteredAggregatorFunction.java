@@ -24,7 +24,7 @@ import org.elasticsearch.core.Releasables;
  *     parameter for {@link #addRawInput}.
  * </p>
  */
-record FilteredAggregatorFunction(AggregatorFunction next, ExpressionEvaluator filter) implements AggregatorFunction {
+public record FilteredAggregatorFunction(AggregatorFunction next, ExpressionEvaluator filter) implements AggregatorFunction {
     @Override
     public void addRawInput(Page page, BooleanVector mask) {
         if (mask.isConstant() == false || mask.getBoolean(0) == false) {

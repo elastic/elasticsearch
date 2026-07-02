@@ -1,0 +1,5 @@
+area: Allocation
+issues: []
+pr: 148556
+summary: Report shutdowns as IN_PROGRESS if a remaining shard has `canAllocate=NOT_PREFERRED`
+type: bug

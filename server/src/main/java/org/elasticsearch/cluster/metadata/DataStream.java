@@ -84,6 +84,13 @@ import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
 
+    /**
+     * Cluster feature that gates {@code BulkOperation}'s use of this action. Guards against calling this action on an old master that
+     * does not have it registered, which would happen during a rolling upgrade.
+     */
+    public static final NodeFeature TIME_SERIES_PAST_INDEX_CREATION_FEATURE = new NodeFeature(
+        "data_stream.time_series.past_index_creation"
+    );
     private static final Logger LOGGER = LogManager.getLogger(DataStream.class);
 
     private static final TransportVersion SETTINGS_IN_DATA_STREAMS = TransportVersion.fromName("settings_in_data_streams");
@@ -870,26 +877,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         DataStreamAutoShardingEvent autoShardingEvent
     ) {
         IndexMode dsIndexMode = this.indexMode;
-        if ((dsIndexMode == null || dsIndexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.TIME_SERIES) {
-            // This allows for migrating a data stream to be a tsdb data stream:
-            // (only if index_mode=null|standard then allow it to be set to time_series)
-            dsIndexMode = IndexMode.TIME_SERIES;
-        } else if (dsIndexMode == IndexMode.TIME_SERIES && (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
-            // Allow downgrading a time series data stream to a regular data stream
-            dsIndexMode = null;
-        } else if ((dsIndexMode == null || dsIndexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.LOGSDB) {
-            dsIndexMode = IndexMode.LOGSDB;
-        } else if (dsIndexMode == IndexMode.LOGSDB && (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
-            // Allow downgrading a time series data stream to a regular data stream
-            dsIndexMode = null;
-        } else if (dsIndexMode == IndexMode.TIME_SERIES && indexModeFromTemplate == IndexMode.LOGSDB) {
-            dsIndexMode = IndexMode.LOGSDB;
-            LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
-        } else if (dsIndexMode == IndexMode.LOGSDB && indexModeFromTemplate == IndexMode.TIME_SERIES) {
-            dsIndexMode = IndexMode.TIME_SERIES;
-            LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
+        if (dsIndexMode == IndexMode.LOOKUP || indexModeFromTemplate == IndexMode.LOOKUP) {
+            throw new IllegalArgumentException(
+                "[" + name + "] is a data stream, unsafe rollover is not allowed for [" + IndexMode.LOOKUP + "] index mode"
+            );
         }
-
+        if (dsIndexMode != indexModeFromTemplate) {
+            if (indexModeFromTemplate == IndexMode.TIME_SERIES
+                && (dsIndexMode == IndexMode.LOGSDB || dsIndexMode == IndexMode.LOGSDB_COLUMNAR)) {
+                LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
+            }
+            dsIndexMode = indexModeFromTemplate;
+        }
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);
         backingIndices.add(writeIndex);
         return copy().setBackingIndices(
@@ -1101,6 +1100,24 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         // ensure that no aliases reference index
         ensureNoAliasesOnIndex(project, index);
+
+        return unsafeAddBackingIndex(index);
+    }
+
+    /**
+     * Adds the specified index as a backing index and returns a new {@code DataStream} instance with the new combination
+     * of backing indices. This should be used only for just created indices because it does not check if the backing
+     * index belongs to another data stream. For any other case, use {@link #addBackingIndex(ProjectMetadata, Index)} instead.
+     *
+     * @param index index to add to the data stream
+     * @return new {@code DataStream} instance with the added backing index
+     */
+    public DataStream unsafeAddBackingIndex(Index index) {
+        // We do not use the contain method of DataStreamIndices because it will create a set,
+        // but we only need to check a single index and then we create a new DataStream.
+        if (backingIndices.indices.contains(index)) {
+            return this;
+        }
 
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices.size() + 1);
         backingIndices.add(index);

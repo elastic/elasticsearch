@@ -16,8 +16,9 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
@@ -86,7 +87,10 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             || isPotentiallyUnmapped(f)
             // The source (or doc) field is added to the relation output as a hack to enable late materialization in the reduce driver.
             || EsQueryExec.isDocAttribute(f)
-            || localLogicalOptimizerContext.searchStats().exists(f.fieldName())
+            // MissingEsField means the coordinator explicitly nullified this field (unmapped_fields="nullify").
+            // Don't retain it even if the field physically exists (e.g. flattened subfields are mapped in Lucene
+            // but absent from field caps).
+            || (f.field() instanceof MissingEsField == false && localLogicalOptimizerContext.searchStats().exists(f.fieldName()))
             || lookupFields.contains(f)
             || externalFields.contains(f);
 
@@ -95,7 +99,7 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
 
     private static boolean isPotentiallyUnmapped(FieldAttribute f) {
         return f.field() instanceof PotentiallyUnmappedKeywordEsField
-            || (f.field() instanceof MultiTypeEsField mtf && mtf.getPotentiallyUnmappedExpression() != null);
+            || (f.field() instanceof UnionTypeEsField utf && utf.getUnmappedConversionExpression() != null);
     }
 
     private LogicalPlan replaceWithNullOrConstant(

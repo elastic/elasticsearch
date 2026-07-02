@@ -126,7 +126,7 @@ public class AzureAiStudioChatCompletionTaskSettingsTests extends AbstractBWCWir
     }
 
     public void testFromMap_WithNoValues_DoesNotThrowException() {
-        var taskMap = AzureAiStudioChatCompletionTaskSettings.fromMap(new HashMap<String, Object>(Map.of()));
+        var taskMap = AzureAiStudioChatCompletionTaskSettings.fromMap(new HashMap<>());
         assertNull(taskMap.temperature());
         assertNull(taskMap.topP());
         assertNull(taskMap.doSample());

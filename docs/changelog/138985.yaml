@@ -1,5 +1,0 @@
-pr: 138985
-summary: '`ToString/ToDatetime/ToDateNanos` converters timezone support'
-area: ES|QL
-type: feature
-issues: []

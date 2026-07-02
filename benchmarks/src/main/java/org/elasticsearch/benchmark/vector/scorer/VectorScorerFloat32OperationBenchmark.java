@@ -65,12 +65,7 @@ public class VectorScorerFloat32OperationBenchmark {
     @Param({ "DOT_PRODUCT", "EUCLIDEAN" })
     public VectorSimilarityType function;
 
-    @FunctionalInterface
-    private interface LuceneFunction {
-        float run(float[] vec1, float[] vec2);
-    }
-
-    private LuceneFunction luceneImpl;
+    private LuceneFunction<float[]> luceneImpl;
     private MethodHandle nativeImpl;
 
     @Setup(Level.Iteration)

@@ -24,8 +24,12 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
+import org.elasticsearch.index.recovery.RecoveryStats;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -48,13 +52,16 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -83,6 +90,64 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
         internalCluster().assertSeqNos();
         internalCluster().assertSameDocIdsOnShards();
+    }
+
+    protected void awaitRecoveryCountStats(Map<String, Predicate<RecoveryStats>> predicatePerNode) {
+        final CountDownLatch conditionLatch = new CountDownLatch(1);
+        final AtomicBoolean success = new AtomicBoolean();
+
+        final Map<String, IndicesService> indicesServices = new ConcurrentHashMap<>();
+        final Map<String, CompositeRecoverySchedulingListener> schedulingListeners = new ConcurrentHashMap<>();
+        for (String nodeName : predicatePerNode.keySet()) {
+            indicesServices.put(nodeName, internalCluster().getInstance(IndicesService.class, nodeName));
+            schedulingListeners.put(nodeName, internalCluster().getInstance(CompositeRecoverySchedulingListener.class, nodeName));
+        }
+
+        final var listener = new TestRecoverySchedulingListener() {
+            @Override
+            public void onRecoverySchedulingChange() {
+                if (success.get()) {
+                    return;
+                }
+                // Check if all conditions are met
+                for (final var nodePredicate : predicatePerNode.entrySet()) {
+                    final var indicesService = indicesServices.get(nodePredicate.getKey());
+
+                    final var stats = new RecoveryStats();
+                    for (IndexService indexService : indicesService) {
+                        for (IndexShard shard : indexService) {
+                            stats.add(shard.recoveryStats());
+                        }
+                    }
+                    if (nodePredicate.getValue().test(stats) == false) {
+                        return;
+                    }
+                }
+                conditionLatch.countDown();
+                success.set(true);
+            }
+        };
+        for (final var nodeName : predicatePerNode.keySet()) {
+            schedulingListeners.get(nodeName).addListener(listener);
+        }
+        try {
+            // In case conditions were already met before we added the listener everywhere
+            listener.onRecoverySchedulingChange();
+            safeAwait(conditionLatch);
+        } finally {
+            // Clean up all listeners
+            for (final var nodeName : predicatePerNode.keySet()) {
+                schedulingListeners.get(nodeName).removeListener(listener);
+            }
+        }
+    }
+
+    protected void awaitNoCurrentRecoveriesInStats(Collection<String> nodeNames) {
+        final Map<String, Predicate<RecoveryStats>> predicates = new HashMap<>();
+        for (final var nodeName : nodeNames) {
+            predicates.put(nodeName, RecoveryStats::noCurrentRecoveries);
+        }
+        awaitRecoveryCountStats(predicates);
     }
 
     protected void checkTransientErrorsDuringRecoveryAreRetried(String recoveryActionToBlock) throws Exception {

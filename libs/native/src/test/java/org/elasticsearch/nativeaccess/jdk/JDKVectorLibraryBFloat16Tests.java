@@ -223,6 +223,148 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
         assertScoresEquals(expectedScores, bulkScoresSeg, delta);
     }
 
+    // Tests bulk sparse similarity where vector addresses are slices of a single contiguous segment,
+    // verifying correct lookup and scoring via an address array with random ordinals.
+    public void testBFloat16BulkSparse() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int dims = size;
+        final int numVecs = randomIntBetween(2, 101);
+        var ordinals = new int[numVecs];
+        var f32Values = new float[numVecs][];
+        var bf16Values = new float[numVecs][];
+        var f32Segment = arena.allocate((long) dims * numVecs * Float.BYTES);
+        var bf16Segment = arena.allocate((long) dims * numVecs * BFloat16.BYTES);
+        for (int i = 0; i < numVecs; i++) {
+            ordinals[i] = randomInt(numVecs - 1);
+            f32Values[i] = randomFloatArray(dims);
+            bf16Values[i] = truncateFloatArray(f32Values[i]);
+            MemorySegment.copy(f32Values[i], 0, f32Segment, LAYOUT_LE_FLOAT, (long) i * dims * Float.BYTES, dims);
+            copyToBFloat16Segment(bf16Values[i], bf16Segment, (long) i * dims * BFloat16.BYTES);
+        }
+
+        int queryOrd = randomInt(numVecs - 1);
+        float[] queryVector;
+        MemorySegment nativeQuerySeg = switch (queryType) {
+            case BFLOAT16 -> {
+                queryVector = bf16Values[queryOrd];
+                yield bf16Segment.asSlice((long) queryOrd * dims * BFloat16.BYTES, (long) dims * BFloat16.BYTES);
+            }
+            case FLOAT32 -> {
+                queryVector = f32Values[queryOrd];
+                yield f32Segment.asSlice((long) queryOrd * dims * Float.BYTES, (long) dims * Float.BYTES);
+            }
+        };
+
+        float[] expectedScores = new float[numVecs];
+        ScalarOperations.bulkWithOffsets(function, queryVector, bf16Values, ordinals, expectedScores);
+
+        var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
+        for (int i = 0; i < numVecs; i++) {
+            addressesSeg.setAtIndex(
+                ValueLayout.ADDRESS,
+                i,
+                bf16Segment.asSlice((long) ordinals[i] * dims * BFloat16.BYTES, (long) dims * BFloat16.BYTES)
+            );
+        }
+        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
+        similarityBulkSparse(addressesSeg, nativeQuerySeg, dims, numVecs, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg, delta);
+    }
+
+    // Tests bulk sparse similarity where each vector lives in its own independently allocated segment,
+    // ensuring the sparse path handles non-contiguous (scattered) memory correctly.
+    public void testBFloat16BulkSparseScattered() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int dims = size;
+        final int numVecs = randomIntBetween(2, 101);
+        var ordinals = new int[numVecs];
+        var f32Values = new float[numVecs][];
+        var bf16Values = new float[numVecs][];
+        var bf16Segments = new MemorySegment[numVecs];
+        var f32Segment = arena.allocate((long) dims * numVecs * Float.BYTES);
+        for (int i = 0; i < numVecs; i++) {
+            f32Values[i] = randomFloatArray(dims);
+            bf16Values[i] = truncateFloatArray(f32Values[i]);
+            bf16Segments[i] = arena.allocate((long) dims * BFloat16.BYTES);
+            copyToBFloat16Segment(bf16Values[i], bf16Segments[i], 0L);
+            MemorySegment.copy(f32Values[i], 0, f32Segment, LAYOUT_LE_FLOAT, (long) i * dims * Float.BYTES, dims);
+        }
+        for (int i = 0; i < numVecs; i++) {
+            ordinals[i] = randomInt(numVecs - 1);
+        }
+
+        int queryOrd = randomInt(numVecs - 1);
+        float[] queryVector;
+        MemorySegment nativeQuerySeg = switch (queryType) {
+            case BFLOAT16 -> {
+                queryVector = bf16Values[queryOrd];
+                yield bf16Segments[queryOrd];
+            }
+            case FLOAT32 -> {
+                queryVector = f32Values[queryOrd];
+                yield f32Segment.asSlice((long) queryOrd * dims * Float.BYTES, (long) dims * Float.BYTES);
+            }
+        };
+
+        float[] expectedScores = new float[numVecs];
+        ScalarOperations.bulkWithOffsets(function, queryVector, bf16Values, ordinals, expectedScores);
+
+        var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
+        for (int i = 0; i < numVecs; i++) {
+            addressesSeg.setAtIndex(ValueLayout.ADDRESS, i, bf16Segments[ordinals[i]]);
+        }
+        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
+        similarityBulkSparse(addressesSeg, nativeQuerySeg, dims, numVecs, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg, delta);
+    }
+
+    // Verifies that bulk sparse similarity rejects invalid arguments (undersized segments,
+    // negative dims/count) with appropriate out-of-bounds exceptions.
+    public void testBulkSparseIllegalArgs() {
+        assumeTrue(notSupportedMsg(), supported());
+        int count = 3;
+        int queryElementSize = switch (queryType) {
+            case BFLOAT16 -> BFloat16.BYTES;
+            case FLOAT32 -> Float.BYTES;
+        };
+        var query = arena.allocate((long) size * queryElementSize);
+        var scores = arena.allocate((long) count * Float.BYTES);
+
+        var dummyVec = arena.allocate((long) size * BFloat16.BYTES);
+        var addresses = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
+        for (int i = 0; i < count; i++) {
+            addresses.setAtIndex(ValueLayout.ADDRESS, i, dummyVec);
+        }
+
+        // addresses segment too small for the given count
+        var tooSmallAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * (count - 1), ValueLayout.ADDRESS.byteAlignment());
+        Exception ex = expectThrows(IOOBE, () -> similarityBulkSparse(tooSmallAddrs, query, size, count, scores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        // query segment too small for the given dims
+        var tooSmallQuery = arena.allocate((long) size * queryElementSize - 1);
+        ex = expectThrows(IOOBE, () -> similarityBulkSparse(addresses, tooSmallQuery, size, count, scores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        // result segment too small for the given count
+        var tooSmallScores = arena.allocate((long) count * Float.BYTES - 1);
+        ex = expectThrows(IOOBE, () -> similarityBulkSparse(addresses, query, size, count, tooSmallScores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        // negative count
+        ex = expectThrows(IOOBE, () -> similarityBulkSparse(addresses, query, size, -1, scores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        // negative dims
+        ex = expectThrows(IOOBE, () -> similarityBulkSparse(addresses, query, -1, count, scores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        // null (zero) address in the addresses segment
+        var zeroAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
+        ex = expectThrows(IAE, () -> similarityBulkSparse(zeroAddrs, query, size, count, scores));
+        assertThat(ex.getMessage(), containsString("null"));
+    }
+
     // Verifies that individual offset values are bounds-checked against the data segment.
     public void testBulkOffsetsOutOfRange() {
         assumeTrue(notSupportedMsg(), supported());
@@ -344,6 +486,15 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
         try {
             getVectorDistance().getBFloat16Handle(function, queryType, VectorSimilarityFunctions.Operation.BULK_OFFSETS)
                 .invokeExact(a, b, dims, pitch, offsets, count, result);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    void similarityBulkSparse(MemorySegment addresses, MemorySegment query, int dims, int count, MemorySegment result) {
+        try {
+            getVectorDistance().getBFloat16Handle(function, queryType, VectorSimilarityFunctions.Operation.BULK_SPARSE)
+                .invokeExact(addresses, query, dims, count, result);
         } catch (Throwable t) {
             throw rethrow(t);
         }

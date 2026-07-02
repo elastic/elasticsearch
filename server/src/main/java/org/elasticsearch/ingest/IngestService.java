@@ -75,6 +75,7 @@ import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.Metadata;
@@ -244,6 +245,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Client client,
         MatcherWatchdog matcherWatchdog,
         UserAgentParserRegistry userAgentParserRegistry,
+        IpLocationService ipLocationService,
         FailureStoreMetrics failureStoreMetrics,
         ProjectResolver projectResolver,
         FeatureService featureService,
@@ -264,7 +266,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 client,
                 threadPool.generic()::execute,
                 matcherWatchdog,
-                userAgentParserRegistry
+                userAgentParserRegistry,
+                ipLocationService
             )
         );
         this.threadPool = threadPool;
@@ -285,6 +288,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Client client,
         MatcherWatchdog matcherWatchdog,
         UserAgentParserRegistry userAgentParserRegistry,
+        IpLocationService ipLocationService,
         FailureStoreMetrics failureStoreMetrics,
         ProjectResolver projectResolver,
         FeatureService featureService
@@ -299,6 +303,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             client,
             matcherWatchdog,
             userAgentParserRegistry,
+            ipLocationService,
             failureStoreMetrics,
             projectResolver,
             featureService,
@@ -1678,7 +1683,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return processors;
     }
 
-    public <P extends Processor> Collection<String> getPipelineWithProcessorType(
+    /**
+     * Finds the ids of the pipelines in the given project that contain at least one processor of {@code clazz}
+     * matching {@code predicate}.
+     * This is {@code synchronized} on the same monitor as {@link #innerUpdatePipelines} and {@link #reloadPipeline}
+     * so that callers always observe a fully published view of {@link #pipelines}.
+     */
+    public synchronized <P extends Processor> Collection<String> getPipelineWithProcessorType(
         ProjectId projectId,
         Class<P> clazz,
         Predicate<P> predicate

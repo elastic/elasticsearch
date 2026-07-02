@@ -11,8 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
@@ -32,25 +30,13 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets.DEFAULT_NUM_SNIPPETS;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets.DEFAULT_WORD_SIZE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 
 public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
-
-    private static final String PARAGRAPH_INPUT = """
-        The Adirondacks, a vast mountain region in northern New York, offer a breathtaking mix of rugged wilderness, serene lakes,
-        and charming small towns. Spanning over six million acres, the Adirondack Park is larger than Yellowstone, Yosemite, and the
-        Grand Canyon combined, yet it's dotted with communities where people live, work, and play amidst nature. Visitors come year-round
-        to hike High Peaks trails, paddle across mirror-like waters, or ski through snow-covered forests. The area's pristine beauty,
-        rich history, and commitment to conservation create a unique balance between wild preservation and human presence, making
-        the Adirondacks a timeless escape into the tranquility of nature.
-        """;
 
     public TopSnippetsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -101,11 +87,11 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(new BytesRef(text), fieldDataType, "field"),
                     new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query").forceLiteral()
                 ),
-                "TopSnippetsEvaluator[field=Attribute[channel=0], query=LiteralsEvaluator[lit="
+                "TopSnippetsEvaluator[field=Attribute[channel=0], queryString="
                     + query
-                    + "], "
+                    + ", "
                     + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}, "
-                    + "scorer=MemoryIndexChunkScorer, numSnippets=5]",
+                    + "scorer=MemoryIndexChunkScorer, numSnippets=5, docOrder=false]",
                 DataType.KEYWORD,
                 equalTo(expectedResult)
             );
@@ -151,11 +137,11 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
                 return new TestCaseSupplier.TestCase(
                     values,
-                    "TopSnippetsEvaluator[field=Attribute[channel=0], query=LiteralsEvaluator[lit="
+                    "TopSnippetsEvaluator[field=Attribute[channel=0], queryString="
                         + query
-                        + "], "
+                        + ", "
                         + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":25,\"sentence_overlap\":0}, "
-                        + "scorer=MemoryIndexChunkScorer, numSnippets=3]",
+                        + "scorer=MemoryIndexChunkScorer, numSnippets=3, docOrder=false]",
                     DataType.KEYWORD,
                     equalTo(expectedResult)
                 );
@@ -165,6 +151,19 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
     }
 
     private static MapExpression createOptions(Integer numSnippets, Integer numWords) {
+        return createOptions(numSnippets, numWords, null, null, null, null, null, null);
+    }
+
+    public static MapExpression createOptions(
+        Integer numSnippets,
+        Integer numWords,
+        Boolean highlight,
+        String preTag,
+        String postTag,
+        String encoder,
+        String order,
+        String analyzer
+    ) {
         List<Expression> optionsMap = new ArrayList<>();
 
         if (Objects.nonNull(numSnippets)) {
@@ -175,6 +174,36 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         if (Objects.nonNull(numWords)) {
             optionsMap.add(Literal.keyword(Source.EMPTY, "num_words"));
             optionsMap.add(new Literal(Source.EMPTY, numWords, DataType.INTEGER));
+        }
+
+        if (Objects.nonNull(highlight)) {
+            optionsMap.add(Literal.keyword(Source.EMPTY, "highlight"));
+            optionsMap.add(new Literal(Source.EMPTY, highlight, DataType.BOOLEAN));
+        }
+
+        if (Objects.nonNull(preTag)) {
+            optionsMap.add(Literal.keyword(Source.EMPTY, "pre_tag"));
+            optionsMap.add(Literal.keyword(Source.EMPTY, preTag));
+        }
+
+        if (Objects.nonNull(postTag)) {
+            optionsMap.add(Literal.keyword(Source.EMPTY, "post_tag"));
+            optionsMap.add(Literal.keyword(Source.EMPTY, postTag));
+        }
+
+        if (Objects.nonNull(encoder)) {
+            optionsMap.add(Literal.keyword(Source.EMPTY, "encoder"));
+            optionsMap.add(Literal.keyword(Source.EMPTY, encoder));
+        }
+
+        if (Objects.nonNull(order)) {
+            optionsMap.add(Literal.keyword(Source.EMPTY, "order"));
+            optionsMap.add(Literal.keyword(Source.EMPTY, order));
+        }
+
+        if (Objects.nonNull(analyzer)) {
+            optionsMap.add(Literal.keyword(Source.EMPTY, "analyzer"));
+            optionsMap.add(Literal.keyword(Source.EMPTY, analyzer));
         }
 
         return optionsMap.isEmpty() ? null : new MapExpression(Source.EMPTY, optionsMap);
@@ -194,110 +223,5 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
             return;
         }
         super.testFold();
-    }
-
-    public void testDefaultOptions() {
-        String query = "wilderness";
-        verifySnippets(query, null, null, 1);
-    }
-
-    public void testSpecifiedOptions() {
-        // We can't randomize here, because we're testing on specifically specified options that are variable.
-        String query = "nature";
-        int numWords = 25;
-        int numSnippets = 3;
-        int expectedNumChunks = 2;
-        verifySnippets(query, numSnippets, numWords, expectedNumChunks);
-    }
-
-    public void testRandomOptions() {
-        String query = "park"; // Ensure we get a match
-        int numSnippets = randomIntBetween(1, 2);
-        int numWords = randomIntBetween(20, 25);
-
-        List<String> result = process(PARAGRAPH_INPUT, query, numSnippets, numWords);
-        assertNotNull(result);
-        assertFalse(result.isEmpty());
-        // Actual results depend on options passed in
-    }
-
-    public void testNoMatches() {
-        // Pick a random word from the paragraph to ensure we get matches
-        String query = randomAlphaOfLengthBetween(10, 15);
-        int numSnippets = randomIntBetween(1, 10);
-        int numWords = randomIntBetween(20, 500);
-
-        List<String> result = process(PARAGRAPH_INPUT, query, numSnippets, numWords);
-        assertNull(result);
-    }
-
-    public void testSnippetsReturnedInScoringOrder() {
-        String highRelevance = "Elasticsearch is a powerful search engine. "
-            + "Elasticsearch supports full-text search and vector search. "
-            + "Many companies rely on Elasticsearch for their search infrastructure.";
-
-        String lowRelevance = "There are many search engines available today. "
-            + "Elasticsearch is one option among several alternatives. "
-            + "Choosing the right tool depends on your requirements.";
-
-        String noRelevance = "The weather today is sunny and warm. "
-            + "Perfect conditions for a walk in the park. "
-            + "The temperature is expected to reach 25 degrees.";
-
-        String query = "elasticsearch";
-
-        String combinedText = noRelevance + " " + highRelevance + " " + lowRelevance;
-
-        List<String> result = process(combinedText, query, 3, 50);
-
-        assertThat(result, hasSize(2));
-        assertThat(result.get(0), containsString("Elasticsearch is a powerful search engine"));
-        assertThat(result.get(1), containsString("Elasticsearch is one option among several alternatives"));
-    }
-
-    private void verifySnippets(String query, Integer numSnippets, Integer numWords, int expectedNumChunksReturned) {
-        int effectiveNumWords = numWords != null ? numWords : DEFAULT_WORD_SIZE;
-        int effectiveNumSnippets = numSnippets != null ? numSnippets : DEFAULT_NUM_SNIPPETS;
-        ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(effectiveNumWords, 0);
-
-        MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
-        List<String> expected = scorer.scoreChunks(
-            chunkText(PARAGRAPH_INPUT, chunkingSettings).stream().map(String::trim).toList(),
-            query,
-            effectiveNumSnippets,
-            false
-        ).stream().map(ScoredChunk::content).limit(effectiveNumSnippets).toList();
-
-        List<String> result = process(PARAGRAPH_INPUT, query, effectiveNumSnippets, effectiveNumWords);
-        assertThat(result.size(), equalTo(expectedNumChunksReturned));
-        assertThat(result, equalTo(expected));
-    }
-
-    private List<String> process(String str, String query, int numSnippets, int numWords) {
-        MapExpression optionsMap = createOptions(numSnippets, numWords);
-
-        try (
-            ExpressionEvaluator eval = evaluator(
-                new TopSnippets(
-                    Source.EMPTY,
-                    field("field", DataType.KEYWORD),
-                    new Literal(Source.EMPTY, new BytesRef(query), DataType.KEYWORD),
-                    optionsMap
-                )
-            ).get(driverContext());
-            Block block = eval.eval(row(List.of(new BytesRef(str))))
-        ) {
-            if (block.isNull(0)) {
-                return null;
-            }
-            Object result = toJavaObject(block, 0);
-            if (result instanceof BytesRef bytesRef) {
-                return List.of(bytesRef.utf8ToString());
-            } else {
-                @SuppressWarnings("unchecked")
-                List<BytesRef> list = (List<BytesRef>) result;
-                return list.stream().map(BytesRef::utf8ToString).toList();
-            }
-        }
     }
 }

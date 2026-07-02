@@ -18,6 +18,7 @@ public class DataSourceConfigDefinitionTests extends ESTestCase {
         assertEquals("region", def.name());
         assertFalse(def.secret());
         assertFalse(def.caseInsensitive());
+        assertFalse(def.keylessAuth());
     }
 
     public void testSecretDefaults() {
@@ -25,6 +26,7 @@ public class DataSourceConfigDefinitionTests extends ESTestCase {
         assertEquals("access_key", def.name());
         assertTrue(def.secret());
         assertFalse(def.caseInsensitive());
+        assertFalse(def.keylessAuth());
     }
 
     public void testAsCaseInsensitiveOnPlaintext() {
@@ -40,6 +42,35 @@ public class DataSourceConfigDefinitionTests extends ESTestCase {
         assertEquals("password", def.name());
         assertTrue(def.secret());
         assertTrue(def.caseInsensitive());
+        assertFalse(def.keylessAuth());
+    }
+
+    public void testAsKeylessAuthOnPlaintext() {
+        DataSourceConfigDefinition def = DataSourceConfigDefinition.plaintext("jwt_audience").asKeylessAuth();
+        assertEquals("jwt_audience", def.name());
+        assertFalse(def.secret());
+        assertFalse(def.caseInsensitive());
+        assertTrue(def.keylessAuth());
+    }
+
+    public void testSecretCannotAlsoBeKeylessAuth() {
+        // secret and keyless auth are mutually exclusive authentication kinds; combining them on a
+        // single field would make it self-conflict during validation, so construction must fail fast.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DataSourceConfigDefinition.secret("token").asKeylessAuth()
+        );
+        assertEquals("field [token] cannot be both secret and keyless auth", e.getMessage());
+    }
+
+    public void testKeylessAuthCannotAlsoBeSecret() {
+        expectThrows(IllegalArgumentException.class, () -> new DataSourceConfigDefinition("token", true, false, true));
+    }
+
+    public void testAsCaseInsensitivePreservesKeylessAuthBit() {
+        DataSourceConfigDefinition def = DataSourceConfigDefinition.plaintext("auth").asKeylessAuth().asCaseInsensitive();
+        assertTrue(def.caseInsensitive());
+        assertTrue(def.keylessAuth());
     }
 
     public void testAsCaseInsensitiveReturnsCopy() {

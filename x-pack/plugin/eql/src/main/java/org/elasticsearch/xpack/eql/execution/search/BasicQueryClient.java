@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
@@ -33,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.multiSearchLogListener;
@@ -43,6 +45,7 @@ public class BasicQueryClient implements QueryClient {
 
     private static final Logger log = RuntimeUtils.QUERY_LOG;
 
+    final Consumer<DirectoryMetrics> directoryMetricsConsumer;
     final EqlConfiguration cfg;
     final Client client;
     final String[] indices;
@@ -50,6 +53,7 @@ public class BasicQueryClient implements QueryClient {
     private final boolean allowPartialSearchResults;
 
     public BasicQueryClient(EqlSession eqlSession) {
+        this.directoryMetricsConsumer = eqlSession::accumulateDirectoryMetrics;
         this.cfg = eqlSession.configuration();
         this.client = eqlSession.client();
         this.indices = cfg.indices();
@@ -80,7 +84,10 @@ public class BasicQueryClient implements QueryClient {
         if (usingPit() == false && cfg.crossProjectEnabled()) {
             search.indicesOptions(CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(search.indicesOptions()));
         }
-        client.search(search, listener);
+        client.search(search, listener.delegateFailureAndWrap((delegate, response) -> {
+            directoryMetricsConsumer.accept(response.getDirectoryMetrics());
+            delegate.onResponse(response);
+        }));
     }
 
     protected void search(MultiSearchRequest search, boolean allowPartialSearchResults, ActionListener<MultiSearchResponse> listener) {
@@ -100,7 +107,11 @@ public class BasicQueryClient implements QueryClient {
         if (usingPit() == false && cfg.crossProjectEnabled()) {
             search.indicesOptions(CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(search.indicesOptions()));
         }
-        client.multiSearch(search, multiSearchLogListener(listener, allowPartialSearchResults, log));
+        ActionListener<MultiSearchResponse> downstream = multiSearchLogListener(listener, allowPartialSearchResults, log);
+        client.multiSearch(search, downstream.delegateFailureAndWrap((delegate, response) -> {
+            directoryMetricsConsumer.accept(response.mergeDirectoryMetrics());
+            delegate.onResponse(response);
+        }));
     }
 
     @Override
@@ -161,31 +172,40 @@ public class BasicQueryClient implements QueryClient {
         }
 
         search(multiSearchBuilder.request(), allowPartialSearchResults, listener.delegateFailureAndWrap((delegate, r) -> {
-            for (MultiSearchResponse.Item item : r.getResponses()) {
-                // check for failures
-                if (item.isFailure()) {
-                    delegate.onFailure(item.getFailure());
-                    return;
-                }
-                // otherwise proceed
-                // for each doc, find its reference and its position inside the matrix
-                for (SearchHit doc : item.getResponse().getHits()) {
-                    HitReference docRef = new HitReference(doc);
-                    List<Integer> positions = referenceToPosition.get(docRef);
-                    positions.forEach(pos -> {
-                        // TODO: stop using unpooled
-                        SearchHit previous = seq.get(pos / listSize).set(pos % listSize, doc.asUnpooled());
-                        if (previous != null) {
-                            throw new EqlIllegalArgumentException(
-                                "Overriding sequence match [{}] with [{}]",
-                                new HitReference(previous),
-                                docRef
-                            );
+            try {
+                for (MultiSearchResponse.Item item : r.getResponses()) {
+                    // check for failures
+                    if (item.isFailure()) {
+                        releaseMatrixHits(seq);
+                        delegate.onFailure(item.getFailure());
+                        return;
+                    }
+                    // otherwise proceed
+                    // for each doc, find its reference and its position inside the matrix
+                    for (SearchHit doc : item.getResponse().getHits()) {
+                        HitReference docRef = new HitReference(doc);
+                        List<Integer> positions = referenceToPosition.get(docRef);
+                        for (int pos : positions) {
+                            doc.mustIncRef();
+                            List<SearchHit> row = seq.get(pos / listSize);
+                            int col = pos % listSize;
+                            SearchHit previous = row.set(col, doc);
+                            if (previous != null) {
+                                previous.decRef();
+                                throw new EqlIllegalArgumentException(
+                                    "Overriding sequence match [{}] with [{}]",
+                                    new HitReference(previous),
+                                    docRef
+                                );
+                            }
                         }
-                    });
+                    }
                 }
+                delegate.onResponse(seq);
+            } catch (RuntimeException e) {
+                releaseMatrixHits(seq);
+                throw e;
             }
-            delegate.onResponse(seq);
         }));
     }
 
@@ -201,5 +221,20 @@ public class BasicQueryClient implements QueryClient {
 
     protected boolean usingPit() {
         return false;
+    }
+
+    /**
+     * Decrement refs for pooled hits stored in the matrix (after {@link SearchHit#mustIncRef()} in {@link #fetchHits}).
+     */
+    private static void releaseMatrixHits(List<List<SearchHit>> seq) {
+        for (List<SearchHit> row : seq) {
+            for (int i = 0; i < row.size(); i++) {
+                SearchHit h = row.get(i);
+                if (h != null) {
+                    h.decRef();
+                    row.set(i, null);
+                }
+            }
+        }
     }
 }

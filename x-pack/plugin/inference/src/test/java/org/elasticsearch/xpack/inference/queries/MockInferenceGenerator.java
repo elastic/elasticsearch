@@ -9,9 +9,13 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
@@ -36,15 +40,33 @@ public class MockInferenceGenerator {
             throw new IllegalArgumentException("Inference endpoint [" + inferenceId + "] does not exist");
         } else if (inferenceEndpointSettings.taskType() == TaskType.SPARSE_EMBEDDING) {
             inferenceResults = generateTextExpansionResults(input);
-        } else if (inferenceEndpointSettings.taskType() == TaskType.TEXT_EMBEDDING) {
-            inferenceResults = generateTextEmbeddingResults(inferenceEndpointSettings);
-        } else {
-            throw new IllegalArgumentException(
-                "Invalid task type [" + inferenceEndpointSettings.taskType() + "] for inference endpoint [" + inferenceId + "]"
-            );
-        }
+        } else if (inferenceEndpointSettings.taskType() == TaskType.TEXT_EMBEDDING
+            || inferenceEndpointSettings.taskType() == TaskType.EMBEDDING) {
+                inferenceResults = generateTextEmbeddingResults(inferenceEndpointSettings);
+            } else {
+                throw new IllegalArgumentException(
+                    "Invalid task type [" + inferenceEndpointSettings.taskType() + "] for inference endpoint [" + inferenceId + "]"
+                );
+            }
 
         return inferenceResults;
+    }
+
+    public InferenceServiceResults generateServiceResults(String inferenceId, String input) {
+        MinimalServiceSettings inferenceEndpointSettings = inferenceEndpoints.get(inferenceId);
+
+        InferenceServiceResults inferenceServiceResults;
+        final List<InferenceResults> results = List.of(generate(inferenceId, input));
+        inferenceServiceResults = switch (inferenceEndpointSettings.taskType()) {
+            case SPARSE_EMBEDDING -> SparseEmbeddingResults.of(results);
+            case TEXT_EMBEDDING -> DenseEmbeddingFloatResults.of(results);
+            case EMBEDDING -> GenericDenseEmbeddingFloatResults.of(results);
+            case null, default -> throw new IllegalArgumentException(
+                "Invalid task type [" + inferenceEndpointSettings.taskType() + "] for inference endpoint [" + inferenceId + "]"
+            );
+        };
+
+        return inferenceServiceResults;
     }
 
     /**

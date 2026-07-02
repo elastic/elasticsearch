@@ -13,7 +13,7 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.DirectAccessInput;
-import org.elasticsearch.nativeaccess.CloseableByteBuffer;
+import org.elasticsearch.foreign.CloseableByteBuffer;
 import org.elasticsearch.nativeaccess.NativeAccess;
 
 import java.io.IOException;

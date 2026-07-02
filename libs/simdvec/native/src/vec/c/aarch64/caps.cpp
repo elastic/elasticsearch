@@ -39,7 +39,9 @@ EXPORT int vec_caps() {
     int sve = (hwcap & HWCAP_SVE) != 0;
     int hwcap2 = getauxval(AT_HWCAP2);
     int sve2 = (hwcap2 & HWCAP2_SVE2) != 0;
-    if (sve) {
+    // every SVE proc is expected to have BF16 support, but just to make sure...
+    int bf16 = (hwcap2 & HWCAP2_SVEBF16) != 0;
+    if (sve && bf16) {
         return 2;
     }
     return 1;

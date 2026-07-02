@@ -47,6 +47,8 @@ public final class AgentExportHelpers {
 
     /**
      * Determines the appropriate duration to wait for the APM agent to flush telemetry.
+     * Returns {@code 0} when {@code telemetry.agent.disable_send=true} because the agent will not export
+     * anything in that configuration, so waiting is unnecessary.
      * When {@code telemetry.agent.metrics_interval} is unset, empty, or invalid, uses
      * {@code 2 *} {@link #DEFAULT_AGENT_METRICS_INTERVAL}, matching the formula used when the setting parses.
      * <p>
@@ -55,6 +57,9 @@ public final class AgentExportHelpers {
      * fall back to {@code 2 *} {@link #DEFAULT_AGENT_METRICS_INTERVAL}.
      */
     public static long agentFlushWaitTimeMs(Settings settings) {
+        if ("true".equalsIgnoreCase(settings.get("telemetry.agent.disable_send"))) {
+            return 0;
+        }
         String intervalStr = settings.get("telemetry.agent.metrics_interval");
         if (intervalStr != null && intervalStr.isEmpty() == false) {
             try {

@@ -24,10 +24,35 @@ public record SchemaCacheKey(
     String endpoint,
     String region
 ) {
+    // Keep this set in sync with every option keyed off the WITH map by a FormatReader's
+    // parseOptionsFromConfig / withConfig. The intent is broader than "changes the inferred
+    // schema": any option that changes either the schema or whether schema inference fails on
+    // the same input must appear here, or two queries with different formatting will collide on
+    // the same cache entry.
+    //
+    // Notes on the less-obvious entries:
+    // - max_field_size: a runtime parsing limit; doesn't change inferred types but can flip
+    // schema inference between success and failure on the same bytes.
+    // - schema_sample_size: bounds how many rows feed type inference; smaller samples can
+    // widen/narrow the inferred type for borderline columns.
+    // - column_prefix: only changes column NAMES (when header_row=false), but names are part
+    // of the schema.
+    // - error_mode / max_errors / max_error_ratio: change which rows survive and which cells are
+    // null-filled, so captured row and column null counts must not be shared across policies.
+    // - schema_resolution: changes multi-file schema merge (FFW vs UNION_BY_NAME) and therefore
+    // which per-file stats are aggregated for aggregate pushdown.
+    // - mode: quoted/escaped/plain changes record boundaries (row counts), null-ness (\N) and
+    // values on the same bytes, so neither schemas nor captured stats may cross modes.
+    // - multi_value_syntax: brackets selects the bracket-aware record scanner (newlines inside
+    // [..] are not record ends) and, on a no-quote baseline, bare brackets resolves the mode
+    // to quoted — so two configs differing only in this key can interpret the same bytes with
+    // different record boundaries and must not share schemas or stats.
     private static final Set<String> FORMAT_AFFECTING_PARAMS = Set.of(
         "delimiter",
         "quote",
         "escape",
+        "mode",
+        "multi_value_syntax",
         "encoding",
         "datetime_format",
         "hive_partitioning",
@@ -36,8 +61,17 @@ public record SchemaCacheKey(
         "format",
         "null_value",
         "header",
+        "header_row",
+        "column_prefix",
+        "comment",
+        "max_field_size",
+        "schema_sample_size",
         "skip_rows",
-        "trim_whitespace"
+        "trim_whitespace",
+        "error_mode",
+        "max_errors",
+        "max_error_ratio",
+        "schema_resolution"
     );
 
     private static final Set<String> CREDENTIAL_PARAMS = Set.of(
@@ -57,7 +91,14 @@ public record SchemaCacheKey(
         return new SchemaCacheKey(canonicalPath, mtime, formatType != null ? formatType : "", formatConfig, endpoint, region);
     }
 
-    static String buildFormatConfig(Map<String, Object> config) {
+    /**
+     * Canonical, node-stable identity of the row-interpretation-affecting config: the format-affecting
+     * params (credentials and non-format keys excluded), sorted and rendered {@code key=value,...}.
+     * Deterministic across JVMs and independent of column projection, so a coordinator and a data node
+     * derive the same string for the same logical query config — the basis for the cross-node stats
+     * cache fingerprint.
+     */
+    public static String buildFormatConfig(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             return "";
         }

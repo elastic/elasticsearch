@@ -8,10 +8,16 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 class VersionAscTopNEncoder extends SortableAscTopNEncoder {
     private final VersionDescTopNEncoder descEncoder = new VersionDescTopNEncoder(this);
+
+    @Override
+    protected int maxBytesRefValueSize(Block b) {
+        return b.valueMaxByteSize() + 1; // + 1 for NUL terminator
+    }
 
     @Override
     public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {

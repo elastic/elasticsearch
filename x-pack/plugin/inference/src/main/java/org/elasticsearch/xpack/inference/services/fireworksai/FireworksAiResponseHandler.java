@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 
 /**
@@ -26,7 +26,7 @@ public class FireworksAiResponseHandler extends BaseResponseHandler {
     }
 
     @Override
-    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+    protected void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         if (result.isSuccessfulResponse()) {
             return;
         }
@@ -35,22 +35,22 @@ public class FireworksAiResponseHandler extends BaseResponseHandler {
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
             // 500 errors are retryable (temporary server issues)
-            throw new RetryException(true, buildError(SERVER_ERROR, request, result));
+            throw new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode > 500) {
             // 501+ errors are generally not retryable
-            throw new RetryException(false, buildError(SERVER_ERROR, request, result));
+            throw new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 429) {
             // Rate limit - retryable after backoff
-            throw new RetryException(true, buildError(RATE_LIMIT, request, result));
+            throw new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));
         } else if (statusCode == 401) {
             // Authentication error - not retryable
-            throw new RetryException(false, buildError(AUTHENTICATION, request, result));
+            throw new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
         } else if (statusCode >= 300 && statusCode < 400) {
             // Redirection - not retryable
-            throw new RetryException(false, buildError(REDIRECTION, request, result));
+            throw new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
         } else {
             // Other 4xx errors - not retryable
-            throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));
+            throw new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
         }
     }
 }

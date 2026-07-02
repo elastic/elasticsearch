@@ -60,6 +60,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -251,6 +252,16 @@ public class AbstractAuditorTests extends ESTestCase {
         // the back log will be written some point later
         assertBusy(() -> verify(client, times(1)).execute(eq(TransportBulkAction.TYPE), any(), any()));
 
+        // Replace the template put mock with a synchronous response. The latch-based
+        // mock was needed for the first round to avoid blocking the test thread, but
+        // the latch is already open and submitting to threadPool.generic() introduces
+        // a race between the generic thread completing and the test thread proceeding.
+        doAnswer(ans -> {
+            ActionListener<AcknowledgedResponse> listener = ans.getArgument(2);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(client).execute(eq(TransportPutComposableIndexTemplateAction.TYPE), any(), any());
+
         // "delete" the index
         doAnswer(ans -> {
             ActionListener<?> listener = ans.getArgument(2);
@@ -265,6 +276,47 @@ public class AbstractAuditorTests extends ESTestCase {
         assertBusy(() -> verify(client, times(2)).execute(eq(TransportPutComposableIndexTemplateAction.TYPE), any(), any()));
         assertBusy(() -> verify(client, times(2)).execute(eq(TransportCreateIndexAction.TYPE), any(), any()));
         assertBusy(() -> verify(client, times(2)).execute(eq(TransportBulkAction.TYPE), any(), any()));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testWriteDocRetriesOnTransientFailure() throws Exception {
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
+        auditor.info("foo", "First message via backlog");
+        verify(client, times(1)).execute(eq(TransportBulkAction.TYPE), any(), any());
+
+        AtomicInteger indexAttempts = new AtomicInteger(0);
+        doAnswer(ans -> {
+            ActionListener<Object> listener = (ActionListener<Object>) ans.getArgument(2);
+            if (indexAttempts.incrementAndGet() < 3) {
+                listener.onFailure(new RuntimeException("transient error"));
+            } else {
+                listener.onResponse(null);
+            }
+            return null;
+        }).when(client).execute(eq(TransportIndexAction.TYPE), any(), any());
+
+        auditor.info("foo", "Message with retry");
+        // RetryableAction schedules retries asynchronously with backoff
+        assertBusy(() -> assertThat(indexAttempts.get(), equalTo(3)));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testWriteDocGivesUpAfterMaxRetries() throws Exception {
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
+        auditor.info("foo", "First message via backlog");
+        verify(client, times(1)).execute(eq(TransportBulkAction.TYPE), any(), any());
+
+        AtomicInteger indexAttempts = new AtomicInteger(0);
+        doAnswer(ans -> {
+            ActionListener<Object> listener = (ActionListener<Object>) ans.getArgument(2);
+            indexAttempts.incrementAndGet();
+            listener.onFailure(new RuntimeException("persistent error"));
+            return null;
+        }).when(client).execute(eq(TransportIndexAction.TYPE), any(), any());
+
+        auditor.info("foo", "Message that always fails");
+        // 1 initial attempt in writeDoc + MAX_WRITE_RETRIES attempts in retryWriteDoc
+        assertBusy(() -> assertThat(indexAttempts.get(), equalTo(1 + AbstractAuditor.MAX_WRITE_RETRIES)));
     }
 
     public void testMaxBufferSize() throws Exception {
@@ -323,6 +375,7 @@ public class AbstractAuditorTests extends ESTestCase {
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
+        when(clusterService.threadPool()).thenReturn(threadPool);
         return clusterService;
     }
 
@@ -379,6 +432,7 @@ public class AbstractAuditorTests extends ESTestCase {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
+        when(clusterService.threadPool()).thenReturn(threadPool);
 
         return new TestAuditor(client, TEST_NODE_NAME, clusterService);
     }

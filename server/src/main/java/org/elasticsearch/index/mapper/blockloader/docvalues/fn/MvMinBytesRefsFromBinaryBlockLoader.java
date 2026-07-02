@@ -13,9 +13,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBytesRefsFromBinaryReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
@@ -55,7 +55,7 @@ public class MvMinBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
         return "MvMinBytesRefsFromBinary[" + fieldName + "]";
     }
 
-    private static class MinFromBinarySeparateCount extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {
+    private static class MinFromBinarySeparateCount extends AbstractBytesRefsFromBinaryReader {
         private final TrackingNumericDocValues counts;
         private final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
 

@@ -18,8 +18,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
@@ -29,63 +31,122 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class FireworksAiEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<FireworksAiEmbeddingsServiceSettings> {
 
-    private static final String DEFAULT_URL = "https://api.fireworks.ai/inference/v1/embeddings";
+    private static final String TEST_MODEL_ID = "some-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-model-id";
+
+    private static final URI TEST_URI = ServiceUtils.createUri("https://www.test-url.com");
+    private static final URI INITIAL_TEST_URI = ServiceUtils.createUri("https://www.initial-test-url.com");
+    private static final URI DEFAULT_URI = ServiceUtils.createUri("https://api.fireworks.ai/inference/v1/embeddings");
+
+    private static final SimilarityMeasure TEST_SIMILARITY_MEASURE = SimilarityMeasure.L2_NORM;
+    private static final SimilarityMeasure INITIAL_TEST_SIMILARITY_MEASURE = SimilarityMeasure.COSINE;
+
+    private static final Integer TEST_DIMENSIONS = 64;
+    private static final Integer INITIAL_TEST_DIMENSIONS = 128;
+
+    private static final Integer TEST_MAX_INPUT_TOKENS = 512;
+    private static final Integer INITIAL_TEST_MAX_INPUT_TOKENS = 256;
+
+    private static final int TEST_RATE_LIMIT = 1000;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    private static final int DEFAULT_TEST_RATE_LIMIT = 6000;
 
     public static FireworksAiEmbeddingsServiceSettings createRandomWithNonNullUrl() {
-        return createRandom(randomAlphaOfLength(15));
-    }
-
-    public static FireworksAiEmbeddingsServiceSettings createRandom() {
         return createRandom(randomAlphaOfLength(15));
     }
 
     private static FireworksAiEmbeddingsServiceSettings createRandom(String url) {
         var modelId = randomAlphaOfLength(8);
         SimilarityMeasure similarityMeasure = null;
-        Integer dims = null;
+        Integer dimensions = null;
         var isTextEmbeddingModel = randomBoolean();
         if (isTextEmbeddingModel) {
-            similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
-            dims = 1536;
+            similarityMeasure = randomBoolean() ? randomSimilarityMeasure() : null;
+            dimensions = randomIntBetween(1, 1000);
         }
-        Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
+        var maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
+        boolean dimensionsSetByUser = randomBoolean();
         return new FireworksAiEmbeddingsServiceSettings(
             modelId,
-            createUri(url),
+            createOptionalUri(url),
             similarityMeasure,
-            dims,
+            dimensions,
             maxInputTokens,
-            randomBoolean(),
+            dimensionsSetByUser,
             RateLimitSettingsTests.createRandom()
         );
     }
 
-    public void testFromMap_Request_CreatesSettingsCorrectly() {
-        var modelId = "model-foo";
-        var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
-        var serviceSettings = FireworksAiEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    modelId,
-                    ServiceFields.URL,
-                    url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens
+    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var originalServiceSettings = new FireworksAiEmbeddingsServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            false,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            buildServiceSettingsMap(
+                TEST_MODEL_ID,
+                TEST_URI.toString(),
+                TEST_DIMENSIONS,
+                TEST_MAX_INPUT_TOKENS,
+                true,
+                TEST_RATE_LIMIT,
+                TEST_SIMILARITY_MEASURE.toString()
+            )
+        );
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new FireworksAiEmbeddingsServiceSettings(
+                    INITIAL_TEST_MODEL_ID,
+                    INITIAL_TEST_URI,
+                    INITIAL_TEST_SIMILARITY_MEASURE,
+                    INITIAL_TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
+                    false,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
                 )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        var originalServiceSettings = new FireworksAiEmbeddingsServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            false,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
+    }
+
+    public void testFromMap_Request_CreatesSettingsCorrectly() {
+        var serviceSettings = FireworksAiEmbeddingsServiceSettings.fromMap(
+            buildServiceSettingsMap(
+                TEST_MODEL_ID,
+                TEST_URI.toString(),
+                TEST_DIMENSIONS,
+                TEST_MAX_INPUT_TOKENS,
+                true,
+                TEST_RATE_LIMIT,
+                TEST_SIMILARITY_MEASURE.toString()
             ),
             ConfigurationParseContext.REQUEST
         );
@@ -94,35 +155,28 @@ public class FireworksAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             serviceSettings,
             is(
                 new FireworksAiEmbeddingsServiceSettings(
-                    modelId,
-                    createUri(url),
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dims,
-                    maxInputTokens,
+                    TEST_MODEL_ID,
+                    TEST_URI,
+                    TEST_SIMILARITY_MEASURE,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
                     true,
-                    null
+                    new RateLimitSettings(TEST_RATE_LIMIT)
                 )
             )
         );
     }
 
     public void testFromMap_Request_DimensionsSetByUser_IsFalse_WhenDimensionsAreNotPresent() {
-        var modelId = "model-foo";
-        var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var maxInputTokens = 512;
         var serviceSettings = FireworksAiEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    modelId,
-                    ServiceFields.URL,
-                    url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens
-                )
+            buildServiceSettingsMap(
+                TEST_MODEL_ID,
+                TEST_URI.toString(),
+                null,
+                TEST_MAX_INPUT_TOKENS,
+                null,
+                TEST_RATE_LIMIT,
+                TEST_SIMILARITY_MEASURE.toString()
             ),
             ConfigurationParseContext.REQUEST
         );
@@ -131,40 +185,28 @@ public class FireworksAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             serviceSettings,
             is(
                 new FireworksAiEmbeddingsServiceSettings(
-                    modelId,
-                    createUri(url),
-                    SimilarityMeasure.DOT_PRODUCT,
+                    TEST_MODEL_ID,
+                    TEST_URI,
+                    TEST_SIMILARITY_MEASURE,
                     null,
-                    maxInputTokens,
+                    TEST_MAX_INPUT_TOKENS,
                     false,
-                    null
+                    new RateLimitSettings(TEST_RATE_LIMIT)
                 )
             )
         );
     }
 
     public void testFromMap_Persistent_CreatesSettingsCorrectly() {
-        var modelId = "model-foo";
-        var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
         var serviceSettings = FireworksAiEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    modelId,
-                    ServiceFields.URL,
-                    url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    FireworksAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
-                    false
-                )
+            buildServiceSettingsMap(
+                TEST_MODEL_ID,
+                TEST_URI.toString(),
+                TEST_DIMENSIONS,
+                TEST_MAX_INPUT_TOKENS,
+                false,
+                TEST_RATE_LIMIT,
+                TEST_SIMILARITY_MEASURE.toString()
             ),
             ConfigurationParseContext.PERSISTENT
         );
@@ -173,58 +215,13 @@ public class FireworksAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             serviceSettings,
             is(
                 new FireworksAiEmbeddingsServiceSettings(
-                    modelId,
-                    createUri(url),
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dims,
-                    maxInputTokens,
+                    TEST_MODEL_ID,
+                    TEST_URI,
+                    TEST_SIMILARITY_MEASURE,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
                     false,
-                    null
-                )
-            )
-        );
-    }
-
-    public void testFromMap_Persistent_CreatesSettingsCorrectly_WithRateLimitSettings() {
-        var modelId = "model-foo";
-        var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
-        var rateLimit = 3;
-        var serviceSettings = FireworksAiEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    modelId,
-                    ServiceFields.URL,
-                    url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    FireworksAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
-                    false,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit))
-                )
-            ),
-            ConfigurationParseContext.PERSISTENT
-        );
-
-        assertThat(
-            serviceSettings,
-            is(
-                new FireworksAiEmbeddingsServiceSettings(
-                    modelId,
-                    createUri(url),
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dims,
-                    maxInputTokens,
-                    false,
-                    new RateLimitSettings(rateLimit)
+                    new RateLimitSettings(TEST_RATE_LIMIT)
                 )
             )
         );
@@ -232,96 +229,91 @@ public class FireworksAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
 
     public void testFromMap_Request_UsesDefaultUrl_WhenUrlNotProvided() {
         var serviceSettings = FireworksAiEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, "m")),
+            buildServiceSettingsMap(TEST_MODEL_ID, null, null, null, null, null, null),
             ConfigurationParseContext.REQUEST
         );
-        assertThat(serviceSettings.uri(), is(URI.create(DEFAULT_URL)));
-        assertThat(serviceSettings.modelId(), is("m"));
+        assertThat(serviceSettings.uri(), is(DEFAULT_URI));
     }
 
     public void testFromMap_Request_UsesDefaultRateLimit_WhenRateLimitNotProvided() {
         var serviceSettings = FireworksAiEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, "m")),
+            buildServiceSettingsMap(TEST_MODEL_ID, null, null, null, null, null, null),
             ConfigurationParseContext.REQUEST
         );
-        assertThat(serviceSettings.rateLimitSettings(), is(FireworksAiEmbeddingsServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS));
+        assertThat(serviceSettings.rateLimitSettings(), is(new RateLimitSettings(DEFAULT_TEST_RATE_LIMIT)));
     }
 
     public void testFromMap_PersistentContext_DoesNotThrowException_WhenDimensionsIsNull() {
         var settings = FireworksAiEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(Map.of(FireworksAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER, true, ServiceFields.MODEL_ID, "m")),
+            buildServiceSettingsMap(TEST_MODEL_ID, null, null, null, true, null, null),
             ConfigurationParseContext.PERSISTENT
         );
 
         assertThat(settings.dimensionsSetByUser(), is(true));
-        assertNull(settings.dimensions());
+        assertThat(settings.dimensions(), nullValue());
     }
 
     public void testFromMap_ThrowsException_WhenDimensionsAreZero() {
-        var settingsMap = getServiceSettingsMap("model-foo", null, 0, null, null);
+        int dimensions = 0;
+        var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, null, dimensions, null, null, null, null);
 
         var thrownException = expectThrows(
             ValidationException.class,
             () -> FireworksAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
         );
 
+        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.getMessage(),
-            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;")
+            thrownException.validationErrors().getFirst(),
+            is(Strings.format("[service_settings] Invalid value [%d]. [dimensions] must be a positive integer", dimensions))
         );
     }
 
     public void testFromMap_ThrowsException_WhenDimensionsAreNegative() {
         var dimensions = randomNegativeInt();
-        var settingsMap = getServiceSettingsMap("model-foo", null, dimensions, null, null);
+        var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, null, dimensions, null, null, null, null);
 
         var thrownException = expectThrows(
             ValidationException.class,
             () -> FireworksAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
         );
 
+        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.getMessage(),
-            containsString(
-                Strings.format(
-                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [dimensions] must be a positive integer;",
-                    dimensions
-                )
-            )
+            thrownException.validationErrors().getFirst(),
+            is(Strings.format("[service_settings] Invalid value [%d]. [dimensions] must be a positive integer", dimensions))
         );
     }
 
     public void testFromMap_ThrowsException_WhenMaxInputTokensAreZero() {
-        var settingsMap = getServiceSettingsMap("model-foo", null, null, 0, null);
+        int maxInputTokens = 0;
+        var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, null, null, maxInputTokens, null, null, null);
 
         var thrownException = expectThrows(
             ValidationException.class,
             () -> FireworksAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
         );
 
+        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.getMessage(),
-            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [max_input_tokens] must be a positive integer;")
+            thrownException.validationErrors().getFirst(),
+            is(Strings.format("[service_settings] Invalid value [%d]. [max_input_tokens] must be a positive integer", maxInputTokens))
         );
     }
 
     public void testFromMap_ThrowsException_WhenMaxInputTokensAreNegative() {
         var maxInputTokens = randomNegativeInt();
-        var settingsMap = getServiceSettingsMap("model-foo", null, null, maxInputTokens, null);
+        var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, null, null, maxInputTokens, null, null, null);
 
         var thrownException = expectThrows(
             ValidationException.class,
             () -> FireworksAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
         );
 
+        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.getMessage(),
-            containsString(
-                Strings.format(
-                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [max_input_tokens] must be a positive integer;",
-                    maxInputTokens
-                )
-            )
+            thrownException.validationErrors().getFirst(),
+            is(Strings.format("[service_settings] Invalid value [%d]. [max_input_tokens] must be a positive integer", maxInputTokens))
         );
     }
 
@@ -329,19 +321,15 @@ public class FireworksAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         var thrownException = expectThrows(
             ValidationException.class,
             () -> FireworksAiEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(ServiceFields.URL, "", ServiceFields.MODEL_ID, "m")),
+                buildServiceSettingsMap(TEST_MODEL_ID, "", null, null, null, null, null),
                 ConfigurationParseContext.REQUEST
             )
         );
 
+        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.getMessage(),
-            containsString(
-                Strings.format(
-                    "Validation Failed: 1: [service_settings] Invalid value empty string. [%s] must be a non-empty string;",
-                    ServiceFields.URL
-                )
-            )
+            thrownException.validationErrors().getFirst(),
+            is("[service_settings] Invalid value empty string. [url] must be a non-empty string")
         );
     }
 
@@ -350,17 +338,15 @@ public class FireworksAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         var thrownException = expectThrows(
             ValidationException.class,
             () -> FireworksAiEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(ServiceFields.URL, url, ServiceFields.MODEL_ID, "m")),
+                buildServiceSettingsMap(TEST_MODEL_ID, url, null, null, null, null, null),
                 ConfigurationParseContext.REQUEST
             )
         );
 
-        assertThat(
-            thrownException.getMessage(),
-            containsString(
-                Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]", url, ServiceFields.URL)
-            )
-        );
+        assertThat(thrownException.validationErrors().size(), is(1));
+        assertThat(thrownException.validationErrors().getFirst(), is(Strings.format("""
+            [service_settings] Invalid url [%s] received for field [url]. \
+            Error: unable to parse url [%s]. Reason: Illegal character in authority""", url, url)));
     }
 
     public void testFromMap_InvalidSimilarity_ThrowsError() {
@@ -368,17 +354,15 @@ public class FireworksAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         var thrownException = expectThrows(
             ValidationException.class,
             () -> FireworksAiEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(ServiceFields.SIMILARITY, similarity, ServiceFields.MODEL_ID, "m")),
+                buildServiceSettingsMap(TEST_MODEL_ID, null, null, null, null, null, similarity),
                 ConfigurationParseContext.REQUEST
             )
         );
 
+        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.getMessage(),
-            is(
-                "Validation Failed: 1: [service_settings] Invalid value [by_size] received. [similarity] "
-                    + "must be one of [cosine, dot_product, l2_norm];"
-            )
+            thrownException.validationErrors().getFirst(),
+            is("[service_settings] Invalid value [by_size] received. [similarity] must be one of [cosine, dot_product, l2_norm]")
         );
     }
 
@@ -388,77 +372,64 @@ public class FireworksAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             () -> FireworksAiEmbeddingsServiceSettings.fromMap(new HashMap<>(), ConfigurationParseContext.REQUEST)
         );
 
-        assertThat(thrownException.getMessage(), containsString("[service_settings] does not contain the required setting [model_id]"));
+        assertThat(thrownException.validationErrors().size(), is(1));
+        assertThat(
+            thrownException.validationErrors().getFirst(),
+            is("[service_settings] does not contain the required setting [model_id]")
+        );
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
         var entity = new FireworksAiEmbeddingsServiceSettings(
-            "model",
-            URI.create("https://api.fireworks.ai/inference/v1/embeddings"),
-            SimilarityMeasure.DOT_PRODUCT,
-            1,
-            2,
-            false,
-            null
-        );
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        var expected = XContentHelper.stripWhitespace("""
-            {
-                "model_id": "model",
-                "url": "https://api.fireworks.ai/inference/v1/embeddings",
-                "similarity": "dot_product",
-                "dimensions": 1,
-                "max_input_tokens": 2,
-                "rate_limit": {
-                    "requests_per_minute": 6000
-                },
-                "dimensions_set_by_user": false
-            }
-            """);
-        assertThat(xContentResult, is(expected));
-    }
-
-    public void testToXContent_WritesDimensionsSetByUserTrue() throws IOException {
-        var entity = new FireworksAiEmbeddingsServiceSettings(
-            "model",
-            URI.create("https://api.fireworks.ai/inference/v1/embeddings"),
-            null,
-            null,
-            null,
+            TEST_MODEL_ID,
+            TEST_URI,
+            TEST_SIMILARITY_MEASURE,
+            TEST_DIMENSIONS,
+            TEST_MAX_INPUT_TOKENS,
             true,
-            null
+            new RateLimitSettings(TEST_RATE_LIMIT)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        var expected = XContentHelper.stripWhitespace("""
-            {
-                "model_id": "model",
-                "url": "https://api.fireworks.ai/inference/v1/embeddings",
-                "rate_limit": {
-                    "requests_per_minute": 6000
-                },
-                "dimensions_set_by_user": true
-            }
-            """);
+        var expected = XContentHelper.stripWhitespace(
+            Strings.format(
+                """
+                    {
+                        "model_id": "%s",
+                        "url": "%s",
+                        "similarity": "%s",
+                        "dimensions": %d,
+                        "max_input_tokens": %d,
+                        "rate_limit": {
+                            "requests_per_minute": %d
+                        },
+                        "dimensions_set_by_user": %b
+                    }
+                    """,
+                TEST_MODEL_ID,
+                TEST_URI,
+                TEST_SIMILARITY_MEASURE.toString(),
+                TEST_DIMENSIONS,
+                TEST_MAX_INPUT_TOKENS,
+                TEST_RATE_LIMIT,
+                true
+            )
+        );
         assertThat(xContentResult, is(expected));
     }
 
     public void testToFilteredXContent_WritesAllValues_ExceptDimensionsSetByUser() throws IOException {
         var entity = new FireworksAiEmbeddingsServiceSettings(
-            "model",
-            URI.create("https://api.fireworks.ai/inference/v1/embeddings"),
-            SimilarityMeasure.DOT_PRODUCT,
-            1,
-            2,
-            false,
-            null
+            TEST_MODEL_ID,
+            TEST_URI,
+            TEST_SIMILARITY_MEASURE,
+            TEST_DIMENSIONS,
+            TEST_MAX_INPUT_TOKENS,
+            true,
+            new RateLimitSettings(TEST_RATE_LIMIT)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -466,18 +437,18 @@ public class FireworksAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         filteredXContent.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        var expected = XContentHelper.stripWhitespace("""
+        var expected = XContentHelper.stripWhitespace(Strings.format("""
             {
-                "model_id": "model",
-                "url": "https://api.fireworks.ai/inference/v1/embeddings",
-                "similarity": "dot_product",
-                "dimensions": 1,
-                "max_input_tokens": 2,
+                "model_id": "%s",
+                "url": "%s",
+                "similarity": "%s",
+                "dimensions": %d,
+                "max_input_tokens": %d,
                 "rate_limit": {
-                    "requests_per_minute": 6000
+                    "requests_per_minute": %d
                 }
             }
-            """);
+            """, TEST_MODEL_ID, TEST_URI, TEST_SIMILARITY_MEASURE.toString(), TEST_DIMENSIONS, TEST_MAX_INPUT_TOKENS, TEST_RATE_LIMIT));
         assertThat(xContentResult, is(expected));
     }
 
@@ -503,7 +474,7 @@ public class FireworksAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         switch (randomInt(6)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
             case 1 -> uri = randomValueOtherThan(uri, () -> createUri(randomAlphaOfLength(15)));
-            case 2 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure()));
+            case 2 -> similarity = randomValueOtherThan(similarity, Utils::randomSimilarityMeasure);
             case 3 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
             case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
             case 5 -> dimensionsSetByUser = dimensionsSetByUser == false;
@@ -522,30 +493,34 @@ public class FireworksAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
-    public static Map<String, Object> getServiceSettingsMap(
-        String model,
+    public static Map<String, Object> buildServiceSettingsMap(
+        String modelId,
         @Nullable String url,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
-        @Nullable Boolean dimensionsSetByUser
+        @Nullable Boolean dimensionsSetByUser,
+        @Nullable Integer rateLimit,
+        String similarityString
     ) {
         var map = new HashMap<String, Object>();
-        map.put(ServiceFields.MODEL_ID, model);
-
+        map.put(ServiceFields.MODEL_ID, modelId);
         if (url != null) {
             map.put(ServiceFields.URL, url);
         }
-
+        if (similarityString != null) {
+            map.put(ServiceFields.SIMILARITY, similarityString);
+        }
         if (dimensions != null) {
             map.put(ServiceFields.DIMENSIONS, dimensions);
         }
-
         if (maxInputTokens != null) {
             map.put(ServiceFields.MAX_INPUT_TOKENS, maxInputTokens);
         }
-
         if (dimensionsSetByUser != null) {
             map.put(FireworksAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
+        }
+        if (rateLimit != null) {
+            map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
         }
         return map;
     }

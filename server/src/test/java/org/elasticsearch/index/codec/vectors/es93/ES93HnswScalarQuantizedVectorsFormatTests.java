@@ -13,7 +13,7 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.index.codec.vectors.BaseHnswVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.BaseQuantizedHnswVectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
 
@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 
-public class ES93HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
+public class ES93HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnswVectorsFormatTestCase {
 
     @Override
     protected KnnVectorsFormat createFormat() {

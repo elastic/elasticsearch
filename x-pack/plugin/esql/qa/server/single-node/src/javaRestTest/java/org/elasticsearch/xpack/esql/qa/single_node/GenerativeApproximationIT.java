@@ -27,7 +27,7 @@ public class GenerativeApproximationIT extends GenerativeApproximationRestTest {
 
     @Before
     public void checkCapability() {
-        assumeTrue("query approximation should be enabled", EsqlCapabilities.Cap.APPROXIMATION_V6.isEnabled());
+        assumeTrue("query approximation should be enabled", EsqlCapabilities.Cap.APPROXIMATION_V7.isEnabled());
     }
 
     @ClassRule

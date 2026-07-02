@@ -606,6 +606,14 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         nodes.forEach(each -> each.stop(tailLogs));
     }
 
+    /**
+     * Returns resource leak messages from all nodes that detected leaks during shutdown.
+     */
+    @Internal
+    public List<String> getLeakMessages() {
+        return nodes.stream().map(ElasticsearchNode::getLeakMessage).filter(Objects::nonNull).toList();
+    }
+
     @Override
     public void setNameCustomization(Function<String, String> nameCustomization) {
         nodes.all(each -> each.setNameCustomization(nameCustomization));

@@ -100,6 +100,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private String id;
     @Nullable
     private String routing;
+    private boolean routingFromSlice;
 
     @Nullable
     Script script;
@@ -239,6 +240,23 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public String routing() {
         return this.routing;
+    }
+
+    /**
+     * Marks whether the effective routing value was provided via the {@code _slice} API parameter.
+     */
+    @Override
+    public UpdateRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
+    }
+
+    /**
+     * Returns {@code true} when this request routing came from the {@code _slice} API parameter.
+     */
+    @Override
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
     }
 
     public ShardId getShardId() {

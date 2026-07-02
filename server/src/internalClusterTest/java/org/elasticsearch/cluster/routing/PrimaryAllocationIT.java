@@ -103,7 +103,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         assertThat(bulkResponse.hasFailures(), equalTo(false));
         assertThat(bulkResponse.getItems().length, equalTo(2));
 
-        logger.info(Strings.toString(bulkResponse, true, true));
+        logger.info(Strings.toTruncatedString(bulkResponse, true, true));
 
         internalCluster().assertSeqNos();
 

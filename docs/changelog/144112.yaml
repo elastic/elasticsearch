@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 143916
-pr: 144112
-summary: Loading unmapped fields on synthetic `_source`
-type: bug

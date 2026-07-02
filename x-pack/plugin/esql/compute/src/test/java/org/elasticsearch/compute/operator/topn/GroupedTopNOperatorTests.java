@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -14,7 +16,6 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.GroupKeyEncoder;
@@ -383,7 +384,12 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                     new GroupKeyEncoder(
                         groupKeys.stream().mapToInt(Integer::intValue).toArray(),
                         randomBlocksResult.elementTypes,
-                        new BreakingBytesRefBuilder(nonBreakingBigArrays().breakerService().getBreaker("request"), "group-key-encoder")
+                        new PagedBytesBuilder(
+                            PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                            nonBreakingBigArrays().breakerService().getBreaker("request"),
+                            "group-key-encoder",
+                            64
+                        )
                     ),
                     rows,
                     Long.MAX_VALUE
@@ -450,7 +456,12 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                         new GroupKeyEncoder(
                             groupKeys,
                             elementTypes,
-                            new BreakingBytesRefBuilder(nonBreakingBigArrays().breakerService().getBreaker("request"), "group-key-encoder")
+                            new PagedBytesBuilder(
+                                PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                                nonBreakingBigArrays().breakerService().getBreaker("request"),
+                                "group-key-encoder",
+                                64
+                            )
                         ),
                         randomPageSize(),
                         Long.MAX_VALUE

@@ -14,7 +14,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.InputTypeTests;
@@ -74,11 +73,7 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
             );
             var action = creator.create(model, Map.of());
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
             var result = listener.actionGet(TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
@@ -113,7 +108,7 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
             var action = creator.create(model, Map.of());
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomWithNull();
-            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), inputType), null, listener);
             var result = listener.actionGet(TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
@@ -146,7 +141,7 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
             );
             var action = creator.create(model, Map.of());
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), null), null, listener);
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
             assertThat(sender.sendCount(), is(1));
@@ -178,7 +173,7 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
             );
             var action = creator.create(model, Map.of());
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(List.of("abc")), null, listener);
             var result = listener.actionGet(TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationCompletion(List.of("test input string"))));
@@ -212,7 +207,7 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
             );
             var action = creator.create(model, Map.of());
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(List.of("abc")), null, listener);
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
             assertThat(sender.sendCount(), is(1));

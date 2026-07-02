@@ -43,27 +43,49 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
     public static HuggingFaceServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
         var uri = extractUri(map, URL, validationException);
 
-        SimilarityMeasure similarityMeasure = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer maxInputTokens = extractOptionalPositiveInteger(
+        var similarityMeasure = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(
             map,
             MAX_INPUT_TOKENS,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
+
+        validationException.throwIfValidationErrorsExist();
+        return new HuggingFaceServiceSettings(uri, similarityMeasure, dimensions, maxInputTokens, rateLimitSettings);
+    }
+
+    @Override
+    public HuggingFaceServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
             validationException,
-            HuggingFaceService.NAME,
-            context
+            ConfigurationParseContext.REQUEST
         );
 
         validationException.throwIfValidationErrorsExist();
-        return new HuggingFaceServiceSettings(uri, similarityMeasure, dims, maxInputTokens, rateLimitSettings);
+
+        return new HuggingFaceServiceSettings(
+            this.uri,
+            this.similarity,
+            this.dimensions,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            extractedRateLimitSettings
+        );
     }
 
     private final URI uri;
@@ -77,7 +99,7 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
         this.similarity = null;
         this.dimensions = null;
         this.maxInputTokens = null;
-        rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
+        this.rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
     }
 
     public HuggingFaceServiceSettings(
@@ -100,10 +122,10 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
 
     public HuggingFaceServiceSettings(StreamInput in) throws IOException {
         this.uri = createUri(in.readString());
-        similarity = in.readOptionalEnum(SimilarityMeasure.class);
-        dimensions = in.readOptionalVInt();
-        maxInputTokens = in.readOptionalVInt();
-        rateLimitSettings = new RateLimitSettings(in);
+        this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
+        this.dimensions = in.readOptionalVInt();
+        this.maxInputTokens = in.readOptionalVInt();
+        this.rateLimitSettings = new RateLimitSettings(in);
     }
 
     @Override
@@ -190,7 +212,7 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
         if (o == null || getClass() != o.getClass()) return false;
         HuggingFaceServiceSettings that = (HuggingFaceServiceSettings) o;
         return Objects.equals(uri, that.uri)
-            && similarity == that.similarity
+            && Objects.equals(similarity, that.similarity)
             && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings);

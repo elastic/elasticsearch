@@ -15,7 +15,7 @@ When not customized, the filter removes the following English stop words by defa
 
 In addition to English, the `stop` filter supports predefined [stop word lists for several languages](#analysis-stop-tokenfilter-stop-words-by-lang). You can also specify your own stop words as an array or file.
 
-The `stop` filter uses Lucene’s [StopFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/core/StopFilter.md).
+The `stop` filter uses Lucene’s [StopFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/core/StopFilter.html).
 
 ## Example [analysis-stop-tokenfilter-analyze-ex]
 

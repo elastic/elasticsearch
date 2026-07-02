@@ -935,3 +935,64 @@ setup:
   - length: { hits.hits.1.highlight.bbq_disk_body: 1 }
   - match: { hits.hits.1.highlight.bbq_disk_body.0: "Nothing travels faster than the speed of light with the possible exception of bad news, which obeys its own special laws." }
 
+---
+"Highlighting using an embedding model":
+  - requires:
+      cluster_features: "semantic_text.inference_using_embedding_task"
+      reason: EMBEDDING task type for semantic_text
+
+  - do:
+      inference.put:
+        task_type: embedding
+        inference_id: embedding-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "api_key": "abc64",
+              "similarity": "COSINE"
+            },
+            "task_settings": {}
+          }
+
+  - do:
+      indices.create:
+        index: test-embedding-highlight-index
+        body:
+          settings:
+            index.mapping.semantic_text.use_legacy_format: false
+          mappings:
+            properties:
+              body:
+                type: semantic_text
+                inference_id: embedding-inference-id
+
+  - do:
+      index:
+        index: test-embedding-highlight-index
+        id: doc_1
+        body:
+          body: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+        refresh: true
+
+  - do:
+      search:
+        index: test-embedding-highlight-index
+        body:
+          query:
+            semantic:
+              field: "body"
+              query: "What is Elasticsearch?"
+          highlight:
+            fields:
+              body:
+                type: "semantic"
+                number_of_fragments: 1
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0.highlight.body: 1 }
+  - match: { hits.hits.0.highlight.body.0: "You Know, for Search!" }
+

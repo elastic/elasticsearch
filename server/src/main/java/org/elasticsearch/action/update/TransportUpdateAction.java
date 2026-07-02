@@ -39,11 +39,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.InferenceFieldMapper;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
@@ -63,6 +66,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
@@ -129,6 +133,26 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     @Override
     protected void resolveRequest(ProjectState state, UpdateRequest docWriteRequest) {
         docWriteRequest.routing(state.metadata().resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
+        requireSliceRoutingWhenEnabled(state, docWriteRequest);
+    }
+
+    private static void requireSliceRoutingWhenEnabled(ProjectState state, UpdateRequest request) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            return;
+        }
+        final String concreteName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
+        final boolean sliceEnabled = Optional.ofNullable(state.metadata().getIndicesLookup().get(concreteName))
+            .map(indexAbstraction -> indexAbstraction.getWriteIndex())
+            .map(state.metadata()::index)
+            .map(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()))
+            .orElse(false);
+        SliceIndexing.validateSliceRoutingRequirement(
+            sliceEnabled,
+            request.isRoutingFromSlice(),
+            request.routing(),
+            "update request",
+            request.index()
+        );
     }
 
     @Override
@@ -210,7 +234,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         var executor = executor(indexService);
         assert ThreadPool.assertCurrentThreadPool(Names.SYSTEM_WRITE, Names.WRITE);
 
-        SubscribableListener.<Void>newForked((l) -> indexShard.ensureMutable(l, false))
+        SubscribableListener.<Void>newForked((l) -> indexShard.ensureMutable(l, false, EsExecutors.DIRECT_EXECUTOR_SERVICE))
         // Make sure to fork back to a `write` thread pool if necessary
         .<UpdateHelper.Result>andThen(executor, threadPool.getThreadContext(), (l, unused) -> ActionListener.completeWith(l, () -> {
             assert ThreadPool.assertCurrentThreadPool(Names.SYSTEM_WRITE, Names.WRITE);

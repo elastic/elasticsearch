@@ -33,10 +33,12 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         "esql_documents_found_and_values_loaded"
     );
     private static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES = TransportVersion.fromName("esql_split_on_big_values");
+    private static final TransportVersion ESQL_LUCENE_OPERATOR_BYTES_READ = TransportVersion.fromName("esql_lucene_operator_bytes_read");
 
     private final Map<String, Integer> readersBuilt;
     private final Map<String, Integer> convertersUsed;
     private final long valuesLoaded;
+    private final long bytesRead;
 
     public ValuesSourceReaderOperatorStatus(
         Map<String, Integer> readersBuilt,
@@ -46,12 +48,14 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         int pagesEmitted,
         long rowsReceived,
         long rowsEmitted,
-        long valuesLoaded
+        long valuesLoaded,
+        long bytesRead
     ) {
         super(processNanos, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
         this.readersBuilt = readersBuilt;
         this.convertersUsed = convertersUsed;
         this.valuesLoaded = valuesLoaded;
+        this.bytesRead = bytesRead;
     }
 
     static ValuesSourceReaderOperatorStatus readFrom(StreamInput in) throws IOException {
@@ -80,6 +84,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             ? in.readOrderedMap(StreamInput::readString, StreamInput::readVInt)
             : Map.of();
         long valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
+        long bytesRead = supportsBytesRead(in.getTransportVersion()) ? in.readVLong() : 0;
         return new ValuesSourceReaderOperatorStatus(
             readersBuilt,
             convertersUsed,
@@ -88,7 +93,8 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             pagesEmitted,
             rowsReceived,
             rowsEmitted,
-            valuesLoaded
+            valuesLoaded,
+            bytesRead
         );
     }
 
@@ -110,6 +116,13 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         if (supportsValuesLoaded(out.getTransportVersion())) {
             out.writeVLong(valuesLoaded);
         }
+        if (supportsBytesRead(out.getTransportVersion())) {
+            out.writeVLong(bytesRead);
+        }
+    }
+
+    private static boolean supportsBytesRead(TransportVersion version) {
+        return version.supports(ESQL_LUCENE_OPERATOR_BYTES_READ);
     }
 
     private static boolean supportsSplitOnBigValues(TransportVersion version) {
@@ -139,6 +152,11 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
     }
 
     @Override
+    public long bytesRead() {
+        return bytesRead;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startObject("readers_built");
@@ -154,6 +172,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             builder.endObject();
         }
         builder.field("values_loaded", valuesLoaded);
+        builder.field("bytes_read", bytesRead);
         innerToXContent(builder);
         return builder.endObject();
     }
@@ -164,12 +183,13 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) o;
         return readersBuilt.equals(status.readersBuilt)
             && convertersUsed.equals(status.convertersUsed)
-            && valuesLoaded == status.valuesLoaded;
+            && valuesLoaded == status.valuesLoaded
+            && bytesRead == status.bytesRead;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), readersBuilt, valuesLoaded);
+        return Objects.hash(super.hashCode(), readersBuilt, valuesLoaded, bytesRead);
     }
 
     @Override

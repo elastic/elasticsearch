@@ -21,8 +21,10 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -36,10 +38,17 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOG
 public class Avg extends AggregateFunction implements SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Avg", Avg::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Avg.class).unary(Avg::new).name("avg");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .acrossSeries(Avg::new)
+        .description("Calculates the average of the values across the input vector.")
+        .example("avg(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .name("avg");
     private final Expression summationMode;
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the average of a numeric field.",
         description = "The average of a numeric field.",
         type = FunctionType.AGGREGATE,
         examples = {
@@ -56,6 +65,12 @@ public class Avg extends AggregateFunction implements SurrogateExpression, Aggre
                     + "computing the average of the values which were used to construct the histograms.",
                 file = "exponential_histogram",
                 tag = "avgExpHistoForDocs"
+            ),
+            @Example(
+                description = "`AVG` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "computing the average of the values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "avgTDigestForDocs"
             ) }
     )
     public Avg(
@@ -149,6 +164,10 @@ public class Avg extends AggregateFunction implements SurrogateExpression, Aggre
         if (field.foldable()) {
             return new MvAvg(s, field);
         }
-        return new Div(s, new Sum(s, field, filter(), window(), summationMode), new Count(s, field, filter(), window()), dataType());
+        // Cast long inputs to double up-front so the intermediate Sum cannot overflow.
+        // Avg always returns double, and Sum(int) already accumulates as long (Which would require many big values to overflow),
+        // so the cast is only necessary for long.
+        Expression sumField = field.dataType() == DataType.LONG ? new ToDouble(s, field) : field;
+        return new Div(s, new Sum(s, sumField, filter(), window(), summationMode), new Count(s, field, filter(), window()), dataType());
     }
 }

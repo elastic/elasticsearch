@@ -1,0 +1,5 @@
+pr: 145700
+summary: Fix several ContextualAI integration issues in the Inference plugin
+area: Inference
+type: bug
+issues: []

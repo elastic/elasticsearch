@@ -60,7 +60,7 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
         // We create both only when we're testing LOOKUP mode.
         if (indexExists(remoteClient(), LOOKUP_INDEX_NAME) == false && indexMode() == IndexMode.LOOKUP) {
             createAllTypesIndex(remoteClient(), minVersion(), LOOKUP_INDEX_NAME, null, indexMode());
-            createAllTypesDoc(remoteClient(), minVersion(), LOOKUP_INDEX_NAME);
+            createAllTypesDoc(remoteClient(), minVersion(), LOOKUP_INDEX_NAME, indexMode());
             createEnrichPolicy(remoteClient(), minVersion(), LOOKUP_INDEX_NAME, ENRICH_POLICY_NAME);
         }
     }
@@ -113,6 +113,18 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
             && clusterHasCapability(remoteClient(), "GET", "/_query", List.of(), List.of("DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS")).orElse(
                 false
             );
+    }
+
+    @Override
+    protected boolean fetchVectordbDocumentIndexModeSupported() throws IOException {
+        return super.fetchVectordbDocumentIndexModeSupported()
+            && clusterHasCapability(remoteClient(), "PUT", "/{index}", List.of(), List.of("vectordb_document_index_mode")).orElse(false);
+    }
+
+    @Override
+    protected boolean fetchFlattenedDatatypeSortedKeysSupported() throws IOException {
+        return super.fetchFlattenedDatatypeSortedKeysSupported()
+            && clusterHasCapability(remoteClient(), "GET", "/_query", List.of(), List.of("FLATTENED_DATATYPE_SORTED_KEYS")).orElse(false);
     }
 
     @Override

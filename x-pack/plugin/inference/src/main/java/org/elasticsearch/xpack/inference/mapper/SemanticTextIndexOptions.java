@@ -113,6 +113,11 @@ public class SemanticTextIndexOptions implements ToXContent {
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Unknown index options type [" + value + "]"));
         }
+
+        @Override
+        public String toString() {
+            return value;
+        }
     }
 
     @Override

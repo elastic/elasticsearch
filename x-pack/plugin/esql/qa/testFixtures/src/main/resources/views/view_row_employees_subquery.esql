@@ -1,0 +1,5 @@
+FROM employees,
+    (ROW emp_no = 99997, languages = 77)
+| WHERE emp_no IN (99997, 10001)
+| SORT emp_no
+| KEEP emp_no, languages

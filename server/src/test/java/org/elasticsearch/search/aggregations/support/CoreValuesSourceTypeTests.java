@@ -52,7 +52,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
     }
 
     public void testDatePrepareRoundingWithDocs() throws IOException {
-        long min = randomLongBetween(100000, 1000000);   // The minimum has to be fairly large or we might accidentally think its a year....
+        long min = randomLongBetween(100000, 1000000); // The minimum has to be fairly large or we might accidentally think it's a year...
         long max = randomLongBetween(min + 1, 100000000000L);
         withAggregationContext(dateMapperService(), docsWithDatesBetween(min, max), context -> {
             Rounding rounding = mock(Rounding.class);
@@ -74,7 +74,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
     }
 
     private void datePrepareRoundingWithQueryFoundCase(Function<Query, Query> wrap) throws IOException {
-        long min = randomLongBetween(100000, 1000000);   // The minimum has to be fairly large or we might accidentally think its a year....
+        long min = randomLongBetween(100000, 1000000); // The minimum has to be fairly large or we might accidentally think it's a year...
         long max = randomLongBetween(min + 10, 100000000000L);
         MapperService mapperService = dateMapperService();
         Query query = wrap.apply(
@@ -97,7 +97,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
     }
 
     private void datePrepareRoundingWithQueryNotFoundCase(Function<Query, Query> wrap) throws IOException {
-        long min = randomLongBetween(100000, 1000000);   // The minimum has to be fairly large or we might accidentally think its a year....
+        long min = randomLongBetween(100000, 1000000); // The minimum has to be fairly large or we might accidentally think it's a year...
         long max = randomLongBetween(min + 10, 100000000000L);
         MapperService mapperService = dateMapperService();
         Query query = wrap.apply(
@@ -112,7 +112,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
     }
 
     public void testDatePrepareRoundingWithDocAndQuery() throws IOException {
-        long min = randomLongBetween(100000, 1000000); // The minimum has to be fairly large or we might accidentally think its a year....
+        long min = randomLongBetween(100000, 1000000); // The minimum has to be fairly large or we might accidentally think it's a year...
         long minQuery, minDocs;
         if (randomBoolean()) {
             minQuery = min;
@@ -140,11 +140,50 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
         });
     }
 
+    public void testDatePrepareRoundingForGlobalWithNothing() throws IOException {
+        withAggregationContext(dateMapperService(), List.of(), context -> {
+            Rounding rounding = mock(Rounding.class);
+            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null).roundingPreparerForGlobal(context).apply(rounding);
+            verify(rounding).prepareForUnknown();
+        });
+    }
+
+    public void testDatePrepareRoundingForGlobalWithDocs() throws IOException {
+        long min = randomLongBetween(100000, 1000000); // The minimum has to be fairly large or we might accidentally think it's a year...
+        long max = randomLongBetween(min + 1, 100000000000L);
+        withAggregationContext(dateMapperService(), docsWithDatesBetween(min, max), context -> {
+            Rounding rounding = mock(Rounding.class);
+            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null).roundingPreparerForGlobal(context).apply(rounding);
+            verify(rounding).prepare(min, max);
+        });
+    }
+
+    /**
+     * Under {@code global} the top-level query is ignored, so even when a narrowing query is present
+     * the rounding must use the (wider) index-derived bounds, never the narrower query bounds.
+     */
+    public void testDatePrepareRoundingForGlobalIgnoresQuery() throws IOException {
+        // The minimum has to be fairly large or we might accidentally think it's a year...
+        long minDocs = randomLongBetween(100000, 1000000);
+        long maxDocs = randomLongBetween(minDocs + 100, 100000000000L);
+        // Pick a strictly narrower query range so we can detect if it was (incorrectly) applied.
+        long minQuery = minDocs + 10;
+        long maxQuery = maxDocs - 10;
+        MapperService mapperService = dateMapperService();
+        Query query = mapperService.fieldType("field")
+            .rangeQuery(minQuery, maxQuery, true, true, ShapeRelation.CONTAINS, null, null, createSearchExecutionContext(mapperService));
+        withAggregationContext(null, mapperService, docsWithDatesBetween(minDocs, maxDocs), query, context -> {
+            Rounding rounding = mock(Rounding.class);
+            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null).roundingPreparerForGlobal(context).apply(rounding);
+            verify(rounding).prepare(minDocs, maxDocs);
+        });
+    }
+
     private MapperService dateMapperService() throws IOException {
         return createMapperService(fieldMapping(b -> b.field("type", "date")));
     }
 
-    private static List<SourceToParse> docsWithDatesBetween(long min, long max) throws IOException {
+    private List<SourceToParse> docsWithDatesBetween(long min, long max) throws IOException {
         return List.of(source(b -> b.field("field", min)), source(b -> b.field("field", max)));
     }
 }

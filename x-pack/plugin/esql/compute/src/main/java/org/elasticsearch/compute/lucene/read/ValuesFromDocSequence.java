@@ -19,7 +19,84 @@ import java.io.IOException;
  * Loads values by iterating in original document sequence order instead of
  * the sorted {@code (shard, segment, doc)} order used by {@link ValuesFromManyReader}.
  * This avoids the backwards reorder and supports partial pages bounded by
- * {@link ValuesSourceReaderOperator#jumboBytes}.
+ * {@link ValuesSourceReaderOperator#jumboBytes}. It looks like:
+ * {@snippet lang="txt" :
+ * ┌────────┐   ┌────────┬─────┬──────────────────────────────────────────────────────────────────┐
+ * │ doc    │   │ doc    │ ref │ containment                                                      │
+ * ├────────┤   ├────────┼─────┼──────────────────────────────────────────────────────────────────┤
+ * │ 0,0,0  │   │ 0,1,0  │ 049 │ ...must live in a Standard Person Containment Unit               │
+ * │ 0,1,0  │   │        │     │ ...sedated it before moving...lavender calms it down             │
+ * │ 0,1,1  │   │        │     │ ...give him something to dissect...remove and incinerate...      │
+ * │ 1,0,1  │ ⟶ │ 0,0,0  │     │                                                                  │ ⟶
+ * │ 1,1,12 │   │ 1,1,12 │     │                                                                  │
+ * └────────┘   │ 0,1,1  │     │                                                                  │
+ *              │ 1,0,1  │     │                                                                  │
+ *              └────────┴─────┴──────────────────────────────────────────────────────────────────┘
+ * ┌────────┬─────┬──────────────────────────────────────────────────────────────────┐
+ * │ doc    │ ref │ containment                                                      │
+ * ├────────┼─────┼──────────────────────────────────────────────────────────────────┤
+ * │ 0,1,0  │ 049 │ ...must live in a Standard Person Containment Unit               │
+ * │        │     │ ...sedated it before moving...lavender calms it down             │
+ * │        │     │ ...give him something to dissect...remove and incinerate...      │
+ * │ 0,0,0  │ 173 │ ...must be kept in a locked container...don't go into container  │ ⟶ this is too big!
+ * │        │     │ ...if you have to, take three people                             │   emit what we have
+ * │        │     │ ...two people keep looking at it                                 │   and keep going
+ * │ 1,1,12 │     │                                                                  │
+ * │ 0,1,1  │     │                                                                  │
+ * │ 1,0,1  │     │                                                                  │
+ * └────────┴─────┴──────────────────────────────────────────────────────────────────┘
+ * emit:
+ *    ┌────────┬─────┬──────────────────────────────────────────────────────────────────┐
+ *    │ doc    │ ref │ containment                                                      │
+ *    ├────────┼─────┼──────────────────────────────────────────────────────────────────┤
+ *    │ 0,1,0  │ 049 │ ...must live in a Standard Person Containment Unit               │
+ *    │        │     │ ...sedated it before moving...lavender calms it down             │
+ *    │        │     │ ...give him something to dissect...remove and incinerate...      │
+ *    │ 0,0,0  │ 173 │ ...must be kept in a locked container...don't go into container  │
+ *    │        │     │ ...if you have to, take three people                             │
+ *    │        │     │ ...two people keep looking at it                                 │
+ *    └────────┴─────┴──────────────────────────────────────────────────────────────────┘
+ * keep going:
+ *    ┌────────┐   ┌────────┬─────┬──────────────────────────────────────────────────────────────────┐
+ *    │ doc    │   │ doc    │ ref │ containment                                                      │
+ *    ├────────┤   ├────────┼─────┼──────────────────────────────────────────────────────────────────┤
+ *    │ 1,1,12 │   │ 1,1,12 │ 055 │ ...5x5x2.5m cement room...Faraday cage...door 2.5m thick         │
+ *    │ 0,1,1  │ ⟶ │        │     │ ...must close and lock automatically... no guards                │
+ *    │ 1,0,1  │   │        │     │ ...maintain a distance of at least fifty meters...               │
+ *    └────────┘   │ 0,1,1  │     │                                                                  │ ⟶
+ *                 │ 1,0,1  │     │                                                                  │
+ *                 └────────┴─────┴──────────────────────────────────────────────────────────────────┘
+ * ┌────────┬─────┬──────────────────────────────────────────────────────────────────┐
+ * │ doc    │ ref │ containment                                                      │
+ * ├────────┼─────┼──────────────────────────────────────────────────────────────────┤
+ * │ 1,1,12 │ 055 │ ...5x5x2.5m cement room...Faraday cage...door 2.5m thick         │
+ * │        │     │ ...must close and lock automatically... no guards                │
+ * │        │     │ ...maintain a distance of at least fifty meters...               │ ⟶ this is too big!
+ * │ 0,1,1  │ 096 │ ...5x5x5 airtight steel cube...Weekly check for cracks...        │   emit what we have
+ * │        │     │ ...no video...no optical...laser...                              │   and keep going
+ * │        │     │ ...all photos and videos strictly forbidden...                   │
+ * │ 1,0,1  │     │                                                                  │
+ * └────────┴─────┴──────────────────────────────────────────────────────────────────┘
+ * emit:
+ *    ┌────────┬─────┬──────────────────────────────────────────────────────────────────┐
+ *    │ doc    │ ref │ containment                                                      │
+ *    ├────────┼─────┼──────────────────────────────────────────────────────────────────┤
+ *    │ 1,1,12 │ 055 │ ...5x5x2.5m cement room...Faraday cage...door 2.5m thick         │
+ *    │        │     │ ...must close and lock automatically... no guards                │
+ *    │        │     │ ...maintain a distance of at least fifty meters...               │
+ *    │ 0,1,1  │ 096 │ ...5x5x5 airtight steel cube...Weekly check for cracks...        │
+ *    │        │     │ ...no video...no optical...laser...                              │
+ *    │        │     │ ...all photos and videos strictly forbidden...                   │
+ *    └────────┴─────┴──────────────────────────────────────────────────────────────────┘
+ * keep going:
+ *    ┌────────┐   ┌────────┬─────┬──────────────────────────────────────────────────────────────────┐
+ *    │ doc    │   │ doc    │ ref │ containment                                                      │
+ *    ├────────┤   ├────────┼─────┼──────────────────────────────────────────────────────────────────┤
+ *    │ 1,0,1  │ ⟶ │ 1,0,1  │ 682 │ ...destroyed as soon as possible...5x5x5 acid resistant steel    │ ⟶ done!
+ *    └────────┘   │        │     │ ...submerged in hydrochloric acid...do not talk to it            │   emit this
+ *                 │        │     │ ...fifty miles clear of people...                                │   it's exhausting!
+ *                 └────────┴─────┴──────────────────────────────────────────────────────────────────┘
+ * }
  * <p>
  *     Pages may span multiple shards and segments. Whenever the shard, segment,
  *     or doc order changes, {@link ValuesSourceReaderOperator#positionFieldWork}

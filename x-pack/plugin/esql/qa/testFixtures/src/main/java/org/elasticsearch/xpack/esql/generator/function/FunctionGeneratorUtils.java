@@ -37,6 +37,7 @@ final class FunctionGeneratorUtils {
         "counter_integer",
         "aggregate_metric_double",
         "dense_vector",
+        "flattened",
         "tdigest",
         "histogram",
         "exponential_histogram",

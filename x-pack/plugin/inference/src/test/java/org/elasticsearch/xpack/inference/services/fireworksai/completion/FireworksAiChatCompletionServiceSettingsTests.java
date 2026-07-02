@@ -12,16 +12,19 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -32,28 +35,58 @@ import static org.hamcrest.Matchers.is;
 public class FireworksAiChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
     FireworksAiChatCompletionServiceSettings> {
 
-    private static final String MODEL_ID = "accounts/fireworks/models/llama-v3p1-8b-instruct";
-    private static final String CORRECT_URL = "https://api.fireworks.ai/inference/v1/chat/completions";
-    private static final int RATE_LIMIT = 1000;
+    private static final String TEST_MODEL_ID = "accounts/fireworks/models/llama-v3p1-8b-instruct";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
+
+    private static final URI TEST_URI = ServiceUtils.createUri("https://api.fireworks.ai/inference/v1/chat/completions");
+    private static final URI INITIAL_TEST_URI = ServiceUtils.createUri("https://www.initial-test.com");
+
+    private static final int TEST_RATE_LIMIT = 1000;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    private static final int DEFAULT_RATE_LIMIT = 6000;
+
+    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var originalServiceSettings = new FireworksAiChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            buildServiceSettingsMap(TEST_MODEL_ID, TEST_URI, TEST_RATE_LIMIT)
+        );
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new FireworksAiChatCompletionServiceSettings(
+                    INITIAL_TEST_MODEL_ID,
+                    INITIAL_TEST_URI,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        var originalServiceSettings = new FireworksAiChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var serviceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
+
+        assertThat(serviceSettings, is(originalServiceSettings));
+    }
 
     public void testFromMap_AllFields_Success() {
         var serviceSettings = FireworksAiChatCompletionServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    MODEL_ID,
-                    ServiceFields.URL,
-                    CORRECT_URL,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                )
-            ),
+            buildServiceSettingsMap(TEST_MODEL_ID, TEST_URI, TEST_RATE_LIMIT),
             ConfigurationParseContext.PERSISTENT
         );
 
         assertThat(
             serviceSettings,
-            is(new FireworksAiChatCompletionServiceSettings(MODEL_ID, createUri(CORRECT_URL), new RateLimitSettings(RATE_LIMIT)))
+            is(new FireworksAiChatCompletionServiceSettings(TEST_MODEL_ID, TEST_URI, new RateLimitSettings(TEST_RATE_LIMIT)))
         );
     }
 
@@ -61,14 +94,7 @@ public class FireworksAiChatCompletionServiceSettingsTests extends AbstractBWCWi
         var thrownException = expectThrows(
             ValidationException.class,
             () -> FireworksAiChatCompletionServiceSettings.fromMap(
-                new HashMap<>(
-                    Map.of(
-                        ServiceFields.URL,
-                        CORRECT_URL,
-                        RateLimitSettings.FIELD_NAME,
-                        new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                    )
-                ),
+                buildServiceSettingsMap(null, TEST_URI, TEST_RATE_LIMIT),
                 ConfigurationParseContext.PERSISTENT
             )
         );
@@ -81,77 +107,64 @@ public class FireworksAiChatCompletionServiceSettingsTests extends AbstractBWCWi
 
     public void testFromMap_MissingUrl_DefaultsToNull() {
         var serviceSettings = FireworksAiChatCompletionServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    MODEL_ID,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                )
-            ),
+            buildServiceSettingsMap(TEST_MODEL_ID, null, TEST_RATE_LIMIT),
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(serviceSettings, is(new FireworksAiChatCompletionServiceSettings(MODEL_ID, null, new RateLimitSettings(RATE_LIMIT))));
+        assertThat(
+            serviceSettings,
+            is(new FireworksAiChatCompletionServiceSettings(TEST_MODEL_ID, null, new RateLimitSettings(TEST_RATE_LIMIT)))
+        );
     }
 
     public void testFromMap_MissingRateLimit_Success() {
         var serviceSettings = FireworksAiChatCompletionServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID, ServiceFields.URL, CORRECT_URL)),
+            buildServiceSettingsMap(TEST_MODEL_ID, TEST_URI, null),
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(serviceSettings, is(new FireworksAiChatCompletionServiceSettings(MODEL_ID, createUri(CORRECT_URL), null)));
+        assertThat(serviceSettings, is(new FireworksAiChatCompletionServiceSettings(TEST_MODEL_ID, TEST_URI, null)));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = FireworksAiChatCompletionServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    MODEL_ID,
-                    ServiceFields.URL,
-                    CORRECT_URL,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                )
-            ),
+            buildServiceSettingsMap(TEST_MODEL_ID, TEST_URI, TEST_RATE_LIMIT),
             ConfigurationParseContext.PERSISTENT
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        var expected = XContentHelper.stripWhitespace("""
+        var expected = XContentHelper.stripWhitespace(Strings.format("""
             {
-                "model_id": "accounts/fireworks/models/llama-v3p1-8b-instruct",
-                "url": "https://api.fireworks.ai/inference/v1/chat/completions",
+                "model_id": "%s",
+                "url": "%s",
                 "rate_limit": {
-                    "requests_per_minute": 1000
+                    "requests_per_minute": %d
                 }
             }
-            """);
+            """, TEST_MODEL_ID, TEST_URI, TEST_RATE_LIMIT));
 
         assertThat(xContentResult, is(expected));
     }
 
     public void testToXContent_DoesNotWriteUrl_WhenNull() throws IOException {
         var serviceSettings = FireworksAiChatCompletionServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID)),
+            buildServiceSettingsMap(TEST_MODEL_ID, null, null),
             ConfigurationParseContext.PERSISTENT
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        var expected = XContentHelper.stripWhitespace("""
+        var expected = XContentHelper.stripWhitespace(Strings.format("""
             {
-                "model_id": "accounts/fireworks/models/llama-v3p1-8b-instruct",
+                "model_id": "%s",
                 "rate_limit": {
-                    "requests_per_minute": 6000
+                    "requests_per_minute": %d
                 }
             }
-            """);
+            """, TEST_MODEL_ID, DEFAULT_RATE_LIMIT));
 
         assertThat(xContentResult, is(expected));
     }
@@ -200,11 +213,20 @@ public class FireworksAiChatCompletionServiceSettingsTests extends AbstractBWCWi
         );
     }
 
-    public static Map<String, Object> getServiceSettingsMap(String model, String url) {
-        var map = new HashMap<String, Object>();
-        map.put(ServiceFields.MODEL_ID, model);
-        if (url != null) {
-            map.put(ServiceFields.URL, url);
+    private static HashMap<String, Object> buildServiceSettingsMap(
+        @Nullable String modelId,
+        @Nullable URI uri,
+        @Nullable Integer rateLimit
+    ) {
+        HashMap<String, Object> map = new HashMap<>();
+        if (modelId != null) {
+            map.put(ServiceFields.MODEL_ID, modelId);
+        }
+        if (uri != null) {
+            map.put(ServiceFields.URL, uri.toString());
+        }
+        if (rateLimit != null) {
+            map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
         }
         return map;
     }

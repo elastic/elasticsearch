@@ -96,7 +96,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V6;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXPLAIN;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
@@ -118,7 +118,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     long epoch = System.currentTimeMillis();
 
     @Before
-    public void setupIndex() {
+    public void setupIndex() throws IOException {
         createAndPopulateIndex("test");
     }
 
@@ -1350,7 +1350,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
      * The {@link LuceneTopNSourceOperator#getOutput()} is handling this exception by
      * ignoring it (which is the right thing to do) and sort of cleaning up and moving to the next docs collection.
      */
-    public void testTopNPushedToLuceneOnSortedIndex() {
+    public void testTopNPushedToLuceneOnSortedIndex() throws IOException {
         var sortOrder = randomFrom("asc", "desc");
         createAndPopulateIndex(
             "sorted_test_index",
@@ -2524,7 +2524,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
      */
     public void testExplainWithApproximation() {
         assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
-        assumeTrue("Approximation requires the capability to be enabled", APPROXIMATION_V6.isEnabled());
+        assumeTrue("Approximation requires the capability to be enabled", APPROXIMATION_V7.isEnabled());
 
         String indexName = "explain_approximation_test";
 

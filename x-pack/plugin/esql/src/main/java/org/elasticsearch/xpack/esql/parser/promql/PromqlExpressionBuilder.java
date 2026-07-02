@@ -11,7 +11,6 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -66,6 +65,10 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         this.params = params;
     }
 
+    protected QueryParams params() {
+        return params;
+    }
+
     protected Expression expression(ParseTree ctx) {
         return typedParsing(this, ctx, Expression.class);
     }
@@ -116,7 +119,6 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         }
 
         Literal offset = Literal.NULL;
-        boolean negativeOffset = false;
         Literal at = Literal.NULL;
 
         AtContext atCtx = ctx.at();
@@ -151,9 +153,13 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         OffsetContext offsetContext = ctx.offset();
         if (offsetContext != null) {
             offset = visitDuration(offsetContext.duration());
-            negativeOffset = offsetContext.MINUS() != null;
+            // PromQL durations are unsigned magnitudes; the optional leading `-` (look ahead) is a separate token.
+            // Fold the sign into a single signed duration literal, mirroring how the `@` modifier is handled above.
+            if (offsetContext.MINUS() != null && offset.value() instanceof Duration d) {
+                offset = Literal.timeDuration(source(offsetContext), d.negated());
+            }
         }
-        return new Evaluation(offset, negativeOffset, at);
+        return new Evaluation(offset, at);
     }
 
     @Override
@@ -309,7 +315,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
             try {
                 // use DataTypes.DOUBLE for precise type
                 return Literal.fromDouble(source, StringUtils.parseDouble(text));
-            } catch (QlIllegalArgumentException ignored) {}
+            } catch (InvalidArgumentException ignored) {}
 
             throw new ParsingException(source, siae.getMessage());
         }

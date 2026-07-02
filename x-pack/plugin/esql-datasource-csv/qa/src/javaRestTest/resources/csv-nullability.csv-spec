@@ -1,0 +1,54 @@
+// CSV nullability tests: verifies that IS NULL / IS NOT NULL predicates work
+// correctly against CSV files with empty cells.
+//
+// apps.csv has a typed header (id:integer,version:version,name:keyword,_id:keyword)
+// and two rows with empty version cells (id=11 and id=13).
+//
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. On dataset-capable
+// backends (S3) the harness registers the dataset and runs the FROM query verbatim; on the others it rebuilds
+// the equivalent EXTERNAL query. The bare name `apps` would collide with the ES|QL apps index twin, so the
+// dataset is named `apps_ds`.
+
+filterVersionIsNull
+required_capability: external_command
+required_capability: external_csv_header_row_option
+required_capability: datasource_file_readers_no_text_type
+dataset: apps_ds: "{{apps}}"
+
+FROM apps_ds
+| WHERE version IS NULL
+| KEEP id, name
+| SORT id
+;
+
+id:integer | name:keyword
+11         | kkkkk
+13         | lllll
+;
+
+filterVersionIsNotNull
+required_capability: external_command
+required_capability: external_csv_header_row_option
+required_capability: datasource_file_readers_no_text_type
+dataset: apps_ds: "{{apps}}"
+
+FROM apps_ds
+| WHERE version IS NOT NULL
+| KEEP id, name
+| SORT id
+;
+
+id:integer | name:keyword
+1          | aaaaa
+2          | bbbbb
+3          | ccccc
+4          | ddddd
+5          | eeeee
+6          | fffff
+7          | ggggg
+8          | hhhhh
+9          | iiiii
+10         | jjjjj
+12         | aaaaa
+14         | mmmmm
+;

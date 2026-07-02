@@ -62,11 +62,23 @@ If you're familiar with SQL, `LOOKUP JOIN` has left-join behavior. This means th
 
 ### Cross-cluster support
 
-{applies_to}`stack: ga 9.2.0` Remote lookup joins are supported in [cross-cluster queries](/reference/query-languages/esql/esql-cross-clusters.md). The lookup index must exist on _all_ remote clusters being queried, because each cluster uses its local lookup index data. This follows the same pattern as [remote mode Enrich](/reference/query-languages/esql/esql-cross-clusters.md#esql-enrich-remote).
+```{applies_to}
+stack: ga 9.2.0+
+```
+
+Remote lookup joins are supported in [cross-cluster queries](/reference/query-languages/esql/esql-cross-clusters.md). The lookup index must exist on _all_ remote clusters being queried, because each cluster uses its local lookup index data. This follows the same pattern as [remote mode Enrich](/reference/query-languages/esql/esql-cross-clusters.md#esql-enrich-remote).
 
 ```esql
 FROM log-cluster-*:logs-* | LOOKUP JOIN hosts ON source.ip
 ```
+
+### Cross-{{serverless-short}} project support
+
+```{applies_to}
+serverless: preview
+```
+
+`LOOKUP JOIN` is also supported in [cross-project search (CPS)](/reference/query-languages/esql/esql-cross-serverless-projects.md). The lookup index must exist on every {{serverless-short}} project being queried.
 
 ## Example
 

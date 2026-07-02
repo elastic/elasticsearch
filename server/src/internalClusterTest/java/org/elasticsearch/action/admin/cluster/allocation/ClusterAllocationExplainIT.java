@@ -1225,7 +1225,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         request.includeDiskInfo(includeDiskInfo);
         final var explanation = safeGet(client().execute(TransportClusterAllocationExplainAction.TYPE, request)).getExplanation();
         if (logger.isDebugEnabled()) {
-            logger.debug("--> explain json output: \n{}", Strings.toString(explanation, true, true));
+            logger.debug("--> explain json output: \n{}", Strings.toTruncatedString(explanation, true, true));
         }
         return explanation;
     }

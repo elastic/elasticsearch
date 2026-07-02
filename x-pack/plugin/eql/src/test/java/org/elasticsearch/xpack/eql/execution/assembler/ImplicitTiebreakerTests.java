@@ -74,15 +74,19 @@ public class ImplicitTiebreakerTests extends ESTestCase {
             }
 
             long sortValue = implicitTiebreakerValues.get(ordinal);
-            SearchHit searchHit = SearchHit.unpooled(ordinal, String.valueOf(ordinal));
+            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
             searchHit.sortValues(
                 new SearchSortValues(
                     new Long[] { (long) ordinal, sortValue },
                     new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW }
                 )
             );
-            SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
-            ActionListener.respondAndRelease(l, SearchResponseUtils.successfulResponse(searchHits));
+            SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
+            try {
+                ActionListener.respondAndRelease(l, SearchResponseUtils.successfulResponse(searchHits));
+            } finally {
+                searchHits.decRef();
+            }
         }
 
         @Override
@@ -91,7 +95,7 @@ public class ImplicitTiebreakerTests extends ESTestCase {
             for (List<HitReference> ref : refs) {
                 List<SearchHit> hits = new ArrayList<>(ref.size());
                 for (HitReference hitRef : ref) {
-                    hits.add(SearchHit.unpooled(-1, hitRef.id()));
+                    hits.add(new SearchHit(-1, hitRef.id()));
                 }
                 searchHits.add(hits);
             }

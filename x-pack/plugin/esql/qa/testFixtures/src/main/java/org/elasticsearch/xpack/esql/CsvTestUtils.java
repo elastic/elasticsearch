@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.junit.AssumptionViolatedException;
 import org.supercsv.io.CsvListReader;
@@ -81,6 +82,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -300,6 +302,10 @@ public final class CsvTestUtils {
         );
     }
 
+    public static void checkPragma(Map<String, String> pragmaSettings) {
+        assertThat("Pragma not found, spelling mistake?", pragmaSettings.keySet(), everyItem(in(QueryPragmas.VALID_PRAGMA_NAMES)));
+    }
+
     public static void assumeTrueLogging(String message, boolean condition) {
         assumeFalseLogging(message, condition == false);
     }
@@ -331,6 +337,8 @@ public final class CsvTestUtils {
         return pairs;
     }
 
+    private static final Set<String> SKIP_UPPER_SENTINELS = Set.of("9.99.99", "999.0.0");
+
     public static Tuple<Version, Version> skipVersionRange(String testName, String instructions) {
         Map<String, String> pairs = parseInstructions(instructions);
         String versionRange = pairs.get("skip");
@@ -341,6 +349,13 @@ public final class CsvTestUtils {
             }
             String lower = skipVersions[0].trim();
             String upper = skipVersions[1].trim();
+            if (upper.isEmpty() == false && SKIP_UPPER_SENTINELS.contains(upper) == false) {
+                throw new IllegalArgumentException(
+                    "skip version upper bound must be a sentinel value (9.99.99 or 999.0.0), got: "
+                        + upper
+                        + ". Use required_capability instead."
+                );
+            }
             return Tuple.tuple(
                 lower.isEmpty() ? VersionUtils.getFirstVersion() : Version.fromString(lower),
                 upper.isEmpty() ? Version.CURRENT : Version.fromString(upper)
@@ -413,7 +428,8 @@ public final class CsvTestUtils {
                         for (int i = 0; i < entries.length; i++) {
                             String[] header = entries[i].split(":");
                             String name = header[0].trim();
-                            String typeName = (typeMapping != null && typeMapping.containsKey(name)) ? typeMapping.get(name)
+                            String typeName = (typeMapping != null && typeMapping.containsKey(name) && typeMapping.get(name) != null)
+                                ? typeMapping.get(name)
                                 : header.length > 1 ? header[1].trim()
                                 : null;
 
@@ -693,6 +709,7 @@ public final class CsvTestUtils {
         ),
         IP_RANGE(InetAddresses::parseCidr, BytesRef.class),
         JSON(s -> s == null ? null : new BytesRef(s), BytesRef.class),
+        // DATE_RANGE literals are parsed in UTC only; TODO: support other zones in CSV specs (similar to DATETIME).
         DATE_RANGE(s -> EsqlDataTypeConverter.parseDateRange(s, ZoneOffset.UTC), LongRangeBlockBuilder.LongRange.class),
         VERSION(v -> new org.elasticsearch.xpack.versionfield.Version(v).toBytesRef(), BytesRef.class),
         NULL(s -> s, Void.class),
@@ -726,6 +743,7 @@ public final class CsvTestUtils {
         EXPONENTIAL_HISTOGRAM(CsvTestUtils::parseExponentialHistogram, ExponentialHistogram.class),
         TDIGEST(CsvTestUtils::parseTDigest, TDigestHolder.class),
         HISTOGRAM(CsvTestUtils::parseHistogram, BytesRef.class),
+        FLATTENED(s -> s, String.class),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 
         private static Void convertUnsupported(String s) {
@@ -837,6 +855,7 @@ public final class CsvTestUtils {
                 case NULL -> NULL;
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> actualType;
                 case HISTOGRAM -> HISTOGRAM;
+                case FLATTENED -> FLATTENED;
                 default -> KEYWORD;
             };
         }

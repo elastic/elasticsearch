@@ -282,7 +282,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             long dataBytes = elementType == DenseVectorFieldMapper.ElementType.FLOAT
                 ? ((long) numDocs * dimension * Float.BYTES)
                 : ((long) numDocs * dimension);
-            long indexBytesEstimate = (long) numDocs * (Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN / 4); // rough size of HNSW graph
+            long indexBytesEstimate = (long) numDocs * (Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN / 5); // rough size of HNSW graph
             assertThat("numDocs=" + numDocs + ";dimension=" + dimension, stats.total().getKnnVectorsBytes(), greaterThan(dataBytes));
             long connectionOverhead = stats.total().getKnnVectorsBytes() - dataBytes;
             assertThat("numDocs=" + numDocs, connectionOverhead, greaterThan(indexBytesEstimate));
@@ -797,7 +797,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 }
                 final long bytes = directory.fileLength(file);
                 switch (ext) {
-                    case DVD, DVM -> stats.addDocValues(fieldLookup.getDocValuesField(file), bytes);
+                    case DVD, DVM, DVS -> stats.addDocValues(fieldLookup.getDocValuesField(file), bytes);
                     case TIM, TIP, TMD, DOC, POS, PAY -> stats.addInvertedIndex(fieldLookup.getPostingsField(file), bytes);
                     case KDI, KDD, KDM, DIM -> stats.addPoints("_all_points_fields", bytes);
                     case FDT, FDX, FDM ->

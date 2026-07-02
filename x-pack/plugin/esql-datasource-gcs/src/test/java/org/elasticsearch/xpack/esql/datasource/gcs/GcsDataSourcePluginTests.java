@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
@@ -16,20 +19,52 @@ import java.util.Map;
 /**
  * Unit tests for GcsDataSourcePlugin.
  * Tests that the plugin correctly registers storage provider factories for the gs:// scheme.
+ * <p>
+ * GCS registration is gated on the external-datasources umbrella and the {@code esql_external_gcs}
+ * sub-flag (snapshot-on, release-off). The provider-shape tests below assume the gate is on; a
+ * dedicated test asserts nothing is registered when it is off. Across the snapshot and
+ * {@code elasticsearch.esql-release} build variants both branches get exercised.
  */
 public class GcsDataSourcePluginTests extends ESTestCase {
 
+    private static boolean gcsEnabled() {
+        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+            && GcsDataSourcePlugin.ESQL_EXTERNAL_GCS_FEATURE_FLAG.isEnabled();
+    }
+
     public void testStorageProvidersRegistersGsScheme() {
+        assumeTrue("requires GCS feature flag", gcsEnabled());
         GcsDataSourcePlugin plugin = new GcsDataSourcePlugin();
-        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY);
+        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         assertTrue("Should register gs scheme", providers.containsKey("gs"));
         assertEquals("Should register exactly 1 scheme", 1, providers.size());
     }
 
-    public void testStorageProviderFactoryCreateWithNullConfigDelegatesToDefault() {
+    public void testDatasourceValidatorRegisteredWhenEnabled() {
+        assumeTrue("requires GCS feature flag", gcsEnabled());
         GcsDataSourcePlugin plugin = new GcsDataSourcePlugin();
-        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY);
+        Map<String, DataSourceValidator> validators = plugin.datasourceValidators(Settings.EMPTY);
+
+        assertTrue("should register the gcs validator", validators.containsKey("gcs"));
+        assertEquals("should register exactly 1 validator", 1, validators.size());
+    }
+
+    public void testDisabledWhenFeatureFlagOff() {
+        assumeFalse("only when GCS feature flag is off", gcsEnabled());
+        GcsDataSourcePlugin plugin = new GcsDataSourcePlugin();
+        assertTrue("no schemes when disabled", plugin.supportedSchemes().isEmpty());
+        assertTrue(
+            "no storage providers when disabled",
+            plugin.storageProviders(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE).isEmpty()
+        );
+        assertTrue("no datasource validators when disabled", plugin.datasourceValidators(Settings.EMPTY).isEmpty());
+    }
+
+    public void testStorageProviderFactoryCreateWithNullConfigDelegatesToDefault() {
+        assumeTrue("requires GCS feature flag", gcsEnabled());
+        GcsDataSourcePlugin plugin = new GcsDataSourcePlugin();
+        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         StorageProviderFactory factory = providers.get("gs");
         assertNotNull("gs factory should not be null", factory);
@@ -41,8 +76,9 @@ public class GcsDataSourcePluginTests extends ESTestCase {
     }
 
     public void testStorageProviderFactoryCreateWithEmptyConfigDelegatesToDefault() {
+        assumeTrue("requires GCS feature flag", gcsEnabled());
         GcsDataSourcePlugin plugin = new GcsDataSourcePlugin();
-        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY);
+        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         StorageProviderFactory factory = providers.get("gs");
         assertNotNull("gs factory should not be null", factory);
@@ -54,8 +90,9 @@ public class GcsDataSourcePluginTests extends ESTestCase {
     }
 
     public void testStorageProviderFactoryCreateWithConfigParsesFields() {
+        assumeTrue("requires GCS feature flag", gcsEnabled());
         GcsDataSourcePlugin plugin = new GcsDataSourcePlugin();
-        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY);
+        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         StorageProviderFactory factory = providers.get("gs");
         assertNotNull("gs factory should not be null", factory);
@@ -83,8 +120,9 @@ public class GcsDataSourcePluginTests extends ESTestCase {
     }
 
     public void testGsSchemeSameFactory() {
+        assumeTrue("requires GCS feature flag", gcsEnabled());
         GcsDataSourcePlugin plugin = new GcsDataSourcePlugin();
-        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY);
+        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         // Only gs:// is supported (unlike S3 which has s3, s3a, s3n)
         assertNotNull(providers.get("gs"));

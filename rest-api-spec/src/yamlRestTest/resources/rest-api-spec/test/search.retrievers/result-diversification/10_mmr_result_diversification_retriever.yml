@@ -716,9 +716,11 @@ teardown:
 
 ---
 "Test MMR result diversification required field type":
+  - requires:
+      cluster_features: [ "retriever.mmr_null_dense_vector_fix" ]
+      reason: "MMR now drops null-vector docs instead of erroring"
 
   - do:
-      catch: /Failed to retrieve vectors for field \[unknown_field\]. Is it a \[dense_vector\] or \[semantic_text\] field with text embeddings?/
       search:
         index: test-result-diversification-index
         body:
@@ -735,13 +737,10 @@ teardown:
                   k: 6
                   num_candidates: 6
 
-  - match: { status: 400 }
-  - match: { error.type: status_exception }
-  - contains: { error.reason: "[diversify] search failed - retrievers '[diversify]'" }
-  - match: { error.suppressed.0.type: status_exception }
+  - match: { hits.total.value: 6 }
+  - length: { hits.hits: 0 }
 
   - do:
-      catch: /Failed to retrieve vectors for field \[keywordfield\]. Is it a \[dense_vector\] or \[semantic_text\] field with text embeddings?/
       search:
         index: test-result-diversification-index
         body:
@@ -758,13 +757,10 @@ teardown:
                   k: 6
                   num_candidates: 6
 
-  - match: { status: 400 }
-  - match: { error.type: status_exception }
-  - contains: { error.reason: "[diversify] search failed - retrievers '[diversify]'" }
-  - match: { error.suppressed.0.type: status_exception }
+  - match: { hits.total.value: 6 }
+  - length: { hits.hits: 0 }
 
   - do:
-      catch: /Failed to retrieve vectors for field \[textbody\]. Is it a \[dense_vector\] or \[semantic_text\] field with text embeddings?/
       search:
         index: test-result-diversification-index
         body:
@@ -781,10 +777,8 @@ teardown:
                   k: 6
                   num_candidates: 6
 
-  - match: { status: 400 }
-  - match: { error.type: status_exception }
-  - contains: { error.reason: "[diversify] search failed" }
-  - match: { error.suppressed.0.type: status_exception }
+  - match: { hits.total.value: 6 }
+  - length: { hits.hits: 0 }
 
 ---
 "Test MMR result diversification cannot have a string encoded query vector":

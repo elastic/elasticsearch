@@ -140,6 +140,10 @@ keyword with normalizer:
 
 ---
 keyword with non-lowercase normalizer:
+  - requires:
+      cluster_features: [ "mapper.keyword.normalizer_skip_store_setting" ]
+      reason: "setting under test must be present"
+
   - do:
       indices.create:
         index: test-keyword-with-normalizer
@@ -236,6 +240,10 @@ keyword with non-lowercase normalizer:
 
 ---
 keyword with normalizer and skip store original value:
+  - requires:
+      cluster_features: [ "mapper.keyword.normalizer_skip_store_setting", "mapper.doc_values.ignored_values_in_binary_dv" ]
+      reason: "Setting under test must be present, sort order of ignored values is affected by binary docvalues"
+
   - do:
       indices.create:
         index: test-keyword-with-normalizer
@@ -328,6 +336,10 @@ keyword with normalizer and skip store original value:
 ---
 
 keyword with built-in normalizer:
+  - requires:
+      cluster_features: [ "mapper.doc_values.ignored_values_in_binary_dv" ]
+      reason: "Sort order of ignored values is affected by binary docvalues"
+
   - do:
       indices.create:
         index: test-keyword-with-normalizer

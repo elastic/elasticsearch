@@ -18,6 +18,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.SliceMissingException;
 import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -1034,13 +1035,17 @@ public class MoreLikeThisQueryBuilder extends LeafQueryBuilder<MoreLikeThisQuery
             }
             likeFields.add(getResponse.getFields());
         }
-        return likeFields.toArray(Fields.EMPTY_ARRAY);
+        return likeFields.toArray(Fields[]::new);
     }
 
     private static void checkRoutingMissingException(MultiTermVectorsItemResponse response) {
-        Throwable cause = ExceptionsHelper.unwrap(response.getFailure().getCause(), RoutingMissingException.class);
-        if (cause != null) {
-            throw ((RoutingMissingException) cause);
+        Throwable routingCause = ExceptionsHelper.unwrap(response.getFailure().getCause(), RoutingMissingException.class);
+        if (routingCause != null) {
+            throw ((RoutingMissingException) routingCause);
+        }
+        Throwable sliceCause = ExceptionsHelper.unwrap(response.getFailure().getCause(), SliceMissingException.class);
+        if (sliceCause != null) {
+            throw ((SliceMissingException) sliceCause);
         }
     }
 

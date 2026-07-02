@@ -23,28 +23,15 @@ import static org.elasticsearch.xpack.esql.expression.UnresolvedAttributeTests.r
 public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunction, Expression> {
 
     public static UnresolvedFunction randomUnresolvedFunction() {
-        return innerRandomUnresolvedFunction(resolutionStrategies());
-    }
-
-    static UnresolvedFunction innerRandomUnresolvedFunction(List<FunctionResolutionStrategy> resolutionStrategies) {
         /* Pick an UnresolvedFunction where the name and the
          * message don't happen to be the same String. If they
          * matched then transform would get them confused. */
         Source source = randomSource();
         String name = randomAlphaOfLength(5);
-        FunctionResolutionStrategy resolutionStrategy = randomFrom(resolutionStrategies);
         List<Expression> args = randomFunctionArgs();
         boolean analyzed = randomBoolean();
         String unresolvedMessage = randomUnresolvedMessage();
-        return new UnresolvedFunction(source, name, resolutionStrategy, args, analyzed, unresolvedMessage);
-    }
-
-    private static List<FunctionResolutionStrategy> resolutionStrategies() {
-        return asList(FunctionResolutionStrategy.DEFAULT, new FunctionResolutionStrategy() {});
-    }
-
-    protected List<FunctionResolutionStrategy> pluggableResolutionStrategies() {
-        return resolutionStrategies();
+        return new UnresolvedFunction(source, name, args, analyzed, unresolvedMessage);
     }
 
     private static List<Expression> randomFunctionArgs() {
@@ -71,7 +58,7 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
 
     @Override
     protected UnresolvedFunction randomInstance() {
-        return innerRandomUnresolvedFunction(pluggableResolutionStrategies());
+        return randomUnresolvedFunction();
     }
 
     @Override
@@ -81,7 +68,6 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
                 () -> new UnresolvedFunction(
                     uf.source(),
                     randomValueOtherThan(uf.name(), () -> randomAlphaOfLength(5)),
-                    uf.resolutionStrategy(),
                     uf.children(),
                     uf.analyzed(),
                     uf.unresolvedMessage()
@@ -89,31 +75,14 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
                 () -> new UnresolvedFunction(
                     uf.source(),
                     uf.name(),
-                    randomValueOtherThan(uf.resolutionStrategy(), () -> randomFrom(resolutionStrategies())),
-                    uf.children(),
-                    uf.analyzed(),
-                    uf.unresolvedMessage()
-                ),
-                () -> new UnresolvedFunction(
-                    uf.source(),
-                    uf.name(),
-                    uf.resolutionStrategy(),
                     randomValueOtherThan(uf.children(), UnresolvedFunctionTests::randomFunctionArgs),
                     uf.analyzed(),
                     uf.unresolvedMessage()
                 ),
+                () -> new UnresolvedFunction(uf.source(), uf.name(), uf.children(), uf.analyzed() == false, uf.unresolvedMessage()),
                 () -> new UnresolvedFunction(
                     uf.source(),
                     uf.name(),
-                    uf.resolutionStrategy(),
-                    uf.children(),
-                    uf.analyzed() == false,
-                    uf.unresolvedMessage()
-                ),
-                () -> new UnresolvedFunction(
-                    uf.source(),
-                    uf.name(),
-                    uf.resolutionStrategy(),
                     uf.children(),
                     uf.analyzed(),
                     randomValueOtherThan(uf.unresolvedMessage(), () -> randomAlphaOfLength(5))
@@ -125,45 +94,26 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
 
     @Override
     protected UnresolvedFunction copy(UnresolvedFunction uf) {
-        return new UnresolvedFunction(
-            uf.source(),
-            uf.name(),
-            uf.resolutionStrategy(),
-            uf.children(),
-            uf.analyzed(),
-            uf.unresolvedMessage()
-        );
+        return new UnresolvedFunction(uf.source(), uf.name(), uf.children(), uf.analyzed(), uf.unresolvedMessage());
     }
 
     @Override
     public void testTransform() {
-        UnresolvedFunction uf = innerRandomUnresolvedFunction(pluggableResolutionStrategies());
+        UnresolvedFunction uf = randomUnresolvedFunction();
 
         String newName = randomValueOtherThan(uf.name(), () -> randomAlphaOfLength(5));
         assertEquals(
-            new UnresolvedFunction(uf.source(), newName, uf.resolutionStrategy(), uf.children(), uf.analyzed(), uf.unresolvedMessage()),
+            new UnresolvedFunction(uf.source(), newName, uf.children(), uf.analyzed(), uf.unresolvedMessage()),
             uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.name()) ? newName : p)
-        );
-        FunctionResolutionStrategy newResolution = randomValueOtherThan(uf.resolutionStrategy(), () -> randomFrom(resolutionStrategies()));
-        assertEquals(
-            new UnresolvedFunction(uf.source(), uf.name(), newResolution, uf.children(), uf.analyzed(), uf.unresolvedMessage()),
-            uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.resolutionStrategy()) ? newResolution : p)
         );
         String newUnresolvedMessage = randomValueOtherThan(uf.unresolvedMessage(), UnresolvedFunctionTests::randomUnresolvedMessage);
         assertEquals(
-            new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionStrategy(), uf.children(), uf.analyzed(), newUnresolvedMessage),
+            new UnresolvedFunction(uf.source(), uf.name(), uf.children(), uf.analyzed(), newUnresolvedMessage),
             uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.unresolvedMessage()) ? newUnresolvedMessage : p)
         );
 
         assertEquals(
-            new UnresolvedFunction(
-                uf.source(),
-                uf.name(),
-                uf.resolutionStrategy(),
-                uf.children(),
-                uf.analyzed() == false,
-                uf.unresolvedMessage()
-            ),
+            new UnresolvedFunction(uf.source(), uf.name(), uf.children(), uf.analyzed() == false, uf.unresolvedMessage()),
             uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.analyzed()) ? uf.analyzed() == false : p)
         );
 
@@ -171,11 +121,11 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
 
     @Override
     public void testReplaceChildren() {
-        UnresolvedFunction uf = innerRandomUnresolvedFunction(pluggableResolutionStrategies());
+        UnresolvedFunction uf = randomUnresolvedFunction();
 
         List<Expression> newChildren = randomValueOtherThan(uf.children(), UnresolvedFunctionTests::randomFunctionArgs);
         assertEquals(
-            new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionStrategy(), newChildren, uf.analyzed(), uf.unresolvedMessage()),
+            new UnresolvedFunction(uf.source(), uf.name(), newChildren, uf.analyzed(), uf.unresolvedMessage()),
             uf.replaceChildren(newChildren)
         );
     }

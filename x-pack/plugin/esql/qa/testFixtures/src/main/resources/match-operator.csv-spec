@@ -25,6 +25,7 @@ book_no:keyword | author:text
 ;
 
 matchWithMultivaluedKeywordField
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_operator_colon
 
 // tag::match-with-keyword-field[]
@@ -189,7 +190,7 @@ book_no:keyword
 ;
 
 matchWithMoreComplexDisjunctionAndConjunction
-required_capability: match_function
+required_capability: match_operator_colon
 required_capability: full_text_functions_disjunctions
 
 from books
@@ -220,6 +221,7 @@ book_no:keyword
 ;
 
 matchWithFunctionPushedToLucene
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_operator_colon
 
 from hosts 
@@ -260,6 +262,7 @@ book_no:keyword | title:text
 ;
 
 matchMultivaluedField
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_operator_colon
 
 from employees 
@@ -277,6 +280,7 @@ emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 testMultiValuedFieldWithConjunction
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_operator_colon
 
 from employees 
@@ -289,6 +293,7 @@ emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 testMatchAndQueryStringFunctions
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_operator_colon
 required_capability: qstr_function
 
@@ -667,6 +672,7 @@ live long and prosper
 ;
 
 testMatchWithSemanticTextAndKeyword
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_operator_colon
 required_capability: semantic_text_field_caps
 
@@ -680,6 +686,7 @@ live long and prosper    | host1
 ;
 
 testMatchWithSemanticTextMultiValueField
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_operator_colon
 required_capability: semantic_text_field_caps
 
@@ -693,6 +700,7 @@ _id: keyword | st_multi_value:text
 ;
 
 testMatchWithSemanticTextWithEvalsAndOtherFunctionsAndStats
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_operator_colon
 required_capability: semantic_text_field_caps
 
@@ -1040,4 +1048,832 @@ from all_types
 ;
 
 constant_keyword-foo:keyword | keyword:keyword
+;
+
+matchOnRuntimeText
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM books
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE content:"Tolkien"
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, title
+;
+
+book_no:keyword | title:text
+1463            | Realms of Tolkien: Images of Middle-earth
+2130            | The J. R. R. Tolkien Audio Collection
+2301            | Smith of Wootton Major & Farmer Giles of Ham
+;
+
+matchOnRuntimeTextAndIndexedField
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM books
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE content:"Tolkien" OR title:"Brothers Karamazov"
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, title
+;
+
+book_no:keyword | title:text
+1211            | The brothers Karamazov
+1463            | Realms of Tolkien: Images of Middle-earth
+1985            | Brothers Karamazov
+;
+
+
+matchOnTextWithRow
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["This is a brown fox", "This is a brown dog", "This dog is really brown"])
+| MV_EXPAND content
+| WHERE content:"dog"
+| SORT content
+;
+
+content:text
+This dog is really brown
+This is a brown dog
+;
+
+matchOnTextWithRowAndNullValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["This is a brown fox", "This is a brown dog", "This dog is really brown"]
+| MV_EXPAND content
+| EVAL content = to_text(case(content == "This is a brown dog", null, content))
+| WHERE content:"dog"
+| SORT content
+;
+
+content:text
+This dog is really brown
+;
+
+matchOnTextWithRowAndMultiValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["This is a brown fox", "This is a brown dog", "This dog is really brown"]
+| MV_EXPAND content
+| EVAL content = to_text(mv_append(content, "extra"))
+| WHERE content:"dog"
+| SORT content
+;
+
+content:text
+[This dog is really brown, extra]
+[This is a brown dog, extra]
+;
+
+matchOnRuntimeKeyword
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM employees
+| EVAL full_name = CONCAT(first_name, " ", last_name)
+| WHERE full_name:"Anneke Preusig" OR full_name:"Berni Genin"
+| SORT emp_no
+| KEEP emp_no, full_name
+;
+
+emp_no:integer | full_name:keyword
+10006          | Anneke Preusig
+10014          | Berni Genin
+;
+
+matchOnRuntimeKeywordWithRow
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["foo", "bar", "foobar"]
+| MV_EXPAND content
+| WHERE content:"foobar"
+;
+
+content:keyword
+foobar
+;
+
+matchOnKeywordWithRowAndNullValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["foo", "bar", "foobar"]
+| MV_EXPAND content
+| EVAL content = CASE(content == "foo", NULL, "foobar")
+| WHERE content:"foobar"
+;
+
+content:keyword
+foobar
+foobar
+;
+
+matchOnKeywordWithRowAndMultiValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["foo", "bar", "foobar"]
+| MV_EXPAND content
+| EVAL content = mv_append(content, "extra")
+| WHERE content:"foobar"
+;
+
+content:keyword
+[foobar, extra]
+;
+
+matchOnRuntimeBoolean
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM employees
+| EVAL x = starts_with(first_name, "A")
+| WHERE x:"true"
+| SORT emp_no
+| LIMIT 10
+| KEEP emp_no, first_name, x
+;
+
+emp_no:integer | first_name:keyword | x:boolean
+10006          | Anneke             | true
+10059          | Alejandro          | true
+10062          | Anoosh             | true
+10091          | Amabile            | true
+10094          | Arumugam           | true
+;
+
+matchOnRuntimeBooleanWithRow
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["foo", "bar", "foobar"]
+| MV_EXPAND content
+| EVAL x = starts_with(content, "f")
+| WHERE x:"TRUE"
+| SORT content
+;
+
+content:keyword | x:boolean
+foo             | true
+foobar          | true
+;
+
+matchOnBooleanWithRowAndNullValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["foo", "bar", "foobar"]
+| MV_EXPAND content
+| EVAL x = CASE(starts_with(content, "f"), TRUE, NULL)
+| WHERE x:"TRUE"
+| SORT content
+;
+
+content:keyword | x:boolean
+foo             | true
+foobar          | true
+;
+
+matchOnBooleanWithRowAndMultiValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["foo", "bar", "foobar"]
+| MV_EXPAND content
+| EVAL x = mv_append(starts_with(content, "f"), false)
+| WHERE x:"TRUE"
+| SORT content
+;
+
+content:keyword | x:boolean
+foo             | [true, false]
+foobar          | [true, false]
+;
+
+matchOnRuntimeDouble
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM employees
+| EVAL x = height / 100
+| WHERE x:0.0203 OR x:0.0208
+| SORT emp_no
+| KEEP emp_no, x
+| LIMIT 2
+;
+
+emp_no:integer | x:double
+10001          | 0.0203
+10002          | 0.0208
+;
+
+matchOnRuntimeDoubleWithRow
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW a = [1.2, 1.3, 1.4, 1.5]
+| MV_EXPAND a
+| WHERE a:1.2 OR a:1.3
+| SORT a
+;
+
+a:double
+1.2
+1.3
+;
+
+matchOnDoubleWithRowAndNullValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+
+ROW a = [1.2, 1.3, 1.4, 1.5, 1.6]
+| MV_EXPAND a
+| EVAL a = CASE(a > 1.5, NULL, a)
+| WHERE a:1.2 OR a:1.3
+| SORT a
+;
+
+a:double
+1.2
+1.3
+;
+
+matchOnDoubleWithRowAndMultiValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW a = [1.2, 1.3, 1.4, 1.5, 1.6]
+| MV_EXPAND a
+| EVAL a = mv_append(a, round(a - 0.1, 1))
+| WHERE a:1.2 OR a:1.3
+| SORT a
+;
+
+a:double
+[1.2, 1.1]
+[1.3, 1.2]
+[1.4, 1.3]
+;
+
+matchOnRuntimeLong
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM employees
+| EVAL x = to_long(emp_no + 10000)
+| WHERE x:20002 OR x:20005
+| SORT emp_no
+| KEEP emp_no, x
+;
+
+emp_no:integer | x:long
+10002          | 20002
+10005          | 20005
+;
+
+matchOnRuntimeLongWithRow
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW a = [100, 200, 300, 400]::long
+| MV_EXPAND a
+| WHERE a:100 OR a:200
+| SORT a
+;
+
+a:long
+100
+200
+;
+
+matchOnLongWithRowAndNullValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW a = [100, 200, 300, 400]::long
+| MV_EXPAND a
+| EVAL a = CASE(a > 200, NULL, a)
+| WHERE a:100 OR a:200
+| SORT a
+;
+
+a:long
+100
+200
+;
+
+matchOnLongWithRowAndMultiValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW a = [100, 200, 300, 400]::long
+| MV_EXPAND a
+| EVAL a = mv_append(a, a + 100)
+| WHERE a:100 OR a:200
+| SORT a
+;
+
+a:long
+[100, 200]
+[200, 300]
+;
+
+matchOnRuntimeInteger
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM employees
+| EVAL x = emp_no + 10000
+| WHERE x:20002 OR x:20005
+| SORT emp_no
+| KEEP emp_no, x
+;
+
+emp_no:integer | x:integer
+10002          | 20002
+10005          | 20005
+;
+
+matchOnRuntimeIntegerWithRow
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW a = [100, 200, 300, 400]
+| MV_EXPAND a
+| WHERE a:"100" OR a:200
+| SORT a
+;
+
+a:integer
+100
+200
+;
+
+matchOnIntegerWithRowAndNullValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW a = [100, 200, 300, 400]
+| MV_EXPAND a
+| EVAL a = CASE(a > 200, NULL, a)
+| WHERE a:"100" OR a:200
+| SORT a
+;
+
+a:integer
+100
+200
+;
+
+matchOnIntegerWithRowAndMultiValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW a = [100, 200, 300, 400]
+| MV_EXPAND a
+| EVAL a = mv_append(a, a + 100)
+| WHERE a:"100" OR a:200
+| SORT a
+;
+
+a:integer
+[100, 200]
+[200, 300]
+;
+
+matchOnRuntimeIp
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM hosts
+| EVAL my_ip = CASE(mv_contains(ip0, ip1), ip0, ip1)
+| WHERE my_ip:"127.0.0.1"
+| SORT host, my_ip, card
+| LIMIT 3
+| KEEP host, my_ip, ip0, ip1
+;
+
+host:keyword | my_ip:ip                          | ip0:ip    | ip1:ip
+alpha        | 127.0.0.1                         | 127.0.0.1 | 127.0.0.1
+epsilon      | [127.0.0.1, 127.0.0.2, 127.0.0.3] | null      | [127.0.0.1, 127.0.0.2, 127.0.0.3]
+;
+
+matchOnRuntimeIpWithRow
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["127.0.0.1", "fe80::cae2:65ff:fece:feb9", "::1"]::ip
+| MV_EXPAND content
+| WHERE content:"127.0.0.1"
+;
+
+content:ip
+127.0.0.1
+;
+
+matchOnIpWithRowAndNullValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content =  ["127.0.0.1", "fe80::cae2:65ff:fece:feb9", "::1"]::ip
+| MV_EXPAND content
+| EVAL content = CASE(content == "::1", NULL, "127.0.0.1"::ip)
+| WHERE content:"127.0.0.1"
+;
+
+content:ip
+127.0.0.1
+127.0.0.1
+;
+
+matchOnIpWithRowAndMultiValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["127.0.0.1", "fe80::cae2:65ff:fece:feb9", "::1"]::ip
+| MV_EXPAND content
+| EVAL content = mv_append(content, "127.0.0.3"::ip)
+| WHERE content:"127.0.0.1"
+;
+
+content:ip
+[127.0.0.1, 127.0.0.3]
+;
+
+matchOnRuntimeVersion
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM apps
+| EVAL x = concat(version::string, ".1")::version
+| WHERE x:"1.1" OR x:"5.2.9" OR version:"bad"
+| SORT id
+| KEEP id, version, x
+;
+
+id:integer | version:version | x:version
+1          | 1               | 1.1
+9          | bad             | bad.1
+;
+
+matchOnRuntimeVersionWithRow
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["1.2.3", "1.2.3.4", "1.2.3-SNAPSHOT"]::version
+| MV_EXPAND content
+| WHERE content:"1.2.3"
+;
+
+content:version
+1.2.3
+;
+
+matchOnVersionWithRowAndNullValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["1.2.3", "1.2.3.4", "1.2.3-SNAPSHOT"]::version
+| MV_EXPAND content
+| EVAL content = CASE(content == "1.2.3.4"::version, NULL, "1.2.3"::version)
+| WHERE content:"1.2.3"
+;
+
+content:version
+1.2.3
+1.2.3
+;
+
+matchOnVersionWithRowAndMultiValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["1.2.3", "1.2.3.4", "1.2.3-SNAPSHOT"]::version
+| MV_EXPAND content
+| EVAL content = mv_append(content, "2.3"::version)
+| WHERE content:"1.2.3"
+;
+
+content:version
+[1.2.3, 2.3]
+;
+
+matchOnRuntimeDatetime
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM employees
+| eval birth_date_string = date_format("yyyy-MM-dd", birth_date)
+| eval new_date = date_parse("yyyy-MM-dd", birth_date_string)
+| where new_date:"1959-10-01"
+| keep emp_no, new_date, birth_date
+;
+
+emp_no:integer | new_date:datetime        | birth_date:datetime
+10039          | 1959-10-01T00:00:00.000Z | 1959-10-01T00:00:00.000Z
+;
+
+matchOnRuntimeDatetimeWithRow
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["1965-01-29T00:00:00.000Z", "1965-09-23T00:00:00.000Z", "1987-06-02T00:00:00.000Z"]::datetime
+| MV_EXPAND content
+| WHERE content:"1965-09-23T00:00:00.000Z"
+;
+
+content:datetime
+1965-09-23T00:00:00.000Z
+;
+
+matchOnDatetimeWithRowAndNullValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["1965-01-29T00:00:00.000Z", "1965-09-23T00:00:00.000Z", "1987-06-02T00:00:00.000Z"]::datetime
+| MV_EXPAND content
+| EVAL content = CASE(content > "1980-09-23T00:00:00.000Z"::datetime, NULL, content)
+| WHERE content:"1965-09-23T00:00:00.000Z"
+;
+
+content:datetime
+1965-09-23T00:00:00.000Z
+;
+
+matchOnDatetimeWithRowAndMultiValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["1965-01-29T00:00:00.000Z", "1965-09-23T00:00:00.000Z", "1987-06-02T00:00:00.000Z"]::datetime
+| MV_EXPAND content
+| EVAL content = mv_append(content, "2026-09-12T00:00:00.000Z"::datetime)
+| WHERE content:"1965-09-23T00:00:00.000Z"
+;
+
+content:datetime
+[1965-09-23T00:00:00.000Z, 2026-09-12T00:00:00.000Z]
+;
+
+matchOnRuntimeDateNanos
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM employees
+| eval birth_date_string = date_format("yyyy-MM-dd", birth_date + 100y)
+| eval new_date = date_parse("yyyy-MM-dd", birth_date_string)::date_nanos
+| where new_date:"2059-10-01"
+| keep emp_no, new_date, birth_date
+;
+
+emp_no:integer | new_date:date_nanos      | birth_date:datetime
+10039          | 2059-10-01T00:00:00.000Z | 1959-10-01T00:00:00.000Z
+;
+
+matchOnRuntimeDateNanosWithRow
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["1980-01-29T00:00:00.000Z", "1990-09-23T00:00:00.000Z", "1987-06-02T00:00:00.000Z"]::date_nanos
+| MV_EXPAND content
+| WHERE content:"1980-01-29T00:00:00.000Z"
+;
+
+content:date_nanos
+1980-01-29T00:00:00.000Z
+;
+
+matchOnDateNanosWithRowAndNullValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["1980-01-29T00:00:00.000Z", "1990-09-23T00:00:00.000Z", "1987-06-02T00:00:00.000Z"]::date_nanos
+| MV_EXPAND content
+| EVAL content = CASE(content < "1985-01-01T00:00:00.000Z"::date_nanos, NULL, content)
+| WHERE content:"1990-09-23T00:00:00.000Z"
+;
+
+content:date_nanos
+1990-09-23T00:00:00.000Z
+;
+
+matchOnDateNanosWithRowAndMultiValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["1980-01-29T00:00:00.000Z", "1990-09-23T00:00:00.000Z", "1987-06-02T00:00:00.000Z"]::date_nanos
+| MV_EXPAND content
+| EVAL content = mv_append(content, "2026-09-12T00:00:00.000Z"::date_nanos)
+| WHERE content:"1990-09-23T00:00:00.000Z"
+;
+
+content:date_nanos
+[1990-09-23T00:00:00.000Z, 2026-09-12T00:00:00.000Z]
+;
+
+matchOnRuntimeUnsignedLong
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM employees
+| EVAL x = to_unsigned_long(emp_no + 10000)
+| WHERE x:20002 OR x:20005
+| SORT emp_no
+| KEEP emp_no, x
+;
+
+emp_no:integer | x:unsigned_long
+10002          | 20002
+10005          | 20005
+;
+
+matchOnRuntimeUnsignedLongWithRow
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW a = ["100", "200", "300", "400", "18446744073709551615"]::unsigned_long
+| MV_EXPAND a
+| WHERE a:100 OR a:"18446744073709551615"
+| SORT a
+;
+
+a:unsigned_long
+100
+18446744073709551615
+;
+
+matchOnUnsignedLongWithRowAndNullValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW a = [100, 200, 300, 400]::unsigned_long
+| MV_EXPAND a
+| EVAL a = CASE(a > 200::unsigned_long, NULL, a)
+| WHERE a:"100" OR a:"200"
+| SORT a
+;
+
+a:unsigned_long
+100
+200
+;
+
+matchOnUnsignedLongWithRowAndMultiValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW a = [100, 200, 300, 400]::unsigned_long
+| MV_EXPAND a
+| EVAL a = mv_append(a, a + 100::unsigned_long)
+| WHERE a:"100" OR a:"200"
+| SORT a
+;
+
+a:unsigned_long
+[100, 200]
+[200, 300]
 ;

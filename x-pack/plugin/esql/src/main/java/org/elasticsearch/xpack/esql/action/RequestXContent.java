@@ -201,6 +201,9 @@ final class RequestXContent {
                             classification = VALUE;
                             checkParamValueValidity(entry, classification, paramValue, loc, errors);
                         }
+                        if (classification == VALUE && paramValue instanceof List<?> list && list.isEmpty()) {
+                            paramValue = null;
+                        }
                         type = DataType.fromJava(paramValue);
                         currentParam = new QueryParam(
                             paramName,
@@ -230,7 +233,11 @@ final class RequestXContent {
                         } else if (mixedTypesFound) {
                             addMixedTypesError(errors, loc, null, paramValues);
                         }
-                        unNamedParams.add(new QueryParam(null, paramValues, arrayType, VALUE));
+                        if (paramValues.isEmpty()) {
+                            unNamedParams.add(new QueryParam(null, null, DataType.NULL, VALUE));
+                        } else {
+                            unNamedParams.add(new QueryParam(null, paramValues, arrayType, VALUE));
+                        }
                     } else {
                         ParamValueAndType valueAndDataType = parseSingleParamValue(p, errors);
                         unNamedParams.add(new QueryParam(null, valueAndDataType.value, valueAndDataType.type, VALUE));

@@ -27,6 +27,8 @@ public record OpenAiEmbeddingsRequestEntity(
     private static final String MODEL_FIELD = "model";
     private static final String USER_FIELD = "user";
     private static final String DIMENSIONS_FIELD = "dimensions";
+    private static final String ENCODING_FORMAT_FIELD = "encoding_format";
+    private static final String ENCODING_FORMAT_BASE64 = "base64";
 
     public OpenAiEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
@@ -46,6 +48,22 @@ public record OpenAiEmbeddingsRequestEntity(
         if (dimensionsSetByUser && dimensions != null) {
             builder.field(DIMENSIONS_FIELD, dimensions);
         }
+
+        // Request the embedding values as a base64-encoded packed little-endian float32
+        // string rather than a JSON array of floats. The wire form is roughly 3x smaller
+        // and the response parser decodes it straight into a primitive float[] with no
+        // auto-boxing into List<Float>.
+        //
+        // This matches the default behaviour of the canonical OpenAI Python SDK, which
+        // has sent encoding_format=base64 from any caller that does not explicitly
+        // request a format since its V1 release on 2023-11-06 (openai-python PR #677,
+        // https://github.com/openai/openai-python/pull/677, merge commit 08b8179). The
+        // current default sits at line 112 of the SDK's embeddings resource:
+        // https://github.com/openai/openai-python/blob/38d75d7/src/openai/resources/embeddings.py#L112
+        //
+        // OpenAiEmbeddingsResponseEntity is adaptive and accepts both wire shapes, so
+        // OpenAI-compatible providers that have not adopted base64 continue to work.
+        builder.field(ENCODING_FORMAT_FIELD, ENCODING_FORMAT_BASE64);
 
         builder.endObject();
         return builder;

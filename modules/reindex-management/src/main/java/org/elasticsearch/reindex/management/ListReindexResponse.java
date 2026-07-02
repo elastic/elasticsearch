@@ -16,15 +16,12 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.reindex.management.GetReindexResponse.resultToXContent;
 
 public class ListReindexResponse extends BaseTasksResponse implements ChunkedToXContentObject {
 
@@ -58,8 +55,7 @@ public class ListReindexResponse extends BaseTasksResponse implements ChunkedToX
             return builder;
         }), Iterators.map(tasks.iterator(), taskInfo -> (builder, p) -> {
             builder.startObject();
-            final RelocatableReindexResult result = new RelocatableReindexResult(new TaskResult(false, taskInfo), null);
-            resultToXContent(builder, p, result);
+            GetReindexResponse.taskInfoToXContent(builder, p, taskInfo);
             builder.endObject();
             return builder;
         }), Iterators.single((builder, p) -> {

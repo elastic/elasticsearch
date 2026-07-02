@@ -6,24 +6,40 @@
  */
 package org.elasticsearch.xpack.esql.core.tree;
 
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Renders the properties of a {@link Node} as a string.
  */
 class NodePropertiesToString {
+
+    private static final Pattern APPROXIMATION_BUCKET_COLUMN_NAME_PATTERN = Pattern.compile(
+        Pattern.quote(
+            Attribute.SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR + ApproximationPlan.BUCKET_NAME_PART + Attribute.SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR
+        ) + "(\\d+)"
+    );
+
     private final Node.NodeStringFormat format;
+    private final NodeStringMapper mapper;
     private final Node<?> node;
     private final boolean skipIfChild;
     private final StringBuilder sb;
     private int charactersRemainingInLine;
     private int linesUsed = 0;
 
-    NodePropertiesToString(StringBuilder sb, Node.NodeStringFormat format, Node<?> node, boolean skipIfChild) {
+    NodePropertiesToString(StringBuilder sb, Node.NodeStringFormat format, NodeStringMapper mapper, Node<?> node, boolean skipIfChild) {
         this.sb = sb;
         this.format = format;
+        this.mapper = mapper;
         this.node = node;
         this.skipIfChild = skipIfChild;
         this.charactersRemainingInLine = format.maxWidth;
@@ -88,6 +104,20 @@ class NodePropertiesToString {
         }
         boolean firstElement = true;
         for (Object element : iterable) {
+            if (format == Node.NodeStringFormat.LIMITED) {
+                // In the LIMITED format, for query approximation plans (see: {@link ApproximationPlan})
+                // only render the first and last buckets of bucketed values (separated by an ellipsis).
+                Integer bucketId = getQueryApproximationBucketId(element);
+                int lastBucketId = ApproximationPlan.BUCKET_COUNT * ApproximationPlan.TRIAL_COUNT - 1;
+                if (bucketId != null && bucketId > 0 && bucketId < lastBucketId) {
+                    if (bucketId == 1) {
+                        if (appendString(", ...") == false) {
+                            return false;
+                        }
+                    }
+                    continue;
+                }
+            }
             if (firstElement == false) {
                 if (appendString(", ") == false) {
                     return false;
@@ -101,6 +131,19 @@ class NodePropertiesToString {
         return appendString("]");
     }
 
+    /**
+     * Returns the query approximation bucket ID (see: {@link ApproximationPlan}) if this property
+     * is containing only a single bucket. Returns null if no or multiple buckets.
+     */
+    private Integer getQueryApproximationBucketId(Object prop) {
+        Matcher matcher = APPROXIMATION_BUCKET_COLUMN_NAME_PATTERN.matcher(propertyToString(prop));
+        Set<Integer> bucketIds = new HashSet<>();
+        while (matcher.find()) {
+            bucketIds.add(Integer.parseInt(matcher.group(1)));
+        }
+        return bucketIds.size() == 1 ? bucketIds.iterator().next() : null;
+    }
+
     private String propertyToString(Object obj) {
         return switch (obj) {
             case null -> "null";
@@ -111,11 +154,45 @@ class NodePropertiesToString {
                  * and rendered as proper children, properly sharing the StringBuilder.
                  */
                 StringBuilder str = new StringBuilder();
-                n.nodeString(str, format);
+                n.nodeString(str, format, mapper);
                 yield str.toString();
             }
             case NameId nameId -> "#" + obj;
-            default -> String.valueOf(obj);
+            case NodeStringRenderable r -> {
+                // Structured property that routes its own embedded identifiers through the mapper.
+                // Under IDENTITY this reproduces the property's toString(); otherwise it substitutes.
+                StringBuilder str = new StringBuilder();
+                r.nodeString(str, format, mapper);
+                yield str.toString();
+            }
+            // Default-safe: a bare String is treated as an identifier and routed through the mapper.
+            // Under IDENTITY the mapper is pass-through, so identity rendering is byte-identical; under
+            // an anonymizing mapper the string is tokenized rather than leaked. This is the property
+            // that makes "default is safe" hold for any node that does not hand-write a nodeString.
+            case String s -> mapper.column(s);
+            // Structural scalars carry no identifier and render raw in both modes.
+            case Number n -> String.valueOf(n);
+            case Boolean b -> String.valueOf(b);
+            case Character c -> String.valueOf(c);
+            case Enum<?> e -> String.valueOf(e);
+            // A map whose keys/values are identifiers. Reproduce AbstractMap.toString's shape so
+            // identity is byte-identical, routing each key/value through propertyToString (so a String
+            // entry tokenizes as a column; nodes needing index-namespace tokens render themselves).
+            case Map<?, ?> m -> {
+                StringBuilder str = new StringBuilder("{");
+                boolean first = true;
+                for (Map.Entry<?, ?> e : m.entrySet()) {
+                    if (first == false) {
+                        str.append(", ");
+                    }
+                    first = false;
+                    str.append(propertyToString(e.getKey())).append('=').append(propertyToString(e.getValue()));
+                }
+                yield str.append('}').toString();
+            }
+            // Anything else is opaque free-form content (raw query DSL, compiled automata, ...): shown
+            // raw under IDENTITY, redacted under an anonymizing mapper since it can't be safely tokenized.
+            default -> mapper.opaque(String.valueOf(obj));
         };
     }
 }

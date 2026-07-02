@@ -88,6 +88,16 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable, Releasa
     String routing();
 
     /**
+     * Marks whether the request routing value originated from the {@code _slice} REST parameter.
+     */
+    T setRoutingFromSlice(boolean routingFromSlice);
+
+    /**
+     * Returns whether the request routing value originated from the {@code _slice} REST parameter.
+     */
+    boolean isRoutingFromSlice();
+
+    /**
      * Get the document version for this request
      * @return the document version
      */

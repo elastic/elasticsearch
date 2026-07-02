@@ -78,11 +78,15 @@ public class CBZip2InputStream extends InputStream implements BZip2Constants {
         return reportedBytesReadFromCompressedStream;
     }
 
-    protected void updateProcessedByteCount(int count) {
+    protected void updateProcessedByteCount(long count) {
         this.bytesReadFromCompressedStream += count;
     }
 
-    public void updateReportedByteCount(int count) {
+    /**
+     * Seeds or adjusts the compressed-byte position reported at block boundaries. Values can exceed
+     * {@link Integer#MAX_VALUE} for large-file bzip2 splits; callers must use {@code long}.
+     */
+    public void updateReportedByteCount(long count) {
         this.reportedBytesReadFromCompressedStream += count;
         this.updateProcessedByteCount(count);
     }
@@ -90,7 +94,7 @@ public class CBZip2InputStream extends InputStream implements BZip2Constants {
     private int readAByte(InputStream inStream) throws IOException {
         int read = inStream.read();
         if (read >= 0) {
-            this.updateProcessedByteCount(1);
+            this.updateProcessedByteCount(1L);
         }
         return read;
     }

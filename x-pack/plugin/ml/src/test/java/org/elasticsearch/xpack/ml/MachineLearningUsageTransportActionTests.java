@@ -54,4 +54,35 @@ public class MachineLearningUsageTransportActionTests extends ESTestCase {
         );
         assertThat(expectedModelMemoryUsage, is(actualMemoryUsage.asMap()));
     }
+
+    public void testAddTrainedModelStatsHandlesNullModelSizeStats() {
+        Map<String, Object> usage = new HashMap<>();
+
+        var deploymentConfig = TrainedModelConfigTests.createTestInstance("id1").build();
+        var stats = new GetTrainedModelsStatsAction.Response.TrainedModelStats(
+            "id1",
+            null, // set modelSizeStats as null
+            GetTrainedModelsStatsActionResponseTests.randomIngestStats(),
+            randomIntBetween(0, 10),
+            null,
+            null
+        );
+
+        var modelsResponse = new GetTrainedModelsAction.Response(
+            new QueryPage<>(List.of(deploymentConfig), 1, GetTrainedModelsAction.Response.RESULTS_FIELD)
+        );
+
+        var statsResponse = new GetTrainedModelsStatsAction.Response(
+            new QueryPage<>(List.of(stats), 1, GetTrainedModelsStatsAction.Response.RESULTS_FIELD)
+        );
+
+        MachineLearningUsageTransportAction.addTrainedModelStats(modelsResponse, statsResponse, usage);
+
+        StatsAccumulator emptyAccumulator = new StatsAccumulator();
+        @SuppressWarnings("unchecked")
+        var actualModelMemoryUsage = ((Map<String, Object>) usage.get("trained_models")).get(
+            TrainedModelConfig.MODEL_SIZE_BYTES.getPreferredName()
+        );
+        assertThat(actualModelMemoryUsage, is(emptyAccumulator.asMap()));
+    }
 }

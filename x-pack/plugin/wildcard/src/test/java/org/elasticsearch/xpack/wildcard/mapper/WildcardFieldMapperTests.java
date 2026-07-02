@@ -64,6 +64,7 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -1115,14 +1116,16 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY, randomFrom(IndexMode.values()));
+        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY, randomFrom(IndexMode.availableModes()));
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIdFieldDataEnabled()).thenReturn(() -> false);
         return new SearchExecutionContext(
             0,
             0,
             idxSettings,
             bitsetFilterCache,
             indexFieldDataLookup,
-            null,
+            mapperService,
             lookup,
             null,
             null,
@@ -1168,13 +1171,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         IndexableField field = parseDoc.getByKey(wildcardFieldType.fullPath());
         if (field != null) {
             doc.add(field);
-        }
-        // SeparateCount format stores the value count in a companion numeric doc values field (".counts").
-        // It must be copied alongside the main binary field for MultiValuedSortedBinaryDocValues to decode values.
-        String countsKey = wildcardFieldType.fullPath() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
-        IndexableField countsField = parseDoc.getByKey(countsKey);
-        if (countsField != null) {
-            doc.add(countsField);
+            // SeparateCount format stores the value count in a companion numeric doc values field (".counts").
+            // It must be copied alongside the main binary field for MultiValuedSortedBinaryDocValues to decode values.
+            if (field instanceof MultiValuedBinaryDocValuesField.SeparateCount separateCount) {
+                doc.add(separateCount.countField());
+            } else {
+                fail("unexpected indexable field type: " + field.getClass().getName());
+            }
         }
         iw.addDocument(doc);
     }
@@ -1252,7 +1255,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assertFalse("ignore_malformed is not supported by [wildcard] field", ignoreMalformed);
         // createSytheticSourceMapperService uses standard mode, which stores ignored values in stored fields (no sorting)
-        return new WildcardSyntheticSourceSupport(false);
+        return new WildcardSyntheticSourceSupport(false, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        assertFalse("ignore_malformed is not supported by [wildcard] field", ignoreMalformed);
+        return new WildcardSyntheticSourceSupport(false, true);
     }
 
     static class WildcardSyntheticSourceSupport implements SyntheticSourceSupport {
@@ -1260,9 +1269,16 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         private final boolean allIgnored = ignoreAbove != null && rarely();
         private final String nullValue = usually() ? null : randomAlphaOfLength(2);
         private final boolean sortIgnoredValues;
+        private final boolean isColumnar;
 
-        WildcardSyntheticSourceSupport(boolean sortIgnoredValues) {
+        WildcardSyntheticSourceSupport(boolean sortIgnoredValues, boolean isColumnar) {
             this.sortIgnoredValues = sortIgnoredValues;
+            this.isColumnar = isColumnar;
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return isColumnar;
         }
 
         @Override
@@ -1283,10 +1299,14 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                 }
             });
 
+            // TODO update wildcard to use UNSORTED in columnar mode: https://github.com/elastic/elasticsearch/issues/152414
+            // Currently wildcard always uses SORTED_UNIQUE ordering: values are always deduplicated and sorted.
             List<String> outList = new ArrayList<>(new HashSet<>(docValuesValues));
             Collections.sort(outList);
 
-            if (sortIgnoredValues) {
+            // in columnar mode, ignored values are stored in sorted binary doc values
+            boolean sortIgnored = isColumnar || sortIgnoredValues;
+            if (sortIgnored) {
                 // binary doc values deduplicate and sort values
                 List<String> sortedExtraValues = new ArrayList<>(new HashSet<>(ignoredValues));
                 Collections.sort(sortedExtraValues);

@@ -13,10 +13,9 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.index.codec.vectors.BaseHnswBFloat16VectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.BaseQuantizedHnswBFloat16VectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -31,15 +30,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 
-public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsFormatTestCase {
+public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuantizedHnswBFloat16VectorsFormatTestCase {
 
-    private int bits;
-
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        bits = randomFrom(1, 2, 4, 7);
-        super.setUp();
+    private static int randomBitsPerValue() {
+        return randomFrom(1, 2, 4, 7);
     }
 
     @Override
@@ -48,14 +42,20 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswB
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
-            bits,
+            randomBitsPerValue(),
             false
         );
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES94HnswScalarQuantizedVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.BFLOAT16, bits, false);
+        return new ES94HnswScalarQuantizedVectorsFormat(
+            maxConn,
+            beamWidth,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            randomBitsPerValue(),
+            false
+        );
     }
 
     @Override
@@ -64,7 +64,7 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswB
             maxConn,
             beamWidth,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
-            bits,
+            randomBitsPerValue(),
             false,
             numMergeWorkers,
             service
@@ -83,7 +83,7 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswB
             16,
             100,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
-            bits,
+            randomBitsPerValue(),
             false,
             1,
             null,

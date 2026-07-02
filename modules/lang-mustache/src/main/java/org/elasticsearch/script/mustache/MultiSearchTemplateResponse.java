@@ -194,6 +194,6 @@ public class MultiSearchTemplateResponse extends ActionResponse
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 }

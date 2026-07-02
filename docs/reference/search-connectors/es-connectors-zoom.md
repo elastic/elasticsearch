@@ -100,7 +100,7 @@ Refer to the [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elas
 
 ### Usage [es-connectors-zoom-client-connector-usage]
 
-To use this connector in the UI, select the **Teams** tile when creating a new connector under **Search → Connectors**.
+To use this connector in the UI, select the **Zoom** tile when creating a new connector under **Search → Connectors**.
 
 If you’re already familiar with how connectors work, you can also use the [Connector APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-connector).
 

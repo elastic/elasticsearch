@@ -100,6 +100,7 @@ public final class AzureFixtureUtils {
         public DataSourcesAzureHttpFixture() {
             super(
                 AzureHttpFixture.Protocol.HTTP,
+                null,
                 ACCOUNT,
                 CONTAINER,
                 null,
@@ -138,14 +139,12 @@ public final class AzureFixtureUtils {
                 restOfQuery = " " + trimmed.substring(pipeIndex);
             }
 
-            StringBuilder params = new StringBuilder();
-            params.append(" WITH { ");
-            params.append("\"endpoint\": \"").append(getAddress()).append("\", ");
-            params.append("\"account\": \"").append(ACCOUNT).append("\", ");
-            params.append("\"key\": \"").append(KEY).append("\"");
-            params.append(" }");
+            StringBuilder entries = new StringBuilder();
+            entries.append("\"endpoint\": \"").append(getAddress()).append("\", ");
+            entries.append("\"account\": \"").append(ACCOUNT).append("\", ");
+            entries.append("\"key\": \"").append(KEY).append("\"");
 
-            return externalPart + params + restOfQuery;
+            return FixtureUtils.injectWithEntries(externalPart, entries.toString()) + restOfQuery;
         }
     }
 }

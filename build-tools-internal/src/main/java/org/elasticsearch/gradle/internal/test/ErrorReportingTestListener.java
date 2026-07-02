@@ -27,6 +27,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.io.Reader;
+import java.io.StringReader;
 import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.util.Deque;
@@ -213,7 +215,14 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
         private final Writer writer;
 
         EventWriter(Descriptor descriptor) {
-            this.outputFile = new File(outputDirectory, descriptor.className() + ".out");
+            // className is null for root/composite suites (e.g. the top-level "Gradle Test Run"),
+            // so fall back to the suite name to avoid collapsing different suites onto a single "null.out" file.
+            String baseName = descriptor.className();
+            if (baseName == null) {
+                String name = descriptor.name();
+                baseName = (name == null ? "unknown" : name).replaceAll("[^a-zA-Z0-9._-]", "_");
+            }
+            this.outputFile = new File(outputDirectory, baseName + ".out");
 
             FileOutputStream fos;
             try {
@@ -249,11 +258,20 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
         }
 
         public BufferedReader reader() {
+            // The output file may have been concurrently closed/deleted by another afterSuite callback
+            // that mapped to the same Descriptor. Treat a missing file as empty output rather than failing the build.
+            if (outputFile.isFile() == false) {
+                return new BufferedReader(emptyReader());
+            }
             try {
                 return new BufferedReader(new FileReader(outputFile));
             } catch (IOException e) {
                 throw new UncheckedIOException("Unable to read test suite output file", e);
             }
+        }
+
+        private static Reader emptyReader() {
+            return new StringReader("");
         }
 
         @Override

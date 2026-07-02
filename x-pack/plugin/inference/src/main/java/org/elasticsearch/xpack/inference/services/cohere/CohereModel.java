@@ -27,53 +27,67 @@ import java.util.Objects;
 public abstract class CohereModel extends RateLimitGroupingModel {
 
     private final SecureString apiKey;
-    private final CohereRateLimitServiceSettings rateLimitServiceSettings;
+    private final RateLimitSettings rateLimitSettings;
+    @Nullable
+    private final URI testUri;
 
     public CohereModel(
         ModelConfigurations configurations,
         ModelSecrets secrets,
         @Nullable ApiKeySecrets apiKeySecrets,
-        CohereRateLimitServiceSettings rateLimitServiceSettings
+        CohereCommonServiceSettings commonSettings
+    ) {
+        this(configurations, secrets, apiKeySecrets, commonSettings.rateLimitSettings(), commonSettings.uri());
+    }
+
+    protected CohereModel(
+        ModelConfigurations configurations,
+        ModelSecrets secrets,
+        @Nullable ApiKeySecrets apiKeySecrets,
+        RateLimitSettings rateLimitSettings,
+        @Nullable URI testUri
     ) {
         super(configurations, secrets);
-
-        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
-        apiKey = ServiceUtils.apiKey(apiKeySecrets);
+        this.rateLimitSettings = Objects.requireNonNull(rateLimitSettings);
+        this.apiKey = ServiceUtils.apiKey(apiKeySecrets);
+        this.testUri = testUri;
     }
 
     protected CohereModel(CohereModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
-
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
+        rateLimitSettings = model.rateLimitSettings();
         apiKey = model.apiKey();
+        testUri = model.testUri;
     }
 
     protected CohereModel(CohereModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
-
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
+        rateLimitSettings = model.rateLimitSettings();
         apiKey = model.apiKey();
+        testUri = model.testUri;
     }
 
     public SecureString apiKey() {
         return apiKey;
     }
 
-    public CohereRateLimitServiceSettings rateLimitServiceSettings() {
-        return rateLimitServiceSettings;
+    public RateLimitSettings rateLimitServiceSettings() {
+        return rateLimitSettings;
     }
 
     public abstract ExecutableAction accept(CohereActionVisitor creator, Map<String, Object> taskSettings);
 
     public RateLimitSettings rateLimitSettings() {
-        return rateLimitServiceSettings.rateLimitSettings();
+        return rateLimitSettings;
     }
 
     public int rateLimitGroupingHash() {
         return apiKey().hashCode();
     }
 
-    public URI baseUri() {
-        return rateLimitServiceSettings.uri();
+    /** Returns a URI override for test use, or {@code null} to use the default Cohere endpoint. */
+    @Nullable
+    public URI testUri() {
+        return testUri;
     }
 }

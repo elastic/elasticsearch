@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 147698
+summary: Check cluster state block in `_resolve/index`
+type: bug

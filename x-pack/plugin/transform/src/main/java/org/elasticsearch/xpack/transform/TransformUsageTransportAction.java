@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.injection.guice.Inject;
@@ -70,6 +71,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
     ).map(ParseField::getPreferredName).toArray(String[]::new);
 
     private final Client client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransformUsageTransportAction(
@@ -77,10 +79,12 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        Client client
+        Client client,
+        ProjectResolver projectResolver
     ) {
         super(XPackUsageFeatureAction.TRANSFORM.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -90,7 +94,9 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         ClusterState clusterState,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = TransformTask.findAllTransformTasks(clusterState);
+        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = TransformTask.findAllTransformTasks(
+            projectResolver.getProjectMetadata(clusterState)
+        );
         final int taskCount = transformTasks.size();
         final Map<String, Long> transformsCountByState = new HashMap<>();
         for (PersistentTasksCustomMetadata.PersistentTask<?> transformTask : transformTasks) {

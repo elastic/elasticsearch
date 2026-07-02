@@ -7,7 +7,7 @@
       "type": "keyword",
       "time_series_dimension": true
     },
-    "temporality": {
+    "my_temporality": {
       "type": "keyword",
       "time_series_dimension": true
     },
@@ -19,6 +19,10 @@
           "meta": { "unit": "bytes" }
         }
       }
+    },
+    "bytes_per_request": {
+      "type": "exponential_histogram",
+      "time_series_metric": "histogram"
     }
   }
 }

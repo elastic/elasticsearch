@@ -230,6 +230,48 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * The number of rows a parallel-capable operator, such as
+     * {@link org.elasticsearch.compute.operator.topn.TopNOperator}, must accumulate before it
+     * promotes itself to a parallel operator backed by {@code esql_worker} threads. Lower values
+     * promote sooner; {@code 0} promotes after the very first row, which is useful in tests to
+     * force the parallel path.
+     */
+    public static final Setting<Long> PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS = Setting.longSetting(
+        "esql.parallel_operator_promotion_threshold_rows",
+        1_000_000L,
+        0L,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Hard cap on the number of background worker threads a single parallel operator, such as
+     * {@link org.elasticsearch.compute.operator.topn.ParallelTopNOperator}, may use. The actual
+     * worker count is {@code max(1, min(this, esql_worker_pool_size / 2))}. Increase this to
+     * exploit more parallelism on large nodes; lower it to bound per-query thread usage.
+     */
+    public static final Setting<Integer> PARALLEL_OPERATOR_MAX_WORKERS = Setting.intSetting(
+        "esql.parallel_operator_max_workers",
+        4,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Threshold for the number of values returned by an IN subquery above which a hash join is used
+     * instead of an IN list filter. Below or equal to this threshold, the subquery result is inlined
+     * as {@code WHERE field IN (v1, v2, ...)}. Above it, a LEFT hash join is used for better performance.
+     */
+    public static final Setting<Integer> IN_SUBQUERY_HASH_JOIN_THRESHOLD = Setting.intSetting(
+        "esql.in_subquery_hash_join_threshold",
+        100,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             DEFAULT_DATA_PARTITIONING,
@@ -247,7 +289,10 @@ public class PlannerSettings {
             SOURCE_RESERVATION_FACTOR,
             BYTES_REF_RAM_OVERESTIMATE_THRESHOLD,
             BYTES_REF_RAM_OVERESTIMATE_FACTOR,
-            DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD
+            DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD,
+            PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS,
+            PARALLEL_OPERATOR_MAX_WORKERS,
+            IN_SUBQUERY_HASH_JOIN_THRESHOLD
         );
     }
 
@@ -295,6 +340,15 @@ public class PlannerSettings {
                 DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD,
                 v -> settings.updateAndGet(s -> s.docSequenceBytesRefFieldThreshold(v))
             );
+            clusterSettings.initializeAndWatch(
+                PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS,
+                v -> settings.updateAndGet(s -> s.parallelTopNPromotionThresholdRows(v))
+            );
+            clusterSettings.initializeAndWatch(PARALLEL_OPERATOR_MAX_WORKERS, v -> settings.updateAndGet(s -> s.parallelTopNMaxWorkers(v)));
+            clusterSettings.initializeAndWatch(
+                IN_SUBQUERY_HASH_JOIN_THRESHOLD,
+                v -> settings.updateAndGet(s -> s.inSubqueryHashJoinThreshold(v))
+            );
         }
 
         public PlannerSettings get() {
@@ -317,6 +371,9 @@ public class PlannerSettings {
     private final ByteSizeValue bytesRefRamOverestimateThreshold;
     private final double bytesRefRamOverestimateFactor;
     private final int docSequenceBytesRefFieldThreshold;
+    private final long parallelTopNPromotionThresholdRows;
+    private final int parallelTopNMaxWorkers;
+    private final int inSubqueryHashJoinThreshold;
 
     /**
      * Defaults.
@@ -336,7 +393,10 @@ public class PlannerSettings {
         SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY),
         BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.getDefault(Settings.EMPTY),
         BYTES_REF_RAM_OVERESTIMATE_FACTOR.getDefault(Settings.EMPTY),
-        DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY)
+        DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
+        PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS.getDefault(Settings.EMPTY),
+        PARALLEL_OPERATOR_MAX_WORKERS.getDefault(Settings.EMPTY),
+        IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY)
     );
 
     /**
@@ -357,7 +417,10 @@ public class PlannerSettings {
         double sourceReservationFactor,
         ByteSizeValue bytesRefRamOverestimateThreshold,
         double bytesRefRamOverestimateFactor,
-        int docSequenceBytesRefFieldThreshold
+        int docSequenceBytesRefFieldThreshold,
+        long parallelTopNPromotionThresholdRows,
+        int parallelTopNMaxWorkers,
+        int inSubqueryHashJoinThreshold
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.docsThresholdForAutoPartitioning = docsThresholdForAutoPartitioning;
@@ -374,6 +437,9 @@ public class PlannerSettings {
         this.bytesRefRamOverestimateThreshold = bytesRefRamOverestimateThreshold;
         this.bytesRefRamOverestimateFactor = bytesRefRamOverestimateFactor;
         this.docSequenceBytesRefFieldThreshold = docSequenceBytesRefFieldThreshold;
+        this.parallelTopNPromotionThresholdRows = parallelTopNPromotionThresholdRows;
+        this.parallelTopNMaxWorkers = parallelTopNMaxWorkers;
+        this.inSubqueryHashJoinThreshold = inSubqueryHashJoinThreshold;
     }
 
     public PlannerSettings defaultDataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -392,7 +458,10 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -416,7 +485,10 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -440,7 +512,10 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -478,7 +553,10 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -502,7 +580,10 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -526,7 +607,10 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -550,7 +634,10 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -581,7 +668,10 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -608,7 +698,10 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -635,7 +728,10 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -659,7 +755,10 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -683,7 +782,10 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -707,7 +809,10 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -731,7 +836,10 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -755,7 +863,10 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -763,4 +874,84 @@ public class PlannerSettings {
         return docsThresholdForAutoPartitioning;
     }
 
+    public PlannerSettings parallelTopNPromotionThresholdRows(long parallelTopNPromotionThresholdRows) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold
+        );
+    }
+
+    public long parallelTopNPromotionThresholdRows() {
+        return parallelTopNPromotionThresholdRows;
+    }
+
+    public PlannerSettings parallelTopNMaxWorkers(int parallelTopNMaxWorkers) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold
+        );
+    }
+
+    public int parallelTopNMaxWorkers() {
+        return parallelTopNMaxWorkers;
+    }
+
+    public PlannerSettings inSubqueryHashJoinThreshold(int inSubqueryHashJoinThreshold) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold
+        );
+    }
+
+    public int inSubqueryHashJoinThreshold() {
+        return inSubqueryHashJoinThreshold;
+    }
 }

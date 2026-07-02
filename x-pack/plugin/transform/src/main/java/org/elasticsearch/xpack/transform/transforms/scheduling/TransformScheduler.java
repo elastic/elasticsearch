@@ -256,8 +256,20 @@ public final class TransformScheduler {
      * @param transformId id of the transform to schedule now
      */
     public void scheduleNow(String transformId) {
-        logger.trace("[{}] schedule_now transform", transformId);
+        scheduleWithDelay(transformId, TimeValue.ZERO);
+    }
+
+    /**
+     * Updates the transform task's next_scheduled_time so that it is set to {@code now + deferDuration}.
+     * When {@code deferDuration} is zero, the task is processed as soon as possible.
+     *
+     * @param transformId id of the transform to schedule
+     * @param deferDuration how long from now to defer the scheduling
+     */
+    public void scheduleWithDelay(String transformId, TimeValue deferDuration) {
+        logger.trace("[{}] schedule_now transform with defer [{}]", transformId, deferDuration);
         long currentTimeMillis = clock.millis();
+        long nextScheduledTimeMillis = currentTimeMillis + deferDuration.millis();
         // Update the task's next_scheduled_time
         scheduledTasks.update(
             transformId,
@@ -266,7 +278,7 @@ public final class TransformScheduler {
                 getFrequency(task.getFrequency()),
                 task.getLastTriggeredTimeMillis(),
                 task.getFailureCount(),
-                currentTimeMillis,  // we schedule this task at current clock time so that it is processed ASAP
+                nextScheduledTimeMillis,
                 task.getListener()
             )
         );
@@ -289,6 +301,22 @@ public final class TransformScheduler {
             scheduledTasks.size(),
             Optional.ofNullable(scheduledTasks.first()).map(TransformScheduledTask::getTransformId).orElse(null)
         );
+    }
+
+    /**
+     * Returns the next scheduled time in epoch millis for the given transform, or {@code null} if the transform is not registered.
+     *
+     * @param transformId id of the transform
+     * @return next scheduled time in epoch millis, or {@code null}
+     */
+    // @VisibleForTesting
+    public Long getNextScheduledTimeMillis(String transformId) {
+        return scheduledTasks.listScheduledTasks()
+            .stream()
+            .filter(task -> task.getTransformId().equals(transformId))
+            .findFirst()
+            .map(TransformScheduledTask::getNextScheduledTimeMillis)
+            .orElse(null);
     }
 
     // Visible for testing

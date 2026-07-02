@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.zstd;
 
 import org.apache.lucene.codecs.compressing.Compressor;
 import org.apache.lucene.codecs.compressing.Decompressor;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.FilterIndexInput;
@@ -50,6 +51,22 @@ public class ZstdDecompressorTests extends ESTestCase {
 
         BytesRef result = new BytesRef();
         decompressor.decompress(directIn, original.length, 0, original.length, result);
+
+        assertArrayEquals(original, BytesRef.deepCopyOf(result).bytes);
+    }
+
+    // Exercises the fallback when withByteBufferSlice throws AlreadyClosedException (e.g. the blob
+    // cache region was evicted mid-read). Decompression must still succeed via copyAndDecompress.
+    public void testDecompressFallbackWhenDirectAccessThrowsAlreadyClosed() throws IOException {
+        byte[] original = randomByteArrayOfLength(randomIntBetween(1, 8192));
+        byte[] compressed = compress(original);
+
+        Decompressor decompressor = new ZstdCompressionMode(1).newDecompressor();
+        IndexInput rawIn = new ByteArrayIndexInput("test", compressed);
+        IndexInput throwingDirectIn = new ThrowingAlreadyClosedDirectAccessIndexInput("throwing-dai", rawIn);
+
+        BytesRef result = new BytesRef();
+        decompressor.decompress(throwingDirectIn, original.length, 0, original.length, result);
 
         assertArrayEquals(original, BytesRef.deepCopyOf(result).bytes);
     }
@@ -129,6 +146,37 @@ public class ZstdDecompressorTests extends ESTestCase {
         compressor.compress(new ByteBuffersDataInput(List.of(ByteBuffer.wrap(data))), output);
         compressor.close();
         return output.toArrayCopy();
+    }
+
+    /**
+     * An IndexInput that implements DirectAccessInput but always throws AlreadyClosedException from
+     * withByteBufferSlice, simulating a blob cache region being evicted mid-read.
+     */
+    static class ThrowingAlreadyClosedDirectAccessIndexInput extends FilterIndexInput implements DirectAccessInput {
+
+        ThrowingAlreadyClosedDirectAccessIndexInput(String resourceDescription, IndexInput delegate) {
+            super(resourceDescription, delegate);
+        }
+
+        @Override
+        public boolean withByteBufferSlice(long offset, long length, CheckedConsumer<ByteBuffer, IOException> action) {
+            throw new AlreadyClosedException("no free region found");
+        }
+
+        @Override
+        public boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action) {
+            throw new AlreadyClosedException("no free region found");
+        }
+
+        @Override
+        public IndexInput clone() {
+            return new ThrowingAlreadyClosedDirectAccessIndexInput("clone(" + toString() + ")", in.clone());
+        }
+
+        @Override
+        public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
+            return new ThrowingAlreadyClosedDirectAccessIndexInput(sliceDescription, in.slice(sliceDescription, offset, length));
+        }
     }
 
     /**

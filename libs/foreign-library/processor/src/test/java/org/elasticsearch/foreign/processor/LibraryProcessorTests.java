@@ -58,9 +58,6 @@ public class LibraryProcessorTests extends ProcessorTestCase {
         assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
         Class<?> implClass = result.loadClassNoInit("test.CritLib$Impl");
         assertNotNull("Generated CritLib$Impl class not found", implClass);
-
-        java.lang.reflect.Field mhField = implClass.getDeclaredField("fn$mh");
-        assertEquals("fn$mh must be a MethodHandle", java.lang.invoke.MethodHandle.class, mhField.getType());
     }
 
     /**

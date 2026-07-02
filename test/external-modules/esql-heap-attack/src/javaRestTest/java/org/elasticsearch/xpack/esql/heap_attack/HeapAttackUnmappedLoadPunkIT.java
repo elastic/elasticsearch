@@ -27,6 +27,18 @@ public class HeapAttackUnmappedLoadPunkIT extends HeapAttackTestCase {
     private static final String MAPPED_LONG_INDEX = "a_punk_mapped_long";
     private static final String SOURCE_ONLY_INDEX = "z_punk_unmapped_source";
 
+    /**
+     * Index:
+     * <ul>
+     *     <li>One index maps {@code v} as long</li>
+     *     <li>One index has large source-only {@code v} strings</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>Cast PUNK field {@code v} to keyword</li>
+     * </ul>
+     * Expected: Circuit break in source loading
+     */
     public void testPunkKeywordConversionCircuitBreaks() throws IOException {
         initPunkIndices(100, 2);
 
@@ -38,6 +50,13 @@ public class HeapAttackUnmappedLoadPunkIT extends HeapAttackTestCase {
         }
     }
 
+    /**
+     * Two-index setup:
+     * <ul>
+     *     <li>Mapped long {@code v}</li>
+     *     <li>Large source-only string {@code v}</li>
+     * </ul>
+     */
     private void initPunkIndices(int sourceOnlyDocs, int sourceFieldSizeMb) throws IOException {
         CreateIndexResponse mappedResponse = createIndex(
             MAPPED_LONG_INDEX,

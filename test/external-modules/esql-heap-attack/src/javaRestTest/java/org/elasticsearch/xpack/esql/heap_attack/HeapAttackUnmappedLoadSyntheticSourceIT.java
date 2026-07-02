@@ -27,12 +27,33 @@ import java.util.Map;
 public class HeapAttackUnmappedLoadSyntheticSourceIT extends HeapAttackTestCase {
     private static final String MANY_SYNTHETIC_SOURCE_ONLY_FIELDS_INDEX = "unmapped_load_many_synthetic_source_fields";
 
+    /**
+     * Index:
+     * <ul>
+     *     <li>Synthetic source</li>
+     *     <li>Mapped sort key</li>
+     *     <li>Many small source-only fields</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>Keep all source-only fields as unmapped LOAD columns</li>
+     * </ul>
+     * Expected: Circuit break
+     */
     public void testFetchTooManySyntheticSourceOnlyUnmappedFields() throws IOException {
         int fields = 1000;
         initManySyntheticSourceOnlyFieldsIndex(500, fields);
         assertCircuitBreaks(attempt -> fetchManySyntheticSourceOnlyFields(fields, attempt * 100));
     }
 
+    /**
+     * Single-segment index:
+     * <ul>
+     *     <li>Synthetic source</li>
+     *     <li>Mapped sort key</li>
+     *     <li>Many small source-only fields</li>
+     * </ul>
+     */
     private void initManySyntheticSourceOnlyFieldsIndex(int docs, int fields) throws IOException {
         logger.info("loading {} documents with {} 1KB synthetic source-only fields", docs, fields);
         CreateIndexResponse response = createIndex(

@@ -39,10 +39,17 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
     private static final int HUGE_SOURCE_SIZE_MB = 16;
 
     /**
-     * Loads a tiny unmapped field from very large source documents after sorting by a mapped field.
-     * The descending sort reverses the single-segment doc order, exercising the reordered
-     * {@code ValuesFromSingleReader} path. This should remain cheap because the loader asks for
-     * only the tiny source-only field, not the unrelated large source payload.
+     * Index:
+     * <ul>
+     *     <li>Huge source documents</li>
+     *     <li>Tiny source-only field</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>Sort by mapped field</li>
+     *     <li>Keep only the tiny unmapped field</li>
+     * </ul>
+     * Expected: No error
      */
     public void testHugeSourceTinyUnmappedFieldAfterSort() throws IOException {
         initHugeSourceTinyUnmappedIndex(HUGE_SOURCE_DOCS, HUGE_SOURCE_SIZE_MB);
@@ -62,12 +69,35 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
         }
     }
 
+    /**
+     * Index:
+     * <ul>
+     *     <li>Many small source-only fields</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>Keep all source-only fields as unmapped LOAD columns</li>
+     * </ul>
+     * Expected: Circuit break
+     */
     public void testFetchTooManySourceOnlyUnmappedFields() throws IOException {
         int fields = 1000;
         initManySourceOnlyFieldsIndex(500, fields);
         assertCircuitBreaks(attempt -> fetchManySourceOnlyFields(fields, attempt * 100));
     }
 
+    /**
+     * Index:
+     * <ul>
+     *     <li>Multi-segment index</li>
+     *     <li>Large source-only field</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>Keep the large source-only field as an unmapped LOAD column</li>
+     * </ul>
+     * Expected: Circuit break in source loading
+     */
     public void testLargeSourceOnlyUnmappedFieldAcrossSegmentsCircuitBreaks() throws IOException {
         initMultiSegmentLargeSourceOnlyFieldIndex(100, 2);
 
@@ -79,6 +109,18 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
         }
     }
 
+    /**
+     * Index:
+     * <ul>
+     *     <li>Huge source documents</li>
+     *     <li>Tiny source-only field</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>Keep metadata _source and the tiny unmapped field</li>
+     * </ul>
+     * Expected: Circuit break in source loading
+     */
     public void testMetadataSourceWithUnmappedFieldCircuitBreaks() throws IOException {
         initHugeSourceTinyUnmappedIndex(METADATA_SOURCE_INDEX, HUGE_SOURCE_DOCS, HUGE_SOURCE_SIZE_MB);
 
@@ -94,6 +136,14 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
         initHugeSourceTinyUnmappedIndex(HUGE_SOURCE_INDEX, docs, sourceSizeMb);
     }
 
+    /**
+     * Single-segment index:
+     * <ul>
+     *     <li>Mapped sort key</li>
+     *     <li>Tiny source-only field</li>
+     *     <li>Huge source-only payload</li>
+     * </ul>
+     */
     private void initHugeSourceTinyUnmappedIndex(String index, int docs, int sourceSizeMb) throws IOException {
         logger.info("loading {} documents with one {}MB source-only payload", docs, sourceSizeMb);
         CreateIndexResponse response = createIndex(
@@ -133,6 +183,13 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
         initIndex(index, "");
     }
 
+    /**
+     * Single-segment index:
+     * <ul>
+     *     <li>Mapped sort key</li>
+     *     <li>Many small source-only fields</li>
+     * </ul>
+     */
     private void initManySourceOnlyFieldsIndex(int docs, int fields) throws IOException {
         logger.info("loading {} documents with {} 1KB source-only fields", docs, fields);
         CreateIndexResponse response = createIndex(
@@ -170,6 +227,13 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
         initIndex(MANY_SOURCE_ONLY_FIELDS_INDEX, bulk.toString());
     }
 
+    /**
+     * Multi-segment index:
+     * <ul>
+     *     <li>No mapped fields</li>
+     *     <li>One large source-only field</li>
+     * </ul>
+     */
     private void initMultiSegmentLargeSourceOnlyFieldIndex(int docs, int sourceSizeMb) throws IOException {
         logger.info("loading {} documents with one {}MB source-only field across multiple segments", docs, sourceSizeMb);
         CreateIndexResponse response = createIndex(

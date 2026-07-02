@@ -10,8 +10,10 @@ package org.elasticsearch.common.util;
 
 import org.elasticsearch.core.TimeValue;
 
+import java.util.Objects;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.LongSupplier;
 
 /**
  * A very simple single object cache that allows non-blocking refresh calls
@@ -22,13 +24,20 @@ public abstract class SingleObjectCache<T> {
     private volatile T cached;
     private final Lock refreshLock = new ReentrantLock();
     private final TimeValue refreshInterval;
-    protected long lastRefreshTimestamp = 0;
+    private final LongSupplier nanoTimeSupplier;
+    protected long lastRefreshTimestamp;
 
     protected SingleObjectCache(TimeValue refreshInterval, T initialValue) {
+        this(refreshInterval, initialValue, System::nanoTime);
+    }
+
+    protected SingleObjectCache(TimeValue refreshInterval, T initialValue, LongSupplier nanoTimeSupplier) {
         if (initialValue == null) {
             throw new IllegalArgumentException("initialValue must not be null");
         }
         this.refreshInterval = refreshInterval;
+        this.nanoTimeSupplier = Objects.requireNonNull(nanoTimeSupplier);
+        this.lastRefreshTimestamp = nanoTimeSupplier.getAsLong() - refreshInterval.nanos() - 1;
         cached = initialValue;
     }
 
@@ -42,7 +51,7 @@ public abstract class SingleObjectCache<T> {
                     if (needsRefresh()) { // check again!
                         cached = refresh();
                         assert cached != null;
-                        lastRefreshTimestamp = System.currentTimeMillis();
+                        lastRefreshTimestamp = nanoTimeSupplier.getAsLong();
                     }
                 } finally {
                     refreshLock.unlock();
@@ -67,10 +76,10 @@ public abstract class SingleObjectCache<T> {
      * Returns <code>true</code> iff the cache needs to be refreshed.
      */
     protected boolean needsRefresh() {
-        if (refreshInterval.millis() == 0) {
+        if (refreshInterval.nanos() == 0) {
             return true;
         }
-        final long currentTime = System.currentTimeMillis();
-        return (currentTime - lastRefreshTimestamp) > refreshInterval.millis();
+        final long currentTimeNanos = nanoTimeSupplier.getAsLong();
+        return (currentTimeNanos - lastRefreshTimestamp) > refreshInterval.nanos();
     }
 }

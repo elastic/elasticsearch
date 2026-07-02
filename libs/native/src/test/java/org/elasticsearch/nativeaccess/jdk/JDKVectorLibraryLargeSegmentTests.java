@@ -69,7 +69,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
         }
     }
 
-    public void testInt8DotProductBulkWithOffsetsLargeSegment() throws Throwable {
+    public void testInt8DotProductBulkWithOffsetsLargeSegment() {
         final int dims = 128;
         final int numVecs = 2;
         long segmentSize = Integer.MAX_VALUE + (long) dims * numVecs;
@@ -88,8 +88,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
             var querySegment = vectorsSegment.asSlice(0, dims);
             var scoresSegment = arena.allocate(Float.BYTES);
 
-            functions.getHandle(Function.DOT_PRODUCT, DataType.INT8, Operation.BULK_OFFSETS)
-                .invokeExact(vectorsSegment, querySegment, dims, dims, offsetsSegment, 1, scoresSegment);
+            functions.dotProductI8BulkWithOffsets(vectorsSegment, querySegment, dims, dims, offsetsSegment, 1, scoresSegment);
 
             float actual = scoresSegment.get(JAVA_FLOAT_UNALIGNED, 0);
             float expected = ScalarOperations.dotProduct(vectors[0], vectors[1]);
@@ -97,7 +96,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
         }
     }
 
-    public void testInt8SquareDistanceBulkWithOffsetsLargeSegment() throws Throwable {
+    public void testInt8SquareDistanceBulkWithOffsetsLargeSegment() {
         final int dims = 128;
         final int numVecs = 2;
         long segmentSize = Integer.MAX_VALUE + (long) dims * numVecs;
@@ -116,8 +115,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
             var querySegment = vectorsSegment.asSlice(0, dims);
             var scoresSegment = arena.allocate(Float.BYTES);
 
-            functions.getHandle(Function.SQUARE_DISTANCE, DataType.INT8, Operation.BULK_OFFSETS)
-                .invokeExact(vectorsSegment, querySegment, dims, dims, offsetsSegment, 1, scoresSegment);
+            functions.squareDistanceI8BulkWithOffsets(vectorsSegment, querySegment, dims, dims, offsetsSegment, 1, scoresSegment);
 
             float actual = scoresSegment.get(JAVA_FLOAT_UNALIGNED, 0);
             float expected = ScalarOperations.squareDistance(vectors[0], vectors[1]);
@@ -125,7 +123,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
         }
     }
 
-    public void testInt8CosineBulkWithOffsetsLargeSegment() throws Throwable {
+    public void testInt8CosineBulkWithOffsetsLargeSegment() {
         final int dims = 128;
         final int numVecs = 2;
         long segmentSize = Integer.MAX_VALUE + (long) dims * numVecs;
@@ -144,8 +142,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
             var querySegment = vectorsSegment.asSlice(0, dims);
             var scoresSegment = arena.allocate(Float.BYTES);
 
-            functions.getHandle(Function.COSINE, DataType.INT8, Operation.BULK_OFFSETS)
-                .invokeExact(vectorsSegment, querySegment, dims, dims, offsetsSegment, 1, scoresSegment);
+            functions.cosineI8BulkWithOffsets(vectorsSegment, querySegment, dims, dims, offsetsSegment, 1, scoresSegment);
 
             float actual = scoresSegment.get(JAVA_FLOAT_UNALIGNED, 0);
             float expected = ScalarOperations.cosine(vectors[0], vectors[1]);

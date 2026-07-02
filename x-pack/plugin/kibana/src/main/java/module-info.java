@@ -6,7 +6,7 @@
  */
 
 import org.elasticsearch.xpack.core.security.SecurityExtension;
-import org.elasticsearch.xpack.kibana.KibanaPlugin;
+import org.elasticsearch.xpack.kibana.KibanaSecurityPlugin;
 
 module org.elasticsearch.xpack.kibana {
     requires org.elasticsearch.base;
@@ -16,5 +16,5 @@ module org.elasticsearch.xpack.kibana {
 
     exports org.elasticsearch.xpack.kibana;
 
-    provides SecurityExtension with KibanaPlugin;
+    provides SecurityExtension with KibanaSecurityPlugin;
 }

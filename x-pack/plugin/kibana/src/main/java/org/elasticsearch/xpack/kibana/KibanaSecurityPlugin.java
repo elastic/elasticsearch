@@ -21,7 +21,7 @@ import java.util.List;
  * resources (such as alerts) directly in Elasticsearch while respecting
  * Kibana's space-based access control.
  */
-public class KibanaPlugin extends Plugin implements SecurityExtension {
+public class KibanaSecurityPlugin extends Plugin implements SecurityExtension {
 
     private static final List<ImplicitPrivilegesProvider> PROVIDERS = List.of(new KibanaAlertsImplicitPrivilegesProvider());
 

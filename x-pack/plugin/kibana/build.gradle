@@ -12,7 +12,7 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 esplugin {
   name = 'x-pack-kibana'
   description = 'Implicit security privileges for Kibana as-data features'
-  classname = 'org.elasticsearch.xpack.kibana.KibanaPlugin'
+  classname = 'org.elasticsearch.xpack.kibana.KibanaSecurityPlugin'
   extendedPlugins = ['x-pack-security']
 }
 

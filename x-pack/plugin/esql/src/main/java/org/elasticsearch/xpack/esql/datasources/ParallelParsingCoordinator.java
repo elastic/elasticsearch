@@ -744,7 +744,11 @@ public final class ParallelParsingCoordinator {
             // (possibly macro-split) storage object, so add its base file offset. The reader uses it to
             // attribute each record to its canonical stripe — a pure stats overlay; this seekable path
             // gets stripe-addressed stats for free, with no change to how segments are computed or read.
-            long baseOffset = (storageObject instanceof RangeStorageObject r ? r.offset() : 0L) + offset;
+            // This ONE value feeds both splitStartByte and the stats attribution base — they are the same
+            // quantity, so derive it once. (Deriving the stats base separately from RangeStorageObject.offset()
+            // is equal today but would silently make CSV and NDJSON attribute the same records to different
+            // grids if a future caller's baseFileOffset ever diverged from the range offset.)
+            long segmentFileOffset = baseFileOffset + offset;
             // statsFileFinal: the trailing segment reaches the file's true end only when (a) it is this storage
             // object's last segment AND (b) this storage object is the file's final split (splitIsFileFinal).
             // A mid-file macro-split's trailing segment ends at the range boundary, so a later macro-split
@@ -777,9 +781,9 @@ public final class ParallelParsingCoordinator {
                 .lastSplit(lastSplit)
                 .recordAligned(true)
                 .readSchema(readSchema)
-                .splitStartByte(baseFileOffset + offset)
+                .splitStartByte(segmentFileOffset)
                 .maxRecordBytes(maxRecordBytes)
-                .stats(baseOffset, statsStripeSize, statsFileFinal)
+                .stats(segmentFileOffset, statsStripeSize, statsFileFinal)
                 .statsColumnScope(statsColumnScope)
                 .build();
 

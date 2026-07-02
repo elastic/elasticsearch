@@ -560,6 +560,51 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
     }
 
     /** Drives the fused bracket path with {@code _rowPosition} projected (byte tracking on) and a provided schema. */
+    public void testBracketPathWithoutRowPositionHarvestsStripes() throws Exception {
+        // S1 (elastic/elasticsearch#150920): the bracket-aware path (multi_value_syntax: brackets) with scope
+        // PROJECTED and NO _rowPosition projected used to harvest NOTHING on a chunked read — a silent,
+        // permanent warm miss for a whole configuration. It now tracks per-row offsets off the advanced
+        // recordReader and emits stripe fragments, matching NDJSON and CSV's bulk path. Byte exactness is
+        // guarded by the emit-time inferred-vs-actual tripwire, so a skew safe-misses rather than serving wrong.
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 12; i++) {
+            sb.append(i).append(",[a,b]\n");
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        List<Attribute> schema = List.of(
+            intCol("id"),
+            new ReferenceAttribute(Source.EMPTY, null, "tags", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(List.of("id", "tags")) // NO _rowPosition -> the S1 case
+            .batchSize(3)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .readSchema(schema)
+            .splitStartByte(0)
+            .stats(0, 8, true)
+            .statsColumnScope(StripeColumnScope.PROJECTED)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false, CsvFormatReader.CONFIG_MULTI_VALUE_SYNTAX, "brackets")
+            ).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        assertNotNull("bracket path without _rowPosition must now harvest stripe fragments", raw);
+        assertFalse("expected non-empty stripe fragments", raw.isEmpty());
+        long totalRows = raw.stream().mapToLong(m -> ((Number) m.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()).sum();
+        assertEquals("harvested per-stripe rows must total the file", 12L, totalRows);
+    }
+
     private List<Map<String, Object>> captureFusedBracket(
         byte[] bytes,
         long baseOffset,

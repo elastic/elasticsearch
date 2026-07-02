@@ -2458,20 +2458,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // the opt-in cost of the broad mode. Narrower scopes keep the fused fast path.
             boolean useFusedBracketPath = bracketAware && statsColumnScope != StripeColumnScope.ALL;
             // Capture per-row offsets when _rowPosition is projected (record-reader path), when the bulk
-            // path is tracking byte offsets for stripe capture, or when ALL scope needs each row's stripe
-            // ordinal to attribute its all-column harvest; otherwise it is dead work.
-            // The ALL-scope disjunct is also gated on stripeCaptureDisabled == false: on the plain Jackson
-            // bulk path (no byte tracker, no record-reader) recordReader is never advanced, so the only
-            // offset we could compute (splitStartByte + recordReader.bytesRead() - lastRecordBytes) is
-            // frozen and would collapse every row onto one stripe. That path already sets
-            // stripeCaptureDisabled = true during schema setup; mirroring the flag here keeps the offset
-            // capture (and the downstream harvest) from doing fabricated work once capture is off.
+            // path is tracking byte offsets for stripe capture, or — for ANY scope, not just ALL — whenever
+            // stripe capture is active and a record-advancing path can supply real offsets; otherwise it is
+            // dead work. Without this last disjunct the bracket-aware path (multi_value_syntax: brackets) with
+            // scope PROJECTED/COUNT and no _rowPosition would harvest NOTHING on every chunked read — a silent
+            // permanent warm miss for a whole configuration, diverging from NDJSON and CSV's own bulk path.
+            // The disjunct is gated on stripeCaptureDisabled == false: on the plain Jackson bulk path (no byte
+            // tracker, no record-reader) recordReader is never advanced, so the only offset we could compute
+            // (splitStartByte + recordReader.bytesRead() - lastRecordBytes) is frozen and would collapse every
+            // row onto one stripe. That path sets stripeCaptureDisabled = true during schema setup; mirroring
+            // the flag here keeps the offset capture (and the downstream harvest) from doing fabricated work
+            // once capture is off. Byte exactness on the record-reader/bracket path is still enforced at emit
+            // by the inferred-vs-actual tripwire, so a skewed offset safe-misses rather than serving wrong.
             final boolean trackOffsets = rowPositionSlot >= 0
                 || bulkByteTracker != null
-                || (statsColumnScope == StripeColumnScope.ALL
-                    && statsStripeSize > 0
-                    && cacheableObject != null
-                    && stripeCaptureDisabled == false);
+                || (statsStripeSize > 0 && cacheableObject != null && stripeCaptureDisabled == false);
             while (true) {
                 if (useFusedBracketPath && prefetchedRows == null && columnCount > 0) {
                     List<String> lines = new ArrayList<>();

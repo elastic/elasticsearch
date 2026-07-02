@@ -225,8 +225,13 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
         // Per-stripe stats capture is for the chunk-parallel paths (recordAligned); a whole-file read
         // (parallelism=1) keeps the simpler authoritative WholeFile contribution. NONE scope disables
-        // stripe harvest entirely (the warm aggregate then always re-scans).
-        this.statsStripeSize = (chunkMode && this.statsColumnScope != StripeColumnScope.NONE) ? statsStripeSize : -1L;
+        // stripe harvest entirely (the warm aggregate then always re-scans). A rowLimit slice truncates a
+        // page after the decoder recorded its full record count, which would desync the offset array from the
+        // sliced page and trip forEachRun's recordCount==positionCount assert on a legitimate truncation — so
+        // disable stripe tracking under a rowLimit (safe-miss, never assert on a data-shaped condition).
+        this.statsStripeSize = (chunkMode && this.statsColumnScope != StripeColumnScope.NONE && rowLimit == FormatReader.NO_LIMIT)
+            ? statsStripeSize
+            : -1L;
         this.statsFileFinal = statsFileFinal;
         this.stripeHarvester = this.statsStripeSize > 0 ? new StripeStatsHarvester(this.statsStripeSize, statsFileFinal) : null;
         InputStream inputStream = object.newStream();

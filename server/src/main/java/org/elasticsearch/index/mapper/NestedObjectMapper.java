@@ -494,7 +494,7 @@ public class NestedObjectMapper extends ObjectMapper {
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
             // columnar_stored materializes the blob at index time from the in-memory document tree, which is not a
-            // searchable segment. Detect that reader and reconstruct children by parent-pointer match instead of a
+            // searchable segment. Detect that reader and reconstruct children from the document tree instead of a
             // child scorer + parent bitset. (At read time the root takes the pre-computed-blob shortcut, so this loader
             // is only ever reached during the index-time write here.)
             if (leafReader instanceof ColumnarSourceWriter.ReusableColumnarStoredLeafReader parentReader) {
@@ -510,13 +510,16 @@ public class NestedObjectMapper extends ObjectMapper {
                     columnarChildren.clear();
                     LuceneDocument parent = parentReader.currentDoc();
                     for (LuceneDocument doc : parentReader.allDocs()) {
-                        // A child of this nested field under this parent: same nested path, directly parented by it.
-                        if (doc.getParent() == parent && NestedObjectMapper.this.fullPath().equals(doc.getPath())) {
+                        // Every document of this nested field within the parent being reconstructed. Under
+                        // subobjects:false an object sub-field/array inside the nested field is materialized as its own
+                        // documents, parented to a nested child rather than the parent directly, so membership is by
+                        // nested path plus subtree descent - not a direct parent-pointer match, which would miss those
+                        // deeper documents. allDocs is in shard-index order (each child before its parent), so this
+                        // preserves array order across all of them.
+                        if (NestedObjectMapper.this.fullPath().equals(doc.getPath()) && descendsFrom(doc, parent)) {
                             columnarChildren.add(doc);
                         }
                     }
-                    // Share the document tree so deeper nested levels can resolve their own children.
-                    columnarChildReader.setAllDocs(parentReader.allDocs());
                     return columnarChildren.isEmpty() == false;
                 };
             }
@@ -589,6 +592,20 @@ public class NestedObjectMapper extends ObjectMapper {
             columnarChildReader.repopulate(child);
             columnarChildStoredLoader.advanceTo(ColumnarSourceWriter.DOC_ID);
             columnarChildLeaf.write(columnarChildStoredLoader, ColumnarSourceWriter.DOC_ID, b);
+        }
+
+        /**
+         * Whether {@code doc} is a descendant of {@code ancestor}, following parent pointers. Used to gather every
+         * document belonging to a nested field's subtree, including the deeper documents that {@code subobjects:false}
+         * creates for object sub-fields and arrays inside the nested field.
+         */
+        private static boolean descendsFrom(LuceneDocument doc, LuceneDocument ancestor) {
+            for (LuceneDocument current = doc.getParent(); current != null; current = current.getParent()) {
+                if (current == ancestor) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override

@@ -50,7 +50,6 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomFloat;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.rarely;
 import static org.hamcrest.Matchers.equalTo;
 
 /** Tests for {@link DiversifyingChildrenIVFKnnFloatSlicedVectorQuery}. */
@@ -239,7 +238,10 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
     @Override
     public void testSkewedIndex() throws IOException {
         try (Directory d = newDirectory()) {
-            try (IndexWriter w = new IndexWriter(d, slicedIndexWriterConfig())) {
+            IndexWriterConfig iwc = new IndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format))
+                .setIndexSort(new Sort(new SortField(RoutingFieldMapper.NAME, SortField.Type.STRING)))
+                .setParentField(Engine.ROOT_DOC_FIELD_NAME);
+            try (IndexWriter w = new IndexWriter(d, iwc)) {
                 int r = 0;
                 for (int i = 0; i < 5; i++) {
                     for (int j = 0; j < 5; j++) {

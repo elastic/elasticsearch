@@ -39,3 +39,76 @@ copy_to from object with dynamic strict to dynamic field:
   - match:
       hits.hits.0.fields:
         two.k.keyword: [ "hey" ]
+
+---
+copy_to from dynamically mapped field into a parent nested field with dynamic strict root:
+  - requires:
+      cluster_features: ["mapper.copy_to.dynamic_handling"]
+      reason: requires a fix
+
+  # Reproduces https://github.com/elastic/elasticsearch/issues/151416 : a value copied through
+  # copy_to from a dynamically mapped field (created by a dynamic template) into a statically
+  # mapped field of a parent nested object must remain searchable via a nested query.
+  - do:
+      indices.create:
+        index: test_nested_copy_to
+        body:
+          mappings:
+            dynamic: strict
+            dynamic_templates:
+              - scene_descr:
+                  match: medium_mining4scene_descr
+                  mapping:
+                    type: object
+                    properties:
+                      text:
+                        type: text
+                        copy_to:
+                          - du.b_scenedescr
+            properties:
+              du:
+                type: nested
+                include_in_root: true
+                dynamic: strict
+                properties:
+                  b_scenedescr:
+                    type: text
+                  medium:
+                    type: nested
+                    include_in_parent: true
+                    dynamic: true
+                    properties:
+                      medium_reference:
+                        type: nested
+                        include_in_parent: true
+                        dynamic: true
+                        properties:
+                          type:
+                            type: text
+
+  - do:
+      index:
+        index: test_nested_copy_to
+        id: 1
+        refresh: true
+        body:
+          du:
+            - medium:
+                - medium_reference:
+                    - medium_reference4mining:
+                        type: "#MINING"
+                        medium_mining4scene_descr:
+                          text: "Bator im Tagesschau-Studio mit Texteinblendung"
+
+  - do:
+      search:
+        index: test_nested_copy_to
+        body:
+          query:
+            nested:
+              path: du
+              query:
+                match:
+                  du.b_scenedescr: "Bator"
+
+  - match: { hits.total.value: 1 }

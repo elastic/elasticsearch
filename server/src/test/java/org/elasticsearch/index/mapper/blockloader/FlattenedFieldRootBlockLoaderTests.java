@@ -120,9 +120,13 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         SORTED_UNIQUE;
 
         static ValuesMode from(Map<String, Object> fieldMapping, Params params) {
-            if ("exact".equals(fieldMapping.get("preserve_leaf_arrays"))) {
+            var configuredValue = fieldMapping.get("preserve_leaf_arrays");
+            if ("exact".equals(configuredValue)) {
                 // preserve_leaf_arrays: exact preserves duplicates, null slots, and original order
                 // in both the doc values path (via offset stream) and the source path.
+                return AS_IS;
+            }
+            if (configuredValue == null && params.indexMode().isStrictColumnar()) {
                 return AS_IS;
             }
             return SORTED_UNIQUE;

@@ -33,16 +33,10 @@ To let a node persist the key to disk, it needs a password configured in the {{e
 
 **On {{ecloud}}, {{ece}}, and {{eck}}**, the control plane supplies this password automatically.
 
-**On self-managed** deployments, the password is normally generated for you: when [security auto-configuration](docs-content://deploy-manage/deploy/self-managed/installing-elasticsearch.md) runs on a node's first start, alongside setting up TLS, it also generates a random password, stores it in the node's keystore as `cluster.state.encryption.password.autoconfigured`, and sets it as the active password ID. You only need to configure a password yourself using [`elasticsearch-keystore`](/reference/elasticsearch/command-line-tools/elasticsearch-keystore.md) if auto-configuration didn't run, for example because it was skipped or the node joined a cluster through a different provisioning path.
-
-### The `required` escape hatch [project-encryption-key-required]
+**On self-managed** deployments, this password is normally generated for you automatically on a node's first start, alongside TLS setup, and stored in the keystore as `cluster.state.encryption.password.autoconfigured`. Configure one yourself with [`elasticsearch-keystore`](/reference/elasticsearch/command-line-tools/elasticsearch-keystore.md) only if that didn't happen.
 
 `cluster.state.encryption.required`
-:   Whether a password is required before {{es}} will store secrets using the project encryption key. Defaults to `true`.
-
-If no password is configured and `cluster.state.encryption.required` is left at its default (`true`), requests that would store a secret are rejected until a password is available.
-
-Setting `cluster.state.encryption.required` to `false` is **not recommended**: it tells {{es}} to fall back to storing secrets in plain text when no password is configured, and logs a warning each time it does. Only use it for local testing or if you understand and accept that consequence.
+:   Whether a password is required before {{es}} will store secrets using the project encryption key. Defaults to `true`. Setting this to `false` is **not recommended**: {{es}} falls back to storing secrets in plain text instead, and logs a warning.
 
 ## Automatic key rotation [project-encryption-key-rotation]
 
@@ -53,10 +47,6 @@ Setting `cluster.state.encryption.required` to `false` is **not recommended**: i
 
 `xpack.encryption.key_rotation.check_interval`
 :   How often {{es}} checks whether rotation is due. Defaults to `1h`, must be at least `1s`, and can't be greater than `key_rotation.interval`.
-
-Rotation happens in two phases: {{es}} first installs a new key, which is used for all new encryption operations while the previous key remains available for decrypting existing data. {{es}} then re-encrypts existing secrets with the new key in the background. The previous key is retired shortly after all data has been re-encrypted.
-
-There's currently no API to trigger rotation manually.
 
 ## Check encryption health [project-encryption-key-health]
 

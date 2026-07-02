@@ -103,6 +103,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -449,6 +450,11 @@ public class EsqlSession {
                     // Capture the analyzed plan for failure-path logging: schema-resolved,
                     // PROMQL→TS conversion done, but surrogate rewrites haven't fired yet.
                     planSnapshot = planSnapshot.withAnalyzed(plan);
+                    // Flag external-source usage on the shared telemetry so the coordinator emits
+                    // external-source-scoped operational metrics only for queries that scanned one.
+                    if (plan.anyMatch(ExternalRelation.class::isInstance)) {
+                        planTelemetry.externalSource(true);
+                    }
                     TransportVersion minimumVersion = analyzedPlan.minimumVersion();
 
                     var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(

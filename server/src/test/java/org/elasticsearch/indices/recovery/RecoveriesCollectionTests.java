@@ -6,7 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.recovery;
+package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
@@ -21,11 +21,6 @@ import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.recovery.RecoveriesCollection;
-import org.elasticsearch.indices.recovery.RecoveryFailedException;
-import org.elasticsearch.indices.recovery.RecoveryListener;
-import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.test.MockLog;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -93,9 +88,11 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
         }
     }
 
+    /// Regression test. There was previously a race between {@link RecoveriesCollection#cancelRecoveriesForShard} and {@link
+    /// RecoveriesCollection#markRecoveryAsDone} that this test reproduce.
     public void testRaceMarkRecoveryAsDoneWithCancelRecoveriesForShard() throws Exception {
         Function<ShardId, String> firstSupplier = (id) -> id + " marking recovery from";
-        Function<ShardId, String> secondSupplier = (id) -> id + " canceled recovery from";
+        Function<ShardId, String> secondSupplier = (id) -> id + " cancelled recovery from";
         ContenderFactory firstContenderFactory = (collection, shardId, recoveryId) -> () -> collection.markRecoveryAsDone(recoveryId);
         ContenderFactory secondContenderFactory = (collection, shardId, recoveryId) -> () -> collection.cancelRecoveriesForShard(
             shardId,
@@ -105,9 +102,11 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
         raceAndAssertExactlyOneLogMessage(firstSupplier, secondSupplier, firstContenderFactory, secondContenderFactory);
     }
 
+    /// Regression test. There was previously a race between {@link RecoveriesCollection#cancelRecoveriesForShard} and {@link
+    /// RecoveriesCollection#failRecovery} that this test reproduce.
     public void testRaceFailRecoveryWithCancelRecoveriesForShard() throws Exception {
         Function<ShardId, String> firstSupplier = (id) -> id + " failing recovery from";
-        Function<ShardId, String> secondSupplier = (id) -> id + " canceled recovery from";
+        Function<ShardId, String> secondSupplier = (id) -> id + " cancelled recovery from";
         ContenderFactory firstContenderFactory = (collection, shardId, recoveryId) -> () -> collection.failRecovery(
             recoveryId,
             new RecoveryFailedException(fakeRecoveryState(), "failed", new RuntimeException("cause")),
@@ -121,6 +120,8 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
         raceAndAssertExactlyOneLogMessage(firstSupplier, secondSupplier, firstContenderFactory, secondContenderFactory);
     }
 
+    /// Regression test. There was previously a race between {@link RecoveriesCollection#cancelRecoveriesForShard} and {@link
+    /// RecoveriesCollection#cancelRecovery} that this test reproduce.
     public void testRaceCancelRecoveryWithCancelRecoveriesForShard() throws Exception {
         Function<ShardId, String> firstSupplier = (id) -> "first reason";
         Function<ShardId, String> secondSupplier = (id) -> "second reason";

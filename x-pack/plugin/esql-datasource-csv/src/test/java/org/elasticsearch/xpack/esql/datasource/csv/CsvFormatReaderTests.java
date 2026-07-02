@@ -6606,7 +6606,9 @@ public class CsvFormatReaderTests extends ESTestCase {
         int maxRecordBytes = 32;
         String csv = "id:long,text:keyword\n1,ok\n100," + "x".repeat(maxRecordBytes) + "\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        // Pin the Jackson bulk path explicitly; the analogous direct-to-block behaviour (recoverable
+        // per-row cap) is covered by testDirectPathSkipsOversizedRecordUnderLenientPolicy.
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withDirectBlockEnabled(false);
 
         FormatReadContext context = FormatReadContext.builder()
             .batchSize(10)
@@ -6643,7 +6645,10 @@ public class CsvFormatReaderTests extends ESTestCase {
         int maxRecordBytes = 32;
         String csv = "id:long,text:keyword\n1,ok\n100," + "x".repeat(maxRecordBytes) + "\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        // Pin the Jackson bulk path: the direct-to-block paths intentionally treat the per-record
+        // cap as recoverable (matching the bracket-aware path), so default CSV would otherwise
+        // recover under a lenient policy instead of aborting. See read() for the rationale.
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withDirectBlockEnabled(false);
 
         FormatReadContext context = FormatReadContext.builder()
             .batchSize(10)
@@ -6670,18 +6675,66 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Regression for the inferred-schema bulk-path engagement (issue #894 review feedback): when the schema is
-     * inferred at read time, the per-record sampling iterator must be torn down after sampling so the data path
-     * picks up the Jackson bulk iterator. Without this, post-sample reads stay on the slow per-record
-     * {@code CsvLogicalRecordReader} loop and the headline perf fix never engages for ad-hoc CSVs.
-     *
-     * <p>Behavioral assertion: the cap-stream wrap (active on non-bracket-aware reads) trips the cap as a
-     * stream-fatal abort once an oversized data row is reached past the sampling window — which is only
-     * possible if the bulk path is engaged after sampling. If the iterator stayed on
-     * {@code CsvRecordIterator}, the cap would surface per-row and the read would either skip (lenient) or
-     * fail with a different exception shape — neither matching the strict-mode contract asserted below.
+     * Regression for the bulk-mode over-cap drain: on the direct-to-block path the per-record cap is
+     * recoverable (unlike the Jackson bulk path's stream-fatal cap), so under a lenient policy an
+     * oversized record is skipped and the read continues. The reader uses read-ahead bulk buffering
+     * here, so the over-cap drain must consume the rest of the physical line through the same buffer
+     * (not bypass it via the underlying reader): otherwise the next record resumes mid-line on stale
+     * buffered chars and every following row is corrupted. The trailing rows after the oversized
+     * record pin that the reader resyncs cleanly.
      */
-    public void testInferredSchemaSwitchesToJacksonBulkPathAfterSampling() {
+    public void testDirectPathSkipsOversizedRecordUnderLenientPolicy() throws IOException {
+        int maxRecordBytes = 32;
+        // The whole fixture fits in one bulk-buffer fill, so during the drain the underlying reader is
+        // already exhausted; only a drain that walks the bulk buffer reaches the oversized line's
+        // newline. Header (20 bytes) and every kept row are under the cap; the middle row is over it.
+        String csv = "id:long,text:keyword\n" + "1,alpha\n" + "100," + "x".repeat(maxRecordBytes + 8) + "\n" + "2,beta\n" + "3,gamma\n";
+        StorageObject object = createStorageObject(csv);
+        // Direct path is on by default (not forced off), so this exercises the bulk reader.
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(ErrorPolicy.LENIENT)
+            .maxRecordBytes(maxRecordBytes)
+            .build();
+
+        List<Long> ids = new ArrayList<>();
+        List<String> texts = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = reader.read(object, context)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                try {
+                    LongBlock idBlock = (LongBlock) page.getBlock(0);
+                    BytesRefBlock textBlock = (BytesRefBlock) page.getBlock(1);
+                    BytesRef scratch = new BytesRef();
+                    for (int p = 0; p < page.getPositionCount(); p++) {
+                        ids.add(idBlock.getLong(idBlock.getFirstValueIndex(p)));
+                        texts.add(textBlock.getBytesRef(textBlock.getFirstValueIndex(p), scratch).utf8ToString());
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        // The oversized row is dropped; the rows before and after it are read intact and in order.
+        assertEquals(List.of(1L, 2L, 3L), ids);
+        assertEquals(List.of("alpha", "beta", "gamma"), texts);
+    }
+
+    /**
+     * Regression for the inferred-schema fast-path engagement (issue #894 review feedback): when the schema is
+     * inferred at read time, the per-record sampling iterator must be torn down after sampling so the data path
+     * picks up the direct-to-block iterator (the default fast path). Without this, post-sample reads stay on the
+     * slow per-record {@code CsvLogicalRecordReader} loop and the headline perf improvement never engages for
+     * ad-hoc CSVs.
+     *
+     * <p>Behavioral assertion: an oversized data row past the sampling window causes a
+     * {@link CsvRecordTooLargeException} to surface in the cause chain under STRICT policy, which is only
+     * possible if the direct-to-block path (or Jackson bulk path) is engaged after sampling, because both
+     * enforce the per-record byte cap via {@link CsvLogicalRecordReader#addBytes}.
+     */
+    public void testInferredSchemaSwitchesToDirectPathAfterSampling() {
         int maxRecordBytes = 64;
         StringBuilder csv = new StringBuilder("id,name\n");
         // A handful of small rows to feed schema inference, well below the cap.
@@ -6712,7 +6765,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             rootCause = rootCause.getCause();
         }
         assertTrue(
-            "inferred-schema reads must reach the cap-stream-protected bulk path after sampling, got: " + ex,
+            "inferred-schema reads must engage the fast path after sampling and enforce the per-record cap, got: " + ex,
             rootCause instanceof CsvRecordTooLargeException
         );
         assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));

@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.telemetry.InferenceStats;
@@ -117,7 +118,6 @@ import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
@@ -407,18 +407,20 @@ public class InferencePlugin extends Plugin
         var sageMakerSchemas = new SageMakerSchemas();
         var sageMakerConfigurations = new LazyInitializable<>(new SageMakerConfiguration(sageMakerSchemas));
 
+        var inferenceFeatureService = new InferenceFeatureService(services.clusterService(), services.featureService());
         var ccmRelatedComponents = createCCMDependentComponents(
             services,
             inferenceServiceSettings,
             serviceComponents.get(),
             elasticInferenceServiceFactory.get().createSender(),
             modelRegistry.get(),
-            ccmFeature.get()
+            ccmFeature.get(),
+            inferenceFeatureService
         );
         components.addAll(ccmRelatedComponents.components());
 
         inferenceServices.add(() -> List.of(context -> {
-            var eisService = new ElasticInferenceService(
+            var eisService = ElasticInferenceService.create(
                 elasticInferenceServiceFactory.get(),
                 serviceComponents.get(),
                 inferenceServiceSettings,
@@ -451,7 +453,8 @@ public class InferencePlugin extends Plugin
             services.threadPool(),
             services.clusterService(),
             settings,
-            inferenceStats
+            inferenceStats,
+            inferenceFeatureService
         );
 
         // Both oauth2TokenCache and projectResolver must be set before InferenceServiceRegistry is
@@ -520,7 +523,8 @@ public class InferencePlugin extends Plugin
         ServiceComponents serviceComponents,
         Sender sender,
         ModelRegistry modelRegistry,
-        CCMFeature ccmFeature
+        CCMFeature ccmFeature,
+        InferenceFeatureService inferenceFeatureService
     ) {
         var ccmEnablementService = new CCMEnablementService(services.clusterService(), services.featureService(), ccmFeature);
         var ccmPersistentStorageService = new CCMPersistentStorageService(services.client());
@@ -549,7 +553,6 @@ public class InferencePlugin extends Plugin
             ccmService
         );
 
-        var inferenceFeatureService = new InferenceFeatureService(services.clusterService(), services.featureService());
         var authTaskExecutor = AuthorizationTaskExecutor.create(
             services.clusterService(),
             services.featureService(),

@@ -10,20 +10,27 @@ package org.elasticsearch.xpack.inference.services.elastic;
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.TestPlainActionFuture;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.InferenceFeatureService;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
@@ -65,12 +72,14 @@ import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloat
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
+import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
@@ -91,6 +100,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
@@ -101,8 +111,11 @@ import static org.elasticsearch.inference.InferenceString.ofText;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
 import static org.elasticsearch.inference.InferenceStringTests.inferenceStringToMap;
+import static org.elasticsearch.inference.completion.Reasoning.ReasoningEffort;
+import static org.elasticsearch.inference.completion.Reasoning.ReasoningSummary;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.xpack.inference.InferenceFeatures.INFERENCE_ELASTIC_REASONING_TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getModelListenerForException;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
@@ -113,10 +126,12 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createNoopApplierFactory;
+import static org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService.REASONING_FIELD_UNSUPPORTED_MESSAGE;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -133,6 +148,12 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
     private static final String URL_VALUE = "http://eis-gateway.com";
     private static final String INFERENCE_ENTITY_ID = "id";
     private static final String MODEL_ID_VALUE = "some model id";
+    private static final String NODE_ID = "node-1";
+
+    private static final FeatureService FEATURE_SERVICE = new FeatureService(List.of(new InferenceFeatures()));
+
+    private static final ElasticInferenceServiceChatCompletionTaskSettings NON_EMPTY_TASK_SETTINGS =
+        new ElasticInferenceServiceChatCompletionTaskSettings(new Reasoning(ReasoningEffort.MEDIUM, ReasoningSummary.DETAILED, null, null));
 
     public void testParseRequestConfig_CreatesASparseEmbeddingsModel() throws IOException {
         try (var service = createServiceWithMockSender()) {
@@ -1880,16 +1901,87 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         }
     }
 
+    public void testCheckClusterCompatibility_InvalidModelType_ReturnsUnsupported() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            var invalidModel = getInvalidModel(INFERENCE_ENTITY_ID, ElasticInferenceService.NAME);
+
+            var result = service.checkClusterCompatibility(clusterState(randomBoolean()), invalidModel);
+
+            assertFalse(result.isSupported());
+            assertThat(result.errorMessage(), containsString("Invalid model type"));
+            assertThat(result.errorMessage(), containsString("for service [" + ElasticInferenceService.NAME + "]"));
+        }
+    }
+
+    public void testCheckClusterCompatibility_ReasoningTaskSettings_FeatureAbsent_ReturnsUnsupported() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(
+                URL_VALUE,
+                INFERENCE_ENTITY_ID,
+                MODEL_ID_VALUE,
+                TaskType.CHAT_COMPLETION,
+                NON_EMPTY_TASK_SETTINGS
+            );
+
+            var result = service.checkClusterCompatibility(clusterState(false), model);
+
+            assertFalse(result.isSupported());
+            assertThat(result.errorMessage(), is(REASONING_FIELD_UNSUPPORTED_MESSAGE));
+        }
+    }
+
+    public void testCheckClusterCompatibility_ReasoningTaskSettings_FeaturePresent_ReturnsSupported() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(
+                URL_VALUE,
+                INFERENCE_ENTITY_ID,
+                MODEL_ID_VALUE,
+                TaskType.CHAT_COMPLETION,
+                NON_EMPTY_TASK_SETTINGS
+            );
+
+            var result = service.checkClusterCompatibility(clusterState(true), model);
+
+            assertTrue(result.isSupported());
+            assertNull(result.errorMessage());
+        }
+    }
+
+    public void testCheckClusterCompatibility_ValidModelNoReasoning_ReturnsSupported() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(
+                URL_VALUE,
+                INFERENCE_ENTITY_ID,
+                MODEL_ID_VALUE,
+                TaskType.CHAT_COMPLETION,
+                ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
+            );
+
+            var result = service.checkClusterCompatibility(clusterState(false), model);
+
+            assertTrue(result.isSupported());
+            assertNull(result.errorMessage());
+        }
+    }
+
+    private static ClusterState clusterState(boolean hasReasoningFeature) {
+        var features = hasReasoningFeature ? Set.of(INFERENCE_ELASTIC_REASONING_TASK_SETTINGS.id()) : Set.<String>of();
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(NODE_ID)).build())
+            .nodeFeatures(Map.of(NODE_ID, features))
+            .build();
+    }
+
     private ElasticInferenceService createServiceWithMockSender() {
         var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
-        var service = new ElasticInferenceService(
+        var service = ElasticInferenceService.create(
             factory,
             createWithEmptySettings(threadPool),
             new ElasticInferenceServiceSettings(Settings.EMPTY),
-            mockClusterServiceEmpty(),
+            createFactoryContext(),
             createNoopApplierFactory()
         );
         service.init();
@@ -1901,15 +1993,27 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
     }
 
     private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory, String elasticInferenceServiceURL) {
-        var service = new ElasticInferenceService(
+        var service = ElasticInferenceService.create(
             senderFactory,
             createWithEmptySettings(threadPool),
             ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
-            mockClusterServiceEmpty(),
+            createFactoryContext(),
             createNoopApplierFactory()
         );
         service.init();
         return service;
+    }
+
+    private InferenceServiceExtension.InferenceServiceFactoryContext createFactoryContext() {
+        var clusterService = mockClusterServiceEmpty();
+        return new InferenceServiceExtension.InferenceServiceFactoryContext(
+            mock(),
+            threadPool,
+            clusterService,
+            Settings.EMPTY,
+            mock(),
+            new InferenceFeatureService(clusterService, FEATURE_SERVICE)
+        );
     }
 
     public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {

@@ -177,6 +177,12 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                     return;
                 }
 
+                var compatibility = service.get().checkClusterCompatibility(state, mergedParsedModel);
+                if (compatibility.isSupported() == false) {
+                    listener.onFailure(new ElasticsearchStatusException(compatibility.errorMessage(), RestStatus.BAD_REQUEST));
+                    return;
+                }
+
                 existingParsedModelRef.set(existingParsedModel);
                 mergedParsedModelRef.set(mergedParsedModel);
 

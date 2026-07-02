@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.inference.services.elastic.completion;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
+import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -62,6 +63,30 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
     }
 
     public ElasticInferenceServiceCompletionModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> serviceSettings,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        ConfigurationParseContext context,
+        @Nullable EndpointMetadata endpointMetadata,
+        TaskSettings taskSettings
+    ) {
+        this(
+            new ModelConfigurations(
+                inferenceEntityId,
+                taskType,
+                ElasticInferenceService.NAME,
+                ElasticInferenceServiceCompletionServiceSettings.fromMap(serviceSettings, context),
+                taskSettings,
+                null,
+                endpointMetadata
+            ),
+            ModelSecrets.emptySecrets(),
+            elasticInferenceServiceComponents
+        );
+    }
+
+    public ElasticInferenceServiceCompletionModel(
         ElasticInferenceServiceCompletionModel model,
         ElasticInferenceServiceCompletionServiceSettings serviceSettings
     ) {
@@ -91,7 +116,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
                 taskType,
                 ElasticInferenceService.NAME,
                 serviceSettings,
-                EmptyTaskSettings.INSTANCE,
+                ImmutableEmptyTaskSettings.INSTANCE,
                 null,
                 endpointMetadata
             ),

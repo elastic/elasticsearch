@@ -8,18 +8,30 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.ingest.common.IngestCommonPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -54,6 +66,33 @@ import static org.hamcrest.Matchers.not;
 public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
 
     private static final String EVENTS = "events";
+
+    /**
+     * Swaps in {@link AbstractEnrichBasedCrossClusterTestCase.LocalStateEnrich} for the plain
+     * {@link EsqlAsyncActionIT.LocalStateEsqlAsync} composite plugin and adds the plugins it needs
+     * ({@link IngestCommonPlugin}, {@link ReindexPlugin}), so ENRICH can be exercised from a WHERE IN
+     * subquery body. Both classes are otherwise-plain {@code LocalStateCompositeXPackPlugin} subclasses,
+     * so this keeps a single composite XPack plugin on the node rather than loading two side by side.
+     */
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
+        plugins.remove(EsqlAsyncActionIT.LocalStateEsqlAsync.class);
+        plugins.add(AbstractEnrichBasedCrossClusterTestCase.LocalStateEnrich.class);
+        plugins.add(IngestCommonPlugin.class);
+        plugins.add(ReindexPlugin.class);
+        return plugins;
+    }
+
+    /**
+     * ENRICH policy actions (e.g. {@code PutEnrichPolicyAction}) require a security context user, which
+     * is only populated when security is explicitly disabled - see
+     * {@code AbstractEnrichBasedCrossClusterTestCase#nodeSettings}.
+     */
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(super.nodeSettings()).put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
+    }
 
     @Before
     public void checkCapabilityAndSetup() throws IOException {
@@ -590,7 +629,10 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
                 | SORT v
                 | WHERE v < 5
                 """, false)) {
-                assertThat(getValuesList(resp), equalTo(List.of(List.of(0L), List.of(0L), List.of(1L), List.of(1L), List.of(4L), List.of(4L))));
+                assertThat(
+                    getValuesList(resp),
+                    equalTo(List.of(List.of(0L), List.of(0L), List.of(1L), List.of(1L), List.of(4L), List.of(4L)))
+                );
             }
         } finally {
             clearSkipUnavailable(3);
@@ -610,7 +652,10 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
                 | SORT v
                 | WHERE v < 5
                 """, false)) {
-                assertThat(getValuesList(resp), equalTo(List.of(List.of(0L), List.of(0L), List.of(1L), List.of(1L), List.of(4L), List.of(4L))));
+                assertThat(
+                    getValuesList(resp),
+                    equalTo(List.of(List.of(0L), List.of(0L), List.of(1L), List.of(1L), List.of(4L), List.of(4L)))
+                );
             }
         } finally {
             clearSkipUnavailable(3);
@@ -693,7 +738,7 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
                 | KEEP v
                 | WHERE v <= 16
                 """, false)) {
-                assertThat(getValuesList(resp), equalTo(List.of(List.of(0L), List.of(1L), List.of(4L), List.of(9L),  List.of(16L))));
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(0L), List.of(1L), List.of(4L), List.of(9L), List.of(16L))));
             }
         } finally {
             clearSkipUnavailable(3);
@@ -739,7 +784,6 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-
     /**
      * A WHERE IN subquery whose body contains a LOOKUP JOIN referencing a remote lookup index,
      * with {@code skipUnavailable=true}. The subquery filters {@code remote-b:logs-2} to
@@ -764,6 +808,188 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
                 assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
             }
         } finally {
+            clearSkipUnavailable(3);
+        }
+    }
+
+    // ---- ENRICH inside WHERE IN subquery body ----
+
+    public void testEnrichWithAnyModePolicyPresentOnAllClustersSucceeds() {
+        setupEnrichPolicy(LOCAL_CLUSTER, "values_enrich", 10);
+        setupEnrichPolicy(REMOTE_CLUSTER_1, "values_enrich", 10);
+        setupEnrichPolicy(REMOTE_CLUSTER_2, "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM *:logs-*
+                | WHERE v IN (
+                    FROM logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L), List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(LOCAL_CLUSTER, "values_enrich");
+            deleteEnrichPolicy(REMOTE_CLUSTER_1, "values_enrich");
+            deleteEnrichPolicy(REMOTE_CLUSTER_2, "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    public void testEnrichWithAnyModePolicyMissingOnSomeClustersFails() {
+        setupEnrichPolicy(LOCAL_CLUSTER, "values_enrich", 10);
+        setupEnrichPolicy(REMOTE_CLUSTER_1, "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+                FROM *:logs-*
+                | WHERE v IN (
+                    FROM logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                """, false));
+            assertThat(ex.getMessage(), containsString("cannot find enrich policy [values_enrich] on clusters [remote-b]"));
+        } finally {
+            deleteEnrichPolicy(LOCAL_CLUSTER, "values_enrich");
+            deleteEnrichPolicy(REMOTE_CLUSTER_1, "values_enrich");
+            deleteEnrichPolicy(REMOTE_CLUSTER_2, "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    public void testEnrichWithCoordinatorModePolicyPresentOnRelevantClustersSucceeds() {
+        setupEnrichPolicy(LOCAL_CLUSTER, "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM logs-*
+                | WHERE v IN (
+                    FROM logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _coordinator:values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                | SORT v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(2L), List.of(3L), List.of(4L), List.of(5L), List.of(6L))));
+            }
+        } finally {
+            deleteEnrichPolicy(LOCAL_CLUSTER, "values_enrich");
+            deleteEnrichPolicy(REMOTE_CLUSTER_1, "values_enrich");
+            deleteEnrichPolicy(REMOTE_CLUSTER_2, "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    public void testEnrichWithCoordinatorModePolicyMissingOnRelevantClustersSucceeds() {
+        setupEnrichPolicy(LOCAL_CLUSTER, "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _coordinator:values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(LOCAL_CLUSTER, "values_enrich");
+            deleteEnrichPolicy(REMOTE_CLUSTER_1, "values_enrich");
+            deleteEnrichPolicy(REMOTE_CLUSTER_2, "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    public void testEnrichWithRemoteModePolicyPresentOnRelevantClustersSucceeds() {
+        setupEnrichPolicy(REMOTE_CLUSTER_1, "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM cluster-a:logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _remote:values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(LOCAL_CLUSTER, "values_enrich");
+            deleteEnrichPolicy(REMOTE_CLUSTER_1, "values_enrich");
+            deleteEnrichPolicy(REMOTE_CLUSTER_2, "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    // This test fails because when we use REMOTE mode on ENRICH, we look at all clusters used in the query to resolve where the ENRICH
+    // policy must exist. Even if the query does not end up executing in all clusters like in this case
+    public void testEnrichWithRemoteModePolicyMissingOnRelevantClustersFails() {
+        setupEnrichPolicy(REMOTE_CLUSTER_1, "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+                FROM logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _remote:values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                """, false));
+            assertThat(ex.getMessage(), containsString("cannot find enrich policy [values_enrich] on clusters [_local]"));
+        } finally {
+            deleteEnrichPolicy(LOCAL_CLUSTER, "values_enrich");
+            deleteEnrichPolicy(REMOTE_CLUSTER_1, "values_enrich");
+            deleteEnrichPolicy(REMOTE_CLUSTER_2, "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    public void testEnrichWithRemoteModePolicyOnRelevantClustersSucceeds() {
+        setupEnrichPolicy(LOCAL_CLUSTER, "values_enrich", 10);
+        setupEnrichPolicy(REMOTE_CLUSTER_1, "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _remote:values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(LOCAL_CLUSTER, "values_enrich");
+            deleteEnrichPolicy(REMOTE_CLUSTER_1, "values_enrich");
+            deleteEnrichPolicy(REMOTE_CLUSTER_2, "values_enrich");
             clearSkipUnavailable(3);
         }
     }
@@ -1121,6 +1347,41 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
             .setSource("@timestamp", "2024-01-01T01:00:00Z", "cluster", clusterValue, "max_bytes", 2000L)
             .get();
         client(clusterAlias).admin().indices().prepareRefresh("ts_metrics").get();
+    }
+
+    /**
+     * Creates a match enrich policy named {@code policyName} on {@code clusterAlias}, backed by an index
+     * with an {@code enrich_key} (long) match field and an {@code enrich_name} (keyword) enrich field.
+     * The backing index is deleted once the policy is executed, mirroring the lifecycle used by
+     * {@code AbstractEnrichBasedCrossClusterTestCase#initHostsPolicy}.
+     */
+    private void setupEnrichPolicy(String clusterAlias, String policyName, int numDocs) {
+        Client client = client(clusterAlias);
+        String sourceIndexName = policyName + "_source";
+        assertAcked(
+            client.admin().indices().prepareCreate(sourceIndexName).setMapping("enrich_key", "type=long", "enrich_name", "type=keyword")
+        );
+        for (int i = 0; i < numDocs; i++) {
+            client.prepareIndex(sourceIndexName).setSource("enrich_key", i, "enrich_name", "enrich_" + i).get();
+        }
+        client.admin().indices().prepareRefresh(sourceIndexName).get();
+        EnrichPolicy policy = new EnrichPolicy("match", null, List.of(sourceIndexName), "enrich_key", List.of("enrich_name"));
+        client.execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName, policy))
+            .actionGet();
+        client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName))
+            .actionGet();
+        assertAcked(client.admin().indices().prepareDelete(sourceIndexName));
+    }
+
+    private void deleteEnrichPolicy(String clusterAlias, String policyName) {
+        try {
+            client(clusterAlias).execute(
+                DeleteEnrichPolicyAction.INSTANCE,
+                new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName)
+            ).actionGet();
+        } catch (ResourceNotFoundException e) {
+            // the policy was never created on this cluster - nothing to clean up
+        }
     }
 
     private static QueryPragmas forceHashJoin() {

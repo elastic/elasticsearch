@@ -379,7 +379,11 @@ public class EsqlSessionTests extends ESTestCase {
             );
         }
         {
-            var plan = InSubqueryResolver.resolve(TEST_PARSER.parseQuery("FROM local-main | WHERE x IN (FROM (FROM remote-1:a), (FROM remote-2:a) | LOOKUP JOIN lookup ON key)"));
+            var plan = InSubqueryResolver.resolve(
+                TEST_PARSER.parseQuery(
+                    "FROM local-main | WHERE x IN (FROM (FROM remote-1:a), (FROM remote-2:a) | LOOKUP JOIN lookup ON key)"
+                )
+            );
             var resolution = createIndexResolution("remote-1:a", "remote-2:a");
             assertThat(
                 EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution),
@@ -418,9 +422,7 @@ public class EsqlSessionTests extends ESTestCase {
     public void testScope2() {
         {
             var plan = InSubqueryResolver.resolve(
-                TEST_PARSER.parseQuery(
-                    "FROM (FROM remote-1:a), (FROM remote-2:a) | LOOKUP JOIN lookup ON key)"
-                )
+                TEST_PARSER.parseQuery("FROM (FROM remote-1:a), (FROM remote-2:a) | LOOKUP JOIN lookup ON key)")
             );
             var resolution = createIndexResolution("remote-0:a", "remote-1:a", "remote-2:a");
             assertThat(

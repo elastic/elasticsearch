@@ -1508,8 +1508,7 @@ public class EsqlSession {
                 }
             }
             case Row row -> scope.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-            case Fork fork ->
-                scope.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            case Fork fork -> scope.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             case AbstractSubqueryJoin subqueryJoin -> collectLookupJoinLeftScope(subqueryJoin.left(), scope, indexResolution);
             default -> {
                 for (LogicalPlan child : plan.children()) {

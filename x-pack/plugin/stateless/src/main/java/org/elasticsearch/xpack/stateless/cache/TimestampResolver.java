@@ -36,7 +36,7 @@ public interface TimestampResolver<T> {
         BlobFileTimestampResolver ALL_UNKNOWN = blobFile -> SharedBlobCacheService.UNKNOWN_TIMESTAMP;
 
         /**
-         * Adapts a {@code Map<BlobFile, Long>} into a resolver. Missing entries resolve to {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP}.
+         * Adapts a {@code Map<BlobFile, Long>} into a resolver. Missing entries resolve to {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP}
          */
         static BlobFileTimestampResolver fromMap(@Nullable Map<BlobFile, Long> map) {
             if (map == null || map.isEmpty()) {

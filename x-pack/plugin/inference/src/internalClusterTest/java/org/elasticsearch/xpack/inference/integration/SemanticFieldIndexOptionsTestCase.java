@@ -274,7 +274,7 @@ public abstract class SemanticFieldIndexOptionsTestCase extends ESIntegTestCase 
         assertLicense(License.LicenseType.BASIC);
     }
 
-    public void testGetDefaultIndexOptionsWithElementTypeOverride() throws Exception {
+    public void testGetDefaultIndexOptionsAppliesBfloat16ElementType() throws Exception {
         final String inferenceId = randomIdentifier();
         final String inferenceFieldName = "inference_field";
 
@@ -309,7 +309,7 @@ public abstract class SemanticFieldIndexOptionsTestCase extends ESIntegTestCase 
         assertThat(actualFieldMappings, equalTo(expectedFieldMappingWithoutDefaults));
     }
 
-    public void testSerializeDefaultToBfloat16WithExplicitType() throws Exception {
+    public void testSerializeDefaultToBfloat16WithExplicitVectorIndexType() throws Exception {
         final String inferenceId = randomIdentifier();
         final String inferenceFieldName = "inference_field";
         createInferenceEndpoint(taskType(), inferenceId, FLOAT_SERVICE_SETTINGS);
@@ -345,7 +345,7 @@ public abstract class SemanticFieldIndexOptionsTestCase extends ESIntegTestCase 
         assertThat(actualFieldMappings, equalTo(expectedFieldMappingWithDefaults));
     }
 
-    public void testElementTypeExcludedFromDefaultIndexOptionsWhenNoOverride() throws Exception {
+    public void testElementTypeNotDefaultedToBfloat16WhenModelIsBfloat16() throws Exception {
         final String inferenceId = randomIdentifier();
         final String inferenceFieldName = "inference_field";
         createInferenceEndpoint(taskType(), inferenceId, BFLOAT16_SERVICE_SETTINGS);
@@ -355,6 +355,35 @@ public abstract class SemanticFieldIndexOptionsTestCase extends ESIntegTestCase 
         final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(inferenceFieldName, inferenceId, null);
 
         Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
+        assertThat(actualFieldMappings, equalTo(expectedFieldMapping));
+    }
+
+    public void testExplicitElementTypePreservedOverBfloat16Default() throws Exception {
+        final String inferenceId = randomIdentifier();
+        final String inferenceFieldName = "inference_field";
+        // FLOAT model settings would normally cause element_type to default to BFLOAT16
+        createInferenceEndpoint(taskType(), inferenceId, FLOAT_SERVICE_SETTINGS);
+
+        // Explicitly request FLOAT, opting out of the BFLOAT16 default
+        ExtendedDenseVectorIndexOptions explicitIndexOptions = new ExtendedDenseVectorIndexOptions(
+            null,
+            DenseVectorFieldMapper.ElementType.FLOAT
+        );
+        assertAcked(
+            safeGet(prepareCreate(INDEX_NAME).setMapping(generateMapping(inferenceFieldName, inferenceId, explicitIndexOptions)).execute())
+        );
+
+        final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(
+            inferenceFieldName,
+            inferenceId,
+            explicitIndexOptions
+        );
+
+        Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, false));
+        assertThat(actualFieldMappings, equalTo(expectedFieldMapping));
+
+        // The explicit FLOAT element type must survive include_defaults == true unchanged, not replaced by the BFLOAT16 default
+        actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
         assertThat(actualFieldMappings, equalTo(expectedFieldMapping));
     }
 }

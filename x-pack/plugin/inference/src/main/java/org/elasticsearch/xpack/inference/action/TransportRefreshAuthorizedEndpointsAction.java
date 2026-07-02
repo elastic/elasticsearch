@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.inference.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -24,12 +27,17 @@ import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.inference.action.GetRegionPolicyAction;
 import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
+import org.elasticsearch.xpack.core.inference.action.RegionPolicyResponse;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
+import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
@@ -99,9 +107,14 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
     }
 
     private void sendRequest(ActionListener<ActionResponse.Empty> listener) {
-        SubscribableListener.<ElasticInferenceServiceAuthorizationModel>newForked(
-            authModelListener -> authorizationHandler.getAuthorization(authModelListener, sender)
-        )
+        SubscribableListener.newForked(this::getRegionPolicy)
+            .<ElasticInferenceServiceAuthorizationModel>andThen(
+                (authModelListener, inferencePreferences) -> authorizationHandler.getAuthorization(
+                    authModelListener,
+                    sender,
+                    inferencePreferences
+                )
+            )
             .<ElasticInferenceServiceAuthorizationModel>andThen(
                 (nextListener, authModel) -> deleteRemovedEndpoints(authModel, nextListener)
             )
@@ -109,6 +122,28 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
                 (storeListener, inferenceIdsToPersist) -> storePreconfiguredModels(inferenceIdsToPersist, storeListener)
             )
             .addListener(listener);
+    }
+
+    // TODO replace this with the cache call
+    private void getRegionPolicy(ActionListener<InferencePreferences> listener) {
+        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled() == false) {
+            listener.onResponse(InferencePreferences.EMPTY);
+            return;
+        }
+
+        var policyListener = ActionListener.<RegionPolicyResponse>wrap(
+            response -> listener.onResponse(new InferencePreferences(response.regionPolicy().regionPolicy())),
+            e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                    listener.onResponse(InferencePreferences.EMPTY);
+                    return;
+                }
+                logger.warn("Failed to fetch inference preferences", e);
+                listener.onFailure(new ElasticsearchStatusException("Failed to fetch inference preferences", RestStatus.BAD_REQUEST, e));
+            }
+        );
+
+        client.execute(GetRegionPolicyAction.INSTANCE, new GetRegionPolicyAction.Request(), policyListener);
     }
 
     private void deleteRemovedEndpoints(

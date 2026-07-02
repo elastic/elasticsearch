@@ -48,7 +48,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequest extends ElasticInfere
         InputType inputType,
         CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
-        super(metadata, authApplier);
+        super(metadata, null, authApplier);
         this.inputs = inputs;
         this.model = Objects.requireNonNull(model);
         this.uri = model.uri();

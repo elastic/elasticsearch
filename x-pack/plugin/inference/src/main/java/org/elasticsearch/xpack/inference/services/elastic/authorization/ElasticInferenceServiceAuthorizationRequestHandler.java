@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
@@ -96,12 +97,26 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
     }
 
     /**
+     * Retrieve the authorization information from Elastic Inference Service and apply the inference preferences to the request headers.
+     * @param listener a listener to receive the response
+     * @param sender a {@link Sender} for making the request to the Elastic Inference Service
+     * @param inferencePreferences the inference preferences to apply to the request headers
+     */
+    public void getAuthorization(
+        ActionListener<ElasticInferenceServiceAuthorizationModel> listener,
+        Sender sender,
+        InferencePreferences inferencePreferences
+    ) {
+        getAuthorization(listener, sender, false, inferencePreferences);
+    }
+
+    /**
      * Retrieve the authorization information from Elastic Inference Service
      * @param listener a listener to receive the response
      * @param sender a {@link Sender} for making the request to the Elastic Inference Service
      */
     public void getAuthorization(ActionListener<ElasticInferenceServiceAuthorizationModel> listener, Sender sender) {
-        getAuthorization(listener, sender, false);
+        getAuthorization(listener, sender, false, null);
     }
 
     /**
@@ -113,13 +128,14 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
      * @param sender a {@link Sender} for making the request to the Elastic Inference Service
      */
     public void getAuthorizationIfPermittedEnvironment(ActionListener<ElasticInferenceServiceAuthorizationModel> listener, Sender sender) {
-        getAuthorization(listener, sender, true);
+        getAuthorization(listener, sender, true, null);
     }
 
     private void getAuthorization(
         ActionListener<ElasticInferenceServiceAuthorizationModel> listener,
         Sender sender,
-        boolean checkCcmState
+        boolean checkCcmState,
+        @Nullable InferencePreferences inferencePreferences
     ) {
         var countdownListener = ActionListener.runAfter(listener, requestCompleteLatch::countDown);
 
@@ -130,7 +146,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
                         logger.debug("CCM is not enabled, skipping authorization request to Elastic Inference Service");
                         countdownListener.onResponse(ElasticInferenceServiceAuthorizationModel.unauthorized());
                     } else {
-                        retrieveAuthorizationInformation(countdownListener, sender);
+                        retrieveAuthorizationInformation(countdownListener, sender, inferencePreferences);
                     }
                 }, e -> {
                     logger.atWarn().withThrowable(e).log("Failed to determine if CCM is enabled, returning unauthorized");
@@ -139,7 +155,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
 
                 ccmService.isEnabled(isCcmEnabledListener);
             } else {
-                retrieveAuthorizationInformation(countdownListener, sender);
+                retrieveAuthorizationInformation(countdownListener, sender, inferencePreferences);
             }
         } catch (Exception e) {
             logger.atWarn().withThrowable(e).log("Retrieving the authorization information encountered an exception");
@@ -147,7 +163,11 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
         }
     }
 
-    private void retrieveAuthorizationInformation(ActionListener<ElasticInferenceServiceAuthorizationModel> listener, Sender sender) {
+    private void retrieveAuthorizationInformation(
+        ActionListener<ElasticInferenceServiceAuthorizationModel> listener,
+        Sender sender,
+        @Nullable InferencePreferences inferencePreferences
+    ) {
         logger.debug("Retrieving authorization information from the Elastic Inference Service.");
 
         if (Strings.isNullOrEmpty(baseUrl)) {
@@ -167,7 +187,13 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
         SubscribableListener.newForked(authFactory::getAuthenticationApplier)
             .<InferenceServiceResults>andThen((authListener, authApplier) -> {
                 var requestMetadata = extractRequestMetadataFromThreadContext(threadPool.getThreadContext());
-                var request = new ElasticInferenceServiceAuthorizationRequest(baseUrl, getCurrentTraceInfo(), requestMetadata, authApplier);
+                var request = new ElasticInferenceServiceAuthorizationRequest(
+                    baseUrl,
+                    getCurrentTraceInfo(),
+                    requestMetadata,
+                    inferencePreferences,
+                    authApplier
+                );
                 sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_AUTH_TIMEOUT, authListener);
             })
             .andThenApply(authResult -> {

@@ -50,7 +50,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
         InputType inputType,
         CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
-        super(metadata, authApplier);
+        super(metadata, null, authApplier);
         this.truncator = truncator;
         this.truncationResult = truncationResult;
         this.model = Objects.requireNonNull(model);

@@ -42,7 +42,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest extends Elastic
         ElasticInferenceServiceRequestMetadata requestMetadata,
         CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
-        super(requestMetadata, authApplier);
+        super(requestMetadata, null, authApplier);
         this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
         this.model = Objects.requireNonNull(model);
         this.traceContextHandler = new TraceContextHandler(traceContext);

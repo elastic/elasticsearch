@@ -44,7 +44,7 @@ public class ElasticInferenceServiceRerankRequest extends ElasticInferenceServic
         ElasticInferenceServiceRequestMetadata metadata,
         CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
-        super(metadata, authApplier);
+        super(metadata, null, authApplier);
         this.query = query;
         this.documents = documents;
         this.topN = topN;

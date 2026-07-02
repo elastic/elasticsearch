@@ -22,7 +22,10 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xpack.core.inference.regionpolicy.CspRegion;
+import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -47,6 +50,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.ap
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createApplierFactory;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createNoopApplierFactory;
+import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_REGIONS_HEADER;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.ELSER_V2_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisAuthorizationResponseWithMultipleEndpoints;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisElserAuthorizationResponse;
@@ -64,6 +68,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends ESTestCase {
+    private static final String REGION_POLICY_CSP = "aws";
+    private static final String REGION_POLICY_REGION = "us-east-1";
+
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
 
@@ -493,6 +500,42 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
     private static void assertAuthHeader(List<MockRequest> requests, String secret) {
         assertThat(requests.size(), is(1));
         assertThat(requests.get(0).getHeader(HttpHeaders.AUTHORIZATION), is(apiKey(secret)));
+    }
+
+    public void testGetAuthorization_ForwardsRegionPolicyHeaders() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var eisGatewayUrl = getUrl(webServer);
+        var logger = mock(Logger.class);
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            eisGatewayUrl,
+            threadPool,
+            logger,
+            createNoopApplierFactory(),
+            createMockCcmFeature(false),
+            createMockCcmService(false)
+        );
+
+        var elserResponseBody = getEisElserAuthorizationResponse(eisGatewayUrl).responseJson();
+        var regionPolicy = new RegionPolicy(null, List.of(new CspRegion(REGION_POLICY_CSP, REGION_POLICY_REGION)), null);
+        var preferences = new InferencePreferences(regionPolicy);
+
+        try (var sender = senderFactory.createSender()) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(elserResponseBody));
+
+            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+            authHandler.getAuthorization(listener, sender, preferences);
+
+            var authResponse = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+            assertTrue(authResponse.isAuthorized());
+
+            authHandler.waitForAuthRequestCompletion(ESTestCase.TEST_REQUEST_TIMEOUT);
+
+            assertThat(webServer.requests().size(), is(1));
+            assertThat(
+                webServer.requests().get(0).getHeader(X_ELASTIC_INFERENCE_ALLOWED_REGIONS_HEADER),
+                is(REGION_POLICY_CSP + ":" + REGION_POLICY_REGION)
+            );
+        }
     }
 
     public void testGetAuthorization_OnResponseCalledOnce() throws IOException {

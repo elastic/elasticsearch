@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -24,11 +26,17 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.inference.action.GetRegionPolicyAction;
 import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
+import org.elasticsearch.xpack.core.inference.action.RegionPolicyResponse;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.regionpolicy.CspRegion;
+import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
+import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicyDoc;
 import org.elasticsearch.xpack.core.inference.results.ModelStoreResponse;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
+import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
@@ -43,6 +51,7 @@ import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.Elast
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +75,8 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
     private static final String URL = "eis-url";
     private static final String STORED_INFERENCE_ID = "stored-inference-id";
     private static final String FAILED_INFERENCE_ID = "failed-inference-id";
+    private static final String REGION_POLICY_CSP = "aws";
+    private static final String REGION_POLICY_REGION = "us-east-1";
 
     private InferenceFeatureService inferenceFeatureServiceMock;
     private ModelRegistry mockRegistry;
@@ -82,6 +93,9 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
         var mockThreadPool = mock(ThreadPool.class);
         when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(mockClient.threadPool()).thenReturn(mockThreadPool);
+        // Default: no region policy is configured, so getRegionPolicy() should resolve to InferencePreferences.EMPTY.
+        // Individual tests override this via givenRegionPolicyReturns/givenRegionPolicyFails.
+        givenRegionPolicyNotFound();
     }
 
     public void testDoesNotSendAuthorizationRequest_WhenModelRegistryIsNotReady() {
@@ -92,7 +106,7 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
         action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), future);
 
         assertThat(future.actionGet(), is(ActionResponse.Empty.INSTANCE));
-        verify(mockAuthHandler, never()).getAuthorization(any(), any());
+        verify(mockAuthHandler, never()).getAuthorization(any(), any(), any());
     }
 
     public void testDoesNotSendAuthorizationRequest_WhenClusterDoesNotIncludeMetadata_MappingUpdate() {
@@ -104,7 +118,7 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
         action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), future);
 
         assertThat(future.actionGet(), is(ActionResponse.Empty.INSTANCE));
-        verify(mockAuthHandler, never()).getAuthorization(any(), any());
+        verify(mockAuthHandler, never()).getAuthorization(any(), any(), any());
     }
 
     public void testSendsAuthorizationRequest_WhenModelRegistryIsReady() {
@@ -314,6 +328,48 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
         verify(mockRegistry, never()).deleteModels(any(), any());
     }
 
+    public void testGetRegionPolicy_ForwardsPolicyPreferences_ToAuthorization() {
+        when(mockRegistry.isReady()).thenReturn(true);
+
+        var regionPolicy = new RegionPolicy(null, List.of(new CspRegion(REGION_POLICY_CSP, REGION_POLICY_REGION)), null);
+        givenRegionPolicyReturns(regionPolicy);
+        givenAuthHandlerReturnsEndpointsForUrl(URL, List.of());
+
+        var action = createAction();
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), new TestPlainActionFuture<>());
+
+        var preferencesCaptor = ArgumentCaptor.forClass(InferencePreferences.class);
+        verify(mockAuthHandler).getAuthorization(any(), any(), preferencesCaptor.capture());
+        assertThat(preferencesCaptor.getValue().regionPolicy(), is(regionPolicy));
+    }
+
+    public void testGetRegionPolicy_ForwardsEmptyPreferences_WhenPolicyNotFound() {
+        when(mockRegistry.isReady()).thenReturn(true);
+
+        // init() already stubs the region policy lookup to fail with a ResourceNotFoundException.
+        givenAuthHandlerReturnsEndpointsForUrl(URL, List.of());
+
+        var action = createAction();
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), new TestPlainActionFuture<>());
+
+        var preferencesCaptor = ArgumentCaptor.forClass(InferencePreferences.class);
+        verify(mockAuthHandler).getAuthorization(any(), any(), preferencesCaptor.capture());
+        assertThat(preferencesCaptor.getValue(), is(InferencePreferences.EMPTY));
+    }
+
+    public void testGetRegionPolicy_FailsAction_WhenPolicyFetchFails() {
+        when(mockRegistry.isReady()).thenReturn(true);
+        givenRegionPolicyFails(new RuntimeException("boom"));
+
+        var action = createAction();
+        var future = new TestPlainActionFuture<ActionResponse.Empty>();
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), future);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, future::actionGet);
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        verify(mockAuthHandler, never()).getAuthorization(any(), any(), any());
+    }
+
     private TransportRefreshAuthorizedEndpointsAction createAction() {
         return new TransportRefreshAuthorizedEndpointsAction(
             mock(TransportService.class),
@@ -356,7 +412,7 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
                 )
             );
             return Void.TYPE;
-        }).when(mockAuthHandler).getAuthorization(any(), any());
+        }).when(mockAuthHandler).getAuthorization(any(), any(), any());
     }
 
     private void givenStoreActionRespondsWith(ModelStoreResponse... results) {
@@ -365,6 +421,30 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
             listener.onResponse(new StoreInferenceEndpointsAction.Response(List.of(results)));
             return null;
         }).when(mockClient).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
+    }
+
+    private void givenRegionPolicyNotFound() {
+        doAnswer(invocation -> {
+            ActionListener<RegionPolicyResponse> listener = invocation.getArgument(2);
+            listener.onFailure(new ResourceNotFoundException("no region policy configured"));
+            return null;
+        }).when(mockClient).execute(eq(GetRegionPolicyAction.INSTANCE), any(), any());
+    }
+
+    private void givenRegionPolicyReturns(RegionPolicy regionPolicy) {
+        doAnswer(invocation -> {
+            ActionListener<RegionPolicyResponse> listener = invocation.getArgument(2);
+            listener.onResponse(new RegionPolicyResponse(new RegionPolicyDoc(regionPolicy, Instant.EPOCH, null, null, null)));
+            return null;
+        }).when(mockClient).execute(eq(GetRegionPolicyAction.INSTANCE), any(), any());
+    }
+
+    private void givenRegionPolicyFails(Exception exception) {
+        doAnswer(invocation -> {
+            ActionListener<RegionPolicyResponse> listener = invocation.getArgument(2);
+            listener.onFailure(exception);
+            return null;
+        }).when(mockClient).execute(eq(GetRegionPolicyAction.INSTANCE), any(), any());
     }
 
     private void sendAuthRequestAndVerifyStoreActionCalledForSparseEndpoints(

@@ -672,7 +672,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT7U, Operation.SINGLE)
         );
 
-        static int dotProductI7u(MemorySegment a, MemorySegment b, int length) {
+        static int dotProductI7uChecked(MemorySegment a, MemorySegment b, int length) {
             checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceInt(dotI7uHandle, a, b, length);
@@ -682,7 +682,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.INT7U, Operation.SINGLE)
         );
 
-        static int squareDistanceI7u(MemorySegment a, MemorySegment b, int length) {
+        static int squareDistanceI7uChecked(MemorySegment a, MemorySegment b, int length) {
             checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceInt(squareI7uHandle, a, b, length);
@@ -692,7 +692,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT4, Operation.SINGLE)
         );
 
-        static int dotProductI4(MemorySegment a, MemorySegment b, int elementCount) {
+        static int dotProductI4Checked(MemorySegment a, MemorySegment b, int elementCount) {
             Objects.checkFromIndexSize(0L, 2L * elementCount, a.byteSize());
             Objects.checkFromIndexSize(0L, elementCount, b.byteSize());
             return callSingleDistanceInt(dotI4Handle, a, b, elementCount);
@@ -702,7 +702,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.COSINE, DataType.INT8, Operation.SINGLE)
         );
 
-        static float cosineI8(MemorySegment a, MemorySegment b, int elementCount) {
+        static float cosineI8Checked(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize());
             return callSingleDistanceFloat(cosI8Handle, a, b, elementCount);
@@ -712,7 +712,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT8, Operation.SINGLE)
         );
 
-        static float dotProductI8(MemorySegment a, MemorySegment b, int elementCount) {
+        static float dotProductI8Checked(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize());
             return callSingleDistanceFloat(dotI8Handle, a, b, elementCount);
@@ -722,7 +722,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.INT8, Operation.SINGLE)
         );
 
-        static float squareDistanceI8(MemorySegment a, MemorySegment b, int elementCount) {
+        static float squareDistanceI8Checked(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize());
             return callSingleDistanceFloat(squareI8Handle, a, b, elementCount);
@@ -732,7 +732,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.SINGLE)
         );
 
-        static float dotProductF32(MemorySegment a, MemorySegment b, int elementCount) {
+        static float dotProductF32Checked(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize() / Float.BYTES);
             return callSingleDistanceFloat(dotF32Handle, a, b, elementCount);
@@ -742,7 +742,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.FLOAT32, Operation.SINGLE)
         );
 
-        static float squareDistanceF32(MemorySegment a, MemorySegment b, int elementCount) {
+        static float squareDistanceF32Checked(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize() / Float.BYTES);
             return callSingleDistanceFloat(squareF32Handle, a, b, elementCount);
@@ -752,7 +752,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.DOT_PRODUCT, BFloat16QueryType.FLOAT32, Operation.SINGLE)
         );
 
-        static float dotProductDBF16QF32(MemorySegment a, MemorySegment b, int elementCount) {
+        static float dotProductDBF16QF32Checked(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a.byteSize(), b.byteSize() / 2);
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize() / Short.BYTES);
             Objects.checkFromIndexSize(0L, elementCount, b.byteSize() / Float.BYTES);
@@ -763,7 +763,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.DOT_PRODUCT, BFloat16QueryType.BFLOAT16, Operation.SINGLE)
         );
 
-        static float dotProductDBF16QBF16(MemorySegment a, MemorySegment b, int elementCount) {
+        static float dotProductDBF16QBF16Checked(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize() / Short.BYTES);
             Objects.checkFromIndexSize(0L, elementCount, b.byteSize() / Short.BYTES);
@@ -774,7 +774,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.SQUARE_DISTANCE, BFloat16QueryType.FLOAT32, Operation.SINGLE)
         );
 
-        static float squareDistanceDBF16QF32(MemorySegment a, MemorySegment b, int elementCount) {
+        static float squareDistanceDBF16QF32Checked(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a.byteSize(), b.byteSize() / 2);
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize() / Short.BYTES);
             Objects.checkFromIndexSize(0L, elementCount, b.byteSize() / Float.BYTES);
@@ -785,7 +785,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.SQUARE_DISTANCE, BFloat16QueryType.BFLOAT16, Operation.SINGLE)
         );
 
-        static float squareDistanceDBF16QBF16(MemorySegment a, MemorySegment b, int elementCount) {
+        static float squareDistanceDBF16QBF16Checked(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize() / Short.BYTES);
             Objects.checkFromIndexSize(0L, elementCount, b.byteSize() / Short.BYTES);
@@ -796,7 +796,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q1, Operation.SINGLE)
         );
 
-        static long dotProductD1Q1(MemorySegment a, MemorySegment query, int length) {
+        static long dotProductD1Q1Checked(MemorySegment a, MemorySegment query, int length) {
             Objects.checkFromIndexSize(0L, length, query.byteSize());
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceLong(dotD1Q1Handle, a, query, length);
@@ -806,7 +806,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q4, Operation.SINGLE)
         );
 
-        static long dotProductD1Q4(MemorySegment a, MemorySegment query, int length) {
+        static long dotProductD1Q4Checked(MemorySegment a, MemorySegment query, int length) {
             Objects.checkFromIndexSize(0L, (long) length * 4, query.byteSize());
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceLong(dotD1Q4Handle, a, query, length);
@@ -816,7 +816,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q2, Operation.SINGLE)
         );
 
-        static long dotProductD2Q2(MemorySegment a, MemorySegment query, int length) {
+        static long dotProductD2Q2Checked(MemorySegment a, MemorySegment query, int length) {
             Objects.checkFromIndexSize(0L, length, query.byteSize());
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceLong(dotD2Q2Handle, a, query, length);
@@ -826,7 +826,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q4, Operation.SINGLE)
         );
 
-        static long dotProductD2Q4(MemorySegment a, MemorySegment query, int length) {
+        static long dotProductD2Q4Checked(MemorySegment a, MemorySegment query, int length) {
             Objects.checkFromIndexSize(0L, (long) length * 2, query.byteSize());
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceLong(dotD2Q4Handle, a, query, length);
@@ -836,7 +836,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D4Q4, Operation.SINGLE)
         );
 
-        static long dotProductD4Q4(MemorySegment a, MemorySegment query, int length) {
+        static long dotProductD4Q4Checked(MemorySegment a, MemorySegment query, int length) {
             Objects.checkFromIndexSize(0L, length, query.byteSize());
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceLong(dotD4Q4Handle, a, query, length);
@@ -846,7 +846,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q4_PACKED, Operation.SINGLE)
         );
 
-        static long dotProductD2Q4_PACKED(MemorySegment a, MemorySegment query, int length) {
+        static long dotProductD2Q4_PACKEDChecked(MemorySegment a, MemorySegment query, int length) {
             Objects.checkFromIndexSize(0L, (long) length * 4, query.byteSize());
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceLong(dotD2Q4PackedHandle, a, query, length);
@@ -858,7 +858,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
-        private static float applyCorrectionsEuclideanBulk(
+        private static float applyCorrectionsEuclideanBulkChecked(
             MemorySegment corrections,
             int bulkSize,
             int dimensions,
@@ -890,7 +890,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
-        private static float applyCorrectionsMaxInnerProductBulk(
+        private static float applyCorrectionsMaxInnerProductBulkChecked(
             MemorySegment corrections,
             int bulkSize,
             int dimensions,
@@ -922,7 +922,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
-        private static float applyCorrectionsDotProductBulk(
+        private static float applyCorrectionsDotProductBulkChecked(
             MemorySegment corrections,
             int bulkSize,
             int dimensions,
@@ -954,7 +954,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
-        private static float bbqApplyCorrectionsEuclideanBulk(
+        private static float bbqApplyCorrectionsEuclideanBulkChecked(
             MemorySegment data,
             int bulkSize,
             int vectorSizeInBytes,
@@ -992,7 +992,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
-        private static float bbqApplyCorrectionsMaxInnerProductBulk(
+        private static float bbqApplyCorrectionsMaxInnerProductBulkChecked(
             MemorySegment data,
             int bulkSize,
             int vectorSizeInBytes,
@@ -1030,7 +1030,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
-        private static float bbqApplyCorrectionsDotProductBulk(
+        private static float bbqApplyCorrectionsDotProductBulkChecked(
             MemorySegment data,
             int bulkSize,
             int vectorSizeInBytes,
@@ -1119,7 +1119,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                             checkMethod += "F32";
                                             break;
                                     }
-                                    yield lookup.findStatic(JdkVectorSimilarityFunctions.class, checkMethod, type);
+                                    yield lookup.findStatic(JdkVectorSimilarityFunctions.class, checkMethod + "Checked", type);
                                 }
                                 case BFloat16QueryType bfq -> {
                                     MethodType type = MethodType.methodType(
@@ -1137,7 +1137,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                             checkMethod += "DBF16QF32";
                                             break;
                                     }
-                                    yield lookup.findStatic(JdkVectorSimilarityFunctions.class, checkMethod, type);
+                                    yield lookup.findStatic(JdkVectorSimilarityFunctions.class, checkMethod + "Checked", type);
                                 }
                                 case BBQType bbq -> {
                                     MethodType type = MethodType.methodType(
@@ -1146,7 +1146,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                         MemorySegment.class,
                                         int.class
                                     );
-                                    yield lookup.findStatic(JdkVectorSimilarityFunctions.class, checkMethod + bbq, type);
+                                    yield lookup.findStatic(JdkVectorSimilarityFunctions.class, checkMethod + bbq + "Checked", type);
                                 }
                                 default -> throw new IllegalArgumentException("Unknown handle type " + op.getKey().dataType());
                             };
@@ -1412,17 +1412,17 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
                 APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK = lookup.findStatic(
                     JdkVectorSimilarityFunctions.class,
-                    "applyCorrectionsEuclideanBulk",
+                    "applyCorrectionsEuclideanBulkChecked",
                     scoringFunction
                 );
                 APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK = lookup.findStatic(
                     JdkVectorSimilarityFunctions.class,
-                    "applyCorrectionsMaxInnerProductBulk",
+                    "applyCorrectionsMaxInnerProductBulkChecked",
                     scoringFunction
                 );
                 APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK = lookup.findStatic(
                     JdkVectorSimilarityFunctions.class,
-                    "applyCorrectionsDotProductBulk",
+                    "applyCorrectionsDotProductBulkChecked",
                     scoringFunction
                 );
 
@@ -1446,17 +1446,17 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
                 BBQ_APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK = lookup.findStatic(
                     JdkVectorSimilarityFunctions.class,
-                    "bbqApplyCorrectionsEuclideanBulk",
+                    "bbqApplyCorrectionsEuclideanBulkChecked",
                     bbqScoringFunction
                 );
                 BBQ_APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK = lookup.findStatic(
                     JdkVectorSimilarityFunctions.class,
-                    "bbqApplyCorrectionsMaxInnerProductBulk",
+                    "bbqApplyCorrectionsMaxInnerProductBulkChecked",
                     bbqScoringFunction
                 );
                 BBQ_APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK = lookup.findStatic(
                     JdkVectorSimilarityFunctions.class,
-                    "bbqApplyCorrectionsDotProductBulk",
+                    "bbqApplyCorrectionsDotProductBulkChecked",
                     bbqScoringFunction
                 );
             } catch (ReflectiveOperationException e) {
@@ -1516,6 +1516,948 @@ public final class JdkVectorLibrary implements VectorLibrary {
         @Override
         public MethodHandle bbqApplyCorrectionsDotProductBulk() {
             return BBQ_APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK;
+        }
+
+        private static final MethodHandle dotProductI7uBulk$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT7U, Operation.BULK)
+        );
+        private static final MethodHandle squareDistanceI7uBulk$mh = HANDLES.get(
+            new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.INT7U, Operation.BULK)
+        );
+        private static final MethodHandle dotProductI4Bulk$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT4, Operation.BULK)
+        );
+        private static final MethodHandle cosineI8Bulk$mh = HANDLES.get(
+            new OperationSignature<>(Function.COSINE, DataType.INT8, Operation.BULK)
+        );
+        private static final MethodHandle dotProductI8Bulk$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT8, Operation.BULK)
+        );
+        private static final MethodHandle squareDistanceI8Bulk$mh = HANDLES.get(
+            new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.INT8, Operation.BULK)
+        );
+        private static final MethodHandle dotProductF32Bulk$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.BULK)
+        );
+        private static final MethodHandle dotProductDBF16QF32Bulk$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BFloat16QueryType.FLOAT32, Operation.BULK)
+        );
+        private static final MethodHandle dotProductD1Q1Bulk$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q1, Operation.BULK)
+        );
+        private static final MethodHandle dotProductD1Q4Bulk$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q4, Operation.BULK)
+        );
+        private static final MethodHandle dotProductD2Q2Bulk$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q2, Operation.BULK)
+        );
+        private static final MethodHandle dotProductD2Q4Bulk$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q4, Operation.BULK)
+        );
+        private static final MethodHandle dotProductD4Q4Bulk$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D4Q4, Operation.BULK)
+        );
+        private static final MethodHandle dotProductD2Q4PackedBulk$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q4_PACKED, Operation.BULK)
+        );
+
+        private static final MethodHandle dotProductI7uBulkWithOffsets$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT7U, Operation.BULK_OFFSETS)
+        );
+        private static final MethodHandle squareDistanceI7uBulkWithOffsets$mh = HANDLES.get(
+            new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.INT7U, Operation.BULK_OFFSETS)
+        );
+        private static final MethodHandle dotProductI4BulkWithOffsets$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT4, Operation.BULK_OFFSETS)
+        );
+        private static final MethodHandle cosineI8BulkWithOffsets$mh = HANDLES.get(
+            new OperationSignature<>(Function.COSINE, DataType.INT8, Operation.BULK_OFFSETS)
+        );
+        private static final MethodHandle dotProductI8BulkWithOffsets$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT8, Operation.BULK_OFFSETS)
+        );
+        private static final MethodHandle squareDistanceI8BulkWithOffsets$mh = HANDLES.get(
+            new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.INT8, Operation.BULK_OFFSETS)
+        );
+        private static final MethodHandle dotProductD1Q1BulkWithOffsets$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q1, Operation.BULK_OFFSETS)
+        );
+        private static final MethodHandle dotProductD1Q4BulkWithOffsets$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q4, Operation.BULK_OFFSETS)
+        );
+        private static final MethodHandle dotProductD2Q2BulkWithOffsets$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q2, Operation.BULK_OFFSETS)
+        );
+        private static final MethodHandle dotProductD2Q4BulkWithOffsets$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q4, Operation.BULK_OFFSETS)
+        );
+        private static final MethodHandle dotProductD4Q4BulkWithOffsets$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D4Q4, Operation.BULK_OFFSETS)
+        );
+        private static final MethodHandle dotProductD2Q4PackedBulkWithOffsets$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q4_PACKED, Operation.BULK_OFFSETS)
+        );
+
+        private static final MethodHandle dotProductI7uBulkSparse$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT7U, Operation.BULK_SPARSE)
+        );
+        private static final MethodHandle squareDistanceI7uBulkSparse$mh = HANDLES.get(
+            new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.INT7U, Operation.BULK_SPARSE)
+        );
+        private static final MethodHandle dotProductI4BulkSparse$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT4, Operation.BULK_SPARSE)
+        );
+        private static final MethodHandle cosineI8BulkSparse$mh = HANDLES.get(
+            new OperationSignature<>(Function.COSINE, DataType.INT8, Operation.BULK_SPARSE)
+        );
+        private static final MethodHandle dotProductI8BulkSparse$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT8, Operation.BULK_SPARSE)
+        );
+        private static final MethodHandle squareDistanceI8BulkSparse$mh = HANDLES.get(
+            new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.INT8, Operation.BULK_SPARSE)
+        );
+        private static final MethodHandle dotProductF32BulkSparse$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.BULK_SPARSE)
+        );
+        private static final MethodHandle squareDistanceF32BulkSparse$mh = HANDLES.get(
+            new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.FLOAT32, Operation.BULK_SPARSE)
+        );
+        private static final MethodHandle dotProductDBF16QF32BulkSparse$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BFloat16QueryType.FLOAT32, Operation.BULK_SPARSE)
+        );
+        private static final MethodHandle squareDistanceDBF16QF32BulkSparse$mh = HANDLES.get(
+            new OperationSignature<>(Function.SQUARE_DISTANCE, BFloat16QueryType.FLOAT32, Operation.BULK_SPARSE)
+        );
+        private static final MethodHandle dotProductDBF16QBF16BulkSparse$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BFloat16QueryType.BFLOAT16, Operation.BULK_SPARSE)
+        );
+        private static final MethodHandle squareDistanceDBF16QBF16BulkSparse$mh = HANDLES.get(
+            new OperationSignature<>(Function.SQUARE_DISTANCE, BFloat16QueryType.BFLOAT16, Operation.BULK_SPARSE)
+        );
+        private static final MethodHandle dotProductD1Q4BulkSparse$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q4, Operation.BULK_SPARSE)
+        );
+        private static final MethodHandle dotProductD2Q4BulkSparse$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q4, Operation.BULK_SPARSE)
+        );
+        private static final MethodHandle dotProductD4Q4BulkSparse$mh = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D4Q4, Operation.BULK_SPARSE)
+        );
+
+        // --- INT7U: dot product and square distance ---
+
+        @Override
+        public int dotProductI7u(MemorySegment a, MemorySegment b, int length) {
+            return dotProductI7uChecked(a, b, length);
+        }
+
+        @Override
+        public void dotProductI7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBulk(DataType.INT7U.bits(), a, b, length, count, scores);
+            try {
+                dotProductI7uBulk$mh.invokeExact(a, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void dotProductI7uBulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBulkOffsets(DataType.INT7U.bits(), a, b, length, pitch, offsets, count, scores);
+            try {
+                dotProductI7uBulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void dotProductI7uBulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBulkSparse(DataType.INT7U.bits(), addresses, b, length, count, scores);
+            try {
+                dotProductI7uBulkSparse$mh.invokeExact(addresses, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public int squareDistanceI7u(MemorySegment a, MemorySegment b, int length) {
+            return squareDistanceI7uChecked(a, b, length);
+        }
+
+        @Override
+        public void squareDistanceI7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBulk(DataType.INT7U.bits(), a, b, length, count, scores);
+            try {
+                squareDistanceI7uBulk$mh.invokeExact(a, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void squareDistanceI7uBulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBulkOffsets(DataType.INT7U.bits(), a, b, length, pitch, offsets, count, scores);
+            try {
+                squareDistanceI7uBulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void squareDistanceI7uBulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBulkSparse(DataType.INT7U.bits(), addresses, b, length, count, scores);
+            try {
+                squareDistanceI7uBulkSparse$mh.invokeExact(addresses, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        // --- INT4: dot product only ---
+
+        @Override
+        public int dotProductI4(MemorySegment a, MemorySegment b, int length) {
+            return dotProductI4Checked(a, b, length);
+        }
+
+        @Override
+        public void dotProductI4Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBulk(DataType.INT4.bits(), a, b, length, count, scores);
+            try {
+                dotProductI4Bulk$mh.invokeExact(a, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void dotProductI4BulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBulkOffsets(DataType.INT4.bits(), a, b, length, pitch, offsets, count, scores);
+            try {
+                dotProductI4BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void dotProductI4BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBulkSparse(DataType.INT4.bits(), addresses, b, length, count, scores);
+            try {
+                dotProductI4BulkSparse$mh.invokeExact(addresses, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        // --- INT8: cosine, dot product, square distance ---
+
+        @Override
+        public float cosineI8(MemorySegment a, MemorySegment b, int length) {
+            return cosineI8Checked(a, b, length);
+        }
+
+        @Override
+        public void cosineI8Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBulk(DataType.INT8.bits(), a, b, length, count, scores);
+            try {
+                cosineI8Bulk$mh.invokeExact(a, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void cosineI8BulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBulkOffsets(DataType.INT8.bits(), a, b, length, pitch, offsets, count, scores);
+            try {
+                cosineI8BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void cosineI8BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBulkSparse(DataType.INT8.bits(), addresses, b, length, count, scores);
+            try {
+                cosineI8BulkSparse$mh.invokeExact(addresses, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public float dotProductI8(MemorySegment a, MemorySegment b, int length) {
+            return dotProductI8Checked(a, b, length);
+        }
+
+        @Override
+        public void dotProductI8Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBulk(DataType.INT8.bits(), a, b, length, count, scores);
+            try {
+                dotProductI8Bulk$mh.invokeExact(a, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void dotProductI8BulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBulkOffsets(DataType.INT8.bits(), a, b, length, pitch, offsets, count, scores);
+            try {
+                dotProductI8BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void dotProductI8BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBulkSparse(DataType.INT8.bits(), addresses, b, length, count, scores);
+            try {
+                dotProductI8BulkSparse$mh.invokeExact(addresses, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public float squareDistanceI8(MemorySegment a, MemorySegment b, int length) {
+            return squareDistanceI8Checked(a, b, length);
+        }
+
+        @Override
+        public void squareDistanceI8Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBulk(DataType.INT8.bits(), a, b, length, count, scores);
+            try {
+                squareDistanceI8Bulk$mh.invokeExact(a, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void squareDistanceI8BulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBulkOffsets(DataType.INT8.bits(), a, b, length, pitch, offsets, count, scores);
+            try {
+                squareDistanceI8BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void squareDistanceI8BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBulkSparse(DataType.INT8.bits(), addresses, b, length, count, scores);
+            try {
+                squareDistanceI8BulkSparse$mh.invokeExact(addresses, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        // --- FLOAT32: dot product and square distance ---
+
+        @Override
+        public float dotProductF32(MemorySegment a, MemorySegment b, int length) {
+            return dotProductF32Checked(a, b, length);
+        }
+
+        @Override
+        public void dotProductF32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBulk(DataType.FLOAT32.bits(), a, b, length, count, scores);
+            try {
+                dotProductF32Bulk$mh.invokeExact(a, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void dotProductF32BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBulkSparse(DataType.FLOAT32.bits(), addresses, b, length, count, scores);
+            try {
+                dotProductF32BulkSparse$mh.invokeExact(addresses, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public float squareDistanceF32(MemorySegment a, MemorySegment b, int length) {
+            return squareDistanceF32Checked(a, b, length);
+        }
+
+        @Override
+        public void squareDistanceF32BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBulkSparse(DataType.FLOAT32.bits(), addresses, b, length, count, scores);
+            try {
+                squareDistanceF32BulkSparse$mh.invokeExact(addresses, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        // --- BFloat16 ---
+
+        @Override
+        public float dotProductDBF16QF32(MemorySegment a, MemorySegment b, int length) {
+            return dotProductDBF16QF32Checked(a, b, length);
+        }
+
+        @Override
+        public void dotProductDBF16QF32Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBFloat16Bulk(BFloat16QueryType.FLOAT32.bytes(), a, b, length, count, scores);
+            try {
+                dotProductDBF16QF32Bulk$mh.invokeExact(a, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void dotProductDBF16QF32BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBFloat16BulkSparse(BFloat16QueryType.FLOAT32.bytes(), addresses, b, length, count, scores);
+            try {
+                dotProductDBF16QF32BulkSparse$mh.invokeExact(addresses, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public float squareDistanceDBF16QF32(MemorySegment a, MemorySegment b, int length) {
+            return squareDistanceDBF16QF32Checked(a, b, length);
+        }
+
+        @Override
+        public void squareDistanceDBF16QF32BulkSparse(
+            MemorySegment addresses,
+            MemorySegment b,
+            int length,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBFloat16BulkSparse(BFloat16QueryType.FLOAT32.bytes(), addresses, b, length, count, scores);
+            try {
+                squareDistanceDBF16QF32BulkSparse$mh.invokeExact(addresses, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public float dotProductDBF16QBF16(MemorySegment a, MemorySegment b, int length) {
+            return dotProductDBF16QBF16Checked(a, b, length);
+        }
+
+        @Override
+        public void dotProductDBF16QBF16BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBFloat16BulkSparse(BFloat16QueryType.BFLOAT16.bytes(), addresses, b, length, count, scores);
+            try {
+                dotProductDBF16QBF16BulkSparse$mh.invokeExact(addresses, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public float squareDistanceDBF16QBF16(MemorySegment a, MemorySegment b, int length) {
+            return squareDistanceDBF16QBF16Checked(a, b, length);
+        }
+
+        @Override
+        public void squareDistanceDBF16QBF16BulkSparse(
+            MemorySegment addresses,
+            MemorySegment b,
+            int length,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBFloat16BulkSparse(BFloat16QueryType.BFLOAT16.bytes(), addresses, b, length, count, scores);
+            try {
+                squareDistanceDBF16QBF16BulkSparse$mh.invokeExact(addresses, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        // --- BBQ: dot product for all BBQ types ---
+
+        @Override
+        public long dotProductD1Q1(MemorySegment a, MemorySegment b, int length) {
+            return dotProductD1Q1Checked(a, b, length);
+        }
+
+        @Override
+        public void dotProductD1Q1Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBBQBulk(BBQType.D1Q1.queryBytesPerDocByte(), a, b, length, count, scores);
+            try {
+                dotProductD1Q1Bulk$mh.invokeExact(a, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void dotProductD1Q1BulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBBQBulkOffsets(BBQType.D1Q1.queryBytesPerDocByte(), a, b, length, pitch, offsets, count, scores);
+            try {
+                dotProductD1Q1BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public long dotProductD1Q4(MemorySegment a, MemorySegment b, int length) {
+            return dotProductD1Q4Checked(a, b, length);
+        }
+
+        @Override
+        public void dotProductD1Q4Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBBQBulk(BBQType.D1Q4.queryBytesPerDocByte(), a, b, length, count, scores);
+            try {
+                dotProductD1Q4Bulk$mh.invokeExact(a, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void dotProductD1Q4BulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBBQBulkOffsets(BBQType.D1Q4.queryBytesPerDocByte(), a, b, length, pitch, offsets, count, scores);
+            try {
+                dotProductD1Q4BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void dotProductD1Q4BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBBQBulkSparse(BBQType.D1Q4.queryBytesPerDocByte(), addresses, b, length, count, scores);
+            try {
+                dotProductD1Q4BulkSparse$mh.invokeExact(addresses, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public long dotProductD2Q2(MemorySegment a, MemorySegment b, int length) {
+            return dotProductD2Q2Checked(a, b, length);
+        }
+
+        @Override
+        public void dotProductD2Q2Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBBQBulk(BBQType.D2Q2.queryBytesPerDocByte(), a, b, length, count, scores);
+            try {
+                dotProductD2Q2Bulk$mh.invokeExact(a, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void dotProductD2Q2BulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBBQBulkOffsets(BBQType.D2Q2.queryBytesPerDocByte(), a, b, length, pitch, offsets, count, scores);
+            try {
+                dotProductD2Q2BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public long dotProductD2Q4(MemorySegment a, MemorySegment b, int length) {
+            return dotProductD2Q4Checked(a, b, length);
+        }
+
+        @Override
+        public void dotProductD2Q4Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBBQBulk(BBQType.D2Q4.queryBytesPerDocByte(), a, b, length, count, scores);
+            try {
+                dotProductD2Q4Bulk$mh.invokeExact(a, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void dotProductD2Q4BulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBBQBulkOffsets(BBQType.D2Q4.queryBytesPerDocByte(), a, b, length, pitch, offsets, count, scores);
+            try {
+                dotProductD2Q4BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void dotProductD2Q4BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBBQBulkSparse(BBQType.D2Q4.queryBytesPerDocByte(), addresses, b, length, count, scores);
+            try {
+                dotProductD2Q4BulkSparse$mh.invokeExact(addresses, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public long dotProductD2Q4Packed(MemorySegment a, MemorySegment b, int length) {
+            return dotProductD2Q4_PACKEDChecked(a, b, length);
+        }
+
+        @Override
+        public void dotProductD2Q4PackedBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBBQBulk(BBQType.D2Q4_PACKED.queryBytesPerDocByte(), a, b, length, count, scores);
+            try {
+                dotProductD2Q4PackedBulk$mh.invokeExact(a, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void dotProductD2Q4PackedBulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBBQBulkOffsets(BBQType.D2Q4_PACKED.queryBytesPerDocByte(), a, b, length, pitch, offsets, count, scores);
+            try {
+                dotProductD2Q4PackedBulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public long dotProductD4Q4(MemorySegment a, MemorySegment b, int length) {
+            return dotProductD4Q4Checked(a, b, length);
+        }
+
+        @Override
+        public void dotProductD4Q4Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBBQBulk(BBQType.D4Q4.queryBytesPerDocByte(), a, b, length, count, scores);
+            try {
+                dotProductD4Q4Bulk$mh.invokeExact(a, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void dotProductD4Q4BulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment scores
+        ) {
+            checkBBQBulkOffsets(BBQType.D4Q4.queryBytesPerDocByte(), a, b, length, pitch, offsets, count, scores);
+            try {
+                dotProductD4Q4BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        @Override
+        public void dotProductD4Q4BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+            checkBBQBulkSparse(BBQType.D4Q4.queryBytesPerDocByte(), addresses, b, length, count, scores);
+            try {
+                dotProductD4Q4BulkSparse$mh.invokeExact(addresses, b, length, count, scores);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        // --- Corrections (DiskBBQ) ---
+
+        @Override
+        public float applyCorrectionsEuclideanBulk(
+            MemorySegment corrections,
+            int bulkSize,
+            int dimensions,
+            float queryLowerInterval,
+            float queryUpperInterval,
+            int queryComponentSum,
+            float queryAdditionalCorrection,
+            float queryBitScale,
+            float indexBitScale,
+            float centroidDp,
+            MemorySegment scores
+        ) {
+            return applyCorrectionsEuclideanBulkChecked(
+                corrections,
+                bulkSize,
+                dimensions,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                queryBitScale,
+                indexBitScale,
+                centroidDp,
+                scores
+            );
+        }
+
+        @Override
+        public float applyCorrectionsMaxInnerProductBulk(
+            MemorySegment corrections,
+            int bulkSize,
+            int dimensions,
+            float queryLowerInterval,
+            float queryUpperInterval,
+            int queryComponentSum,
+            float queryAdditionalCorrection,
+            float queryBitScale,
+            float indexBitScale,
+            float centroidDp,
+            MemorySegment scores
+        ) {
+            return applyCorrectionsMaxInnerProductBulkChecked(
+                corrections,
+                bulkSize,
+                dimensions,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                queryBitScale,
+                indexBitScale,
+                centroidDp,
+                scores
+            );
+        }
+
+        @Override
+        public float applyCorrectionsDotProductBulk(
+            MemorySegment corrections,
+            int bulkSize,
+            int dimensions,
+            float queryLowerInterval,
+            float queryUpperInterval,
+            int queryComponentSum,
+            float queryAdditionalCorrection,
+            float queryBitScale,
+            float indexBitScale,
+            float centroidDp,
+            MemorySegment scores
+        ) {
+            return applyCorrectionsDotProductBulkChecked(
+                corrections,
+                bulkSize,
+                dimensions,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                queryBitScale,
+                indexBitScale,
+                centroidDp,
+                scores
+            );
+        }
+
+        // --- Corrections (BBQ inline layout) ---
+
+        @Override
+        public float bbqApplyCorrectionsEuclideanBulk(
+            MemorySegment data,
+            int bulkSize,
+            int vectorSizeInBytes,
+            int pitchInBytes,
+            int dimensions,
+            float queryLowerInterval,
+            float queryUpperInterval,
+            int queryComponentSum,
+            float queryAdditionalCorrection,
+            float queryBitScale,
+            float indexBitScale,
+            float centroidDp,
+            byte readComponentSumAsInt,
+            MemorySegment scores
+        ) {
+            return bbqApplyCorrectionsEuclideanBulkChecked(
+                data,
+                bulkSize,
+                vectorSizeInBytes,
+                pitchInBytes,
+                dimensions,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                queryBitScale,
+                indexBitScale,
+                centroidDp,
+                readComponentSumAsInt,
+                scores
+            );
+        }
+
+        @Override
+        public float bbqApplyCorrectionsMaxInnerProductBulk(
+            MemorySegment data,
+            int bulkSize,
+            int vectorSizeInBytes,
+            int pitchInBytes,
+            int dimensions,
+            float queryLowerInterval,
+            float queryUpperInterval,
+            int queryComponentSum,
+            float queryAdditionalCorrection,
+            float queryBitScale,
+            float indexBitScale,
+            float centroidDp,
+            byte readComponentSumAsInt,
+            MemorySegment scores
+        ) {
+            return bbqApplyCorrectionsMaxInnerProductBulkChecked(
+                data,
+                bulkSize,
+                vectorSizeInBytes,
+                pitchInBytes,
+                dimensions,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                queryBitScale,
+                indexBitScale,
+                centroidDp,
+                readComponentSumAsInt,
+                scores
+            );
+        }
+
+        @Override
+        public float bbqApplyCorrectionsDotProductBulk(
+            MemorySegment data,
+            int bulkSize,
+            int vectorSizeInBytes,
+            int pitchInBytes,
+            int dimensions,
+            float queryLowerInterval,
+            float queryUpperInterval,
+            int queryComponentSum,
+            float queryAdditionalCorrection,
+            float queryBitScale,
+            float indexBitScale,
+            float centroidDp,
+            byte readComponentSumAsInt,
+            MemorySegment scores
+        ) {
+            return bbqApplyCorrectionsDotProductBulkChecked(
+                data,
+                bulkSize,
+                vectorSizeInBytes,
+                pitchInBytes,
+                dimensions,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                queryBitScale,
+                indexBitScale,
+                centroidDp,
+                readComponentSumAsInt,
+                scores
+            );
         }
     }
 }

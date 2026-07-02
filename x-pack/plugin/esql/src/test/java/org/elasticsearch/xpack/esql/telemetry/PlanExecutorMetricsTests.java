@@ -244,6 +244,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     groupIndicesByCluster,
                     runPhase,
                     MOCK_TRANSPORT_ACTION_SERVICES,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     () -> false,
                     new ActionListener<>() {
                         @Override
@@ -283,6 +284,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     groupIndicesByCluster,
                     runPhase,
                     MOCK_TRANSPORT_ACTION_SERVICES,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     () -> false,
                     new ActionListener<>() {
                         @Override
@@ -631,6 +633,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 groupIndicesByCluster,
                 runPhase,
                 MOCK_TRANSPORT_ACTION_SERVICES,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 () -> false,
                 listener
             );

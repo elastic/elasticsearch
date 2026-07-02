@@ -338,14 +338,17 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         DataSourceCredentials dataSourceCredentials = new DataSourceCredentials();
 
         boolean isStateless = DiscoveryNode.isStateless(settings);
-        AtomicBoolean workloadIdentityEnabled = new AtomicBoolean(
-            isStateless == false && ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED.get(settings)
+        // Read through MANAGED_IDENTITY_ENABLED, which falls back to the deprecated workload_identity key, so a
+        // pre-rename operator config is still honored. Its update consumer fires on changes to either key because the
+        // setting's raw value resolves the fallback.
+        AtomicBoolean managedIdentityEnabled = new AtomicBoolean(
+            isStateless == false && ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings)
         );
         services.clusterService()
             .getClusterSettings()
             .addSettingsUpdateConsumer(
-                ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED,
-                v -> workloadIdentityEnabled.set(isStateless == false && v)
+                ExternalSourceSettings.MANAGED_IDENTITY_ENABLED,
+                v -> managedIdentityEnabled.set(isStateless == false && v)
             );
 
         // Kill switch for the flattened data type. The IndexResolver is a node-level singleton, so the dynamic
@@ -364,10 +367,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             blockFactoryProvider.blockFactory(),
             services.threadPool().executor(ThreadPool.Names.GENERIC),
             dataSourceCredentials,
-            workloadIdentityEnabled::get,
+            managedIdentityEnabled::get,
             services.threadPool(),
             services.environment(),
-            services.resourceWatcherService()
+            services.resourceWatcherService(),
+            services.telemetryProvider().getMeterRegistry()
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -441,7 +445,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             p.datasourceValidators(settings).forEach((type, v) -> {
                 DataSourceValidator effective = v;
                 if (effective instanceof FileDataSourceValidator fdv) {
-                    effective = fdv.withWorkloadIdentityEnabled(workloadIdentityEnabled::get);
+                    effective = fdv.withManagedIdentityEnabled(managedIdentityEnabled::get);
                 }
                 if (formatKeyResolver != null && effective instanceof FileDataSourceValidator fdv) {
                     effective = fdv.withFormatConfigKeyResolver(formatKeyResolver, compressionExtensions);

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME;
 
 public class TransportEsqlQueryActionTests extends ESTestCase {
@@ -29,6 +30,23 @@ public class TransportEsqlQueryActionTests extends ESTestCase {
             "blocking external reads must not run on the shared generic pool",
             ThreadPool.Names.GENERIC,
             TransportEsqlQueryAction.fileReadExecutorName()
+        );
+    }
+
+    /**
+     * External source coordination — including {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver}
+     * glob expansion, footer reads, and schema reconciliation — must run on the dedicated {@code esql_worker} pool.
+     * A prior regression routed this work through {@link ThreadPool.Names#SEARCH}, where a single wildcard query
+     * over thousands of files consumed nearly the entire SEARCH pool for minutes, starving unrelated ES searches and
+     * other ES|QL queries. Pinning the returned name here locks the fix; the explicit not-{@code search} assertion
+     * catches any future re-introduction of that starvation.
+     */
+    public void testExternalSourceExecutorNameIsTheEsqlWorkerPool() {
+        assertEquals(ESQL_WORKER_THREAD_POOL_NAME, TransportEsqlQueryAction.externalSourceExecutorName());
+        assertNotEquals(
+            "external source coordination must not run on the shared search pool",
+            ThreadPool.Names.SEARCH,
+            TransportEsqlQueryAction.externalSourceExecutorName()
         );
     }
 }

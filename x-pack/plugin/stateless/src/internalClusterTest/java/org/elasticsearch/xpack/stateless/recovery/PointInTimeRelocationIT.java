@@ -185,6 +185,10 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         .put(disableIndexingDiskAndMemoryControllersNodeSettings())
         .build();
 
+    /**
+     * Verifies that PIT contexts opened against an unflushed index state (where the backing
+     * BCC has not been uploaded to the object store) are correctly relocated to a new search node.
+     */
     public void testPointInTimeRelocationPitOnUnflushedIndexState() throws Exception {
         assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         startMasterAndIndexNode(nodeSettings);

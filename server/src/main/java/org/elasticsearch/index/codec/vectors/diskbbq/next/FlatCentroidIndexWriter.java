@@ -30,16 +30,10 @@ import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 
 class FlatCentroidIndexWriter {
 
-    private record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
+    record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
 
-    static void writeCentroids(
-        FieldInfo fieldInfo,
-        CentroidSupplier centroidSupplier,
-        int[] centroidAssignments,
-        float[] globalCentroid,
-        IVFVectorsWriter.CentroidOffsetAndLength centroidOffsetAndLength,
-        IndexOutput centroidOutput
-    ) throws IOException {
+    static CentroidGroups writeCentroidIndex(CentroidSupplier centroidSupplier, int[] centroidAssignments, IndexOutput centroidOutput)
+        throws IOException {
         CentroidSlices centroidSlices = centroidSupplier.slices();
         if (centroidSlices != null) {
             int numSlices = centroidSlices.sliceNumVectors().length;
@@ -53,34 +47,47 @@ class FlatCentroidIndexWriter {
         }
         if (centroidSupplier.secondLevelClusters().centroidsSupplier().size() > 1) {
             final CentroidGroups centroidGroups = buildCentroidGroups(centroidSupplier.secondLevelClusters());
-            {
-                // write vector ord -> centroid lookup table. We need to remap current centroid ordinals
-                // to the ordinals on the parent / child structure.
-                final int[] centroidOrdinalMap = new int[centroidSupplier.size()];
-                int idx = 0;
-                for (int[] centroidVectors : centroidGroups.vectors()) {
-                    for (int assignment : centroidVectors) {
-                        centroidOrdinalMap[assignment] = idx++;
-                    }
+            // write vector ord -> centroid lookup table. We need to remap current centroid ordinals
+            // to the ordinals on the parent / child structure.
+            final int[] centroidOrdinalMap = new int[centroidSupplier.size()];
+            int idx = 0;
+            for (int[] centroidVectors : centroidGroups.vectors()) {
+                for (int assignment : centroidVectors) {
+                    centroidOrdinalMap[assignment] = idx++;
                 }
-                assert idx == centroidSupplier.size() : "Expected [" + centroidSupplier.size() + "], got [" + idx + "]";
-                writeCentroidLookup(centroidOutput, centroidAssignments, i -> centroidOrdinalMap[i], centroidSupplier.size());
             }
-            writeCentroidsWithParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput, centroidGroups);
+            assert idx == centroidSupplier.size() : "Expected [" + centroidSupplier.size() + "], got [" + idx + "]";
+            writeCentroidLookup(centroidOutput, centroidAssignments, i -> centroidOrdinalMap[i], centroidSupplier.size());
+            return centroidGroups;
         } else {
             writeCentroidLookup(centroidOutput, centroidAssignments, IntUnaryOperator.identity(), centroidSupplier.size());
+            return null;
+        }
+    }
+
+    static void writeCentroidData(
+        FieldInfo fieldInfo,
+        CentroidSupplier centroidSupplier,
+        float[] globalCentroid,
+        IVFVectorsWriter.CentroidOffsetAndLength centroidOffsetAndLength,
+        CentroidGroups centroidGroups,
+        IndexOutput centroidOutput
+    ) throws IOException {
+        if (centroidGroups != null) {
+            writeCentroidsWithParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput, centroidGroups);
+        } else {
             writeCentroidsWithoutParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput);
         }
     }
 
-    private static void writeCentroidLookup(IndexOutput out, int[] centroidAssignments, IntUnaryOperator OrdinalMap, int numberCentroids)
+    private static void writeCentroidLookup(IndexOutput out, int[] centroidAssignments, IntUnaryOperator ordinalMap, int numberCentroids)
         throws IOException {
         final int bitsRequired = DirectWriter.bitsRequired(numberCentroids);
         final long bytesRequired = DirectWriter.bytesRequired(centroidAssignments.length, bitsRequired);
         final ByteBuffersDataOutput memory = new ByteBuffersDataOutput(bytesRequired);
         final DirectWriter writer = DirectWriter.getInstance(memory, centroidAssignments.length, bitsRequired);
         for (int centroidAssignment : centroidAssignments) {
-            writer.add(OrdinalMap.applyAsInt(centroidAssignment));
+            writer.add(ordinalMap.applyAsInt(centroidAssignment));
         }
         writer.finish();
         out.copyBytes(memory.toDataInput(), memory.size());

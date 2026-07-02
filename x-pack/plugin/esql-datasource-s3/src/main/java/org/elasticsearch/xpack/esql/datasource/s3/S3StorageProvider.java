@@ -92,6 +92,7 @@ import java.util.NoSuchElementException;
 public class S3StorageProvider implements StorageProvider {
     private static final Logger LOGGER = LogManager.getLogger(S3StorageProvider.class);
     private static final String DEFAULT_ROLE_SESSION_NAME = "elasticsearch-esql-datasource";
+    private static final String DEFAULT_JWT_AUDIENCE = "sts.amazonaws.com";
 
     private static final Duration CONNECTION_ACQUISITION_TIMEOUT = Duration.ofSeconds(60);
 
@@ -377,10 +378,11 @@ public class S3StorageProvider implements StorageProvider {
         StsAsyncClient stsAsyncClient
     ) {
         String roleSessionName = Strings.hasText(config.roleSessionName()) ? config.roleSessionName() : DEFAULT_ROLE_SESSION_NAME;
+        String jwtAudience = Strings.hasText(config.jwtAudience()) ? config.jwtAudience() : DEFAULT_JWT_AUDIENCE;
         return AsyncWebIdentityCredentialsProvider.builder()
             .roleArn(config.roleArn())
             .roleSessionName(roleSessionName)
-            .tokenSupplier(new S3WorkloadIdentityTokenSupplier(issuerClient, config.jwtAudience()))
+            .tokenSupplier(new S3WorkloadIdentityTokenSupplier(issuerClient, jwtAudience))
             .stsAsyncClient(stsAsyncClient)
             .build();
     }
@@ -507,7 +509,7 @@ public class S3StorageProvider implements StorageProvider {
         if (config == null || config.resolveAuthModeOrNull() == null) {
             return ". If accessing a public bucket, set auth=anonymous. "
                 + "Otherwise, provide credentials via access_key and secret_key, "
-                + "or configure keyless authentication with role_arn and jwt_audience";
+                + "or configure keyless authentication with role_arn";
         }
         return "";
     }

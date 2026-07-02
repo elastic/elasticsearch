@@ -126,6 +126,11 @@ public enum IndexMode {
         public SourceFieldMapper.Mode defaultSourceMode() {
             return SourceFieldMapper.Mode.STORED;
         }
+
+        @Override
+        public boolean supportsAutoResharding() {
+            return true;
+        }
     },
     TIME_SERIES("time_series") {
         @Override
@@ -729,6 +734,11 @@ public enum IndexMode {
         public SourceFieldMapper.Mode defaultSourceMode() {
             return SourceFieldMapper.Mode.STORED;
         }
+
+        @Override
+        public boolean supportsAutoResharding() {
+            return true;
+        }
     };
 
     static final String HOST_NAME = "host.name";
@@ -956,6 +966,13 @@ public enum IndexMode {
      * Columnar modes use specialized codecs for better compression and performance.
      */
     public boolean isColumnar() {
+        return false;
+    }
+
+    /**
+     * Whether indices in this mode support auto resharding.
+     */
+    public boolean supportsAutoResharding() {
         return false;
     }
 

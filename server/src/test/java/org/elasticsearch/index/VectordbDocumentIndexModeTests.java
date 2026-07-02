@@ -29,6 +29,16 @@ public class VectordbDocumentIndexModeTests extends ESTestCase {
         assertThat(IndexMode.fromString("VECTORDB_DOCUMENT"), equalTo(IndexMode.VECTORDB_DOCUMENT));
     }
 
+    public void testSupportsAutoResharding() {
+        assertTrue(IndexMode.VECTORDB_DOCUMENT.supportsAutoResharding());
+        assertTrue(IndexMode.STANDARD.supportsAutoResharding());
+        assertFalse(IndexMode.LOOKUP.supportsAutoResharding());
+        assertFalse(IndexMode.LOGSDB.supportsAutoResharding());
+        assertFalse(IndexMode.TIME_SERIES.supportsAutoResharding());
+        assertFalse(IndexMode.COLUMNAR.supportsAutoResharding());
+        assertFalse(IndexMode.LOGSDB_COLUMNAR.supportsAutoResharding());
+    }
+
     public void testProviderSetsDefaultSettings() {
         // _source mode defaults to STORED for vectordb_document index mode.
         assertThat(IndexMode.VECTORDB_DOCUMENT.defaultSourceMode().name(), equalTo("STORED"));

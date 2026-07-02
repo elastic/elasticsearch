@@ -42,6 +42,7 @@ public class TsdbDataStreamWithSecurityIT extends ESRestTestCase {
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.transport.ssl.enabled", "false")
         .setting("xpack.security.http.ssl.enabled", "false")
+        .setting("data_streams.time_series.create_past_indices_enabled", "true")
         .user("test_admin", PASSWORD, "superuser", false)
         .user("tsdb_writer", PASSWORD, "tsdb_limited_writer", false)
         .rolesFile(Resource.fromClasspath("roles.yml"))
@@ -51,6 +52,8 @@ public class TsdbDataStreamWithSecurityIT extends ESRestTestCase {
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
+
+
 
     @Override
     protected Settings restClientSettings() {

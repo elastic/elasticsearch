@@ -45,6 +45,8 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
@@ -93,7 +95,12 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
     public static final String LAZY_ROLLOVER_ORIGIN = "lazy_rollover";
 
-    // PRTODO: introduce configuration to enable or disable the backfill
+    public static final Setting<Boolean> PAST_TSDB_INDEX_CREATION_ENABLED_SETTING = Setting.boolSetting(
+        "data_streams.time_series.create_past_indices_enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -102,6 +109,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator;
     private final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings;
+    private volatile boolean pastTsdbIndexCreationEnabled;
 
     @Inject
     public TransportBulkAction(
@@ -181,6 +189,13 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         this.failureStoreMetrics = failureStoreMetrics;
         this.timeSeriesEligibleWriteWindowLocator = timeSeriesEligibleWriteWindowLocator;
         this.dataStreamGlobalRetentionSettings = dataStreamGlobalRetentionSettings;
+        this.pastTsdbIndexCreationEnabled = PAST_TSDB_INDEX_CREATION_ENABLED_SETTING.get(clusterService.getSettings());
+        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        clusterSettings.addSettingsUpdateConsumer(PAST_TSDB_INDEX_CREATION_ENABLED_SETTING, this::setPastTsdbIndexCreationEnabled);
+    }
+
+    private void setPastTsdbIndexCreationEnabled(boolean pastTsdbIndexCreationEnabled) {
+        this.pastTsdbIndexCreationEnabled = pastTsdbIndexCreationEnabled;
     }
 
     public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> unwrappingSingleItemBulkResponse(
@@ -376,7 +391,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                     if (dataStream.getDataComponent().isRolloverOnWrite()) {
                         dataStreamsToBeRolledOver.add(request.index());
                     }
-                    if (dataStream.isSystem() == false
+                    if (pastTsdbIndexCreationEnabled
+                        && dataStream.isSystem() == false
                         && IndexMode.TIME_SERIES == dataStream.getIndexMode()
                         && DocWriteRequest.OpType.CREATE == request.opType()) {
                         maybeQueueTimeSeriesCreateIndexOperation(

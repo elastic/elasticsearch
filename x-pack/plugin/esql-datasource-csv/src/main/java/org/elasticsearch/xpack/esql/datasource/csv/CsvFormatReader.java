@@ -2240,7 +2240,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // inferred end must equal the actual bytes consumed; a mismatch means the offsets are not
             // byte-exact -- safe-miss the whole chunk rather than commit mis-attributed stripes. Data
             // condition, not a bug: no assert.
-            if (bulkByteTracker != null && chunkBytes >= 0 && bulkByteTracker.inferredEndOffset() != splitStartByte + chunkBytes) {
+            // Both offset sources INFER byte widths from decoded chars: the bulk Jackson path via
+            // bulkByteTracker, the record-reader path (bracket / _rowPosition projected) via
+            // CsvLogicalRecordReader's own per-char accounting (recordReader.bytesRead()). On the bulk path
+            // the tracker read the body (recordReader only consumed the header); on the record-reader path the
+            // recordReader read everything, so its bytesRead() is the whole chunk's inferred end. Either way,
+            // after this clean full drain the inferred end must equal the actual bytes the CountingInputStream
+            // saw; a mismatch means malformed UTF-8 skewed the offsets -- safe-miss.
+            long inferredEndOffset = bulkByteTracker != null
+                ? bulkByteTracker.inferredEndOffset()
+                : splitStartByte + recordReader.bytesRead();
+            if (chunkBytes >= 0 && inferredEndOffset != splitStartByte + chunkBytes) {
                 stripeCaptureDisabled = true;
                 return;
             }

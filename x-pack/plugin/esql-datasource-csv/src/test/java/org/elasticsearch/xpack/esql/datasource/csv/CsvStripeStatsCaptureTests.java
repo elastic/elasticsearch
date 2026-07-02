@@ -505,6 +505,32 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         );
     }
 
+    public void testMalformedUtf8OnRecordReaderPathSafeMissesStripeCapture() throws Exception {
+        // Fused-bracket / _rowPosition path: record offsets come from CsvLogicalRecordReader's char-inference,
+        // NOT the bulk tracker. A bare Latin-1 'é' (0xE9) is invalid UTF-8; the decoder replaces it with U+FFFD,
+        // counted 3 bytes vs 1 actual, so the record-reader's inferred end diverges from the CountingInputStream
+        // and every later record offset is skewed. The emit-time tripwire (now covering this path too) must
+        // safe-miss rather than commit mis-attributed stripes. Proven to emit fragments without the extension.
+        StringBuilder head = new StringBuilder();
+        for (int i = 0; i < 10; i++) {
+            head.append(i).append(",[a,b]\n");
+        }
+        byte[] cleanBytes = head.toString().getBytes(StandardCharsets.UTF_8);
+        byte[] badRow = new byte[] { '1', '0', ',', '[', (byte) 0xE9, ',', 'b', ']', '\n' }; // malformed byte in a value
+        byte[] data = new byte[cleanBytes.length + badRow.length];
+        System.arraycopy(cleanBytes, 0, data, 0, cleanBytes.length);
+        System.arraycopy(badRow, 0, data, cleanBytes.length, badRow.length);
+
+        List<Attribute> schema = List.of(
+            intCol("id"),
+            new ReferenceAttribute(Source.EMPTY, null, "tags", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+        ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 100, 1.0, false);
+
+        List<Map<String, Object>> frags = captureFusedBracket(data, 0, true, true, 3, 8, schema, skipRow);
+        assertTrue("malformed UTF-8 on the record-reader path must safe-miss stripe capture, got: " + frags, frags.isEmpty());
+    }
+
     /** Drives the fused bracket path with {@code _rowPosition} projected (byte tracking on) and a provided schema. */
     private List<Map<String, Object>> captureFusedBracket(
         byte[] bytes,

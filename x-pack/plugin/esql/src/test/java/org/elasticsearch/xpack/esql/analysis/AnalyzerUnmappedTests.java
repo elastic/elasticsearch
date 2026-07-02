@@ -750,8 +750,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         );
     }
 
-    // Decision C (#142033): language_code is INTEGER in one branch and unmapped-as-KEYWORD in the other. KEEP-ing the column is
-    // tolerated (autocast deferred to #141912), but using it forces type resolution, which UnionAll#checkUnionAll rejects.
     public void testLoadModeDisallowsCrossBranchTypeConflict() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         test().addLanguages().statementError(setUnmappedLoad("""
@@ -762,8 +760,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             """), containsString("Column [language_code] has conflicting data types in subqueries: [integer, keyword]"));
     }
 
-    // Decision C (#142033): the same cross-branch conflict is tolerated as long as the conflicting column is only kept (it becomes an
-    // unsupported union attribute, autocast deferred to #141912) and never forced to a concrete type.
     public void testLoadModeAllowsCrossBranchTypeConflictWhenOnlyKept() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         test().addLanguages().statement(setUnmappedLoad("""
@@ -771,6 +767,32 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 (FROM test | KEEP emp_no, language_code)
             | KEEP language_code
             """));
+    }
+
+    // Regression: RENAME of a cross-branch union-typed column above a multi-source FROM used to crash with a 500
+    // (UnresolvedException "Invalid call to dataType on an unresolved object") in ResolveUnionTypesInUnionAll, because the
+    // not-yet-resolved RENAME alias yielded an UnresolvedAttribute whose dataType() was queried during the type cascade. It must
+    // instead surface the same clean cross-branch conflict verification error as other references to the unsupported union column.
+    public void testLoadModeCrossBranchTypeConflictRenameFailsCleanly() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().addLanguages().statementError(setUnmappedLoad("""
+            FROM languages,
+                (FROM test | KEEP emp_no, language_code)
+            | RENAME language_code AS lc
+            """), containsString("Column [language_code] has conflicting data types in subqueries: [integer, keyword]"));
+    }
+
+    // Same regression as above but the renamed conflicting column is also consumed by a downstream SORT: the first cascade pass sees a
+    // resolved RENAME alias and retargets the OrderBy, then a later pass leaves the alias unresolved (unsupported child). It must still
+    // fail cleanly with the cross-branch conflict error rather than crash in ResolveUnionTypesInUnionAll.
+    public void testLoadModeCrossBranchTypeConflictRenameThenSortFailsCleanly() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        test().addLanguages().statementError(setUnmappedLoad("""
+            FROM languages,
+                (FROM test | KEEP emp_no, language_code)
+            | RENAME language_code AS lc
+            | SORT lc
+            """), containsString("Column [language_code] has conflicting data types in subqueries: [integer, keyword]"));
     }
 
     public void testTypeConflictLongUnmappedAutoCast() {

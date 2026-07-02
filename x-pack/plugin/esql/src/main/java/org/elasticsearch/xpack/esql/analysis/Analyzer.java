@@ -4123,8 +4123,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * <p>
          * Before the expression walk, scan the plan for {@link Alias} nodes whose immediate child is an attribute already in the update
          * map and add a {@code {alias.id → alias.withNewType}} entry. Because the traversal is bottom-up, chained renames such as
-         * {@code x AS y, y AS z} are picked up in order. We register the alias output unconditionally (i.e. without comparing the alias'
-         * current child type against the map entry), because the alias may have been re-resolved with the updated child type
+         * {@code x AS y, y AS z} are picked up in order. We register the alias output whenever it is resolved (i.e. without comparing the
+         * alias' current child type against the map entry), because the alias may have been re-resolved with the updated child type
          * (e.g. inside a {@code ResolvingProject}) while other places in the plan (e.g. an outer {@code OrderBy}) still hold a cached
          * attribute reference, produced by {@link Alias#toAttribute()}, with the stale (pre-update) type. The subsequent
          * {@code transformExpressionsUp} then repairs every consumer of the alias output in one pass.
@@ -4142,14 +4142,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     Attribute updatedChild = idToUpdatedAttr.get(childAttr.id());
                     if (updatedChild != null) {
                         Attribute aliasOutput = alias.toAttribute();
-                        idToUpdatedAttr.put(aliasOutput.id(), aliasOutput.withDataType(updatedChild.dataType()));
+                        // An unresolved alias (e.g. a RENAME over a cross-branch-conflicting UnionAll column) yields an
+                        // UnresolvedAttribute whose dataType() throws; skip it — there is no type to cascade and the verifier rejects it.
+                        if (aliasOutput.resolved()) {
+                            idToUpdatedAttr.put(aliasOutput.id(), aliasOutput.withDataType(updatedChild.dataType()));
+                        }
                     }
                 }
             });
 
             return plan.transformExpressionsUp(Attribute.class, expr -> {
                 Attribute updated = idToUpdatedAttr.get(expr.id());
-                return (updated != null && expr.dataType() != updated.dataType()) ? updated : expr;
+                return (updated != null && expr.resolved() && expr.dataType() != updated.dataType()) ? updated : expr;
             });
         }
     }

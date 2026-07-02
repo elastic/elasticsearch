@@ -156,7 +156,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
 
         @Override
-        public void onRecoveryAborted(RecoveryState state) {
+        public void onRecoveryAborted() {
             // Abortion is a normal reaction to changes in allocation or node shutdown. Don't fail here.
         }
     };

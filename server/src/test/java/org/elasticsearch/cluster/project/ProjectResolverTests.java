@@ -208,6 +208,49 @@ public class ProjectResolverTests extends ESTestCase {
         assertThat(threadContext.getHeader(randomHeaderName), equalTo(randomHeaderValue));
     }
 
+    public void testStoreContextForProject() {
+        final ProjectId projectId1 = randomUniqueProjectId();
+        final ProjectId projectId2 = randomUniqueProjectId();
+
+        final ThreadContext threadContext = threadPool.getThreadContext();
+
+        final String opaqueId = randomAlphaOfLengthBetween(4, 8);
+        threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId);
+
+        final String randomHeaderName = randomAlphaOfLength(10);
+        final String randomHeaderValue = randomAlphaOfLength(16);
+        threadContext.putHeader(randomHeaderName, randomHeaderValue);
+
+        assertNull(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER));
+
+        try (var ignored = resolver.storeContextForProject(projectId1, threadContext)) {
+            assertThat(resolver.getProjectId(), equalTo(projectId1));
+            assertThat(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId1.id()));
+            assertThat(threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER), equalTo(opaqueId));
+            assertThat(threadContext.getHeader(randomHeaderName), equalTo(randomHeaderValue));
+
+            final IllegalStateException ex = expectThrows(
+                IllegalStateException.class,
+                () -> resolver.storeContextForProject(projectId2, threadContext)
+            );
+            assertThat(ex.getMessage(), containsString("project-id [" + projectId1 + "] in the thread-context"));
+            assertThat(ex.getMessage(), containsString("[" + projectId2 + "]"));
+        }
+
+        assertNull(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER));
+        assertThat(threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER), equalTo(opaqueId));
+        assertThat(threadContext.getHeader(randomHeaderName), equalTo(randomHeaderValue));
+
+        try (var ignored = resolver.storeContextForProject(projectId2, threadContext)) {
+            assertThat(resolver.getProjectId(), equalTo(projectId2));
+            assertThat(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), equalTo(projectId2.id()));
+        }
+
+        assertNull(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER));
+        assertThat(threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER), equalTo(opaqueId));
+        assertThat(threadContext.getHeader(randomHeaderName), equalTo(randomHeaderValue));
+    }
+
     public void testShouldSupportsMultipleProjects() {
         assertThat(resolver.supportsMultipleProjects(), equalTo(true));
     }

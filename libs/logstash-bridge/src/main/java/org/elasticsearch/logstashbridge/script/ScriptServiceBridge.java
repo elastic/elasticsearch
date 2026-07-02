@@ -11,6 +11,7 @@ package org.elasticsearch.logstashbridge.script;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.ingest.common.ProcessorsWhitelistExtension;
@@ -28,6 +29,7 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordPainlessExtension;
 import org.elasticsearch.xpack.spatial.SpatialPainlessExtension;
 import org.elasticsearch.xpack.wildcard.WildcardPainlessExtension;
@@ -146,6 +148,16 @@ public interface ScriptServiceBridge extends StableBridgeAPI<ScriptService>, Clo
             public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
                 if (projectId.equals(ProjectId.DEFAULT)) {
                     body.run();
+                } else {
+                    throw new IllegalArgumentException("Cannot execute on a project other than [" + ProjectId.DEFAULT + "]");
+                }
+            }
+
+            @Override
+            public ThreadContext.StoredContext storeContextForProject(ProjectId projectId, ThreadContext threadContext) {
+                if (projectId.equals(ProjectId.DEFAULT)) {
+                    assert threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER) == null;
+                    return threadContext.newStoredContext();
                 } else {
                     throw new IllegalArgumentException("Cannot execute on a project other than [" + ProjectId.DEFAULT + "]");
                 }

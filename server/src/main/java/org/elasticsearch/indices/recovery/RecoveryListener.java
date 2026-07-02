@@ -10,10 +10,12 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 public interface RecoveryListener {
     RecoveryListener NOOP = new RecoveryListener() {
@@ -28,7 +30,7 @@ public interface RecoveryListener {
         public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {}
 
         @Override
-        public void onRecoveryAborted(RecoveryState state) {}
+        public void onRecoveryAborted() {}
     };
 
     /// Called when recovery finishes successfully.
@@ -42,9 +44,9 @@ public interface RecoveryListener {
     void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
 
     /// Called when recovery has been internally aborted, usually due to shard closure or shard relocation
-    void onRecoveryAborted(RecoveryState state);
+    void onRecoveryAborted();
 
-    static RecoveryListener runBefore(RecoveryListener listener, Runnable runBefore) {
+    static RecoveryListener wrapPreservingContext(RecoveryListener listener, Supplier<ThreadContext.StoredContext> context) {
         return new RecoveryListener() {
             @Override
             public void onRecoveryDone(
@@ -52,34 +54,23 @@ public interface RecoveryListener {
                 ShardLongFieldRange timestampMillisFieldRange,
                 ShardLongFieldRange eventIngestedMillisFieldRange
             ) {
-                try {
-                    runBefore.run();
-                } catch (Exception e) {
-                    listener.onRecoveryFailure(new RecoveryFailedException(state, null, e), true);
-                    return;
+                try (ThreadContext.StoredContext ignore = context.get()) {
+                    listener.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
                 }
-                listener.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
             }
 
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                try {
-                    runBefore.run();
-                } catch (Exception ex) {
-                    e.addSuppressed(ex);
+                try (ThreadContext.StoredContext ignore = context.get()) {
+                    listener.onRecoveryFailure(e, sendShardFailure);
                 }
-                listener.onRecoveryFailure(e, sendShardFailure);
             }
 
             @Override
-            public void onRecoveryAborted(RecoveryState state) {
-                try {
-                    runBefore.run();
-                } catch (Exception e) {
-                    listener.onRecoveryFailure(new RecoveryFailedException(state, null, e), true);
-                    return;
+            public void onRecoveryAborted() {
+                try (ThreadContext.StoredContext ignore = context.get()) {
+                    listener.onRecoveryAborted();
                 }
-                listener.onRecoveryAborted(state);
             }
         };
     }
@@ -109,9 +100,9 @@ public interface RecoveryListener {
             }
 
             @Override
-            public void onRecoveryAborted(RecoveryState state) {
+            public void onRecoveryAborted() {
                 try {
-                    listener.onRecoveryAborted(state);
+                    listener.onRecoveryAborted();
                 } finally {
                     runAfter.run();
                 }
@@ -163,10 +154,10 @@ public interface RecoveryListener {
                 }
 
                 @Override
-                public void onRecoveryAborted(RecoveryState state) {
+                public void onRecoveryAborted() {
                     assertFirstRun();
                     try {
-                        delegate.onRecoveryAborted(state);
+                        delegate.onRecoveryAborted();
                     } catch (Exception e) {
                         assert false : new AssertionError("listener [" + delegate + "] must handle its own exceptions", e);
                         throw e;

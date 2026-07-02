@@ -68,7 +68,13 @@ public abstract class AbstractProjectResolver implements ProjectResolver {
 
     @Override
     public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
-        final ThreadContext threadContext = this.threadContext.get();
+        try (var ignoreAndRestore = storeContextForProject(projectId, threadContext.get())) {
+            body.run();
+        }
+    }
+
+    @Override
+    public ThreadContext.StoredContext storeContextForProject(ProjectId projectId, ThreadContext threadContext) {
         final String existingProjectId = threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
         if (existingProjectId != null) {
             // We intentionally do not allow callers to override an existing project-id
@@ -77,10 +83,9 @@ public abstract class AbstractProjectResolver implements ProjectResolver {
                 "There is already a project-id [" + existingProjectId + "] in the thread-context, cannot set it to [" + projectId + "]"
             );
         }
-        try (var ignoreAndRestore = threadContext.newStoredContext()) {
-            threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id());
-            body.run();
-        }
+        final var storedContext = threadContext.newStoredContext();
+        threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id());
+        return storedContext;
     }
 
     @Override

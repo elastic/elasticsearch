@@ -413,9 +413,18 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
             "null_count must be dropped when any present file lacks a null_count value",
             result.containsKey(SourceStatisticsSerializer.columnNullCountKey("bonus"))
         );
-        // Min/max/size_bytes are still informative from file A (and B for size_bytes).
-        assertEquals(10, result.get(SourceStatisticsSerializer.columnMinKey("bonus")));
-        assertEquals(50, result.get(SourceStatisticsSerializer.columnMaxKey("bonus")));
+        // File B presents bonus (size_bytes) but harvested no min/max AND no null_count, so its 200 rows'
+        // extrema are UNKNOWN — we cannot rule out a bonus value below 10 or above 50. Min/max must POISON
+        // (drop), consistent with how null_count is dropped above, rather than serve file A's subset extremum
+        // (the #150920 ColumnFold vs MergedSplitStats divergence). size_bytes is additive, not an extremum.
+        assertFalse(
+            "min must poison when a present file harvested no extremum",
+            result.containsKey(SourceStatisticsSerializer.columnMinKey("bonus"))
+        );
+        assertFalse(
+            "max must poison when a present file harvested no extremum",
+            result.containsKey(SourceStatisticsSerializer.columnMaxKey("bonus"))
+        );
         assertEquals(2400L, result.get(SourceStatisticsSerializer.columnSizeBytesKey("bonus")));
     }
 

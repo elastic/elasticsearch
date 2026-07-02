@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -778,6 +779,41 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 "an unrepresentable Double must not be stored as a LONG column's max",
                 enriched.safeMetadata().containsKey(SourceStatisticsSerializer.columnMaxKey("uid"))
             );
+        }
+    }
+
+    public void testWholeFileUnrepresentableStatNeutralizesStaleCommittedExtremum() throws Exception {
+        // F7 (elastic/elasticsearch#150920): the whole-file reconcile putAll-overlays the new contribution onto
+        // the existing entry. If a later scan's extremum is unrepresentable in the resolved type, merely REMOVING
+        // the value key would let the PRIOR committed value survive the overlay and serve a stale (wrong) warm
+        // answer. The reconcile must write the unservable MARKER so marker-wins normalization forces a safe-miss.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/events.ndjson";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of("format", "ndjson"));
+            seedSchemaCacheTyped(service, key, path, "fp", "uid", DataType.LONG);
+
+            // A good LONG min/max commits first.
+            Map<String, Object> good = wholeFileStats(mtime, "fp", 100L);
+            good.put(SourceStatisticsSerializer.columnMinKey("uid"), 5L);
+            good.put(SourceStatisticsSerializer.columnMaxKey("uid"), 90L);
+            service.reconcileSourceStats(Map.of(path, good));
+
+            // A later scan of the same file yields a Double past Long range (inconsistent). The stale 5/90 must be
+            // neutralized, not left to serve.
+            Map<String, Object> bad = wholeFileStats(mtime, "fp", 100L);
+            bad.put(SourceStatisticsSerializer.columnMinKey("uid"), 1.0e19);
+            bad.put(SourceStatisticsSerializer.columnMaxKey("uid"), 2.0e19);
+            service.reconcileSourceStats(Map.of(path, bad));
+
+            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); });
+            assertTrue(
+                "the unservable marker must be written so a stale committed min cannot survive the putAll overlay",
+                enriched.safeMetadata().containsKey(SourceStatisticsSerializer.columnMinUnservableKey("uid"))
+            );
+            SplitStats ss = SplitStats.of(enriched.safeMetadata());
+            assertNull("stale min must not be servable (marker-wins safe-miss)", ss.columnMin("uid"));
+            assertNull("stale max must not be servable (marker-wins safe-miss)", ss.columnMax("uid"));
         }
     }
 

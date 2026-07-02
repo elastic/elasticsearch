@@ -501,10 +501,15 @@ public class ExternalSourceCacheService implements Closeable {
             if (isNumericStatType(type) == false) {
                 continue; // BYTESREF / BOOLEAN min/max carry no Long-vs-Double ambiguity
             }
-            for (String key : List.of(
-                SourceStatisticsSerializer.columnMinKey(columnNames[i]),
-                SourceStatisticsSerializer.columnMaxKey(columnNames[i])
+            for (String[] pair : List.of(
+                new String[] {
+                    SourceStatisticsSerializer.columnMinKey(columnNames[i]),
+                    SourceStatisticsSerializer.columnMinUnservableKey(columnNames[i]) },
+                new String[] {
+                    SourceStatisticsSerializer.columnMaxKey(columnNames[i]),
+                    SourceStatisticsSerializer.columnMaxUnservableKey(columnNames[i]) }
             )) {
+                String key = pair[0];
                 Object value = statsMap.get(key);
                 if (value instanceof Number == false) {
                     continue;
@@ -522,7 +527,13 @@ public class ExternalSourceCacheService implements Closeable {
                     if (out == null) {
                         out = new HashMap<>(statsMap);
                     }
+                    // Not representable in the resolved type on the whole-file (last-writer-wins) path. Merely
+                    // REMOVING the value would let a STALE committed extremum survive the reconcile's putAll
+                    // overlay (enriched keeps the old value the removed key no longer overwrites); write the
+                    // unservable MARKER instead (and drop the value) so marker-wins normalization in
+                    // SplitStats.of forces a safe-miss over any stale value.
                     out.remove(key);
+                    out.put(pair[1], Boolean.TRUE);
                 }
                 // else: not representable on the stripe path — leave it for the POISON fold to safe-miss.
             }
@@ -640,16 +651,27 @@ public class ExternalSourceCacheService implements Closeable {
         Map<String, Object> merged = new HashMap<>(base);
         for (int i = 1; i < maps.size(); i++) {
             Map<String, Object> next = maps.get(i);
-            assert agreesWithBase(base, next)
-                : "whole-file contributions for the same file must agree on row count, mtime, and config fingerprint: "
-                    + base
-                    + " vs "
-                    + next;
+            if (agreesWithBase(base, next) == false) {
+                // Two whole-file scans of the SAME (path, config, mtime) file disagree on row count / mtime /
+                // fingerprint — non-deterministic, so neither can be trusted. Assert-and-bail: fail fast in test
+                // (an invariant violation), but in production SAFE-MISS (return null → the caller skips caching)
+                // rather than silently first-wins-merging a stat that would then serve wrong warm answers.
+                assert false
+                    : "whole-file contributions for the same file must agree on row count, mtime, and config fingerprint: "
+                        + base
+                        + " vs "
+                        + next;
+                return null;
+            }
             for (Map.Entry<String, Object> e : next.entrySet()) {
                 if (e.getKey().startsWith(SourceStatisticsSerializer.STATS_COL_PREFIX)) {
                     Object prev = merged.putIfAbsent(e.getKey(), e.getValue());
-                    assert prev == null || Objects.equals(prev, e.getValue())
-                        : "whole-file contributions disagree on column stat [" + e.getKey() + "]: " + prev + " vs " + e.getValue();
+                    if (prev != null && Objects.equals(prev, e.getValue()) == false) {
+                        // Same-file column-stat disagreement — safe-miss for the same reason.
+                        assert false
+                            : "whole-file contributions disagree on column stat [" + e.getKey() + "]: " + prev + " vs " + e.getValue();
+                        return null;
+                    }
                 }
             }
         }

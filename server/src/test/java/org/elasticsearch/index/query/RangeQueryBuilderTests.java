@@ -37,6 +37,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -688,5 +689,18 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             "1kb",
             () -> new RangeQueryBuilder(TEXT_FIELD_NAME).gte("a").lte("zzzzzzzzzzzzzzzzzzzz")
         );
+    }
+
+    public void testParseFailsWithFlatValueSuggestsJsonObject() {
+        String json = """
+            {
+                "range": {
+                    "date": "2021-01-01"
+                }
+            }""";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertThat(e.getMessage(), containsString("[range] query does not support [date] as a flat value"));
+        assertThat(e.getMessage(), containsString("Did you forget to wrap it in a JSON object?"));
+        assertThat(e.getMessage(), containsString("\"gte\""));
     }
 }

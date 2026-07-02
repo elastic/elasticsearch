@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * {@link ValuesSourceRegistry} holds the mapping from {@link ValuesSourceType}s to functions for building aggregation components.  DO NOT
@@ -168,9 +169,16 @@ public class ValuesSourceRegistry {
             @SuppressWarnings("unchecked")
             T supplier = (T) aggregatorRegistry.get(registryKey).get(valuesSourceConfig.valueSourceType());
             if (supplier == null) {
+                String supportedTypes = aggregatorRegistry.get(registryKey)
+                    .keySet()
+                    .stream()
+                    .map(ValuesSourceType::typeName)
+                    .sorted()
+                    .collect(Collectors.joining(", "));
                 final RuntimeException unmappedException = valuesSourceConfig.valueSourceType()
                     .getUnregisteredException(
                         valuesSourceConfig.getDescription() + " is not supported for aggregation [" + registryKey.getName() + "]"
+                            + ". Supported types: [" + supportedTypes + "]"
                     );
                 assert unmappedException != null
                     : "Value source type ["

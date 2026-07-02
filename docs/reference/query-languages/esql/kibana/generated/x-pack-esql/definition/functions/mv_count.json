@@ -80,6 +80,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "flattened",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "geo_point",
           "optional" : false,
           "description" : "Expression that can be null, a single value, or multiple values."

@@ -13,17 +13,17 @@ import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 import java.util.EnumSet;
 
 /**
- * Golden tests for the HIGHLIGHT command. Part 1 only covers grammar + plan-node shape;
- * once an executor lands these tests should grow to cover the prefix-column output.
+ * Golden tests for the HIGHLIGHT command, asserting the logical and local physical plan shape,
+ * including the generated {@code highlight_<field>} output column.
  */
 public class HighlightGoldenTests extends GoldenTestCase {
 
     /**
-     * Part 1 plan shape: HIGHLIGHT survives through logical optimization
-     * and local physical optimization without rewriting or pushdown.
+     * HIGHLIGHT survives logical and local physical optimization, producing a {@code HighlightExec}
+     * whose generated {@code highlight_<field>} column is appended to the output layout.
      */
     public void testBasicHighlight() {
-        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
         String query = """
             FROM employees
             | HIGHLIGHT "elasticsearch" ON first_name

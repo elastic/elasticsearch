@@ -1011,7 +1011,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         )
             .setQuery(queryBuilder)
             .setFetchSource(new String[] { "persisted_credential" }, null)
-            .addSort("_id", SortOrder.ASC)
+            .addSort(TransformConfigManager.CLOUD_CREDENTIAL_TOKEN_ID_FIELD, SortOrder.ASC)
             .setSize(1_000)
             .setAllowPartialSearchResults(false);
 

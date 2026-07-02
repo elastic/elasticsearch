@@ -165,7 +165,7 @@ public class Verifier {
             planCheckers.forEach(c -> c.accept(p, failures));
             p.forEachExpression(e -> {
                 if (e instanceof PostAnalysisVerificationAware va) {
-                    va.postAnalysisVerification(failures);
+                    va.postAnalysisVerification(context.analysisRegistry(), failures);
                 }
             });
 

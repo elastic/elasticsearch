@@ -42,6 +42,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -51,6 +53,7 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
@@ -95,6 +98,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class PlanExecutorMetricsTests extends ESTestCase {
+
+    private static final EncryptionService ENCRYPTION_SERVICE = mock(EncryptionService.class);
 
     private static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = createTransportActionServices();
 
@@ -212,7 +217,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(),
+                new DataSourceCredentials(ENCRYPTION_SERVICE),
                 () -> false
             )
         ) {
@@ -237,10 +242,13 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     queryClusterSettings(),
                     enrichResolver,
                     viewService.getViewResolver(),
+                    noDatasetsResolver(),
                     createEsqlExecutionInfo(randomBoolean()),
                     groupIndicesByCluster,
                     runPhase,
                     MOCK_TRANSPORT_ACTION_SERVICES,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    () -> false,
                     new ActionListener<>() {
                         @Override
                         public void onResponse(Versioned<Result> result) {
@@ -274,10 +282,13 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     queryClusterSettings(),
                     enrichResolver,
                     viewService.getViewResolver(),
+                    noDatasetsResolver(),
                     successExecutionInfo,
                     groupIndicesByCluster,
                     runPhase,
                     MOCK_TRANSPORT_ACTION_SERVICES,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    () -> false,
                     new ActionListener<>() {
                         @Override
                         public void onResponse(Versioned<Result> result) {}
@@ -319,7 +330,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(),
+                new DataSourceCredentials(ENCRYPTION_SERVICE),
                 () -> false
             )
         ) {
@@ -423,7 +434,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(),
+                new DataSourceCredentials(ENCRYPTION_SERVICE),
                 () -> false
             )
         ) {
@@ -501,7 +512,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(),
+                new DataSourceCredentials(ENCRYPTION_SERVICE),
                 () -> false
             )
         ) {
@@ -565,7 +576,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(),
+                new DataSourceCredentials(ENCRYPTION_SERVICE),
                 () -> false
             )
         ) {
@@ -620,13 +631,24 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 queryClusterSettings(),
                 mockEnrichResolver(),
                 viewService.getViewResolver(),
+                noDatasetsResolver(),
                 executionInfo,
                 groupIndicesByCluster,
                 runPhase,
                 MOCK_TRANSPORT_ACTION_SERVICES,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                () -> false,
                 listener
             );
         }
+    }
+
+    /**
+     * These tests register no datasets, so the resolver short-circuits before ever touching a client,
+     * executor, or the cross-project remote leg — nulls are never dereferenced.
+     */
+    private static DatasetResolver noDatasetsResolver() {
+        return new DatasetResolver(null, null, CrossProjectModeDecider.NOOP);
     }
 
     private List<FieldCapabilitiesIndexResponse> indexFieldCapabilities(String[] indices) {
@@ -674,7 +696,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             TEST_FUNCTION_REGISTRY,
             PromqlFunctionRegistry.INSTANCE,
             TEST_PARSER,
-            null
+            null,
+            EsqlTestUtils.TEST_ANALYSIS_REGISTRY
         );
     }
 

@@ -1,0 +1,186 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.bbq_disk_support", "index.slice_indexing"]
+      reason: Needs bbq_disk and slice indexing support
+  - do:
+      indices.create:
+        index: bbq_disk_slice
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 1
+              slice.enabled: true
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 8
+                index: true
+                similarity: dot_product
+                index_options:
+                  type: bbq_disk
+                  bits: 4
+
+  - do:
+      index:
+        index: bbq_disk_slice
+        id: "1"
+        _slice: s1
+        body:
+          vector: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+  - do:
+      index:
+        index: bbq_disk_slice
+        id: "3"
+        _slice: s1
+        body:
+          vector: [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+  - do:
+      index:
+        index: bbq_disk_slice
+        id: "2"
+        _slice: s2
+        body:
+          vector: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+  - do:
+      index:
+        index: bbq_disk_slice
+        id: "4"
+        _slice: s2
+        body:
+          vector: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+
+  - do:
+      indices.refresh: {}
+---
+"KNN search with _slice only searches the requested slice":
+  - do:
+      search:
+        index: bbq_disk_slice
+        _slice: s1
+        body:
+          knn:
+            field: vector
+            query_vector: [0.707107, 0.707107, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            k: 3
+            num_candidates: 10
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+---
+"KNN search with a different _slice returns that slice's nearest neighbor":
+  - do:
+      search:
+        index: bbq_disk_slice
+        _slice: s2
+        body:
+          knn:
+            field: vector
+            query_vector: [0.707107, 0.707107, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            k: 3
+            num_candidates: 10
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "4" }
+---
+"KNN search with multiple _slice values searches across the requested slices":
+  - do:
+      search:
+        index: bbq_disk_slice
+        _slice: s1,s2
+        body:
+          knn:
+            field: vector
+            query_vector: [0.707107, 0.707107, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            k: 4
+            num_candidates: 10
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.3._id: "4" }
+
+---
+"KNN search with multiple _slice values and duplicatessearches across the requested slices":
+  - do:
+      search:
+        index: bbq_disk_slice
+        _slice: s1,s2,s1,s2
+        body:
+          knn:
+            field: vector
+            query_vector: [0.707107, 0.707107, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            k: 4
+            num_candidates: 10
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.3._id: "4" }
+
+---
+"KNN search with _all":
+  - do:
+      search:
+        index: bbq_disk_slice
+        _slice: _all
+        body:
+          knn:
+            field: vector
+            query_vector: [0.707107, 0.707107, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            k: 4
+            num_candidates: 10
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.3._id: "4" }
+---
+"Search without _slice defaults to _all on slice-enabled index":
+  - do:
+      search:
+        index: bbq_disk_slice
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 4 }
+
+---
+"KNN search without _slice defaults to _all on slice-enabled index":
+  - do:
+      search:
+        index: bbq_disk_slice
+        body:
+          knn:
+            field: vector
+            query_vector: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            k: 1
+            num_candidates: 10
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+---
+"Index requires _slice when slice indexing is enabled":
+  - do:
+      catch: /\[_slice\] is required when \[index.slice.enabled\] is true/
+      index:
+        index: bbq_disk_slice
+        id: "5"
+        body:
+          vector: [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]

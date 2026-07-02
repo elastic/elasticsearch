@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.inference.common.oauth2.OAuth2TokenSupplier;
 import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -30,10 +32,11 @@ public class OpenAiOAuth2ApplierTests extends ESTestCase {
     private static final String INFERENCE_ID = "inference-id";
     private static final String BEARER_VALUE = "bearer-12345";
     private static final String URL = "http://example.com/embeddings";
+    private static final String FAILURE_MESSAGE = "supplier should not be invoked";
 
     public void testApplyTo_StampsBearerHeaderFromCache() {
         var cache = recordingCacheReturning(new CachedToken(BEARER_VALUE, Instant.now().plusSeconds(60)));
-        var applier = new OpenAiOAuth2Applier(INFERENCE_ID, cache, listener -> fail("supplier shouldn't be invoked directly here"));
+        var applier = new OpenAiOAuth2Applier(INFERENCE_ID, cache, listener -> fail(FAILURE_MESSAGE));
 
         var request = new HttpGet(URL);
         var future = new PlainActionFuture<HttpRequestBase>();
@@ -56,8 +59,11 @@ public class OpenAiOAuth2ApplierTests extends ESTestCase {
             public void invalidate(InferenceIdAndProject key, ActionListener<Void> listener) {
                 listener.onResponse(null);
             }
+
+            @Override
+            public void invalidateOnlLocalNode(String inferenceId) {}
         };
-        var applier = new OpenAiOAuth2Applier(INFERENCE_ID, cache, listener -> fail("supplier shouldn't be invoked"));
+        var applier = new OpenAiOAuth2Applier(INFERENCE_ID, cache, listener -> fail(FAILURE_MESSAGE));
 
         var request = new HttpGet(URL);
         var future = new PlainActionFuture<HttpRequestBase>();
@@ -65,6 +71,31 @@ public class OpenAiOAuth2ApplierTests extends ESTestCase {
 
         var thrown = expectThrows(ElasticsearchException.class, future::actionGet);
         assertThat(thrown.getMessage(), containsString(failureMessage));
+    }
+
+    public void testOnAuthenticationFailure_InvalidatesLocalToken() {
+        var invalidatedIds = new ArrayList<String>();
+        var cache = new TokenCache() {
+            @Override
+            public void getToken(String inferenceId, OAuth2TokenSupplier supplier, ActionListener<CachedToken> listener) {
+                fail(FAILURE_MESSAGE);
+            }
+
+            @Override
+            public void invalidate(InferenceIdAndProject key, ActionListener<Void> listener) {
+                fail(FAILURE_MESSAGE);
+            }
+
+            @Override
+            public void invalidateOnlLocalNode(String inferenceId) {
+                invalidatedIds.add(inferenceId);
+            }
+        };
+        var applier = new OpenAiOAuth2Applier(INFERENCE_ID, cache, listener -> fail(FAILURE_MESSAGE));
+
+        applier.onAuthenticationFailure();
+
+        assertThat(invalidatedIds, equalTo(List.of(INFERENCE_ID)));
     }
 
     private static TokenCache recordingCacheReturning(CachedToken token) {
@@ -79,6 +110,9 @@ public class OpenAiOAuth2ApplierTests extends ESTestCase {
             public void invalidate(InferenceIdAndProject key, ActionListener<Void> listener) {
                 listener.onResponse(null);
             }
+
+            @Override
+            public void invalidateOnlLocalNode(String inferenceId) {}
         };
     }
 }

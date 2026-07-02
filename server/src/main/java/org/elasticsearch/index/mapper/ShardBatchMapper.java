@@ -13,17 +13,17 @@ import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.eirf.EirfBatch;
-import org.elasticsearch.eirf.EirfRowReader;
 import org.elasticsearch.eirf.EirfRowToXContent;
 import org.elasticsearch.eirf.EirfRowXContentParser;
-import org.elasticsearch.eirf.EirfSchema;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.sourcebatch.SourceRow;
+import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -36,13 +36,13 @@ import java.util.List;
  *
  * <p>Workflow:
  * <ol>
- *     <li>{@link #resolveMappers(EirfSchema, MappingLookup)} runs once per batch. It walks the
+ *     <li>{@link #resolveMappers(SourceSchema, MappingLookup)} runs once per batch. It walks the
  *     schema leaves and binds each column to a {@link FieldMapper} (or records {@code null} for
  *     columns that are silently ignored under a {@code dynamic=false} parent). Any configuration
  *     outside the v1 support matrix — runtime fields, index-time scripts, dynamic mapping,
  *     unsupported mapper types, etc. — causes the method to return {@code null}, at which point
  *     {@link ShardBatchIndexer} falls back to the sequential path.</li>
- *     <li>{@link #parseMappings(BulkItemRequest[], EirfBatch, IndexShard, int, int, BatchMapperResolution)}
+ *     <li>{@link #parseMappings(BulkItemRequest[], SourceBatch, IndexShard, int, int, BatchMapperResolution)}
  *     runs per chunk. For each row it drives the pre-resolved mappers through their
  *     {@link FieldMapper#parse(org.elasticsearch.index.mapper.DocumentParserContext)} entry point
  *     using {@link EirfRowXContentParser#positionAtLeafValue(int)} as the value source, and
@@ -56,7 +56,7 @@ public final class ShardBatchMapper {
     private ShardBatchMapper() {}
 
     /**
-     * Result of {@link #resolveMappers(EirfSchema, MappingLookup)}. Holds one entry per schema
+     * Result of {@link #resolveMappers(SourceSchema, MappingLookup)}. Holds one entry per schema
      * leaf; a {@code null} entry means the column is silently ignored because its nearest
      * existing parent {@link ObjectMapper} has {@code dynamic=false}.
      */
@@ -67,7 +67,7 @@ public final class ShardBatchMapper {
      * falls outside the v1 batch-indexing support matrix and the caller should fall back to the
      * sequential path.
      */
-    public static BatchMapperResolution resolveMappers(EirfSchema schema, MappingLookup lookup) {
+    public static BatchMapperResolution resolveMappers(SourceSchema schema, MappingLookup lookup) {
         // Runtime fields or index-time scripts anywhere in the mapping would require the normal
         // parsing flow; the batch path does not support them.
         if (lookup.getMapping().getRoot().runtimeFields().isEmpty() == false) {
@@ -154,14 +154,14 @@ public final class ShardBatchMapper {
      */
     public static List<Engine.Index> parseMappings(
         BulkItemRequest[] items,
-        EirfBatch batch,
+        SourceBatch batch,
         IndexShard primary,
         int chunkEnd,
         int chunkStart,
         BatchMapperResolution resolution
     ) throws IOException {
         final List<Engine.Index> operations = new ArrayList<>(chunkEnd - chunkStart);
-        final EirfSchema schema = batch.schema();
+        final SourceSchema schema = batch.schema();
         final MappingLookup mappingLookup = primary.mapperService().mappingLookup();
         final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
         // The schema tree is required by the EirfRowXContentParser constructor but is not used
@@ -171,7 +171,7 @@ public final class ShardBatchMapper {
 
         for (int i = chunkStart; i < chunkEnd; i++) {
             final IndexRequest indexRequest = (IndexRequest) items[i].request();
-            final EirfRowReader row = batch.getRowReader(i);
+            final SourceRow row = batch.row(i);
             final EirfRowXContentParser rowParser = new EirfRowXContentParser(schemaTree, row);
 
             final XContentType xContentType = indexRequest.getContentType() != null ? indexRequest.getContentType() : XContentType.JSON;
@@ -273,7 +273,7 @@ public final class ShardBatchMapper {
         );
     }
 
-    private static BytesReference rowToSource(EirfRowReader row, EirfSchema schema, XContentType xContentType) throws IOException {
+    private static BytesReference rowToSource(SourceRow row, SourceSchema schema, XContentType xContentType) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             EirfRowToXContent.writeRow(row, schema, builder);
             return BytesReference.bytes(builder);

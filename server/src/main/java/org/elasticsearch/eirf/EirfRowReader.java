@@ -11,6 +11,8 @@ package org.elasticsearch.eirf;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.sourcebatch.SourceRow;
+import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -22,7 +24,7 @@ import org.elasticsearch.xcontent.XContentString;
  * row_flags(u8) | column_count(u16) | var_offset(u16 or i32) | type_bytes[column_count] | fixed_section | var_section
  * </pre>
  */
-public final class EirfRowReader {
+public final class EirfRowReader implements SourceRow {
 
     private static final int ROW_FLAGS_OFFSET = 0;
     private static final int ROW_COLUMN_COUNT_OFFSET = ROW_FLAGS_OFFSET + 1;
@@ -34,7 +36,7 @@ public final class EirfRowReader {
     // Var section offset is i32 so + 4
     private static final int ROW_TYPE_BYTES_OFFSET = ROW_VAR_SECTION_OFFSET_OFFSET + 4;
 
-    private final EirfSchema schema;
+    private final SourceSchema schema;
     private final BytesReference rowData;
     private final boolean smallRow;
     private final int rowColumnCount;
@@ -44,7 +46,7 @@ public final class EirfRowReader {
 
     // TODO: This class currently does a scan to read every value. We will eventually want to optimize this for sequentially reading over a
     // row with some type of cursor.
-    public EirfRowReader(BytesReference rowData, EirfSchema schema) {
+    public EirfRowReader(BytesReference rowData, SourceSchema schema) {
         this.rowData = rowData;
         this.schema = schema;
 
@@ -63,15 +65,23 @@ public final class EirfRowReader {
         this.fixedSectionOffset = typeBytesOffset + rowColumnCount;
     }
 
-    public int columnCount() {
-        return rowColumnCount;
+    @Override
+    public boolean isEmpty() {
+        return rowColumnCount == 0;
     }
 
     /**
-     * The size of the encoded row in bytes, covering the row header, type bytes, fixed section
-     * and variable section. Used as a cheap proxy for the original source size when the EIRF row
-     * has not been re-serialized to XContent bytes.
+     * The number of leaf columns physically recorded in this row's header. EIRF truncates trailing
+     * absent columns, so this is the index of the last present column plus one — columns at indices
+     * {@code [recordedColumnCount(), schema().leafCount())} are implicitly {@link EirfType#ABSENT}.
+     * This is an EIRF storage detail; consumers iterate {@code schema().leafCount()} and rely on
+     * {@link #isAbsent(int)} instead.
      */
+    public int recordedColumnCount() {
+        return rowColumnCount;
+    }
+
+    @Override
     public int sizeInBytes() {
         return rowData.length();
     }
@@ -80,10 +90,12 @@ public final class EirfRowReader {
         return smallRow;
     }
 
-    public EirfSchema schema() {
+    @Override
+    public SourceSchema schema() {
         return schema;
     }
 
+    @Override
     public byte getTypeByte(int col) {
         if (col >= rowColumnCount) {
             return EirfType.ABSENT;
@@ -91,14 +103,17 @@ public final class EirfRowReader {
         return rowData.get(typeBytesOffset + col);
     }
 
+    @Override
     public boolean isAbsent(int col) {
         return getTypeByte(col) == EirfType.ABSENT;
     }
 
+    @Override
     public boolean isNull(int col) {
         return getTypeByte(col) == EirfType.NULL;
     }
 
+    @Override
     public boolean getBooleanValue(int col) {
         byte type = getTypeByte(col);
         if (type == EirfType.TRUE) return true;
@@ -106,40 +121,48 @@ public final class EirfRowReader {
         throw new IllegalStateException("Column " + col + " is not a boolean, type=" + EirfType.name(type));
     }
 
+    @Override
     public int getIntValue(int col) {
         int offset = computeFixedOffset(col);
         return rowData.getIntLE(offset);
     }
 
+    @Override
     public float getFloatValue(int col) {
         int offset = computeFixedOffset(col);
         return Float.intBitsToFloat(rowData.getIntLE(offset));
     }
 
+    @Override
     public long getLongValue(int col) {
         int offset = computeFixedOffset(col);
         return rowData.getLongLE(offset);
     }
 
+    @Override
     public double getDoubleValue(int col) {
         int offset = computeFixedOffset(col);
         return Double.longBitsToDouble(rowData.getLongLE(offset));
     }
 
+    @Override
     public Text getStringValue(int col) {
         BytesRef ref = getVarBytesRef(col);
         return new Text(new XContentString.UTF8Bytes(ref.bytes, ref.offset, ref.length));
     }
 
+    @Override
     public BytesRef getBinaryValue(int col) {
         return getVarBytesRef(col);
     }
 
+    @Override
     public EirfKeyValueReader getKeyValue(int col) {
         BytesRef ref = getVarBytesRef(col);
         return new EirfKeyValueReader(ref.bytes, ref.offset, ref.length);
     }
 
+    @Override
     public EirfArrayReader getArrayValue(int col) {
         boolean fixed = getTypeByte(col) == EirfType.FIXED_ARRAY;
         BytesRef ref = getVarBytesRef(col);

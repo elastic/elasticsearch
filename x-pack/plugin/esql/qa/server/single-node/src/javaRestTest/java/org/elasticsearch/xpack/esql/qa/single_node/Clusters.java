@@ -49,8 +49,6 @@ public class Clusters {
             .setting("xpack.security.enabled", Boolean.toString(securityEnabled))
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
-            // Enable the PEK flag so the cluster.state.encryption.* settings below register.
-            .systemProperty("es.project_encryption_key_feature_flag_enabled", "true")
             .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, ENCRYPTION_PASSWORD)
             .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
             .shared(true)
@@ -60,7 +58,7 @@ public class Clusters {
             .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
             .setting("ingest.geoip.downloader.enabled", "false")
             .apply(() -> configProvider)
-            .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS);
+            .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG);
         if (securityEnabled) {
             builder.user(ADMIN_USER, ADMIN_PASSWORD, "superuser", true);
         }

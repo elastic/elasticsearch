@@ -17,8 +17,6 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.eirf.EirfBatch;
-import org.elasticsearch.eirf.EirfRowReader;
 import org.elasticsearch.eirf.EirfRowXContentParser;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
@@ -29,6 +27,8 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -39,8 +39,8 @@ import java.util.Map;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 /**
- * Handles the EIRF batch indexing code path for primary and replica shards.
- * Documents are read directly from an {@link EirfBatch} using {@link EirfRowXContentParser}
+ * Handles the batch indexing code path for primary and replica shards.
+ * Documents are read directly from a {@link SourceBatch} using {@link EirfRowXContentParser}
  * to feed the document parsing pipeline without intermediate JSON serialization.
  */
 public final class ShardBatchIndexer {
@@ -88,7 +88,7 @@ public final class ShardBatchIndexer {
      */
     static void performBatchIndexOnPrimary(
         final BulkItemRequest[] items,
-        final EirfBatch batch,
+        final SourceBatch batch,
         final BulkPrimaryExecutionContext context,
         final ActionListener<Void> listener
     ) {
@@ -100,7 +100,7 @@ public final class ShardBatchIndexer {
 
     private static void doBatchIndexOnPrimary(
         final BulkItemRequest[] items,
-        final EirfBatch batch,
+        final SourceBatch batch,
         final IndexShard primary,
         final BulkPrimaryExecutionContext context
     ) throws IOException {
@@ -134,7 +134,7 @@ public final class ShardBatchIndexer {
 
             // The chunk's operations map 1:1 to the rows [chunkStart, chunkEnd); pass the matching slice so the
             // engine can write them as a single Translog.IndexBatch record.
-            final EirfBatch chunkBatch = batch.slice(chunkStart, chunkEnd);
+            final SourceBatch chunkBatch = batch.slice(chunkStart, chunkEnd);
             final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(operations, chunkBatch);
 
             for (Engine.IndexResult result : results) {
@@ -149,7 +149,7 @@ public final class ShardBatchIndexer {
     /**
      * Performs a batch index on a replica using EIRF data.
      */
-    static ReplicaBatchResult performBatchIndexOnReplica(BulkItemRequest[] items, EirfBatch batch, IndexShard replica) throws Exception {
+    static ReplicaBatchResult performBatchIndexOnReplica(BulkItemRequest[] items, SourceBatch batch, IndexShard replica) throws Exception {
         final EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(batch.schema());
         Translog.Location location = null;
         int processedItems = 0;
@@ -178,7 +178,7 @@ public final class ShardBatchIndexer {
 
                 final IndexRequest indexRequest = (IndexRequest) item.request();
                 final DocWriteResponse primaryResponse = response.getResponse();
-                final EirfRowReader row = batch.getRowReader(i);
+                final SourceRow row = batch.row(i);
 
                 final XContentType xContentType = indexRequest.getContentType() != null ? indexRequest.getContentType() : XContentType.JSON;
                 final SourceToParse sourceToParse = new SourceToParse(
@@ -224,7 +224,7 @@ public final class ShardBatchIndexer {
             if (operations.isEmpty() == false) {
                 // operations are the contiguous run [chunkStart, chunkStart + operations.size()); pass the matching slice
                 // so the engine writes them as a single Translog.IndexBatch record.
-                final EirfBatch chunkBatch = batch.slice(chunkStart, chunkStart + operations.size());
+                final SourceBatch chunkBatch = batch.slice(chunkStart, chunkStart + operations.size());
                 final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(operations, chunkBatch);
                 for (Engine.IndexResult result : results) {
                     if (result.getFailure() != null) {

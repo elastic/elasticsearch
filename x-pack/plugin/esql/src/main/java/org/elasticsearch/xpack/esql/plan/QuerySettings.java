@@ -135,7 +135,7 @@ public class QuerySettings {
     @Param(
         name = "approximation",
         type = { "boolean", "map_param" },
-        since = "9.4.0",
+        since = "9.5+, preview =9.4",
         description = "Enables [query approximation](/reference/query-languages/esql/esql-query-approximation.md) if possible for the "
             + "query. A boolean value `false` (default) disables query approximation and `true` enables it with "
             + "default settings. Map values enable query approximation with custom settings."
@@ -162,7 +162,7 @@ public class QuerySettings {
         "approximation",
         null,
         false,
-        true,
+        false,
         false,
         ApproximationSettings::parse,
         null

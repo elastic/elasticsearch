@@ -260,15 +260,12 @@ fn build_s3(
         builder = builder.with_endpoint(v).with_allow_http(true);
     }
 
-    // `auth = "anonymous"` (canonical value; `none` is the deprecated alias, both
-    // case-insensitive) selects anonymous access for publicly readable buckets and matches the
-    // Java S3StorageProvider's AnonymousCredentialsProvider path. It must short-circuit the
-    // default AWS credential chain (env -> IMDS -> ...) which would otherwise attempt
-    // PUT http://169.254.169.254/latest/api/token off-EC2 and fail with "Generic S3 error"
-    // after exhausting retries.
-    let anonymous = config
-        .get("auth")
-        .is_some_and(|v| v.eq_ignore_ascii_case("anonymous") || v.eq_ignore_ascii_case("none"));
+    // `auth = "none"` (case-insensitive) selects anonymous access for publicly readable
+    // buckets and matches the Java S3StorageProvider's AnonymousCredentialsProvider path.
+    // It must short-circuit the default AWS credential chain (env -> IMDS -> ...) which
+    // would otherwise attempt PUT http://169.254.169.254/latest/api/token off-EC2 and
+    // fail with "Generic S3 error" after exhausting retries.
+    let anonymous = config.get("auth").is_some_and(|v| v.eq_ignore_ascii_case("none"));
     if anonymous {
         builder = builder.with_skip_signature(true);
     } else {

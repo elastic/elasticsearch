@@ -215,10 +215,13 @@ public class ExternalSourceCacheService implements Closeable {
      * greedy interval-cover walks from the stripe's first record ({@code atStripeStart}) along
      * contiguous record-canonical sub-ranges to the stripe's last record ({@code atStripeEnd} / EOF).
      * <p>
-     * Because every fragment's endpoints are record boundaries — identical across any two scans of the
-     * file regardless of chunking — the cover is robust to misaligned tilings: a FORK branch that
-     * covered a stripe in one fragment and a sibling that split it at a different chunk boundary both
-     * produce a valid chain that folds to the same stripe stats. The greedy walk consumes one fragment
+     * The cover is robust to misaligned tilings not because the fragment endpoints match across scans (they
+     * do not — a chunk boundary landing mid-stripe is a chunk/grid byte position, and different chunkings
+     * split a stripe differently) but because per-stripe attribution is by record START: each record counts
+     * into its own stripe ordinal regardless of chunking, so different scans produce different byte tilings of
+     * the SAME stripe grid cell that fold to the same stripe stats. A FORK branch that covered a stripe in one
+     * fragment and a sibling that split it at a different chunk boundary both produce a valid chain over that
+     * cell. The greedy walk consumes one fragment
      * per position, so an alternative scan's overlapping fragments are simply skipped (no double-count;
      * a stripe is folded once). A stripe whose fragments leave a gap before reaching {@code atStripeEnd}
      * is incomplete and skipped — a safe miss, never wrong. Returns {@code null} when any fragment is

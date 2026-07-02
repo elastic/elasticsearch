@@ -39,12 +39,14 @@ sealed interface SourceStatsContribution {
      * stripes emits one fragment per stripe it touched; a chunk boundary that lands mid-stripe splits
      * that stripe across two adjacent chunks' fragments.
      * <p>
-     * {@code start}/{@code end} are the half-open, record-canonical byte sub-range of stripe
-     * {@code ordinal} this fragment covered (in the file's read coordinate system). Because attribution
-     * is by record-start offset, these endpoints are record boundaries and therefore identical across
-     * any two scans of the same file — which is what makes the reconciler's per-stripe interval-cover
-     * dedup exact: scan A covering a stripe in one fragment and scan B splitting it at a different chunk
-     * boundary fold to the same stripe stats. {@code atStripeStart} marks the fragment holding the
+     * {@code start}/{@code end} are the half-open byte sub-range of stripe {@code ordinal} this fragment
+     * covered — the stripe's grid cell clamped to the chunk's byte range (in the file's read coordinate
+     * system). A chunk boundary landing mid-stripe makes these endpoints chunk/grid byte positions, NOT
+     * record boundaries. Scan-invariance does not come from the endpoints: it comes from ATTRIBUTION — each
+     * record is counted into {@code floor(recordStart / B)} by its OWN start offset, so it lands in the same
+     * stripe regardless of chunking, and sibling fragments tile the same grid cell. That is what makes the
+     * reconciler's per-stripe interval-cover dedup exact: scan A covering a stripe in one fragment and scan B
+     * splitting it at a different chunk boundary fold to the same stripe stats. {@code atStripeStart} marks the fragment holding the
      * stripe's first record; {@code atStripeEnd} marks the fragment whose end reached the next stripe's
      * first record (or end-of-file). {@code eof} marks the fragment that observed end-of-input — the
      * file's last stripe. Fragments without stripe addressing ({@code stripeSize <= 0}: older nodes,

@@ -38,6 +38,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -102,6 +103,7 @@ import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -117,7 +119,10 @@ import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING;
 import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_MIN_DIMS;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.defaultDenseVectorIndexOptions;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.getSupportedSimilarities;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.randomCompatibleDimensions;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests.randomIndexOptionsAll;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldTypeTests.randomSparseVectorIndexOptions;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
@@ -143,7 +148,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -733,90 +737,17 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testUpdateInferenceId_GivenPreviousAndNewDoNotExist() throws IOException {
-        String fieldName = randomAlphaOfLengthBetween(5, 15);
-        MapperService mapperService = createMapperService(
-            mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", "test_model").endObject()),
-            useLegacyFormat
-        );
-        assertInferenceEndpoints(mapperService, fieldName, "test_model", "test_model");
-        assertSemanticTextField(mapperService, fieldName, false, null, null);
-
-        merge(
-            mapperService,
-            mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", "another_model").endObject())
-        );
-
-        assertInferenceEndpoints(mapperService, fieldName, "another_model", "another_model");
-        assertSemanticTextField(mapperService, fieldName, false, null, null);
-    }
-
-    public void testUpdateInferenceId_GivenCurrentHasNoSetModelSettingsAndNewDoesNotExist() throws IOException {
-        String fieldName = randomAlphaOfLengthBetween(5, 15);
-        String oldInferenceId = "old_inference_id";
-        MinimalServiceSettings previousModelSettings = MinimalServiceSettings.sparseEmbedding("previous_service");
-        givenModelSettings(oldInferenceId, previousModelSettings);
-        var mapperService = createMapperService(
-            mapping(
-                b -> b.startObject(fieldName)
-                    .field("type", SemanticTextFieldMapper.CONTENT_TYPE)
-                    .field(INFERENCE_ID_FIELD, oldInferenceId)
-                    .endObject()
-            ),
-            useLegacyFormat
-        );
-
-        assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
-        assertSemanticTextField(mapperService, fieldName, false, null, null);
-
-        String newInferenceId = "new_inference_id";
-        merge(
-            mapperService,
-            mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", newInferenceId).endObject())
-        );
-
-        assertInferenceEndpoints(mapperService, fieldName, newInferenceId, newInferenceId);
-        assertSemanticTextField(mapperService, fieldName, false, null, null);
-    }
-
-    public void testUpdateInferenceId_GivenCurrentHasModelSettingsAndNewDoesNotExist() throws IOException {
-        String fieldName = randomAlphaOfLengthBetween(5, 15);
-        String oldInferenceId = "old_inference_id";
-        MinimalServiceSettings previousModelSettings = MinimalServiceSettings.sparseEmbedding("previous_service");
-        givenModelSettings(oldInferenceId, previousModelSettings);
-        var mapperService = mapperServiceForFieldWithModelSettings(fieldName, oldInferenceId, previousModelSettings);
-
-        assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
-        assertSemanticTextField(mapperService, fieldName, true, null, null);
-
-        String newInferenceId = "new_inference_id";
-
-        Exception exc = expectThrows(
-            IllegalArgumentException.class,
-            () -> merge(
-                mapperService,
-                mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", newInferenceId).endObject())
-            )
-        );
-
-        assertThat(
-            exc.getMessage(),
-            containsString(
-                "Cannot update [semantic_text] field ["
-                    + fieldName
-                    + "] because inference endpoint ["
-                    + newInferenceId
-                    + "] does not exist."
-            )
-        );
-    }
-
-    public void testUpdateInferenceId_GivenCurrentHasNoModelSettingsAndNewIsIncompatibleTaskType_ShouldSucceed() throws IOException {
+    public void testUpdateInferenceId_GivenNoModelSettings() throws IOException {
         for (int randomizedRun = 0; randomizedRun < 10; randomizedRun++) {
             String fieldName = randomAlphaOfLengthBetween(5, 15);
-            String oldInferenceId = "old_inference_id";
-            TestModel oldModel = TestModel.createRandomInstance();
-            givenModelSettings(oldInferenceId, new MinimalServiceSettings(oldModel));
+            String oldInferenceId = randomAlphaOfLengthBetween(5, 15);
+
+            TestModel oldModel = null;
+            if (randomBoolean()) {
+                oldModel = TestModel.createRandomInstance();
+                givenModelSettings(oldInferenceId, new MinimalServiceSettings(oldModel));
+            }
+
             var mapperService = createMapperService(
                 mapping(
                     b -> b.startObject(fieldName)
@@ -829,198 +760,246 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
             assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
             assertSemanticTextField(mapperService, fieldName, false, null, null);
-            assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, oldModel);
+            if (oldModel != null) {
+                assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, oldModel);
+            }
 
-            String newInferenceId = "new_inference_id";
-            TestModel newModel = randomValueOtherThan(oldModel, TestModel::createRandomInstance);
-            givenModelSettings(newInferenceId, new MinimalServiceSettings(newModel));
+            String newInferenceId = randomValueOtherThan(oldInferenceId, () -> randomAlphaOfLengthBetween(5, 15));
+            TestModel newModel = null;
+            if (randomBoolean()) {
+                newModel = TestModel.createRandomInstance();
+                givenModelSettings(newInferenceId, new MinimalServiceSettings(newModel));
+            }
+
             merge(
                 mapperService,
-                mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", newInferenceId).endObject())
+                mapping(
+                    b -> b.startObject(fieldName)
+                        .field("type", SemanticTextFieldMapper.CONTENT_TYPE)
+                        .field(INFERENCE_ID_FIELD, newInferenceId)
+                        .endObject()
+                )
             );
 
             assertInferenceEndpoints(mapperService, fieldName, newInferenceId, newInferenceId);
             assertSemanticTextField(mapperService, fieldName, false, null, null);
-            assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, newModel);
+            if (newModel != null) {
+                assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, newModel);
+            }
         }
     }
 
-    public void testUpdateInferenceId_GivenCurrentHasSparseModelSettingsAndNewIsCompatible() throws IOException {
-        String fieldName = randomAlphaOfLengthBetween(5, 15);
-        String oldInferenceId = "old_inference_id";
-        MinimalServiceSettings previousModelSettings = MinimalServiceSettings.sparseEmbedding("previous_service");
-        givenModelSettings(oldInferenceId, previousModelSettings);
-        MapperService mapperService = mapperServiceForFieldWithModelSettings(fieldName, oldInferenceId, previousModelSettings);
+    public void testUpdateInferenceId_GivenModelSettings() throws IOException {
+        for (int randomizedRun = 0; randomizedRun < 20; randomizedRun++) {
+            final String fieldName = randomAlphaOfLengthBetween(5, 15);
+            final String oldInferenceId = randomAlphaOfLengthBetween(5, 15);
+            final String newInferenceId = randomValueOtherThan(oldInferenceId, () -> randomAlphaOfLengthBetween(5, 15));
 
-        assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
-        assertSemanticTextField(mapperService, fieldName, true, null, null);
+            final TestModel oldModel = TestModel.createRandomInstance();
+            final MinimalServiceSettings previousModelSettings = new MinimalServiceSettings(oldModel);
+            givenModelSettings(oldInferenceId, previousModelSettings);
 
-        String newInferenceId = "new_inference_id";
-        MinimalServiceSettings newModelSettings = MinimalServiceSettings.sparseEmbedding("new_service");
-        givenModelSettings(newInferenceId, newModelSettings);
-        merge(
-            mapperService,
-            mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", newInferenceId).endObject())
-        );
+            final MapperService mapperService = mapperServiceForFieldWithModelSettings(fieldName, oldInferenceId, previousModelSettings);
+            final SemanticTextIndexOptions currentIndexOptions = extractCurrentIndexOptions(mapperService, fieldName);
+            assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
+            assertSemanticTextField(mapperService, fieldName, true, null, currentIndexOptions);
+            assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, oldModel);
 
-        assertInferenceEndpoints(mapperService, fieldName, newInferenceId, newInferenceId);
-        assertSemanticTextField(mapperService, fieldName, true, null, null);
-        SemanticTextFieldMapper semanticFieldMapper = getSemanticFieldMapper(mapperService, fieldName);
-        assertThat(semanticFieldMapper.fieldType().getModelSettings(), equalTo(newModelSettings));
-    }
-
-    public void testUpdateInferenceId_GivenCurrentHasSparseModelSettingsAndNewIsIncompatibleTaskType() throws IOException {
-        String fieldName = randomAlphaOfLengthBetween(5, 15);
-        String oldInferenceId = "old_inference_id";
-        MinimalServiceSettings previousModelSettings = MinimalServiceSettings.sparseEmbedding("previous_service");
-        givenModelSettings(oldInferenceId, previousModelSettings);
-        MapperService mapperService = mapperServiceForFieldWithModelSettings(fieldName, oldInferenceId, previousModelSettings);
-
-        assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
-        assertSemanticTextField(mapperService, fieldName, true, null, null);
-
-        String newInferenceId = "new_inference_id";
-        MinimalServiceSettings newModelSettings = MinimalServiceSettings.textEmbedding(
-            "new_service",
-            48,
-            SimilarityMeasure.L2_NORM,
-            DenseVectorFieldMapper.ElementType.BIT
-        );
-        givenModelSettings(newInferenceId, newModelSettings);
-
-        Exception exc = expectThrows(
-            IllegalArgumentException.class,
-            () -> merge(
+            final CheckedRunnable<IOException> mergeRunner = () -> merge(
                 mapperService,
-                mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", newInferenceId).endObject())
-            )
-        );
+                mapping(
+                    b -> b.startObject(fieldName)
+                        .field("type", SemanticTextFieldMapper.CONTENT_TYPE)
+                        .field(INFERENCE_ID_FIELD, newInferenceId)
+                        .endObject()
+                )
+            );
 
-        assertThat(
-            exc.getMessage(),
-            containsString(
-                "Cannot update [semantic_text] field ["
-                    + fieldName
-                    + "] because inference endpoint ["
-                    + oldInferenceId
-                    + "] with model settings ["
-                    + previousModelSettings
-                    + "] is not compatible with new inference endpoint ["
-                    + newInferenceId
-                    + "] with model settings ["
-                    + newModelSettings
-                    + "]"
-            )
-        );
+            if (randomBoolean()) {
+                // Compatible: new endpoint has identical task type / dimensions / similarity / element type
+                TestModel newModel = createCompatibleModel(newInferenceId, oldModel);
+                MinimalServiceSettings newModelSettings = new MinimalServiceSettings(newModel);
+                givenModelSettings(newInferenceId, newModelSettings);
+
+                mergeRunner.run();
+                assertInferenceEndpoints(mapperService, fieldName, newInferenceId, newInferenceId);
+                assertSemanticTextField(mapperService, fieldName, true, null, currentIndexOptions);
+                assertEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, newModel);
+            } else {
+                final TestModel incompatibleModel = createIncompatibleModel(newInferenceId, oldModel);
+                final String expectedErrorMessage;
+                if (incompatibleModel == null) {
+                    // Incompatible: new endpoint does not exist
+                    expectedErrorMessage = "Cannot update ["
+                        + SemanticTextFieldMapper.CONTENT_TYPE
+                        + "] field ["
+                        + fieldName
+                        + "] because inference endpoint ["
+                        + newInferenceId
+                        + "] does not exist.";
+                } else {
+                    // Incompatible: new endpoint exists but its model settings are incompatible
+                    MinimalServiceSettings incompatibleModelSettings = new MinimalServiceSettings(incompatibleModel);
+                    givenModelSettings(newInferenceId, incompatibleModelSettings);
+
+                    expectedErrorMessage = "Cannot update ["
+                        + SemanticTextFieldMapper.CONTENT_TYPE
+                        + "] field ["
+                        + fieldName
+                        + "] because inference endpoint ["
+                        + oldInferenceId
+                        + "] with model settings ["
+                        + previousModelSettings
+                        + "] is not compatible with new inference endpoint ["
+                        + newInferenceId
+                        + "] with model settings ["
+                        + incompatibleModelSettings
+                        + "]";
+                }
+
+                IllegalArgumentException exc = assertThrows(IllegalArgumentException.class, mergeRunner::run);
+                assertThat(exc.getMessage(), containsString(expectedErrorMessage));
+            }
+        }
     }
 
-    public void testUpdateInferenceId_GivenCurrentHasDenseModelSettingsAndNewIsCompatible() throws IOException {
-        String fieldName = randomAlphaOfLengthBetween(5, 15);
-        String oldInferenceId = "old_inference_id";
-        MinimalServiceSettings previousModelSettings = MinimalServiceSettings.textEmbedding(
-            "previous_service",
-            48,
-            SimilarityMeasure.L2_NORM,
-            DenseVectorFieldMapper.ElementType.BIT
-        );
-        givenModelSettings(oldInferenceId, previousModelSettings);
-        MapperService mapperService = mapperServiceForFieldWithModelSettings(fieldName, oldInferenceId, previousModelSettings);
+    private static SemanticTextIndexOptions extractCurrentIndexOptions(MapperService mapperService, String fieldName) {
+        SemanticTextIndexOptions currentIndexOptions = null;
+        SemanticTextFieldMapper sfm = getSemanticFieldMapper(mapperService, fieldName);
+        FieldMapper embeddingsMapper = sfm.fieldType().getEmbeddingsField();
+        if (embeddingsMapper instanceof DenseVectorFieldMapper dvm) {
+            IndexOptions denseIndexOptions = dvm.fieldType().getIndexOptions();
+            if (denseIndexOptions != null) {
+                currentIndexOptions = new SemanticTextIndexOptions(
+                    SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+                    denseIndexOptions
+                );
+            }
+        }
 
-        assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
-        assertSemanticTextField(mapperService, fieldName, true, null, null);
-
-        String newInferenceId = "new_inference_id";
-        MinimalServiceSettings newModelSettings = MinimalServiceSettings.textEmbedding(
-            "new_service",
-            48,
-            SimilarityMeasure.L2_NORM,
-            DenseVectorFieldMapper.ElementType.BIT
-        );
-        givenModelSettings(newInferenceId, newModelSettings);
-        merge(
-            mapperService,
-            mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", newInferenceId).endObject())
-        );
-
-        assertInferenceEndpoints(mapperService, fieldName, newInferenceId, newInferenceId);
-        assertSemanticTextField(mapperService, fieldName, true, null, null);
-        SemanticTextFieldMapper semanticFieldMapper = getSemanticFieldMapper(mapperService, fieldName);
-        assertThat(semanticFieldMapper.fieldType().getModelSettings(), equalTo(newModelSettings));
+        return currentIndexOptions;
     }
 
-    public void testUpdateInferenceId_GivenCurrentHasDenseModelSettingsAndNewIsIncompatibleTaskType() throws IOException {
-        String fieldName = randomAlphaOfLengthBetween(5, 15);
-        String oldInferenceId = "old_inference_id";
-        MinimalServiceSettings previousModelSettings = MinimalServiceSettings.textEmbedding(
-            "previous_service",
-            48,
-            SimilarityMeasure.L2_NORM,
-            DenseVectorFieldMapper.ElementType.BIT
-        );
-        givenModelSettings(oldInferenceId, previousModelSettings);
-        MapperService mapperService = mapperServiceForFieldWithModelSettings(fieldName, oldInferenceId, previousModelSettings);
-
-        assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
-        assertSemanticTextField(mapperService, fieldName, true, null, null);
-
-        String newInferenceId = "new_inference_id";
-        MinimalServiceSettings newModelSettings = MinimalServiceSettings.sparseEmbedding("new_service");
-        givenModelSettings(newInferenceId, newModelSettings);
-
-        Exception exc = expectThrows(
-            IllegalArgumentException.class,
-            () -> merge(
-                mapperService,
-                mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", newInferenceId).endObject())
-            )
-        );
-
-        assertThat(
-            exc.getMessage(),
-            containsString(
-                "Cannot update [semantic_text] field ["
-                    + fieldName
-                    + "] because inference endpoint ["
-                    + oldInferenceId
-                    + "] with model settings ["
-                    + previousModelSettings
-                    + "] is not compatible with new inference endpoint ["
-                    + newInferenceId
-                    + "] with model settings ["
-                    + newModelSettings
-                    + "]"
-            )
-        );
-    }
-
-    public void testUpdateInferenceId_GivenCurrentHasDenseModelSettingsAndNewHasIncompatibleDimensions() throws IOException {
-        testUpdateInferenceId_GivenDenseModelsWithDifferentSettings(
-            MinimalServiceSettings.textEmbedding("previous_service", 48, SimilarityMeasure.L2_NORM, DenseVectorFieldMapper.ElementType.BIT),
-            MinimalServiceSettings.textEmbedding("new_service", 40, SimilarityMeasure.L2_NORM, DenseVectorFieldMapper.ElementType.BIT)
-        );
-    }
-
-    public void testUpdateInferenceId_GivenCurrentHasDenseModelSettingsAndNewHasIncompatibleSimilarityMeasure() throws IOException {
-        testUpdateInferenceId_GivenDenseModelsWithDifferentSettings(
-            MinimalServiceSettings.textEmbedding(
-                "previous_service",
-                48,
-                SimilarityMeasure.L2_NORM,
-                DenseVectorFieldMapper.ElementType.BYTE
+    /**
+     * Creates a {@link TestModel} that is compatible with {@code baseModel} (same task type, dimensions,
+     * similarity, and element type) but with a distinct service, task settings, and secrets, registered
+     * under the given inference ID. Compatible models can be substituted via an inference-ID update.
+     */
+    private static TestModel createCompatibleModel(String inferenceId, TestModel baseModel) {
+        return new TestModel(
+            inferenceId,
+            baseModel.getTaskType(),
+            randomAlphaOfLength(4),
+            new TestModel.TestServiceSettings(
+                randomAlphaOfLength(4),
+                baseModel.getServiceSettings().dimensions(),
+                baseModel.getServiceSettings().similarity(),
+                baseModel.getServiceSettings().elementType()
             ),
-            MinimalServiceSettings.textEmbedding("new_service", 48, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.BYTE)
+            new TestModel.TestTaskSettings(randomInt(3)),
+            new TestModel.TestSecretSettings(randomAlphaOfLength(4))
         );
     }
 
-    public void testUpdateInferenceId_GivenCurrentHasDenseModelSettingsAndNewHasIncompatibleElementType() throws IOException {
-        testUpdateInferenceId_GivenDenseModelsWithDifferentSettings(
-            MinimalServiceSettings.textEmbedding(
-                "previous_service",
-                48,
-                SimilarityMeasure.L2_NORM,
-                DenseVectorFieldMapper.ElementType.BYTE
-            ),
-            MinimalServiceSettings.textEmbedding("new_service", 48, SimilarityMeasure.L2_NORM, DenseVectorFieldMapper.ElementType.BIT)
+    /** The kinds of incompatibility that can exist between two inference endpoint model settings. */
+    private enum IncompatibilityKind {
+        TASK_TYPE,
+        DIMENSIONS,
+        SIMILARITY,
+        ELEMENT_TYPE,
+        DOES_NOT_EXIST
+    }
+
+    /**
+     * Creates a {@link TestModel} that is NOT compatible with {@code baseModel}, choosing uniformly among the
+     * applicable kinds of incompatibility: task type, dimensions, similarity, element type, or the endpoint not
+     * existing. Setting-based perturbations (dimensions/similarity/element type) only apply to dense base models;
+     * a sparse base model has null dimensions/similarity/element type, so only task-type and does-not-exist apply.
+     *
+     * @return an incompatible model to register under {@code inferenceId}, or {@code null} to indicate the
+     *         caller should NOT register an endpoint (the does-not-exist case).
+     */
+    private static TestModel createIncompatibleModel(String inferenceId, TestModel baseModel) {
+        final TestModel.TestServiceSettings baseServiceSettings = baseModel.getServiceSettings();
+        final DenseVectorFieldMapper.ElementType baseElementType = baseServiceSettings.elementType();
+
+        List<IncompatibilityKind> applicable = new ArrayList<>();
+        applicable.add(IncompatibilityKind.TASK_TYPE);
+        applicable.add(IncompatibilityKind.DOES_NOT_EXIST);
+        if (baseModel.getTaskType() != TaskType.SPARSE_EMBEDDING) {
+            applicable.add(IncompatibilityKind.DIMENSIONS);
+            applicable.add(IncompatibilityKind.ELEMENT_TYPE);
+            // SIMILARITY only when the element type supports more than one option to perturb to
+            if (getSupportedSimilarities(baseElementType).size() > 1) {
+                applicable.add(IncompatibilityKind.SIMILARITY);
+            }
+        }
+
+        TaskType taskType = baseModel.getTaskType();
+        Integer dimensions = baseServiceSettings.dimensions();
+        SimilarityMeasure similarity = baseServiceSettings.similarity();
+        DenseVectorFieldMapper.ElementType elementType = baseElementType;
+        boolean returnNull = false;
+
+        switch (randomFrom(applicable)) {
+            case DOES_NOT_EXIST -> returnNull = true;
+            case TASK_TYPE -> {
+                taskType = randomValueOtherThan(taskType, () -> randomFrom(Set.of(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING)));
+                if (taskType == TaskType.TEXT_EMBEDDING) {
+                    // Sparse -> dense: populate required dense settings from a fresh random dense model
+                    TestModel randomDenseModel = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
+                    dimensions = randomDenseModel.getServiceSettings().dimensions();
+                    similarity = randomDenseModel.getServiceSettings().similarity();
+                    elementType = randomDenseModel.getServiceSettings().elementType();
+                } else {
+                    // Dense -> sparse: clear dense-only settings
+                    dimensions = null;
+                    similarity = null;
+                    elementType = null;
+                }
+            }
+            case DIMENSIONS -> dimensions = randomValueOtherThan(
+                dimensions,
+                () -> randomCompatibleDimensions(baseElementType, BBQ_MIN_DIMS * 2)
+            );
+            case SIMILARITY -> similarity = randomValueOtherThan(similarity, () -> randomFrom(getSupportedSimilarities(baseElementType)));
+            case ELEMENT_TYPE -> {
+                elementType = randomValueOtherThan(
+                    elementType,
+                    () -> randomFrom(
+                        DenseVectorFieldMapper.ElementType.FLOAT,
+                        DenseVectorFieldMapper.ElementType.BYTE,
+                        DenseVectorFieldMapper.ElementType.BIT
+                    )
+                );
+                // Regenerate dimensions and similarity compatible with the new element type
+                dimensions = randomCompatibleDimensions(elementType, BBQ_MIN_DIMS * 2);
+                similarity = randomFrom(getSupportedSimilarities(elementType));
+            }
+        }
+
+        if (returnNull) {
+            return null;
+        }
+
+        return buildModel(baseModel, inferenceId, taskType, elementType, dimensions, similarity);
+    }
+
+    private static TestModel buildModel(
+        TestModel baseModel,
+        String inferenceId,
+        TaskType taskType,
+        @Nullable DenseVectorFieldMapper.ElementType elementType,
+        @Nullable Integer dimensions,
+        @Nullable SimilarityMeasure similarity
+    ) {
+        return new TestModel(
+            inferenceId,
+            taskType,
+            baseModel.getConfigurations().getService(),
+            new TestModel.TestServiceSettings(baseModel.getServiceSettings().model(), dimensions, similarity, elementType),
+            baseModel.getTaskSettings(),
+            baseModel.getSecretSettings()
         );
     }
 
@@ -1052,51 +1031,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(denseVectorFieldMapper.fieldType().getVectorDimensions(), equalTo(modelServiceSettings.dimensions()));
         assertThat(denseVectorFieldMapper.fieldType().getElementType(), equalTo(expectedElementType));
         assertThat(denseVectorFieldMapper.fieldType().getSimilarity(), equalTo(modelServiceSettings.similarity().vectorSimilarity()));
-    }
-
-    private void testUpdateInferenceId_GivenDenseModelsWithDifferentSettings(
-        MinimalServiceSettings previousModelSettings,
-        MinimalServiceSettings newModelSettings
-    ) throws IOException {
-        assertThat(previousModelSettings.taskType(), equalTo(TaskType.TEXT_EMBEDDING));
-        assertThat(newModelSettings.taskType(), equalTo(TaskType.TEXT_EMBEDDING));
-        assertThat(newModelSettings, not(equalTo(previousModelSettings)));
-
-        String fieldName = randomAlphaOfLengthBetween(5, 15);
-        String oldInferenceId = "old_inference_id";
-        givenModelSettings(oldInferenceId, previousModelSettings);
-        MapperService mapperService = mapperServiceForFieldWithModelSettings(fieldName, oldInferenceId, previousModelSettings);
-
-        assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
-        assertSemanticTextField(mapperService, fieldName, true, null, null);
-
-        String newInferenceId = "new_inference_id";
-        givenModelSettings(newInferenceId, newModelSettings);
-
-        Exception exc = expectThrows(
-            IllegalArgumentException.class,
-            () -> merge(
-                mapperService,
-                mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", newInferenceId).endObject())
-            )
-        );
-
-        assertThat(
-            exc.getMessage(),
-            containsString(
-                "Cannot update [semantic_text] field ["
-                    + fieldName
-                    + "] because inference endpoint ["
-                    + oldInferenceId
-                    + "] with model settings ["
-                    + previousModelSettings
-                    + "] is not compatible with new inference endpoint ["
-                    + newInferenceId
-                    + "] with model settings ["
-                    + newModelSettings
-                    + "]"
-            )
-        );
     }
 
     public void testDynamicUpdate() throws IOException {

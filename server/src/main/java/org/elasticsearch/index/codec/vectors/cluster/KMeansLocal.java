@@ -322,6 +322,9 @@ abstract class KMeansLocal<V> {
         final V[] newCentroids = ops.newCentroidArray(effectiveK, dims);
         final int[] newClusterCounts = new int[effectiveK];
         final int[] centroidIndexMap = new int[centroids.length];
+        // Use -1 as a sentinel for removed (empty) centroids so that neighborhood remapping
+        // can distinguish removed centroids from centroid 0.
+        Arrays.fill(centroidIndexMap, -1);
         int currentCluster = 0;
         for (int c = 0; c < centroids.length; c++) {
             if (centroidVectorCount[c] > 0) {
@@ -340,16 +343,30 @@ abstract class KMeansLocal<V> {
         kMeansIntermediate.setCentroids(newCentroids, newClusterCounts);
 
         if (neighborhoods != null) {
-            // This change will cause that neighborhoods.length > newCentroids.length.
-            // Doing it like this avoids more memory allocations and is fine as long as
-            // we do not use neighborhoods.length to get the number of clusters.
+            // Remap neighborhood indices to match the compacted centroid array, filtering out
+            // any neighbors that referenced a removed (empty) centroid. We iterate non-empty
+            // centroids in ascending order; since centroidIndexMap is monotonically increasing
+            // for non-empty entries, each write index is <= the read index, so earlier writes
+            // can't overwrite unprocessed entries.
             for (int c = 0; c < centroids.length; c++) {
-                neighborhoods[centroidIndexMap[c]] = neighborhoods[c];
-                int[] neighbors = neighborhoods[c].neighbors();
-                for (int i = 0; i < neighbors.length; i++) {
-                    neighbors[i] = centroidIndexMap[neighbors[i]];
+                if (centroidVectorCount[c] == 0) {
+                    continue;
                 }
-                neighborhoods[centroidIndexMap[c]] = neighborhoods[c];
+                int newIdx = centroidIndexMap[c];
+                int[] oldNeighbors = neighborhoods[c].neighbors();
+                int kept = 0;
+                for (int n : oldNeighbors) {
+                    if (centroidIndexMap[n] != -1) {
+                        oldNeighbors[kept++] = centroidIndexMap[n];
+                    }
+                }
+                if (kept == oldNeighbors.length) {
+                    neighborhoods[newIdx] = neighborhoods[c];
+                } else {
+                    int[] trimmed = new int[kept];
+                    System.arraycopy(oldNeighbors, 0, trimmed, 0, kept);
+                    neighborhoods[newIdx] = new NeighborHood(trimmed, neighborhoods[c].maxIntraDistance());
+                }
             }
         }
     }

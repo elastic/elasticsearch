@@ -1440,6 +1440,13 @@ public class EsqlCapabilities {
          */
         VIEWS_CRUD_AS_INDEX_ACTIONS(VIEWS_WITH_NO_BRANCHING.isEnabled()),
         /**
+         * Signals that {@code PUT /_query/view/{name}} is exposed with {@code @ServerlessScope(Scope.PUBLIC)}.
+         * Old nodes in a mixed cluster predate this annotation and will not report this capability via
+         * {@code /_capabilities}, so any mixed cluster containing such a node correctly returns
+         * {@code supported=false}.
+         */
+        VIEWS_PUT_SERVERLESS_SCOPE(VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled()),
+        /**
          * Views with branching (requires subqueries/FORK).
          */
         VIEWS_WITH_BRANCHING(VIEWS_WITH_NO_BRANCHING.isEnabled() && SUBQUERY_IN_FROM_COMMAND.isEnabled()),

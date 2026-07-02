@@ -207,6 +207,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
+import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE;
 
 public class InferencePlugin extends Plugin
     implements
@@ -797,6 +798,7 @@ public class InferencePlugin extends Plugin
         settings.addAll(RequestExecutorServiceSettings.getSettingsDefinitions());
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);
+        settings.add(INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE);
         settings.add(INFERENCE_QUERY_TIMEOUT);
         settings.addAll(InferenceEndpointRegistry.getSettingsDefinitions());
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());

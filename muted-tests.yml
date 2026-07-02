@@ -856,3 +856,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceWithSecurityRestIT
   method: test {p0=inference/80_region_policy_crud/Put region policy requires manage_inference privilege}
   issue: https://github.com/elastic/elasticsearch/issues/152732
+- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
+  method: testSearchWithRandomDisconnects
+  issue: https://github.com/elastic/elasticsearch/issues/152734

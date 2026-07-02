@@ -584,9 +584,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.InternalDistributionDownloadPluginFuncTest
   method: resolves current version from local build
   issue: https://github.com/elastic/elasticsearch/issues/151851
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testCloseWhileShardsAreHollowed
-  issue: https://github.com/elastic/elasticsearch/issues/151861
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testDeleteIndexAfterRecovery
   issue: https://github.com/elastic/elasticsearch/issues/151884
@@ -749,15 +746,9 @@ tests:
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPartiallyRetainedByCcrLease
   issue: https://github.com/elastic/elasticsearch/issues/152498
-- class: org.elasticsearch.xpack.diskbbq.DiskBBQClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/47_knn_search_bbq_disk_slice/KNN search with a different _slice returns that slice's nearest neighbor}
-  issue: https://github.com/elastic/elasticsearch/issues/152520
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.SumSerializationTests
   method: testSerializeSumWithOverflowingLongSupplier
   issue: https://github.com/elastic/elasticsearch/issues/152506
-- class: org.elasticsearch.transport.RemoteClusterClientTests
-  method: testConnectAndExecuteRequest
-  issue: https://github.com/elastic/elasticsearch/issues/152518
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
   method: testRelocatingIndexShardFetchesFirstRegionOnly
   issue: https://github.com/elastic/elasticsearch/issues/152526
@@ -830,9 +821,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/pull/152637
 - class: org.elasticsearch.xpack.esql.qa.mixed.SparklineWithEveryAggIT
   issue: https://github.com/elastic/elasticsearch/pull/152637
-- class: org.elasticsearch.xpack.diskbbq.DiskBBQClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/47_knn_search_bbq_disk_slice/KNN search with multiple _slice values and duplicatessearches across the requested slices}
-  issue: https://github.com/elastic/elasticsearch/issues/152722
 - class: org.elasticsearch.xpack.stateless.HollowIndexShardsMergesIT
   method: testQueuedOrOnGoingMergesPreventHollowing
   issue: https://github.com/elastic/elasticsearch/issues/152723

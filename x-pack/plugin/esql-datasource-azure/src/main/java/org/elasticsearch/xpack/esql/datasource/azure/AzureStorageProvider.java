@@ -132,7 +132,7 @@ public final class AzureStorageProvider implements StorageProvider {
 
     /**
      * Data-source pool used by the federated-auth (keyless) credential (see {@link #buildClientAssertionCredential}).
-     * Non-null only on keyless code paths.
+     * Non-null only on federated code paths.
      */
     private final ExecutorService executor;
 
@@ -532,7 +532,7 @@ public final class AzureStorageProvider implements StorageProvider {
         if (config == null || config.resolveAuthModeOrNull() == null) {
             return ". If accessing a public container, set auth=anonymous. "
                 + "Otherwise, provide credentials via account and key, "
-                + "or configure keyless authentication with tenant_id, client_id, and jwt_audience";
+                + "or configure federated authentication with tenant_id and client_id";
         }
         return "";
     }

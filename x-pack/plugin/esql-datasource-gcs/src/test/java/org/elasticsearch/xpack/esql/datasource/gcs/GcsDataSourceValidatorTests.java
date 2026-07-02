@@ -126,25 +126,25 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
         );
     }
 
-    public void testValidateDatasourceRejectsExplicitKeylessWhenDisabled() {
-        // default validator has keyless authentication disabled
-        var keylessConfig = Map.<String, Object>of("auth", "federated_identity", "jwt_audience", "//aud", "sts_audience", "//sts");
-        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(keylessConfig));
+    public void testValidateDatasourceRejectsExplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var federatedConfig = Map.<String, Object>of("auth", "federated_identity", "jwt_audience", "//aud", "sts_audience", "//sts");
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
         assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
     }
 
-    public void testValidateDatasourceRejectsImplicitKeylessWhenDisabled() {
-        // default validator has keyless authentication disabled
-        var keylessConfig = Map.<String, Object>of("jwt_audience", "//aud", "sts_audience", "//sts");
-        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(keylessConfig));
+    public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var federatedConfig = Map.<String, Object>of("jwt_audience", "//aud", "sts_audience", "//sts");
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
         assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
     }
 
-    public void testValidateDatasourceAcceptsKeylessWhenEnabled() {
-        var keylessValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs")).withFederatedIdentityEnabled(
+    public void testValidateDatasourceAcceptsFederatedWhenEnabled() {
+        var federatedValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs")).withFederatedIdentityEnabled(
             () -> true
         );
-        var result = keylessValidator.validateDatasource(
+        var result = federatedValidator.validateDatasource(
             Map.of("auth", "federated_identity", "jwt_audience", "//aud", "sts_audience", "//sts")
         );
         assertEquals("//sts", result.get("sts_audience").nonSecretValue());

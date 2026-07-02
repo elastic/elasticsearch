@@ -283,7 +283,7 @@ public class GcsStorageProvider implements StorageProvider {
         if (config == null || config.resolveAuthModeOrNull() == null) {
             return ". If accessing a public bucket, set auth=anonymous. "
                 + "Otherwise, provide credentials via credentials or access_token, "
-                + "or configure keyless authentication with jwt_audience and sts_audience";
+                + "or configure federated authentication with sts_audience";
         }
         return "";
     }

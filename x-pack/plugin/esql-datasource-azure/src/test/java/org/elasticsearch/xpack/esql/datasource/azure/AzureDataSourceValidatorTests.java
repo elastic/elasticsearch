@@ -126,8 +126,8 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
         );
     }
 
-    public void testValidateDatasourceRejectsExplicitKeylessWhenDisabled() {
-        // default validator has keyless authentication disabled
+    public void testValidateDatasourceRejectsExplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
         var e = expectThrows(
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(
@@ -146,8 +146,8 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
         assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
     }
 
-    public void testValidateDatasourceRejectsImplicitKeylessWhenDisabled() {
-        // default validator has keyless authentication disabled
+    public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
         var e = expectThrows(
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(
@@ -157,10 +157,10 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
         assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
     }
 
-    public void testValidateDatasourceAcceptsKeylessWhenEnabled() {
-        var keylessValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
+    public void testValidateDatasourceAcceptsFederatedWhenEnabled() {
+        var federatedValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
             .withFederatedIdentityEnabled(() -> true);
-        var result = keylessValidator.validateDatasource(
+        var result = federatedValidator.validateDatasource(
             Map.of("auth", "federated_identity", "tenant_id", "tenant", "client_id", "client", "jwt_audience", "api://AzureADTokenExchange")
         );
         assertEquals("tenant", result.get("tenant_id").nonSecretValue());

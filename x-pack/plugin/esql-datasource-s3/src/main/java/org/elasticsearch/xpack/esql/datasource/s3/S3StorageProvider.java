@@ -511,7 +511,7 @@ public class S3StorageProvider implements StorageProvider {
         if (config == null || config.resolveAuthModeOrNull() == null) {
             return ". If accessing a public bucket, set auth=anonymous. "
                 + "Otherwise, provide credentials via access_key and secret_key, "
-                + "or configure keyless authentication with role_arn";
+                + "or configure federated authentication with role_arn";
         }
         return "";
     }

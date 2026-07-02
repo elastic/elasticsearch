@@ -51,11 +51,11 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationU
 public class FileDataSourceValidator implements DataSourceValidator {
 
     /**
-     * Gates provisioning data sources that use keyless workload-identity federation (e.g. S3 {@code role_arn},
+     * Gates provisioning data sources that use workload-identity federation (e.g. S3 {@code role_arn},
      * GCS {@code sts_audience}, Azure {@code tenant_id}/{@code client_id}). A single flag covers every file-based
      * provider, since they all funnel through this validator and share the
-     * {@link DataSourceConfiguration#hasKeylessAuth()} mechanism. Snapshot-on, release-off; override in release with
-     * {@code -Des.esql_external_datasources_federated_identity_feature_flag_enabled=true}. The keyless fields themselves remain
+     * {@link DataSourceConfiguration#hasFederatedAuth()} mechanism. Snapshot-on, release-off; override in release with
+     * {@code -Des.esql_external_datasources_federated_identity_feature_flag_enabled=true}. The federated fields themselves remain
      * registered on each configuration regardless, so a PUT carrying them produces the explicit
      * {@link #FEDERATED_IDENTITY_DISABLED_MESSAGE} rather than an "unknown setting" error.
      */
@@ -64,11 +64,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
     );
 
     /**
-     * Error shown when a data source is provisioned with keyless authentication settings while the
+     * Error shown when a data source is provisioned with federated authentication settings while the
      * {@link #ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY_FEATURE_FLAG} feature flag is disabled.
      */
     public static final String FEDERATED_IDENTITY_DISABLED_MESSAGE =
-        "keyless authentication settings require the [esql_external_datasources_federated_identity] feature flag to be enabled; "
+        "federated authentication settings require the [esql_external_datasources_federated_identity] feature flag to be enabled; "
             + "it is disabled by default in release builds";
 
     // Dataset settings are plain values — no secrets. Credentials are inherited from the parent datasource.
@@ -199,7 +199,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
     }
 
     /**
-     * Returns a new validator that gates keyless workload-identity authentication on the supplied boolean supplier.
+     * Returns a new validator that gates federated workload-identity authentication on the supplied boolean supplier.
      * The supplier is called on each validation. Wire it to
      * {@link #ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY_FEATURE_FLAG} in production; tests pass a fixed supplier to exercise
      * both states without flipping the process-wide feature flag.
@@ -319,7 +319,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
     }
 
     private boolean isFederatedIdentityUsed(DataSourceConfiguration config) {
-        return (config instanceof FileDataSourceConfiguration fc && fc.isFederatedIdentity()) || config.hasKeylessAuth();
+        return (config instanceof FileDataSourceConfiguration fc && fc.isFederatedIdentity()) || config.hasFederatedAuth();
     }
 
     /**

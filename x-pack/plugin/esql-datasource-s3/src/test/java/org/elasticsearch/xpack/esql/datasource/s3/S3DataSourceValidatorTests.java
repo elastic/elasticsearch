@@ -186,9 +186,9 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
     }
 
-    public void testValidateDatasourceRejectsExplicitKeylessWhenDisabled() {
-        // default validator has keyless authentication disabled
-        var keylessConfig = Map.<String, Object>of(
+    public void testValidateDatasourceRejectsExplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var federatedConfig = Map.<String, Object>of(
             "auth",
             "federated_identity",
             "role_arn",
@@ -198,13 +198,13 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             "region",
             "us-east-1"
         );
-        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(keylessConfig));
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
         assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
     }
 
-    public void testValidateDatasourceRejectsImplicitKeylessWhenDisabled() {
-        // default validator has keyless authentication disabled
-        var keylessConfig = Map.<String, Object>of(
+    public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var federatedConfig = Map.<String, Object>of(
             "role_arn",
             "arn:aws:iam::123456789012:role/example",
             "jwt_audience",
@@ -212,14 +212,14 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             "region",
             "us-east-1"
         );
-        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(keylessConfig));
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
         assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
     }
 
-    public void testValidateDatasourceAcceptsKeylessWhenEnabled() {
-        var keylessValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+    public void testValidateDatasourceAcceptsFederatedWhenEnabled() {
+        var federatedValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
             .withFederatedIdentityEnabled(() -> true);
-        var result = keylessValidator.validateDatasource(
+        var result = federatedValidator.validateDatasource(
             Map.of(
                 "auth",
                 "federated_identity",

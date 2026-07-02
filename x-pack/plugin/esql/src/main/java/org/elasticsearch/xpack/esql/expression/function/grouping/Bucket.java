@@ -285,17 +285,20 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         @Param(
             name = "buckets",
             type = { "integer", "long", "double", "date_period", "time_duration" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
         ) Expression buckets,
         @Param(
             name = "from",
             type = { "integer", "long", "double", "date", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "Start of the range. Can be a number, a date or a date expressed as a string."
         ) Expression from,
         @Param(
             name = "to",
             type = { "integer", "long", "double", "date", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "End of the range. Can be a number, a date or a date expressed as a string."
         ) Expression to,

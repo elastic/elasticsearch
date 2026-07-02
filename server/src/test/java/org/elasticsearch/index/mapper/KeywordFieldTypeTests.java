@@ -57,11 +57,11 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -140,7 +140,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             builder,
             true
         );
-        assertEquals(new SlowCustomBinaryDocValuesTermQuery("field", new BytesRef("foo")), ft.termQuery("foo", MOCK_CONTEXT));
+        assertEquals(new ScanningBinaryDocValuesTermQuery("field", new BytesRef("foo"), false), ft.termQuery("foo", MOCK_CONTEXT));
     }
 
     public void testTermQueryWithNormalizer() {
@@ -234,8 +234,11 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             builder,
             true
         );
-        assertEquals(new SlowCustomBinaryDocValuesPrefixQuery("field", "foo", false), ft.prefixQuery("foo", null, false, MOCK_CONTEXT));
-        assertEquals(new SlowCustomBinaryDocValuesPrefixQuery("field", "foo", true), ft.prefixQuery("foo", null, true, MOCK_CONTEXT));
+        assertEquals(
+            new ScanningBinaryDocValuesPrefixQuery("field", "foo", false, false),
+            ft.prefixQuery("foo", null, false, MOCK_CONTEXT)
+        );
+        assertEquals(new ScanningBinaryDocValuesPrefixQuery("field", "foo", true, false), ft.prefixQuery("foo", null, true, MOCK_CONTEXT));
     }
 
     public void testWildcardQueryHighCardinality() {
@@ -249,7 +252,51 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             builder,
             true
         );
-        assertEquals(new SlowCustomBinaryDocValuesWildcardQuery("field", "foo*", false), ft.wildcardQuery("foo*", null, MOCK_CONTEXT));
+        assertEquals(new ScanningBinaryDocValuesWildcardQuery("field", "foo*", false, false), ft.wildcardQuery("foo*", null, MOCK_CONTEXT));
+    }
+
+    public void testRegexpQueryHighCardinality() {
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        MappedFieldType ft = new KeywordFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            TextSearchInfo.SIMPLE_MATCH_ONLY,
+            null,
+            builder,
+            true
+        );
+        assertEquals(
+            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, 0, 10, false),
+            ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT)
+        );
+    }
+
+    public void testRegexpQueryHighCardinalityWithNormalizer() {
+        Analyzer lowercaseAnalyzer = new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer in = new WhitespaceTokenizer();
+                return new TokenStreamComponents(in, new LowerCaseFilter(in));
+            }
+
+            @Override
+            protected TokenStream normalize(String fieldName, TokenStream in) {
+                return new LowerCaseFilter(in);
+            }
+        };
+        NamedAnalyzer normalizer = new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, lowercaseAnalyzer);
+
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        TextSearchInfo textSearchInfo = new TextSearchInfo(KeywordFieldMapper.Defaults.FIELD_TYPE, null, normalizer, normalizer);
+        MappedFieldType ft = new KeywordFieldType("field", IndexType.docValuesOnly(), textSearchInfo, normalizer, builder, true);
+
+        // The normalizer must lowercase the pattern before building the regexp query
+        assertEquals(
+            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, 0, 10, false),
+            ft.regexpQuery("FOO.*", 0, 0, 10, null, MOCK_CONTEXT)
+        );
     }
 
     public void testRegexpQuery() {
@@ -277,10 +324,10 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertThat(q, instanceOf(RegexpQuery.class));
         assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
 
-        // Binary DV → StringScriptFieldRegexpQuery with ASCII_CASE_INSENSITIVE matchFlag
+        // Binary DV → ScanningBinaryDocValuesRegexpQuery, which handles matchFlags via RegExp(pattern, syntaxFlags, matchFlags)
         MappedFieldType binaryFt = new KeywordFieldType("field", false, true, true, Map.of());
         q = binaryFt.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
-        assertThat(q, instanceOf(StringScriptFieldRegexpQuery.class));
+        assertEquals(new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, false), q);
     }
 
     public void testFuzzyQuery() {

@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -89,6 +90,7 @@ public abstract class DataStreamLifecycleServiceTestCase extends ESTestCase {
     protected final DataStreamGlobalRetentionSettings globalRetentionSettings = DataStreamGlobalRetentionSettings.create(
         ClusterSettings.createBuiltInClusterSettings()
     );
+    protected final Set<Index> downsamplingIndices = new HashSet<>();
 
     @Before
     public void setupServices() {
@@ -129,7 +131,8 @@ public abstract class DataStreamLifecycleServiceTestCase extends ESTestCase {
             errorStore,
             allocationService,
             new DataStreamLifecycleHealthInfoPublisher(Settings.EMPTY, client, clusterService, errorStore),
-            globalRetentionSettings
+            globalRetentionSettings,
+            ignored -> downsamplingIndices
         );
         clientWaitLatch = null;
         invokerWaitLatch = null;
@@ -142,6 +145,7 @@ public abstract class DataStreamLifecycleServiceTestCase extends ESTestCase {
         dataStreamLifecycleService.close();
         clusterService.close();
         threadPool.shutdownNow();
+        downsamplingIndices.clear();
     }
 
     protected ClusterState downsampleSetup(ProjectId projectId, String dataStreamName, IndexMetadata.DownsampleTaskStatus status) {

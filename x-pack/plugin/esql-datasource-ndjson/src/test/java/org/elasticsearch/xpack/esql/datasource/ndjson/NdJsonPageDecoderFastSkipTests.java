@@ -110,6 +110,7 @@ public class NdJsonPageDecoderFastSkipTests extends ESTestCase {
         try (
             NdJsonPageDecoder decoder = new NdJsonPageDecoder(
                 new ByteArrayInputStream(ndjson),
+                null, // DateFormatter
                 SCHEMA,
                 NARROW_PROJECTION,
                 ROWS + 1,

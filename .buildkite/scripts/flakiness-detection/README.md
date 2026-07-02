@@ -111,6 +111,83 @@ Failure classification (`classifyFailure`):
 
 This mirrors the failure shapes randomised-runner emits when `@TimeoutSuite` fires.
 
+## Observability
+
+To track pipeline health — and whether improvements (smaller batches, the
+never-fail wrapper) actually move the false-positive rate — the pipeline
+publishes a structured **outcome** per batch job as a build artifact. An
+external metrics pipeline (maintained separately) consumes that artifact and
+stores it for dashboards and alerts. This repo only ever uploads a Buildkite
+artifact; it never talks to any datastore directly.
+
+### Why publish a structured outcome
+
+The point is to distinguish *why* a job ended the way it did — clean pass,
+proven flaky, timeout, hang, or infrastructure failure — which raw Buildkite job
+state cannot express. A `state=passed` job could be a genuine clean pass or a
+flaky run that we deliberately let pass; a `failed`/`timed_out` job says nothing
+about whether a test actually failed versus the agent running out of memory.
+Recovering those categories needs the wrapped command's return code plus the
+JUnit XML.
+
+`wrapNeverFail` (in `runners/buildkite.ts`) makes this *necessary* as well as
+useful: it forces every batch step to `exit 0` so a flaky test never blocks a
+PR, which means the job `state`/`exit_status` carry no signal at all — almost
+every job looks like `state=passed, exit_status=0`. But even without the
+wrapper, the richer taxonomy below would still be worth deriving.
+
+### How it works
+
+1. Each batch job's wrapper captures the wrapped command's return code `rc` and
+   wall-clock duration and writes a tiny `flakiness-status/status-<jobId>.json`
+   (batch steps only — the `analyze` step does not). It does **no**
+   classification: the JUnit XML cannot tell you `rc`/duration, and that is all
+   the wrapper contributes.
+2. Both the JUnit XML (`*/build/test-results/*/TEST-*.xml`) and the status files
+   are uploaded as build artifacts.
+3. The `analyze` step (node) downloads the status files, then downloads each
+   job's XML per job (`buildkite-agent artifact download ... --step <jobId>`),
+   classifies every job with the shared `analyzer/outcome.ts`, and uploads a
+   **single** `flakiness-outcomes.json` build artifact whose body is a JSON array
+   of per-job payloads. (It also posts the human-readable report as an annotation.)
+4. The external metrics pipeline downloads that artifact on build completion,
+   merges each payload with job metadata (branch, PR, `web_url`, duration), and
+   stores one record per job.
+
+### Payload contract
+
+The `analyze` step uploads a `flakiness-outcomes.json` artifact. Its body is a
+JSON array of objects of this shape:
+
+```
+{ jobId, stepKey, kind, rc, durationSec, realFailures, suiteTimeouts,
+  totalCases, outcome, timedOut, infraSubtype?, failingClasses[] (capped at 50) }
+```
+
+### Outcome taxonomy
+
+Derived in priority order by `analyzer/outcome.ts` (`deriveOutcome`):
+
+| outcome         | how it is decided                                                              |
+| --------------- | ------------------------------------------------------------------------------ |
+| `flaky_detected`| `realFailures > 0` (failing test cases, excluding suite-timeout markers)        |
+| `timeout`       | `rc == 124`, or `rc == 137` with duration at/after the inner timeout            |
+| `infra_fail`    | `rc == 137` short run (`oom_killed`), or any other non-zero `rc` with no real failures |
+| `hang`          | `rc == 0` but zero recorded test cases                                          |
+| `clean_pass`    | `rc == 0` with recorded cases and no real failures                              |
+
+`timedOut` is reported alongside `outcome` so the two timeout shapes stay
+distinguishable: a job that times out **with** a real failure is
+`flaky_detected` + `timedOut=true` (flakiness proven, so it is not a false
+positive), while a job that times out with **no** failing run is `timeout`
+(`timedOut=true`) — the false positive we want to drive down.
+
+`infraSubtype` is only ever `oom_killed` (rc 137 + short run, decided without a
+log). Finer infra subtypes (disk-full, etc.) would require the job log, which CI
+cannot read, so they are left unset. Jobs that fail *before* the wrapper runs
+(e.g. a pre-command hook failure) write no status file and so produce no
+payload; the external pipeline records those as `infra_fail` from job state.
+
 ## File layout
 
 ```
@@ -123,16 +200,17 @@ flakiness-detection/
     explicit-list.ts     FQCN list source
   commands.ts            dedupe / collapse / batch / emit RunnableCommand[]
   runners/
-    buildkite.ts         RunnableCommand[] → BK YAML + upload
+    buildkite.ts         RunnableCommand[] → BK YAML + upload (wraps + writes per-job status file)
     local.ts             RunnableCommand[] → sequential execSync
   analyzer/
     analyze.ts           JUnit XML → FlakinessReport
     render.ts            FlakinessReport → markdown + severity
+    outcome.ts           rc + JUnit counts → outcome taxonomy (deriveOutcome)
   entrypoints/
     pr.ts                changed-files + unmutes (PR pipeline)
     manual.ts            env-var driven (manual BK pipeline)
     local.ts             argv driven (developer laptop)
-    analyze.ts           final BK step — runs analyzer and posts annotation
+    analyze.ts           final BK step — classifies each job, uploads outcomes artifact + report annotation
 ```
 
 Per-module test files (`*.test.ts`) sit alongside their source. Run with `cd .buildkite && pnpm test scripts/flakiness-detection`.

@@ -303,7 +303,9 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         assertThat(
             (String) failure.get("reason"),
             containsString(
-                "Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source"
+                columnarEnabled
+                    ? "Can't snapshot _source only on a columnar index"
+                    : "Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source"
             )
         );
     }

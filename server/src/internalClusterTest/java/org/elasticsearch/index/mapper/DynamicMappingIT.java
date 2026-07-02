@@ -71,7 +71,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class DynamicMappingIT extends ESIntegTestCase {
@@ -129,11 +128,6 @@ public class DynamicMappingIT extends ESIntegTestCase {
         Map<String, Object> msg = (Map<String, Object>) props.get("msg");
         assertThat(msg.get("type"), equalTo("keyword"));
         assertThat(msg.containsKey("fields"), is(false));
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> docValues = (Map<String, Object>) msg.get("doc_values");
-        assertThat(docValues, notNullValue());
-        assertThat(docValues.get("cardinality"), is("high"));
     }
 
     public void testSimpleDynamicMappingsSuccessful() {

@@ -1,6 +1,6 @@
 version: 9.3.6
-released: false
-generated: 2026-06-19T00:09:51.878319045Z
+released: true
+generated: 2026-06-23T14:35:50.133177658Z
 changelogs:
   - pr: 2841
     summary: Better messaging regarding OOM process termination
@@ -65,6 +65,12 @@ changelogs:
     area: Data streams
     type: enhancement
     issues: []
+  - pr: 149667
+    summary: Add IT covering search during rolling restart
+    area: Search
+    type: bug
+    issues:
+      - 86927
   - pr: 149797
     summary: "Update the built-in `kibana_system` role to grant `manage`, `create_index`, `read`, `index`, `write`, and `delete` privileges on the `axonius.alert_finding` and `axonius.incident` indices, replacing the previous `axonius.alert_and_incident` index"
     area: Authorization

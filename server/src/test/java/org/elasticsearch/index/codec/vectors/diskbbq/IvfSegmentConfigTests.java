@@ -20,8 +20,10 @@ import static org.hamcrest.Matchers.is;
 public class IvfSegmentConfigTests extends ESTestCase {
 
     public void testFromCodecDefaultsUsesNaNOversampling() {
+        var ci = ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT;
         var q = ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC;
-        IvfSegmentConfig c = IvfSegmentConfig.fromCodecDefaults(q, true);
+        IvfSegmentConfig c = IvfSegmentConfig.fromCodecDefaults(ci, q, true);
+        assertThat(c.centroidIndexFormat(), is(ci));
         assertThat(c.quantEncoding(), is(q));
         assertTrue(c.usePrecondition());
         assertTrue(Float.isNaN(c.rescoreOversample()));
@@ -34,7 +36,11 @@ public class IvfSegmentConfigTests extends ESTestCase {
 
     public void testMergeResolverReturnsCodecDefault() throws Exception {
         IvfMergeConfigResolver r = IvfMergeConfigResolver.useCodecDefault();
-        IvfSegmentConfig def = IvfSegmentConfig.fromCodecDefaults(ESNextDiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC, false);
+        IvfSegmentConfig def = IvfSegmentConfig.fromCodecDefaults(
+            ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+            ESNextDiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC,
+            false
+        );
         assertSame(def, r.resolve(null, null, def));
     }
 
@@ -51,7 +57,12 @@ public class IvfSegmentConfigTests extends ESTestCase {
     }
 
     public void testWithEffectiveRescoreOversampleReplacesNaN() {
-        IvfSegmentConfig raw = new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, true, Float.NaN);
+        IvfSegmentConfig raw = new IvfSegmentConfig(
+            ESNextDiskBBQVectorsFormat.CentroidIndexFormat.FLAT,
+            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+            true,
+            Float.NaN
+        );
         IvfSegmentConfig effective = IvfSegmentConfig.withEffectiveRescoreOversample(raw, null, 2.5f);
         assertThat(effective.rescoreOversample(), equalTo(2.5f));
         assertThat(effective.usePrecondition(), is(true));

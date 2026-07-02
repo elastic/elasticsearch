@@ -43,8 +43,16 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeriesOverTime(AbsentOverTime::new)
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
-        .description("Returns 1 if the range vector has no elements, otherwise returns an empty vector.")
+        .description("Returns `1` if the range vector has no elements, and `0` otherwise.")
         .example("absent_over_time(nonexistent_metric[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(
+            "Evaluated per series and per time bucket: returns `true` (PromQL `1`) when the bucket has no samples and "
+                + "`false` (PromQL `0`) otherwise. This differs from Prometheus in two ways: Prometheus returns an empty "
+                + "result when samples exist (rather than `0`), and it reports a fully missing series by synthesizing a "
+                + "single `1` from the selector labels. {{es}} evaluates only series that already exist in the data, so "
+                + "it cannot flag a metric that is entirely absent."
+        )
         .name("absent_over_time");
 
     @FunctionInfo(

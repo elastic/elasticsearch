@@ -455,9 +455,6 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                 return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new); // just defaults
             }
         });
-        // DefaultMappingParametersHandler is index-mode aware and never emits a parameter (doc_values, store,
-        // synthetic_source_keep, copy_to, subobjects, dynamic:runtime) that's invalid for a strict-columnar index, so no
-        // stripping/unwrapping is needed here beyond passing the actual indexMode through.
         return DataGeneratorSpecification.builder()
             .withFullyDynamicMapping(false)
             // Disable dynamic mapping and disabled objects

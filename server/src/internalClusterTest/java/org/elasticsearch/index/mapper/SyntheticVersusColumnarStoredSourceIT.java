@@ -185,8 +185,6 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
                 // filtered out above.
                 new MultifieldAddonHandler(Map.of(FieldType.TEXT, List.of(FieldType.KEYWORD), FieldType.KEYWORD, List.of(FieldType.TEXT)))
             ))
-            // DefaultMappingParametersHandler is index-mode aware and never emits doc_values:false, store:true,
-            // synthetic_source_keep, or copy_to for a strict-columnar index, so no corrective wrapper is needed here.
             .withIndexMode(IndexMode.COLUMNAR)
             .build();
     }

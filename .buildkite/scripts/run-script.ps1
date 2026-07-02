@@ -141,7 +141,17 @@ public class NativeMethods
 $guid = [guid]::NewGuid().Guid
 Write-Output "Creating job object with name $guid"
 $job = [NativeMethods]::CreateJobObjectW($guid)
-$process = Start-Process -PassThru -NoNewWindow powershell -ArgumentList "$args"
+
+# Start the executable directly rather than wrapping in a second `powershell`
+# invocation. The old `powershell -ArgumentList "$args"` stringified the array
+# by joining with spaces, stripping all quoting: bash -c 'cmd1 && cmd2' became
+# `bash -c cmd1 && cmd2`, which PowerShell 5 rejects because `&&` is not a
+# valid statement separator. Starting the executable directly preserves each
+# argument as a discrete token, so bash receives -c and the full command
+# string without re-parsing by PowerShell.
+$executable = $args[0]
+$processArgs = if ($args.Length -gt 1) { $args[1..($args.Length - 1)] } else { @() }
+$process = Start-Process -PassThru -NoNewWindow $executable -ArgumentList $processArgs
 [NativeMethods]::AssignProcessToJobObject($job, $process.SafeHandle)
 
 try {

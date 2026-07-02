@@ -19,12 +19,17 @@ import org.apache.parquet.schema.Type;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.time.Duration;
 
 /**
  * Shared Parquet decode helpers used by both the baseline {@code ParquetColumnIterator}
  * and {@link OptimizedParquetColumnIterator}. Centralises list-column decoding,
- * timestamp conversion, UUID formatting, and other utilities so that bug fixes in one
- * decode path are automatically reflected in the other.
+ * timestamp conversion, UUID formatting, {@code unsigned_long} sign-flip encoding, and other utilities so that bug
+ * fixes in one decode path are automatically reflected in the other.
  */
 final class ParquetColumnDecoding {
 
@@ -32,7 +37,14 @@ final class ParquetColumnDecoding {
 
     private static final char[] HEX = "0123456789abcdef".toCharArray();
 
-    // ---- Timestamp helpers ----
+    // ---- Temporal constants ----
+
+    static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
+    static final long NANOS_PER_MILLI = 1_000_000L;
+    /** Julian day number for Unix epoch (1970-01-01). */
+    static final int JULIAN_EPOCH_OFFSET = 2_440_588;
+
+    // ---- Temporal helpers ----
 
     static long convertTimestampToMillis(long raw, LogicalTypeAnnotation logicalType) {
         if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
@@ -45,6 +57,58 @@ final class ParquetColumnDecoding {
         return raw;
     }
 
+    /** Converts a date32 value (days since epoch) to epoch milliseconds. */
+    static long dateDaysToMillis(long days) {
+        return days * MILLIS_PER_DAY;
+    }
+
+    /**
+     * Converts a Parquet INT96 value (12 bytes LE: 8 bytes nanos-of-day + 4 bytes Julian day)
+     * to epoch milliseconds. The bytes are read starting at {@code offset} for {@code length}
+     * bytes (must be 12).
+     */
+    static long int96ToEpochMillis(byte[] bytes, int offset, int length) {
+        if (length != 12) {
+            throw new IllegalArgumentException("INT96 requires exactly 12 bytes, got " + length);
+        }
+        ByteBuffer buf = ByteBuffer.wrap(bytes, offset, length).order(ByteOrder.LITTLE_ENDIAN);
+        long nanosOfDay = buf.getLong();
+        int julianDay = buf.getInt();
+        long epochDay = julianDay - JULIAN_EPOCH_OFFSET;
+        return epochDay * MILLIS_PER_DAY + nanosOfDay / NANOS_PER_MILLI;
+    }
+
+    /**
+     * Decodes a Parquet footer stat value into the same representation the scan path produces, so
+     * pushed-down MIN/MAX match a scan:
+     * <ul>
+     *   <li>date32 -&gt; epoch-millis</li>
+     *   <li>timestamp -&gt; epoch-millis (unit-scaled)</li>
+     *   <li>time -&gt; raw milliseconds for TIME_MILLIS (physical INT32), nanoseconds otherwise</li>
+     * </ul>
+     * Returns {@code null} when the type is not one of the above (caller falls through to other
+     * normalization). INT96 is deliberately excluded: its footer min/max are compared by parquet-mr
+     * as unsigned little-endian bytes (nanos-of-day in the low bytes), so they are not chronological
+     * and cannot be trusted for MIN/MAX pushdown — returning {@code null} forces a scan instead.
+     */
+    static Long decodeTemporalStat(Object value, PrimitiveType type) {
+        LogicalTypeAnnotation logical = type.getLogicalTypeAnnotation();
+        if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
+            return dateDaysToMillis(((Number) value).longValue());
+        }
+        if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
+            return convertTimestampToMillis(((Number) value).longValue(), logical);
+        }
+        if (logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+            long raw = ((Number) value).longValue();
+            // Mirror the scan path: TIME_MILLIS (physical INT32) stays raw ms; TIME_MICROS/NANOS
+            // scale to nanoseconds via timeNanoMultiplier. Signed comparison of these physical
+            // values is chronological, so footer min/max ordering is preserved.
+            return type.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32 ? raw : raw * timeNanoMultiplier(time);
+        }
+        return null;
+    }
+
     /**
      * Returns the multiplier needed to convert a Parquet TIME_* value to nanoseconds.
      * TIME_MICROS values are stored as microseconds and must be multiplied by 1_000;
@@ -52,6 +116,29 @@ final class ParquetColumnDecoding {
      */
     static long timeNanoMultiplier(LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
         return time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS ? 1_000L : 1L;
+    }
+
+    // ---- Unsigned long encoding ----
+
+    /**
+     * Sign-flip-encodes a raw {@code unsigned_long} value ({@code value ^ 2^63}) into ESQL's sortable signed
+     * representation, mirroring the indexing path. ESQL stores {@code unsigned_long} inside a signed {@code LongBlock}
+     * in this form so signed-long ordering matches unsigned ordering, and every value-output surface decodes it back on
+     * the way out. Every Parquet read producer of an {@code unsigned_long} block must therefore route its INT64 values
+     * through this method. Shared so the baseline, optimized, and list read paths cannot drift.
+     */
+    static long encodeUnsignedLong(long value) {
+        return NumericUtils.asLongUnsigned(value);
+    }
+
+    /**
+     * Applies {@link #encodeUnsignedLong(long)} to the first {@code count} values in place. Null slots within the range
+     * hold undefined bits but are masked out by the caller, so encoding them is harmless.
+     */
+    static void encodeUnsignedLongInPlace(long[] values, int count) {
+        for (int i = 0; i < count; i++) {
+            values[i] = encodeUnsignedLong(values[i]);
+        }
     }
 
     // ---- UUID formatting ----
@@ -132,6 +219,7 @@ final class ParquetColumnDecoding {
                     : 1L;
                 yield readListLongColumn(cr, maxDef, rows, blockFactory, multiplier);
             }
+            case UNSIGNED_LONG -> readListUnsignedLongColumn(cr, maxDef, rows, blockFactory);
             case DOUBLE -> readListDoubleColumn(cr, maxDef, rows, blockFactory);
             case BOOLEAN -> readListBooleanColumn(cr, maxDef, rows, blockFactory);
             case KEYWORD, TEXT -> readListBytesRefColumn(cr, maxDef, rows, blockFactory);
@@ -212,6 +300,21 @@ final class ParquetColumnDecoding {
     private static Block readListInt32AsLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
             Runnable appender = () -> builder.appendLong(cr.getInteger());
+            for (int row = 0; row < rows; row++) {
+                readListRow(cr, maxDef, builder, appender);
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * Reads a LIST of {@code unsigned_long} (Parquet INT64 with {@code intType(64, false)}) into a {@code LongBlock}.
+     * Each element is sign-flip-encoded ({@code value ^ 2^63}) on the way in, mirroring the scalar read path and the
+     * indexing path, so the always-decoding output edge produces the true unsigned value.
+     */
+    private static Block readListUnsignedLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+        try (var builder = blockFactory.newLongBlockBuilder(rows)) {
+            Runnable appender = () -> builder.appendLong(encodeUnsignedLong(cr.getLong()));
             for (int row = 0; row < rows; row++) {
                 readListRow(cr, maxDef, builder, appender);
             }

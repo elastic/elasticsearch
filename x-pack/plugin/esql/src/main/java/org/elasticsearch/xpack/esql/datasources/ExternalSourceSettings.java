@@ -28,33 +28,31 @@ public final class ExternalSourceSettings {
 
     private ExternalSourceSettings() {}
 
-    /** Metadata-discovery concurrency per allocated processor — the {@code snapshot_meta} thread pool's slope. */
-    static final int DISCOVERY_CONCURRENCY_PER_PROCESSOR = 3;
+    /** Blob-store access concurrency per allocated processor — the {@code snapshot_meta} thread pool's slope. */
+    static final int BLOB_STORE_CONCURRENCY_PER_PROCESSOR = 3;
 
     /**
-     * Ceiling for the CPU-derived metadata-discovery concurrency. Mirrors the {@code snapshot_meta} thread pool's
-     * {@code min(processors * 3, 50)} shape but lifts the cap to 100: external metadata discovery fans out over many
-     * small footer blobs, so it benefits from more in-flight requests than snapshot metadata does, while still
-     * bounding the total against a single store's tolerance. This ceiling scopes discovery only; it does not bound
-     * the execution-time data-read path (see {@link #MAX_CONNECTIONS}).
+     * Ceiling for the CPU-derived blob-store access concurrency. Mirrors the {@code snapshot_meta} thread pool's
+     * {@code min(processors * 3, 50)} shape but lifts the cap to 100: external metadata discovery and data reads
+     * fan out over many small blobs (footers, byte ranges), so they benefit from more in-flight requests than
+     * snapshot metadata does, while still bounding the total against a single store's tolerance.
      */
-    static final int DISCOVERY_CONCURRENCY_CEILING = 100;
+    static final int BLOB_STORE_CONCURRENCY_CEILING = 100;
 
     /**
-     * The default per-node in-flight concurrency for external metadata discovery (the multi-file footer fan-out),
-     * derived from the node's allocated processors using the {@code snapshot_meta} thread pool's sizing shape
-     * ({@code processors * 3}) with a 100 ceiling. Discovery is latency-bound I/O against object stores, so it scales
-     * with node size rather than an ad-hoc constant. This bounds discovery only: production data reads are bounded
-     * separately by {@link #MAX_CONNECTIONS} (the SDK connection pools and the blocking-read thread pool), which is a
-     * distinct knob and is intentionally not capped by this discovery ceiling.
+     * The default per-node concurrency for accessing an external blob store, derived from the node's allocated
+     * processors using the {@code snapshot_meta} thread pool's sizing shape ({@code processors * 3}) with a 100
+     * ceiling. This is the single source of truth for blob-store access concurrency so metadata discovery and
+     * data retrieval stay consistent: both are latency-bound I/O against object stores and should scale the same
+     * way with node size rather than each picking an ad-hoc constant.
      */
-    public static int defaultDiscoveryConcurrency(int allocatedProcessors) {
-        return Math.min(allocatedProcessors * DISCOVERY_CONCURRENCY_PER_PROCESSOR, DISCOVERY_CONCURRENCY_CEILING);
+    public static int defaultBlobStoreConcurrency(int allocatedProcessors) {
+        return Math.min(allocatedProcessors * BLOB_STORE_CONCURRENCY_PER_PROCESSOR, BLOB_STORE_CONCURRENCY_CEILING);
     }
 
     /** Convenience overload resolving allocated processors from the given settings. */
-    public static int defaultDiscoveryConcurrency(Settings settings) {
-        return defaultDiscoveryConcurrency(EsExecutors.allocatedProcessors(settings));
+    public static int defaultBlobStoreConcurrency(Settings settings) {
+        return defaultBlobStoreConcurrency(EsExecutors.allocatedProcessors(settings));
     }
 
     /**

@@ -134,7 +134,7 @@ public class PlanExecutor {
      *                               wiring passes {@code esql_worker}.
      * @param externalSourceConcurrency maximum number of in-flight per-file metadata reads during a multi-file
      *                               resolve. Production wiring passes
-     *                               {@link ExternalSourceSettings#defaultDiscoveryConcurrency(Settings)} (the
+     *                               {@link ExternalSourceSettings#defaultBlobStoreConcurrency(Settings)} (the
      *                               {@code snapshot_meta} shape, capped at 100): footer reads are async (the pool
      *                               thread is released across the network round-trip), so the bound caps concurrent
      *                               in-flight reads rather than pinning that many threads.

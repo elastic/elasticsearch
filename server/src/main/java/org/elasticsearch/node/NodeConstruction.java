@@ -931,6 +931,7 @@ class NodeConstruction {
         final CompositeRecoverySchedulingListener recoverySchedulingListeners = new CompositeRecoverySchedulingListener();
         final ThrottlingRecoveryService throttlingRecoveryService = new ThrottlingRecoveryService(
             threadPool,
+            projectResolver,
             clusterService,
             recoverySchedulingListeners
         );

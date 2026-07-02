@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -177,7 +178,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         );
     }
 
-    public void testGetPendingRangesToPrefetchAttributesInternalAndReferencedFiles() {
+    public void testComputeTimestampPerBlobAttributesInternalAndReferencedFiles() {
         final BlobFile referencedBlobA = blobFile(1);
         final BlobFile referencedBlobB = blobFile(2);
         final BlobFile referencedBlobC = blobFile(3);
@@ -194,20 +195,16 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         commitFiles.put("referenced_c", new BlobLocation(referencedBlobC, 0, 10));
 
         final var notificationRange = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 3000L); // midpoint 2000
+        final StatelessCompoundCommit commit = compoundCommit(commitFiles, Set.of("internal_1", "internal_2"), notificationRange);
+
         final Map<String, Long> resolvedTimestamps = Map.of("referenced_a", 500L, "referenced_b1", 1500L, "referenced_b2", 2500L);
         final FileTimestampResolver resolver = fileName -> resolvedTimestamps.getOrDefault(fileName, UNKNOWN_TIMESTAMP);
 
-        // Drive the combined method with a fresh prefetch state so every blob ends up in `ranges` and contributes timestamps.
-        final SearchCommitPrefetcher.PendingPrefetchDetails pending = getPendingRangesToPrefetch(
-            SearchCommitPrefetcher.BCCPreFetchedOffset.ZERO,
-            Long.MAX_VALUE,
-            commitFiles,
-            Set.of("internal_1", "internal_2"),
-            notificationRange.midpointMillis(),
+        final Map<BlobFile, Long> timestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
+            commit,
+            Set.of(internalBlob, referencedBlobA, referencedBlobB, referencedBlobC),
             resolver
         );
-
-        final Map<BlobFile, Long> timestampPerBlob = pending.timestampPerBlob();
 
         assertThat(
             "internal blob takes the notification commit midpoint",
@@ -221,66 +218,55 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
             equalTo(2500L)
         );
         assertThat(
-            "referenced blob C has no known timestamp, so it falls back to the notification commit midpoint",
+            "referenced blob C has no known file timestamp, so it falls back to the notification commit midpoint",
             timestampPerBlob.get(referencedBlobC),
             equalTo(notificationRange.midpointMillis())
         );
     }
 
-    public void testGetPendingRangesToPrefetchKeepsUnknownWhenNotificationTimestampUnknown() {
+    public void testComputeTimestampPerBlobFallsBackToNotificationTimestampForUnknownBlobs() {
         final BlobFile referencedBlob = blobFile(1);
 
         final Map<String, BlobLocation> commitFiles = new HashMap<>();
-        // No internal files: the whole commit has no timestamp range, and the referenced file is unknown too.
-        commitFiles.put("referenced_unknown", new BlobLocation(referencedBlob, 0, 10));
+        commitFiles.put("referenced", new BlobLocation(referencedBlob, 0, 10));
 
-        final SearchCommitPrefetcher.PendingPrefetchDetails pending = getPendingRangesToPrefetch(
-            SearchCommitPrefetcher.BCCPreFetchedOffset.ZERO,
-            Long.MAX_VALUE,
-            commitFiles,
-            Set.of(),
-            UNKNOWN_TIMESTAMP,
-            fileName -> UNKNOWN_TIMESTAMP
-        );
+        final var notificationRange = new StatelessCompoundCommit.TimestampFieldValueRange(4000L, 6000L);
+        final StatelessCompoundCommit commit = compoundCommit(commitFiles, Set.of(), notificationRange);
+        final FileTimestampResolver resolver = fileName -> UNKNOWN_TIMESTAMP;
 
-        assertThat(
-            "with no timestamp anywhere the blob stays UNKNOWN_TIMESTAMP",
-            pending.timestampPerBlob().get(referencedBlob),
-            equalTo(UNKNOWN_TIMESTAMP)
-        );
-    }
-
-    public void testGetPendingRangesToPrefetchMostRecentSiblingWinsForMixedBlob() {
-        final BlobFile blob = blobFile(1);
-
-        final Map<String, BlobLocation> commitFiles = new HashMap<>();
-        // Sits below the current prefetch mark, so it is already prefetched and NOT part of the ranges to prefetch,
-        // yet it is the most recent file referenced in the blob.
-        commitFiles.put("already_prefetched_recent", new BlobLocation(blob, 0, 10));
-        // Sits at/after the current prefetch mark, so it is pending prefetch, and it carries an older timestamp.
-        commitFiles.put("pending_older", new BlobLocation(blob, 100, 10));
-
-        final Map<String, Long> resolvedTimestamps = Map.of("already_prefetched_recent", 5000L, "pending_older", 1000L);
-        final FileTimestampResolver resolver = fileName -> resolvedTimestamps.getOrDefault(fileName, UNKNOWN_TIMESTAMP);
-
-        final SearchCommitPrefetcher.PendingPrefetchDetails pending = getPendingRangesToPrefetch(
-            new SearchCommitPrefetcher.BCCPreFetchedOffset(termAndGen(1, 1), 100),
-            1,
-            commitFiles,
-            Set.of(),
-            2000L, // notification commit midpoint; unused here because the blob resolves to a known timestamp
+        final Map<BlobFile, Long> timestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
+            commit,
+            Set.of(referencedBlob),
             resolver
         );
 
         assertThat(
-            "the blob is prefetched because of its pending file, even though its recent sibling is not",
-            pending.ranges().keySet(),
-            equalTo(Set.of(blob))
+            "a blob whose files are all unknown falls back to the notification commit midpoint",
+            timestampPerBlob.get(referencedBlob),
+            equalTo(notificationRange.midpointMillis())
         );
+    }
+
+    public void testComputeTimestampPerBlobKeepsUnknownWhenNotificationTimestampUnknown() {
+        final BlobFile referencedBlob = blobFile(1);
+
+        final Map<String, BlobLocation> commitFiles = new HashMap<>();
+        // No internal files: the whole commit has no timestamp range, and the referenced file is unknown too.
+        commitFiles.put("referenced", new BlobLocation(referencedBlob, 0, 10));
+
+        final StatelessCompoundCommit commit = compoundCommit(commitFiles, Set.of(), null);
+        final FileTimestampResolver resolver = fileName -> UNKNOWN_TIMESTAMP;
+
+        final Map<BlobFile, Long> timestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
+            commit,
+            Set.of(referencedBlob),
+            resolver
+        );
+
         assertThat(
-            "the blob timestamp reflects the most recent referenced file, even though that file is not being prefetched",
-            pending.timestampPerBlob().get(blob),
-            equalTo(5000L)
+            "with an unknown notification timestamp there is nothing to fall back to, so the blob stays unknown",
+            timestampPerBlob.get(referencedBlob),
+            equalTo(UNKNOWN_TIMESTAMP)
         );
     }
 
@@ -413,18 +399,27 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         BlobLocation... blobLocations
     ) {
         assertThat(blobLocations.length, greaterThan(0));
-        final Map<String, BlobLocation> commitFiles = new HashMap<>();
-        for (int i = 0; i < blobLocations.length; i++) {
-            commitFiles.put("file_" + i, blobLocations[i]);
-        }
-        return getPendingRangesToPrefetch(
-            bccPreFetchedOffset,
-            maxBCCGenerationToPrefetch,
+        return getPendingRangesToPrefetch(bccPreFetchedOffset, maxBCCGenerationToPrefetch, Arrays.asList(blobLocations));
+    }
+
+    private StatelessCompoundCommit compoundCommit(
+        Map<String, BlobLocation> commitFiles,
+        Set<String> internalFiles,
+        StatelessCompoundCommit.TimestampFieldValueRange timestampRange
+    ) {
+        return new StatelessCompoundCommit(
+            new ShardId("index", "_na_", 0),
+            new PrimaryTermAndGeneration(1L, 4),
+            1L,
+            "_na_",
             commitFiles,
-            Set.of(),
-            randomLongBetween(1, Long.MAX_VALUE),
-            fileName -> randomLongBetween(1, Long.MAX_VALUE)
-        ).ranges();
+            commitFiles.values().stream().mapToLong(BlobLocation::fileLength).sum(),
+            internalFiles,
+            0L,
+            InternalFilesReplicatedRanges.EMPTY,
+            Map.of(),
+            timestampRange
+        );
     }
 
     private BlobLocation luceneFile(long generation, long offset, long length) {

@@ -61,14 +61,13 @@
  *         share a region, the first file to populate the region sets its timestamp.
  *     </li>
  *     <li>
- *         Prefetching, in {@link org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher#getPendingRangesToPrefetch}, picks a single
- *         timestamp per blob, both for the blob containing the new commit and for other referenced blobs. Files internal to the new commit
- *         are stamped with the new commit's CC timestamp; referenced files are stamped with their per-file timestamp resolved from the
- *         search directory, that is, from blobs we have seen before. The per-blob value is the most recent known timestamp across all files
- *         the commit references in that blob, not only the files whose ranges are being fetched, so a known sibling timestamp is preferred
- *         over leaving the region unknown. If every file in a prefetched blob resolves to no timestamp (for example, when the blob only
- *         references a CC the directory does not know yet), the blob falls back to the new commit's timestamp. So prefetch never stamps
- *         a region unknown while the commit itself carries a timestamp.
+ *         Prefetching, in {@link org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher#computeTimestampPerBlob}, picks a single
+ *         timestamp per blob for the blobs being prefetched, both for the blob containing the new commit and for other referenced blobs.
+ *         Files internal to the new commit are stamped with the new commit's CC timestamp; referenced files are stamped with their per-file
+ *         timestamp resolved from the search directory, that is, from blobs we have seen before. When a prefetched blob holds files from
+ *         multiple commits, the most recent known timestamp among those files is used as an approximation. If every file in a prefetched
+ *         blob resolves to no timestamp (for example, when the blob only references a CC the directory does not know yet), the blob falls
+ *         back to the new commit's timestamp, so prefetch never stamps a region unknown while the commit itself carries a timestamp.
  *     </li>
  *     <li>
  *         On-demand search reads, served through {@link org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory} for regions that

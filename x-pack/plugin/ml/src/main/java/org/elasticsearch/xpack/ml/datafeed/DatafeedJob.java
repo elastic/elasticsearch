@@ -62,6 +62,9 @@ class DatafeedJob {
 
     private final AnomalyDetectionAuditor auditor;
     private final AnnotationPersister annotationPersister;
+    private final String datafeedId;
+    @Nullable
+    private final String projectRouting;
     private final String jobId;
     private final DataDescription dataDescription;
     private final long frequencyMs;
@@ -87,6 +90,8 @@ class DatafeedJob {
     private volatile SearchInterval searchInterval;
 
     DatafeedJob(
+        String datafeedId,
+        @Nullable String projectRouting,
         String jobId,
         DataDescription dataDescription,
         long frequencyMs,
@@ -105,6 +110,8 @@ class DatafeedJob {
         long delayedDataCheckFreq,
         CrossClusterSearchStats crossClusterSearchStats
     ) {
+        this.datafeedId = datafeedId;
+        this.projectRouting = projectRouting;
         this.jobId = jobId;
         this.dataDescription = Objects.requireNonNull(dataDescription);
         this.frequencyMs = frequencyMs;
@@ -410,7 +417,10 @@ class DatafeedJob {
                             )
                         );
                     }
-                    throw new ExtractionProblemException(nextRealtimeTimestamp(), e);
+                    throw new ExtractionProblemException(
+                        nextRealtimeTimestamp(),
+                        DatafeedProjectRoutingDiagnostics.enrichIfNoMatchingProject(datafeedId, projectRouting, e)
+                    );
                 }
                 if (isIsolated) {
                     return;

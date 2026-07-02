@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -428,6 +429,30 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client, times(1)).execute(same(FlushJobAction.INSTANCE), any());
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
         assertThat(flushJobRequests.getValue().getAdvanceTime(), is(nullValue()));
+    }
+
+    public void testExtractionProblemWhenProjectRoutingMatchesNoProjectShouldIncludeActionableMessage() throws Exception {
+        when(dataExtractor.hasNext()).thenReturn(true);
+        when(dataExtractor.next()).thenThrow(new NoMatchingProjectException("_alias:missing-*"));
+
+        DatafeedJob datafeedJob = createDatafeedJob(
+            1000,
+            500,
+            -1,
+            -1,
+            randomBoolean(),
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            "my-datafeed",
+            "_alias:missing-*"
+        );
+        DatafeedJob.ExtractionProblemException extractionProblem = expectThrows(
+            DatafeedJob.ExtractionProblemException.class,
+            () -> datafeedJob.runLookBack(0L, 1000L)
+        );
+        assertThat(extractionProblem.getCause().getMessage(), containsString("my-datafeed"));
+        assertThat(extractionProblem.getCause().getMessage(), containsString("_alias:missing-*"));
+        assertThat(extractionProblem.getCause().getMessage(), containsString("matched no linked projects at run time"));
     }
 
     public void testExtractionProblem() throws Exception {
@@ -1021,8 +1046,34 @@ public class DatafeedJobTests extends ESTestCase {
         long delayedDataFreq,
         CrossClusterSearchStats crossClusterSearchStats
     ) {
+        return createDatafeedJob(
+            frequencyMs,
+            queryDelayMs,
+            latestFinalBucketEndTimeMs,
+            latestRecordTimeMs,
+            haveSeenDataPreviously,
+            delayedDataFreq,
+            crossClusterSearchStats,
+            "test-datafeed",
+            null
+        );
+    }
+
+    private DatafeedJob createDatafeedJob(
+        long frequencyMs,
+        long queryDelayMs,
+        long latestFinalBucketEndTimeMs,
+        long latestRecordTimeMs,
+        boolean haveSeenDataPreviously,
+        long delayedDataFreq,
+        CrossClusterSearchStats crossClusterSearchStats,
+        String datafeedId,
+        String projectRouting
+    ) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(
+            datafeedId,
+            projectRouting,
             jobId,
             dataDescription.build(),
             frequencyMs,

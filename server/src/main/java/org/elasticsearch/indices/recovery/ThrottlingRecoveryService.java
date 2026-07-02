@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
@@ -71,6 +72,11 @@ public final class ThrottlingRecoveryService implements Closeable {
         this.schedulingListeners = schedulingListeners;
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
+    }
+
+    /// Enqueues a PendingRecovery again, used to retry on failure
+    void enqueue(PendingRecovery pendingRecovery) {
+        enqueue(pendingRecovery.listener, pendingRecovery.recoveryState, pendingRecovery.stats, pendingRecovery.task);
     }
 
     /// Enqueues a recovery task and/or dispatches it to the executor if there are any available slots.
@@ -154,7 +160,7 @@ public final class ThrottlingRecoveryService implements Closeable {
             // Wipe the projectId header between recoveries.
             // TODO: Add instead a new `storeContextForProject` method for async code: https://github.com/elastic/elasticsearch/pull/152107
             try (ThreadContext.StoredContext ignored = threadContext.newEmptySystemContext()) {
-                executor.execute(new RecoveryRunnable(recovery, () -> releaseSlot(recovery)));
+                executor.execute(new RecoveryRunnable(recovery, () -> releaseSlot(recovery), () -> enqueue(recovery)));
             }
             logger.trace("dispatched recovery: {}", recovery.recoveryState());
             schedulingListeners.onRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
@@ -203,10 +209,21 @@ public final class ThrottlingRecoveryService implements Closeable {
         private final Consumer<RecoveryListener> task;
         private final RecoveryListener listener;
 
-        private RecoveryRunnable(PendingRecovery pending, Runnable runAfter) {
+        private RecoveryRunnable(PendingRecovery pending, Runnable runAfter, Runnable onRetry) {
             this.recoveryState = pending.recoveryState;
             this.task = pending.task;
-            this.listener = RecoveryListener.assertOnce(RecoveryListener.runAfter(pending.listener, runAfter));
+            // Enqueue new retry last to make sure we have completed the current attempt before dispatching the next.
+            // The whole listener wrapping result in this sequence
+            // First, notify listener provided by user
+            // Second, runAfter (releaseSlot -> fillSlots)
+            // Third, onRetry (enqueue, which will also fillSlots)
+            this.listener = RecoveryListener.assertOnce(
+                RecoveryListener.runAfterFailure(RecoveryListener.runAfter(pending.listener, runAfter), (e, fs) -> {
+                    if (fs.retry()) {
+                        onRetry.run();
+                    }
+                })
+            );
         }
 
         @Override

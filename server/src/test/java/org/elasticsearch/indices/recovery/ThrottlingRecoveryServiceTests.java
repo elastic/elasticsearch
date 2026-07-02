@@ -44,6 +44,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_NOTIFY;
 import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SILENT;
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.RETRY;
 import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -666,6 +667,53 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertTrue("task enqueued after close should be immediately aborted", aborted.get());
         assertThat(service.currentQueueSize(), equalTo(0));
     }
+
+    public void testRetryTaskOnRetry() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            newClusterService(1),
+            new CompositeRecoverySchedulingListener()
+        );
+
+        AtomicInteger doneCounter = new AtomicInteger();
+        AtomicInteger failedCounter = new AtomicInteger();
+        AtomicInteger retryCounter = new AtomicInteger();
+        RecoveryState recoveryState = newRecoveryState();
+        service.enqueue(new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                doneCounter.incrementAndGet();
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+                failedCounter.incrementAndGet();
+            }
+
+            @Override
+            public void onRecoveryAborted() {
+                fail("should not be aborted");
+            }
+        }, recoveryState, stats, l -> {
+            if (retryCounter.getAndIncrement() == 0) {
+                l.onRecoveryFailure(new RecoveryFailedException(recoveryState, "", new Throwable("cause")), RETRY);
+            } else {
+                l.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            }
+        });
+
+        taskQueue.runAllRunnableTasks();
+
+        assertThat("Expected to retry on failure but did not", retryCounter.get(), equalTo(2));
+        assertThat("Expected to have succeeded exactly once", doneCounter.get(), equalTo(1));
+        assertThat("Expected to have failed exactly once", failedCounter.get(), equalTo(1));
+    }
+    // testRetryTaskOnRetryLastInQueue
 
     /// Stress one [ThrottlingRecoveryService] by enqueueing many tasks with randomized completion times,
     /// alternating bursty submits and completion periods, and randomly changing the max concurrent limit.

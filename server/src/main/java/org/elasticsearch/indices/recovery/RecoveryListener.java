@@ -14,6 +14,8 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public interface RecoveryListener {
     RecoveryListener NOOP = new RecoveryListener() {
@@ -98,6 +100,33 @@ public interface RecoveryListener {
                 } finally {
                     runAfter.run();
                 }
+            }
+        };
+    }
+
+    static RecoveryListener runAfterFailure(RecoveryListener listener, BiConsumer<RecoveryFailedException, FailureStrategy> runAfter) {
+        return new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                listener.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+                try {
+                    listener.onRecoveryFailure(e, failureStrategy);
+                } finally {
+                    runAfter.accept(e, failureStrategy);
+                }
+            }
+
+            @Override
+            public void onRecoveryAborted() {
+                listener.onRecoveryAborted();
             }
         };
     }

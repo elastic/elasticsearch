@@ -63,6 +63,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -1668,6 +1669,91 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertFalse(block.isNull(2));
             assertEquals(1, block.getValueCount(2));
             assertEquals(300L, block.getLong(block.getFirstValueIndex(2)));
+        }
+    }
+
+    public void testReadListOfUnsignedLongColumn() throws Exception {
+        assertReadListOfUnsignedLongColumn(new ParquetFormatReader(blockFactory, false)); // baseline reader
+    }
+
+    public void testReadListOfUnsignedLongColumnOptimizedReader() throws Exception {
+        assertReadListOfUnsignedLongColumn(new ParquetFormatReader(blockFactory, true)); // optimized reader
+    }
+
+    /**
+     * A LIST of unsigned_long (Parquet INT64 with {@code intType(64, false)}) must sign-flip-encode each element
+     * ({@code value ^ 2^63}), just like the scalar path, so the always-decoding output edge produces the true unsigned
+     * value. Before the encode was added, list columns fell into the unsupported branch and read back as all-null.
+     * Both reader paths route list columns through the same shared decoder, so both are exercised here.
+     */
+    private void assertReadListOfUnsignedLongColumn(ParquetFormatReader reader) throws Exception {
+        Type listType = Types.optionalList()
+            .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.intType(64, false)) // unsigned, bit-width 64
+            .named("values");
+        MessageType schema = new MessageType("test_schema", listType);
+
+        long maxUnsigned = 0xFFFFFFFFFFFFFFFFL; // 2^64-1
+        // 2^63 + 100: as an unsigned value this is > Long.MAX_VALUE, so it encodes (^ 2^63) to a non-negative long --
+        // the opposite side of the sign boundary from 0 and 100, which encode to negative longs.
+        long aboveSignedMaxUnsigned = 0x8000000000000064L;
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            // Row 0: [0, 2^63+100, 2^64-1] -- spans both sides of the encoding's sign boundary
+            Group g1 = factory.newGroup();
+            Group list1 = g1.addGroup("values");
+            list1.addGroup("list").append("element", 0L);
+            list1.addGroup("list").append("element", aboveSignedMaxUnsigned);
+            list1.addGroup("list").append("element", maxUnsigned);
+
+            // Row 1: null list (no addGroup call)
+            Group g2 = factory.newGroup();
+
+            // Row 2: [100, null element, 200]
+            Group g3 = factory.newGroup();
+            Group list3 = g3.addGroup("values");
+            list3.addGroup("list").append("element", 100L);
+            list3.addGroup("list"); // element absent -> null within the list
+            list3.addGroup("list").append("element", 200L);
+
+            // Row 3: [] (empty, non-null list)
+            Group g4 = factory.newGroup();
+            g4.addGroup("values");
+
+            return List.of(g1, g2, g3, g4);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.UNSIGNED_LONG, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(4, page.getPositionCount());
+
+            LongBlock block = (LongBlock) page.getBlock(0);
+            // Row 0: [0, 2^63+100, 2^64-1] sign-flip-encoded
+            assertFalse(block.isNull(0));
+            assertEquals(3, block.getValueCount(0));
+            int start0 = block.getFirstValueIndex(0);
+            assertEquals(0L ^ Long.MIN_VALUE, block.getLong(start0));
+            assertEquals(aboveSignedMaxUnsigned ^ Long.MIN_VALUE, block.getLong(start0 + 1));
+            assertEquals(maxUnsigned ^ Long.MIN_VALUE, block.getLong(start0 + 2));
+
+            // Row 1: null list
+            assertTrue(block.isNull(1));
+
+            // Row 2: [100, 200] encoded; the null element is dropped (multivalue blocks do not hold null slots within a list)
+            assertFalse(block.isNull(2));
+            assertEquals(2, block.getValueCount(2));
+            int start2 = block.getFirstValueIndex(2);
+            assertEquals(100L ^ Long.MIN_VALUE, block.getLong(start2));
+            assertEquals(200L ^ Long.MIN_VALUE, block.getLong(start2 + 1));
+
+            // Row 3: [] empty list -> read back as null (the shared list decoder maps an empty list to a null position;
+            // ESQL multivalue blocks have no distinct empty-list representation). This is pre-existing list behavior,
+            // independent of the unsigned encoding, asserted here to document it for the unsigned_long path.
+            assertTrue(block.isNull(3));
         }
     }
 
@@ -3455,8 +3541,95 @@ public class ParquetFormatReaderTests extends ESTestCase {
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
-            assertEquals(unsignedBits, ((LongBlock) page.getBlock(0)).getLong(0));
+            // ESQL stores unsigned_long sign-flip-encoded (value ^ 2^63); the output edge decodes it back to the true value.
+            assertEquals(unsignedBits ^ Long.MIN_VALUE, ((LongBlock) page.getBlock(0)).getLong(0));
             assertFalse(iterator.hasNext());
+        }
+    }
+
+    public void testUnsignedLong64SignFlipEncoding() throws Exception {
+        assertUnsignedLong64SignFlipEncoding(new ParquetFormatReader(blockFactory, false)); // baseline reader
+    }
+
+    public void testUnsignedLong64SignFlipEncodingOptimizedReader() throws Exception {
+        assertUnsignedLong64SignFlipEncoding(new ParquetFormatReader(blockFactory, true)); // optimized reader
+    }
+
+    /**
+     * A 64-bit unsigned column maps to UNSIGNED_LONG, which ESQL stores in a signed LongBlock in sign-flip-encoded form
+     * ({@code value ^ 2^63}) so signed-long ordering matches unsigned ordering. The producer (this reader) must emit the
+     * encoded form because the output edge unconditionally decodes UNSIGNED_LONG blocks. This asserts the encode is applied
+     * across representative values, including {@code 0} and {@code 2^64-1}, on both reader paths.
+     */
+    private void assertUnsignedLong64SignFlipEncoding(ParquetFormatReader reader) throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.intType(64, false)) // unsigned, bit-width 64
+            .named("u64")
+            .named("test_schema");
+        // The encoding (v ^ 2^63) maps unsigned values in [0, 2^63-1] to negative longs and [2^63, 2^64-1] to non-negative
+        // longs. Cover both sides of that boundary: 0, small positive, 2^63-1 (largest value encoding to a negative long),
+        // 2^63 (smallest value encoding to a non-negative long), and 2^64-1.
+        long[] unsignedValues = { 0L, 100L, 0x7FFFFFFFFFFFFFFFL, 0x8000000000000000L, 0xFFFFFFFFFFFFFFFFL };
+        byte[] data = createParquetFile(schema, f -> {
+            List<Group> g = new ArrayList<>();
+            for (long bits : unsignedValues) {
+                g.add(f.newGroup().append("u64", bits));
+            }
+            return g;
+        });
+        var so = createStorageObject(data);
+        assertEquals(DataType.UNSIGNED_LONG, reader.metadata(so).schema().get(0).dataType());
+        try (CloseableIterator<Page> it = reader.read(so, null, 10)) {
+            LongBlock block = (LongBlock) it.next().getBlock(0);
+            for (int i = 0; i < unsignedValues.length; i++) {
+                // contract: a uint64 column is stored sign-flip-encoded (v ^ 2^63 == asLongUnsigned(v))
+                assertEquals(unsignedValues[i] ^ Long.MIN_VALUE, block.getLong(i));
+            }
+        }
+    }
+
+    public void testUnsignedLong64ConstantColumnEncoding() throws Exception {
+        assertUnsignedLong64ConstantColumnEncoding(new ParquetFormatReader(blockFactory, false), false); // baseline reader
+    }
+
+    public void testUnsignedLong64ConstantColumnEncodingOptimizedReader() throws Exception {
+        // The optimized reader collapses an all-equal column into a constant block; assert both the encoding and the collapse,
+        // which proves the encode is applied before constant detection rather than after.
+        assertUnsignedLong64ConstantColumnEncoding(new ParquetFormatReader(blockFactory, true), true);
+    }
+
+    /**
+     * A constant unsigned_long column must still be sign-flip-encoded. The encode is applied before constant detection,
+     * so a collapsed constant block holds the encoded value rather than the raw bits.
+     *
+     * @param expectConstantCollapse when {@code true} the block is additionally asserted to be a constant vector; only the
+     *                               optimized reader performs this collapse, so the baseline reader passes {@code false}.
+     */
+    private void assertUnsignedLong64ConstantColumnEncoding(ParquetFormatReader reader, boolean expectConstantCollapse) throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.intType(64, false)) // unsigned
+            .named("u64")
+            .named("test_schema");
+        long unsignedBits = 0xFFFFFFFFFFFFFFFFL; // 2^64-1, constant across all rows
+        byte[] data = createParquetFile(schema, f -> {
+            List<Group> g = new ArrayList<>();
+            for (int i = 0; i < 16; i++) {
+                g.add(f.newGroup().append("u64", unsignedBits));
+            }
+            return g;
+        });
+        var so = createStorageObject(data);
+        try (CloseableIterator<Page> it = reader.read(so, null, 100)) {
+            LongBlock block = (LongBlock) it.next().getBlock(0);
+            assertEquals(16, block.getPositionCount());
+            for (int i = 0; i < block.getPositionCount(); i++) {
+                assertEquals(unsignedBits ^ Long.MIN_VALUE, block.getLong(i));
+            }
+            if (expectConstantCollapse) {
+                assertTrue("optimized reader should collapse an all-equal column into a constant vector", block.asVector().isConstant());
+            }
         }
     }
 
@@ -3576,6 +3749,183 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertNotNull(paths.offsetIndexPaths());
         assertTrue("no FilterPredicate -> predicate column index must not be fetched", paths.columnIndexPaths().isEmpty());
         assertTrue("no FilterPredicate -> no offset index must be fetched", paths.offsetIndexPaths().isEmpty());
+    }
+
+    // --- Temporal stats decode regression ---
+
+    /**
+     * Verifies that Parquet footer statistics for temporal columns (date32, timestamp[us],
+     * timestamp[ms]) are published as epoch-millis, matching the scan-path decode. Before the
+     * fix, date32 stats were raw days and timestamp[us] stats were raw microseconds.
+     */
+    public void testTemporalStatsDecodeToEpochMillis() throws Exception {
+        long millis2000 = Instant.parse("2000-01-01T00:00:00Z").toEpochMilli(); // 946684800000
+        long millis2020 = Instant.parse("2020-01-01T00:00:00Z").toEpochMilli(); // 1577836800000
+
+        int days2000 = (int) (millis2000 / ParquetColumnDecoding.MILLIS_PER_DAY);
+        int days2020 = (int) (millis2020 / ParquetColumnDecoding.MILLIS_PER_DAY);
+        long micros2000 = millis2000 * 1_000;
+        long micros2020 = millis2020 * 1_000;
+
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.dateType())
+            .named("d32")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("tus")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("tms")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("d32", days2000);
+            g1.add("tus", micros2000);
+            g1.add("tms", millis2000);
+            Group g2 = factory.newGroup();
+            g2.add("d32", days2020);
+            g2.add("tus", micros2020);
+            g2.add("tms", millis2020);
+            return List.of(g1, g2);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        // --- extractStatistics path (metadata) ---
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertTrue("expected source statistics", metadata.statistics().isPresent());
+        var colStats = metadata.statistics().get().columnStatistics().get();
+
+        var d32Stats = colStats.get("d32");
+        assertEquals("date32 min must be epoch-millis", Optional.of(millis2000), d32Stats.minValue());
+        assertEquals("date32 max must be epoch-millis", Optional.of(millis2020), d32Stats.maxValue());
+
+        var tusStats = colStats.get("tus");
+        assertEquals("timestamp[us] min must be epoch-millis", Optional.of(millis2000), tusStats.minValue());
+        assertEquals("timestamp[us] max must be epoch-millis", Optional.of(millis2020), tusStats.maxValue());
+
+        var tmsStats = colStats.get("tms");
+        assertEquals("timestamp[ms] min must be epoch-millis (no double-divide)", Optional.of(millis2000), tmsStats.minValue());
+        assertEquals("timestamp[ms] max must be epoch-millis (no double-divide)", Optional.of(millis2020), tmsStats.maxValue());
+
+        // --- buildRowGroupStats path (discoverSplitRanges) ---
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertFalse("expected at least one split range", ranges.isEmpty());
+
+        // buildRowGroupStats is wired separately from extractStatistics, so assert every temporal
+        // column here too (date32, timestamp[us], timestamp[ms]) rather than date32 alone.
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            Map<String, Object> stats = range.statistics();
+            for (String col : List.of("d32", "tus", "tms")) {
+                Object min = stats.get("_stats.columns." + col + ".min");
+                Object max = stats.get("_stats.columns." + col + ".max");
+                if (min != null) {
+                    long minMs = ((Number) min).longValue();
+                    assertTrue(col + " split min must be epoch-millis", minMs == millis2000 || minMs == millis2020);
+                }
+                if (max != null) {
+                    long maxMs = ((Number) max).longValue();
+                    assertTrue(col + " split max must be epoch-millis", maxMs == millis2000 || maxMs == millis2020);
+                }
+            }
+        }
+
+        // --- scan-vs-stats parity ---
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 100)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            LongBlock d32Block = (LongBlock) page.getBlock(0);
+            LongBlock tusBlock = (LongBlock) page.getBlock(1);
+            LongBlock tmsBlock = (LongBlock) page.getBlock(2);
+
+            long scanD32Min = Long.MAX_VALUE, scanD32Max = Long.MIN_VALUE;
+            long scanTusMin = Long.MAX_VALUE, scanTusMax = Long.MIN_VALUE;
+            long scanTmsMin = Long.MAX_VALUE, scanTmsMax = Long.MIN_VALUE;
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                long d = d32Block.getLong(i);
+                scanD32Min = Math.min(scanD32Min, d);
+                scanD32Max = Math.max(scanD32Max, d);
+                long u = tusBlock.getLong(i);
+                scanTusMin = Math.min(scanTusMin, u);
+                scanTusMax = Math.max(scanTusMax, u);
+                long m = tmsBlock.getLong(i);
+                scanTmsMin = Math.min(scanTmsMin, m);
+                scanTmsMax = Math.max(scanTmsMax, m);
+            }
+            assertEquals("scan d32 min == stats d32 min", scanD32Min, ((Number) d32Stats.minValue().get()).longValue());
+            assertEquals("scan d32 max == stats d32 max", scanD32Max, ((Number) d32Stats.maxValue().get()).longValue());
+            assertEquals("scan tus min == stats tus min", scanTusMin, ((Number) tusStats.minValue().get()).longValue());
+            assertEquals("scan tus max == stats tus max", scanTusMax, ((Number) tusStats.maxValue().get()).longValue());
+            assertEquals("scan tms min == stats tms min", scanTmsMin, ((Number) tmsStats.minValue().get()).longValue());
+            assertEquals("scan tms max == stats tms max", scanTmsMax, ((Number) tmsStats.maxValue().get()).longValue());
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * Direct coverage of {@link ParquetColumnDecoding#decodeTemporalStat} for the timestamp[nanos]
+     * and TIME_* branches, which parquet-mr does not always emit footer statistics for (so they are
+     * hard to exercise via a written file). Also pins date32/micros/millis, the INT96 opt-out (its
+     * footer stats are not chronological, so the helper must return null), and the non-temporal
+     * null fall-through.
+     */
+    public void testDecodeTemporalStatHelper() {
+        long millis = Instant.parse("2000-01-01T00:00:00Z").toEpochMilli();
+        long days = millis / ParquetColumnDecoding.MILLIS_PER_DAY;
+
+        PrimitiveType date32 = Types.required(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.dateType()).named("d");
+        assertEquals(Long.valueOf(millis), ParquetColumnDecoding.decodeTemporalStat((int) days, date32));
+
+        PrimitiveType tsMicros = Types.required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("us");
+        assertEquals(Long.valueOf(millis), ParquetColumnDecoding.decodeTemporalStat(millis * 1_000, tsMicros));
+
+        PrimitiveType tsMillis = Types.required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("ms");
+        assertEquals(Long.valueOf(millis), ParquetColumnDecoding.decodeTemporalStat(millis, tsMillis));
+
+        PrimitiveType tsNanos = Types.required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("ns");
+        assertEquals(Long.valueOf(millis), ParquetColumnDecoding.decodeTemporalStat(millis * 1_000_000, tsNanos));
+
+        // TIME must mirror the scan path: TIME_MILLIS (physical INT32) stays raw ms; TIME_MICROS
+        // scales x1_000 to nanos; TIME_NANOS is as-is.
+        long midMillis = 12 * 3_600_000L; // 12:00:00 of a day
+        PrimitiveType timeMillis = Types.required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("tm");
+        assertEquals(Long.valueOf(midMillis), ParquetColumnDecoding.decodeTemporalStat((int) midMillis, timeMillis));
+
+        long midMicros = midMillis * 1_000L;
+        PrimitiveType timeMicros = Types.required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("tu");
+        assertEquals(Long.valueOf(midMicros * 1_000L), ParquetColumnDecoding.decodeTemporalStat(midMicros, timeMicros));
+
+        long midNanos = midMillis * 1_000_000L;
+        PrimitiveType timeNanos = Types.required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("tn");
+        assertEquals(Long.valueOf(midNanos), ParquetColumnDecoding.decodeTemporalStat(midNanos, timeNanos));
+
+        // INT96 footer min/max are compared as unsigned little-endian bytes, not chronologically, so
+        // the helper must opt out (return null) and let the query fall back to a scan.
+        int julianDay = (int) (days + 2_440_588);
+        byte[] int96 = ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN).putLong(0L).putInt(julianDay).array();
+        PrimitiveType int96Type = Types.required(PrimitiveType.PrimitiveTypeName.INT96).named("i96");
+        assertNull(ParquetColumnDecoding.decodeTemporalStat(Binary.fromConstantByteArray(int96), int96Type));
+
+        // Non-temporal types return null so the caller falls through to other normalization.
+        PrimitiveType plainInt = Types.required(PrimitiveType.PrimitiveTypeName.INT32).named("n");
+        assertNull(ParquetColumnDecoding.decodeTemporalStat(5, plainInt));
+        PrimitiveType plainLong = Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("l");
+        assertNull(ParquetColumnDecoding.decodeTemporalStat(5L, plainLong));
     }
 
 }

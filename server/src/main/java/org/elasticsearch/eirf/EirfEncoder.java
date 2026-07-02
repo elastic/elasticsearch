@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -33,7 +34,7 @@ import java.util.List;
 /**
  * Encodes documents into EIRF (Elastic Internal Row Format) batches.
  *
- * <p>Two usage modes are supported, both backed by a shared {@link EirfSchema} and per-document
+ * <p>Two usage modes are supported, both backed by a shared {@link SourceSchema} and per-document
  * {@link ScratchBuffers}.
  *
  * <p><b>Single partition</b> (legacy):
@@ -63,7 +64,7 @@ public class EirfEncoder implements Releasable {
     private static final int INITIAL_CAPACITY = 16;
     private static final int INITIAL_PARTITION_CAPACITY = 4;
 
-    private final EirfSchema schema;
+    private final SourceSchema schema;
     private final ScratchBuffers scratch;
     private Partition[] partitions;
     /** Cached dotted path per leaf column index. Lazily filled and grown as the schema grows. */
@@ -72,7 +73,7 @@ public class EirfEncoder implements Releasable {
     private boolean rowStaged;
 
     public EirfEncoder() {
-        this.schema = new EirfSchema();
+        this.schema = new SourceSchema();
         this.scratch = new ScratchBuffers(INITIAL_CAPACITY);
         this.cachedPath = new String[INITIAL_CAPACITY];
         this.partitions = new Partition[INITIAL_PARTITION_CAPACITY];
@@ -361,7 +362,7 @@ public class EirfEncoder implements Releasable {
     private static void flattenObject(
         XContentParser parser,
         int parentNonLeafIdx,
-        EirfSchema schema,
+        SourceSchema schema,
         ScratchBuffers scratch,
         XContentParser.Token firstToken,
         EirfEncoder encoder,
@@ -901,7 +902,7 @@ public class EirfEncoder implements Releasable {
         }
     }
 
-    static BytesReference buildHeader(EirfSchema schema, int docCount, int[] rowOffsets, int[] rowLengths, int rowDataSize) {
+    static BytesReference buildHeader(SourceSchema schema, int docCount, int[] rowOffsets, int[] rowLengths, int rowDataSize) {
         int nonLeafCount = schema.nonLeafCount();
         int leafCount = schema.leafCount();
 

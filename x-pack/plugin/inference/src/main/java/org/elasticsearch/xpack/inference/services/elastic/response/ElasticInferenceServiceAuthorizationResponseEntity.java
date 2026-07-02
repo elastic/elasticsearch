@@ -81,7 +81,9 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         @Nullable String endOfLifeDate,
         @Nullable Configuration configuration,
         @Nullable EndpointMetadata.Display display,
-        @Nullable String fingerprint
+        @Nullable String fingerprint,
+        List<EndpointMetadata.EndpointRegion> regions,
+        boolean deniedByRegionPolicy
     ) {
 
         public static final String RELEASE_DATE = "release_date";
@@ -95,6 +97,8 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         private static final String CONFIGURATION = "configuration";
         private static final String DISPLAY = "display";
         private static final String FINGERPRINT = "fingerprint";
+        private static final String REGIONS = "regions";
+        private static final String DENIED_BY_REGION_POLICY = "denied_by_region_policy";
 
         @SuppressWarnings("unchecked")
         public static ConstructingObjectParser<AuthorizedEndpoint, Void> AUTHORIZED_ENDPOINT_PARSER = new ConstructingObjectParser<>(
@@ -110,7 +114,9 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
                 (String) args[6],
                 (Configuration) args[7],
                 (EndpointMetadata.Display) args[8],
-                (String) args[9]
+                (String) args[9],
+                args[10] != null ? (List<EndpointMetadata.EndpointRegion>) args[10] : List.of(),
+                args[11] != null && (Boolean) args[11]
             )
         );
 
@@ -129,6 +135,12 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
                 new ParseField(DISPLAY)
             );
             AUTHORIZED_ENDPOINT_PARSER.declareString(optionalConstructorArg(), new ParseField(FINGERPRINT));
+            AUTHORIZED_ENDPOINT_PARSER.declareObjectArray(
+                optionalConstructorArg(),
+                (p, c) -> EndpointMetadata.EndpointRegion.parse(p),
+                new ParseField(REGIONS)
+            );
+            AUTHORIZED_ENDPOINT_PARSER.declareBoolean(optionalConstructorArg(), new ParseField(DENIED_BY_REGION_POLICY));
         }
     }
 

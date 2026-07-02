@@ -12,7 +12,7 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -35,7 +35,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Requests that are run on a particular replica, first on the primary and then on the replicas like {@link IndexRequest} or
  * {@link TransportShardRefreshAction}.
  */
-public abstract class ReplicationRequest<Request extends ReplicationRequest<Request>> extends LegacyActionRequest
+public abstract class ReplicationRequest<Request extends ReplicationRequest<Request>> extends UntypedActionRequest
     implements
         IndicesRequest {
 

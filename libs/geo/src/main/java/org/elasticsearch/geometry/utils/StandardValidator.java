@@ -47,6 +47,11 @@ public class StandardValidator implements GeometryValidator {
     }
 
     @Override
+    public void validateCoordinate(double x, double y, double z) {
+        checkZ(z);
+    }
+
+    @Override
     public void validate(Geometry geometry) {
         if (ignoreZValue == false) {
             geometry.visit(new GeometryVisitor<Void, RuntimeException>() {

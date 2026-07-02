@@ -210,6 +210,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -251,6 +252,9 @@ public class LocalExecutionPlanner {
     private final ProjectResolver projectResolver;
     private final AbstractPhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
+    @Nullable
+    private final Executor parallelWorkerExecutor;
+    private final int esqlWorkerPoolSize;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -269,7 +273,9 @@ public class LocalExecutionPlanner {
         IpLocationService ipLocationService,
         ProjectResolver projectResolver,
         AbstractPhysicalOperationProviders physicalOperationProviders,
-        OperatorFactoryRegistry operatorFactoryRegistry
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        @Nullable Executor parallelWorkerExecutor,
+        int esqlWorkerPoolSize
     ) {
 
         this.sessionId = sessionId;
@@ -289,6 +295,8 @@ public class LocalExecutionPlanner {
         this.projectResolver = projectResolver;
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
+        this.parallelWorkerExecutor = parallelWorkerExecutor;
+        this.esqlWorkerPoolSize = esqlWorkerPoolSize;
     }
 
     /**
@@ -762,6 +770,16 @@ public class LocalExecutionPlanner {
             return source.with(numericFactory, source.layout);
         }
         var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
+        TopNOperator.ParallelWorkerConfig parallelWorkerConfig = null;
+        if (parallelWorkerExecutor != null && TopNOperator.PARALLEL_TOPN_FEATURE_FLAG.isEnabled()) {
+            int workerCount = Math.max(1, Math.min(context.plannerSettings.parallelTopNMaxWorkers(), esqlWorkerPoolSize / 2));
+            parallelWorkerConfig = new TopNOperator.ParallelWorkerConfig(
+                parallelWorkerExecutor,
+                workerCount,
+                2 * workerCount,
+                context.plannerSettings.parallelTopNPromotionThresholdRows()
+            );
+        }
         // For a single keyword/text sort key directly over an external source, publish the generic
         // TopNOperator's competitive BytesRef bound to DynamicThresholdAware format readers so they
         // can skip row groups/stripes that cannot contain a globally competitive row. This is the
@@ -778,7 +796,8 @@ public class LocalExecutionPlanner {
                 context.pageSize(topNExec, rowSize),
                 context.plannerSettings.valuesLoadingJumboSize().getBytes(),
                 topNExec.inputOrdering(),
-                minCompetitive
+                minCompetitive,
+                parallelWorkerConfig
             ),
             source.layout
         );

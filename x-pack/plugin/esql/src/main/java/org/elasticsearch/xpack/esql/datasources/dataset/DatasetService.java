@@ -133,6 +133,19 @@ public class DatasetService {
      * being delete-recreated between coord-validate and task-execute.
      */
     public void putDataset(ProjectId projectId, PutDatasetAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+        final ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
+        final Dataset dataset;
+        try {
+            dataset = validatePutDataset(projectMetadata, request);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        // No-op if identical to the registered dataset — skip the cluster-state update (mirrors ViewService.putView).
+        if (dataset.equals(getMetadata(projectMetadata).get(dataset.name()))) {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return;
+        }
         logger.debug("submitting put dataset [{}] with parent [{}]", request.name(), request.dataSource());
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
             @Override
@@ -149,6 +162,10 @@ public class DatasetService {
         final Dataset dataset = validatePutDataset(project, request);
         final DatasetMetadata metadata = getMetadata(project);
         final Dataset current = metadata.get(dataset.name());
+        if (dataset.equals(current)) {
+            // Became a no-op between the coordinator check and the task — nothing to write.
+            return currentState;
+        }
         if (current == null && metadata.datasets().size() >= maxDatasetsCount) {
             logger.warn("rejected put for dataset [{}]: maximum count [{}] reached", dataset.name(), maxDatasetsCount);
             throw new IllegalArgumentException("cannot add dataset, the maximum number of datasets is reached: " + maxDatasetsCount);
@@ -179,13 +196,12 @@ public class DatasetService {
             public ClusterState execute(ClusterState currentState) {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
                 final DatasetMetadata current = getMetadata(project);
-                final Map<String, Dataset> updated = new HashMap<>(current.datasets());
-                for (String name : names) {
-                    if (updated.containsKey(name) == false) {
-                        throw new ResourceNotFoundException("dataset [{}] not found", name);
-                    }
-                    updated.remove(name);
+                if (names.stream().allMatch(n -> current.get(n) == null)) {
+                    // Idempotent: all targets already gone (e.g. concurrent delete) -> no-op, like ViewService.deleteViews.
+                    return currentState;
                 }
+                final Map<String, Dataset> updated = new HashMap<>(current.datasets());
+                names.forEach(updated::remove);
                 return ClusterState.builder(currentState).putProjectMetadata(ProjectMetadata.builder(project).datasets(updated)).build();
             }
         };

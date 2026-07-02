@@ -47,6 +47,8 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
     private final Set<String> validImdsTokens = ConcurrentCollections.newConcurrentSet();
 
     private final BiConsumer<String, String> newCredentialsConsumer;
+    @Nullable // if non-null, the credentials endpoint requires this exact Authorization header value
+    private final Supplier<String> authorizationTokenSupplier;
     private final Map<String, String> instanceAddresses;
     private final Set<String> validCredentialsEndpoints;
     private final boolean dynamicProfileNames;
@@ -57,6 +59,7 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
     public Ec2ImdsHttpHandler(
         Ec2ImdsVersion ec2ImdsVersion,
         BiConsumer<String, String> newCredentialsConsumer,
+        @Nullable Supplier<String> authorizationTokenSupplier,
         Collection<String> alternativeCredentialsEndpoints,
         Supplier<String> availabilityZoneSupplier,
         @Nullable ToXContent instanceIdentityDocument,
@@ -64,6 +67,7 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
     ) {
         this.ec2ImdsVersion = Objects.requireNonNull(ec2ImdsVersion);
         this.newCredentialsConsumer = Objects.requireNonNull(newCredentialsConsumer);
+        this.authorizationTokenSupplier = authorizationTokenSupplier;
         this.instanceAddresses = instanceAddresses;
 
         if (alternativeCredentialsEndpoints.isEmpty()) {
@@ -133,6 +137,14 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                     sendStringResponse(exchange, Strings.toString(instanceIdentityDocument));
                     return;
                 } else if (validCredentialsEndpoints.contains(path)) {
+                    if (authorizationTokenSupplier != null
+                        && Objects.equals(
+                            exchange.getRequestHeaders().getFirst("Authorization"),
+                            authorizationTokenSupplier.get()
+                        ) == false) {
+                        exchange.sendResponseHeaders(RestStatus.FORBIDDEN.getStatus(), -1);
+                        return;
+                    }
                     final String accessKey = "test_key_imds_" + randomIdentifier();
                     final String sessionToken = randomIdentifier();
                     newCredentialsConsumer.accept(accessKey, sessionToken);

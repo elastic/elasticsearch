@@ -23,6 +23,7 @@ public class Ec2ImdsServiceBuilder {
 
     private final Ec2ImdsVersion ec2ImdsVersion;
     private BiConsumer<String, String> newCredentialsConsumer = Ec2ImdsServiceBuilder::rejectNewCredentials;
+    private Supplier<String> authorizationTokenSupplier = null;
     private Collection<String> alternativeCredentialsEndpoints = Set.of();
     private Supplier<String> availabilityZoneSupplier = Ec2ImdsServiceBuilder::rejectAvailabilityZone;
     private ToXContent instanceIdentityDocument = null;
@@ -39,6 +40,15 @@ public class Ec2ImdsServiceBuilder {
 
     private static void rejectNewCredentials(String ignored1, String ignored2) {
         ESTestCase.fail("credentials creation not supported");
+    }
+
+    /**
+     * If set, the credentials endpoint only responds when the request carries an {@code Authorization} header equal to the
+     * supplied token; otherwise it returns {@code 403}. Used to verify that the SDK sends the container-credentials token.
+     */
+    public Ec2ImdsServiceBuilder authorizationTokenSupplier(Supplier<String> authorizationTokenSupplier) {
+        this.authorizationTokenSupplier = authorizationTokenSupplier;
+        return this;
     }
 
     public Ec2ImdsServiceBuilder alternativeCredentialsEndpoints(Collection<String> alternativeCredentialsEndpoints) {
@@ -64,6 +74,7 @@ public class Ec2ImdsServiceBuilder {
         return new Ec2ImdsHttpHandler(
             ec2ImdsVersion,
             newCredentialsConsumer,
+            authorizationTokenSupplier,
             alternativeCredentialsEndpoints,
             availabilityZoneSupplier,
             instanceIdentityDocument,

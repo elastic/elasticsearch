@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * End-to-end regression guard for {@code auth=workload_identity} on the {@code esql-datasource-s3}
+ * End-to-end regression guard for {@code auth=managed_identity} on the {@code esql-datasource-s3}
  * plugin via EKS IRSA (IAM Roles for Service Accounts).
  *
  * <p>Spawns a separate ES cluster JVM with:
@@ -57,22 +57,22 @@ import static org.hamcrest.Matchers.hasSize;
  *   <li>the test-only system property {@code
  *       org.elasticsearch.xpack.esql.datasource.s3.stsEndpointOverride} pointing at a local
  *       {@link AwsStsHttpFixture} so STS calls hit a fake endpoint instead of AWS,</li>
- *   <li>{@code esql.datasource.workload_identity.enabled=true} so the validator accepts the data
+ *   <li>{@code esql.datasource.managed_identity.enabled=true} so the validator accepts the data
  *       source.</li>
  * </ul>
  *
- * <p>A successful query proves the full chain: PUT data_source(auth=workload_identity) →
+ * <p>A successful query proves the full chain: PUT data_source(auth=managed_identity) →
  * cluster-setting gate → S3StorageProvider builds an S3 client → IRSA provider exchanges the
  * token at the entitled symlink for STS temporary credentials → those credentials sign an S3 GET
  * → NDJSON reader returns rows.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-public class IrsaWorkloadIdentityAuthIT extends ESRestTestCase {
+public class IrsaManagedIdentityAuthIT extends ESRestTestCase {
 
     private static final String BUCKET = "irsa-test-bucket";
     private static final String OBJECT_KEY = "data/rows.ndjson";
-    private static final String DATASOURCE_NAME = "irsa_workload_identity_ds";
-    private static final String DATASET_NAME = "irsa_workload_identity_rows";
+    private static final String DATASOURCE_NAME = "irsa_managed_identity_ds";
+    private static final String DATASET_NAME = "irsa_managed_identity_rows";
     private static final byte[] NDJSON_CONTENT = "{\"id\":1,\"city\":\"Vienna\"}\n{\"id\":2,\"city\":\"Berlin\"}\n".getBytes(
         StandardCharsets.UTF_8
     );
@@ -100,7 +100,7 @@ public class IrsaWorkloadIdentityAuthIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting("esql.datasource.workload_identity.enabled", "true")
+        .setting("esql.datasource.managed_identity.enabled", "true")
         // The plugin requires the operator to symlink the EKS-injected web-identity token to a
         // fixed location under config; the cluster builder writes the token bytes there directly.
         .configFile("esql-datasource-s3/aws-web-identity-token-file", Resource.fromString(WEB_IDENTITY_TOKEN_FILE_CONTENTS))
@@ -139,17 +139,17 @@ public class IrsaWorkloadIdentityAuthIT extends ESRestTestCase {
      * STS fixture issuing credentials, cluster-setting gate open), an ESQL query against the
      * seeded NDJSON blob must return rows. A non-empty result proves every step of the chain.
      */
-    public void testIrsaWorkloadIdentityAuthQueryReturnsRows() throws IOException {
-        putWorkloadIdentityDataSource(DATASOURCE_NAME, s3HttpFixture.getAddress());
+    public void testIrsaManagedIdentityAuthQueryReturnsRows() throws IOException {
+        putManagedIdentityDataSource(DATASOURCE_NAME, s3HttpFixture.getAddress());
         putDataset(DATASET_NAME, DATASOURCE_NAME, "s3://" + BUCKET + "/" + OBJECT_KEY);
 
         // Trailing LIMIT 1 silences the ESRestTestCase strict-mode default-limit warning.
         Map<String, Object> result = runEsql("FROM " + DATASET_NAME + " | STATS count = COUNT(*) | LIMIT 1");
         @SuppressWarnings("unchecked")
         List<List<Object>> values = (List<List<Object>>) result.get("values");
-        assertThat("auth=workload_identity (IRSA) query must return at least one stats row", values, hasSize(greaterThanOrEqualTo(1)));
+        assertThat("auth=managed_identity (IRSA) query must return at least one stats row", values, hasSize(greaterThanOrEqualTo(1)));
         Number count = (Number) values.get(0).get(0);
-        assertThat("auth=workload_identity (IRSA) query must count both seeded NDJSON rows", count.intValue(), equalTo(2));
+        assertThat("auth=managed_identity (IRSA) query must count both seeded NDJSON rows", count.intValue(), equalTo(2));
     }
 
     /**
@@ -158,20 +158,20 @@ public class IrsaWorkloadIdentityAuthIT extends ESRestTestCase {
      * setting and that the dynamic supplier in {@code EsqlPlugin} actually observes operator
      * changes.
      */
-    public void testIrsaWorkloadIdentityAuthRejectedWhenClusterSettingDisabled() throws IOException {
+    public void testIrsaManagedIdentityAuthRejectedWhenClusterSettingDisabled() throws IOException {
         try {
-            setWorkloadIdentityEnabled(false);
+            setManagedIdentityEnabled(false);
             ResponseException ex = expectThrows(
                 ResponseException.class,
-                () -> putWorkloadIdentityDataSource(DATASOURCE_NAME + "_disabled", s3HttpFixture.getAddress())
+                () -> putManagedIdentityDataSource(DATASOURCE_NAME + "_disabled", s3HttpFixture.getAddress())
             );
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(
                 org.apache.http.util.EntityUtils.toString(ex.getResponse().getEntity()),
-                containsString("esql.datasource.workload_identity.enabled")
+                containsString("esql.datasource.managed_identity.enabled")
             );
         } finally {
-            setWorkloadIdentityEnabled(true);
+            setManagedIdentityEnabled(true);
         }
     }
 
@@ -179,13 +179,13 @@ public class IrsaWorkloadIdentityAuthIT extends ESRestTestCase {
     // REST helpers
     // -----------------------------------------------------------------------------------------
 
-    private static void putWorkloadIdentityDataSource(String name, String endpoint) throws IOException {
+    private static void putManagedIdentityDataSource(String name, String endpoint) throws IOException {
         Request req = new Request("PUT", "/_query/data_source/" + name);
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject()
                 .field("type", "s3")
                 .startObject("settings")
-                .field("auth", "workload_identity")
+                .field("auth", "managed_identity")
                 .field("region", regionSupplier.get())
                 .field("endpoint", endpoint)
                 .endObject()
@@ -217,10 +217,10 @@ public class IrsaWorkloadIdentityAuthIT extends ESRestTestCase {
         return entityAsMap(r);
     }
 
-    private static void setWorkloadIdentityEnabled(boolean enabled) throws IOException {
+    private static void setManagedIdentityEnabled(boolean enabled) throws IOException {
         Request req = new Request("PUT", "/_cluster/settings");
         try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().startObject("persistent").field("esql.datasource.workload_identity.enabled", enabled).endObject().endObject();
+            b.startObject().startObject("persistent").field("esql.datasource.managed_identity.enabled", enabled).endObject().endObject();
             req.setJsonEntity(Strings.toString(b));
         }
         Response r = client().performRequest(req);

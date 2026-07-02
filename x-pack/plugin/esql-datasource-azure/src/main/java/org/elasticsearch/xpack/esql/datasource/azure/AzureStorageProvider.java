@@ -138,22 +138,22 @@ public final class AzureStorageProvider implements StorageProvider {
 
     /**
      * Sizes the reactor-netty connection pool shared by the sync and async clients (see {@link #buildSizedHttpClient}).
-     * The value of the {@code esql.external.max_connections} node setting.
+     * The value of the {@code esql.external.max_concurrent_requests} node setting.
      */
     private final int maxConnections;
 
     /**
-     * Convenience constructor that sizes the connection pool at the {@code esql.external.max_connections} default.
-     * Used by tests; production uses the four-argument form with the node-setting value.
+     * Convenience constructor that sizes the connection pool at the {@code esql.external.max_concurrent_requests}
+     * default. Used by tests; production uses the four-argument form with the node-setting value.
      */
     public AzureStorageProvider(AzureConfiguration config, Environment environment, ExecutorService executor) {
-        this(config, environment, executor, ExternalSourceSettings.MAX_CONNECTIONS.get(Settings.EMPTY));
+        this(config, environment, executor, ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY));
     }
 
     /**
      * Production constructor. {@code maxConnections} sizes the reactor-netty connection pool and is the value of the
-     * {@code esql.external.max_connections} node setting, read at the plugin's construction path (which holds node
-     * {@link Settings}).
+     * {@code esql.external.max_concurrent_requests} node setting, read at the plugin's construction path (which holds
+     * node {@link Settings}).
      */
     public AzureStorageProvider(AzureConfiguration config, Environment environment, ExecutorService executor, int maxConnections) {
         this.config = config;
@@ -176,7 +176,7 @@ public final class AzureStorageProvider implements StorageProvider {
         this.config = null;
         this.environment = null;
         this.executor = null;
-        this.maxConnections = ExternalSourceSettings.MAX_CONNECTIONS.get(Settings.EMPTY);
+        this.maxConnections = ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY);
         this.clients = new Clients(blobServiceClient, null);
     }
 
@@ -387,7 +387,7 @@ public final class AzureStorageProvider implements StorageProvider {
     /**
      * Builds the HTTP client shared by the sync and async Blob clients, backed by a reactor-netty connection pool
      * sized to {@link #maxConnections}. Records the pool in {@link #connectionProvider} so {@link #close()} disposes
-     * it. The single {@code esql.external.max_connections} setting sizes this pool; the circuit breaker bounds memory
+     * it. The single {@code esql.external.max_concurrent_requests} knob sizes this pool; the circuit breaker bounds memory
      * and reactive 503 backoff handles throttling. The Azure SDK's reactor-netty default of 50 connections would cap
      * read parallelism far below what Azure Blob serves, so we size it explicitly here.
      */

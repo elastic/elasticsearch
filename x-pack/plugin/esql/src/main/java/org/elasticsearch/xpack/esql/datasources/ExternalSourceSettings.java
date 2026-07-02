@@ -14,15 +14,17 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import java.util.List;
 
 /**
- * Cluster settings for controlling ESQL external source behavior; all node-scoped. The connection bound
- * ({@link #MAX_CONNECTIONS}) and the throttle retry budget are read at node startup — the former sizes the SDK
- * connection pools and the blocking-read thread pool when they are built, the latter is read when the
- * storage-provider registry initializes — so a change to either takes effect after a node restart.
+ * Cluster settings for controlling ESQL external source behavior; all node-scoped. The external-read concurrency
+ * bound ({@link #MAX_CONCURRENT_REQUESTS}) and the throttle retry budget are read at node startup — the concurrency
+ * bound sizes both the per-scheme permit semaphores and the backend SDK HTTP connection pools when they are built,
+ * the retry budget is read when the storage-provider registry initializes — so a change to either takes effect
+ * after a node restart.
  * <p>
- * Covers three areas: the per-backend external-read concurrency bound ({@link #MAX_CONNECTIONS}); reactive
- * throttle handling for object stores (the retry duration budget — throttling is handled by backoff, not a
- * concurrency cap); and glob/listing safety limits (max discovered files, max brace expansion) to prevent
- * degenerate queries from overwhelming storage backends.
+ * Covers three areas: the external-read concurrency bound (the single {@link #MAX_CONCURRENT_REQUESTS} knob, which
+ * sizes the in-flight-read permit semaphore and the SDK connection pools below it); reactive throttle handling for
+ * object stores (the retry duration budget — throttling is handled by backoff, not a concurrency cap); and
+ * glob/listing safety limits (max discovered files, max brace expansion) to prevent degenerate queries from
+ * overwhelming storage backends.
  */
 public final class ExternalSourceSettings {
 
@@ -56,26 +58,39 @@ public final class ExternalSourceSettings {
     }
 
     /**
-     * The effective per-node blob-store access concurrency that every external access path should read, so one knob
-     * governs metadata discovery and data reads alike. On this branch it resolves to the CPU-bound
-     * {@link #defaultBlobStoreConcurrency(Settings)} default; once the per-query concurrency work (PR B) lands its
-     * operator setting on top, this accessor becomes the override-aware value and both paths pick that up unchanged
-     * — the call sites do not move, only this body does.
+     * The effective per-node blob-store access concurrency that every external access path reads, so one knob
+     * governs metadata discovery and data reads alike: the operator's {@link #MAX_CONCURRENT_REQUESTS} value when
+     * set, otherwise the CPU-bound {@link #defaultBlobStoreConcurrency(Settings)} default. The data-read path bounds
+     * in-flight reads with a per-scheme permit semaphore sized by this value ({@code StorageProviderRegistry}), and
+     * the metadata-discovery fan-out ({@code TransportEsqlQueryAction.externalSourceConcurrency()}) uses the same
+     * value — so an operator override reaches both paths.
      */
     public static int blobStoreConcurrency(Settings settings) {
-        return defaultBlobStoreConcurrency(settings);
+        return MAX_CONCURRENT_REQUESTS.get(settings);
     }
 
     /**
-     * Maximum concurrent in-flight external-storage reads per backend, per node. Sizes the S3/Azure SDK connection
-     * pools and the {@code esql_external_blocking_io} thread pool. Static (NodeScope): thread pools and SDK pools
-     * are fixed at startup.
+     * The single external-read concurrency knob, per scheme, per node. It sizes both the per-scheme permit semaphore
+     * that bounds in-flight data reads ({@code StorageProviderRegistry}) and the backend SDK HTTP connection pools
+     * (S3 Netty {@code maxConcurrency}, Azure reactor-netty {@code ConnectionProvider}), and — via
+     * {@link #blobStoreConcurrency(Settings)} — the metadata-discovery fan-out. Set to 0 to disable permit-based
+     * concurrency limiting entirely.
+     * <p>
+     * The default is CPU-bound rather than a fixed literal: {@link #defaultBlobStoreConcurrency(Settings)} — the
+     * {@code snapshot_meta} sizing shape ({@code allocatedProcessors * 3}) capped at
+     * {@value #BLOB_STORE_CONCURRENCY_CEILING}. That scales in-flight reads with node size so a wide fan-out over
+     * many small blobs is not self-throttled by a low fixed cap, while still bounding a single store's load.
+     * Operators can raise it (up to 500) for high-throughput clusters or lower it when a store throttles.
+     * <p>
+     * Static ({@link Setting.Property#NodeScope}): the value sizes the per-scheme semaphores and SDK pools when they
+     * are built and there is no settings-update consumer to resize a live {@link java.util.concurrent.Semaphore} or
+     * connection pool, so a change takes effect after a node restart.
      */
-    public static final Setting<Integer> MAX_CONNECTIONS = Setting.intSetting(
-        "esql.external.max_connections",
-        512,
-        1,
-        4096,
+    public static final Setting<Integer> MAX_CONCURRENT_REQUESTS = Setting.intSetting(
+        "esql.external.max_concurrent_requests",
+        s -> Integer.toString(defaultBlobStoreConcurrency(s)),
+        0,
+        500,
         Setting.Property.NodeScope
     );
 
@@ -171,7 +186,7 @@ public final class ExternalSourceSettings {
 
     public static List<Setting<?>> settings() {
         return List.of(
-            MAX_CONNECTIONS,
+            MAX_CONCURRENT_REQUESTS,
             THROTTLE_MAX_RETRY_DURATION,
             MAX_DISCOVERED_FILES,
             MAX_GLOB_EXPANSION,

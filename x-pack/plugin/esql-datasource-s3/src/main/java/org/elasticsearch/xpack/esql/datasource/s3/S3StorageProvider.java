@@ -78,7 +78,7 @@ import java.util.NoSuchElementException;
  *   <li><b>Async client</b> — used exclusively for {@code readBytesAsync} range reads in
  *       {@link S3StorageObject}. When multiple concurrent range reads are dispatched, the Netty
  *       event loop handles them without blocking a thread per request, reducing thread-pool
- *       pressure under load. The pool is sized by {@code esql.external.max_connections}.</li>
+ *       pressure under load. The pool is sized by {@code esql.external.max_concurrent_requests}.</li>
  * </ul>
  * <p>
  * Both clients share the same credentials, region, and endpoint configuration. The Netty
@@ -113,17 +113,17 @@ public class S3StorageProvider implements StorageProvider {
 
     /**
      * Test-friendly constructor: no IRSA web-identity provider available, async pool sized at the
-     * {@code esql.external.max_connections} default. Equivalent to production behavior on a node where
+     * {@code esql.external.max_concurrent_requests} default. Equivalent to production behavior on a node where
      * {@code AWS_WEB_IDENTITY_TOKEN_FILE} is unset.
      */
     public S3StorageProvider(S3Configuration config) {
-        this(config, null, ExternalSourceSettings.MAX_CONNECTIONS.get(Settings.EMPTY));
+        this(config, null, ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY));
     }
 
     /**
      * Production constructor. {@code maxConnections} sizes the async client's Netty connection pool and is the
-     * value of the {@code esql.external.max_connections} node setting, read at the plugin's construction path
-     * (which holds node {@link Settings}).
+     * value of the {@code esql.external.max_concurrent_requests} node setting, read at the plugin's construction
+     * path (which holds node {@link Settings}).
      */
     @SuppressWarnings("this-escape")
     public S3StorageProvider(
@@ -231,7 +231,7 @@ public class S3StorageProvider implements StorageProvider {
         // Pass the builder (not a pre-built client) so the SDK takes ownership of the Netty client
         // and closes it when S3AsyncClient.close() is called. A pre-built client passed via
         // .httpClient() is wrapped in NonManagedSdkAsyncHttpClient whose close() is a no-op.
-        // Size the connection pool from the single esql.external.max_connections setting; the circuit breaker
+        // Size the connection pool from the single esql.external.max_concurrent_requests knob; the circuit breaker
         // bounds memory and reactive 503 backoff handles throttling. The SDK's default maxConcurrency is 50,
         // which caps a single query's read parallelism well below what S3 serves happily — S3 throttles per
         // key-prefix request rate, not per per-machine connection count, and pushes back with 503/backoff when it

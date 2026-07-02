@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -426,13 +427,17 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 ? format.filterPushdownSupport()
                 : null;
 
-            // No per-query concurrency wrap here. Storage already carries reactive retry/backoff (per-store 503
-            // backoff) from the registry (see StorageProviderRegistry#wrapProvider). Per-node read concurrency is
-            // bounded by the dedicated esql_external_blocking_io thread pool (blocking backends — GCS/local, via
-            // fileReadExecutor) and by the S3/Azure SDK connection pools — not by any per-read permit. The old
-            // per-query budget self-throttled a single query against its own shrunk share and failed it on a 60s
-            // timeout; removed in favor of these standing bounds plus reactive backoff.
+            // Per-query fairness: draw a dynamic slice of the per-scheme permit budget so one query cannot starve the
+            // rest on the same backend. Storage also carries reactive retry/backoff (per-store 503 backoff) from the
+            // registry (see StorageProviderRegistry#wrapProvider), and in-flight reads are additionally bounded by
+            // the per-scheme permit semaphore. Blocking reads run on esql_worker (not a dedicated pool).
             Closeable onClose = null;
+            ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
+            if (allocator != null) {
+                QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, allocator.register());
+                storage = budgeted;
+                onClose = budgeted;
+            }
 
             Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
             // Deferred extraction fires when both signals are present: the reader is

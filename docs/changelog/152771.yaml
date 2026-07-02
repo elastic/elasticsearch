@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 152771
+summary: Bound external blob-store reads with per-scheme permits instead of a dedicated
+  thread pool
+type: enhancement

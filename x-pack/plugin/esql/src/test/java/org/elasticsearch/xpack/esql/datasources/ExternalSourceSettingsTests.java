@@ -21,33 +21,64 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testDefaults() {
         Settings settings = Settings.EMPTY;
-        assertEquals(512, (int) ExternalSourceSettings.MAX_CONNECTIONS.get(settings));
         assertEquals(30, (int) ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings));
+        // The in-flight-read permit bound defaults to the CPU-bound formula, not a fixed literal.
+        assertEquals(
+            ExternalSourceSettings.defaultBlobStoreConcurrency(settings),
+            (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings)
+        );
+        assertEquals(ExternalSourceSettings.defaultBlobStoreConcurrency(settings), ExternalSourceSettings.blobStoreConcurrency(settings));
+    }
+
+    public void testMaxConcurrentRequestsDefaultTracksCpuFormula() {
+        int processors = randomIntBetween(1, Math.max(1, Runtime.getRuntime().availableProcessors()));
+        Settings settings = Settings.builder().put("node.processors", processors).build();
+        int expected = Math.min(processors * 3, 100);
+        assertEquals(expected, ExternalSourceSettings.defaultBlobStoreConcurrency(settings));
+        assertEquals(expected, (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings));
+    }
+
+    public void testMaxConcurrentRequestsOverrideIsTheEffectiveKnob() {
+        int override = randomIntBetween(0, 500);
+        Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", override).build();
+        assertEquals(override, (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings));
+        assertEquals(override, ExternalSourceSettings.blobStoreConcurrency(settings));
+    }
+
+    public void testMaxConcurrentRequestsLowerBoundAllowsZero() {
+        Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 0).build();
+        assertEquals(0, (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings));
+    }
+
+    public void testMaxConcurrentRequestsRejectsNegativeAndOverMax() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(
+                Settings.builder().put("esql.external.max_concurrent_requests", -1).build()
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(
+                Settings.builder().put("esql.external.max_concurrent_requests", 501).build()
+            )
+        );
+        assertEquals(
+            500,
+            (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(
+                Settings.builder().put("esql.external.max_concurrent_requests", 500).build()
+            )
+        );
     }
 
     public void testCustomValues() {
         Settings settings = Settings.builder()
-            .put("esql.external.max_connections", 100)
+            .put("esql.external.max_concurrent_requests", 100)
             .put("esql.external.throttle_max_retry_duration", 60)
             .build();
 
-        assertEquals(100, (int) ExternalSourceSettings.MAX_CONNECTIONS.get(settings));
+        assertEquals(100, (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings));
         assertEquals(60, (int) ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings));
-    }
-
-    public void testConcurrencyLowerBound() {
-        // The minimum is 1: the connection bound also sizes thread/SDK pools, which cannot be zero-width.
-        expectThrows(IllegalArgumentException.class, () -> {
-            Settings settings = Settings.builder().put("esql.external.max_connections", 0).build();
-            ExternalSourceSettings.MAX_CONNECTIONS.get(settings);
-        });
-    }
-
-    public void testConcurrencyUpperBound() {
-        expectThrows(IllegalArgumentException.class, () -> {
-            Settings settings = Settings.builder().put("esql.external.max_connections", 4097).build();
-            ExternalSourceSettings.MAX_CONNECTIONS.get(settings);
-        });
     }
 
     public void testThrottleMaxRetryDurationZeroDisablesBudget() {
@@ -65,6 +96,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
         assertEquals(7, ExternalSourceSettings.settings().size());
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS));
     }
 
     public void testManagedIdentityDefaultFalse() {

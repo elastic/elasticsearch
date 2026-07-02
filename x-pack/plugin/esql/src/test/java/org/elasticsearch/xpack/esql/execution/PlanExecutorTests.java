@@ -33,22 +33,18 @@ public class PlanExecutorTests extends ESTestCase {
      * 100 — the same effective knob the data-read path uses) rather than the raw pool size. The fan-out may exceed
      * the pool size because footer reads are async (the worker is released across the read).
      * <p>
-     * The pool selection and the fan-out bound live in {@link TransportEsqlQueryAction}
-     * ({@code externalSourceExecutorName()} / {@code externalSourceConcurrency()}); this test pins both there and then
-     * confirms {@link PlanExecutor#createExternalSourceResolver} binds the supplied executor and concurrency onto the
-     * resolver verbatim (no silent re-homing back to a blocking or SEARCH pool).
+     * The pool selection lives in {@link EsqlPlugin#externalBlobStorePool()} and the fan-out bound in
+     * {@link TransportEsqlQueryAction} ({@code externalSourceConcurrency()}); this test pins both and then confirms
+     * {@link PlanExecutor#createExternalSourceResolver} binds the supplied executor and concurrency onto the resolver
+     * verbatim (no silent re-homing back to a blocking or SEARCH pool).
      */
     public void testExternalSourceResolverWiredToEsqlWorkerPool() {
         assertEquals(
             "external discovery must target the esql_worker pool, isolated from SEARCH",
             ESQL_WORKER_THREAD_POOL_NAME,
-            TransportEsqlQueryAction.externalSourceExecutorName()
+            EsqlPlugin.externalBlobStorePool()
         );
-        assertNotEquals(
-            "esql_worker must not be the SEARCH pool",
-            ThreadPool.Names.SEARCH,
-            TransportEsqlQueryAction.externalSourceExecutorName()
-        );
+        assertNotEquals("esql_worker must not be the SEARCH pool", ThreadPool.Names.SEARCH, EsqlPlugin.externalBlobStorePool());
 
         EsqlPlugin plugin = new EsqlPlugin();
         Settings settings = Settings.builder().put("node.name", "test").build();

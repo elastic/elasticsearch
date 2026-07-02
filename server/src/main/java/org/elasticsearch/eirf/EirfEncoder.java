@@ -18,8 +18,10 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.sourcebatch.LeafSink;
+import org.elasticsearch.sourcebatch.SourceBatchEncoder;
 import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -58,7 +60,7 @@ import java.util.List;
  * }
  * </pre>
  */
-public class EirfEncoder implements Releasable {
+public class EirfEncoder implements SourceBatchEncoder {
 
     private static final int HEADER_SIZE = 32;
     private static final int INITIAL_CAPACITY = 16;
@@ -80,15 +82,6 @@ public class EirfEncoder implements Releasable {
     }
 
     /**
-     * Adds a single document to the encoder's default partition. Equivalent to
-     * {@code parseToScratch(source, xContentType, NO_OP_LEAF_SINK); commitScratchTo(DEFAULT_PARTITION);}.
-     */
-    public void addDocument(BytesReference source, XContentType xContentType, int partition) throws IOException {
-        parseToScratch(source, xContentType, LeafSink.NO_OP);
-        commitScratchTo(partition);
-    }
-
-    /**
      * Parses {@code source} into the encoder's per-document scratch and fires {@code sink} for every
      * primitive leaf value (string / number / boolean — null and array values are intentionally not
      * forwarded; see {@link LeafSink}). The parsed row is held in scratch until the next
@@ -97,6 +90,7 @@ public class EirfEncoder implements Releasable {
      * <p>Calling this method twice without an intervening {@code commitScratchTo} discards the
      * previously staged row.
      */
+    @Override
     public void parseToScratch(BytesReference source, XContentType xContentType, LeafSink sink) throws IOException {
         int columnCountBefore = schema.leafCount();
         Arrays.fill(scratch.typeBytes, 0, columnCountBefore, (byte) 0);
@@ -118,6 +112,7 @@ public class EirfEncoder implements Releasable {
      *
      * @throws IllegalStateException if no row is currently staged.
      */
+    @Override
     public int commitScratchTo(int partitionKey) throws IOException {
         if (rowStaged == false) {
             throw new IllegalStateException("commitScratchTo called without a staged row");
@@ -140,6 +135,7 @@ public class EirfEncoder implements Releasable {
      * batch consumes that partition's row data; subsequent calls for the same key will produce an
      * empty batch.
      */
+    @Override
     public EirfBatch buildPartition(int partitionKey) {
         Partition partition = getOrCreatePartition(partitionKey);
         ReleasableBytesReference rowBytes = partition.rowOutput.moveToBytesReference();
@@ -152,6 +148,7 @@ public class EirfEncoder implements Releasable {
      * Returns the number of rows committed to the partition identified by {@code partitionKey}.
      * Returns 0 for partitions that have never been written to.
      */
+    @Override
     public int docCount(int partitionKey) {
         Partition partition = partitionKey < partitions.length ? partitions[partitionKey] : null;
         return partition == null ? 0 : partition.docCount;
@@ -161,6 +158,7 @@ public class EirfEncoder implements Releasable {
      * Returns true if at least one row has been committed to the partition identified by
      * {@code partitionKey}.
      */
+    @Override
     public boolean hasPartition(int partitionKey) {
         Partition partition = partitionKey < partitions.length ? partitions[partitionKey] : null;
         return partition != null && partition.docCount > 0;
@@ -170,6 +168,7 @@ public class EirfEncoder implements Releasable {
      * Returns the dotted path for the given leaf column. Result is cached: callers may use the
      * column index as a stable key for their own per-column state.
      */
+    @Override
     public String columnPath(int columnIndex) {
         if (columnIndex >= cachedPath.length) {
             int newCap = cachedPath.length;
@@ -244,74 +243,7 @@ public class EirfEncoder implements Releasable {
         }
     }
 
-    /**
-     * Sink fired for every primitive leaf value during {@link #parseToScratch}.
-     *
-     * <p>Invoked for {@code VALUE_STRING}, {@code VALUE_NUMBER}, and {@code VALUE_BOOLEAN} tokens
-     * directly under an object. Not invoked for {@code VALUE_NULL} (matching today's
-     * {@code RoutingHashBuilder.extractItem} behavior, which skips nulls), nor for elements inside
-     * arrays or empty objects encoded as {@code KEY_VALUE} leaves.
-     *
-     * <p>The encoder dispatches differently based on {@link #passRawText()}: sinks that want the
-     * raw UTF-8 byte slice for every primitive (e.g. routing-path hashing) get
-     * {@link #onTextPrimitive} for every leaf, and sinks that want typed values (e.g. tsid
-     * dimensions) get {@link #onLongPrimitive} / {@link #onDoublePrimitive} /
-     * {@link #onBooleanPrimitive} for numeric and boolean leaves with no wasted
-     * {@code parser.optimizedText().bytes()} call.
-     *
-     * <p>Arrays at leaf positions are signalled via {@link #onArrayLeaf} regardless, so the caller
-     * can react (e.g. throw to abandon batch encoding for the bulk).
-     */
-    public interface LeafSink {
-
-        LeafSink NO_OP = () -> false;
-
-        /**
-         * Returns true if this sink wants the parser's UTF-8 text bytes for every primitive leaf
-         * (via {@link #onTextPrimitive}), false if it wants typed values (via
-         * {@link #onLongPrimitive} / {@link #onDoublePrimitive} / {@link #onBooleanPrimitive}) for
-         * numeric and boolean leaves. The encoder reads this once per document.
-         */
-        boolean passRawText();
-
-        /**
-         * Called in raw-text mode ({@link #passRawText()} = {@code true}) for every primitive leaf,
-         * and in typed mode for {@code STRING} leaves and unrecognized number types (BIG_DECIMAL /
-         * BIG_INTEGER) that the encoder narrows to a string representation.
-         *
-         * @param columnIndex schema leaf index (stable across documents in this encoder)
-         * @param dottedPath cached dotted path for the column
-         * @param type the {@link EirfType} byte assigned to the value
-         * @param textBytes UTF-8 byte slice of the parser token's textual form
-         */
-        default void onTextPrimitive(int columnIndex, String dottedPath, byte type, XContentString.UTF8Bytes textBytes) {}
-
-        /**
-         * Called in typed mode ({@link #passRawText()} = {@code false}) for {@code INT} and
-         * {@code LONG} primitives. The encoder narrows numerics that fit in the int range to
-         * {@code EirfType.INT}; subclasses can dispatch further on {@code type} if they want to
-         * feed e.g. {@code addIntDimension} vs {@code addLongDimension}.
-         */
-        default void onLongPrimitive(int columnIndex, String dottedPath, byte type, long value) {}
-
-        /**
-         * Called in typed mode for {@code FLOAT} and {@code DOUBLE} primitives. The value passed is
-         * the actual {@code double} (already reconstructed for narrowed {@code FLOAT} columns),
-         * not raw bits.
-         */
-        default void onDoublePrimitive(int columnIndex, String dottedPath, byte type, double value) {}
-
-        /** Called in typed mode for boolean primitives. */
-        default void onBooleanPrimitive(int columnIndex, String dottedPath, boolean value) {}
-
-        /**
-         * Invoked once per array encountered as a direct leaf value under an object. The encoder
-         * still encodes the array into scratch as a {@code FIXED_ARRAY} or {@code UNION_ARRAY};
-         * this hook simply tells the caller that a complex value was seen at that column so it can
-         * decide how to react.
-         */
-        default void onArrayLeaf(int columnIndex, String dottedPath) {}
-    }
+    // LeafSink moved to org.elasticsearch.sourcebatch.LeafSink (shared by all SourceBatchEncoder impls).
 
     static final class ScratchBuffers {
         byte[] typeBytes;
@@ -386,7 +318,7 @@ public class EirfEncoder implements Releasable {
                     if (scratch.columnsSet.getAndSet(emptyColIdx)) {
                         throw new IllegalArgumentException("Duplicate field [" + fieldName + "]");
                     }
-                    scratch.typeBytes[emptyColIdx] = EirfType.KEY_VALUE;
+                    scratch.typeBytes[emptyColIdx] = SourceValueType.KEY_VALUE;
                     scratch.varData[emptyColIdx] = BytesArray.EMPTY;
                     scratch.varColumnCount++;
                 } else {
@@ -417,7 +349,7 @@ public class EirfEncoder implements Releasable {
                     }
                 }
                 case VALUE_STRING -> {
-                    scratch.typeBytes[colIdx] = EirfType.STRING;
+                    scratch.typeBytes[colIdx] = SourceValueType.STRING;
                     XContentString.UTF8Bytes str = parser.optimizedText().bytes();
                     scratch.varData[colIdx] = str;
                     scratch.totalVarSize += str.length();
@@ -425,7 +357,7 @@ public class EirfEncoder implements Releasable {
                     if (firePathSink) {
                         // Strings flow through onTextPrimitive in both modes — there's no typed value to
                         // give consumers besides the bytes themselves.
-                        sink.onTextPrimitive(colIdx, encoder.columnPath(colIdx), EirfType.STRING, str);
+                        sink.onTextPrimitive(colIdx, encoder.columnPath(colIdx), SourceValueType.STRING, str);
                     }
                 }
                 case VALUE_NUMBER -> {
@@ -435,12 +367,12 @@ public class EirfEncoder implements Releasable {
                             long val = parser.longValue();
                             byte type;
                             if (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) {
-                                type = EirfType.INT;
+                                type = SourceValueType.INT;
                                 scratch.typeBytes[colIdx] = type;
                                 writeIntToFixed(scratch.fixedData, colIdx, (int) val);
                                 scratch.scalarFixedSize += 4;
                             } else {
-                                type = EirfType.LONG;
+                                type = SourceValueType.LONG;
                                 scratch.typeBytes[colIdx] = type;
                                 writeLongToFixed(scratch.fixedData, colIdx, val);
                                 scratch.scalarFixedSize += 8;
@@ -456,12 +388,12 @@ public class EirfEncoder implements Releasable {
                             float fval = (float) val;
                             byte type;
                             if ((double) fval == val) {
-                                type = EirfType.FLOAT;
+                                type = SourceValueType.FLOAT;
                                 scratch.typeBytes[colIdx] = type;
                                 writeIntToFixed(scratch.fixedData, colIdx, Float.floatToRawIntBits(fval));
                                 scratch.scalarFixedSize += 4;
                             } else {
-                                type = EirfType.DOUBLE;
+                                type = SourceValueType.DOUBLE;
                                 scratch.typeBytes[colIdx] = type;
                                 writeLongToFixed(scratch.fixedData, colIdx, Double.doubleToRawLongBits(val));
                                 scratch.scalarFixedSize += 8;
@@ -476,20 +408,20 @@ public class EirfEncoder implements Releasable {
                             // BIG_INTEGER / BIG_DECIMAL fall back to a string column. Both modes funnel
                             // through onTextPrimitive in this case (typed sinks treat this as
                             // "unrecognized" and may signal fallback).
-                            scratch.typeBytes[colIdx] = EirfType.STRING;
+                            scratch.typeBytes[colIdx] = SourceValueType.STRING;
                             XContentString.UTF8Bytes str = parser.optimizedText().bytes();
                             scratch.varData[colIdx] = str;
                             scratch.totalVarSize += str.length();
                             scratch.varColumnCount++;
                             if (firePathSink) {
-                                sink.onTextPrimitive(colIdx, encoder.columnPath(colIdx), EirfType.STRING, str);
+                                sink.onTextPrimitive(colIdx, encoder.columnPath(colIdx), SourceValueType.STRING, str);
                             }
                         }
                     }
                 }
                 case VALUE_BOOLEAN -> {
                     boolean v = parser.booleanValue();
-                    byte type = v ? EirfType.TRUE : EirfType.FALSE;
+                    byte type = v ? SourceValueType.TRUE : SourceValueType.FALSE;
                     scratch.typeBytes[colIdx] = type;
                     if (rawTextMode) {
                         // Non-JSON formats render booleans differently (YAML "yes"/"True", CBOR/SMILE
@@ -500,7 +432,7 @@ public class EirfEncoder implements Releasable {
                         sink.onBooleanPrimitive(colIdx, encoder.columnPath(colIdx), v);
                     }
                 }
-                case VALUE_NULL -> scratch.typeBytes[colIdx] = EirfType.NULL;
+                case VALUE_NULL -> scratch.typeBytes[colIdx] = SourceValueType.NULL;
                 default -> throw new IllegalStateException("Unexpected token: " + token);
             }
             token = parser.nextToken();
@@ -547,7 +479,7 @@ public class EirfEncoder implements Releasable {
                 }
                 switch (token) {
                     case START_OBJECT -> {
-                        elemTypes[count] = EirfType.KEY_VALUE;
+                        elemTypes[count] = SourceValueType.KEY_VALUE;
                         elemVar[count] = serializeKeyValue(parser);
                         forceUnion = true;
                     }
@@ -558,7 +490,7 @@ public class EirfEncoder implements Releasable {
                         forceUnion = true;
                     }
                     case VALUE_STRING -> {
-                        elemTypes[count] = EirfType.STRING;
+                        elemTypes[count] = SourceValueType.STRING;
                         elemVar[count] = parser.optimizedText().bytes();
                     }
                     case VALUE_NUMBER -> {
@@ -567,10 +499,10 @@ public class EirfEncoder implements Releasable {
                             case INT, LONG -> {
                                 long val = parser.longValue();
                                 if (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) {
-                                    elemTypes[count] = EirfType.INT;
+                                    elemTypes[count] = SourceValueType.INT;
                                     elemNumeric[count] = val;
                                 } else {
-                                    elemTypes[count] = EirfType.LONG;
+                                    elemTypes[count] = SourceValueType.LONG;
                                     elemNumeric[count] = val;
                                 }
                             }
@@ -578,21 +510,21 @@ public class EirfEncoder implements Releasable {
                                 double val = parser.doubleValue();
                                 float fval = (float) val;
                                 if ((double) fval == val) {
-                                    elemTypes[count] = EirfType.FLOAT;
+                                    elemTypes[count] = SourceValueType.FLOAT;
                                     elemNumeric[count] = Float.floatToRawIntBits(fval);
                                 } else {
-                                    elemTypes[count] = EirfType.DOUBLE;
+                                    elemTypes[count] = SourceValueType.DOUBLE;
                                     elemNumeric[count] = Double.doubleToRawLongBits(val);
                                 }
                             }
                             default -> {
-                                elemTypes[count] = EirfType.STRING;
+                                elemTypes[count] = SourceValueType.STRING;
                                 elemVar[count] = parser.optimizedText().bytes();
                             }
                         }
                     }
-                    case VALUE_BOOLEAN -> elemTypes[count] = parser.booleanValue() ? EirfType.TRUE : EirfType.FALSE;
-                    case VALUE_NULL -> elemTypes[count] = EirfType.NULL;
+                    case VALUE_BOOLEAN -> elemTypes[count] = parser.booleanValue() ? SourceValueType.TRUE : SourceValueType.FALSE;
+                    case VALUE_NULL -> elemTypes[count] = SourceValueType.NULL;
                     default -> throw new IllegalStateException("Unexpected token in array: " + token);
                 }
                 count++;
@@ -613,7 +545,7 @@ public class EirfEncoder implements Releasable {
                 // type (NULL/TRUE/FALSE) would be indistinguishable from an empty array. Force UNION in
                 // that case so each element contributes its type byte and the reader can iterate.
                 // TODO: We will likely switch this to an element count of fixed_arrays for space. Tracked in meta issues
-                if (useFixed && EirfType.elemDataSize(sharedType) == 0) {
+                if (useFixed && SourceValueType.elemDataSize(sharedType) == 0) {
                     useFixed = false;
                 }
             }
@@ -622,10 +554,10 @@ public class EirfEncoder implements Releasable {
             byte arrayType;
             if (useFixed) {
                 packed = packFixedArray(sharedType, elemNumeric, elemVar, count);
-                arrayType = EirfType.FIXED_ARRAY;
+                arrayType = SourceValueType.FIXED_ARRAY;
             } else {
                 packed = packUnionArray(elemTypes, elemNumeric, elemVar, count);
-                arrayType = EirfType.UNION_ARRAY;
+                arrayType = SourceValueType.UNION_ARRAY;
             }
             return new PackedArray(arrayType, packed);
         } finally {
@@ -641,7 +573,7 @@ public class EirfEncoder implements Releasable {
     /**
      * Packs a union array: per element: type(1) + data. No count byte — byte length terminates.
      */
-    static byte[] packUnionArray(byte[] elemTypes, long[] elemNumeric, Object[] elemVar, int count) {
+    public static byte[] packUnionArray(byte[] elemTypes, long[] elemNumeric, Object[] elemVar, int count) {
         int size = 0;
         for (int i = 0; i < count; i++) {
             size += 1; // type byte
@@ -661,7 +593,7 @@ public class EirfEncoder implements Releasable {
     /**
      * Packs a fixed array: element_type(1) + per element: data only. No count byte — byte length terminates.
      */
-    static byte[] packFixedArray(byte sharedType, long[] elemNumeric, Object[] elemVar, int count) {
+    public static byte[] packFixedArray(byte sharedType, long[] elemNumeric, Object[] elemVar, int count) {
         int size = 1; // shared type byte
         for (int i = 0; i < count; i++) {
             size += elemDataSize(sharedType, elemVar[i]);
@@ -678,13 +610,13 @@ public class EirfEncoder implements Releasable {
 
     private static int elemDataSize(byte type, Object varData) {
         return switch (type) {
-            case EirfType.INT, EirfType.FLOAT -> 4;
-            case EirfType.LONG, EirfType.DOUBLE -> 8;
-            case EirfType.STRING -> {
+            case SourceValueType.INT, SourceValueType.FLOAT -> 4;
+            case SourceValueType.LONG, SourceValueType.DOUBLE -> 8;
+            case SourceValueType.STRING -> {
                 XContentString.UTF8Bytes str = (XContentString.UTF8Bytes) varData;
                 yield 4 + (str != null ? str.length() : 0);
             }
-            case EirfType.KEY_VALUE, EirfType.UNION_ARRAY, EirfType.FIXED_ARRAY -> {
+            case SourceValueType.KEY_VALUE, SourceValueType.UNION_ARRAY, SourceValueType.FIXED_ARRAY -> {
                 byte[] bytes = (byte[]) varData;
                 yield 4 + bytes.length; // 4-byte length prefix + payload
             }
@@ -694,15 +626,15 @@ public class EirfEncoder implements Releasable {
 
     private static int writeElemData(byte[] packed, int pos, byte type, long numeric, Object var) {
         switch (type) {
-            case EirfType.INT, EirfType.FLOAT -> {
+            case SourceValueType.INT, SourceValueType.FLOAT -> {
                 ByteUtils.writeIntLE((int) numeric, packed, pos);
                 pos += 4;
             }
-            case EirfType.LONG, EirfType.DOUBLE -> {
+            case SourceValueType.LONG, SourceValueType.DOUBLE -> {
                 ByteUtils.writeLongLE(numeric, packed, pos);
                 pos += 8;
             }
-            case EirfType.STRING -> {
+            case SourceValueType.STRING -> {
                 XContentString.UTF8Bytes str = (XContentString.UTF8Bytes) var;
                 int len = str.length();
                 ByteUtils.writeIntLE(len, packed, pos);
@@ -710,7 +642,7 @@ public class EirfEncoder implements Releasable {
                 System.arraycopy(str.bytes(), str.offset(), packed, pos, len);
                 pos += len;
             }
-            case EirfType.KEY_VALUE, EirfType.UNION_ARRAY, EirfType.FIXED_ARRAY -> {
+            case SourceValueType.KEY_VALUE, SourceValueType.UNION_ARRAY, SourceValueType.FIXED_ARRAY -> {
                 byte[] bytes = (byte[]) var;
                 ByteUtils.writeIntLE(bytes.length, packed, pos);
                 pos += 4;
@@ -725,7 +657,7 @@ public class EirfEncoder implements Releasable {
      * Serializes an object from the parser into KEY_VALUE binary format.
      * Parser must be positioned after START_OBJECT.
      */
-    static byte[] serializeKeyValue(XContentParser parser) throws IOException {
+    public static byte[] serializeKeyValue(XContentParser parser) throws IOException {
         // TODO: Eventually expose a recycler here and use a recycling instance
         BytesStreamOutput out = new BytesStreamOutput(64);
 
@@ -755,7 +687,7 @@ public class EirfEncoder implements Releasable {
         switch (token) {
             case VALUE_STRING -> {
                 XContentString.UTF8Bytes str = parser.optimizedText().bytes();
-                out.writeByte(EirfType.STRING);
+                out.writeByte(SourceValueType.STRING);
                 out.writeIntLE(str.length());
                 out.writeBytes(str.bytes(), str.offset(), str.length());
             }
@@ -765,10 +697,10 @@ public class EirfEncoder implements Releasable {
                     case INT, LONG -> {
                         long val = parser.longValue();
                         if (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) {
-                            out.writeByte(EirfType.INT);
+                            out.writeByte(SourceValueType.INT);
                             out.writeIntLE((int) val);
                         } else {
-                            out.writeByte(EirfType.LONG);
+                            out.writeByte(SourceValueType.LONG);
                             out.writeLongLE(val);
                         }
                     }
@@ -776,26 +708,26 @@ public class EirfEncoder implements Releasable {
                         double val = parser.doubleValue();
                         float fval = (float) val;
                         if ((double) fval == val) {
-                            out.writeByte(EirfType.FLOAT);
+                            out.writeByte(SourceValueType.FLOAT);
                             out.writeIntLE(Float.floatToRawIntBits(fval));
                         } else {
-                            out.writeByte(EirfType.DOUBLE);
+                            out.writeByte(SourceValueType.DOUBLE);
                             out.writeLongLE(Double.doubleToRawLongBits(val));
                         }
                     }
                     default -> {
                         XContentString.UTF8Bytes str = parser.optimizedText().bytes();
-                        out.writeByte(EirfType.STRING);
+                        out.writeByte(SourceValueType.STRING);
                         out.writeIntLE(str.length());
                         out.writeBytes(str.bytes(), str.offset(), str.length());
                     }
                 }
             }
-            case VALUE_BOOLEAN -> out.writeByte(parser.booleanValue() ? EirfType.TRUE : EirfType.FALSE);
-            case VALUE_NULL -> out.writeByte(EirfType.NULL);
+            case VALUE_BOOLEAN -> out.writeByte(parser.booleanValue() ? SourceValueType.TRUE : SourceValueType.FALSE);
+            case VALUE_NULL -> out.writeByte(SourceValueType.NULL);
             case START_OBJECT -> {
                 byte[] nested = serializeKeyValue(parser);
-                out.writeByte(EirfType.KEY_VALUE);
+                out.writeByte(SourceValueType.KEY_VALUE);
                 out.writeIntLE(nested.length);
                 out.writeBytes(nested, 0, nested.length);
             }
@@ -819,7 +751,7 @@ public class EirfEncoder implements Releasable {
         byte[] fixedData = scratch.fixedData;
         Object[] varData = scratch.varData;
 
-        boolean smallRow = scratch.totalVarSize <= EirfType.SMALL_ROW_MAX_VAR_SIZE;
+        boolean smallRow = scratch.totalVarSize <= SourceValueType.SMALL_ROW_MAX_VAR_SIZE;
         int fixedSectionSize = scratch.scalarFixedSize + scratch.varColumnCount * (smallRow ? 4 : 8);
 
         // row_flags(1) + column_count(2) + var_offset(2 or 4) + type_bytes(columnCount) + fixed_section
@@ -848,13 +780,13 @@ public class EirfEncoder implements Releasable {
         int varDataOffset = 0;
         for (int col = 0; col < columnCount; col++) {
             byte typeByte = typeBytes[col];
-            if (typeByte < EirfType.INT) continue;
+            if (typeByte < SourceValueType.INT) continue;
 
-            if (typeByte == EirfType.INT || typeByte == EirfType.FLOAT) {
+            if (typeByte == SourceValueType.INT || typeByte == SourceValueType.FLOAT) {
                 output.writeBytes(fixedData, col * 8, 4);
-            } else if (typeByte == EirfType.LONG || typeByte == EirfType.DOUBLE) {
+            } else if (typeByte == SourceValueType.LONG || typeByte == SourceValueType.DOUBLE) {
                 output.writeBytes(fixedData, col * 8, 8);
-            } else if (EirfType.isVariable(typeByte)) {
+            } else if (SourceValueType.isVariable(typeByte)) {
                 int len = getVarDataLength(typeByte, varData[col]);
                 if (smallRow) {
                     // 4-byte entry: u16 offset | u16 length (both LE)
@@ -872,34 +804,38 @@ public class EirfEncoder implements Releasable {
         // Write var section
         for (int col = 0; col < columnCount; col++) {
             byte typeByte = typeBytes[col];
-            if (EirfType.isVariable(typeByte)) {
+            if (SourceValueType.isVariable(typeByte)) {
                 writeVarData(output, typeByte, varData[col]);
             }
         }
     }
 
     static int getVarDataLength(byte typeByte, Object data) {
-        if (typeByte == EirfType.STRING) {
+        if (typeByte == SourceValueType.STRING) {
             return ((XContentString.UTF8Bytes) data).length();
-        } else if (typeByte == EirfType.BINARY) {
+        } else if (typeByte == SourceValueType.BINARY) {
             return ((BytesReference) data).length();
-        } else if (typeByte == EirfType.UNION_ARRAY || typeByte == EirfType.FIXED_ARRAY || typeByte == EirfType.KEY_VALUE) {
-            return ((BytesArray) data).length();
-        }
+        } else if (typeByte == SourceValueType.UNION_ARRAY
+            || typeByte == SourceValueType.FIXED_ARRAY
+            || typeByte == SourceValueType.KEY_VALUE) {
+                return ((BytesArray) data).length();
+            }
         return 0;
     }
 
     private static void writeVarData(RecyclerBytesStreamOutput output, byte typeByte, Object data) throws IOException {
-        if (typeByte == EirfType.STRING) {
+        if (typeByte == SourceValueType.STRING) {
             XContentString.UTF8Bytes str = (XContentString.UTF8Bytes) data;
             output.writeBytes(str.bytes(), str.offset(), str.length());
-        } else if (typeByte == EirfType.BINARY) {
+        } else if (typeByte == SourceValueType.BINARY) {
             BytesReference ref = (BytesReference) data;
             ref.writeTo(output);
-        } else if (typeByte == EirfType.UNION_ARRAY || typeByte == EirfType.FIXED_ARRAY || typeByte == EirfType.KEY_VALUE) {
-            BytesArray arr = (BytesArray) data;
-            output.writeBytes(arr.array(), arr.arrayOffset(), arr.length());
-        }
+        } else if (typeByte == SourceValueType.UNION_ARRAY
+            || typeByte == SourceValueType.FIXED_ARRAY
+            || typeByte == SourceValueType.KEY_VALUE) {
+                BytesArray arr = (BytesArray) data;
+                output.writeBytes(arr.array(), arr.arrayOffset(), arr.length());
+            }
     }
 
     static BytesReference buildHeader(SourceSchema schema, int docCount, int[] rowOffsets, int[] rowLengths, int rowDataSize) {

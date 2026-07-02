@@ -11,8 +11,11 @@ package org.elasticsearch.eirf;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.sourcebatch.InlineArrayReader;
+import org.elasticsearch.sourcebatch.KeyValueReader;
 import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -73,7 +76,7 @@ public final class EirfRowReader implements SourceRow {
     /**
      * The number of leaf columns physically recorded in this row's header. EIRF truncates trailing
      * absent columns, so this is the index of the last present column plus one — columns at indices
-     * {@code [recordedColumnCount(), schema().leafCount())} are implicitly {@link EirfType#ABSENT}.
+     * {@code [recordedColumnCount(), schema().leafCount())} are implicitly {@link SourceValueType#ABSENT}.
      * This is an EIRF storage detail; consumers iterate {@code schema().leafCount()} and rely on
      * {@link #isAbsent(int)} instead.
      */
@@ -98,27 +101,27 @@ public final class EirfRowReader implements SourceRow {
     @Override
     public byte getTypeByte(int col) {
         if (col >= rowColumnCount) {
-            return EirfType.ABSENT;
+            return SourceValueType.ABSENT;
         }
         return rowData.get(typeBytesOffset + col);
     }
 
     @Override
     public boolean isAbsent(int col) {
-        return getTypeByte(col) == EirfType.ABSENT;
+        return getTypeByte(col) == SourceValueType.ABSENT;
     }
 
     @Override
     public boolean isNull(int col) {
-        return getTypeByte(col) == EirfType.NULL;
+        return getTypeByte(col) == SourceValueType.NULL;
     }
 
     @Override
     public boolean getBooleanValue(int col) {
         byte type = getTypeByte(col);
-        if (type == EirfType.TRUE) return true;
-        if (type == EirfType.FALSE) return false;
-        throw new IllegalStateException("Column " + col + " is not a boolean, type=" + EirfType.name(type));
+        if (type == SourceValueType.TRUE) return true;
+        if (type == SourceValueType.FALSE) return false;
+        throw new IllegalStateException("Column " + col + " is not a boolean, type=" + SourceValueType.name(type));
     }
 
     @Override
@@ -157,16 +160,16 @@ public final class EirfRowReader implements SourceRow {
     }
 
     @Override
-    public EirfKeyValueReader getKeyValue(int col) {
+    public KeyValueReader getKeyValue(int col) {
         BytesRef ref = getVarBytesRef(col);
-        return new EirfKeyValueReader(ref.bytes, ref.offset, ref.length);
+        return new KeyValueReader(ref.bytes, ref.offset, ref.length);
     }
 
     @Override
-    public EirfArrayReader getArrayValue(int col) {
-        boolean fixed = getTypeByte(col) == EirfType.FIXED_ARRAY;
+    public InlineArrayReader getArrayValue(int col) {
+        boolean fixed = getTypeByte(col) == SourceValueType.FIXED_ARRAY;
         BytesRef ref = getVarBytesRef(col);
-        return new EirfArrayReader(ref.bytes, ref.offset, ref.length, fixed);
+        return new InlineArrayReader(ref.bytes, ref.offset, ref.length, fixed);
     }
 
     private BytesRef getVarBytesRef(int col) {
@@ -205,7 +208,7 @@ public final class EirfRowReader implements SourceRow {
     private int computeFixedOffset(int col) {
         int offset = fixedSectionOffset;
         for (int i = 0; i < col; i++) {
-            offset += EirfType.fixedSize(rowData.get(typeBytesOffset + i), smallRow);
+            offset += SourceValueType.fixedSize(rowData.get(typeBytesOffset + i), smallRow);
         }
         return offset;
     }

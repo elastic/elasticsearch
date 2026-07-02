@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.eirf;
+package org.elasticsearch.sourcebatch;
 
 import org.elasticsearch.common.util.ByteUtils;
 
@@ -21,7 +21,7 @@ import java.nio.charset.StandardCharsets;
  * key_length(i32 LE) | key_bytes(UTF-8) | value_type(u8) | value_data
  * </pre>
  *
- * <p>Value data sizes follow the same rules as {@link EirfArrayReader} elements:
+ * <p>Value data sizes follow the same rules as {@link InlineArrayReader} elements:
  * INT/FLOAT=4 bytes LE, LONG/DOUBLE=8 bytes LE, STRING=i32 length LE + UTF-8 bytes,
  * NULL/TRUE/FALSE=0 bytes, KEY_VALUE/UNION_ARRAY/FIXED_ARRAY=i32 length LE + payload bytes.
  *
@@ -29,7 +29,7 @@ import java.nio.charset.StandardCharsets;
  * appropriate value accessor. {@code next()} handles all positioning — value accessors are
  * pure reads and do not advance the cursor.
  */
-public final class EirfKeyValueReader {
+public final class KeyValueReader {
 
     private final byte[] data;
     private final int endOffset;
@@ -46,7 +46,7 @@ public final class EirfKeyValueReader {
      * @param offset start offset in data
      * @param length total byte length of the KV payload
      */
-    public EirfKeyValueReader(byte[] data, int offset, int length) {
+    public KeyValueReader(byte[] data, int offset, int length) {
         this.data = data;
         this.endOffset = offset + length;
         this.pos = offset;
@@ -54,7 +54,7 @@ public final class EirfKeyValueReader {
     }
 
     /** Creates a key-value reader over the full byte array. */
-    public EirfKeyValueReader(byte[] data) {
+    public KeyValueReader(byte[] data) {
         this(data, 0, data.length);
     }
 
@@ -76,7 +76,7 @@ public final class EirfKeyValueReader {
         currentType = data[pos];
         pos++;
         dataStart = pos;
-        int size = EirfType.elemDataSize(currentType);
+        int size = SourceValueType.elemDataSize(currentType);
         dataEnd = size >= 0 ? pos + size : pos + 4 + ByteUtils.readIntLE(data, pos);
         return true;
     }
@@ -111,23 +111,23 @@ public final class EirfKeyValueReader {
     }
 
     /**
-     * Creates a child {@link EirfKeyValueReader} reader over the current value's payload.
+     * Creates a child {@link KeyValueReader} reader over the current value's payload.
      * The current value must be of type KEY_VALUE.
      */
-    public EirfKeyValueReader nestedKeyValue() {
+    public KeyValueReader nestedKeyValue() {
         int len = ByteUtils.readIntLE(data, dataStart);
         int off = dataStart + 4;
-        return new EirfKeyValueReader(data, off, len);
+        return new KeyValueReader(data, off, len);
     }
 
     /**
-     * Creates a child {@link EirfArrayReader} reader over the current value's payload.
+     * Creates a child {@link InlineArrayReader} reader over the current value's payload.
      * The current value must be a UNION_ARRAY or FIXED_ARRAY.
      */
-    public EirfArrayReader nestedArray() {
+    public InlineArrayReader nestedArray() {
         int len = ByteUtils.readIntLE(data, dataStart);
         int off = dataStart + 4;
-        boolean isFixed = currentType == EirfType.FIXED_ARRAY;
-        return new EirfArrayReader(data, off, len, isFixed);
+        boolean isFixed = currentType == SourceValueType.FIXED_ARRAY;
+        return new InlineArrayReader(data, off, len, isFixed);
     }
 }

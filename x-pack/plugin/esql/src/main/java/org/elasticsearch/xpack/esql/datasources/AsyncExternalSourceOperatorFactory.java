@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
@@ -116,6 +117,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final FormatReader formatReader;
     private final StoragePath path;
     private final List<Attribute> attributes;
+    // Node telemetry sink, attached to each storage object as it is opened (see attachStorageMetrics).
+    private final ExternalSourceMetrics externalSourceMetrics;
     // Data-attribute view of {@link #attributes} (virtual columns and Hive-style partition columns
     // stripped). Built once at construction; used to shape pages handed to SchemaAdaptingIterator
     // and to scope filter adaptation in mapFilters. Partition columns are excluded so this width
@@ -286,7 +289,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable FilterPushdownSupport pushdownSupport,
         @Nullable Closeable onClose,
         int parallelism,
-        boolean deferredExtraction
+        boolean deferredExtraction,
+        ExternalSourceMetrics externalSourceMetrics
     ) {
         if (storageProvider == null) {
             throw new IllegalArgumentException("storageProvider cannot be null");
@@ -382,6 +386,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.onClose = onClose;
         this.parallelism = Math.max(1, parallelism);
         this.deferredExtraction = deferredExtraction;
+        this.externalSourceMetrics = externalSourceMetrics == null ? ExternalSourceMetrics.NOOP : externalSourceMetrics;
         if (deferredExtraction && onClose != null) {
             // Hold one ref on behalf of the factory; released when operatorRefCount hits zero.
             // Each registry creation (one per driver) takes an additional ref. See deferredCloseRefCount.
@@ -464,6 +469,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private Closeable onClose;
         private int parallelism = 1;
         private boolean deferredExtraction = false;
+        private ExternalSourceMetrics externalSourceMetrics = ExternalSourceMetrics.NOOP;
 
         private Builder(
             StorageProvider storageProvider,
@@ -615,6 +621,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        /** Node telemetry sink for object-store read metrics; defaults to {@link ExternalSourceMetrics#NOOP}. */
+        public Builder externalSourceMetrics(ExternalSourceMetrics externalSourceMetrics) {
+            this.externalSourceMetrics = externalSourceMetrics == null ? ExternalSourceMetrics.NOOP : externalSourceMetrics;
+            return this;
+        }
+
         public AsyncExternalSourceOperatorFactory build() {
             return new AsyncExternalSourceOperatorFactory(
                 storageProvider,
@@ -641,7 +653,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 pushdownSupport,
                 onClose,
                 parallelism,
-                deferredExtraction
+                deferredExtraction,
+                externalSourceMetrics
             );
         }
     }
@@ -713,6 +726,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             } else {
                 List<String> projectedColumns = dataProjectedColumns();
                 StorageObject storageObject = storageProvider.newObject(path);
+                // Attach the telemetry sink BEFORE any read: the first read (newStream) records on the
+                // object's counters, so attaching after — as an earlier version did — loses the storage
+                // request/bytes metrics for whole-file providers that finish the read at open.
+                attachStorageMetrics(storageObject);
                 if (formatReader.supportsNativeAsync()) {
                     startNativeAsyncRead(storageObject, projectedColumns, buffer, driverContext);
                 } else {
@@ -720,7 +737,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
             }
 
-            return new AsyncExternalSourceOperator(buffer);
+            return new AsyncExternalSourceOperator(buffer, externalSourceMetrics, path.scheme());
         } catch (Exception e) {
             releaseOperator();
             throw e;
@@ -1627,6 +1644,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 StorageObject fullObj = fileLengthStr != null
                     ? storageProvider.newObject(fileSplit.path(), Long.parseLong(fileLengthStr))
                     : storageProvider.newObject(fileSplit.path());
+                attachStorageMetrics(fullObj); // before any read — see note at the single-object dispatch above
                 long rangeEnd = fileSplit.offset() + fileSplit.length();
                 Object fileContext = fileSplit.path().equals(state.lastRangeFilePath) ? state.lastFileContext : null;
                 // Pass {@link #readerResolvedAttributes} — i.e. {@link #attributes} minus the
@@ -1650,6 +1668,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 state.currentObjectBytesSnapshot = readBytesOrZero(fullObj);
             } else {
                 StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
+                attachStorageMetrics(obj); // before any read — see note at the single-object dispatch above
                 boolean recordAlignedMacro = FileSplitProvider.isRecordAlignedMacroSplit(fileSplit);
                 boolean firstSplit = fileSplit.offset() == 0 || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
                 if (cols.isEmpty() && recordAlignedMacro && firstSplit == false) {
@@ -1795,6 +1814,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     StorageObject obj = fileLengthStr != null
                         ? storageProvider.newObject(fs.path(), Long.parseLong(fileLengthStr))
                         : storageProvider.newObject(fs.path());
+                    // Batch path reads several objects together — attach each before readAll() opens them.
+                    attachStorageMetrics(obj);
                     splitRefs.add(new RangeAwareFormatReader.SplitRef(obj, fs.offset(), fs.length()));
                 }
             }
@@ -1858,6 +1879,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         CloseableIterator<Page> pages = null;
         try {
             StorageObject obj = storageProvider.newObject(files.path(fileIndex));
+            attachStorageMetrics(obj); // before any read — see note at the single-object dispatch above
             FormatReader fileReader = readerWithDynamicThreshold(formatReader);
             // Pull this file's coordinator-inferred schema from schemaInfo when available, so the
             // reader is pinned to the same inference the per-file ColumnMapping was built against.
@@ -1910,6 +1932,32 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (e instanceof IOException io) throw io;
             if (e instanceof RuntimeException re) throw re;
             throw new IOException(e);
+        }
+    }
+
+    /**
+     * Publishes the just-opened object's read/retry events to the node {@link ExternalSourceMetrics}. The
+     * sink stays attached to the object's counters for the rest of its life. Best-effort: an
+     * instrumentation failure must never break the producer loop. The raw storage scheme is stored on the sink;
+     * {@link ExternalSourceMetrics} folds it to one canonical token (s3/gcs/azure/http/file) on lookup, so the
+     * scheme is the only, low-cardinality, dimension. This guard wraps the non-record {@code attachMetrics} /
+     * {@code path()} calls, so it stays (the record methods self-guard separately).
+     * <p>
+     * <b>Attach ordering vs the scope invariant:</b> the sink is attached before the first READ so read requests are
+     * counted, but attach ordering relative to metadata probes is NOT what keeps the read-scoped {@code storage.*}
+     * registry metrics read-only. Some metadata probes actually run AFTER attach (the COUNT(*) macro-split
+     * {@code fileReader.metadata()} and {@code ParallelParsingCoordinator}'s opening {@code storageObject.length()}),
+     * so the real guard is profile-only routing of metadata ops, not attach ordering: on a retryable provider
+     * {@code RetryableStorageObject} runs {@code length}/{@code lastModified}/{@code exists} with
+     * {@code RetryPolicy.RetryTelemetry.NONE} and routes their retries through the profile-only counter, so a metadata
+     * retry/error/stall never feeds the registry sink and cannot leak past {@code storage.requests.total}
+     * (retries/errors/read_stall &le; requests) regardless of when the probe fires relative to this attach.
+     */
+    private void attachStorageMetrics(StorageObject obj) {
+        try {
+            obj.attachMetrics(externalSourceMetrics, obj.path().scheme());
+        } catch (Exception e) {
+            logger.trace(() -> "telemetry: attachMetrics failed for " + obj, e);
         }
     }
 
@@ -2253,7 +2301,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     baseFileOffset,
                     maxConcurrentOpenSegments,
                     captureSink,
-                    maxRecordBytes
+                    maxRecordBytes,
+                    externalSourceMetrics
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {

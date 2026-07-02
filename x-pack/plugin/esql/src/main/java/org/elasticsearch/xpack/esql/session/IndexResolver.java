@@ -106,14 +106,10 @@ public class IndexResolver {
     private final Client client;
     /**
      * Whether the {@code flattened} data type is currently enabled, backing the {@code esql.query.flattened.enabled}
-     * kill switch. Read at field-caps resolution time so a runtime change takes effect on the next query. Defaults to
-     * always-enabled for the test/legacy constructor.
+     * kill switch. Read at field-caps resolution time so a runtime change takes effect on the next query. Tests that
+     * don't exercise the kill switch pass an always-enabled supplier ({@code () -> true}).
      */
     private final BooleanSupplier flattenedDataTypeEnabled;
-
-    public IndexResolver(Client client) {
-        this(client, () -> true);
-    }
 
     public IndexResolver(Client client, BooleanSupplier flattenedDataTypeEnabled) {
         this.client = client;

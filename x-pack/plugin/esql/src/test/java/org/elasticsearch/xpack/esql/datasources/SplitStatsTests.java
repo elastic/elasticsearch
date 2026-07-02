@@ -320,6 +320,12 @@ public class SplitStatsTests extends ESTestCase {
                         b.maxUnservable(c);
                     }
                 }
+                // Randomly give the (present) column a known value count or leave it unknown (-1, the
+                // addColumn default). Mixing present-with-count and present-without-count children is the
+                // case a naive sum under-counts: fold must poison COUNT(col) exactly like MergedSplitStats.
+                if (randomBoolean()) {
+                    b.valueCount(c, randomIntBetween(0, (int) rows));
+                }
                 children.add(b.build());
             }
             SplitStats folded = SplitStats.fold(children, randomBoolean());
@@ -328,6 +334,7 @@ public class SplitStatsTests extends ESTestCase {
             assertEquals("columnMin fold vs MergedSplitStats: " + ctx, folded.columnMin("c"), merged.columnMin("c"));
             assertEquals("columnMax fold vs MergedSplitStats: " + ctx, folded.columnMax("c"), merged.columnMax("c"));
             assertEquals("columnNullCount fold vs MergedSplitStats: " + ctx, folded.columnNullCount("c"), merged.columnNullCount("c"));
+            assertEquals("columnValueCount fold vs MergedSplitStats: " + ctx, folded.columnValueCount("c"), merged.columnValueCount("c"));
             assertEquals("rowCount fold vs MergedSplitStats: " + ctx, folded.rowCount(), merged.rowCount());
         }
     }

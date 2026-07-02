@@ -598,7 +598,8 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             if (cf.nullCountPoisoned == false && cf.nullCountContributed) {
                 b.nullCount(ord, cf.nullCountSum);
             }
-            if (cf.valueCountKnown) {
+            if (cf.valueCountKnown && cf.valueCountPoisoned == false) {
+                // Leaving the value count unset keeps the Builder's -1 default, so columnValueCount safe-misses.
                 b.valueCount(ord, cf.valueCountSum);
             }
             if (cf.sizeKnown) {
@@ -633,6 +634,7 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         boolean nullCountPoisoned = false;    // a split had the column but no null_count -> unknown
         long valueCountSum = 0;
         boolean valueCountKnown = false;
+        boolean valueCountPoisoned = false; // a split HAS the column but reports vc == -1 -> summing would under-count
         long sizeSum = 0;
         boolean sizeKnown = false;
         Object min = null;
@@ -653,6 +655,11 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             if (sp.valueCounts[i] >= 0) {
                 valueCountSum += sp.valueCounts[i];
                 valueCountKnown = true;
+            } else {
+                // The column is present in this split but its value count is unknown; summing only the
+                // others would under-count COUNT(col). Poison so the fold safe-misses -- matching
+                // MergedSplitStats.columnValueCount, which returns -1 the moment any child returns -1.
+                valueCountPoisoned = true;
             }
             if (sp.sizesBytes[i] >= 0) {
                 sizeSum += sp.sizesBytes[i];

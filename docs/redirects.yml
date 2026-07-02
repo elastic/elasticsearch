@@ -93,6 +93,10 @@ redirects:
       - to: 'reference/elasticsearch/rest-apis/retrievers/pinned-retriever.md'
         anchors: {'pinned-retriever'}
 
+  # Query directives moved up a level out of commands/ (they are not commands)
+  'reference/query-languages/esql/commands/directives.md': 'reference/query-languages/esql/directives/directives.md'
+  'reference/query-languages/esql/commands/set.md': 'reference/query-languages/esql/directives/set.md'
+
   # ESQL command redirects - split from aggregate pages to individual pages
   'reference/query-languages/esql/commands/source-commands.md':
     to: 'reference/query-languages/esql/commands/source-commands.md'

@@ -13,6 +13,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -62,6 +64,7 @@ public final class DataSourceModule implements Closeable {
     private final Map<String, SourceOperatorFactoryProvider> pluginFactories;
     private final List<Closeable> managedCloseables;
     private final DataSourceCapabilities capabilities;
+    private final ExternalSourceMetrics externalSourceMetrics;
 
     public DataSourceModule(
         List<DataSourcePlugin> dataSourcePlugins,
@@ -70,9 +73,21 @@ public final class DataSourceModule implements Closeable {
         BlockFactory blockFactory,
         ExecutorService executor,
         DataSourceCredentials credentials,
-        BooleanSupplier workloadIdentityEnabled
+        BooleanSupplier managedIdentityEnabled
     ) {
-        this(dataSourcePlugins, capabilities, settings, blockFactory, executor, credentials, workloadIdentityEnabled, null, null, null);
+        this(
+            dataSourcePlugins,
+            capabilities,
+            settings,
+            blockFactory,
+            executor,
+            credentials,
+            managedIdentityEnabled,
+            null,
+            null,
+            null,
+            null
+        );
     }
 
     public DataSourceModule(
@@ -82,18 +97,21 @@ public final class DataSourceModule implements Closeable {
         BlockFactory blockFactory,
         ExecutorService executor,
         DataSourceCredentials credentials,
-        BooleanSupplier workloadIdentityEnabled,
+        BooleanSupplier managedIdentityEnabled,
         @Nullable ThreadPool threadPool,
         @Nullable Environment environment,
-        @Nullable ResourceWatcherService resourceWatcherService
+        @Nullable ResourceWatcherService resourceWatcherService,
+        @Nullable MeterRegistry meterRegistry
     ) {
         this.capabilities = capabilities;
+        // Node telemetry sink for external-source read metrics; NOOP when no registry is supplied (tests).
+        this.externalSourceMetrics = meterRegistry == null ? ExternalSourceMetrics.NOOP : new ExternalSourceMetrics(meterRegistry);
         // Off-timer scheduler for the async read-retry backoff, so a retry does not park a GENERIC-pool thread on
         // Thread.sleep while it waits; DIRECT (run promptly on the executor) when no ThreadPool is supplied (tests).
         RetryScheduler retryScheduler = threadPool == null
             ? RetryScheduler.DIRECT
             : (command, delayMillis, exec) -> threadPool.schedule(command, TimeValue.timeValueMillis(Math.max(0L, delayMillis)), exec);
-        this.storageProviderRegistry = new StorageProviderRegistry(settings, credentials, workloadIdentityEnabled, retryScheduler);
+        this.storageProviderRegistry = new StorageProviderRegistry(settings, credentials, managedIdentityEnabled, retryScheduler);
 
         DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
         for (DataSourcePlugin plugin : dataSourcePlugins) {
@@ -231,7 +249,8 @@ public final class DataSourceModule implements Closeable {
             codecRegistry,
             settings,
             executor,
-            blockFactory
+            blockFactory,
+            externalSourceMetrics
         );
         sourceFactoryMap.put("file", fileFallback);
         // Also register under each format name so OperatorFactoryRegistry can look up
@@ -267,6 +286,11 @@ public final class DataSourceModule implements Closeable {
 
     public Map<String, ExternalSourceFactory> sourceFactories() {
         return sourceFactories;
+    }
+
+    /** The node-level external-source telemetry holder, or {@link ExternalSourceMetrics#NOOP} when no registry was supplied. */
+    public ExternalSourceMetrics externalSourceMetrics() {
+        return externalSourceMetrics;
     }
 
     public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor) {

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -137,6 +138,8 @@ public class ExternalSourceResolver {
     private final DataSourceModule dataSourceModule;
     private final Settings settings;
     private final ExternalSourceCacheService cacheService;
+    /** Node telemetry sink, taken from the module ({@link ExternalSourceMetrics#NOOP} when no module is wired, e.g. tests). */
+    private final ExternalSourceMetrics metrics;
 
     /**
      * Supplier consulted before each per-file footer read so that an in-flight resolution of a large
@@ -180,6 +183,22 @@ public class ExternalSourceResolver {
         this.settings = settings;
         this.cacheService = cacheService;
         this.isCancelled = isCancelled;
+        this.metrics = dataSourceModule == null ? ExternalSourceMetrics.NOOP : dataSourceModule.externalSourceMetrics();
+    }
+
+    /**
+     * Publishes one discovery pass (wall time + the discovered file count and estimated byte total) to node
+     * telemetry. Best-effort: {@link ExternalSourceMetrics#recordDiscovery} self-guards, so an instrumentation
+     * failure never fails resolution.
+     */
+    private void recordDiscovery(FileList list, long startNanos, String scheme) {
+        long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
+        metrics.recordDiscovery(durationMs, list.fileCount(), list.estimatedBytes(), scheme);
+    }
+
+    /** Records one failed discovery/resolution attempt. Best-effort ({@link ExternalSourceMetrics#recordDiscoveryFailure} self-guards). */
+    private void recordDiscoveryFailure() {
+        metrics.recordDiscoveryFailure();
     }
 
     /** Returns {@code true} when the originating query has been cancelled. Safe to call when no supplier is wired. */
@@ -298,6 +317,7 @@ public class ExternalSourceResolver {
                         if (reportIfCancelled(path, listener)) {
                             return;
                         }
+                        recordDiscoveryFailure();
                         LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
                         listener.onFailure(e);
                         return;
@@ -307,6 +327,7 @@ public class ExternalSourceResolver {
                         if (reportIfCancelled(path, listener)) {
                             return;
                         }
+                        recordDiscoveryFailure();
                         LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
                         String exceptionMessage = e.getMessage();
                         String errorDetail = exceptionMessage != null ? exceptionMessage : e.getClass().getSimpleName();
@@ -413,9 +434,11 @@ public class ExternalSourceResolver {
         if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
             int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
             int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
+            long discoveryStartNanos = System.nanoTime();
             FileList raw = path.indexOf(',') >= 0
                 ? GlobExpander.expandCommaSeparated(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion)
                 : GlobExpander.expandGlob(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
+            recordDiscovery(raw, discoveryStartNanos, storagePath.scheme());
             if (raw.fileCount() == 0) {
                 throw new IllegalArgumentException("Glob pattern matched no files: " + path);
             }
@@ -423,6 +446,7 @@ public class ExternalSourceResolver {
         }
 
         FileList listing;
+        long discoveryStartNanos = System.nanoTime();
         if (cacheable) {
             ListingCacheKey listingKey = ListingCacheKey.build(storagePath.scheme(), storagePath.host(), storagePath.path(), config);
             listing = cacheService.getOrComputeListing(
@@ -432,6 +456,7 @@ public class ExternalSourceResolver {
         } else {
             listing = expandAndCompact(path, provider, hints, hivePartitioning, storagePath);
         }
+        recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
 
         if (listing.fileCount() == 0) {
             throw new IllegalArgumentException("Glob pattern matched no files: " + path);
@@ -1040,7 +1065,7 @@ public class ExternalSourceResolver {
 
         Exception lastFailure = null;
         for (ExternalSourceFactory factory : dataSourceModule.sourceFactories().values()) {
-            if (factory.canHandle(path)) {
+            if (factory.canHandle(path, config)) {
                 try {
                     return factory.resolveMetadata(path, config);
                 } catch (Exception e) {

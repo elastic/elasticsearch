@@ -88,4 +88,27 @@ public class CsvExternalAggregatePushdownMatrixIT extends AbstractExternalAggreg
             assertThat("MAX(tags) folds across all bracket values", String.valueOf(rows.get(0).get(2)), equalTo(label(2 * ROWS - 1)));
         });
     }
+
+    /**
+     * #150920 regression (elastic/elasticsearch): {@code MIN/MAX(ip)} must serve the SAME value warm as a
+     * cold scan. IP is harvested as its 16-byte InetAddressPoint encoding (byte-lex order == address order),
+     * and the warm serve reconstructs an IP block from that encoding. Before {@code buildBlock} gained an IP
+     * arm, the harvested {@code BytesRef} fell to the default and warm {@code MIN/MAX(ip)} answered NULL.
+     * Addresses increase with the row, so MIN is row 0's address and MAX is row {@code ROWS-1}'s.
+     */
+    public void testMinMaxIpColdThenWarmShortCircuits() throws Exception {
+        Path dir = createTempDir();
+        StringBuilder sb = new StringBuilder("emp_no:long,addr:ip\n");
+        for (int i = 0; i < ROWS; i++) {
+            sb.append(i).append(",10.0.0.").append(i).append('\n');
+        }
+        Path file = dir.resolve("ip.csv");
+        Files.writeString(file, sb.toString());
+        registerDataset("ip_employees", StoragePath.fileUri(file));
+
+        assertColdThenWarmShortCircuit("ip_employees", "STATS lo = MIN(addr), hi = MAX(addr)", ROWS, rows -> {
+            assertThat("MIN(addr)", String.valueOf(rows.get(0).get(0)), equalTo("10.0.0.0"));
+            assertThat("MAX(addr)", String.valueOf(rows.get(0).get(1)), equalTo("10.0.0." + (ROWS - 1)));
+        });
+    }
 }

@@ -133,7 +133,7 @@ public class TsdbDataStreamWithSecurityIT extends ESRestTestCase {
             Map<String, Object> response6d = entityAsMap(writerClient.performRequest(bulkCreateRequest(sixDaysAgo)));
             assertThat(response6d.get("errors"), is(false));
 
-            // 30 days ago is outside the 7-day write window — the item must fail.
+            // 32 days ago is outside the 7-day write window — the item must fail.
             Map<String, Object> response32d = entityAsMap(writerClient.performRequest(bulkCreateRequest(thirtyTwoDaysAgo)));
             assertThat(response32d.get("errors"), equalTo(true));
             Map<String, Object> firstItem = ((List<Map<String, Object>>) response32d.get("items")).getFirst();

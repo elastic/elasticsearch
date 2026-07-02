@@ -445,7 +445,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             // just skip and let the error throw in BulkOperation
             return;
         }
-        // if there are no write indices then locate how far in the past we can create a tsds index
+        // if there are no matching write indices then locate how far in the past we can create a tsds index
         long windowStart = tsdbWriteWindowStart.computeIfAbsent(
             dataStream.getName(),
             ignored -> timeSeriesEligibleWriteWindowLocator.getEligibleWriteWindowStart(

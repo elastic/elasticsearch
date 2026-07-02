@@ -72,6 +72,11 @@ public class StorageProviderRegistry implements Closeable {
     private final int throttleMaxRetryDurationSeconds;
     /** Schedules async read-retry continuations off a timer; {@code DIRECT} (no ThreadPool) in tests. */
     private final RetryScheduler retryScheduler;
+    /**
+     * Gate for {@code file://} local-disk reads. Defaults to {@link LocalFileAccess#UNRESTRICTED} in
+     * test-only constructors; production always goes through the five-argument constructor via {@code DataSourceModule}.
+     */
+    private final LocalFileAccess localFileAccess;
 
     public StorageProviderRegistry(Settings settings) {
         this(settings, null);
@@ -81,14 +86,17 @@ public class StorageProviderRegistry implements Closeable {
      * Test-only convenience constructor. The default {@code managedIdentityEnabled} supplier reads the cluster
      * setting directly and does <b>not</b> apply the stateless gate that production wiring enforces in
      * {@code EsqlPlugin} (where the boolean is forced to {@code false} when {@code DiscoveryNode.isStateless}).
-     * Production always goes through the four-argument constructor via {@code DataSourceModule}.
+     * Similarly, {@code localFileAccess} defaults to {@link LocalFileAccess#UNRESTRICTED} and does <b>not</b>
+     * apply the stateless gate or the allowlist from {@code ExternalSourceSettings#LOCAL_ALLOWED_PATHS}.
+     * Production always goes through the five-argument constructor via {@code DataSourceModule}.
      */
     public StorageProviderRegistry(Settings settings, @Nullable DataSourceCredentials credentials) {
         this(
             settings,
             credentials,
             () -> ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings != null ? settings : Settings.EMPTY),
-            RetryScheduler.DIRECT
+            RetryScheduler.DIRECT,
+            LocalFileAccess.UNRESTRICTED
         );
     }
 
@@ -98,11 +106,22 @@ public class StorageProviderRegistry implements Closeable {
         BooleanSupplier managedIdentityEnabled,
         RetryScheduler retryScheduler
     ) {
+        this(settings, credentials, managedIdentityEnabled, retryScheduler, LocalFileAccess.UNRESTRICTED);
+    }
+
+    public StorageProviderRegistry(
+        Settings settings,
+        @Nullable DataSourceCredentials credentials,
+        BooleanSupplier managedIdentityEnabled,
+        RetryScheduler retryScheduler,
+        LocalFileAccess localFileAccess
+    ) {
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.credentials = credentials;
         this.managedIdentityEnabled = managedIdentityEnabled;
         this.retryScheduler = retryScheduler != null ? retryScheduler : RetryScheduler.DIRECT;
         this.throttleMaxRetryDurationSeconds = ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(this.settings);
+        this.localFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
     }
 
     public void registerFactory(String scheme, StorageProviderFactory factory) {
@@ -119,6 +138,11 @@ public class StorageProviderRegistry implements Closeable {
         if (path == null) {
             throw new IllegalArgumentException("Path cannot be null");
         }
+
+        // Defense-in-depth: validate file:// access (disabled gate or path outside allowlist) before
+        // returning the provider. This covers the bare-read data-node path and coordinator resolveMetadata
+        // with an empty config map, both of which bypass createProviderTrackingConsumedKeys.
+        localFileAccess.check(path);
 
         String scheme = path.scheme().toLowerCase(Locale.ROOT);
         StorageProvider provider = providers.get(scheme);
@@ -159,6 +183,13 @@ public class StorageProviderRegistry implements Closeable {
 
     public Configured<StorageProvider> createProviderTrackingConsumedKeys(String scheme, Settings settings, Map<String, Object> config) {
         String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
+
+        // Gate file:// on the local-disk allowlist before any config work. This covers the inline-WITH path
+        // on data nodes where no coordinator-side validateConfig runs. The path-aware check already fired at
+        // planning time in FileSourceFactory.validateConfig; this is defense-in-depth for the scheme.
+        if (normalizedScheme.equals("file") && localFileAccess.enabled() == false) {
+            throw new IllegalArgumentException(LocalFileAccess.LOCAL_DISK_DISABLED_MESSAGE);
+        }
 
         // Flatten the _datasource sub-map and decrypt any encrypted secrets here, so every provider
         // construction path gets plaintext credentials regardless of how it assembled its config.

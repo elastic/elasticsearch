@@ -124,7 +124,7 @@ class ImplClassWriter {
                     emitLoadLibrary(clinit, model.libraryName());
                 }
                 for (var nm : nativeMethods) {
-                    emitMhFieldInit(clinit, generatedDesc, nm);
+                    emitMhFieldInit(clinit, generatedDesc, nm, model.symbolResolverClassName());
                 }
                 clinit.return_();
             });
@@ -160,7 +160,7 @@ class ImplClassWriter {
      * Resolves the native symbol and stores the resulting {@code MethodHandle} in the static
      * {@code <name>$mh} field. This handle is what the generated method body calls at runtime.
      */
-    private static void emitMhFieldInit(CodeBuilder cb, ClassDesc generatedDesc, MethodModel nm) {
+    private static void emitMhFieldInit(CodeBuilder cb, ClassDesc generatedDesc, MethodModel nm, String symbolResolverClassName) {
         boolean hasFallbackAdapter = nm.fallbackAdapterClassName() != null;
 
         // For @Critical methods with a fallback adapter we need to call
@@ -173,7 +173,9 @@ class ImplClassWriter {
         cb.ldc(nm.cSymbol());
         emitFunctionDescriptor(cb, nm.returnType(), nm.paramTypes());
         emitLinkerOptions(cb, nm);
-        cb.invokestatic(CD_LinkerHelper, "downcallHandle", MTD_downcallHandle);
+
+        ClassDesc resolverDesc = ClassDesc.of(symbolResolverClassName);
+        cb.invokestatic(resolverDesc, "resolve", MTD_downcallHandle);
 
         if (hasFallbackAdapter) {
             cb.ldc(ClassDesc.of(nm.fallbackAdapterClassName()));

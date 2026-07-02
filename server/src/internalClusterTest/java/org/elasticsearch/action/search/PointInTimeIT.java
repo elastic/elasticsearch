@@ -249,6 +249,94 @@ public class PointInTimeIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Demonstrates a race between the search-idle refresh path and the can-match phase of
+     * {@code open_point_in_time} with an {@code index_filter}.
+     *
+     * <p>When a shard is search-idle and {@code engine.refreshNeeded()} is true,
+     * {@link IndexShard#scheduledRefresh} skips the real refresh and instead calls
+     * {@code setRefreshPending()}, setting {@code pendingRefreshLocation} to a non-null value.
+     * {@link org.elasticsearch.search.SearchService#canMatch} then evaluates:
+     * <pre>
+     *   if (canMatch || hasRefreshPending) { return new CanMatchShardResponse(true, null); }
+     * </pre>
+     * The {@code hasRefreshPending} flag overrides {@code canMatch = false}, so the shard is
+     * conservatively included in the PIT even though the {@code index_filter} range query cannot
+     * possibly match any of its documents.
+     */
+    public void testIndexFilterWithRefreshPending() throws Exception {
+        // "test-excluded" will have docs with birth dates in 2022; the index_filter (birth >= 2023)
+        // should prune it entirely, but the refresh-pending flag causes it to be included.
+        assertAcked(
+            prepareCreate("test-excluded").setSettings(
+                indexSettings(1, 0)
+                    // Zero search-idle threshold so the shard is immediately search-idle,
+                    // letting scheduledRefresh() call setRefreshPending() instead of refreshing.
+                    .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+                    .build()
+            ).setMapping("{\"properties\":{\"birth\":{\"type\":\"date\",\"format\":\"yyyy-MM-dd\"}}}")
+        );
+        ensureGreen("test-excluded");
+
+        // "test-match" will have one doc with birth 2023 — the only expected match.
+        assertAcked(
+            prepareCreate("test-match").setSettings(indexSettings(1, 0).build())
+                .setMapping("{\"properties\":{\"birth\":{\"type\":\"date\",\"format\":\"yyyy-MM-dd\"}}}")
+        );
+        ensureGreen("test-match");
+
+        prepareIndex("test-excluded").setSource("birth", "2022-01-01").get();
+        prepareIndex("test-excluded").setSource("birth", "2022-02-01").get();
+        prepareIndex("test-excluded").setSource("birth", "2022-03-01").get();
+        prepareIndex("test-match").setSource("birth", "2023-01-01").get();
+
+        // Explicit refresh makes the 3 test-excluded docs visible and clears pendingRefreshLocation.
+        refresh("test-excluded", "test-match");
+
+        // Index one more uncommitted doc to ensure engine.refreshNeeded() == true on test-excluded.
+        // It is intentionally NOT refreshed: its only role is to satisfy the outer condition in
+        // scheduledRefresh() so the search-idle branch (setRefreshPending) is reached.
+        prepareIndex("test-excluded").setSource("birth", "2022-04-01").get();
+
+        // Call scheduledRefresh() directly on each test-excluded shard.
+        // Preconditions that trigger the search-idle branch:
+        // isSearchIdle() == true (INDEX_SEARCH_IDLE_AFTER = 0ms)
+        // engine.refreshNeeded() == true (uncommitted doc above)
+        // listenerNeedsRefresh == false (no ?refresh=wait_for writes)
+        // → setRefreshPending(engine) is called; no real refresh is performed.
+        for (String node : internalCluster().nodesInclude("test-excluded")) {
+            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+            for (IndexService indexService : indicesService) {
+                if (indexService.index().getName().equals("test-excluded")) {
+                    for (IndexShard shard : indexService) {
+                        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                        shard.scheduledRefresh(future);
+                        assertFalse("scheduledRefresh should have skipped the real refresh", future.actionGet());
+                        assertTrue("pendingRefreshLocation must be set after search-idle scheduled refresh", shard.hasRefreshPending());
+                    }
+                }
+            }
+        }
+
+        // Open a PIT with an index_filter whose range (birth >= 2023-01-01) cannot match any doc
+        // in test-excluded (max visible birth = 2022-03-01).
+        // Correct behavior: only test-match shards are opened → 1 hit.
+        // Bug behavior: hasRefreshPending overrides canMatch=false for test-excluded shards →
+        // those shards are included in the PIT; openReaderContext then calls awaitShardSearchActive
+        // which triggers a real refresh, making all 4 uncommitted docs visible → 5 hits total.
+        OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest("test-*").keepAlive(TimeValue.timeValueMinutes(1));
+        pitRequest.indexFilter(new RangeQueryBuilder("birth").gte("2023-01-01"));
+        BytesReference pitId = client().execute(TransportOpenPointInTimeAction.TYPE, pitRequest).actionGet().getPointInTimeId();
+        try {
+            assertNoFailuresAndResponse(
+                prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setSize(10),
+                resp -> assertHitCount(resp, 1L)
+            );
+        } finally {
+            closePointInTime(pitId);
+        }
+    }
+
     public void testRelocation() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(4);
         createIndex("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1)).build());
@@ -819,4 +907,5 @@ public class PointInTimeIT extends ESIntegTestCase {
     private void closePointInTime(BytesReference readerId) {
         client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(readerId)).actionGet();
     }
+
 }

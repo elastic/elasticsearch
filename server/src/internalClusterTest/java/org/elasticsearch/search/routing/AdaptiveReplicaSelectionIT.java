@@ -28,12 +28,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LongSummaryStatistics;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -114,20 +111,16 @@ public class AdaptiveReplicaSelectionIT extends ESIntegTestCase {
         // Warm up ARS stats...
         runConcurrentSearches("test", 50);
         // Then capture counts for requests handled by each node for a batch of search requests
-        SearchStats stats = runConcurrentSearches("test", numSearches);
-        Map<String, Integer> nodeCounts = stats.nodeCounts();
+        Map<String, Integer> nodeCounts = runConcurrentSearches("test", numSearches);
 
         int total = nodeCounts.values().stream().mapToInt(Integer::intValue).sum();
         nodeCounts.forEach(
             (nodeId, count) -> logger.info(
-                "fairness: node [{}] handled {}/{} = {}%  (min={}ms avg={}ms max={}ms)",
+                "fairness: node [{}] handled {}/{} = {}%",
                 nodeId,
                 count,
                 total,
-                String.format(java.util.Locale.ROOT, "%.1f", 100.0 * count / total),
-                stats.nodeTimings().get(nodeId).getMin(),
-                (long) stats.nodeTimings().get(nodeId).getAverage(),
-                stats.nodeTimings().get(nodeId).getMax()
+                String.format(java.util.Locale.ROOT, "%.1f", 100.0 * count / total)
             )
         );
 
@@ -177,21 +170,17 @@ public class AdaptiveReplicaSelectionIT extends ESIntegTestCase {
             // Warm up ARS stats so the executor EWMA on the slow node converges to reflect the injected delay...
             runConcurrentSearches("test", 50);
             // Then capture counts for requests handled by each node for a batch of search requests
-            SearchStats stats = runConcurrentSearches("test", numSearches);
-            Map<String, Integer> nodeCounts = stats.nodeCounts();
+            Map<String, Integer> nodeCounts = runConcurrentSearches("test", numSearches);
             int slowNodeCount = nodeCounts.getOrDefault(slowNodeId, 0);
             int total = nodeCounts.values().stream().mapToInt(Integer::intValue).sum();
             nodeCounts.forEach(
                 (nodeId, count) -> logger.info(
-                    "degraded: node [{}]{} handled {}/{} = {}%  (min={}ms avg={}ms max={}ms)",
+                    "degraded: node [{}]{} handled {}/{} = {}%",
                     nodeId,
                     nodeId.equals(slowNodeId) ? " [SLOW]" : "",
                     count,
                     total,
-                    String.format(java.util.Locale.ROOT, "%.1f", 100.0 * count / total),
-                    stats.nodeTimings().get(nodeId).getMin(),
-                    (long) stats.nodeTimings().get(nodeId).getAverage(),
-                    stats.nodeTimings().get(nodeId).getMax()
+                    String.format(java.util.Locale.ROOT, "%.1f", 100.0 * count / total)
                 )
             );
 
@@ -213,30 +202,18 @@ public class AdaptiveReplicaSelectionIT extends ESIntegTestCase {
         indexRandom(true, builders);
     }
 
-    private record SearchStats(Map<String, Integer> nodeCounts, Map<String, LongSummaryStatistics> nodeTimings) {}
-
-    /**
-     * Returns per-node search counts and response time statistics for {@code numSearches} concurrent searches.
-     */
-    private SearchStats runConcurrentSearches(String indexName, int numSearches) throws InterruptedException {
+    private Map<String, Integer> runConcurrentSearches(String indexName, int numSearches) throws InterruptedException {
         Map<String, AtomicInteger> counts = new ConcurrentHashMap<>();
-        Map<String, Queue<Long>> timings = new ConcurrentHashMap<>();
         ExecutorService executor = Executors.newFixedThreadPool(CONCURRENCY);
         for (int i = 0; i < numSearches; i++) {
             executor.execute(() -> {
-                long start = System.nanoTime();
-                // termQuery hits exactly one doc (num is unique 0..numDocs-1): O(1) term lookup with
-                // no aggregation. Keeping per-search latency in single-digit milliseconds ensures any
-                // injected delay (service-time or network) remains the dominant signal in ARS's EWMAs.
                 SearchResponse response = internalCluster().client()
                     .prepareSearch(indexName)
                     .setQuery(termQuery("num", between(0, 999)))
                     .get();
-                long elapsedMs = (System.nanoTime() - start) / 1_000_000;
                 try {
                     String nodeId = response.getHits().getAt(0).getShard().getNodeId();
                     counts.computeIfAbsent(nodeId, k -> new AtomicInteger()).incrementAndGet();
-                    timings.computeIfAbsent(nodeId, k -> new ConcurrentLinkedQueue<>()).add(elapsedMs);
                 } finally {
                     response.decRef();
                 }
@@ -247,11 +224,7 @@ public class AdaptiveReplicaSelectionIT extends ESIntegTestCase {
 
         Map<String, Integer> nodeCounts = new HashMap<>();
         counts.forEach((k, v) -> nodeCounts.put(k, v.get()));
-
-        Map<String, LongSummaryStatistics> nodeTimings = new HashMap<>();
-        timings.forEach((k, v) -> nodeTimings.put(k, v.stream().mapToLong(Long::longValue).summaryStatistics()));
-
-        return new SearchStats(nodeCounts, nodeTimings);
+        return nodeCounts;
     }
 
 }

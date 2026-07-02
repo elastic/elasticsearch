@@ -140,7 +140,8 @@ public class GroupedTopNBenchmark {
                 new PagedBytesBuilder(PageCacheRecycler.NON_RECYCLING_INSTANCE, blockFactory.breaker(), "group-key-encoder", 64)
             ),
             8 * 1024,
-            Long.MAX_VALUE
+            Long.MAX_VALUE,
+            true
         );
     }
 

@@ -110,7 +110,7 @@ public class FiltersCancellationIT extends ESIntegTestCase {
             }
             bulk.get();
             // Flush to clear all the assertion translog *stuff*. Else we can oom the cluster.
-            client().admin().indices().prepareFlush(INDEX).get();
+            assertAllSuccessful(client().admin().indices().prepareFlush(INDEX).get());
         }
 
         client().admin().indices().prepareForceMerge(INDEX).setMaxNumSegments(1).get();

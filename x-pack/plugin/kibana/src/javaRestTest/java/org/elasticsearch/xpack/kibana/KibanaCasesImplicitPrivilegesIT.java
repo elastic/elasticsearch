@@ -216,11 +216,7 @@ public class KibanaCasesImplicitPrivilegesIT extends ESRestTestCase {
         final Map<String, Object> body = entityAsMap(response);
         final Map<String, Object> hits = (Map<String, Object>) body.get("hits");
         final List<Map<String, Object>> hitList = (List<Map<String, Object>>) hits.get("hits");
-        assertThat(
-            "DLS should restrict the user to the granted owner AND space, got " + hitList,
-            hitList,
-            hasSize(1)
-        );
+        assertThat("DLS should restrict the user to the granted owner AND space, got " + hitList, hitList, hasSize(1));
 
         final Map<String, Object> source = (Map<String, Object>) hitList.get(0).get("_source");
         assertThat((String) source.get("owner"), equalTo("observability"));

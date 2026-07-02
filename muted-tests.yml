@@ -847,3 +847,18 @@ tests:
 - class: org.elasticsearch.simdvec.internal.vectorization.MSBitToBitESNextOSQVectorsScorerTests
   method: testSymmetric1BitDotProductMatchesNativeWhenSupported
   issue: https://github.com/elastic/elasticsearch/issues/150155
+- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
+  method: testUnreferencedCommitsAreReleasedAfterRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/152730
+- class: org.elasticsearch.xpack.inference.InferenceWithSecurityRestIT
+  method: test {p0=inference/80_region_policy_crud/Get region policy allowed with monitor_inference privilege}
+  issue: https://github.com/elastic/elasticsearch/issues/152587
+- class: org.elasticsearch.xpack.inference.InferenceWithSecurityRestIT
+  method: test {p0=inference/80_region_policy_crud/Put region policy requires manage_inference privilege}
+  issue: https://github.com/elastic/elasticsearch/issues/152732
+- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
+  method: testSearchWithRandomDisconnects
+  issue: https://github.com/elastic/elasticsearch/issues/152734
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testRotationCompletesWithMultipleHandlers
+  issue: https://github.com/elastic/elasticsearch/issues/152749

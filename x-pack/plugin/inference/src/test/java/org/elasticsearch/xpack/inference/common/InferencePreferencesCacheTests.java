@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.common;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.TestPlainActionFuture;
@@ -17,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.regionpolicy.CspRegion;
@@ -84,12 +86,16 @@ public class InferencePreferencesCacheTests extends ESTestCase {
         assertThat(future.actionGet(TEST_REQUEST_TIMEOUT), sameInstance(InferencePreferences.EMPTY));
     }
 
-    public void testCacheMiss_UnexpectedFailure_ReturnsEmptyWithoutFailing() {
-        var cache = createCache(listener -> listener.onFailure(new RuntimeException("transient failure")));
+    public void testCacheMiss_UnexpectedFailure_PropagatesFailure() {
+        var originalFailure = new RuntimeException("transient failure");
+        var cache = createCache(listener -> listener.onFailure(originalFailure));
 
         var future = new TestPlainActionFuture<InferencePreferences>();
         cache.get(future);
-        assertThat(future.actionGet(TEST_REQUEST_TIMEOUT), sameInstance(InferencePreferences.EMPTY));
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(exception.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(exception.getCause(), is(originalFailure));
     }
 
     public void testInvalidateLocal_ForcesRefetch() {

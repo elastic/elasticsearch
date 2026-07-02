@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.common;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -21,6 +22,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.inference.action.GetRegionPolicyAction;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
@@ -114,8 +116,8 @@ public class InferencePreferencesCache {
 
     /**
      * Returns the cached preferences for the current project, fetching from the {@code .inference} index on a
-     * cache miss. Never fails the caller: any error while fetching results in {@link InferencePreferences#EMPTY}
-     * being cached and returned, since region policy headers are best-effort.
+     * cache miss. If no region policy is configured, resolves to {@link InferencePreferences#EMPTY}. If fetching
+     * fails for any other reason, fails the listener instead of silently proceeding without preferences.
      */
     public void get(ActionListener<InferencePreferences> listener) {
         final var projectId = projectResolver.getProjectId();
@@ -133,13 +135,22 @@ public class InferencePreferencesCache {
             }
             listener.onResponse(preferences);
         }, e -> {
-            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
-                logger.warn(() -> "Failed to fetch inference preferences for project [" + projectId + "], proceeding without them", e);
+            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                if (cacheEnabled) {
+                    cache.put(projectId, InferencePreferences.EMPTY);
+                }
+                listener.onResponse(InferencePreferences.EMPTY);
+                return;
             }
-            if (cacheEnabled) {
-                cache.put(projectId, InferencePreferences.EMPTY);
-            }
-            listener.onResponse(InferencePreferences.EMPTY);
+            logger.warn(() -> "Failed to fetch inference preferences for project [" + projectId + "]", e);
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Failed to fetch inference preferences for project [{}]",
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    e,
+                    projectId
+                )
+            );
         }));
     }
 

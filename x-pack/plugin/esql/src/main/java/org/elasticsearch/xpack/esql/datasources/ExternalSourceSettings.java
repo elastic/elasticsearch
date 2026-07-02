@@ -56,6 +56,17 @@ public final class ExternalSourceSettings {
     }
 
     /**
+     * The effective per-node blob-store access concurrency that every external access path should read, so one knob
+     * governs metadata discovery and data reads alike. On this branch it resolves to the CPU-bound
+     * {@link #defaultBlobStoreConcurrency(Settings)} default; once the per-query concurrency work (PR B) lands its
+     * operator setting on top, this accessor becomes the override-aware value and both paths pick that up unchanged
+     * — the call sites do not move, only this body does.
+     */
+    public static int blobStoreConcurrency(Settings settings) {
+        return defaultBlobStoreConcurrency(settings);
+    }
+
+    /**
      * Maximum concurrent in-flight external-storage reads per backend, per node. Sizes the S3/Azure SDK connection
      * pools and the {@code esql_external_blocking_io} thread pool. Static (NodeScope): thread pools and SDK pools
      * are fixed at startup.

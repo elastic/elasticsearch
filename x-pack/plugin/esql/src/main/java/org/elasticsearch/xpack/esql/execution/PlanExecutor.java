@@ -306,6 +306,10 @@ public class PlanExecutor {
         return indexResolver;
     }
 
+    public EsqlFunctionRegistry functionRegistry() {
+        return functionRegistry;
+    }
+
     public Metrics metrics() {
         return this.metrics;
     }

@@ -1,0 +1,33 @@
+{
+  "esql.suggestions": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/explore-analyze/query-filter/languages/esql-rest",
+      "description": "Return cursor-aware ES|QL autocomplete suggestions"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_esql/suggestions",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params": {},
+    "body": {
+      "description": "Use `query` for the (valid) ES|QL query, `cursor` for the absolute character offset of the caret, `size` to bound the number of sampled values, and `include_sample_values` to opt into the data-node value/range sampling.",
+      "required": true
+    }
+  }
+}

@@ -1,0 +1,50 @@
+---
+setup:
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2023-10-23T13:55:01.543Z", "agent": "chrome", "response_time": 42 }
+          - { "index": { } }
+          - { "@timestamp": "2023-10-23T13:55:01.544Z", "agent": "firefox", "response_time": 99 }
+
+---
+pipe position lists fields:
+  - do:
+      esql.suggestions:
+        body:
+          query: "FROM test | KEEP agent, response_time\n"
+          cursor: 37
+
+  - exists: fields
+  - length: { warnings: 0 }
+
+---
+field name slot after WHERE:
+  - do:
+      esql.suggestions:
+        body:
+          query: "FROM test | WHERE response_time > 10"
+          cursor: 18
+
+  - exists: fields
+  - length: { warnings: 0 }
+
+---
+missing query is rejected:
+  - do:
+      catch: bad_request
+      esql.suggestions:
+        body:
+          cursor: 0
+
+---
+cursor out of range is rejected:
+  - do:
+      catch: bad_request
+      esql.suggestions:
+        body:
+          query: "FROM test"
+          cursor: 999

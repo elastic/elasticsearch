@@ -80,12 +80,15 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
+import org.elasticsearch.xpack.esql.action.EsqlSuggestionsAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlSuggestionsAction;
+import org.elasticsearch.xpack.esql.action.TransportEsqlSuggestionsAction;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -566,6 +569,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         List<ActionHandler> actions = new ArrayList<>(
             List.of(
                 new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
+                new ActionHandler(EsqlSuggestionsAction.INSTANCE, TransportEsqlSuggestionsAction.class),
                 new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
                 new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
                 new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
@@ -605,6 +609,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         List<RestHandler> handlers = new ArrayList<>(
             List.of(
                 new RestEsqlQueryAction(capabilities),
+                new RestEsqlSuggestionsAction(),
                 new RestEsqlAsyncQueryAction(capabilities),
                 new RestEsqlGetAsyncResultAction(),
                 new RestEsqlStopAsyncAction(),

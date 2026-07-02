@@ -1,0 +1,153 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.action;
+
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+/**
+ * Response for {@code POST /_esql/suggestions}.
+ *
+ * <p>Always carries a {@code fields} map keyed by field name. A field's {@code values} or
+ * {@code range} statistics are present only when data nodes were actually visited for that field;
+ * otherwise the field carries just its resolved {@code type}. {@code warnings} is a closed
+ * vocabulary describing why statistics may be missing or partial.
+ */
+public class EsqlSuggestionsResponse extends ActionResponse implements ToXContentObject {
+
+    /**
+     * Closed vocabulary of things that can go wrong (or be intentionally limited) while producing
+     * suggestions. The wire form is the lowercase enum name.
+     */
+    public enum Warning {
+        /** Some shards were skipped (e.g. pruned by the query filter), so statistics may be partial. */
+        SHARDS_SKIPPED,
+        /** Sampling used an approximation that can surface values that do not actually match. */
+        FALSE_POSITIVES_POSSIBLE,
+        /** Document-level security is active, so per-value/range statistics are suppressed. */
+        DLS_ACTIVE,
+        /** Only hot indices were consulted for a wildcard pattern; cold/frozen tiers were skipped. */
+        HOT_ONLY;
+
+        public String wireName() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    /** A single sampled value for a field, with its document frequency in {@code [0, 1]}. */
+    public record ValueSuggestion(Object value, double docFreq) implements ToXContentObject {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("value", value);
+            builder.field("doc_freq", docFreq);
+            builder.endObject();
+            return builder;
+        }
+    }
+
+    /** The min/max range observed for a range-eligible field. */
+    public record Range(Object min, Object max) implements ToXContentObject {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("min", min);
+            builder.field("max", max);
+            builder.endObject();
+            return builder;
+        }
+    }
+
+    /**
+     * A completion candidate field: its resolved type, plus at most one of {@code values} or
+     * {@code range}. Both are {@code null} when data nodes were not visited (or statistics were
+     * suppressed, e.g. under DLS).
+     */
+    public record FieldSuggestion(String type, @Nullable List<ValueSuggestion> values, @Nullable Range range) implements ToXContentObject {
+
+        public static FieldSuggestion ofType(String type) {
+            return new FieldSuggestion(type, null, null);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("type", type);
+            if (values != null) {
+                builder.startArray("values");
+                for (ValueSuggestion value : values) {
+                    value.toXContent(builder, params);
+                }
+                builder.endArray();
+            }
+            if (range != null) {
+                builder.field("range");
+                range.toXContent(builder, params);
+            }
+            builder.endObject();
+            return builder;
+        }
+    }
+
+    private final Map<String, FieldSuggestion> fields;
+    private final List<Warning> warnings;
+
+    public EsqlSuggestionsResponse(Map<String, FieldSuggestion> fields, List<Warning> warnings) {
+        this.fields = fields;
+        this.warnings = warnings;
+    }
+
+    public EsqlSuggestionsResponse(StreamInput in) throws IOException {
+        this.fields = in.readMap(i -> new FieldSuggestion(i.readString(), null, null));
+        this.warnings = in.readCollectionAsList(i -> i.readEnum(Warning.class));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // The response is node-local (produced and consumed on the coordinator). Statistics
+        // (values/range) are not part of the transport form yet; only the field/type skeleton and
+        // warnings are serialized so this remains a valid Writeable for testing and future use.
+        out.writeMap(fields, (o, v) -> o.writeString(v.type()));
+        out.writeCollection(warnings, StreamOutput::writeEnum);
+    }
+
+    public Map<String, FieldSuggestion> fields() {
+        return fields;
+    }
+
+    public List<Warning> warnings() {
+        return warnings;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.startObject("fields");
+        for (Map.Entry<String, FieldSuggestion> entry : fields.entrySet()) {
+            builder.field(entry.getKey());
+            entry.getValue().toXContent(builder, params);
+        }
+        builder.endObject();
+        builder.startArray("warnings");
+        for (Warning warning : warnings) {
+            builder.value(warning.wireName());
+        }
+        builder.endArray();
+        builder.endObject();
+        return builder;
+    }
+}

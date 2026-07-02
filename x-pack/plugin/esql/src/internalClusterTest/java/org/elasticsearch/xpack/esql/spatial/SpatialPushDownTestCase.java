@@ -189,15 +189,23 @@ public abstract class SpatialPushDownTestCase<T extends Geometry> extends ESInte
     }
 
     public void testQuantizedXY() {
-        initIndexes();
-        for (int i = 0; i < random().nextInt(50, 100); i++) {
-            final String value = WellKnownText.toWKT(getIndexGeometry());
-            addToIndexes(i, "\"" + value + "\"", "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
+        // TODO: this loop is a temporary measure to reproduce https://github.com/elastic/elasticsearch/issues/150782
+        // and https://github.com/elastic/elasticsearch/issues/150865 within a single CI execution. Remove once the
+        // root cause is identified and fixed.
+        int iterations = 300;
+        for (int iteration = 0; iteration < iterations; iteration++) {
+            logger.info("testQuantizedXY reproduction iteration {}/{}", iteration + 1, iterations);
+            initIndexes();
+            for (int i = 0; i < random().nextInt(50, 100); i++) {
+                final String value = WellKnownText.toWKT(getIndexGeometry());
+                addToIndexes(i, "\"" + value + "\"", "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
+            }
+
+            refresh("indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
+
+            assertQuantizedXY();
+            cluster().wipeIndices(ALL_INDEXES);
         }
-
-        refresh("indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
-
-        assertQuantizedXY();
     }
 
     protected abstract void assertQuantizedXY();

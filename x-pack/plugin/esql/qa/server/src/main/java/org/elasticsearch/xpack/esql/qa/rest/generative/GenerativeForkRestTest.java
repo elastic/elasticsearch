@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
@@ -36,6 +37,8 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilit
  * For now, we skip tests that already require FORK, since multiple FORK commands are not allowed.
  */
 public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
+    private static final Pattern UNMAPPED_FIELDS_LOAD = Pattern.compile("\\bunmapped_fields\\s*=\\s*\"load\"", Pattern.CASE_INSENSITIVE);
+
     public GenerativeForkRestTest(
         String fileName,
         String groupName,
@@ -78,6 +81,7 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
             "FORK is not supported with unmapped_fields=\"load\"",
             testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_V5.capabilityName())
                 || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN.capabilityName())
+                || UNMAPPED_FIELDS_LOAD.matcher(testCase.query).find()
         );
 
         assumeFalse(

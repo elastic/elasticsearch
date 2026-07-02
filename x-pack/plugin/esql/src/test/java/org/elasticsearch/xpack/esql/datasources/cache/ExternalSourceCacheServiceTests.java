@@ -943,6 +943,68 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * WRONG-DATA regression: stripe ordinals are only comparable within one grid. Commits from data nodes
+     * running DIFFERENT stripe.size values (rolling restart / config drift) used to interleave into one
+     * entry — grid-B's stripe 1 overwrote grid-A's stripe 1 while grid-A's EOF marker survived, so the
+     * 0..K fold served a row count covering only part of the file over a "complete" cover. The entry now
+     * carries a grid stamp: a delta on a different grid CLEARS the stale stripe state and accumulation
+     * restarts on the new grid (safe-miss), converging once the new grid covers the file.
+     */
+    public void testMixedStripeGridsResetInsteadOfCorrupting() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, key, path, "fp");
+
+            // 200-byte file. Grid A=100: stripes {0:[0,100), 1:[100,200)}. Grid B=50: stripes 0..3.
+            // Round 1 (grid A): the tail stripe + EOF. No fold yet (stripe 0 missing).
+            service.reconcileSourceStatsFromContributions(
+                Map.of(path, List.of(stripeFragment(mtime, "fp", 6L, 100L, 1, 100, 200, true, true, true)))
+            );
+            SchemaCacheEntry afterA = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertNull("incomplete on grid A", afterA.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            assertEquals("grid A stamped", 100L, afterA.safeMetadata().get(ExternalStats.STRIPE_GRID_KEY));
+
+            // Round 2 (grid B): stripes 0..1 of the finer grid, no EOF. Pre-fix this overwrote grid-A's
+            // stripe 1 while its EOF marker survived -> fold 0..1 -> row_count 5 (truth 11) served.
+            service.reconcileSourceStatsFromContributions(
+                Map.of(
+                    path,
+                    List.of(
+                        stripeFragment(mtime, "fp", 2L, 50L, 0, 0, 50, true, true, false),
+                        stripeFragment(mtime, "fp", 3L, 50L, 1, 50, 100, true, true, false)
+                    )
+                )
+            );
+            SchemaCacheEntry afterB = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertNull(
+                "grid change must reset, NEVER fold mixed grids",
+                afterB.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+            assertEquals("re-stamped to grid B", 50L, afterB.safeMetadata().get(ExternalStats.STRIPE_GRID_KEY));
+            assertNull("grid-A EOF marker cleared", afterB.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+
+            // Round 3 (grid B): the rest of the file + EOF -> converges to the exact count on the new grid.
+            service.reconcileSourceStatsFromContributions(
+                Map.of(
+                    path,
+                    List.of(
+                        stripeFragment(mtime, "fp", 2L, 50L, 2, 100, 150, true, true, false),
+                        stripeFragment(mtime, "fp", 4L, 50L, 3, 150, 200, true, true, true)
+                    )
+                )
+            );
+            SchemaCacheEntry afterC = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(
+                "accumulation converges on the new grid",
+                11L,
+                afterC.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+        }
+    }
+
     public void testReconcileEmptyStripeFromOversizedRecord() throws Exception {
         // A record larger than the grid skips an ordinal entirely — the reader emits an explicit
         // zero-length empty fragment for it (atStripeStart & atStripeEnd). The whole-file fold counts

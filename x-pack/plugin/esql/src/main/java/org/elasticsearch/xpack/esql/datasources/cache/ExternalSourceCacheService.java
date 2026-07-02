@@ -201,7 +201,13 @@ public class ExternalSourceCacheService implements Closeable {
      * eligibility (stripes {@code 0..lastStripeOrdinal} all committed + marker known) is evaluated
      * against the accumulated cache state, so partial knowledge composes across queries.
      */
-    private record StripeDelta(Map<Long, Map<String, Object>> stripes, long lastStripeOrdinal, long mtimeMillis, String fingerprint) {}
+    private record StripeDelta(
+        Map<Long, Map<String, Object>> stripes,
+        long lastStripeOrdinal,
+        long mtimeMillis,
+        String fingerprint,
+        long stripeSize
+    ) {}
 
     /**
      * Folds orthogonal-model stripe fragments into per-stripe stats by interval-cover. Fragments are
@@ -268,7 +274,7 @@ public class ExternalSourceCacheService implements Closeable {
         if (complete.isEmpty()) {
             return null;
         }
-        return new StripeDelta(complete, lastOrdinal, mtime, fingerprint);
+        return new StripeDelta(complete, lastOrdinal, mtime, fingerprint, stripeSize);
     }
 
     /**
@@ -404,6 +410,19 @@ public class ExternalSourceCacheService implements Closeable {
             SchemaCacheKey key = match.getKey();
             SchemaCacheEntry existing = match.getValue();
             Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());
+            // Grid identity gate: stripe ordinals are only comparable within one grid. If the entry's
+            // committed stripe state was accumulated on a DIFFERENT grid (data nodes running different
+            // stripe.size values — rolling restart, config drift), merging this delta's ordinals into it
+            // would let the 0..K fold serve a silently wrong count over a "complete" cover. Clear the
+            // stale-grid state and restart accumulation on this delta's grid (safe-miss, never mixed).
+            // An entry with stripes but NO stamp predates the stamp — its grid is unknowable, same reset.
+            Object entryGrid = enriched.get(ExternalStats.STRIPE_GRID_KEY);
+            boolean gridMatches = entryGrid instanceof Number n && n.longValue() == delta.stripeSize();
+            if (gridMatches == false) {
+                enriched.keySet().removeIf(k -> k.startsWith(ExternalStats.STRIPE_ENTRY_PREFIX));
+                enriched.remove(ExternalStats.STRIPE_LAST_INDEX_KEY);
+            }
+            enriched.put(ExternalStats.STRIPE_GRID_KEY, delta.stripeSize());
             for (Map.Entry<Long, Map<String, Object>> stripe : delta.stripes().entrySet()) {
                 // Push the resolved column type down to each stripe's min/max before it is stored, so the
                 // 0..K fold (foldCommittedStripes -> mergeStatistics) never folds a Long extremum against a

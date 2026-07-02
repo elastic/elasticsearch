@@ -13,7 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import static org.junit.Assert.assertArrayEquals;
 
 /**
- * Tests for {@link CentroidAssignments} byte-backed factories and widening.
+ * Tests for {@link CentroidInformation} byte-backed factories and widening.
  */
 public class CentroidAssignmentsTests extends ESTestCase {
 
@@ -23,7 +23,7 @@ public class CentroidAssignmentsTests extends ESTestCase {
         int[] assignments = new int[] { 0, 1, 2, 0, 1 };
         int[] overspill = new int[] { 1, 0, 1, 2, 0 };
 
-        CentroidAssignments<byte[]> ca = CentroidAssignments.ofBytes(dims, centroids, assignments, overspill);
+        CentroidInformation<byte[]> ca = CentroidInformation.ofBytes(dims, centroids, assignments, new SoarAssignments(overspill));
 
         assertEquals(3, ca.numCentroids());
         assertSame(centroids, ca.centroids());
@@ -38,7 +38,7 @@ public class CentroidAssignmentsTests extends ESTestCase {
         int[] assignments = new int[] { 0, 1 };
         int[] overspill = new int[0];
 
-        CentroidAssignments<byte[]> ca = CentroidAssignments.ofBytes(dims, centroids, assignments, overspill);
+        CentroidInformation<byte[]> ca = CentroidInformation.ofBytes(dims, centroids, assignments, new SoarAssignments(overspill));
 
         float[] globalCentroid = ca.globalCentroid();
         assertNotNull(globalCentroid);
@@ -55,7 +55,7 @@ public class CentroidAssignmentsTests extends ESTestCase {
         int[] assignments = new int[] { 0, 1, 2 };
         int[] overspill = new int[0];
 
-        CentroidAssignments<byte[]> ca = CentroidAssignments.ofBytes(dims, centroids, assignments, overspill);
+        CentroidInformation<byte[]> ca = CentroidInformation.ofBytes(dims, centroids, assignments, new SoarAssignments(overspill));
 
         float[] globalCentroid = ca.globalCentroid();
         // Mean: (10+30+50)/3 = 30, (20+40+60)/3 = 40
@@ -69,7 +69,7 @@ public class CentroidAssignmentsTests extends ESTestCase {
         int[] assignments = new int[] { 0, 1 };
         int[] overspill = new int[0];
 
-        CentroidAssignments<byte[]> ca = CentroidAssignments.ofBytes(dims, centroids, assignments, overspill);
+        CentroidInformation<byte[]> ca = CentroidInformation.ofBytes(dims, centroids, assignments, new SoarAssignments(overspill));
 
         float[][] floatCentroids = ca.floatCentroids();
         assertEquals(2, floatCentroids.length);
@@ -90,7 +90,7 @@ public class CentroidAssignmentsTests extends ESTestCase {
         int[] assignments = new int[] { 0, 1 };
         int[] overspill = new int[0];
 
-        CentroidAssignments<float[]> ca = new CentroidAssignments<>(dims, centroids, assignments, new SoarAssignments(overspill));
+        CentroidInformation<float[]> ca = new CentroidInformation<>(dims, centroids, assignments, new SoarAssignments(overspill));
 
         float[][] result = ca.floatCentroids();
         assertSame(centroids, result);
@@ -102,7 +102,7 @@ public class CentroidAssignmentsTests extends ESTestCase {
         int[] assignments = new int[0];
         int[] overspill = new int[0];
 
-        CentroidAssignments<byte[]> ca = CentroidAssignments.ofBytes(dims, centroids, assignments, overspill);
+        CentroidInformation<byte[]> ca = CentroidInformation.ofBytes(dims, centroids, assignments, new SoarAssignments(overspill));
 
         assertEquals(0, ca.numCentroids());
         assertEquals(0, ca.centroids().length);
@@ -117,7 +117,7 @@ public class CentroidAssignmentsTests extends ESTestCase {
         int[] assignments = new int[] { 0, 0, 0 };
         int[] overspill = new int[0];
 
-        CentroidAssignments<byte[]> ca = CentroidAssignments.ofBytes(dims, centroids, assignments, overspill);
+        CentroidInformation<byte[]> ca = CentroidInformation.ofBytes(dims, centroids, assignments, new SoarAssignments(overspill));
 
         assertEquals(1, ca.numCentroids());
         // Global centroid = the single centroid itself
@@ -133,7 +133,7 @@ public class CentroidAssignmentsTests extends ESTestCase {
         int[] overspill = new int[] { 1, 1, 0, 0 };
         CentroidSlices slices = new CentroidSlices(new int[] { 0, 2 }, new int[] { 2, 2 });
 
-        CentroidAssignments<byte[]> ca = CentroidAssignments.ofBytes(dims, centroids, assignments, overspill, slices);
+        CentroidInformation<byte[]> ca = CentroidInformation.ofBytes(dims, centroids, assignments, new SoarAssignments(overspill), slices);
 
         assertEquals(2, ca.numCentroids());
         assertSame(slices, ca.centroidSlices());

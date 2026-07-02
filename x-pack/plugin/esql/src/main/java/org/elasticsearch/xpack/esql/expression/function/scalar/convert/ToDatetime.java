@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -135,7 +136,7 @@ public class ToDatetime extends AbstractConvertFunction implements Configuration
                         (source, fieldEval) -> new ToDatetimeFromStringEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())
+                            DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                         )
                     ),
                     Map.entry(
@@ -143,7 +144,7 @@ public class ToDatetime extends AbstractConvertFunction implements Configuration
                         (source, fieldEval) -> new ToDatetimeFromStringEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())
+                            DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                         )
                     )
                 )

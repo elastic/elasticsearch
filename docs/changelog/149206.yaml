@@ -1,0 +1,6 @@
+pr: 149206
+summary: "ES|QL: unify `SET` and request-body parameters into one settings framework"
+area: ES|QL
+type: enhancement
+issues:
+ - 143239

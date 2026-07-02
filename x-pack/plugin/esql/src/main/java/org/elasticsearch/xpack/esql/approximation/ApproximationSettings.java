@@ -75,11 +75,13 @@ public record ApproximationSettings(Integer rows, Double confidenceLevel) implem
     }
 
     public static ApproximationSettings fromXContent(XContentParser parser) throws IOException {
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return EXPLICIT_NULL;
+        }
         if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
             return parser.booleanValue() ? DEFAULT : EXPLICIT_NULL;
-        } else {
-            return X_CONTENT_PARSER.apply(parser, null).build();
         }
+        return X_CONTENT_PARSER.apply(parser, null).build();
     }
 
     public static ApproximationSettings parse(Expression expression) {

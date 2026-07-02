@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
@@ -129,7 +130,8 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
 
     public void testAllChronoFields() {
         long epochMilli = 1687944333123L;
-        ZonedDateTime date = Instant.ofEpochMilli(epochMilli).atZone(EsqlTestUtils.TEST_CFG.zoneId());
+        ZonedDateTime date = Instant.ofEpochMilli(epochMilli)
+            .atZone(QuerySettings.TIME_ZONE.get(EsqlTestUtils.TEST_CFG.resolvedSettings()));
         for (ChronoField value : ChronoField.values()) {
             DateExtract instance = new DateExtract(
                 Source.EMPTY,
@@ -140,7 +142,11 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
 
             assertThat(instance.fold(FoldContext.small()), is(date.getLong(value)));
             assertThat(
-                DateExtract.processMillis(epochMilli, new BytesRef(value.name()), EsqlTestUtils.TEST_CFG.zoneId()),
+                DateExtract.processMillis(
+                    epochMilli,
+                    new BytesRef(value.name()),
+                    QuerySettings.TIME_ZONE.get(EsqlTestUtils.TEST_CFG.resolvedSettings())
+                ),
                 is(date.getLong(value))
             );
         }

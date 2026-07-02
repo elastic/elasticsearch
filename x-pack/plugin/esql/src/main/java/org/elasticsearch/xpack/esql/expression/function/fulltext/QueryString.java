@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -339,7 +340,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
     }
 
     private Map<String, Object> queryStringOptions() throws InvalidArgumentException {
-        if (options() == null && configuration.zoneId().equals(ZoneOffset.UTC)) {
+        if (options() == null && QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()).equals(ZoneOffset.UTC)) {
             return null;
         }
 
@@ -347,7 +348,10 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         if (options() != null) {
             Options.populateMap((MapExpression) options(), queryStringOptions, source(), SECOND, ALLOWED_OPTIONS);
         }
-        queryStringOptions.putIfAbsent(TIME_ZONE_FIELD.getPreferredName(), configuration.zoneId().getId());
+        queryStringOptions.putIfAbsent(
+            TIME_ZONE_FIELD.getPreferredName(),
+            QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()).getId()
+        );
         return queryStringOptions;
     }
 

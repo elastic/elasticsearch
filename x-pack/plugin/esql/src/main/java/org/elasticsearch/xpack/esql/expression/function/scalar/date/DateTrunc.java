@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -129,7 +130,7 @@ public class DateTrunc extends EsqlConfigurationFunction {
     }
 
     public ZoneId zoneId() {
-        return configuration().zoneId();
+        return QuerySettings.TIME_ZONE.get(configuration().resolvedSettings());
     }
 
     @Override

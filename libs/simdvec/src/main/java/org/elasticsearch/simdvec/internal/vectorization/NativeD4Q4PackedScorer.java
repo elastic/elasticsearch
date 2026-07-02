@@ -13,21 +13,24 @@ import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.lang.foreign.MemorySegment;
 
-/** Vectorized scorer for 7-bit symmetric quantized vectors stored as a {@link MemorySegment}. */
-final class NativeD7Q7Scorer extends NativeMemorySegmentScorer {
+/**
+ * Packed-nibble int4 scorer that uses existing native dot-product ops.
+ * Returns sentinel values when native support is unavailable so callers can fallback.
+ */
+final class NativeD4Q4PackedScorer extends NativeMemorySegmentScorer {
 
-    NativeD7Q7Scorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
+    NativeD4Q4PackedScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
         super(in, dimensions, dataLength, bulkSize);
     }
 
     @Override
     long dotProduct(MemorySegment dataset, MemorySegment query, int length) {
-        return Similarities.dotProductI7u(query, dataset, length);
+        return Similarities.dotProductI4(query, dataset, length);
     }
 
     @Override
     void dotProductBulk(MemorySegment dataset, MemorySegment query, int length, int count, MemorySegment scores) {
-        Similarities.dotProductI7uBulk(dataset, query, length, count, scores);
+        Similarities.dotProductI4Bulk(dataset, query, length, count, scores);
     }
 
     @Override
@@ -40,16 +43,16 @@ final class NativeD7Q7Scorer extends NativeMemorySegmentScorer {
         int offsetsCount,
         MemorySegment scores
     ) {
-        Similarities.dotProductI7uBulkWithOffsets(dataset, query, dataLength, dataStride, offsets, offsetsCount, scores);
+        Similarities.dotProductI4BulkWithOffsets(dataset, query, dataLength, dataStride, offsets, offsetsCount, scores);
     }
 
     @Override
     float queryBitScale() {
-        return SEVEN_BIT_SCALE;
+        return FOUR_BIT_SCALE;
     }
 
     @Override
     float indexBitScale() {
-        return SEVEN_BIT_SCALE;
+        return FOUR_BIT_SCALE;
     }
 }

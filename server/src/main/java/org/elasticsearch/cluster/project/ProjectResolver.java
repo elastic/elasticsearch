@@ -84,5 +84,4 @@ public interface ProjectResolver extends ProjectIdResolver {
      *                               It is an error to attempt to override the active project-id
      */
     <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E;
-
 }

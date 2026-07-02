@@ -269,8 +269,19 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
                     matchesMap()//
                         .entry("name", "bucket")
                         .entry("type", "date")
-                        // meta is only present if request is routed to a node supporting this feature
-                        .optionalEntry("_meta", Map.of("bucket", Map.of("interval", 3, "unit", "hour")))
+                        // meta is only present if request is routed to a node supporting this feature; nodes that
+                        // additionally support the 4-arg date form contribute "start"/"end" epoch millis to the inner
+                        // bucket map, so treat those two keys as optional to stay compatible across mixed clusters
+                        .optionalEntry(
+                            "_meta",
+                            matchesMap().entry(
+                                "bucket",
+                                matchesMap().entry("interval", 3)
+                                    .entry("unit", "hour")
+                                    .optionalEntry("start", instanceOf(Long.class))
+                                    .optionalEntry("end", instanceOf(Long.class))
+                            )
+                        )
                 ),
             allOf(instanceOf(List.class), hasSize(0))
         );

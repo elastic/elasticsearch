@@ -134,12 +134,12 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
                 Map.of("tenant_id", "tenant", "client_id", "client", "jwt_audience", "api://AzureADTokenExchange")
             )
         );
-        assertThat(e.getMessage(), containsString("esql_external_datasources_keyless"));
+        assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
     }
 
     public void testValidateDatasourceAcceptsKeylessWhenEnabled() {
         var keylessValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
-            .withKeylessEnabled(() -> true);
+            .withFederatedIdentityEnabled(() -> true);
         var result = keylessValidator.validateDatasource(
             Map.of("tenant_id", "tenant", "client_id", "client", "jwt_audience", "api://AzureADTokenExchange")
         );

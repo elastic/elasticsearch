@@ -197,11 +197,11 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             "us-east-1"
         );
         var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(keylessConfig));
-        assertThat(e.getMessage(), containsString("esql_external_datasources_keyless"));
+        assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
     }
 
     public void testValidateDatasourceAcceptsKeylessWhenEnabled() {
-        var keylessValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n")).withKeylessEnabled(
+        var keylessValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n")).withFederatedIdentityEnabled(
             () -> true
         );
         var result = keylessValidator.validateDatasource(

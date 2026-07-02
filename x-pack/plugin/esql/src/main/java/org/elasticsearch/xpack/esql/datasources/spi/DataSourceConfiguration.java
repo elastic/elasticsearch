@@ -111,7 +111,7 @@ public abstract class DataSourceConfiguration {
         return false;
     }
 
-    /** Returns true if any field marked as keyless auth has a value set. Null values are already excluded. */
+    /** Returns true if any field marked as keyless auth (aka federated identity) has a value set. Null values are already excluded. */
     public boolean hasKeylessAuth() {
         for (var entry : values.entrySet()) {
             DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());

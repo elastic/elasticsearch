@@ -188,7 +188,7 @@ public class GcsStorageProvider implements StorageProvider {
     private static GoogleCredentials buildIdentityPoolCredentials(GcsConfiguration config) throws IOException {
         WorkloadIdentityIssuerClient issuerClient = WorkloadIdentityRegistry.getSharedIssuerClient();
         if (issuerClient.isEnabled() == false) {
-            throw new IllegalStateException("GCS keyless authentication requires the workload-identity feature to be enabled on this node");
+            throw new IllegalStateException("GCS federated authentication requires the workload-identity feature to be enabled on this node");
         }
 
         String jwtAudience = Strings.hasText(config.jwtAudience()) ? config.jwtAudience() : config.stsAudience();

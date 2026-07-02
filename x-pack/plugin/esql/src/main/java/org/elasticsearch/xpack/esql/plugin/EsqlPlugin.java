@@ -459,7 +459,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 DataSourceValidator effective = v;
                 if (effective instanceof FileDataSourceValidator fdv) {
                     effective = fdv.withManagedIdentityEnabled(managedIdentityEnabled::get)
-                        .withKeylessEnabled(FileDataSourceValidator.ESQL_EXTERNAL_DATASOURCES_KEYLESS_FEATURE_FLAG::isEnabled);
+                        .withFederatedIdentityEnabled(FileDataSourceValidator.ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY_FEATURE_FLAG::isEnabled);
                 }
                 if (formatKeyResolver != null && effective instanceof FileDataSourceValidator fdv) {
                     effective = fdv.withFormatConfigKeyResolver(formatKeyResolver, compressionExtensions);

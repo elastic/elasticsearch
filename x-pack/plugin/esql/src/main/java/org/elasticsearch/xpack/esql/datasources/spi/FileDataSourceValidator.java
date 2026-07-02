@@ -55,18 +55,18 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * GCS {@code sts_audience}, Azure {@code tenant_id}/{@code client_id}). A single flag covers every file-based
      * provider, since they all funnel through this validator and share the
      * {@link DataSourceConfiguration#hasKeylessAuth()} mechanism. Snapshot-on, release-off; override in release with
-     * {@code -Des.esql_external_datasources_keyless_feature_flag_enabled=true}. The keyless fields themselves remain
+     * {@code -Des.esql_external_datasources_federated_identity_feature_flag_enabled=true}. The keyless fields themselves remain
      * registered on each configuration regardless, so a PUT carrying them produces the explicit
-     * {@link #KEYLESS_DISABLED_MESSAGE} rather than an "unknown setting" error.
+     * {@link #FEDERATED_IDENTITY_DISABLED_MESSAGE} rather than an "unknown setting" error.
      */
-    public static final FeatureFlag ESQL_EXTERNAL_DATASOURCES_KEYLESS_FEATURE_FLAG = new FeatureFlag("esql_external_datasources_keyless");
+    public static final FeatureFlag ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY_FEATURE_FLAG = new FeatureFlag("esql_external_datasources_federated_identity");
 
     /**
      * Error shown when a data source is provisioned with keyless authentication settings while the
-     * {@link #ESQL_EXTERNAL_DATASOURCES_KEYLESS_FEATURE_FLAG} feature flag is disabled.
+     * {@link #ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY_FEATURE_FLAG} feature flag is disabled.
      */
-    public static final String KEYLESS_DISABLED_MESSAGE =
-        "keyless authentication settings require the [esql_external_datasources_keyless] feature flag to be enabled; "
+    public static final String FEDERATED_IDENTITY_DISABLED_MESSAGE =
+        "keyless authentication settings require the [esql_external_datasources_federated_identity] feature flag to be enabled; "
             + "it is disabled by default in release builds";
 
     // Dataset settings are plain values — no secrets. Credentials are inherited from the parent datasource.
@@ -127,7 +127,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
     private final FormatConfigKeyResolver formatConfigKeyResolver;
     private final Set<String> compressionExtensions;
     private final BooleanSupplier managedIdentityEnabled;
-    private final BooleanSupplier keylessEnabled;
+    private final BooleanSupplier federatedIdentityEnabled;
 
     public FileDataSourceValidator(
         String type,
@@ -144,7 +144,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         @Nullable FormatConfigKeyResolver formatConfigKeyResolver,
         Set<String> compressionExtensions,
         BooleanSupplier managedIdentityEnabled,
-        BooleanSupplier keylessEnabled
+        BooleanSupplier federatedIdentityEnabled
     ) {
         this.type = type;
         this.configFactory = configFactory;
@@ -152,7 +152,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         this.formatConfigKeyResolver = formatConfigKeyResolver;
         this.compressionExtensions = compressionExtensions;
         this.managedIdentityEnabled = managedIdentityEnabled;
-        this.keylessEnabled = keylessEnabled;
+        this.federatedIdentityEnabled = federatedIdentityEnabled;
     }
 
     /**
@@ -173,7 +173,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             resolver,
             compressionExtensions,
             managedIdentityEnabled,
-            keylessEnabled
+            federatedIdentityEnabled
         );
     }
 
@@ -192,17 +192,17 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatConfigKeyResolver,
             compressionExtensions,
             supplier,
-            keylessEnabled
+            federatedIdentityEnabled
         );
     }
 
     /**
      * Returns a new validator that gates keyless workload-identity authentication on the supplied boolean supplier.
      * The supplier is called on each validation. Wire it to
-     * {@link #ESQL_EXTERNAL_DATASOURCES_KEYLESS_FEATURE_FLAG} in production; tests pass a fixed supplier to exercise
+     * {@link #ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY_FEATURE_FLAG} in production; tests pass a fixed supplier to exercise
      * both states without flipping the process-wide feature flag.
      */
-    public FileDataSourceValidator withKeylessEnabled(BooleanSupplier supplier) {
+    public FileDataSourceValidator withFederatedIdentityEnabled(BooleanSupplier supplier) {
         return new FileDataSourceValidator(
             type,
             configFactory,
@@ -228,8 +228,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
         if (config instanceof FileDataSourceConfiguration fc && fc.isManagedIdentity() && managedIdentityEnabled.getAsBoolean() == false) {
             throw new ValidationException().addValidationError(FileDataSourceConfiguration.MANAGED_IDENTITY_DISABLED_MESSAGE);
         }
-        if (config != null && config.hasKeylessAuth() && keylessEnabled.getAsBoolean() == false) {
-            throw new ValidationException().addValidationError(KEYLESS_DISABLED_MESSAGE);
+        if (config instanceof FileDataSourceConfiguration fc
+            && fc.isFederatedIdentity()
+            && federatedIdentityEnabled.getAsBoolean() == false) {
+            throw new ValidationException().addValidationError(FEDERATED_IDENTITY_DISABLED_MESSAGE);
         }
         return config != null ? config.toStoredSettings() : Map.of();
     }

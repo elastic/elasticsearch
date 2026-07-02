@@ -112,17 +112,10 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
     }
 
     /**
-     * A minimal, deterministic reproduction of the columnar_stored nested reconstruction bug.
-     *
-     * <p>The mapping declares a single level of nesting ({@code n}), which columnar supports. But an object sub-field
+     * The mapping declares a single level of nesting ({@code n}), which columnar supports. An object sub-field
      * that appears as an array of objects ({@code obj}) is materialized under {@code subobjects:false} as its own child
      * documents, parented to the {@code n} child - a second <em>physical</em> level of documents in the Lucene block,
      * even though no second {@code nested} field is declared.
-     *
-     * <p>{@link NestedObjectMapper}'s columnar_stored reconstruction only descends one physical level (it selects the
-     * documents parented directly to the root), so the {@code obj} sub-documents are never visited and their content is
-     * dropped. Synthetic source reconstructs them, so the two source modes diverge. Once the reconstruction handles the
-     * deeper documents, both modes should produce identical {@code _source} and this test will pass.
      */
     public void testNestedWithObjectArraySubfield() throws Exception {
         var mappingXContent = XContentFactory.jsonBuilder()

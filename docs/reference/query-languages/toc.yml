@@ -97,11 +97,11 @@ toc:
       - file: esql/esql-syntax-reference.md
         children:
           - file: esql/esql-syntax.md
+          - file: esql/directives/directives.md
+            children:
+              - file: esql/directives/set.md
           - file: esql/esql-commands.md
             children:
-              - file: esql/commands/directives.md
-                children:
-                  - file: esql/commands/set.md
               - file: esql/commands/source-commands.md
                 children:
                   - file: esql/commands/from.md
@@ -435,6 +435,13 @@ toc:
           - file: promql/functions/math.md
           - file: promql/functions/date-time.md
           - file: promql/functions/conversion.md
+      - file: promql/operators.md
+        children:
+          - file: promql/operators/arithmetic.md
+          - file: promql/operators/comparison.md
+          - file: promql/operators/logical-set.md
+          - file: promql/operators/unary.md
+          - file: promql/operators/label-matching.md
       - file: promql/promql-grafana.md
       - file: promql/promql-limitations.md
   - file: sql.md

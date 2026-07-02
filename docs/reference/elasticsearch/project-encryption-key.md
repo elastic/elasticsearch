@@ -9,11 +9,11 @@ products:
 
 # Project encryption key [project-encryption-key]
 
-Some {{es}} features need to store sensitive values, such as credentials for external data sources, in cluster state. The **project encryption key** encrypts this data at rest and in transit between nodes, so that secrets are never persisted or replicated in plain text.
+Some {{es}} features need to store sensitive values, such as credentials for {{esql}} data federation, in cluster state. The **project encryption key** encrypts this data at rest and in transit between nodes, so that secrets are never persisted or replicated in plain text.
 
 {{es}} generates a single, cluster-wide encryption key automatically. Features that need to persist secrets never handle the key directly. They call an internal encryption service that encrypts and decrypts values on their behalf. The key itself is never exposed through any API.
 
-The first feature to use this mechanism is [ES|QL data source credentials](docs-content://explore-analyze/query-filter/languages/esql.md). Other features may adopt it over time.
+The first feature to use this mechanism is [{{esql}} data federation](/reference/query-languages/esql/esql-federated-data.md), which encrypts the credentials used to connect to external data sources. Other features may adopt it over time.
 
 ## How the key works [project-encryption-key-lifecycle]
 

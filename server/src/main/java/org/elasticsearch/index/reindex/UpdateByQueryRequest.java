@@ -14,12 +14,19 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * Request to update some documents. That means you can't change their type, id, index, or anything like that. This implements
@@ -182,7 +189,23 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByPaginatedSearchRequ
             getScript().toXContent(builder, params);
         }
         getSearchRequest().source().innerToXContent(builder, params);
+        if (getMaxDocs() != MAX_DOCS_ALL_MATCHES) {
+            builder.field("max_docs", getMaxDocs());
+        }
+        if (isAbortOnVersionConflict() == false) {
+            builder.field("conflicts", "proceed");
+        }
         builder.endObject();
         return builder;
+    }
+
+    public static UpdateByQueryRequest fromXContent(XContentParser parser, Predicate<NodeFeature> clusterSupportsFeature)
+        throws IOException {
+        UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest();
+        Map<String, Consumer<Object>> consumers = new HashMap<>();
+        consumers.put("conflicts", o -> updateByQueryRequest.setConflicts((String) o));
+        consumers.put("script", o -> updateByQueryRequest.setScript(Script.parse(o)));
+        consumers.put("max_docs", s -> ReindexRequest.setMaxDocsValidateIdentical(updateByQueryRequest, ((Number) s).intValue()));
+        return parseXContent(updateByQueryRequest, parser, clusterSupportsFeature, consumers);
     }
 }

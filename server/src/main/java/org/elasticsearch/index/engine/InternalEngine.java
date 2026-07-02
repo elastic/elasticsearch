@@ -26,7 +26,6 @@ import org.apache.lucene.index.MergeScheduler;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
-import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -4112,7 +4111,12 @@ public class InternalEngine extends Engine {
             final DocIdSetIterator iterator = scorer.iterator();
             var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, null);
             var leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leaf.reader(), null);
-            final var sliceUidLoader = sliceEnabled ? new SlicedUIDLoader(leaf, columnar) : null;
+            // Under the #-delimited compound encoding, Uid.decodeId returns "id#slice" for compound docs,
+            // so the raw binary doc value (columnar) or leafStoredFieldLoader.id() (stored) can be decoded
+            // and re-encoded to recover the compound uid.
+            final BinaryDocValues sliceColumnarIdDV = (sliceEnabled && columnar)
+                ? DocValues.getBinary(leaf.reader(), IdFieldMapper.NAME)
+                : null;
 
             for (int docId = iterator.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
                 final long primaryTerm = dv.docPrimaryTerm(docId);
@@ -4125,13 +4129,18 @@ public class InternalEngine extends Engine {
                 final String id;
                 final BytesRef uid;
                 if (sliceEnabled) {
-                    final BytesRef rawId = sliceUidLoader.uid(docId);
-                    if (rawId == null) {
+                    final String compoundIdStr;
+                    if (columnar) {
+                        compoundIdStr = sliceColumnarIdDV.advanceExact(docId) ? Uid.decodeId(sliceColumnarIdDV.binaryValue()) : null;
+                    } else {
+                        compoundIdStr = leafStoredFieldLoader.id();
+                    }
+                    if (compoundIdStr == null) {
                         assert isTombstone;
                         continue;
                     }
-                    uid = rawId;
-                    id = SliceIdFieldMapper.decodeCompoundId(rawId);
+                    uid = Uid.encodeId(compoundIdStr);
+                    id = SliceIdFieldMapper.decodeCompoundId(uid);
                 } else {
                     id = leafIdLoader.getId(docId);
                     if (id == null) {
@@ -4157,34 +4166,6 @@ public class InternalEngine extends Engine {
         }
         // remove live entries in the version map
         refresh("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL, true);
-    }
-
-    private static class SlicedUIDLoader {
-        private final StoredFields storedFields;
-        private final RawIdVisitor rawIdVisitor = new RawIdVisitor();
-        private final BinaryDocValues docValues;
-
-        private SlicedUIDLoader(LeafReaderContext leaf, boolean columnarId) throws IOException {
-            if (columnarId) {
-                docValues = DocValues.getBinary(leaf.reader(), IdFieldMapper.NAME);
-                storedFields = null;
-            } else {
-                docValues = null;
-                storedFields = leaf.reader().storedFields();
-            }
-        }
-
-        BytesRef uid(int docId) throws IOException {
-            if (docValues != null) {
-                return docValues.advanceExact(docId) ? BytesRef.deepCopyOf(docValues.binaryValue()) : null;
-            }
-            if (storedFields != null) {
-                rawIdVisitor.reset();
-                storedFields.document(docId, rawIdVisitor);
-                return rawIdVisitor.idBytes;
-            }
-            return null;
-        }
     }
 
     @Override

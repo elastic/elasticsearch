@@ -42,7 +42,6 @@ public class SliceVersionMapRestoreTests extends EngineTestCase {
             .put(super.indexSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
-            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
             .build();
     }
 
@@ -87,9 +86,9 @@ public class SliceVersionMapRestoreTests extends EngineTestCase {
 
     /**
      * Verifies that a NoOp tombstone (which stores no {@code _id} field) following a live doc in the same Lucene
-     * segment does not corrupt the version map for the live doc. The shared {@link RawIdVisitor} inside
-     * {@code SlicedUIDLoader} must be reset before each document read; without the reset, the NoOp inherits
-     * the live doc's stale {@code idBytes} and registers a spurious {@link DeleteVersionValue} under the live uid.
+     * segment does not corrupt the version map for the live doc. The restore path reads the stored {@code _id}
+     * via {@code leafStoredFieldLoader.id()}, which returns {@code null} for NoOp tombstones (no stored field),
+     * so the NoOp is correctly skipped rather than registering a spurious {@link DeleteVersionValue}.
      */
     public void testNoOpAfterLiveDocInDocumentModeDoesNotShadowVersionEntry() throws Exception {
         final Path translogPath = createTempDir();
@@ -105,7 +104,7 @@ public class SliceVersionMapRestoreTests extends EngineTestCase {
                 assertThat(engine.getPersistedLocalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
             }
             // Reopen without translog recovery: restore visits seq_no 1 (live) then seq_no 2 (NoOp)
-            // in the same leaf via SlicedUIDLoader. The NoOp must not register a DeleteVersionValue.
+            // in the same leaf. The NoOp must not register a DeleteVersionValue.
             try (InternalEngine engine = new InternalEngine(config)) {
                 final Map<BytesRef, VersionValue> versionMap = engine.getVersionMap();
                 final BytesRef uid = SliceIdFieldMapper.encodeCompoundId("1", "s1");

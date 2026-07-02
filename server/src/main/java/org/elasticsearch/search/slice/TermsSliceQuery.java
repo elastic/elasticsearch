@@ -128,14 +128,13 @@ public final class TermsSliceQuery extends SliceQuery {
             }
         },
         /**
-         * For a slice-enabled {@code _id}, which indexes two terms per document — a slice-free search term ending in
-         * {@code 0x00} and a compound identity term ending in its non-zero slice length — hash only the search term. It
-         * is unique per document, so each document falls into exactly one partition.
+         * Compound terms end with the last character of the slice (always in {@code [a-zA-Z0-9._:-]}), which is never {@code '#'}.
+         * So the last byte {@code '#'} is a reliable discriminator.
          */
         SLICED_ID_TERMS {
             @Override
             boolean accept(BytesRef term) {
-                return term.length > 0 && term.bytes[term.offset + term.length - 1] == 0;
+                return term.length > 0 && term.bytes[term.offset + term.length - 1] == '#';
             }
         };
 

@@ -12,7 +12,6 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.ScoreDoc;
@@ -30,6 +29,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceLoader.SyntheticVectorsLoader;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.transport.Transports;
@@ -249,7 +249,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         final String sourceField = parallelArray.hasRecoverySource[docIndex]
             ? SourceFieldMapper.RECOVERY_SOURCE_NAME
             : SourceFieldMapper.NAME;
-        final FieldsVisitor fields = columnarId ? new FieldsVisitor(true, sourceField) : new RawIdFieldsVisitor(true, sourceField);
+        final FieldsVisitor fields = new FieldsVisitor(true, sourceField);
 
         if (parallelArray.useSequentialStoredFieldsReader) {
             if (storedFieldsReaderOrd != leaf.ord) {
@@ -287,10 +287,10 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         }
 
         // The raw _id bytes are the uid for both non-slice (Uid.encodeId) and slice (compound) indices.
-        // Columnar _id comes from binary doc values; document-mode _id is captured by RawIdFieldsVisitor.
-        final BytesRef idBytes = parallelArray.columnarIds != null
-            ? parallelArray.columnarIds[docIndex]
-            : ((RawIdFieldsVisitor) fields).idBytes();
+        final String fieldId = fields.id();
+        final BytesRef idBytes = parallelArray.columnarIds != null ? parallelArray.columnarIds[docIndex]
+            : fieldId != null ? Uid.encodeId(fieldId)
+            : null;
         final boolean isTombstone = parallelArray.isTombStone[docIndex];
 
         final Translog.Operation op;
@@ -421,25 +421,4 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         return storedFieldsReader != null;
     }
 
-    // Captures raw _id bytes without decoding so callers can use them as the uid directly.
-    private static final class RawIdFieldsVisitor extends FieldsVisitor {
-        private BytesRef idBytes;
-
-        RawIdFieldsVisitor(boolean loadSource, String sourceField) {
-            super(loadSource, sourceField);
-        }
-
-        @Override
-        public void binaryField(FieldInfo fieldInfo, byte[] value) {
-            if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
-                idBytes = new BytesRef(value);
-            } else {
-                super.binaryField(fieldInfo, value);
-            }
-        }
-
-        BytesRef idBytes() {
-            return idBytes;
-        }
-    }
 }

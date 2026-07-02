@@ -11,13 +11,11 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -421,13 +419,12 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
     /**
      * Loads the {@code _id} for a slice-enabled index in document (non-columnar) mode. The stored {@code _id} is the
-     * compound identity term ({@link SliceIdFieldMapper#encodeCompoundId}); this loader reads raw bytes and decodes them via
-     * {@link IdFieldMapper#decodeIdentity} rather than the plain {@link Uid#decodeId} used by {@link StoredIdLoader}.
+     * compound identity term {@code encodeId(id + "#" + slice)}
      */
     final class SliceStoredIdLoader implements IdLoader {
         @Override
         public Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            return new SliceStoredLeaf(reader);
+            return new SliceStoredLeaf(loader);
         }
 
         @Override
@@ -581,49 +578,21 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     }
 
     /**
-     * {@link Leaf} for a slice-enabled index in document (non-columnar) mode. The stored {@code _id} is the compound
-     * identity term ({@link SliceIdFieldMapper#encodeCompoundId}); reading it via the generic {@link StoredLeaf} would garble the id
-     * because {@link org.elasticsearch.index.fieldvisitor.FieldsVisitor} decodes via {@link Uid#decodeId}. Instead,
-     * this leaf reads the raw bytes directly from Lucene stored fields and decodes via
-     * {@link IdFieldMapper#decodeIdentity}.
+     * {@link Leaf} for a slice-enabled index in document mode. The stored {@code _id} holds the
+     * compound bytes {@code encodeId(id + "#" + slice)};
      */
     final class SliceStoredLeaf implements Leaf {
 
-        private final LeafReader reader;
-        private final RawIdStoredFieldVisitor visitor = new RawIdStoredFieldVisitor();
+        private final LeafStoredFieldLoader loader;
 
-        SliceStoredLeaf(LeafReader reader) {
-            this.reader = reader;
+        SliceStoredLeaf(LeafStoredFieldLoader loader) {
+            this.loader = loader;
         }
 
         @Override
         public String getId(int subDocId) {
-            visitor.reset();
-            try {
-                reader.storedFields().document(subDocId, visitor);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-            return visitor.idBytes == null ? null : IdFieldMapper.decodeIdentity(true, visitor.idBytes);
-        }
-    }
-
-    /** Minimal stored-field visitor that captures the raw (un-decoded) {@code _id} bytes for use by {@link SliceStoredLeaf}. */
-    final class RawIdStoredFieldVisitor extends StoredFieldVisitor {
-        BytesRef idBytes;
-
-        void reset() {
-            idBytes = null;
-        }
-
-        @Override
-        public Status needsField(FieldInfo fieldInfo) {
-            return IdFieldMapper.NAME.equals(fieldInfo.name) ? Status.YES : Status.NO;
-        }
-
-        @Override
-        public void binaryField(FieldInfo fieldInfo, byte[] value) {
-            idBytes = new BytesRef(value);
+            String compound = loader.id();
+            return compound == null ? null : compound.substring(0, compound.lastIndexOf('#'));
         }
     }
 

@@ -34,7 +34,6 @@ public class SliceChangesSnapshotTests extends EngineTestCase {
             .put(super.indexSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) // ops-based recovery requires soft-deletes
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
-            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
             .build();
     }
 

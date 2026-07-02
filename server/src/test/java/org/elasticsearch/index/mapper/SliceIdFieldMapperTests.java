@@ -22,7 +22,6 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.IdFieldMapper.AbstractIdFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 
@@ -68,10 +67,7 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testDocumentModeStoresCompoundId() throws Exception {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.SLICE_ENABLED.getKey(), true)
-            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
-            .build();
+        Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
         assertFalse(sliceIdMapper(mapperService).isColumnarMode());
 
@@ -93,7 +89,6 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
         assumeTrue("columnar _id requires the extended doc values feature flag", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
-            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
             .put(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT.getKey(), true)
             .build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
@@ -161,31 +156,24 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
             // ...and the plain id round-trips from the search term (empty-slice member of the same format).
             assertEquals(id, SliceIdFieldMapper.decodeCompoundId(search));
             assertEquals("", SliceIdFieldMapper.sliceFromCompoundId(search));
-            // The plain encoded id is the prefix shared by both terms; the trailing byte holds the slice length.
-            BytesRef plain = Uid.encodeId(id);
-            assertEquals(plain.length + slice.getBytes(StandardCharsets.UTF_8).length + 1, compound.length);
-            assertEquals(plain.length + 1, search.length);
+            // Both terms are standard encodeId round-trips: decodeId(encodeId(id + "#" + slice)) == "id#slice"
+            assertEquals(id + "#" + slice, Uid.decodeId(compound.bytes, compound.offset, compound.length));
+            assertEquals(id + "#", Uid.decodeId(search.bytes, search.offset, search.length));
         }
     }
 
     public void testSearchAndCompoundTermSpacesAreDisjoint() {
-        // The hazard a bare search term would have: the WHOLE compound encodeId("12")++"34"++[2] is byte-identical to
-        // bare encodeId("12333402") (numeric ids pack two digits/byte). So a bare-id search term could land on an
-        // identity term. Tagging the search term with a trailing 0x00 makes it longer and disjoint.
-        assertEquals(Uid.encodeId("12333402"), SliceIdFieldMapper.encodeCompoundId("12", "34"));
-        assertNotEquals(SliceIdFieldMapper.searchTerm("12333402"), SliceIdFieldMapper.encodeCompoundId("12", "34"));
-
         for (int iter = 0; iter < 5000; ++iter) {
             String id1 = randomId();
             String id2 = randomId();
             String slice = randomSlice();
-            // A search term can never byte-equal any compound term: last byte is 0x00 vs the slice length (>= 1).
             assertNotEquals(SliceIdFieldMapper.searchTerm(id1), SliceIdFieldMapper.encodeCompoundId(id2, slice));
         }
     }
 
-    public void testCompoundSplitsOnTrailingLengthForAnyId() {
-        // ids may contain '#' or other bytes; the trailing length byte makes the (id, slice) split unambiguous.
+    public void testCompoundSplitsOnLastHashDelimiterForAnyId() {
+        // ids may contain '#'; lastIndexOf('#') always splits at the correct boundary since slice values
+        // cannot contain '#' (validated by SliceIndexing.VALID_SLICE_VALUE_PATTERN).
         for (String id : new String[] { "a#b", "a#b#c", "with space", "0", "00" }) {
             BytesRef compound = SliceIdFieldMapper.encodeCompoundId(id, "the-slice");
             assertEquals(id, SliceIdFieldMapper.decodeCompoundId(compound));
@@ -202,16 +190,14 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
         assertEquals(id, SliceIdFieldMapper.decodeCompoundId(b));
     }
 
-    public void testCompoundIdEnforcesSliceLengthBounds() {
+    public void testCompoundIdRejectsEmptySlice() {
         final String id = randomId();
-        // A 128-byte (ASCII) slice is the maximum and must round-trip; the trailing length byte holds 128 (0x80).
-        final String maxSlice = randomAlphaOfLength(128);
-        BytesRef max = SliceIdFieldMapper.encodeCompoundId(id, maxSlice);
-        assertEquals(maxSlice, SliceIdFieldMapper.sliceFromCompoundId(max));
-        assertEquals(id, SliceIdFieldMapper.decodeCompoundId(max));
-        // Beyond the single-byte length tag the encoding would corrupt, so it is rejected hard (not just asserted),
-        // as is the empty slice (which would collide with the search term's trailing 0x00).
-        expectThrows(IllegalArgumentException.class, () -> SliceIdFieldMapper.encodeCompoundId(id, randomAlphaOfLength(129)));
+        // Slices of any length round-trip correctly (no byte-length limit in the #-delimited encoding).
+        final String longSlice = randomAlphaOfLength(randomIntBetween(1, 200));
+        BytesRef encoded = SliceIdFieldMapper.encodeCompoundId(id, longSlice);
+        assertEquals(longSlice, SliceIdFieldMapper.sliceFromCompoundId(encoded));
+        assertEquals(id, SliceIdFieldMapper.decodeCompoundId(encoded));
+        // An empty slice encodes to the same bytes as the search term (encodeId(id + "#")), so it is rejected.
         expectThrows(IllegalArgumentException.class, () -> SliceIdFieldMapper.encodeCompoundId(id, ""));
     }
 
@@ -219,10 +205,8 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
     private static final String SLICE_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-";
 
     private static String randomSlice() {
-        // Span the full allowed charset and length range (1..128 bytes), often hitting the 128-byte maximum so the
-        // trailing length byte exercises its 0x80 boundary against the bounds check in encodeCompoundId. All allowed
-        // characters are single-byte ASCII, so the char length equals the byte length.
-        final int length = rarely() ? 128 : randomIntBetween(1, 128);
+        // Span the full allowed charset; all allowed characters are single-byte ASCII.
+        final int length = randomIntBetween(1, 64);
         final StringBuilder slice = new StringBuilder(length);
         for (int i = 0; i < length; i++) {
             slice.append(SLICE_CHARS.charAt(randomInt(SLICE_CHARS.length() - 1)));

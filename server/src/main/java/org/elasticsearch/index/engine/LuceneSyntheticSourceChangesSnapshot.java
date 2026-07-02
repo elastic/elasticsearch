@@ -271,8 +271,16 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
         LeafReaderContext context
     ) throws IOException {
         if (sliceEnabled) {
-            // For slice indices the stored _id is the compound uid (encodeCompoundId) for both live and tombstone docs.
-            final BytesRef uid = columnarId ? readColumnarUid(leafIdDocValues, segmentDocID) : readRawId(context, segmentDocID);
+            // For slice indices the stored _id is the compound uid for both live and tombstone docs.
+            // Under the #-delimited encoding, Uid.decodeId round-trips the compound bytes correctly, so
+            // fieldLoader.id() returns "id#slice" and Uid.encodeId gives back the compound uid bytes.
+            final BytesRef uid;
+            if (columnarId) {
+                uid = readColumnarUid(leafIdDocValues, segmentDocID);
+            } else {
+                final String idStr = fieldLoader.id();
+                uid = idStr != null ? Uid.encodeId(idStr) : null;
+            }
             if (docRecord.isTombstone() && uid == null) {
                 assert docRecord.version() == 1L : "Noop tombstone should have version 1L; actual version [" + docRecord.version() + "]";
                 assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + docRecord + "]";
@@ -368,10 +376,4 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
         return null;
     }
 
-    /** Read the raw stored {@code _id} bytes (the compound term on a slice tombstone), or {@code null} if absent. */
-    private static BytesRef readRawId(LeafReaderContext context, int segmentDocID) throws IOException {
-        RawIdVisitor visitor = new RawIdVisitor();
-        context.reader().storedFields().document(segmentDocID, visitor);
-        return visitor.idBytes;
-    }
 }

@@ -20,23 +20,14 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
 /**
- * A mapper for the {@code _id} field of a slice-enabled index. Each document indexes two terms into {@code _id} —
- * a slice-free <em>search</em> term {@code encodeId(id) ++ [0x00]} (drives {@code ids}/{@code term} search) and a
- * <em>compound</em> term {@code encodeId(id) ++ slice ++ [len]} (the engine identity term: uniqueness/versioning/
- * GET/delete). The compound bytes are also the value stored in the {@code _id} field itself: in {@link #DOCUMENT}
- * mode as a stored field, and in {@link #COLUMNAR} mode as binary doc values. This uniform storage (live docs and
- * delete tombstones alike carry the compound) keeps the engine, recovery, and translog paths free of live-vs-tombstone
- * branching. The user-visible plain id and the slice are recovered at the presentation layer only, via
- * {@link IdFieldMapper#decodeIdentity} / {@link #decodeCompoundId(BytesRef)} /
- * {@link #sliceFromCompoundId(BytesRef)} — mirroring TSDB's synthetic-id approach. See
- * {@link #encodeCompoundId(String, String)} / {@link #searchTerm(String)} for the layout and why the two
- * term-spaces are structurally disjoint.
+ * A mapper for the {@code _id} field of a slice-enabled index. Each document indexes two terms into {@code _id}.
+ * A slice-free <em>search</em> term {@code encodeId(id + "#")} (for search) and a
+ * <em>compound</em> term {@code encodeId(id + "#" + slice)} (uniqueness).
  */
 public class SliceIdFieldMapper extends IdFieldMapper {
 
@@ -74,7 +65,7 @@ public class SliceIdFieldMapper extends IdFieldMapper {
         }
 
         /**
-         * Seek the slice-free search term {@code encodeId(x) ++ [0x00]} for each value. This is derived only from the
+         * Seek the slice-free search term {@code encodeId(id + "#")} for each value. This is derived only from the
          * id, so {@code ids}/{@code term} search needs no slice context and works across slices (incl. {@code _slice=_all}).
          */
         @Override
@@ -156,62 +147,39 @@ public class SliceIdFieldMapper extends IdFieldMapper {
     /**
      * Slice-enabled {@code _id} encoding.
      * <p>
-     * A slice-enabled index indexes two terms per document into the {@code _id} field, both of the same shape —
-     * the standard {@link Uid#encodeId(String) encoded id} followed by the slice bytes and a trailing byte holding the
-     * slice length:
+     * A slice-enabled index indexes two terms per document into the {@code _id} field, derived by
+     * concatenating the id, a {@code '#'} delimiter, and (for the compound term) the slice value before encoding:
      * <pre>
-     *   term         = encodeId(id) ++ sliceBytes ++ [ byte: len(sliceBytes) ]
-     *   search term  : sliceBytes = ""     ->  encodeId(id) ++ [0x00]          (drives ids/term search)
-     *   compound term: sliceBytes = slice  ->  encodeId(id) ++ slice ++ [len]  (uid(): uniqueness/version/GET/delete)
+     *   search term  : encodeId(id + "#")          (drives ids/term search — empty-slice member)
+     *   compound term: encodeId(id + "#" + slice)  (uid(): uniqueness/version/GET/delete)
      * </pre>
-     * The trailing length byte is {@code 0} for the search term and {@code >= 1} for every compound (slices are
-     * non-empty), so the two term-spaces are structurally disjoint for any id type — a search seek can never land on
-     * an identity term, and the uniqueness gate is never polluted by a search term — without relying on the
-     * {@code _slice} filter. The compound bytes are also stored as the {@code _id} field value (live docs and delete
-     * tombstones alike).
-     * <p>
-     * Slice values are validated to be non-empty and {@code <= 128} bytes, so the length is in {@code [1, 128]} and
-     * fits a single byte.
+     * {@code '#'} is not a valid slice character (see {@link org.elasticsearch.index.SliceIndexing#VALID_SLICE_VALUE_PATTERN}),
+     * so {@code lastIndexOf('#')} always splits at the correct boundary. The two term-spaces are structurally disjoint.
      */
     public static BytesRef encodeCompoundId(String id, String slice) {
-        BytesRef encodedId = Uid.encodeId(id);
-        byte[] sliceBytes = slice.getBytes(StandardCharsets.UTF_8);
-        // The trailing byte holds the slice length, so the disjointness from the search term (trailing 0x00) relies on
-        // the length being in [1, 128]. SliceIndexing.validateUserSliceValue enforces this on the write API, but this is
-        // the on-disk term encoding, so guard it hard here too rather than only via assertion.
-        if (sliceBytes.length < 1 || sliceBytes.length > 128) {
-            throw new IllegalArgumentException(
-                "slice byte length must be in [1, 128] but was [" + sliceBytes.length + "] for slice [" + slice + "]"
-            );
+        if (slice.isEmpty()) {
+            // An empty slice encodes to encodeId(id + "#") which is identical to the search term — they would collide.
+            throw new IllegalArgumentException("slice must not be empty for compound _id encoding");
         }
-        byte[] b = new byte[encodedId.length + sliceBytes.length + 1];
-        System.arraycopy(encodedId.bytes, encodedId.offset, b, 0, encodedId.length);
-        System.arraycopy(sliceBytes, 0, b, encodedId.length, sliceBytes.length);
-        b[b.length - 1] = (byte) sliceBytes.length;
-        return new BytesRef(b);
+        return Uid.encodeId(id + "#" + slice);
     }
 
     /**
-     * The slice-mode search term {@code encodeId(id) ++ [0x00]} — the empty-slice member of the compound format,
-     * derived only from the id (no slice context). {@code ids}/{@code term} queries seek this term.
+     * The slice-mode search term {@code encodeId(id + "#")}.
      */
     public static BytesRef searchTerm(String id) {
-        BytesRef encodedId = Uid.encodeId(id);
-        byte[] b = new byte[encodedId.length + 1];
-        System.arraycopy(encodedId.bytes, encodedId.offset, b, 0, encodedId.length);
-        // trailing length byte left as 0x00
-        return new BytesRef(b);
+        return Uid.encodeId(id + "#");
     }
 
     /** Recover the plain, user-visible id from a compound (or search) term produced above. */
     public static String decodeCompoundId(BytesRef term) {
-        int sliceLen = term.bytes[term.offset + term.length - 1] & 0xff;
-        return Uid.decodeId(term.bytes, term.offset, term.length - 1 - sliceLen);
+        String compound = Uid.decodeId(term.bytes, term.offset, term.length);
+        return compound.substring(0, compound.lastIndexOf('#'));
     }
 
-    /** Recover the slice from a compound term. Returns the empty string for a search term ({@code len == 0}). */
+    /** Recover the slice from a compound term. Returns the empty string for a search term (empty-slice member). */
     public static String sliceFromCompoundId(BytesRef term) {
-        int sliceLen = term.bytes[term.offset + term.length - 1] & 0xff;
-        return new String(term.bytes, term.offset + term.length - 1 - sliceLen, sliceLen, StandardCharsets.UTF_8);
+        String compound = Uid.decodeId(term.bytes, term.offset, term.length);
+        return compound.substring(compound.lastIndexOf('#') + 1);
     }
 }

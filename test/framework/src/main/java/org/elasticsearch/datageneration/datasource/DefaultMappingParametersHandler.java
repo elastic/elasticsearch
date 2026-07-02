@@ -41,6 +41,20 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         this.indexMode = indexMode;
     }
 
+    /**
+     * {@code store} cannot be enabled in strict-columnar mode.
+     */
+    public static boolean storeParam(IndexMode indexMode) {
+        return indexMode.isStrictColumnar() == false && ESTestCase.randomBoolean();
+    }
+
+    /**
+     * {@code doc_values} cannot be disabled in strict-columnar mode: every field must be reconstructable from its own doc values.
+     */
+    public static boolean docValuesParam(IndexMode indexMode) {
+        return indexMode.isStrictColumnar() || ESTestCase.randomBoolean();
+    }
+
     @Override
     public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
         var fieldType = FieldType.tryParse(request.fieldType());
@@ -219,8 +233,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = new HashMap<String, Object>();
 
-            // store cannot be enabled in strict-columnar mode.
-            mapping.put("store", indexMode.isStrictColumnar() == false && ESTestCase.randomBoolean());
+            mapping.put("store", storeParam(indexMode));
             mapping.put("index", ESTestCase.randomBoolean());
 
             return mapping;
@@ -278,11 +291,9 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
     public HashMap<String, Object> commonMappingParameters() {
         var map = new HashMap<String, Object>();
-        // store cannot be enabled in strict-columnar mode.
-        map.put("store", indexMode.isStrictColumnar() == false && ESTestCase.randomBoolean());
         map.put("index", ESTestCase.randomBoolean());
-        // doc_values cannot be disabled in strict-columnar mode: every field must be reconstructable from its own doc values.
-        map.put("doc_values", indexMode.isStrictColumnar() || ESTestCase.randomBoolean());
+        map.put("store", storeParam(indexMode));
+        map.put("doc_values", docValuesParam(indexMode));
 
         // synthetic_source_keep is not allowed on fields in strict-columnar mode.
         if (indexMode.isStrictColumnar() == false && ESTestCase.randomBoolean()) {
@@ -296,8 +307,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = new HashMap<String, Object>();
             mapping.put("index", ESTestCase.randomBoolean());
-            // doc_values cannot be disabled in strict-columnar mode: every field must be reconstructable from its own doc values.
-            mapping.put("doc_values", indexMode.isStrictColumnar() || ESTestCase.randomBoolean());
+            mapping.put("doc_values", docValuesParam(indexMode));
 
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
@@ -343,8 +353,6 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
     @Override
     public DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
-        boolean strictColumnar = indexMode.isStrictColumnar();
-
         if (request.isNested()) {
             assert request.parentSubobjects() != ObjectMapper.Subobjects.DISABLED;
 
@@ -355,7 +363,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                     parameters.put("dynamic", randomFrom("true", "false", "strict"));
                 }
                 // synthetic_source_keep is not allowed on objects in strict-columnar mode
-                if (strictColumnar == false && ESTestCase.randomBoolean()) {
+                if (indexMode.isStrictColumnar() == false && ESTestCase.randomBoolean()) {
                     parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "all");  // [arrays] doesn't apply to nested objects
                 }
 
@@ -381,6 +389,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
                 return parameters;
             }
+
+            boolean strictColumnar = indexMode.isStrictColumnar();
 
             // the subobjects parameter itself is not allowed on objects in strict-columnar mode
             if (strictColumnar == false && ESTestCase.randomBoolean()) {

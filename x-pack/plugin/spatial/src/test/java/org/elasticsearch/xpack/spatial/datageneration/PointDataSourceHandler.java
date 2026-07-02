@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.spatial.datageneration;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
@@ -43,10 +44,8 @@ public class PointDataSourceHandler implements DataSourceHandler {
         return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
             var map = new HashMap<String, Object>();
             map.put("index", ESTestCase.randomBoolean());
-            // doc_values cannot be disabled in strict-columnar mode.
-            map.put("doc_values", indexMode.isStrictColumnar() || ESTestCase.randomBoolean());
-            // store cannot be enabled in strict-columnar mode.
-            map.put("store", indexMode.isStrictColumnar() == false && ESTestCase.randomBoolean());
+            map.put("doc_values", DefaultMappingParametersHandler.docValuesParam(indexMode));
+            map.put("store", DefaultMappingParametersHandler.storeParam(indexMode));
 
             if (ESTestCase.randomBoolean()) {
                 map.put("ignore_malformed", ESTestCase.randomBoolean());

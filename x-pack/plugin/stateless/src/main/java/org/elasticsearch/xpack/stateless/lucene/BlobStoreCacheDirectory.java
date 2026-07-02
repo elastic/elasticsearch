@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -126,6 +127,10 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     BlobLocation getBlobLocation(String fileName) {
         var blobFileRanges = currentMetadata.get(fileName);
         return blobFileRanges != null ? blobFileRanges.blobLocation() : null;
+    }
+
+    public Collection<BlobFileRanges> getBlobFileRanges() {
+        return Collections.unmodifiableCollection(currentMetadata.values());
     }
 
     /**

@@ -105,7 +105,7 @@ public class PlanExecutor {
      * cancellation signal, and in-flight fan-out bound are supplied by the caller ({@link #esql}, ultimately
      * from {@code TransportEsqlQueryAction}) rather than hardcoded here, so the resolver keeps the
      * caller-owned executor/cancellation seam while the wiring — executor isolation (off {@code SEARCH}) and the
-     * caller-supplied {@code metadataReadConcurrency} (production: the {@code snapshot_meta}-shaped blob-store
+     * caller-supplied {@code metadataReadConcurrency} (production: the {@code snapshot_meta}-shaped discovery
      * default, capped at 100) — stays testable without standing up the full query path. See {@link #esql} for why
      * an in-flight bound that may exceed the pool size is safe.
      */
@@ -134,7 +134,7 @@ public class PlanExecutor {
      *                               wiring passes {@code esql_worker}.
      * @param externalSourceConcurrency maximum number of in-flight per-file metadata reads during a multi-file
      *                               resolve. Production wiring passes
-     *                               {@link ExternalSourceSettings#defaultBlobStoreConcurrency(Settings)} (the
+     *                               {@link ExternalSourceSettings#defaultDiscoveryConcurrency(Settings)} (the
      *                               {@code snapshot_meta} shape, capped at 100): footer reads are async (the pool
      *                               thread is released across the network round-trip), so the bound caps concurrent
      *                               in-flight reads rather than pinning that many threads.
@@ -162,7 +162,7 @@ public class PlanExecutor {
         // Resolution (glob expansion, footer reads, schema reconciliation) runs on the caller-supplied
         // executor rather than the SEARCH pool, so a wildcard external query cannot starve regular ES
         // searches or other ES|QL queries. The per-query multi-file metadata fan-out is bounded by
-        // externalSourceConcurrency (production: the snapshot_meta-shaped blob-store default, capped at 100):
+        // externalSourceConcurrency (production: the snapshot_meta-shaped discovery default, capped at 100):
         // because footer reads are async (the pool thread is released across the network round-trip) the bound
         // caps in-flight reads rather than pinning that many threads, so a wide discovery cannot starve execution.
         // NOTE: this release-across-the-read guarantee holds for storage backends with native async

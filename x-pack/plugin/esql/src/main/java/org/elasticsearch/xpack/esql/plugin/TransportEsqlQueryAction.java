@@ -296,13 +296,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
      * outstanding, passed to {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver} as its fan-out
      * bound. Because footer reads are async (the {@code esql_worker} thread is released across the read), this caps
      * concurrent in-flight reads rather than pinning that many threads, so the bound may safely exceed the pool
-     * size. It is the {@link ExternalSourceSettings#defaultBlobStoreConcurrency(org.elasticsearch.common.settings.Settings)}
-     * value, so discovery throttles blob-store access with a node-size-scaled formula ({@code snapshot_meta} shape,
-     * capped at 100) instead of the raw {@code esql_worker.getMax()} pool size. This is discovery's derived default
-     * only; production data reads are bounded separately by {@link ExternalSourceSettings#MAX_CONNECTIONS}.
+     * size. It is the {@link ExternalSourceSettings#defaultDiscoveryConcurrency(org.elasticsearch.common.settings.Settings)}
+     * value, so discovery throttles its footer fan-out with a node-size-scaled formula ({@code snapshot_meta} shape,
+     * capped at 100) instead of the raw {@code esql_worker.getMax()} pool size. This bounds discovery only;
+     * production data reads are bounded separately by {@link ExternalSourceSettings#MAX_CONNECTIONS}.
      */
     protected int externalSourceConcurrency() {
-        return ExternalSourceSettings.defaultBlobStoreConcurrency(clusterService.getSettings());
+        return ExternalSourceSettings.defaultDiscoveryConcurrency(clusterService.getSettings());
     }
 
     /**

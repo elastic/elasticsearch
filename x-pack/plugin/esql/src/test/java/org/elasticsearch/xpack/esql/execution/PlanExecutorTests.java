@@ -29,7 +29,7 @@ public class PlanExecutorTests extends ESTestCase {
      * {@link TransportEsqlQueryAction} and {@link PlanExecutor#esql}: external discovery must run on the
      * {@code esql_worker} pool (isolated from {@code SEARCH}, so a wide wildcard cannot starve regular searches) and its
      * multi-file metadata fan-out must be bounded by discovery's derived default concurrency
-     * ({@link ExternalSourceSettings#defaultBlobStoreConcurrency(Settings)}, the {@code snapshot_meta} shape capped at
+     * ({@link ExternalSourceSettings#defaultDiscoveryConcurrency(Settings)}, the {@code snapshot_meta} shape capped at
      * 100) rather than the raw pool size. The fan-out may exceed the pool size because footer reads are async (the
      * worker is released across the read).
      * <p>
@@ -55,7 +55,7 @@ public class PlanExecutorTests extends ESTestCase {
         List<ExecutorBuilder<?>> builders = plugin.getExecutorBuilders(settings);
         ThreadPool threadPool = new TestThreadPool("test", settings, builders.toArray(new ExecutorBuilder<?>[0]));
         try {
-            int fanOut = ExternalSourceSettings.defaultBlobStoreConcurrency(settings);
+            int fanOut = ExternalSourceSettings.defaultDiscoveryConcurrency(settings);
             Executor esqlWorker = threadPool.executor(ESQL_WORKER_THREAD_POOL_NAME);
 
             ExternalSourceResolver resolver = PlanExecutor.createExternalSourceResolver(

@@ -43,6 +43,9 @@ public class InferenceWithSecurityRestIT extends ESClientYamlSuiteTestCase {
         .systemProperty("tests.seed", System.getProperty("tests.seed"))
         .setting("xpack.security.enabled", "true")
         .setting("xpack.license.self_generated.type", "trial")
+        // This might not be necessary because the authorization refresh will skip internally if the url
+        // is blank (which it should be because we don't set it for this cluster)
+        .setting("xpack.inference.region_policy.authorization.skip_refresh", "true")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD)    // admin user for setup and teardown
         .user(INFERENCE_USERNAME, INFERENCE_PASSWORD, "monitor_only_user", false)

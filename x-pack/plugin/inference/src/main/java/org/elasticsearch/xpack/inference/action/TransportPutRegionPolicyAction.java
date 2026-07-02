@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -29,6 +30,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.inference.ToXContentParams;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.Task;
@@ -40,6 +43,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.inference.action.PutRegionPolicyAction;
+import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.RegionPolicyResponse;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicyDoc;
@@ -53,10 +57,13 @@ import java.util.Optional;
 
 public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRegionPolicyAction.Request, RegionPolicyResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportPutRegionPolicyAction.class);
+
     private final OriginSettingClient client;
     private final Optional<SecurityContext> securityContext;
     private final ClusterService clusterService;
     private final FeatureService featureService;
+    private final RegionPolicySettings regionPolicySettings;
 
     @Inject
     public TransportPutRegionPolicyAction(
@@ -81,12 +88,33 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
             : Optional.empty();
         this.clusterService = clusterService;
         this.featureService = featureService;
+        this.regionPolicySettings = new RegionPolicySettings(settings);
     }
 
     @Override
     protected void doExecute(Task task, PutRegionPolicyAction.Request request, ActionListener<RegionPolicyResponse> finalListener) {
         SubscribableListener.newForked(this::getRegionPolicyOrNullWhenMissing)
             .<RegionPolicyResponse>andThen((l, existingRegionPolicy) -> putRegionPolicy(existingRegionPolicy, request.regionPolicy(), l))
+            .<RegionPolicyResponse>andThen((policyListener, policy) -> {
+                if (regionPolicySettings.skipAuthorizationRefresh()) {
+                    logger.debug("Skipping authorization refresh after putting region policy due to test setting");
+                    policyListener.onResponse(policy);
+                    return;
+                }
+
+                var authListener = ActionListener.<ActionResponse.Empty>wrap(
+                    ignore -> policyListener.onResponse(policy),
+                    // If the refresh fails, we don't want to fail the put region policy request, so we ignore the exception and log it
+                    e -> {
+                        logger.warn("""
+                            Failed to refresh authorized endpoints after putting region policy. \
+                            The new region policy will not take effect until the next authorization poll.""", e);
+                        policyListener.onResponse(policy);
+                    }
+                );
+
+                client.execute(RefreshAuthorizedEndpointsAction.INSTANCE, new RefreshAuthorizedEndpointsAction.Request(), authListener);
+            })
             .addListener(finalListener);
     }
 

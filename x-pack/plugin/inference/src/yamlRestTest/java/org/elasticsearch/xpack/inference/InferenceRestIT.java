@@ -35,6 +35,9 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.security.enabled", "false")
         .setting("xpack.security.http.ssl.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        // This might not be necessary because the authorization refresh will skip internally if the url
+        // is blank (which it should be because we don't set it for this cluster)
+        .setting("xpack.inference.region_policy.authorization.skip_refresh", "true")
         .plugin("inference-service-test")
         .feature(FeatureFlag.INFERENCE_REGION_POLICY)
         .distribution(DistributionType.DEFAULT)

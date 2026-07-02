@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsActi
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.inference.action.RegionPolicySettings;
 import org.elasticsearch.xpack.inference.action.TransportDeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteRegionPolicyAction;
@@ -828,6 +829,7 @@ public class InferencePlugin extends Plugin
         settings.addAll(CCMCache.getSettingsDefinitions());
         settings.addAll(OAuth2TokenCache.getSettingsDefinitions());
         settings.addAll(OAuth2ClusterSettings.getSettingsDefinitions());
+        settings.addAll(RegionPolicySettings.getSettingsDefinitions());
         return Collections.unmodifiableSet(settings);
     }
 

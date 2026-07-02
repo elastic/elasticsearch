@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -155,7 +156,7 @@ public final class ThrottlingRecoveryService implements Closeable {
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
             final RecoveryListener wrapped = RecoveryListener.runAfter(
-                RecoveryListener.runBefore(recovery.listener, () -> assertCurrentProjectId(recovery.projectId)),
+                RecoveryListener.runBefore(recovery.listener, () -> ensureProjectIdHeader(recovery.projectId)),
                 () -> releaseSlot(recovery)
             );
             try (var ignored = recovery.context.get()) {
@@ -191,9 +192,10 @@ public final class ThrottlingRecoveryService implements Closeable {
         }
     }
 
-    private void assertCurrentProjectId(ProjectId projectId) {
-        assert projectResolver.supportsMultipleProjects() == false || Objects.equals(projectResolver.getProjectId(), projectId)
-            : "unexpected project id in thread context: " + projectResolver.getProjectId();
+    private void ensureProjectIdHeader(ProjectId projectId) {
+        final String projectIdHeader = threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
+        assert Objects.equals(projectIdHeader, projectId.id()) || projectResolver.supportsMultipleProjects() == false
+            : "unexpected project id header for in thread context: " + projectIdHeader;
     }
 
     /// Metadata holder for a recovery that has been enqueued but not yet dispatched.

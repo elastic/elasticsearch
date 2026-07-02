@@ -182,8 +182,9 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                 return null;
             }
             // Delegate directly to the default handler to keep all other generated parameters, then only rewrite doc_values.
-            // DataSource sanitizes any remaining columnar-invalid parameters (store, etc.) once the response reaches it.
-            var defaults = new DefaultMappingParametersHandler().handle(request);
+            // This handler only ever runs when indexMode.isStrictColumnar() (see withSingleValueDocValues), so the delegate
+            // must also know it's columnar-mode aware, or it could emit store/synthetic_source_keep/copy_to that are invalid there.
+            var defaults = new DefaultMappingParametersHandler(IndexMode.COLUMNAR).handle(request);
             if (defaults == null) {
                 return null;
             }

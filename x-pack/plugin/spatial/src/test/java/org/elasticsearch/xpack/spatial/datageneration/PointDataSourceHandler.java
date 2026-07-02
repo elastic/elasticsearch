@@ -11,6 +11,7 @@ import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 
@@ -18,6 +19,16 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class PointDataSourceHandler implements DataSourceHandler {
+    private final IndexMode indexMode;
+
+    public PointDataSourceHandler() {
+        this(IndexMode.STANDARD);
+    }
+
+    public PointDataSourceHandler(IndexMode indexMode) {
+        this.indexMode = indexMode;
+    }
+
     @Override
     public DataSourceResponse.PointGenerator handle(DataSourceRequest.PointGenerator request) {
         return new DataSourceResponse.PointGenerator(this::generateValidPoint);
@@ -32,8 +43,10 @@ public class PointDataSourceHandler implements DataSourceHandler {
         return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
             var map = new HashMap<String, Object>();
             map.put("index", ESTestCase.randomBoolean());
-            map.put("doc_values", ESTestCase.randomBoolean());
-            map.put("store", ESTestCase.randomBoolean());
+            // doc_values cannot be disabled in strict-columnar mode.
+            map.put("doc_values", indexMode.isStrictColumnar() || ESTestCase.randomBoolean());
+            // store cannot be enabled in strict-columnar mode.
+            map.put("store", indexMode.isStrictColumnar() == false && ESTestCase.randomBoolean());
 
             if (ESTestCase.randomBoolean()) {
                 map.put("ignore_malformed", ESTestCase.randomBoolean());

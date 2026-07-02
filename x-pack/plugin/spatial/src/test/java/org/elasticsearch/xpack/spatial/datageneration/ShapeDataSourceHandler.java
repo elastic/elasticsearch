@@ -13,12 +13,23 @@ import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 import java.util.HashMap;
 
 public class ShapeDataSourceHandler implements DataSourceHandler {
+    private final IndexMode indexMode;
+
+    public ShapeDataSourceHandler() {
+        this(IndexMode.STANDARD);
+    }
+
+    public ShapeDataSourceHandler(IndexMode indexMode) {
+        this.indexMode = indexMode;
+    }
+
     @Override
     public DataSourceResponse.ShapeGenerator handle(DataSourceRequest.ShapeGenerator request) {
         return new DataSourceResponse.ShapeGenerator(this::generateValidShape);
@@ -33,7 +44,8 @@ public class ShapeDataSourceHandler implements DataSourceHandler {
         return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
             var map = new HashMap<String, Object>();
             map.put("index", ESTestCase.randomBoolean());
-            map.put("doc_values", ESTestCase.randomBoolean());
+            // doc_values cannot be disabled in strict-columnar mode.
+            map.put("doc_values", indexMode.isStrictColumnar() || ESTestCase.randomBoolean());
 
             if (ESTestCase.randomBoolean()) {
                 map.put("ignore_malformed", ESTestCase.randomBoolean());

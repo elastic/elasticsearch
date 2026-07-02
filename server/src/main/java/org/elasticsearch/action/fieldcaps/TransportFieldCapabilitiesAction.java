@@ -678,7 +678,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 } else {
                     subIndices = ArrayUtil.copyOfSubArray(indices, lastPendingIndex, i);
                 }
-                innerMerge(subIndices, fieldsBuilder, indexResponses[lastPendingIndex]);
+                innerMerge(subIndices, fieldsBuilder, indexResponses[lastPendingIndex], minTransportVersion.get());
                 lastPendingIndex = i;
             }
         }
@@ -806,7 +806,23 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 } else {
                     diff = null;
                 }
-                return new FieldCapabilities(field, "unmapped", false, false, false, false, null, diff, null, null, null, null, Map.of());
+                return new FieldCapabilities(
+                    field,
+                    "unmapped",
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    null,
+                    diff,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    Map.of()
+                );
             };
         }
         return null;
@@ -824,7 +840,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private static void innerMerge(
         String[] indices,
         Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
-        FieldCapabilitiesIndexResponse response
+        FieldCapabilitiesIndexResponse response,
+        TransportVersion minTransportVersion
     ) {
         Map<String, IndexFieldCapabilities> fields = response.get();
         for (Map.Entry<String, IndexFieldCapabilities> entry : fields.entrySet()) {
@@ -832,11 +849,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             final IndexFieldCapabilities fieldCap = entry.getValue();
             Map<String, FieldCapabilities.Builder> typeMap = responseMapBuilder.computeIfAbsent(field, f -> new HashMap<>());
             FieldCapabilities.Builder builder = typeMap.computeIfAbsent(fieldCap.type(), key -> new FieldCapabilities.Builder(field, key));
+            builder.setMinTransportVersion(minTransportVersion);
             builder.add(
                 indices,
                 fieldCap.isMetadatafield(),
                 fieldCap.isSearchable(),
                 fieldCap.isAggregatable(),
+                fieldCap.isInference(),
                 fieldCap.isDimension(),
                 fieldCap.metricType(),
                 fieldCap.meta()

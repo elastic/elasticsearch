@@ -39,15 +39,15 @@ public final class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocVal
 
     private final BytesRef term;
 
-    public ScanningBinaryDocValuesTermQuery(String fieldName, BytesRef term) {
-        super(fieldName, term::equals);
+    public ScanningBinaryDocValuesTermQuery(String fieldName, BytesRef term, boolean arrayOrderInlineNull) {
+        super(fieldName, term::equals, arrayOrderInlineNull);
         this.term = Objects.requireNonNull(term);
     }
 
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
         if (term.length == 0) {
-            return new BinaryDocValuesLengthQuery(fieldName, 0);
+            return new BinaryDocValuesLengthQuery(fieldName, 0, arrayOrderInlineNull);
         }
         return this;
     }

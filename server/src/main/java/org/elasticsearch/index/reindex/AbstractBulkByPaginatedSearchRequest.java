@@ -11,7 +11,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -36,7 +36,7 @@ import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 
 public abstract class AbstractBulkByPaginatedSearchRequest<Self extends AbstractBulkByPaginatedSearchRequest<Self>> extends
-    LegacyActionRequest {
+    UntypedActionRequest {
 
     public static final int MAX_DOCS_ALL_MATCHES = -1;
     public static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);

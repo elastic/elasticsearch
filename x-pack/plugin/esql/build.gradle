@@ -5,6 +5,8 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.OS
+
 import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 plugins {
@@ -190,6 +192,15 @@ tasks.named("internalClusterTest").configure {
   // Data sources require the project encryption key feature (EsqlPlugin fails fast otherwise); pair the flags.
   systemProperty 'es.project_encryption_key_feature_flag_enabled', 'true'
   systemProperty 'esql.kibana.docs.dir', "${rootDir}/docs/reference/query-languages/esql/kibana/generated"
+
+  // The IP_LOCATION csv-spec tests load geoip databases, which are memory-mapped by default.
+  // Windows cannot delete a memory-mapped file, so the per-suite temp directory cleanup fails there
+  // unless the databases are loaded on heap instead. Mirrors :modules:ip-location and
+  // :modules:ingest-ip-location.
+  // See https://github.com/maxmind/MaxMind-DB-Reader-java#file-lock-on-windows for more information
+  if (OS.current() == OS.WINDOWS) {
+    systemProperty 'es.geoip.load_db_on_heap', 'true'
+  }
 
   def injected = project.objects.newInstance(Injected)
   File snippetsFolder = file("build/testrun/internalClusterTest/temp/esql/_snippets")

@@ -88,13 +88,19 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testPromqlModifier() {
-        tsdb.error(
-            "PROMQL index=test step=5m (avg(rate(network.bytes_in[5m] offset 5m)))",
-            equalTo("1:37: offset modifiers are not supported at this time [network.bytes_in[5m] offset 5m]")
-        );
+        // Offset modifiers are now supported via a constant time shift; only the `@` modifier remains unsupported.
         tsdb.error(
             "PROMQL index=test step=5m start=0 end=1 (avg(foo @ start()))",
             equalTo("1:46: @ modifiers are not supported at this time [foo @ start()]")
+        );
+    }
+
+    public void testPromqlHeterogeneousOffsetBinaryExpression() {
+        // Both operands are source-backed and get merged into a single time-series aggregate, which cannot carry
+        // two different offsets. `or` (UNION) translates to independent branches and is therefore allowed.
+        tsdb.error(
+            "PROMQL index=test step=5m (network.bytes_in - network.bytes_in offset 1d)",
+            containsString("binary expressions with different offsets are not supported at this time")
         );
     }
 

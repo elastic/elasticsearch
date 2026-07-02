@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 
@@ -32,22 +31,15 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
 
     private static final Logger logger = LogManager.getLogger(ProgressListenableActionFuture.class);
 
-    record PositionAndListener(long position, ActionListener<Long> listener) {}
+    private record PositionAndListener(long position, ActionListener<Long> listener) {}
 
     final long start;
     final long end;
 
     /**
-     * Called on every {@link #onProgress} update, unconditionally. Used by {@link SparseFileTracker#splitRange}
-     * to forward A's byte-level progress to the original completion listener so that its registered listeners
-     * fire promptly rather than waiting for the whole half to complete.
-     */
-    @Nullable
-    private final LongConsumer unconditionalProgressConsumer;
-
-    /**
-     * Called on {@link #onProgress} only when at least one registered listener fires at that update. Used to
-     * advance the {@link SparseFileTracker#complete} pointer lazily (only when someone is actually waiting).
+     * A consumer that accepts progress made by this {@link ProgressListenableActionFuture}. The consumer is called before listeners are
+     * notified of the updated progress value in {@link #onProgress(long)} if the value is less than the actual end. The consumer can be
+     * called with out-of-order progress values.
      */
     @Nullable
     private final LongConsumer progressConsumer;
@@ -65,73 +57,13 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
      * @param progressConsumer  a consumer that accepts the progress made by this {@link ProgressListenableActionFuture}
      */
     ProgressListenableActionFuture(long start, long end, @Nullable LongConsumer progressConsumer) {
-        this(start, end, null, progressConsumer);
-    }
-
-    /**
-     * Creates a {@link ProgressListenableActionFuture} with both an unconditional and a conditional consumer.
-     * Private: only called from {@link #split}.
-     *
-     * @param unconditionalProgressConsumer called on every progress update; may be {@code null}
-     * @param progressConsumer              called only when listeners execute; may be {@code null}
-     */
-    private ProgressListenableActionFuture(
-        long start,
-        long end,
-        @Nullable LongConsumer unconditionalProgressConsumer,
-        @Nullable LongConsumer progressConsumer
-    ) {
         super();
         this.start = start;
         this.end = end;
         this.progress = start;
         this.completed = false;
-        this.unconditionalProgressConsumer = unconditionalProgressConsumer;
         this.progressConsumer = progressConsumer;
         assert invariant();
-    }
-
-    /**
-     * Splits this future at {@code splitPoint}, returning {@code [lowerFuture, upperFuture]} that together drive
-     * this future to completion. Listeners registered on this future receive timely progress notifications:
-     * <ul>
-     *   <li>Lower's byte-level progress is forwarded unconditionally to this future.</li>
-     *   <li>Upper's progress is forwarded once lower has completed.</li>
-     *   <li>When lower completes, this future advances to upper's current progress (at least {@code splitPoint})
-     *       via {@link #onProgressAtLeast}, catching up to any progress upper made while lower was pending.</li>
-     *   <li>When both halves complete, this future completes; on failure the failure propagates.</li>
-     * </ul>
-     */
-    ProgressListenableActionFuture[] split(long splitPoint) {
-        assert start < splitPoint : start + " >= " + splitPoint;
-        assert splitPoint < end : splitPoint + " >= " + end;
-
-        final LongConsumer originalProgressConsumer = this.progressConsumer;
-        final ProgressListenableActionFuture lower = new ProgressListenableActionFuture(
-            start,
-            splitPoint,
-            this::onProgress,
-            originalProgressConsumer
-        );
-        final ProgressListenableActionFuture upper = new ProgressListenableActionFuture(
-            splitPoint,
-            end,
-            p -> { if (lower.isDone()) onProgress(p); },
-            originalProgressConsumer == null ? null : p -> {
-                if (lower.isDone()) originalProgressConsumer.accept(p);
-            }
-        );
-
-        // When lower completes we catch up to wherever upper has already progressed, not just splitPoint.
-        // upper.progress is always < upper.end (onProgress(end) returns early without updating the field),
-        // so passing it to onProgressAtLeast is always within the valid [start+1, end-1] range.
-        lower.addListener(ActionListener.wrap(ignored -> onProgressAtLeast(upper.getProgress()), e -> {}), splitPoint);
-        try (var bothFiredRef = new RefCountingListener(ActionListener.wrap(v -> onResponse(end), this::onFailure))) {
-            lower.addListener(bothFiredRef.acquire(l -> {}), splitPoint);
-            upper.addListener(bothFiredRef.acquire(l -> {}), end);
-        }
-
-        return new ProgressListenableActionFuture[] { lower, upper };
     }
 
     private boolean invariant() {
@@ -147,34 +79,14 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
 
     /**
      * Updates the progress of the current {@link ActionFuture} with the given value, indicating that the range from {@code start}
-     * (inclusive) to {@code progressValue} (exclusive) is available. Fires any listeners whose threshold has been reached.
-     * Calling with {@code progressValue == end} is a no-op; reaching {@code end} is signalled via {@link #onResponse(Long)}.
+     * (inclusive) to {@code progress} (exclusive) is available. Calling this method potentially triggers the execution of one or
+     * more listeners that are waiting for the progress to reach a value lower than the one just updated.
      *
-     * @param progressValue the new progress value; must be strictly greater than the current progress
+     * @param progressValue the new progress value
      */
     public void onProgress(final long progressValue) {
-        doOnProgress(progressValue, true);
-    }
-
-    /**
-     * Like {@link #onProgress(long)} but a no-op if progress has already advanced to or past {@code progressValue}.
-     * Unlike {@link #onProgress}, this method is safe to call concurrently with other progress updates that may
-     * have already advanced past the given value — it simply returns without asserting ordering.
-     */
-    void onProgressAtLeast(final long progressValue) {
-        assert progressValue < end;
-        doOnProgress(progressValue, false);
-    }
-
-    /**
-     * Shared implementation for {@link #onProgress} and {@link #onProgressAtLeast}.
-     *
-     * @param strict if {@code true} the current progress must be strictly less than {@code progressValue} (normal
-     *               {@link #onProgress} contract); if {@code false} the method is a no-op when progress has already
-     *               advanced to or past {@code progressValue}, without asserting ordering.
-     */
-    private void doOnProgress(final long progressValue, final boolean strict) {
         ensureNotCompleted();
+
         if (progressValue <= start) {
             assert false : progressValue + " <= " + start;
             throw new IllegalArgumentException("Cannot update progress with a value less than [start=" + start + ']');
@@ -189,11 +101,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
 
         List<ActionListener<Long>> listenersToExecute = null;
         synchronized (this) {
-            if (strict) {
-                assert this.progress < progressValue : this.progress + " < " + progressValue;
-            } else if (this.progress >= progressValue) {
-                return;
-            }
+            assert this.progress < progressValue : this.progress + " < " + progressValue;
             this.progress = progressValue;
 
             final List<PositionAndListener> listenersCopy = this.listeners;
@@ -214,9 +122,6 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
                 }
                 this.listeners = listenersToKeep;
             }
-        }
-        if (unconditionalProgressConsumer != null) {
-            safeAcceptProgress(unconditionalProgressConsumer, progressValue);
         }
         if (listenersToExecute != null) {
             if (progressConsumer != null) {
@@ -265,10 +170,6 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             listenersToExecute.forEach(listener -> executeListener(listener.listener(), this::actionResult));
         }
         assert invariant();
-    }
-
-    private synchronized long getProgress() {
-        return progress;
     }
 
     /**

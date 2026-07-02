@@ -89,6 +89,15 @@ public class Driver implements Releasable, Describable {
 
     private final AtomicReference<String> cancelReason = new AtomicReference<>();
     private final AtomicBoolean started = new AtomicBoolean();
+    /**
+     * Flips to {@code true} when the driver should stop pulling new pages and wind down cleanly,
+     * surfacing whatever it has already produced. The driver loop polls this flag through
+     * {@link DriverContext#checkForEarlyTermination()} and throws {@link DriverEarlyTerminationException},
+     * which the loop treats as clean completion. Set by the existing exchange-sink-closed path
+     * (LIMIT / coordinator-driven STOP for distributed plans) and by {@link #finishEarly()} for plans
+     * with no exchange-sink path (e.g. coordinator-only EXTERNAL reads).
+     */
+    private final AtomicBoolean earlyFinished = new AtomicBoolean();
     private final SubscribableListener<Void> completionListener = new SubscribableListener<>();
     private final DriverScheduler scheduler = new DriverScheduler();
     /** Reusable list to collect blocked results, avoiding new allocation on every driver loop. */
@@ -458,24 +467,48 @@ public class Driver implements Releasable, Describable {
         // 1. When the query accumulates sufficient data (e.g., reaching the LIMIT).
         // 2. When users abort the query but want to retain the current result.
         // This allows the Driver to finish early without waiting for the scheduled task.
-        final AtomicBoolean earlyFinished = new AtomicBoolean();
         driver.driverContext.initializeEarlyTerminationChecker(() -> {
             final String reason = driver.cancelReason.get();
             if (reason != null) {
                 throw new TaskCancelledException(reason);
             }
-            if (earlyFinished.get()) {
+            if (driver.earlyFinished.get()) {
                 throw new DriverEarlyTerminationException("Exchange sink is closed");
             }
         });
         if (driver.activeOperators.isEmpty() == false) {
             if (driver.activeOperators.getLast() instanceof ExchangeSinkOperator sinkOperator) {
-                sinkOperator.addCompletionListener(ActionListener.running(() -> {
-                    earlyFinished.set(true);
-                    driver.scheduler.runPendingTasks();
-                }));
+                sinkOperator.addCompletionListener(ActionListener.running(driver::finishEarly));
             }
         }
+    }
+
+    /**
+     * Requests that this driver wind down at its next iteration by treating the operator chain as if
+     * its sink had closed. Existing callers wire this to {@link ExchangeSinkOperator} completion, so
+     * we keep its semantics narrow — the early-termination checker throws
+     * {@link DriverEarlyTerminationException} and operator teardown discards anything that has not
+     * already crossed the sink. Source operators that want STOP to drain in-flight pages rather than
+     * drop them should register a {@link #runStopHooks() stop hook} instead.
+     */
+    public boolean finishEarly() {
+        if (earlyFinished.compareAndSet(false, true)) {
+            scheduler.runPendingTasks();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Fires any non-destructive stop hooks operators registered on this driver's {@link DriverContext}.
+     * Operators use this to interrupt their <em>input side</em> (e.g. close a buffer's producer) while
+     * leaving already-buffered pages reachable to the driver loop, so the response contains every row
+     * the source had already produced when STOP arrived. Returns {@code true} when at least one hook
+     * reported it cut a still-running unit of work, which the async stop action uses as an honest
+     * signal to flag {@code is_partial=true}.
+     */
+    public boolean runStopHooks() {
+        return driverContext.runStopHooks();
     }
 
     protected void drainAndCloseOperators(@Nullable Exception e) {

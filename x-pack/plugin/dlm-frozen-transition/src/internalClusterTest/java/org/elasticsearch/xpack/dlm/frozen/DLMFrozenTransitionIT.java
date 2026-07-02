@@ -506,7 +506,7 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
 
             // --- Wait for the frozen transition to complete ---
             awaitClusterState(state -> {
-                var project = state.metadata().getProject();
+                var project = state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
                 DataStream dataStream = project.dataStreams().get(DATA_STREAM_NAME);
                 return dataStream != null
                     && dataStream.getIndices().stream().anyMatch(idx -> idx.getName().equals(expectedFrozenIndexName))
@@ -518,7 +518,7 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
 
             // --- Capture the exact snapshot backing the mounted frozen index ---
             ClusterStateResponse afterTransition = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
-            var projectMetadata = afterTransition.getState().metadata().getProject();
+            var projectMetadata = afterTransition.getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
             IndexMetadata frozenMeta = projectMetadata.index(expectedFrozenIndexName);
             assertThat("Frozen index [" + expectedFrozenIndexName + "] should exist", frozenMeta, notNullValue());
             String backingSnapshotUuid = frozenMeta.getSettings()
@@ -576,7 +576,7 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
             );
 
             ClusterStateResponse afterCleanup = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
-            var projectMetadataAfterCleanup = afterCleanup.getState().metadata().getProject();
+            var projectMetadataAfterCleanup = afterCleanup.getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
             assertThat(
                 "Mounted frozen index should still exist",
                 projectMetadataAfterCleanup.index(expectedFrozenIndexName),

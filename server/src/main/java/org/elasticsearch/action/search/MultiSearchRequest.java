@@ -12,7 +12,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -53,7 +53,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
 /**
  * A multi search API request.
  */
-public class MultiSearchRequest extends LegacyActionRequest implements CompositeIndicesRequest {
+public class MultiSearchRequest extends UntypedActionRequest implements CompositeIndicesRequest {
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
     private static final String ROUTING_AND_SLICE_COMBINATION_ERROR =
         "[routing] and [_slice] cannot be combined in the same _msearch request";

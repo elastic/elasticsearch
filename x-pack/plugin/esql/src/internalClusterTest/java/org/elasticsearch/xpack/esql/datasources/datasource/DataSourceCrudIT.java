@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
@@ -78,7 +77,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateDataSource.class, TestEncryptionServicePlugin.class);
+        return List.of(TestEncryptionServicePlugin.class, LocalStateDataSource.class);
     }
 
     public void testFullLifecycle() throws Exception {
@@ -146,8 +145,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         // Proves: PUT encrypts → cluster state holds an EncryptedData carrier → projection forwards it by
         // reference → consumer decrypts back to the canary. Forwarding the carrier as-is is exactly what
         // DatasetRewriter.mergeSettings produces for an encrypted secret.
-        DataSourceCredentials credentials = new DataSourceCredentials();
-        credentials.setEncryptionService(new EncryptionService() {
+        DataSourceCredentials credentials = new DataSourceCredentials(new EncryptionService() {
             @Override
             public EncryptedData encrypt(byte[] bytes) {
                 return new EncryptedData(TestEncryptionServicePlugin.TEST_KEY_ID, bytes);
@@ -700,7 +698,10 @@ public class DataSourceCrudIT extends ESIntegTestCase {
             ExecutionException.class,
             () -> client().execute(GetDatasetAction.INSTANCE, getDatasetRequest(name)).get()
         );
-        assertThat(err.getCause(), instanceOf(IndexNotFoundException.class));
+        // GET resolves the name and translates a non-dataset/missing name to a clean dataset-shaped not-found,
+        // matching expectDataSourceMissing — never a raw IndexNotFoundException.
+        assertThat(err.getCause(), instanceOf(ResourceNotFoundException.class));
+        assertThat(err.getCause().getMessage(), containsString("dataset [" + name + "] not found"));
     }
 
     private static boolean isActionSuccess(ActionFuture<AcknowledgedResponse> fut) {

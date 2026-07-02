@@ -2344,6 +2344,12 @@ public class EsqlCapabilities {
         PROMQL_ABSENT_LABEL_MATCHING,
 
         /**
+         * Support for the PromQL {@code offset} modifier, implemented as a constant time shift of the evaluation
+         * timestamp. Heterogeneous offsets within a single source-backed binary operator remain unsupported.
+         */
+        PROMQL_OFFSET_MODIFIER(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results
          * into one multi-valued row per series.
          */
@@ -3263,6 +3269,13 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/151540
          */
         FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING,
+
+        /**
+         * Support LAST and LATEST aggregation on the same extended field types as FIRST and EARLIEST
+         * (version, unsigned_long, spatial, spatial-grid, dense_vector, exponential_histogram, tdigest,
+         * flattened).
+         */
+        LAST_AGG_EXTENDED_TYPES,
 
         /**
          * An empty list passed as a query parameter (named or positional) is treated as null

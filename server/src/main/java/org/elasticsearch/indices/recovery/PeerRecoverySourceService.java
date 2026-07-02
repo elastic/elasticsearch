@@ -213,17 +213,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             );
             throw new DelayRecoveryException("source shard is not marked yet as relocating to [" + request.targetNode() + "]");
         }
-
-        final RecoverySourceHandler handler = ongoingRecoveries.addOrEnqueueNewRecovery(request, task, shard, listener);
-        if (handler != null) {
-            logger.trace(
-                "[{}][{}] starting recovery to {}",
-                request.shardId().getIndex().getName(),
-                request.shardId().id(),
-                request.targetNode()
-            );
-            handler.recoverToTarget(ActionListener.runAfter(listener, () -> ongoingRecoveries.onRecoveryComplete(shard, handler)));
-        }
+        ongoingRecoveries.enqueueRecovery(request, task, shard, listener);
     }
 
     private void reestablish(ReestablishRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
@@ -267,36 +257,20 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             return pendingRecoveries.size();
         }
 
-        /// Starts the recovery immediately if a slot is available, otherwise queues it for later.
-        /// Returns the handler to start (non-null) if a slot was available, or null if the request was queued.
-        RecoverySourceHandler addOrEnqueueNewRecovery(
-            StartRecoveryRequest request,
-            Task task,
-            IndexShard shard,
-            ActionListener<RecoveryResponse> listener
-        ) {
-            final RecoverySourceHandler handler;
+        /// Always enqueues first to preserve FIFO ordering across all recoveries.
+        /// Attempts recoveries for pending items (if slots are available) after enqueuing.
+        void enqueueRecovery(StartRecoveryRequest request, Task task, IndexShard shard, ActionListener<RecoveryResponse> listener) {
             synchronized (this) {
                 assert lifecycle.started();
                 ensureNoDuplicateAllocationId(request.targetAllocationId());
-                if (activeRecoveryHandlerCount < maxConcurrentOutgoingRecoveries && pendingRecoveries.isEmpty()) {
-                    handler = addNewRecovery(request, task, shard);
-                    shard.recoveryStats().sourceRecoveryStarted();
-                } else {
-                    // TODO: consider capping the queue depth and rejecting with DelayRecoveryException once exceeded.
-                    final var subscribableListener = new SubscribableListener<RecoveryResponse>();
-                    subscribableListener.addListener(listener);
-                    pendingRecoveries.add(new PendingRecovery(request, task, shard, subscribableListener));
-                    handler = null;
-                    shard.recoveryStats().sourceRecoveryQueued();
-                }
+                // TODO: consider capping the queue depth and rejecting with DelayRecoveryException once exceeded.
+                final var subscribableListener = new SubscribableListener<RecoveryResponse>();
+                subscribableListener.addListener(listener);
+                pendingRecoveries.add(new PendingRecovery(request, task, shard, subscribableListener));
+                shard.recoveryStats().sourceRecoveryQueued();
             }
-            if (handler == null) {
-                schedulingListeners.onRecoveryQueued(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
-            } else {
-                schedulingListeners.onRecoveryStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
-            }
-            return handler;
+            schedulingListeners.onRecoveryQueued(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+            startRecoveriesUpToLimit();
         }
 
         private RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, Task task, IndexShard shard) {
@@ -385,8 +359,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 oldMax = maxConcurrentOutgoingRecoveries;
                 maxConcurrentOutgoingRecoveries = newMax;
             }
-
-            // Release lock because `startRecoveriesUpToLimit` needs to trigger recoveries outside the synchronized block.
             if (oldMax < newMax) {
                 startRecoveriesUpToLimit();
             }
@@ -446,7 +418,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
         }
 
-        synchronized void remove(IndexShard shard, RecoverySourceHandler handler) {
+        private synchronized void remove(IndexShard shard, RecoverySourceHandler handler) {
             final ShardRecoveryContext shardRecoveryContext = activeRecoveries.get(shard);
             assert shardRecoveryContext != null : "Shard was not registered [" + shard + "]";
             final RemoteRecoveryTargetHandler removed = shardRecoveryContext.recoveryHandlers.remove(handler);
@@ -469,7 +441,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
         }
 
-        void cancel(IndexShard shard) {
+        private void cancel(IndexShard shard) {
             final List<PendingRecovery> cancelled;
             synchronized (this) {
                 final ShardRecoveryContext shardRecoveryContext = activeRecoveries.get(shard);
@@ -504,7 +476,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
         }
 
-        void awaitEmpty() {
+        private void awaitEmpty() {
             assert lifecycle.stoppedOrClosed();
             if (isEmpty()) {
                 return;

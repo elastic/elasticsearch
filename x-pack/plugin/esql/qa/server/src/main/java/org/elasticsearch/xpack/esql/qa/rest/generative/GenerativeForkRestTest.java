@@ -49,11 +49,10 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
 
     @Override
     protected void doTest() throws Throwable {
-        // Dataset-backed specs (FROM <dataset>) need a registered dataset, which this cluster does not
-        // provision; skip them here (they are covered by the external-source suites).
-        assumeFalse("dataset-backed spec; covered by the external-source suites", testCase.datasetSources.isEmpty() == false);
         // we add a LIMIT in one of the branches, so we prevent the filter pushdown that would end up removing one of the branches.
-        String query = testCase.query + " | FORK (WHERE true | LIMIT 300) (WHERE true) | LIMIT 300 | WHERE _fork == \"fork1\" | DROP _fork";
+        // Dataset-backed specs (FROM <dataset>) have no index on this cluster; rebuild their EXTERNAL equivalent first.
+        String query = rebuildExternalFromDatasets(testCase.query)
+            + " | FORK (WHERE true | LIMIT 300) (WHERE true) | LIMIT 300 | WHERE _fork == \"fork1\" | DROP _fork";
         doTest(query);
     }
 

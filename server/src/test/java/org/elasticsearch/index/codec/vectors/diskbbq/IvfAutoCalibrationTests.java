@@ -245,7 +245,8 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             null,
             null,
             null,
-            false
+            false,
+            null
         );
     }
 

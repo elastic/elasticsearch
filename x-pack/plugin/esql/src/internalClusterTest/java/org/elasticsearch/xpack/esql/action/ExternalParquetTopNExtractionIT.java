@@ -15,12 +15,15 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
+import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -29,11 +32,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -80,20 +84,36 @@ import static org.hamcrest.Matchers.greaterThan;
  *         trigger for the local-breaker concurrency assertion.</li>
  * </ul>
  * <p>
- * Pinned to a single data node because {@code FROM <dataset>} queries against {@code file://} URIs are read
+ * Pinned to a single data node because EXTERNAL queries against {@code file://} URIs are read
  * from each data node's local filesystem; with multi-node clusters every node would re-read the
  * same file and the coordinator would get duplicate rows. Real deployments use shared storage
  * (S3/HTTP/etc.) where the coordinator's split-aware planner shards the work, but {@code file://}
  * in-process tests bypass that path.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
-public class ExternalParquetTopNExtractionIT extends AbstractExternalDataSourceIT {
+public class ExternalParquetTopNExtractionIT extends AbstractEsqlIntegTestCase {
 
     private static final TimeValue LONG_TIMEOUT = TimeValue.timeValueMinutes(2);
 
+    /**
+     * Re-enables extension loading that {@link EsqlPluginWithEnterpriseOrTrialLicense} suppresses,
+     * so the Parquet datasource plugin is discovered by this test.
+     */
+    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
+        @Override
+        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
+            super.loadExtensions(loader);
+        }
+    }
+
     @Override
-    protected Collection<Class<? extends Plugin>> formatPlugins() {
-        return List.of(ParquetDataSourcePlugin.class);
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
+        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
+        plugins.add(HttpDataSourcePlugin.class);
+        plugins.add(ParquetDataSourcePlugin.class);
+        return plugins;
     }
 
     @Override
@@ -106,6 +126,8 @@ public class ExternalParquetTopNExtractionIT extends AbstractExternalDataSourceI
      * single full-file extractor is registered for the driver.
      */
     public void testSortLimitSingleRowGroup() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
         int totalRows = 200;
         Path file = writeParquetFile(totalRows, /* rowGroupSize */ totalRows + 1, /* startId */ 0);
         try {
@@ -121,6 +143,8 @@ public class ExternalParquetTopNExtractionIT extends AbstractExternalDataSourceI
      * This is the exact path that produced both production regressions.
      */
     public void testSortLimitMultipleRowGroups() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
         int totalRows = 400;
         Path file = writeParquetFile(totalRows, /* rowGroupSize */ 50, /* startId */ 0);
         try {
@@ -135,11 +159,13 @@ public class ExternalParquetTopNExtractionIT extends AbstractExternalDataSourceI
      * to keep the predicate's column eager and to defer only the unreferenced columns.
      */
     public void testSortLimitWithPushedFilter() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
         int totalRows = 400;
         Path file = writeParquetFile(totalRows, /* rowGroupSize */ 50, /* startId */ 0);
         try {
-            String dataset = registerDataset("topn_extract", StoragePath.fileUri(file), Map.of());
-            String query = "FROM " + dataset + " | WHERE id >= 200 | SORT id ASC | LIMIT 25 | KEEP id, name, value, payload";
+            String uri = StoragePath.fileUri(file);
+            String query = "EXTERNAL \"" + uri + "\" | WHERE id >= 200 | SORT id ASC | LIMIT 25 | KEEP id, name, value, payload";
             assertRowsMatchExpectedRange(query, /* startId */ 200, /* count */ 25);
         } finally {
             Files.deleteIfExists(file);
@@ -152,6 +178,8 @@ public class ExternalParquetTopNExtractionIT extends AbstractExternalDataSourceI
      * (extractor id in the high bits, local position in the low bits) must keep them straight.
      */
     public void testSortLimitMultipleFiles() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
         Path dir = createTempDir();
         Path file1 = writeParquetFileAt(dir.resolve("part-00.parquet"), /* startId */ 0, /* rows */ 200, /* rowGroupSize */ 60);
         Path file2 = writeParquetFileAt(dir.resolve("part-01.parquet"), /* startId */ 200, /* rows */ 200, /* rowGroupSize */ 60);
@@ -171,6 +199,8 @@ public class ExternalParquetTopNExtractionIT extends AbstractExternalDataSourceI
      * 1-element case (off-by-one, empty builder, NPE on the permutation array) is caught here.
      */
     public void testSortLimitOne() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
         int totalRows = 400;
         Path file = writeParquetFile(totalRows, /* rowGroupSize */ 50, /* startId */ 0);
         try {
@@ -187,11 +217,13 @@ public class ExternalParquetTopNExtractionIT extends AbstractExternalDataSourceI
      * implicit "row 0" mapping show up as an extracted name that doesn't match the sort key.
      */
     public void testSortDescending() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
         int totalRows = 200;
         Path file = writeParquetFile(totalRows, /* rowGroupSize */ 50, /* startId */ 0);
         try {
-            String dataset = registerDataset("topn_extract", StoragePath.fileUri(file), Map.of());
-            String query = "FROM " + dataset + " | SORT id DESC | LIMIT 10 | KEEP id, name, value, payload";
+            String uri = StoragePath.fileUri(file);
+            String query = "EXTERNAL \"" + uri + "\" | SORT id DESC | LIMIT 10 | KEEP id, name, value, payload";
             // Lowest-rows helper assumes ASC; build the descending expectation by hand.
             try (var response = run(syncEsqlQueryRequest(query), LONG_TIMEOUT)) {
                 List<List<Object>> rows = getValuesList(response);
@@ -219,6 +251,8 @@ public class ExternalParquetTopNExtractionIT extends AbstractExternalDataSourceI
      * over enough pages to keep the worker rotation realistic.
      */
     public void testSortLimitStressManyRowGroups() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
         int totalRows = 8_000;
         Path file = writeParquetFile(totalRows, /* rowGroupSize */ 200, /* startId */ 0);
         try {
@@ -241,16 +275,18 @@ public class ExternalParquetTopNExtractionIT extends AbstractExternalDataSourceI
      * file. Every returned row must satisfy the predicate.
      */
     public void testSortLimitWithSparsePushedFilter() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
         int totalRows = 400;
         Path file = writeParquetFile(totalRows, /* rowGroupSize */ 50, /* startId */ 0);
         try {
-            String dataset = registerDataset("topn_extract", StoragePath.fileUri(file), Map.of());
+            String uri = StoragePath.fileUri(file);
             // value = id * 10, so value % 50 == 0 picks ids {0, 5, 10, …}. The matching rows are
             // interleaved with non-matching rows in every row group; if the filter is silently
             // dropped, the lowest 25 rows after sort would be ids 0..24 (only 5 of which match).
             // With the filter applied, we must see ids 0, 5, 10, … 120 — every cell satisfying
             // the predicate.
-            String query = "FROM " + dataset + " | WHERE value % 50 == 0 | SORT id ASC | LIMIT 25 | KEEP id, name, value, payload";
+            String query = "EXTERNAL \"" + uri + "\" | WHERE value % 50 == 0 | SORT id ASC | LIMIT 25 | KEEP id, name, value, payload";
             try (var response = run(syncEsqlQueryRequest(query), LONG_TIMEOUT)) {
                 List<List<Object>> rows = getValuesList(response);
                 assertThat("returned row count", rows.size(), equalTo(25));
@@ -280,11 +316,13 @@ public class ExternalParquetTopNExtractionIT extends AbstractExternalDataSourceI
      * validation at planning time, or worse, materialize the wrong cells at runtime.
      */
     public void testSortLimitWhereOnWideColumn() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
         int totalRows = 400;
         Path file = writeParquetFile(totalRows, /* rowGroupSize */ 50, /* startId */ 0);
         try {
-            String dataset = registerDataset("topn_extract", StoragePath.fileUri(file), Map.of());
-            String query = "FROM " + dataset + " | WHERE value >= 1500 | SORT id ASC | LIMIT 25 | KEEP id, name, value, payload";
+            String uri = StoragePath.fileUri(file);
+            String query = "EXTERNAL \"" + uri + "\" | WHERE value >= 1500 | SORT id ASC | LIMIT 25 | KEEP id, name, value, payload";
             // value = id * 10, so value >= 1500 means id >= 150
             assertRowsMatchExpectedRange(query, /* startId */ 150, /* count */ 25);
         } finally {
@@ -301,8 +339,7 @@ public class ExternalParquetTopNExtractionIT extends AbstractExternalDataSourceI
      * mismatched cells.
      */
     private void assertWideTopNReturnsLowestRows(String uri, int limit, int startId) throws IOException {
-        String dataset = registerDataset("topn_extract", uri, Map.of());
-        String query = "FROM " + dataset + " | SORT id ASC | LIMIT " + limit + " | KEEP id, name, value, payload";
+        String query = "EXTERNAL \"" + uri + "\" | SORT id ASC | LIMIT " + limit + " | KEEP id, name, value, payload";
         assertRowsMatchExpectedRange(query, startId, limit);
     }
 
@@ -401,5 +438,48 @@ public class ExternalParquetTopNExtractionIT extends AbstractExternalDataSourceI
 
         Files.write(path, baos.toByteArray());
         return path;
+    }
+
+    private static OutputFile createOutputFile(ByteArrayOutputStream baos) {
+        return new OutputFile() {
+            @Override
+            public PositionOutputStream create(long blockSizeHint) {
+                return new PositionOutputStream() {
+                    private long position = 0;
+
+                    @Override
+                    public long getPos() {
+                        return position;
+                    }
+
+                    @Override
+                    public void write(int b) throws IOException {
+                        baos.write(b);
+                        position++;
+                    }
+
+                    @Override
+                    public void write(byte[] b, int off, int len) throws IOException {
+                        baos.write(b, off, len);
+                        position += len;
+                    }
+                };
+            }
+
+            @Override
+            public PositionOutputStream createOrOverwrite(long blockSizeHint) {
+                return create(blockSizeHint);
+            }
+
+            @Override
+            public boolean supportsBlockSize() {
+                return false;
+            }
+
+            @Override
+            public long defaultBlockSize() {
+                return 0;
+            }
+        };
     }
 }

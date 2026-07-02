@@ -35,10 +35,10 @@ public class LibraryProcessorTests extends ProcessorTestCase {
     }
 
     /**
-     * {@code @Critical} requires a fallback adapter. Missing it is a javac error from the annotation type itself
-     * (no default value).
+     * {@code @Critical} without {@code fallbackAdapter} is valid — the binding uses the critical calling
+     * convention without heap segment support.
      */
-    public void testCriticalWithoutFallbackAdapterFails() {
+    public void testCriticalWithoutFallbackAdapter() throws Exception {
         String source = """
             package test;
             import java.lang.foreign.MemorySegment;
@@ -55,7 +55,37 @@ public class LibraryProcessorTests extends ProcessorTestCase {
 
         CompilationResult result = compile("test.CritLib", source);
 
-        assertFalse("Expected compilation to fail when @Critical has no fallbackAdapter", result.success());
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        Class<?> implClass = result.loadClassNoInit("test.CritLib$Impl");
+        assertNotNull("Generated CritLib$Impl class not found", implClass);
+
+        java.lang.reflect.Field mhField = implClass.getDeclaredField("fn$mh");
+        assertEquals("fn$mh must be a MethodHandle", java.lang.invoke.MethodHandle.class, mhField.getType());
+    }
+
+    /**
+     * {@code @Critical} without {@code fallbackAdapter} using only primitive parameters — the most common
+     * use case for critical calls that never receive heap segments.
+     */
+    public void testCriticalWithoutFallbackAdapterPrimitivesOnly() throws Exception {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.Critical;
+            @LibrarySpecification(name = "testlib")
+            public interface PrimLib {
+                @Function("fast_add")
+                @Critical
+                int add(int a, int b);
+            }
+            """;
+
+        CompilationResult result = compile("test.PrimLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        Class<?> implClass = result.loadClassNoInit("test.PrimLib$Impl");
+        assertNotNull("Generated PrimLib$Impl class not found", implClass);
     }
 
     /**

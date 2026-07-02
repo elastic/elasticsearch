@@ -94,9 +94,21 @@ public record MethodModel(
         boolean isCritical = method.getAnnotation(Critical.class) != null;
         String fallbackAdapter = null;
         if (isCritical) {
-            fallbackAdapter = resolveAndValidateFallbackAdapter(method, paramTypes, returnType, messager, env.getTypeUtils());
-            if (fallbackAdapter == null) {
-                return null;
+            AnnotationMirror criticalMirror = findAnnotationMirror(method, "org.elasticsearch.foreign.Critical");
+            TypeMirror adapterMirror = criticalMirror != null ? annotationClassValue(criticalMirror, "fallbackAdapter") : null;
+            if (adapterMirror != null) {
+                fallbackAdapter = resolveAndValidateFallbackAdapter(
+                    method,
+                    criticalMirror,
+                    adapterMirror,
+                    paramTypes,
+                    returnType,
+                    messager,
+                    env.getTypeUtils()
+                );
+                if (fallbackAdapter == null) {
+                    return null;
+                }
             }
         }
 
@@ -133,28 +145,21 @@ public record MethodModel(
     }
 
     /**
-     * Resolves {@code @Critical.fallbackAdapter()} and verifies the adapter class declares a {@code public static}
-     * method with the same name as {@code method} and a parameter list of {@code (MethodHandle, …originalParams)}
-     * returning the same type as the annotated method. Returns the adapter's fully-qualified name on success,
-     * or {@code null} (with a {@link Kind#ERROR} emitted) on validation failure.
+     * Validates an explicitly-specified {@code @Critical.fallbackAdapter()} class: the adapter must declare a
+     * {@code public static} method with the same name as {@code method} and a parameter list of
+     * {@code (MethodHandle, …originalParams)} returning the same type as the annotated method. Returns the
+     * adapter's fully-qualified name on success, or {@code null} (with a {@link Kind#ERROR} emitted) on
+     * validation failure. Only called when the adapter was explicitly set by the user.
      */
     private static String resolveAndValidateFallbackAdapter(
         ExecutableElement method,
+        AnnotationMirror criticalMirror,
+        TypeMirror adapterMirror,
         List<NativeType> paramTypes,
         NativeType returnType,
         Messager messager,
         Types types
     ) {
-        AnnotationMirror criticalMirror = findAnnotationMirror(method, "org.elasticsearch.foreign.Critical");
-        if (criticalMirror == null) {
-            // Caller checked @Critical is present.
-            return null;
-        }
-        TypeMirror adapterMirror = annotationClassValue(criticalMirror, "fallbackAdapter");
-        if (adapterMirror == null) {
-            messager.printMessage(Kind.ERROR, "@Critical requires fallbackAdapter to be set", method, criticalMirror);
-            return null;
-        }
         TypeElement adapterElement = types.asElement(adapterMirror) instanceof TypeElement te ? te : null;
         if (adapterElement == null) {
             messager.printMessage(Kind.ERROR, "@Critical.fallbackAdapter must reference a class", method, criticalMirror);

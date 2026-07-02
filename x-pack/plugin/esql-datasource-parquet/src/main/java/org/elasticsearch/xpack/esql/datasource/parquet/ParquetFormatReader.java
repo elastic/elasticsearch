@@ -74,9 +74,6 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.math.BigInteger;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -602,13 +599,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     return a;
                 });
                 if (stats.hasNonNullValue()) {
-                    mins.merge(colName, new Comparable[] { (Comparable) normalizeStatValue(stats.genericGetMin()) }, (a, b) -> {
+                    PrimitiveType pt = col.getPrimitiveType();
+                    mins.merge(colName, new Comparable[] { (Comparable) normalizeStatValue(stats.genericGetMin(), pt) }, (a, b) -> {
                         @SuppressWarnings("unchecked")
                         int cmp = a[0].compareTo(b[0]);
                         if (cmp > 0) a[0] = b[0];
                         return a;
                     });
-                    maxs.merge(colName, new Comparable[] { (Comparable) normalizeStatValue(stats.genericGetMax()) }, (a, b) -> {
+                    maxs.merge(colName, new Comparable[] { (Comparable) normalizeStatValue(stats.genericGetMax(), pt) }, (a, b) -> {
                         @SuppressWarnings("unchecked")
                         int cmp = a[0].compareTo(b[0]);
                         if (cmp < 0) a[0] = b[0];
@@ -836,8 +834,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             }
             stats.put(SourceStatisticsSerializer.columnNullCountKey(colName), colStats.getNumNulls());
             if (colStats.hasNonNullValue()) {
-                stats.put(SourceStatisticsSerializer.columnMinKey(colName), normalizeStatValue(colStats.genericGetMin()));
-                stats.put(SourceStatisticsSerializer.columnMaxKey(colName), normalizeStatValue(colStats.genericGetMax()));
+                PrimitiveType pt = col.getPrimitiveType();
+                stats.put(SourceStatisticsSerializer.columnMinKey(colName), normalizeStatValue(colStats.genericGetMin(), pt));
+                stats.put(SourceStatisticsSerializer.columnMaxKey(colName), normalizeStatValue(colStats.genericGetMax(), pt));
             }
         }
         return Map.copyOf(stats);
@@ -845,10 +844,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /**
      * Normalizes Parquet-specific stat values to types that Elasticsearch can serialize.
-     * Parquet {@link Binary} (used for BYTE_ARRAY / string columns) is converted to String;
-     * these must be converted to {@code String} before entering the metadata map.
+     * Temporal types (date32, timestamp, INT96) are decoded to epoch-millis.
+     * Parquet {@link Binary} (used for BYTE_ARRAY / string columns) is converted to String.
      */
-    private static Object normalizeStatValue(Object value) {
+    private static Object normalizeStatValue(Object value, PrimitiveType primitiveType) {
+        Long temporal = ParquetColumnDecoding.decodeTemporalStat(value, primitiveType);
+        if (temporal != null) {
+            return temporal;
+        }
         if (value instanceof Binary binary) {
             return binary.toStringUsingUTF8();
         }
@@ -1799,11 +1802,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return DataType.UNSUPPORTED;
     }
 
-    private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
-    private static final long NANOS_PER_MILLI = 1_000_000L;
-    /** Julian day number for Unix epoch (1970-01-01). */
-    private static final int JULIAN_EPOCH_OFFSET = 2_440_588;
-
     /**
      * When the query plan type cannot be satisfied from this file's Parquet-derived ESQL type (after
      * applying the same widening rules as {@link EsqlDataTypeConverter#commonType}, plus KEYWORD/TEXT
@@ -2186,7 +2184,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                             // TIME_MILLIS: physical INT32, widen to long (raw ms value, no unit conversion)
                             yield readInt32WidenedToLongColumn(cr, info.maxDefLevel(), rowsToRead, true);
                         }
-                        yield readLongColumn(cr, info.maxDefLevel(), rowsToRead, ParquetColumnDecoding.timeNanoMultiplier(time));
+                        yield readLongColumn(cr, info.maxDefLevel(), rowsToRead, ParquetColumnDecoding.timeNanoMultiplier(time), false);
                     }
                     var logicalType = (LogicalTypeAnnotation.IntLogicalTypeAnnotation) info.logicalType();
                     if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
@@ -2198,7 +2196,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                             logicalType == null || logicalType.isSigned()
                         );
                     }
-                    yield readLongColumn(cr, info.maxDefLevel(), rowsToRead, 1L);
+                    // A 64-bit unsigned column maps to UNSIGNED_LONG, which ESQL stores sign-flip-encoded
+                    // (value ^ 2^63) so signed-long ordering matches unsigned ordering. The output edge always
+                    // decodes UNSIGNED_LONG blocks, so the read path must emit the encoded form here.
+                    yield readLongColumn(cr, info.maxDefLevel(), rowsToRead, 1L, info.esqlType() == DataType.UNSIGNED_LONG);
                 }
                 case DOUBLE -> readDoubleColumn(cr, info, rowsToRead);
                 case KEYWORD, TEXT -> {
@@ -2271,7 +2272,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }
 
-        private Block readLongColumn(ColumnReader cr, int maxDef, int rows, long multiplier) {
+        /**
+         * Reads a Parquet INT64 column into a {@code LONG}/{@code UNSIGNED_LONG} block.
+         *
+         * @param multiplier     factor applied to each value, used to normalize Parquet TIME_* units to nanoseconds
+         *                       ({@code 1L} when no conversion is needed).
+         * @param encodeUnsigned when {@code true} the column is an {@code unsigned_long}; each value is sign-flip-encoded
+         *                       ({@code value ^ 2^63}) before landing in the block, mirroring the indexing path so the
+         *                       always-decoding output edge produces the true unsigned value. Mutually exclusive with a
+         *                       non-unit {@code multiplier} (a column is either a TIME type or {@code unsigned_long}).
+         */
+        private Block readLongColumn(ColumnReader cr, int maxDef, int rows, long multiplier, boolean encodeUnsigned) {
             long[] values = UninitializedArrays.newLongArray(rows);
             BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
@@ -2280,7 +2291,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     isNull.set(i);
                     noNulls = false;
                 } else {
-                    values[i] = cr.getLong() * multiplier;
+                    long value = cr.getLong();
+                    values[i] = encodeUnsigned ? ParquetColumnDecoding.encodeUnsignedLong(value) : value * multiplier;
                 }
                 cr.consume();
             }
@@ -2385,20 +2397,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     isNull.set(i);
                     noNulls = false;
                 } else if (isDate) {
-                    values[i] = cr.getInteger() * MILLIS_PER_DAY;
+                    values[i] = ParquetColumnDecoding.dateDaysToMillis(cr.getInteger());
                 } else {
-                    long raw = cr.getLong();
-                    values[i] = ParquetColumnDecoding.convertTimestampToMillis(raw, info.logicalType());
+                    values[i] = ParquetColumnDecoding.convertTimestampToMillis(cr.getLong(), info.logicalType());
                 }
                 cr.consume();
             }
             return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }
 
-        /**
-         * Converts a Parquet INT96 value (12 bytes: 8 bytes nanos-of-day LE + 4 bytes Julian day LE)
-         * to epoch milliseconds.
-         */
         private Block readInt96TimestampColumn(ColumnReader cr, int maxDef, int rows) {
             long[] values = UninitializedArrays.newLongArray(rows);
             BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
@@ -2408,12 +2415,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     isNull.set(i);
                     noNulls = false;
                 } else {
-                    Binary bin = cr.getBinary();
-                    ByteBuffer buf = ByteBuffer.wrap(bin.getBytes()).order(ByteOrder.LITTLE_ENDIAN);
-                    long nanosOfDay = buf.getLong();
-                    int julianDay = buf.getInt();
-                    long epochDay = julianDay - JULIAN_EPOCH_OFFSET;
-                    values[i] = epochDay * MILLIS_PER_DAY + nanosOfDay / NANOS_PER_MILLI;
+                    byte[] bytes = cr.getBinary().getBytes();
+                    values[i] = ParquetColumnDecoding.int96ToEpochMillis(bytes, 0, bytes.length);
                 }
                 cr.consume();
             }

@@ -73,7 +73,7 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
 
         try {
             setRequestBreakerLimit("25%");
-            assertCircuitBreaks(attempt -> fetchMultiSegmentLargeSourceOnlyField(attempt * 25));
+            assertCircuitBreaksVia(attempt -> fetchMultiSegmentLargeSourceOnlyField(attempt * 25), "ValuesSourceReaderOperator");
         } finally {
             setRequestBreakerLimit(null);
         }
@@ -84,7 +84,7 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
 
         try {
             setRequestBreakerLimit("10%");
-            assertCircuitBreaks(attempt -> fetchMetadataSourceWithUnmappedField(attempt * 2));
+            assertCircuitBreaksVia(attempt -> fetchMetadataSourceWithUnmappedField(attempt * 2), "ValuesSourceReaderOperator");
         } finally {
             setRequestBreakerLimit(null);
         }

@@ -122,6 +122,30 @@ public class StripeStatsHarvesterTests extends ESTestCase {
         assertEquals("per-stripe rows must sum to the file's true row count", totalRows, rowSum);
     }
 
+    public void testDoubleExtremumOrdersNegativeZeroBelowPositiveZeroLikeRuntime() {
+        // The runtime Min/MaxDoubleAggregator use Math.min/Math.max, which order -0.0 below +0.0; the
+        // harvested extreme must match bit-for-bit regardless of arrival order. A primitive `<`/`>` compares
+        // -0.0 == +0.0 and cannot cross them, so it would leave whichever arrived first -- a served MIN/MAX
+        // that diverges from a full scan.
+        Attribute[] cols = { new ReferenceAttribute(Source.EMPTY, null, "d", DataType.DOUBLE, Nullability.TRUE, null, false) };
+        for (boolean positiveFirst : new boolean[] { true, false }) {
+            ColumnStatsAccumulator acc = ColumnStatsAccumulator.forProjectedAttributes(cols);
+            acc.acceptValueAt(0, positiveFirst ? 0.0 : -0.0);
+            acc.acceptValueAt(0, positiveFirst ? -0.0 : 0.0);
+            ExternalStats.ColumnStats stats = acc.snapshot().get("d");
+            assertEquals(
+                "MIN must be -0.0 (positiveFirst=" + positiveFirst + ")",
+                Double.doubleToRawLongBits(-0.0),
+                Double.doubleToRawLongBits((Double) stats.min())
+            );
+            assertEquals(
+                "MAX must be +0.0 (positiveFirst=" + positiveFirst + ")",
+                Double.doubleToRawLongBits(0.0),
+                Double.doubleToRawLongBits((Double) stats.max())
+            );
+        }
+    }
+
     public void testStripeSmallerThanRecordSpanTilesDenselyAndSumsExact() {
         // B=16, 10 records 8 bytes each (80 bytes): every ~2 records cross a stripe line.
         List<Frag> frags = emitCover(16, true, 0, 10L * RECORD_BYTES, 0, 10);

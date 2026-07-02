@@ -249,7 +249,10 @@ public final class ExternalSourceAggregatePushdown {
                 value instanceof Boolean b ? b : Booleans.parseBoolean(value.toString()),
                 1
             );
-            case KEYWORD, TEXT -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(value), 1);
+            // IP is harvested as its 16-byte InetAddressPoint encoding (ColumnStatsAccumulator maps
+            // KEYWORD/TEXT/IP -> T_BYTESREF, whose byte-lex order matches IP address order), which is exactly
+            // the representation an ES|QL IP block holds, so it round-trips through a constant BytesRef block.
+            case KEYWORD, TEXT, IP -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(value), 1);
             default -> {
                 if (value instanceof Number n) {
                     yield blockFactory.newConstantLongBlockWith(n.longValue(), 1);

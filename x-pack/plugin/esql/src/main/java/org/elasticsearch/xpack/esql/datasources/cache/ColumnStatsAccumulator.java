@@ -299,14 +299,13 @@ public final class ColumnStatsAccumulator {
                 max = Double.NaN;
                 return;
             }
+            // Use the SAME Math.min/Math.max the runtime Min/MaxDoubleAggregator use so a served extreme is
+            // bit-identical to a full scan's — a primitive `<`/`>` compares -0.0 == 0.0 and could not cross
+            // them, but Math.min/max order -0.0 below +0.0 (and MIN(-0.0, +0.0) must be -0.0).
             Double cur = (Double) min;
-            if (cur == null || val < cur) {
-                min = val;
-            }
+            min = cur == null ? val : Math.min(cur, val);
             Double curMax = (Double) max;
-            if (curMax == null || val > curMax) {
-                max = val;
-            }
+            max = curMax == null ? val : Math.max(curMax, val);
         }
 
         private void updateBytesRef(BytesRef val) {

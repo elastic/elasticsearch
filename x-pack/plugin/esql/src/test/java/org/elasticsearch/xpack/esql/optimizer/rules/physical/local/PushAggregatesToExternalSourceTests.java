@@ -7,12 +7,19 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -75,6 +82,19 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         assertNull(ExternalSourceAggregatePushdown.servableExtremum(3.0e10, DataType.INTEGER)); // double beyond int range
         assertNull(ExternalSourceAggregatePushdown.servableExtremum(5_000_000_000L, DataType.INTEGER)); // LONG beyond int range
         assertNull(ExternalSourceAggregatePushdown.servableExtremum(null, DataType.LONG));
+    }
+
+    public void testBuildBlockServesIpAsEncodedBytesRefNotNull() {
+        // IP is in MIN_MAX_TYPES and harvested as its 16-byte InetAddressPoint encoding. buildBlock must
+        // reconstruct a real IP block from it -- before the IP arm existed it fell to the default and, since
+        // the value is a BytesRef (not a Number), served a null block: a warm MIN/MAX(ip) that answered NULL.
+        BytesRef encoded = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.0.1")));
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        try (Block block = ExternalSourceAggregatePushdown.buildBlock(blockFactory, encoded, DataType.IP)) {
+            assertTrue("IP must build a BytesRefBlock, got " + block.getClass().getSimpleName(), block instanceof BytesRefBlock);
+            assertFalse("MIN/MAX(ip) must serve the encoded address, not a null block", block.isNull(0));
+            assertEquals(encoded, ((BytesRefBlock) block).getBytesRef(0, new BytesRef()));
+        }
     }
 
     // --- SINGLE mode tests ---

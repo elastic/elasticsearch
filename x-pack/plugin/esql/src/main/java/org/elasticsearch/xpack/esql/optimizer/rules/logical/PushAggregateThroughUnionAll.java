@@ -41,19 +41,20 @@ import java.util.Set;
 
 /**
  * Decomposes an {@link Aggregate} whose child is a {@link UnionAll} into per-branch partial
- * aggregates combined by a final merge aggregate. This fires on two branch shapes (see
- * {@link PushDownUtils#canDecomposeAggregateThroughUnionAll}): the direct-leaf shape a
- * heterogeneous {@code FROM} produces ({@code EsRelation}/{@code ExternalRelation}, optionally under a
- * {@code Project}), and the subquery shape ({@code Project? > Eval? > Subquery}, or a bare
- * {@code Subquery}) that {@code FROM idx, (FROM ds | ...)} and views produce. A branch whose
- * sub-pipeline already contains its own pipeline breaker (aggregation, sort, or limit) disqualifies the
- * whole {@code UnionAll} (the rewrite is all-or-nothing because branches must keep a homogeneous
- * output schema), so the aggregation stays on the coordinator.
+ * aggregates combined by a final merge aggregate. It fires whenever no branch contains a pipeline
+ * breaker (see {@link PushDownUtils#canDecomposeAggregateThroughUnionAll}). This covers the direct-leaf
+ * shape a heterogeneous {@code FROM} produces ({@code EsRelation}/{@code ExternalRelation}, optionally
+ * under a {@code Project}), the subquery shape that {@code FROM idx, (FROM ds | ...)} and views produce
+ * ({@code Project? > Eval? > Subquery}, or a bare {@code Subquery}), and any other streaming branch such
+ * as a filtered leaf or a branch containing a lookup join. A branch whose sub-pipeline already contains
+ * its own pipeline breaker (aggregation, sort, or limit) disqualifies the whole {@code UnionAll} (the
+ * rewrite is all-or-nothing because branches must keep a homogeneous output schema), so the aggregation
+ * stays on the coordinator.
  *
  * <p>The per-branch partial aggregate is placed directly on top of each branch (below the
- * {@code UnionAll}). For a subquery branch the physical mapper folds the {@code Project}/{@code Eval}/
- * {@code Subquery} wrappers into the data-node fragment and splits the partial aggregate, so the
- * initial aggregation runs next to the data exactly as it does for the leaf shape.
+ * {@code UnionAll}). The physical mapper folds the branch's streaming wrappers ({@code Project}/
+ * {@code Eval}/{@code Filter}/{@code Subquery}/join) into the data-node fragment and splits the partial
+ * aggregate, so the initial aggregation runs next to the data.
  *
  * <p>Two kinds of aggregate are decomposed, via two combine strategies:
  * <ul>

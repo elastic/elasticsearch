@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -2749,14 +2750,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS d2#10]]
-     *   \_UnionAll[[_meta_field{r}#33, emp_no{r}#34, first_name{r}#35, gender{r}#36, hire_date{r}#37, job{r}#38, job.raw{r}#39,
-     *               languages{r}#40, last_name{r}#41, long_noidx{r}#42, salary{r}#43]]
-     *     |_Project[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20,
-     *                languages{f}#14, last_name{f}#15, long_noidx{f}#21, salary{f}#16]]
+     * \_Aggregate[[],[SUM($$partial$$d2{r$}#44) AS d2#10]]
+     *   \_UnionAll[[$$partial$$d2{r$}#44]]
+     *     |_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$d2#44]]
      *     | \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
-     *     \_Project[[_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, gender{f}#24, hire_date{f}#29, job{f}#30, job.raw{f}#31,
-     *                languages{f}#25, last_name{f}#26, long_noidx{f}#32, salary{f}#27]]
+     *     \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$d2#44]]
      *       \_Subquery[]
      *         \_EsRelation[test][_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, ..]
      */
@@ -2776,20 +2774,26 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertFalse("EVAL feeding the dropped aggregate should have been pruned", plan.anyMatch(p -> p instanceof Eval));
 
         var limit = as(plan, Limit.class);
+        // count(*) is decomposable, so it is pushed through the UnionAll: each branch computes a partial COUNT and the
+        // coordinator combines them with SUM. The now-unused Projects below the partial counts are pruned away.
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.aggregates()), contains("d2"));
-        var count = as(Alias.unwrap(agg.aggregates().get(0)), Count.class);
-        assertTrue("expected count(*)", count.field().foldable());
+        as(Alias.unwrap(agg.aggregates().get(0)), Sum.class);
 
         var unionAll = as(agg.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        var firstChild = as(unionAll.children().get(0), Project.class);
-        var firstRelation = as(firstChild.child(), EsRelation.class);
+        // Branch 1: partial COUNT directly over EsRelation(test)
+        var firstBranchAgg = as(unionAll.children().get(0), Aggregate.class);
+        var firstCount = as(Alias.unwrap(firstBranchAgg.aggregates().get(0)), Count.class);
+        assertTrue("expected count(*)", firstCount.field().foldable());
+        var firstRelation = as(firstBranchAgg.child(), EsRelation.class);
         assertEquals("test", firstRelation.indexPattern());
 
-        var secondChild = as(unionAll.children().get(1), Project.class);
-        var subquery = as(secondChild.child(), Subquery.class);
+        // Branch 2: partial COUNT over Subquery > EsRelation(test)
+        var secondBranchAgg = as(unionAll.children().get(1), Aggregate.class);
+        as(Alias.unwrap(secondBranchAgg.aggregates().get(0)), Count.class);
+        var subquery = as(secondBranchAgg.child(), Subquery.class);
         var secondRelation = as(subquery.child(), EsRelation.class);
         assertEquals("test", secondRelation.indexPattern());
     }

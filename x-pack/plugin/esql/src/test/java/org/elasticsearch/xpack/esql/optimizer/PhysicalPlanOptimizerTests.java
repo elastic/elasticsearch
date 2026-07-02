@@ -3881,17 +3881,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * count(*) is decomposable, so it is pushed through the UnionAll the heterogeneous FROM produces: each branch
+     * computes a partial COUNT next to the data (folded into an {@link EsStatsQueryExec} Lucene count) and the
+     * coordinator combines them with SUM.
      * {@snippet lang="text":
      * LimitExec[1000[INTEGER],8]
-     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#3],SINGLE,[$$count()$count{r}#4, $$count()$
-     * seen{r}#5],8]
-     *   \_MergeExec[[]]
-     *     |_ExchangeExec[[],false]
-     *     | \_ProjectExec[[]]
-     *     |   \_EsQueryExec[no_fields_index], ...]
-     *     \_ExchangeExec[[],false]
-     *       \_ProjectExec[[]]
-     *         \_EsQueryExec[no_fields_index], ...]
+     * \_AggregateExec[[],[SUM($$partial$$count()...)],SINGLE,...]
+     *   \_MergeExec[[$$partial$$count()...]]
+     *     |_AggregateExec[[],[COUNT(*) AS $$partial$$count()],FINAL,...]
+     *     | \_ExchangeExec[...,true]
+     *     |   \_EsStatsQueryExec[no_fields_index], stats[BasicStat[name=*, type=COUNT, query=null]], ...]
+     *     \_AggregateExec[[],[COUNT(*) AS $$partial$$count()],FINAL,...]
+     *       \_ExchangeExec[...,true]
+     *         \_EsStatsQueryExec[no_fields_index], stats[BasicStat[name=*, type=COUNT, query=null]], ...]
      * }
      */
     public void testProjectAwayColumnsWithSubqueryCount() {
@@ -3903,18 +3905,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var plan = optimizedPlan(physicalPlan(query, testData, false));
 
             LimitExec limit = as(plan, LimitExec.class);
-            AggregateExec agg = as(limit.child(), AggregateExec.class);
-            MergeExec merge = as(agg.child(), MergeExec.class);
-            assertEquals(0, merge.output().size());
+            AggregateExec coordAgg = as(limit.child(), AggregateExec.class);
+            MergeExec merge = as(coordAgg.child(), MergeExec.class);
             assertEquals(2, merge.children().size());
 
             for (PhysicalPlan child : merge.children()) {
-                ExchangeExec exchange = as(child, ExchangeExec.class);
-                assertEquals(0, exchange.output().size());
-                ProjectExec project = as(exchange.child(), ProjectExec.class);
-                assertEquals(0, project.projections().size());
-                EsQueryExec esQuery = as(project.child(), EsQueryExec.class);
-                assertEquals("no_fields_index", esQuery.indexPattern());
+                // Each branch computes its own partial count next to the data via a Lucene count; the FINAL half of
+                // the split sits above the exchange on the coordinator.
+                AggregateExec finalAgg = as(child, AggregateExec.class);
+                assertEquals(FINAL, finalAgg.getMode());
+                ExchangeExec exchange = as(finalAgg.child(), ExchangeExec.class);
+                EsStatsQueryExec esStats = as(exchange.child(), EsStatsQueryExec.class);
+                EsStatsQueryExec.BasicStat stat = as(esStats.stat(), EsStatsQueryExec.BasicStat.class);
+                assertEquals(EsStatsQueryExec.StatsType.COUNT, stat.type());
             }
         }
     }

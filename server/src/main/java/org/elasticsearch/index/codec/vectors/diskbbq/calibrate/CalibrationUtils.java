@@ -63,4 +63,13 @@ public final class CalibrationUtils {
             System.arraycopy(preconditionScratch, 0, queryScratch, 0, dimWork);
         }
     }
+
+    /**
+     * Copy {@code src} into {@code scratch} and L2-normalize in place.
+     */
+    public static float[] copyAndNormalize(float[] src, float[] scratch) {
+        System.arraycopy(src, 0, scratch, 0, src.length);
+        ESVectorUtil.l2Normalize(scratch, src.length);
+        return scratch;
+    }
 }

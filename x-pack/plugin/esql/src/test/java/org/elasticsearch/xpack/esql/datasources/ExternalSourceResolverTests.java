@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -57,6 +59,11 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
@@ -2497,6 +2504,244 @@ public class ExternalSourceResolverTests extends ESTestCase {
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, cacheService);
     }
 
+    // ===== Async fan-out tests =====
+
+    /**
+     * The multi-file fan-out must overlap per-file metadata reads up to the configured permit count
+     * even when the resolver executor is a single thread, and must never exceed it. A synchronous /
+     * thread-per-read resolver pinned to one thread could only ever have one read in flight; observing
+     * a max in-flight equal to the permit count therefore proves both the permit bound and that the
+     * pool thread is released across the (simulated) network read.
+     */
+    public void testAsyncFanOutRespectsPermitBoundBeyondResolverThreads() throws Exception {
+        int permits = 4;
+        int fileCount = 40;
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        List<StorageEntry> listing = new java.util.ArrayList<>();
+        List<Attribute> schema = List.of(attr("emp_no", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        for (int i = 0; i < fileCount; i++) {
+            String path = String.format(Locale.ROOT, "s3://bucket/data/file%02d.parquet", i);
+            schemasByPath.put(path, schema);
+            listing.add(entry(path, 100 + i));
+        }
+
+        ExecutorService resolverExecutor = Executors.newSingleThreadExecutor();
+        ExecutorService readPool = Executors.newFixedThreadPool(permits);
+        CountDownLatch gate = new CountDownLatch(1);
+        AsyncStubFormatReader reader = new AsyncStubFormatReader(schemasByPath, readPool, gate, permits, null);
+        try {
+            String glob = "s3://bucket/data/*.parquet";
+            ExternalSourceResolution resolution = resolveWithAsyncReader(glob, schemasByPath, listing, reader, resolverExecutor, permits);
+
+            assertNotNull(resolution.resolvedSource(glob));
+            assertEquals("max in-flight reads must equal the permit count", permits, reader.maxInFlight.get());
+            assertEquals("all files must be read", fileCount, reader.totalReads.get());
+        } finally {
+            resolverExecutor.shutdownNow();
+            readPool.shutdownNow();
+        }
+    }
+
+    /**
+     * A single per-file read failure on the reconciliation path (UNION_BY_NAME) must fail the whole
+     * resolve promptly rather than hang or return a partial result. The failure originates in the
+     * async reader and must surface through the listener-driven gather.
+     */
+    public void testAsyncFanOutFailsFastOnReadError() throws Exception {
+        int fileCount = 12;
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        List<StorageEntry> listing = new java.util.ArrayList<>();
+        List<Attribute> schema = List.of(attr("emp_no", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        String failPath = null;
+        for (int i = 0; i < fileCount; i++) {
+            String path = String.format(Locale.ROOT, "s3://bucket/data/file%02d.parquet", i);
+            schemasByPath.put(path, schema);
+            listing.add(entry(path, 100 + i));
+            if (i == fileCount / 2) {
+                failPath = path;
+            }
+        }
+
+        ExecutorService resolverExecutor = Executors.newSingleThreadExecutor();
+        ExecutorService readPool = Executors.newFixedThreadPool(4);
+        // gate == null: reads complete without a concurrency rendezvous so the fast-fail short-circuit
+        // (which drains the remaining files without issuing reads) cannot deadlock on an unmet barrier.
+        AsyncStubFormatReader reader = new AsyncStubFormatReader(schemasByPath, readPool, null, 0, failPath);
+        try {
+            String glob = "s3://bucket/data/*.parquet";
+            Map<String, Object> config = Map.of("schema_resolution", "union_by_name");
+
+            Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+            StoragePath sp = StoragePath.of(glob);
+            listingsByPrefix.put(sp.patternPrefix().toString(), listing);
+            ExternalSourceResolver resolver = createResolverWithAsyncReader(schemasByPath, listingsByPrefix, reader, resolverExecutor, 4);
+
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), future);
+
+            Exception e = expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+            assertThat(e.getMessage(), containsString("Failed to resolve metadata"));
+        } finally {
+            resolverExecutor.shutdownNow();
+            readPool.shutdownNow();
+        }
+    }
+
+    private ExternalSourceResolution resolveWithAsyncReader(
+        String glob,
+        Map<String, List<Attribute>> schemasByPath,
+        List<StorageEntry> listing,
+        FormatReader reader,
+        Executor resolverExecutor,
+        int permits
+    ) {
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        StoragePath sp = StoragePath.of(glob);
+        listingsByPrefix.put(sp.patternPrefix().toString(), listing);
+        ExternalSourceResolver resolver = createResolverWithAsyncReader(schemasByPath, listingsByPrefix, reader, resolverExecutor, permits);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>()), future);
+        return future.actionGet(30, TimeUnit.SECONDS);
+    }
+
+    private ExternalSourceResolver createResolverWithAsyncReader(
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        FormatReader formatReader,
+        Executor resolverExecutor,
+        int permits
+    ) {
+        StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("parquet", ".parquet"));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of("parquet", (s, bf) -> formatReader);
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(),
+            () -> false
+        );
+        return new ExternalSourceResolver(resolverExecutor, module, Settings.EMPTY, null, permits);
+    }
+
+    /**
+     * A {@link FormatReader} whose {@link #metadataAsync} completes on a dedicated read pool (never on
+     * the resolver executor passed to it), simulating a non-blocking footer read. It records the peak
+     * number of concurrently in-flight reads. When a {@code gate} is supplied, each read blocks on it
+     * until {@code permits} reads are concurrently in flight (the gate is released by the read that
+     * first observes that level), which makes the observed peak deterministic; when {@code gate} is
+     * {@code null} reads complete without rendezvous. A configured {@code failPath} fails that file's
+     * read with an {@link IOException}.
+     */
+    private static class AsyncStubFormatReader implements NoConfigFormatReader {
+        private final Map<String, List<Attribute>> schemasByPath;
+        private final ExecutorService readPool;
+        private final CountDownLatch gate;
+        private final int permits;
+        private final String failPath;
+        final AtomicInteger inFlight = new AtomicInteger();
+        final AtomicInteger maxInFlight = new AtomicInteger();
+        final AtomicInteger totalReads = new AtomicInteger();
+
+        AsyncStubFormatReader(
+            Map<String, List<Attribute>> schemasByPath,
+            ExecutorService readPool,
+            CountDownLatch gate,
+            int permits,
+            String failPath
+        ) {
+            this.schemasByPath = schemasByPath;
+            this.readPool = readPool;
+            this.gate = gate;
+            this.permits = permits;
+            this.failPath = failPath;
+        }
+
+        @Override
+        public void metadataAsync(StorageObject object, Executor executor, ActionListener<SourceMetadata> listener) {
+            readPool.execute(() -> {
+                String path = object.path().toString();
+                if (path.equals(failPath)) {
+                    listener.onFailure(new IOException("simulated read failure for " + path));
+                    return;
+                }
+                try {
+                    int cur = inFlight.incrementAndGet();
+                    maxInFlight.accumulateAndGet(cur, Math::max);
+                    totalReads.incrementAndGet();
+                    if (gate != null) {
+                        if (cur >= permits) {
+                            gate.countDown();
+                        }
+                        gate.await(30, TimeUnit.SECONDS);
+                    }
+                    inFlight.decrementAndGet();
+                    listener.onResponse(metadata(object));
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            String path = object.path().toString();
+            List<Attribute> schema = schemasByPath.get(path);
+            if (schema == null) {
+                throw new IllegalArgumentException("No schema configured for path: " + path);
+            }
+            return new StubSourceMetadata(path, schema);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String formatName() {
+            return "parquet";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public void close() {}
+    }
+
     // ===== Stub implementations =====
 
     private static class StubFormatReader implements NoConfigFormatReader {
@@ -2792,11 +3037,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         @Override
         public StorageObject newObject(StoragePath path, long length) {
+            // Listing-hinted construction is a schema-object creation too (the async multi-file path
+            // now builds the object from listing length/mtime instead of a bare newObject + exists()).
+            schemaCallCount.incrementAndGet();
             return delegate.newObject(path, length);
         }
 
         @Override
         public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            schemaCallCount.incrementAndGet();
             return delegate.newObject(path, length, lastModified);
         }
 

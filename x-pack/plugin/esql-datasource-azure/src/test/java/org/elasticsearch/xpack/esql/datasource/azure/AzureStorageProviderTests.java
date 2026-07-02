@@ -266,6 +266,23 @@ public class AzureStorageProviderTests extends ESTestCase {
             // The issuer fails the assertion, so resolution short-circuits before any Azure AD token exchange.
             TokenRequestContext request = new TokenRequestContext().addScopes("https://storage.azure.com/.default");
             expectThrows(CredentialUnavailableException.class, () -> credential.getToken(request).block());
+            assertEquals("overridden-audience", issuer.requestedAudience);
+        } finally {
+            WorkloadIdentityRegistry.reset();
+        }
+    }
+
+    public void testBuildClientAssertionCredentialRequestsDefaultAudienceWhenOmitted() {
+        RecordingIssuerClient issuer = new RecordingIssuerClient(true, false);
+        WorkloadIdentityRegistry.setIssuerClient(issuer);
+        try {
+            TokenCredential credential = AzureStorageProvider.buildClientAssertionCredential(
+                AzureConfiguration.fromMap(Map.of("tenant_id", "test-tenant-id", "client_id", "test-client-id")),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
+            // The issuer fails the assertion, so resolution short-circuits before any Azure AD token exchange.
+            TokenRequestContext request = new TokenRequestContext().addScopes("https://storage.azure.com/.default");
+            expectThrows(CredentialUnavailableException.class, () -> credential.getToken(request).block());
             assertEquals("api://AzureADTokenExchange", issuer.requestedAudience);
         } finally {
             WorkloadIdentityRegistry.reset();
@@ -274,7 +291,7 @@ public class AzureStorageProviderTests extends ESTestCase {
 
     private static AzureConfiguration keylessConfig() {
         return AzureConfiguration.fromMap(
-            Map.of("tenant_id", "test-tenant-id", "client_id", "test-client-id", "jwt_audience", "api://AzureADTokenExchange")
+            Map.of("tenant_id", "test-tenant-id", "client_id", "test-client-id", "jwt_audience", "overridden-audience")
         );
     }
 

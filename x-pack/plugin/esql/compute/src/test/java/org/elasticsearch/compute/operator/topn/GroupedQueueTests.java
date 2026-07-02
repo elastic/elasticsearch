@@ -64,6 +64,25 @@ public class GroupedQueueTests extends ESTestCase {
         }
     }
 
+    public void testPopAllWithoutSort() {
+        try (GroupedQueue queue = new GroupedQueue(breaker, bigArrays, 5)) {
+            addRows(queue, 0, 30, 10, 50);
+            addRows(queue, 1, 20, 40);
+            addRows(queue, 2, 15, 25, 35);
+            assertThat(queue.size(), equalTo(8));
+            List<TopNRow> actual = queue.popAll(false);
+            assertThat(actual.size(), equalTo(8));
+            List<Integer> sortKeys = actual.stream().map(this::sortKey).sorted().toList();
+            assertThat(sortKeys, equalTo(List.of(10, 15, 20, 25, 30, 35, 40, 50)));
+            Releasables.close(actual);
+        }
+    }
+
+    private int sortKey(TopNRow row) {
+        BytesRef keys = row.keys.bytesRefView();
+        return TopNEncoder.DEFAULT_SORTABLE.decodeInt(new BytesRef(keys.bytes, keys.offset + 1, keys.length - 1));
+    }
+
     private TopNRow createRow(CircuitBreaker breaker, int sortKey) {
         IntBlock groupKeyBlock = blockFactory.newIntBlockBuilder(1).appendInt(0).build();
         IntBlock keyBlock = blockFactory.newIntBlockBuilder(1).appendInt(sortKey).build();
@@ -100,7 +119,7 @@ public class GroupedQueueTests extends ESTestCase {
 
     private void assertQueueContents(GroupedQueue queue, List<Integer> expectedSortKeys) {
         assertThat(queue.size(), equalTo(expectedSortKeys.size()));
-        List<TopNRow> actual = queue.popAll();
+        List<TopNRow> actual = queue.popAll(true);
         for (int i = 0; i < expectedSortKeys.size(); i++) {
             int sortKey = expectedSortKeys.get(i);
             assertRowValues(actual.get(i), sortKey, sortKey * 2);

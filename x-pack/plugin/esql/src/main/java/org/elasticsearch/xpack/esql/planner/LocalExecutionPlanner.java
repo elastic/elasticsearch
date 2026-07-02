@@ -1061,7 +1061,8 @@ public class LocalExecutionPlanner {
                 common.orders,
                 groupKeys,
                 context.pageSize(topNByExec, rowSize),
-                context.plannerSettings.valuesLoadingJumboSize().getBytes()
+                context.plannerSettings.valuesLoadingJumboSize().getBytes(),
+                topNByExec.sortOutput()
             ),
             source.layout
         );

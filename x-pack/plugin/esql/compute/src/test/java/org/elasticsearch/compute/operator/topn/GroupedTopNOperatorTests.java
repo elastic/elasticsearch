@@ -149,7 +149,8 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             List.of(new SortOrder(0, true, false)),
             List.of(1),
             pageSize,
-            Long.MAX_VALUE
+            Long.MAX_VALUE,
+            true
         );
     }
 
@@ -221,6 +222,81 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
         // 3 groups, each with 1 value, ordered ASC: [1, 3, 4]
         assertThat(actual.get(0), equalTo(List.of(1, 3, 4)));
         assertThat(actual.get(1), equalTo(List.of(0, 1, 2)));
+    }
+
+    public void testUnsortedOutputPreservesPerGroupTopK() {
+        List<ElementType> elementTypes = List.of(ElementType.INT, ElementType.INT);
+        List<TopNEncoder> encoders = List.of(TopNEncoder.DEFAULT_SORTABLE, DEFAULT_UNSORTABLE);
+        List<SortOrder> sortOrders = List.of(new SortOrder(0, true, false));
+
+        BlockFactory bf = driverContext().blockFactory();
+        List<List<Object>> rows = List.of(List.of(200, 0), List.of(100, 0), List.of(20, 1), List.of(10, 1));
+
+        List<List<Object>> actual = runGroupedTopN(
+            List.of(new Page(BlockUtils.fromList(bf, rows))),
+            2,
+            elementTypes,
+            encoders,
+            sortOrders,
+            new int[] { 1 },
+            false
+        );
+        Comparator<List<Object>> comparator = comparatorFromSortOrders(sortOrders);
+        assertThat(isSorted(actual, comparator), equalTo(false));
+
+        List<List<Object>> expected = runGroupedTopN(
+            List.of(new Page(BlockUtils.fromList(bf, rows))),
+            2,
+            elementTypes,
+            encoders,
+            sortOrders,
+            new int[] { 1 },
+            true
+        );
+        assertThat(rowSignatures(actual), equalTo(rowSignatures(expected)));
+    }
+
+    private static List<List<Object>> rowSignatures(List<List<Object>> columns) {
+        int rowCount = columns.get(0).size();
+        return IntStream.range(0, rowCount)
+            .mapToObj(i -> columns.stream().map(column -> column.get(i)).toList())
+            .sorted(Comparator.<List<Object>>comparingInt(row -> (Integer) row.get(0)).thenComparingInt(row -> (Integer) row.get(1)))
+            .toList();
+    }
+
+    public void testTwoPhaseMergeWithUnsortedPartialOutput() {
+        List<ElementType> elementTypes = List.of(ElementType.INT, ElementType.INT);
+        List<TopNEncoder> encoders = List.of(TopNEncoder.DEFAULT_SORTABLE, DEFAULT_UNSORTABLE);
+        List<SortOrder> sortOrders = List.of(new SortOrder(0, true, false));
+
+        BlockFactory bf = driverContext().blockFactory();
+        List<List<Object>> shard1Rows = List.of(List.of(30, 0), List.of(10, 0), List.of(50, 1));
+        List<List<Object>> shard2Rows = List.of(List.of(20, 0), List.of(40, 1), List.of(5, 1));
+        // Simulate unsorted partial top-K pages from two data nodes.
+        Page partial1 = new Page(BlockUtils.fromList(bf, List.of(List.of(30, 0), List.of(10, 0), List.of(50, 1))));
+        Page partial2 = new Page(BlockUtils.fromList(bf, List.of(List.of(40, 1), List.of(5, 1), List.of(20, 0))));
+
+        List<List<Object>> merged = runGroupedTopN(
+            List.of(partial1, partial2),
+            2,
+            elementTypes,
+            encoders,
+            sortOrders,
+            new int[] { 1 },
+            true
+        );
+        List<List<Object>> expected = runGroupedTopN(
+            List.of(new Page(BlockUtils.fromList(bf, shard1Rows)), new Page(BlockUtils.fromList(bf, shard2Rows))),
+            2,
+            elementTypes,
+            encoders,
+            sortOrders,
+            new int[] { 1 },
+            true
+        );
+
+        assertThat(merged.get(0), equalTo(expected.get(0)));
+        assertThat(merged.get(1), equalTo(expected.get(1)));
     }
 
     public void testMultivalueGroupKey() {
@@ -392,7 +468,8 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                         )
                     ),
                     rows,
-                    Long.MAX_VALUE
+                    Long.MAX_VALUE,
+                    true
                 )
             );
         List<List<Object>> actualValues = new ArrayList<>();
@@ -439,6 +516,18 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
         List<SortOrder> sortOrders,
         int[] groupKeys
     ) {
+        return runGroupedTopN(pages, topCount, elementTypes, encoders, sortOrders, groupKeys, true);
+    }
+
+    private List<List<Object>> runGroupedTopN(
+        List<Page> pages,
+        int topCount,
+        List<ElementType> elementTypes,
+        List<TopNEncoder> encoders,
+        List<SortOrder> sortOrders,
+        int[] groupKeys,
+        boolean sortOutput
+    ) {
         DriverContext driverContext = driverContext();
         List<List<Object>> actual = new ArrayList<>();
         try (
@@ -464,7 +553,8 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                             )
                         ),
                         randomPageSize(),
-                        Long.MAX_VALUE
+                        Long.MAX_VALUE,
+                        sortOutput
                     )
                 ),
                 new PageConsumerOperator(p -> readInto(actual, p))

@@ -67,10 +67,11 @@ class GroupedQueue implements Accountable, Releasable {
 
     /**
      * Removes and returns all rows from all per-group queues.
+     * When {@code sortOutput} is {@code true}, rows are sorted by sort key across all groups.
      * For an ascending order, the first element will be the min element (or last in the
      * priority queue), and vice versa.
      */
-    List<TopNRow> popAll() {
+    List<TopNRow> popAll(boolean sortOutput) {
         List<TopNRow> allRows = new ArrayList<>(size());
         for (long i = 0; i < queues.size(); i++) {
             TopNQueue queue = queues.get(i);
@@ -80,7 +81,9 @@ class GroupedQueue implements Accountable, Releasable {
                 queues.set(i, null);
             }
         }
-        allRows.sort((r1, r2) -> -r1.compareTo(r2));
+        if (sortOutput) {
+            allRows.sort((r1, r2) -> -r1.compareTo(r2));
+        }
         return allRows;
     }
 

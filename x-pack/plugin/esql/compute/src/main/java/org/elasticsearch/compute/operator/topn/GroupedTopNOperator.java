@@ -52,7 +52,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
         List<TopNOperator.SortOrder> sortOrders,
         List<Integer> groupKeys,
         int maxPageSize,
-        long jumboPageBytes
+        long jumboPageBytes,
+        boolean sortOutput
     ) implements OperatorFactory {
         public GroupedTopNOperatorFactory {
             for (ElementType e : elementTypes) {
@@ -84,7 +85,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
                 sortOrders,
                 keyEncoder,
                 maxPageSize,
-                jumboPageBytes
+                jumboPageBytes,
+                sortOutput
             );
         }
 
@@ -114,6 +116,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
     private final List<TopNOperator.SortOrder> sortOrders;
     private final boolean[] channelInKey;
     private final GroupKeyEncoder keyEncoder;
+    private final boolean sortOutput;
 
     private BytesRefHashTable keysHash;
     private GroupedQueue inputQueue;
@@ -137,7 +140,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
         List<TopNOperator.SortOrder> sortOrders,
         GroupKeyEncoder keyEncoder,
         int maxPageSize,
-        long jumboPageBytes
+        long jumboPageBytes,
+        boolean sortOutput
     ) {
         BytesRefHashTable keysHash = null;
         GroupedQueue inputQueue = null;
@@ -152,6 +156,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             }
         }
         this.keyEncoder = keyEncoder;
+        this.sortOutput = sortOutput;
         this.keysHash = keysHash;
         this.inputQueue = inputQueue;
         this.blockFactory = blockFactory;
@@ -322,7 +327,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             return ReleasableIterator.empty();
         }
 
-        List<TopNRow> rows = inputQueue.popAll();
+        List<TopNRow> rows = inputQueue.popAll(sortOutput);
         inputQueue.close();
         keysHash.close();
         inputQueue = null;

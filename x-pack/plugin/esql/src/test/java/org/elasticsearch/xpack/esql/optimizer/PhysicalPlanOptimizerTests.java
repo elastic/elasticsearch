@@ -119,6 +119,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -152,6 +153,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
@@ -10657,6 +10659,36 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(sorts.size(), equalTo(1));
         assertThat(as(sorts.getFirst().child(), FieldAttribute.class).field().getName(), equalTo("last_name"));
         var esRelation = as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * {@snippet lang="text":
+     * ProjectExec[[first_name{f}#6, languages{f}#12, salary{f}#14]]
+     * \_LimitExec[1000[INTEGER]]
+     *   \_TopNByExec[[Order[salary{f}#14,DESC,LAST]],5[INTEGER],[languages{f}#12],null]
+     *     \_ExchangeExec[[],false]
+     *       \_FragmentExec[... TopNBy ...]
+     * }
+     */
+    public void testTopNBySortOutputOnlyOnCoordinator() {
+        String query = """
+              from test
+            | sort salary desc
+            | limit 5 by languages
+            | keep first_name, salary, languages
+            """;
+        var plan = physicalPlan(query);
+
+        var project = as(plan, ProjectExec.class);
+        var limit = as(project.child(), LimitExec.class);
+        var topNByExec = as(limit.child(), TopNByExec.class);
+        assertThat(topNByExec.sortOutput(), equalTo(true));
+        var exchangeExec = as(topNByExec.child(), ExchangeExec.class);
+        var fragmentExec = as(exchangeExec.child(), FragmentExec.class);
+        var topNBy = as(fragmentExec.fragment(), TopNBy.class);
+        assertThat(as(topNBy.limitPerGroup(), Literal.class).value(), equalTo(5));
+        var esRelation = as(topNBy.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("test"));
     }
 
     /**

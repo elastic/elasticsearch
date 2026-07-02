@@ -399,7 +399,9 @@ public class AuthorizationPollerTests extends ESTestCase {
                     new EndpointMetadata(
                         EndpointMetadata.Heuristics.EMPTY_INSTANCE,
                         new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-                        EndpointMetadata.Display.EMPTY_INSTANCE
+                        EndpointMetadata.Display.EMPTY_INSTANCE,
+                        List.of(),
+                        false
                     )
                 )
             )
@@ -606,7 +608,9 @@ public class AuthorizationPollerTests extends ESTestCase {
                             endpoint.endOfLifeDate()
                         ),
                         new EndpointMetadata.Internal(endpoint.fingerprint(), ENDPOINT_SCHEMA_VERSION),
-                        endpoint.display()
+                        endpoint.display(),
+                        List.of(),
+                        false
                     )
                 )
             )
@@ -616,7 +620,13 @@ public class AuthorizationPollerTests extends ESTestCase {
     }
 
     private static EndpointMetadata createEndpointMetadataWithInternal(EndpointMetadata.Internal internal) {
-        return new EndpointMetadata(EndpointMetadata.Heuristics.EMPTY_INSTANCE, internal, EndpointMetadata.Display.EMPTY_INSTANCE);
+        return new EndpointMetadata(
+            EndpointMetadata.Heuristics.EMPTY_INSTANCE,
+            internal,
+            EndpointMetadata.Display.EMPTY_INSTANCE,
+            List.of(),
+            false
+        );
     }
 
     private static MinimalServiceSettings createEisSparseSettingsWithFingerprintAndVersion(

@@ -12,6 +12,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
@@ -222,6 +223,124 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 out.add(BytesRef.deepCopyOf(ref));
             }
             return out;
+        }
+    }
+
+    /**
+     * A dotted-prefix column such as {@code address.city} builds a structural (intermediate) decoder node with no
+     * scalar block builder of its own. When a row provides a JSON {@code null} or a scalar where an object was
+     * expected, the leaf columns must be filled with null for that row instead of throwing a
+     * {@link NullPointerException}. Regression test for https://github.com/elastic/elasticsearch/issues/152574.
+     * <p>
+     * This drives the decoder with an explicit dotted schema, i.e. the planner-resolved (bound) read-schema path
+     * where {@code address} exists only as a nested-object prefix. It deliberately does not go through per-file
+     * schema inference: when a mixed object/scalar field is <em>sampled</em>, inference additionally emits a flat
+     * {@code address} column, and {@code hasDottedPrefixConflict} then routes the dotted keys differently. That
+     * inference interaction is a separate schema-resolution concern, exercised end-to-end in the iterator tests.
+     */
+    public void testNullOrScalarWhereNestedObjectExpected() throws IOException {
+        String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}}\n"
+            + "{\"address\": null}\n"
+            + "{\"address\": \"unstructured\"}\n"
+            + "{\"address\": {\"city\": \"London\", \"zip\": \"SW1A\"}}\n";
+
+        try (
+            Page page = decodePage(ndjson, List.of(attribute("address.city", DataType.KEYWORD), attribute("address.zip", DataType.KEYWORD)))
+        ) {
+            assertNotNull(page);
+            assertEquals(4, page.getPositionCount());
+            BytesRefBlock city = page.getBlock(0);
+            BytesRefBlock zip = page.getBlock(1);
+            BytesRef scratch = new BytesRef();
+            assertEquals(new BytesRef("NYC"), BytesRef.deepCopyOf(city.getBytesRef(0, scratch)));
+            assertEquals(new BytesRef("10001"), BytesRef.deepCopyOf(zip.getBytesRef(0, scratch)));
+            assertTrue("null object row -> city null", city.isNull(1));
+            assertTrue("null object row -> zip null", zip.isNull(1));
+            assertTrue("scalar-where-object row -> city null", city.isNull(2));
+            assertTrue("scalar-where-object row -> zip null", zip.isNull(2));
+            assertEquals(new BytesRef("London"), BytesRef.deepCopyOf(city.getBytesRef(3, scratch)));
+            assertEquals(new BytesRef("SW1A"), BytesRef.deepCopyOf(zip.getBytesRef(3, scratch)));
+        }
+    }
+
+    /**
+     * A {@code null} element inside a JSON array of objects (e.g. {@code "events": [{"type":"a"}, null]}) reaches a
+     * structural decoder node with {@code inArray == true}. The null element must be ignored (nulls in arrays are not
+     * supported) without throwing on the null {@code blockBuilder}, leaving the surrounding multi-value entry intact.
+     * Companion to {@link #testNullOrScalarWhereNestedObjectExpected} for the in-array path (#152574).
+     */
+    public void testNullElementInArrayOfObjects() throws IOException {
+        String ndjson = "{\"events\": [{\"type\": \"click\"}, {\"type\": \"view\"}]}\n" + "{\"events\": [{\"type\": \"scroll\"}, null]}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("events.type", DataType.KEYWORD)))) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            BytesRefBlock type = page.getBlock(0);
+            BytesRef scratch = new BytesRef();
+            assertMvAt(type, 0, scratch, List.of("click", "view"));
+            assertMvAt(type, 1, scratch, List.of("scroll"));
+        }
+    }
+
+    /**
+     * An array of objects with a leading (or all-)null element must still align with sibling columns. The MV shape is
+     * decided from the first non-null element; a leading null previously left the child columns without an open
+     * multi-value entry while later objects appended values, misaligning rows across columns (#152574). Covers
+     * leading-null, mid-null, and all-null arrays against a scalar {@code id} column that pins the expected row count.
+     */
+    public void testArrayOfObjectsWithNullElements() throws IOException {
+        String ndjson = "{\"events\": [{\"type\": \"a\"}, {\"type\": \"b\"}], \"id\": 1}\n"
+            + "{\"events\": [null, {\"type\": \"c\"}, {\"type\": \"d\"}], \"id\": 2}\n"
+            + "{\"events\": [{\"type\": \"e\"}, null, {\"type\": \"f\"}], \"id\": 3}\n"
+            + "{\"events\": [null, null], \"id\": 4}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("events.type", DataType.KEYWORD), attribute("id", DataType.INTEGER)))) {
+            assertNotNull(page);
+            assertEquals(4, page.getPositionCount());
+            BytesRefBlock type = page.getBlock(0);
+            IntBlock id = page.getBlock(1);
+            assertEquals(type.getPositionCount(), id.getPositionCount());
+            BytesRef scratch = new BytesRef();
+            assertMvAt(type, 0, scratch, List.of("a", "b"));
+            assertMvAt(type, 1, scratch, List.of("c", "d"));
+            assertMvAt(type, 2, scratch, List.of("e", "f"));
+            assertTrue("all-null array -> type null", type.isNull(3));
+            for (int p = 0; p < 4; p++) {
+                assertFalse("id must be present for row " + p, id.isNull(p));
+                assertEquals(p + 1, id.getInt(id.getFirstValueIndex(p)));
+            }
+        }
+    }
+
+    /**
+     * An array of objects on a structural node whose leading element(s) are stray scalars (e.g.
+     * {@code ["x", {"type":"a"}, {"type":"b"}]}) must still align with sibling columns. A structural prefix carries
+     * no scalar values of its own, so leading scalars are skipped when deciding the multi-value shape; otherwise
+     * {@code includeChildren} stayed false and the later objects appended into never-opened child builders,
+     * reproducing the same cross-column misalignment as the leading-null case (#152574). Covers leading-scalar,
+     * mid-scalar, and all-scalar arrays against a scalar {@code id} column that pins the expected row count.
+     */
+    public void testArrayOfObjectsWithScalarElements() throws IOException {
+        String ndjson = "{\"events\": [\"x\", {\"type\": \"a\"}, {\"type\": \"b\"}], \"id\": 1}\n"
+            + "{\"events\": [{\"type\": \"c\"}, \"y\", {\"type\": \"d\"}], \"id\": 2}\n"
+            + "{\"events\": [null, \"z\", {\"type\": \"e\"}], \"id\": 3}\n"
+            + "{\"events\": [\"only-scalars\", \"more\"], \"id\": 4}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("events.type", DataType.KEYWORD), attribute("id", DataType.INTEGER)))) {
+            assertNotNull(page);
+            assertEquals(4, page.getPositionCount());
+            BytesRefBlock type = page.getBlock(0);
+            IntBlock id = page.getBlock(1);
+            assertEquals(type.getPositionCount(), id.getPositionCount());
+            BytesRef scratch = new BytesRef();
+            assertMvAt(type, 0, scratch, List.of("a", "b"));
+            assertMvAt(type, 1, scratch, List.of("c", "d"));
+            assertMvAt(type, 2, scratch, List.of("e"));
+            assertTrue("all-scalar array -> type null", type.isNull(3));
+            for (int p = 0; p < 4; p++) {
+                assertFalse("id must be present for row " + p, id.isNull(p));
+                assertEquals(p + 1, id.getInt(id.getFirstValueIndex(p)));
+            }
         }
     }
 

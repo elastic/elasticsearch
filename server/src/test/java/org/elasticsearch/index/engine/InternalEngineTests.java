@@ -245,7 +245,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     /**
      * Encodes the given ops' sources into an {@link EirfBatch} that can be passed to
-     * {@link Engine#indexBatch(List, EirfBatch)}. The bytes are copied so the caller does not need to
+     * {@link Engine#indexBatch(List, org.elasticsearch.sourcebatch.SourceBatch)}. The bytes are copied so the caller does not need to
      * manage the encoder's recycler lifecycle.
      */
     private static EirfBatch encodeAsEirfBatch(List<Engine.Index> operations) throws IOException {

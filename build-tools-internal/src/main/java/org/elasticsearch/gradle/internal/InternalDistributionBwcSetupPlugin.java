@@ -524,7 +524,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
                     c.getArgs().add("--build-cache");
                 }
-                File rootDir = project.getRootDir();
+                File rootDir = project.getLayout().getSettingsDirectory().getAsFile();
                 c.doLast(new Action<Task>() {
                     @Override
                     public void execute(Task task) {
@@ -604,7 +604,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             : effectiveMavenGroup + ":" + effectiveMavenModule + ":" + versionString + ":" + gradleClassifier + "@" + extension;
         project.getDependencies().add(draConfigName, dependencyNotation);
 
-        File rootDir = project.getRootDir();
+        File rootDir = project.getLayout().getSettingsDirectory().getAsFile();
         if (mavenModule.isEmpty() == false) {
             // Maven JAR artifacts (JDBC, stable API): use a dedicated task type so that
             // getOutputs().getFiles() contains exactly the downloaded JAR. A Copy task's

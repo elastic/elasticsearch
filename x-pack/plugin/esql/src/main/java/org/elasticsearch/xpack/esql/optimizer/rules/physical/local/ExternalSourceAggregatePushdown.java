@@ -11,9 +11,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.MergedSplitStats;
@@ -108,6 +110,33 @@ public final class ExternalSourceAggregatePushdown {
             return l >= min && l <= max;
         }
         return false;
+    }
+
+    /**
+     * Whether EVERY aggregate in {@code aggregates} would resolve from {@code stats} — the boolean twin of
+     * {@link PushAggregatesToExternalSource}'s value-collecting loop. The split-discovery gate
+     * ({@code ComputeService.canSkipSplitDiscovery}) must consult THIS check, not just the type-level
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport#canPushAggregates}: the two
+     * previously diverged on per-column servability, so the gate would skip discovery (leaving a zero-split
+     * scan) for an aggregate the fold then safe-missed, and the scan's un-pruned union_by_name mapping tripped
+     * {@code SchemaAdaptingIterator}'s width guard (elastic/esql-planning#985). Sharing {@code resolveFromStats}
+     * with the fold guarantees "gate skips" implies "fold serves". The bail conditions here must stay identical
+     * to {@code PushAggregatesToExternalSource.resolveAggregateValues}.
+     */
+    public static boolean canServeAllFromStats(
+        List<? extends NamedExpression> aggregates,
+        org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
+        boolean implicitNullsForAbsentColumn
+    ) {
+        for (NamedExpression agg : aggregates) {
+            if (agg instanceof Alias == false) {
+                return false;
+            }
+            if (resolveFromStats(((Alias) agg).child(), stats, implicitNullsForAbsentColumn) == null) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

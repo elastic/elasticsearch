@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -76,6 +77,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -469,7 +471,22 @@ public class ComputeService {
         if (aggFunctions.isEmpty()) {
             return false;
         }
-        return support.canPushAggregates(aggFunctions, List.of()) == AggregatePushdownSupport.Pushability.YES;
+        if (support.canPushAggregates(aggFunctions, List.of()) != AggregatePushdownSupport.Pushability.YES) {
+            return false;
+        }
+        // The type-level canPushAggregates check above is necessary but not sufficient: the fold rule
+        // (PushAggregatesToExternalSource) additionally safe-misses when a column's statistics are unservable
+        // (unharvested text column, poisoned/divergent extremum). If the gate skipped discovery while the fold
+        // then bailed, the query would run a zero-split scan whose un-pruned union_by_name ColumnMapping trips
+        // SchemaAdaptingIterator's width guard (elastic/esql-planning#985). Mirror the fold's exact resolution:
+        // on the skip path the fold's effectiveSplitStats() reduces to SplitStats.of(sourceMetadata) (splits are
+        // empty and STATS_PARTIAL was excluded above), so probing the same map here guarantees that whenever the
+        // gate skips discovery the fold can actually serve every aggregate from stats.
+        SplitStats stats = SplitStats.of(meta);
+        if (stats == null) {
+            return false;
+        }
+        return ExternalSourceAggregatePushdown.canServeAllFromStats(agg.aggregates(), stats, support.appliesImplicitNullsForAbsentColumn());
     }
 
     private static List<Expression> extractAggregateFunctions(List<? extends NamedExpression> aggregates) {

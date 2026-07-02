@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -352,6 +353,42 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         // column-specific, not a blanket refusal.
         var minAge = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("m", new Min(Source.EMPTY, AGE)));
         as(applyRule(minAge), LocalSourceExec.class);
+    }
+
+    /**
+     * #985 gate/fold ALIGNMENT. The skip-discovery gate ({@code ComputeService.canSkipSplitDiscovery}) and the
+     * fold rule ({@code PushAggregatesToExternalSource}) previously diverged: the gate's type-only
+     * {@code AggregatePushdownSupport.canPushAggregates} said {@code MIN(score)} was pushable while the fold
+     * safe-missed on {@code score}'s unservable stats, leaving a zero-split scan that crashed under
+     * union_by_name (#985). The gate now consults the SAME servability decision the fold uses —
+     * {@code ExternalSourceAggregatePushdown.canServeAllFromStats} (the boolean twin of the fold's resolution).
+     * On the identical (aggregate, stats) the type check still says YES but the shared servability probe
+     * DECLINES, so the gate and fold cannot disagree again. The end-to-end recurrence proof lives in
+     * {@code ExternalSourceProfileIT.testCsvUnionByNameWarmMinUnservableColumnServesInsteadOfCrashing}.
+     */
+    public void testGateServabilityProbeAgreesWithFoldSafeMiss() {
+        Map<String, Object> metadata = statsMetadata(100L, "age", 0L);
+        metadata.put("_stats.columns.age.min", 18);
+        metadata.put("_stats.columns.age.max", 99);
+        // score: complete file-level row count present, but NO servable per-column min.
+
+        AggregatePushdownSupport support = new TextAggregatePushdownSupport();
+        // The type-only criterion is unchanged (and still insufficient on its own): MIN(score) is pushable.
+        assertEquals(AggregatePushdownSupport.Pushability.YES, support.canPushAggregates(List.of(new Min(Source.EMPTY, SCORE)), List.of()));
+        // The shared servability probe the gate NOW additionally consults declines the unservable column —
+        // the same decision the fold makes, so "gate skips" can no longer outrun "fold serves".
+        assertFalse(
+            "gate's servability probe must decline the unservable column, matching the fold safe-miss",
+            ExternalSourceAggregatePushdown.canServeAllFromStats(
+                List.of(alias("m", new Min(Source.EMPTY, SCORE))),
+                SplitStats.of(metadata),
+                support.appliesImplicitNullsForAbsentColumn()
+            )
+        );
+
+        // FOLD rule: still safe-misses (aggregate not served) — the two now agree.
+        var minAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("m", new Min(Source.EMPTY, SCORE)));
+        as(applyRule(minAgg), AggregateExec.class);
     }
 
     /**

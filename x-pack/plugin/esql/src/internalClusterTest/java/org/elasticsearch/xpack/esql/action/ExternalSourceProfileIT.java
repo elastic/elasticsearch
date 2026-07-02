@@ -301,6 +301,74 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * #985 recurrence guard (end-to-end, {@code FROM <dataset>}). A union_by_name multi-file CSV glob whose
+     * shared column type-disagrees across files is reconciled to KEYWORD (a NON-identity per-file
+     * {@code ColumnMapping} at unified width). A COLD {@code COUNT(*)} harvests complete per-file row counts
+     * but leaves {@code col}'s stats unservable (never projected). A subsequent WARM {@code MIN(col)} then
+     * exercises the aggregate short-circuit gate: {@code MIN(keyword)} is type-pushable so
+     * {@code ComputeService.canSkipSplitDiscovery} would skip discovery, but the fold rule safe-misses on the
+     * unservable column. Before the gate consulted servability, the two diverged: discovery was skipped (zero
+     * splits) yet the fold bailed, so the query ran a zero-split multi-file scan whose un-pruned unified-width
+     * mapping tripped {@code SchemaAdaptingIterator}'s width guard (`output schema size [1] does not match
+     * mapping width [N]`). With the gate aligned to the fold's servability check, discovery is NOT skipped, the
+     * per-split mappings are pruned to the projection, and the query serves the correct answer.
+     */
+    public void testCsvUnionByNameWarmMinUnservableColumnServesInsteadOfCrashing() throws Exception {
+        Path dir = createTempDir().resolve("ubn985");
+        Files.createDirectories(dir);
+        // col: integer in a.csv, non-numeric string in b.csv -> reconciles to KEYWORD under union_by_name.
+        Files.writeString(dir.resolve("a.csv"), "id,col,note\n1,123,alpha\n2,456,gamma\n", StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("b.csv"), "id,col,note\n4,abc,beta\n5,def,epsilon\n", StandardCharsets.UTF_8);
+        String glob = StoragePath.fileUri(dir) + "/*.csv";
+
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "profile_src", "test", null, new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "profile_ds",
+                    "profile_src",
+                    glob,
+                    null,
+                    new HashMap<>(Map.of("format", "csv", "schema_resolution", "union_by_name"))
+                )
+            )
+        );
+
+        // COLD COUNT(*): scans the glob, harvests complete per-file row counts; col is not projected so its
+        // per-column stats stay unservable. This is what flips the warm resolve to complete-but-unservable.
+        try (var cold = run(syncEsqlQueryRequest("FROM profile_ds | STATS c = COUNT(*)").profile(true), TIMEOUT)) {
+            assertThat(((Number) getValuesList(cold).get(0).get(0)).longValue(), equalTo(4L));
+            assertEquals("cold COUNT(*) does not short-circuit warm", 0, cold.getExecutionInfo().queryProfile().externalWarmAggregates());
+        }
+
+        // WARM MIN(col): the divergence case. Must serve the correct KEYWORD minimum, not crash.
+        try (var warm = run(syncEsqlQueryRequest("FROM profile_ds | STATS lo = MIN(col)").profile(true), TIMEOUT)) {
+            assertThat(
+                "MIN over the KEYWORD-widened union_by_name column",
+                String.valueOf(getValuesList(warm).get(0).get(0)),
+                equalTo("123")
+            );
+            // The gate declined (unservable column) -> discovery ran -> served from a scan, not warm-short-circuit.
+            assertEquals("warm MIN(unservable col) is not served warm", 0, warm.getExecutionInfo().queryProfile().externalWarmAggregates());
+            assertThat("warm MIN(unservable col) scanned", warm.getExecutionInfo().queryProfile().splitsScanned(), greaterThan(0));
+        }
+
+        // Regression control: COUNT(*) still short-circuits warm on the same dataset (row count IS servable).
+        try (var warmCount = run(syncEsqlQueryRequest("FROM profile_ds | STATS c = COUNT(*)").profile(true), TIMEOUT)) {
+            assertThat(((Number) getValuesList(warmCount).get(0).get(0)).longValue(), equalTo(4L));
+            assertEquals("warm COUNT(*) still short-circuits", 1, warmCount.getExecutionInfo().queryProfile().externalWarmAggregates());
+        }
+    }
+
     public void testFromDatasetProfileHasDatasetResolutionSpan() throws Exception {
         Path parquetFile = writeParquetFile(300, 100);
         try {

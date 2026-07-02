@@ -340,6 +340,67 @@ public class CountPushdownWiringTests extends ESTestCase {
     }
 
     /**
+     * #985 regression: the gate must consult per-column SERVABILITY, not only the type-level
+     * {@code canPushAggregates}. {@code MIN(age)} is type-pushable, but with no harvested {@code age} stats
+     * the fold rule ({@code PushAggregatesToExternalSource}) safe-misses. If the gate skipped discovery here
+     * while the fold bailed, the query would run a zero-split scan that crashes under union_by_name
+     * ({@code SchemaAdaptingIterator} width guard). The gate now shares the fold's resolution, so it declines.
+     */
+    public void testCannotSkipSplitDiscoveryForMinWithoutServableColumnStats() {
+        List<Attribute> attrs = List.of(referenceAttribute("x", DataType.INTEGER), AGE);
+        Map<String, Object> sourceMetadata = new HashMap<>();
+        sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 99_000L);
+        // No _stats.columns.age.* -> age's extremum is unservable; the fold would safe-miss.
+
+        SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
+        ExternalRelation external = new ExternalRelation(
+            Source.EMPTY,
+            "file:///test.parquet",
+            metadata,
+            attrs,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
+        Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(alias("m", new Min(Source.EMPTY, AGE))));
+        FragmentExec fragment = new FragmentExec(agg);
+
+        assertFalse(
+            "must not skip discovery for MIN of a column the fold cannot serve from stats",
+            ComputeService.canSkipSplitDiscovery(fragment, buildParquetRegistry())
+        );
+    }
+
+    /**
+     * The counterpart: the fix must ONLY narrow the skip, never expand it. {@code MIN(age)} over a summary
+     * that DOES carry servable {@code age} min/max resolves from stats, so skipping discovery is correct and
+     * the warm short-circuit is preserved.
+     */
+    public void testCanSkipSplitDiscoveryForMinOfServableColumn() {
+        List<Attribute> attrs = List.of(referenceAttribute("x", DataType.INTEGER), AGE);
+        Map<String, Object> sourceMetadata = new HashMap<>();
+        sourceMetadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 99_000L);
+        sourceMetadata.put("_stats.columns.age.min", 18);
+        sourceMetadata.put("_stats.columns.age.max", 99);
+
+        SourceMetadata metadata = stubMetadata(attrs, sourceMetadata);
+        ExternalRelation external = new ExternalRelation(
+            Source.EMPTY,
+            "file:///test.parquet",
+            metadata,
+            attrs,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
+        Aggregate agg = new Aggregate(Source.EMPTY, external, List.of(), List.of(alias("m", new Min(Source.EMPTY, AGE))));
+        FragmentExec fragment = new FragmentExec(agg);
+
+        assertTrue(
+            "must still skip discovery for MIN of a servable column (fold serves from stats)",
+            ComputeService.canSkipSplitDiscovery(fragment, buildParquetRegistry())
+        );
+    }
+
+    /**
      * Multi-file COUNT(*) pushdown: with aggregated sourceMetadata (no STATS_PARTIAL, valid row count),
      * empty splits should resolve to the total row count from sourceMetadata.
      */

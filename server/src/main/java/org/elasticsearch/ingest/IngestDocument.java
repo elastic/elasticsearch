@@ -73,9 +73,8 @@ public final class IngestDocument {
     // IngestSettings.MAX_CUMULATIVE_FIELD_VALUE_BYTES can update it live; see IngestService's constructor for the wiring.
     // Defaults to the setting's default so that IngestDocument behaves sanely even when constructed without an IngestService
     // around (e.g. in unit tests).
-    static volatile long MAX_CUMULATIVE_FIELD_VALUE_BYTES = IngestSettings.MAX_CUMULATIVE_FIELD_VALUE_BYTES.getDefault(
-        Settings.EMPTY
-    ).getBytes();
+    static volatile long MAX_CUMULATIVE_FIELD_VALUE_BYTES = IngestSettings.MAX_CUMULATIVE_FIELD_VALUE_BYTES.getDefault(Settings.EMPTY)
+        .getBytes();
 
     // a 'not found' sentinel value for use in getOrDefault calls in order to avoid containsKey-and-then-get
     private static final Object NOT_FOUND = new Object();

@@ -224,10 +224,7 @@ public class IngestServiceTests extends ESTestCase {
                     .put(IngestSettings.MAX_CUMULATIVE_FIELD_VALUE_BYTES.getKey(), "7mb")
                     .build()
             );
-            ClusterSettings clusterSettings = new ClusterSettings(
-                Settings.EMPTY,
-                Set.of(IngestSettings.MAX_CUMULATIVE_FIELD_VALUE_BYTES)
-            );
+            ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(IngestSettings.MAX_CUMULATIVE_FIELD_VALUE_BYTES));
             ClusterService clusterService = mock(ClusterService.class);
             when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
             ThreadPool threadPool = mock(ThreadPool.class);
@@ -253,9 +250,7 @@ public class IngestServiceTests extends ESTestCase {
             assertThat(IngestDocument.MAX_CUMULATIVE_FIELD_VALUE_BYTES, equalTo(ByteSizeValue.ofMb(7).getBytes()));
 
             // a live cluster settings update should also be picked up, without restarting anything
-            clusterSettings.applySettings(
-                Settings.builder().put(IngestSettings.MAX_CUMULATIVE_FIELD_VALUE_BYTES.getKey(), "3mb").build()
-            );
+            clusterSettings.applySettings(Settings.builder().put(IngestSettings.MAX_CUMULATIVE_FIELD_VALUE_BYTES.getKey(), "3mb").build());
             assertThat(IngestDocument.MAX_CUMULATIVE_FIELD_VALUE_BYTES, equalTo(ByteSizeValue.ofMb(3).getBytes()));
         } finally {
             IngestDocument.MAX_CUMULATIVE_FIELD_VALUE_BYTES = originalValue;

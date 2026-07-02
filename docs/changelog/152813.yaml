@@ -1,0 +1,5 @@
+area: Ingest Node
+issues: []
+pr: 152813
+summary: Adding a limit to the size of an `IngestDocument`
+type: enhancement

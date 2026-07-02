@@ -620,9 +620,6 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
   method: testUpdateDownsampleRound
   issue: https://github.com/elastic/elasticsearch/issues/152063
-- class: org.elasticsearch.xpack.esql.expression.promql.function.PromqlKibanaDefinitionGeneratorTests
-  method: testGenerateDefinitions
-  issue: https://github.com/elastic/elasticsearch/issues/152095
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/152113
@@ -731,12 +728,6 @@ tests:
 - class: org.elasticsearch.index.store.BytesReadHeaderIT
   method: testMultipleIndicesAccumulateBytesRead
   issue: https://github.com/elastic/elasticsearch/issues/152425
-- class: org.elasticsearch.xpack.inference.InferenceRestIT
-  method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
-  issue: https://github.com/elastic/elasticsearch/issues/152439
-- class: org.elasticsearch.xpack.inference.InferenceRestIT
-  method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
-  issue: https://github.com/elastic/elasticsearch/issues/152440
 - class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
   method: testStoredIgnoredSource
   issue: https://github.com/elastic/elasticsearch/issues/152448
@@ -782,9 +773,6 @@ tests:
 - class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
   method: testUpdatingFileBasedRoleAffectsAllProjects
   issue: https://github.com/elastic/elasticsearch/issues/152582
-- class: org.elasticsearch.xpack.inference.InferenceWithSecurityRestIT
-  method: test {p0=inference/80_region_policy_crud/Get region policy allowed with monitor_inference privilege}
-  issue: https://github.com/elastic/elasticsearch/issues/152587
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.afterWhere}
   issue: https://github.com/elastic/elasticsearch/issues/152591
@@ -842,3 +830,35 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.DISIAccumulatorTests
   method: testRandom
   issue: https://github.com/elastic/elasticsearch/issues/152677
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  issue: https://github.com/elastic/elasticsearch/pull/152637
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  issue: https://github.com/elastic/elasticsearch/pull/152637
+- class: org.elasticsearch.xpack.esql.qa.mixed.SparklineWithEveryAggIT
+  issue: https://github.com/elastic/elasticsearch/pull/152637
+- class: org.elasticsearch.xpack.diskbbq.DiskBBQClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/47_knn_search_bbq_disk_slice/KNN search with multiple _slice values and duplicatessearches across the requested slices}
+  issue: https://github.com/elastic/elasticsearch/issues/152722
+- class: org.elasticsearch.xpack.stateless.HollowIndexShardsMergesIT
+  method: testQueuedOrOnGoingMergesPreventHollowing
+  issue: https://github.com/elastic/elasticsearch/issues/152723
+- class: org.elasticsearch.xpack.esql.qa.mixed.AllSupportedFieldsIT
+  issue: https://github.com/elastic/elasticsearch/pull/152637
+- class: org.elasticsearch.simdvec.internal.vectorization.MSBitToBitESNextOSQVectorsScorerTests
+  method: testSymmetric1BitDotProductMatchesNativeWhenSupported
+  issue: https://github.com/elastic/elasticsearch/issues/150155
+- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
+  method: testUnreferencedCommitsAreReleasedAfterRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/152730
+- class: org.elasticsearch.xpack.inference.InferenceWithSecurityRestIT
+  method: test {p0=inference/80_region_policy_crud/Get region policy allowed with monitor_inference privilege}
+  issue: https://github.com/elastic/elasticsearch/issues/152587
+- class: org.elasticsearch.xpack.inference.InferenceWithSecurityRestIT
+  method: test {p0=inference/80_region_policy_crud/Put region policy requires manage_inference privilege}
+  issue: https://github.com/elastic/elasticsearch/issues/152732
+- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
+  method: testSearchWithRandomDisconnects
+  issue: https://github.com/elastic/elasticsearch/issues/152734
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testRotationCompletesWithMultipleHandlers
+  issue: https://github.com/elastic/elasticsearch/issues/152749

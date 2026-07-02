@@ -11,6 +11,7 @@ package org.elasticsearch.eirf;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
@@ -27,7 +28,7 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  * Tests for the multi-partition encoder API: {@link EirfEncoder#parseToScratch},
  * {@link EirfEncoder#commitScratchTo}, {@link EirfEncoder#buildPartition}, and the
- * {@link EirfEncoder.LeafSink} contract.
+ * {@link LeafSink} contract.
  *
  * <p>Existing single-partition coverage (the {@code addDocument} / {@code build} pair) lives in
  * {@link EirfEncoderTests} and is unchanged — those tests pin the legacy behavior, this file pins
@@ -38,15 +39,15 @@ public class EirfEncoderPartitionedTests extends ESTestCase {
     public void testCommitToDifferentPartitionsKeepsRowsSeparate() throws IOException {
         try (EirfEncoder encoder = new EirfEncoder()) {
             encoder.parseToScratch(json("""
-                {"name":"alice","val":1}"""), XContentType.JSON, EirfEncoder.LeafSink.NO_OP);
+                {"name":"alice","val":1}"""), XContentType.JSON, LeafSink.NO_OP);
             assertThat(encoder.commitScratchTo(7), equalTo(0));
 
             encoder.parseToScratch(json("""
-                {"name":"bob","val":2}"""), XContentType.JSON, EirfEncoder.LeafSink.NO_OP);
+                {"name":"bob","val":2}"""), XContentType.JSON, LeafSink.NO_OP);
             assertThat(encoder.commitScratchTo(13), equalTo(0));
 
             encoder.parseToScratch(json("""
-                {"name":"carol","val":3}"""), XContentType.JSON, EirfEncoder.LeafSink.NO_OP);
+                {"name":"carol","val":3}"""), XContentType.JSON, LeafSink.NO_OP);
             assertThat(encoder.commitScratchTo(7), equalTo(1));
 
             assertThat(encoder.docCount(7), equalTo(2));
@@ -130,7 +131,7 @@ public class EirfEncoderPartitionedTests extends ESTestCase {
     public void testBuildPartitionForUnusedKeyReturnsEmptyBatch() throws IOException {
         try (EirfEncoder encoder = new EirfEncoder()) {
             encoder.parseToScratch(json("""
-                {"x":1}"""), XContentType.JSON, EirfEncoder.LeafSink.NO_OP);
+                {"x":1}"""), XContentType.JSON, LeafSink.NO_OP);
             encoder.commitScratchTo(0);
             EirfBatch batchUsed = encoder.buildPartition(0);
             EirfBatch batchUnused = encoder.buildPartition(99);
@@ -165,7 +166,7 @@ public class EirfEncoderPartitionedTests extends ESTestCase {
      * so the encoder routes every primitive through {@link #onTextPrimitive} — keeps the recorded
      * events comparable across primitive types regardless of the encoder's typed narrowing.
      */
-    private static final class RecordingSink implements EirfEncoder.LeafSink {
+    private static final class RecordingSink implements LeafSink {
         final List<String> events = new ArrayList<>();
         String lastDottedPath;
 

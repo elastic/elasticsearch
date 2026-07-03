@@ -33,7 +33,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
@@ -1866,7 +1866,7 @@ public class EsqlSession {
                 indexPattern.indexPattern(),
                 result.fieldNames,
                 createQueryFilter(indexMode, requestFilter),
-                indexMode == IndexMode.TIME_SERIES,
+                indexMode.isTsdb(),
                 // TODO: In case of subqueries, the different main index resolutions don't know about each other's minimum version.
                 // This is bad because `FROM (FROM remote1:*) (FROM remote2:*)` can have different minimum versions
                 // while resolving each subquery's main index pattern. We'll determine the correct overall minimum transport version
@@ -1962,7 +1962,7 @@ public class EsqlSession {
             projectRouting,
             result.fieldNames,
             createQueryFilter(indexMode, requestFilter),
-            indexMode == IndexMode.TIME_SERIES,
+            indexMode.isTsdb(),
             // TODO: Same problem with subqueries as preAnalyzeMainIndices, see above.
             result.minimumTransportVersion(),
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
@@ -1998,8 +1998,15 @@ public class EsqlSession {
 
     private static QueryBuilder createQueryFilter(IndexMode indexMode, QueryBuilder requestFilter) {
         return switch (indexMode) {
-            case IndexMode.TIME_SERIES -> {
-                var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
+            case IndexMode.TIME_SERIES, IndexMode.TSDB -> {
+                // Match either alias: the requested indexMode is a fixed sentinel (e.g. the TS command always
+                // declares IndexMode.TIME_SERIES), but the concrete backing indices may be configured with
+                // either [index.mode=time_series] or its alias [index.mode=tsdb].
+                var indexModeFilter = new TermsQueryBuilder(
+                    IndexModeFieldMapper.NAME,
+                    IndexMode.TIME_SERIES.getName(),
+                    IndexMode.TSDB.getName()
+                );
                 yield requestFilter != null ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter) : indexModeFilter;
             }
             default -> requestFilter;
@@ -2008,7 +2015,7 @@ public class EsqlSession {
 
     // visible for testing
     static boolean shouldRetryConcreteTimeSeriesResolution(IndexMode indexMode, IndexResolution resolution, IndexPattern indexPattern) {
-        return indexMode == IndexMode.TIME_SERIES
+        return indexMode.isTsdb()
             && resolution.isValid()
             && resolution.resolvedIndices().isEmpty()
             && EsqlCCSUtils.concreteIndexRequested(indexPattern.indexPattern());

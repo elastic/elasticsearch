@@ -180,7 +180,7 @@ public class MappingLookupTests extends ESTestCase {
             List.of(dimMapper, metricMapper, plainMapper),
             emptyList(),
             emptyList(),
-            randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()))
+            randomValueOtherThanMany(m -> m.isTsdb(), () -> randomFrom(IndexMode.availableModes()))
         );
         mappingLookup.validateDoesNotShadow("not_mapped");
         mappingLookup.validateDoesNotShadow("dim");
@@ -226,7 +226,7 @@ public class MappingLookupTests extends ESTestCase {
             List.of(dimMapper, metricMapper),
             emptyList(),
             List.of(shadowing),
-            randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()))
+            randomValueOtherThanMany(m -> m.isTsdb(), () -> randomFrom(IndexMode.availableModes()))
         );
 
         Exception e = expectThrows(

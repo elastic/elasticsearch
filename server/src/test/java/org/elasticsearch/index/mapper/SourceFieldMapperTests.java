@@ -514,7 +514,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             Settings.Builder builder = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), nonColumnarMode.toString())
                 .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString());
-            if (nonColumnarMode == IndexMode.TIME_SERIES) {
+            if (nonColumnarMode.isTsdb()) {
                 // time_series requires a routing_path; provide one so its own validation passes and our source mode validator fires
                 builder.putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim");
             }

@@ -1762,7 +1762,7 @@ public class LocalExecutionPlanner {
     private MetricsInfoOperator.MetricFieldLookup createMetricFieldLookup(IndexedByShardId<? extends ShardContext> shardContexts) {
         Map<String, MappingLookup> mappingsByIndex = new HashMap<>();
         for (ShardContext shard : shardContexts.iterable()) {
-            if (shard.indexSettings().getMode() == IndexMode.TIME_SERIES) {
+            if (shard.indexSettings().getMode().isTsdb()) {
                 mappingsByIndex.putIfAbsent(shard.indexSettings().getIndex().getName(), shard.mappingLookup());
             }
         }

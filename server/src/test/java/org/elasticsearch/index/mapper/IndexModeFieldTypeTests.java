@@ -88,7 +88,7 @@ public class IndexModeFieldTypeTests extends ConstantFieldTypeTestCase {
         if (mode != null) {
             settings.put(IndexSettings.MODE.getKey(), mode);
         }
-        if (mode == IndexMode.TIME_SERIES) {
+        if (IndexMode.isTsdb(mode)) {
             settings.putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("a,b,c"));
         }
         IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).numberOfShards(1).numberOfReplicas(0).build();

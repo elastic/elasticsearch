@@ -382,7 +382,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .put(IndexSettings.MODE.getKey(), indexMode);
 
-            if (indexMode == IndexMode.TIME_SERIES) {
+            if (indexMode.isTsdb()) {
                 settingsBuilder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
             }
 
@@ -397,7 +397,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                     continue;  // Nested field does not exist in the 7x line
                 }
                 boolean isTimeSeriesField = builtIn.equals("_tsid") || builtIn.equals("_ts_routing_hash");
-                boolean isTimeSeriesMode = mapperService.getIndexSettings().getMode().equals(IndexMode.TIME_SERIES);
+                boolean isTimeSeriesMode = mapperService.getIndexSettings().getMode().isTsdb();
 
                 if (isTimeSeriesField && isTimeSeriesMode == false) {
                     assertFalse(

@@ -260,7 +260,7 @@ public final class DatasetRewriter {
         }
         if (relation.indexMode() != null && relation.indexMode() != IndexMode.STANDARD) {
             String message = switch (relation.indexMode()) {
-                case TIME_SERIES -> "TS command is not supported for datasets; dataset(s) requested: " + datasetNames;
+                case TIME_SERIES, TSDB -> "TS command is not supported for datasets; dataset(s) requested: " + datasetNames;
                 case LOOKUP -> "LOOKUP JOIN against a dataset is not supported; dataset(s) requested: " + datasetNames;
                 case LOGSDB -> "LOGSDB index mode on FROM <dataset> is not supported; dataset(s) requested: " + datasetNames;
                 default -> "FROM <dataset> with index mode ["

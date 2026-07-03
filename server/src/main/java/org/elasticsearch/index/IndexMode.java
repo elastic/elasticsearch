@@ -307,6 +307,87 @@ public enum IndexMode {
             return true;
         }
     },
+    /**
+     * Alias of {@link #TIME_SERIES} with the preferred name {@code tsdb}. Behaves identically
+     * to {@link #TIME_SERIES} in every respect other than {@link #getName()}; existing
+     * {@code time_series} indices are unaffected and {@link #fromString} accepts both spellings.
+     */
+    TSDB("tsdb") {
+        @Override
+        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
+            TIME_SERIES.validateWithOtherSettings(settings);
+        }
+
+        @Override
+        public void validateMapping(MappingLookup lookup, Settings settings) {
+            TIME_SERIES.validateMapping(lookup, settings);
+        }
+
+        @Override
+        public void validateAlias(@Nullable String indexRouting, @Nullable String searchRouting) {
+            TIME_SERIES.validateAlias(indexRouting, searchRouting);
+        }
+
+        @Override
+        public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException {
+            TIME_SERIES.validateTimestampFieldMapping(isDataStream, mappingLookup);
+        }
+
+        @Override
+        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
+            return TIME_SERIES.getDefaultMapping(indexSettings);
+        }
+
+        @Override
+        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
+            return TIME_SERIES.getTimestampBound(indexMetadata);
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesIdFieldMapper(MappingParserContext c) {
+            return TIME_SERIES.timeSeriesIdFieldMapper(c);
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
+            return TIME_SERIES.timeSeriesRoutingHashFieldMapper();
+        }
+
+        @Override
+        public Function<String, String> idTransformerForReindex() {
+            return TIME_SERIES.idTransformerForReindex();
+        }
+
+        @Override
+        public RoutingFields buildRoutingFields(IndexSettings settings) {
+            return TIME_SERIES.buildRoutingFields(settings);
+        }
+
+        @Override
+        public boolean shouldValidateTimestamp() {
+            return TIME_SERIES.shouldValidateTimestamp();
+        }
+
+        @Override
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
+            TIME_SERIES.validateSourceFieldMapper(sourceFieldMapper);
+        }
+
+        @Override
+        public SourceFieldMapper.Mode defaultSourceMode() {
+            return TIME_SERIES.defaultSourceMode();
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return TIME_SERIES.isColumnar();
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return INDEX_MODE_TSDB_ADDED;
+        }
+    },
     LOGSDB("logsdb") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
@@ -835,6 +916,7 @@ public enum IndexMode {
 
     public static final FeatureFlag COLUMNAR_FEATURE_FLAG = new FeatureFlag("columnar_index_mode");
     public static final TransportVersion COLUMNAR_INDEX_MODES_ADDED = TransportVersion.fromName("columnar_index_modes_added");
+    public static final TransportVersion INDEX_MODE_TSDB_ADDED = TransportVersion.fromName("index_mode_tsdb_added");
 
     /**
      * Returns the minimum transport version a recipient node must run to deserialize this index mode.
@@ -968,12 +1050,41 @@ public enum IndexMode {
     }
 
     /**
+     * Whether this index mode represents a time series (tsdb) index, regardless of whether it
+     * was declared as {@code time_series} or its preferred alias {@code tsdb}.
+     */
+    public boolean isTsdb() {
+        return this == TIME_SERIES || this == TSDB;
+    }
+
+    /**
+     * Null-safe variant of {@link #isTsdb()} for callers holding a possibly-{@code null}
+     * {@link IndexMode} (e.g. a {@code @Nullable} field that defaults to {@code null} rather
+     * than {@link #STANDARD}).
+     */
+    public static boolean isTsdb(@Nullable IndexMode mode) {
+        return mode != null && mode.isTsdb();
+    }
+
+    /**
+     * Whether the given raw {@code index.mode} setting value names a time series (tsdb) index
+     * mode, accepting both {@code time_series} and its preferred alias {@code tsdb},
+     * case-insensitively. Use this instead of comparing against {@link #TIME_SERIES}'s or
+     * {@link #TSDB}'s {@link #getName()} directly when the value hasn't been parsed with
+     * {@link #fromString} yet.
+     */
+    public static boolean isTsdbName(@Nullable String name) {
+        return name != null && (TIME_SERIES.getName().equalsIgnoreCase(name) || TSDB.getName().equalsIgnoreCase(name));
+    }
+
+    /**
      * Parse a string into an {@link IndexMode}.
      */
     public static IndexMode fromString(String value) {
         IndexMode mode = switch (value.toLowerCase(Locale.ROOT)) {
             case "standard" -> IndexMode.STANDARD;
             case "time_series" -> IndexMode.TIME_SERIES;
+            case "tsdb" -> IndexMode.TSDB;
             case "logsdb" -> IndexMode.LOGSDB;
             case "columnar" -> IndexMode.COLUMNAR;
             case "logsdb_columnar" -> IndexMode.LOGSDB_COLUMNAR;
@@ -1015,6 +1126,7 @@ public enum IndexMode {
             case 4 -> COLUMNAR;
             case 5 -> LOGSDB_COLUMNAR;
             case 6 -> VECTORDB_DOCUMENT;
+            case 7 -> TSDB;
             default -> throw new IllegalStateException("unexpected index mode [" + mode + "]");
         };
     }
@@ -1036,6 +1148,7 @@ public enum IndexMode {
             case COLUMNAR -> 4;
             case LOGSDB_COLUMNAR -> 5;
             case VECTORDB_DOCUMENT -> 6;
+            case TSDB -> 7;
         };
         out.writeByte((byte) code);
     }

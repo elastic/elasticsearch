@@ -152,7 +152,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
     public void testInvalidIndexMode() {
         final var indexName = randomIdentifier();
-        var randomNonTsdbIndexMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()));
+        var randomNonTsdbIndexMode = randomValueOtherThanMany(m -> m.isTsdb(), () -> randomFrom(IndexMode.availableModes()));
 
         var exception = expectThrows(
             IllegalArgumentException.class,
@@ -168,7 +168,11 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             containsString(
                 "The setting ["
                     + IndexSettings.SYNTHETIC_ID.getKey()
-                    + "] is only permitted when [index.mode] is set to [TIME_SERIES]. Current mode: ["
+                    + "] is only permitted when [index.mode] is set to ["
+                    + IndexMode.TIME_SERIES.name()
+                    + "] or ["
+                    + IndexMode.TSDB.name()
+                    + "]. Current mode: ["
                     + randomNonTsdbIndexMode.getName().toUpperCase(Locale.ROOT)
                     + "]."
             )

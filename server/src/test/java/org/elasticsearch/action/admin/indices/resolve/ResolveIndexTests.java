@@ -573,7 +573,7 @@ public class ResolveIndexTests extends ESTestCase {
             .put("index.frozen", frozen)
             .put("index.mode", mode.toString());
 
-        if (mode == IndexMode.TIME_SERIES) {
+        if (mode.isTsdb()) {
             settingsBuilder.put(
                 randomBoolean() ? IndexMetadata.INDEX_DIMENSIONS.getKey() : IndexMetadata.INDEX_ROUTING_PATH.getKey(),
                 "dummy_value"

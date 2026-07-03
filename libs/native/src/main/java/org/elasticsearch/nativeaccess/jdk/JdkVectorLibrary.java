@@ -808,225 +808,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
-        private static float applyCorrectionsEuclideanBulkChecked(
-            MemorySegment corrections,
-            int bulkSize,
-            int dimensions,
-            float queryLowerInterval,
-            float queryUpperInterval,
-            int queryComponentSum,
-            float queryAdditionalCorrection,
-            float queryBitScale,
-            float indexBitScale,
-            float centroidDp,
-            MemorySegment scores
-        ) {
-            try {
-                return (float) applyCorrectionsEuclideanBulk$mh.invokeExact(
-                    corrections,
-                    bulkSize,
-                    dimensions,
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryComponentSum,
-                    queryAdditionalCorrection,
-                    queryBitScale,
-                    indexBitScale,
-                    centroidDp,
-                    scores
-                );
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        private static float applyCorrectionsMaxInnerProductBulkChecked(
-            MemorySegment corrections,
-            int bulkSize,
-            int dimensions,
-            float queryLowerInterval,
-            float queryUpperInterval,
-            int queryComponentSum,
-            float queryAdditionalCorrection,
-            float queryBitScale,
-            float indexBitScale,
-            float centroidDp,
-            MemorySegment scores
-        ) {
-            try {
-                return (float) applyCorrectionsMaxInnerProductBulk$mh.invokeExact(
-                    corrections,
-                    bulkSize,
-                    dimensions,
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryComponentSum,
-                    queryAdditionalCorrection,
-                    queryBitScale,
-                    indexBitScale,
-                    centroidDp,
-                    scores
-                );
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        private static float applyCorrectionsDotProductBulkChecked(
-            MemorySegment corrections,
-            int bulkSize,
-            int dimensions,
-            float queryLowerInterval,
-            float queryUpperInterval,
-            int queryComponentSum,
-            float queryAdditionalCorrection,
-            float queryBitScale,
-            float indexBitScale,
-            float centroidDp,
-            MemorySegment scores
-        ) {
-            try {
-                return (float) applyCorrectionsDotProductBulk$mh.invokeExact(
-                    corrections,
-                    bulkSize,
-                    dimensions,
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryComponentSum,
-                    queryAdditionalCorrection,
-                    queryBitScale,
-                    indexBitScale,
-                    centroidDp,
-                    scores
-                );
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        private static float bbqApplyCorrectionsEuclideanBulkChecked(
-            MemorySegment data,
-            int bulkSize,
-            int vectorSizeInBytes,
-            int pitchInBytes,
-            int dimensions,
-            float queryLowerInterval,
-            float queryUpperInterval,
-            int queryComponentSum,
-            float queryAdditionalCorrection,
-            float queryBitScale,
-            float indexBitScale,
-            float centroidDp,
-            byte readComponentSumAsInt,
-            MemorySegment scores
-        ) {
-            try {
-                return (float) bbqApplyCorrectionsEuclideanBulk$mh.invokeExact(
-                    data,
-                    bulkSize,
-                    vectorSizeInBytes,
-                    pitchInBytes,
-                    dimensions,
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryComponentSum,
-                    queryAdditionalCorrection,
-                    queryBitScale,
-                    indexBitScale,
-                    centroidDp,
-                    readComponentSumAsInt,
-                    scores
-                );
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        private static float bbqApplyCorrectionsMaxInnerProductBulkChecked(
-            MemorySegment data,
-            int bulkSize,
-            int vectorSizeInBytes,
-            int pitchInBytes,
-            int dimensions,
-            float queryLowerInterval,
-            float queryUpperInterval,
-            int queryComponentSum,
-            float queryAdditionalCorrection,
-            float queryBitScale,
-            float indexBitScale,
-            float centroidDp,
-            byte readComponentSumAsInt,
-            MemorySegment scores
-        ) {
-            try {
-                return (float) bbqApplyCorrectionsMaxInnerProductBulk$mh.invokeExact(
-                    data,
-                    bulkSize,
-                    vectorSizeInBytes,
-                    pitchInBytes,
-                    dimensions,
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryComponentSum,
-                    queryAdditionalCorrection,
-                    queryBitScale,
-                    indexBitScale,
-                    centroidDp,
-                    readComponentSumAsInt,
-                    scores
-                );
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
-        private static float bbqApplyCorrectionsDotProductBulkChecked(
-            MemorySegment data,
-            int bulkSize,
-            int vectorSizeInBytes,
-            int pitchInBytes,
-            int dimensions,
-            float queryLowerInterval,
-            float queryUpperInterval,
-            int queryComponentSum,
-            float queryAdditionalCorrection,
-            float queryBitScale,
-            float indexBitScale,
-            float centroidDp,
-            byte readComponentSumAsInt,
-            MemorySegment scores
-        ) {
-            try {
-                return (float) bbqApplyCorrectionsDotProductBulk$mh.invokeExact(
-                    data,
-                    bulkSize,
-                    vectorSizeInBytes,
-                    pitchInBytes,
-                    dimensions,
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryComponentSum,
-                    queryAdditionalCorrection,
-                    queryBitScale,
-                    indexBitScale,
-                    centroidDp,
-                    readComponentSumAsInt,
-                    scores
-                );
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-        }
-
         private static final Map<OperationSignature<?>, MethodHandle> HANDLES_WITH_CHECKS;
-
-        static final MethodHandle APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK;
-        static final MethodHandle APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK;
-        static final MethodHandle APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK;
-
-        static final MethodHandle BBQ_APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK;
-        static final MethodHandle BBQ_APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK;
-        static final MethodHandle BBQ_APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK;
 
         static {
             MethodHandles.Lookup lookup = MethodHandles.lookup();
@@ -1315,70 +1097,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
                 HANDLES_WITH_CHECKS = Collections.unmodifiableMap(handlesWithChecks);
 
-                MethodType scoringFunction = MethodType.methodType(
-                    float.class,
-                    MemorySegment.class,
-                    int.class,
-                    int.class,
-                    float.class,
-                    float.class,
-                    int.class,
-                    float.class,
-                    float.class,
-                    float.class,
-                    float.class,
-                    MemorySegment.class
-                );
-
-                APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK = lookup.findStatic(
-                    JdkVectorSimilarityFunctions.class,
-                    "applyCorrectionsEuclideanBulkChecked",
-                    scoringFunction
-                );
-                APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK = lookup.findStatic(
-                    JdkVectorSimilarityFunctions.class,
-                    "applyCorrectionsMaxInnerProductBulkChecked",
-                    scoringFunction
-                );
-                APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK = lookup.findStatic(
-                    JdkVectorSimilarityFunctions.class,
-                    "applyCorrectionsDotProductBulkChecked",
-                    scoringFunction
-                );
-
-                MethodType bbqScoringFunction = MethodType.methodType(
-                    float.class,
-                    MemorySegment.class,  // data
-                    int.class,            // bulkSize
-                    int.class,            // vectorSizeInBytes
-                    int.class,            // pitchInBytes
-                    int.class,            // dimensions
-                    float.class,          // queryLowerInterval
-                    float.class,          // queryUpperInterval
-                    int.class,            // queryComponentSum
-                    float.class,          // queryAdditionalCorrection
-                    float.class,          // queryBitScale
-                    float.class,          // indexBitScale
-                    float.class,          // centroidDp
-                    byte.class,           // readComponentSumAsInt (0 = 2-byte format, 1 = 4-byte format)
-                    MemorySegment.class   // scores
-                );
-
-                BBQ_APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK = lookup.findStatic(
-                    JdkVectorSimilarityFunctions.class,
-                    "bbqApplyCorrectionsEuclideanBulkChecked",
-                    bbqScoringFunction
-                );
-                BBQ_APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK = lookup.findStatic(
-                    JdkVectorSimilarityFunctions.class,
-                    "bbqApplyCorrectionsMaxInnerProductBulkChecked",
-                    bbqScoringFunction
-                );
-                BBQ_APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK = lookup.findStatic(
-                    JdkVectorSimilarityFunctions.class,
-                    "bbqApplyCorrectionsDotProductBulkChecked",
-                    bbqScoringFunction
-                );
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);
             }
@@ -1406,36 +1124,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
             MethodHandle mh = HANDLES_WITH_CHECKS.get(key);
             if (mh == null) throw new IllegalArgumentException("Signature not implemented: " + key);
             return mh;
-        }
-
-        @Override
-        public MethodHandle applyCorrectionsEuclideanBulk() {
-            return APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK;
-        }
-
-        @Override
-        public MethodHandle applyCorrectionsMaxInnerProductBulk() {
-            return APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK;
-        }
-
-        @Override
-        public MethodHandle applyCorrectionsDotProductBulk() {
-            return APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK;
-        }
-
-        @Override
-        public MethodHandle bbqApplyCorrectionsEuclideanBulk() {
-            return BBQ_APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK;
-        }
-
-        @Override
-        public MethodHandle bbqApplyCorrectionsMaxInnerProductBulk() {
-            return BBQ_APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK;
-        }
-
-        @Override
-        public MethodHandle bbqApplyCorrectionsDotProductBulk() {
-            return BBQ_APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK;
         }
 
         private static final MethodHandle dotProductI7uBulk$mh = HANDLES.get(
@@ -2352,19 +2040,23 @@ public final class JdkVectorLibrary implements VectorLibrary {
             float centroidDp,
             MemorySegment scores
         ) {
-            return applyCorrectionsEuclideanBulkChecked(
-                corrections,
-                bulkSize,
-                dimensions,
-                queryLowerInterval,
-                queryUpperInterval,
-                queryComponentSum,
-                queryAdditionalCorrection,
-                queryBitScale,
-                indexBitScale,
-                centroidDp,
-                scores
-            );
+            try {
+                return (float) applyCorrectionsEuclideanBulk$mh.invokeExact(
+                    corrections,
+                    bulkSize,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    scores
+                );
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
         }
 
         @Override
@@ -2381,19 +2073,23 @@ public final class JdkVectorLibrary implements VectorLibrary {
             float centroidDp,
             MemorySegment scores
         ) {
-            return applyCorrectionsMaxInnerProductBulkChecked(
-                corrections,
-                bulkSize,
-                dimensions,
-                queryLowerInterval,
-                queryUpperInterval,
-                queryComponentSum,
-                queryAdditionalCorrection,
-                queryBitScale,
-                indexBitScale,
-                centroidDp,
-                scores
-            );
+            try {
+                return (float) applyCorrectionsMaxInnerProductBulk$mh.invokeExact(
+                    corrections,
+                    bulkSize,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    scores
+                );
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
         }
 
         @Override
@@ -2410,19 +2106,23 @@ public final class JdkVectorLibrary implements VectorLibrary {
             float centroidDp,
             MemorySegment scores
         ) {
-            return applyCorrectionsDotProductBulkChecked(
-                corrections,
-                bulkSize,
-                dimensions,
-                queryLowerInterval,
-                queryUpperInterval,
-                queryComponentSum,
-                queryAdditionalCorrection,
-                queryBitScale,
-                indexBitScale,
-                centroidDp,
-                scores
-            );
+            try {
+                return (float) applyCorrectionsDotProductBulk$mh.invokeExact(
+                    corrections,
+                    bulkSize,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    scores
+                );
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
         }
 
         // --- Corrections (BBQ inline layout) ---
@@ -2444,22 +2144,26 @@ public final class JdkVectorLibrary implements VectorLibrary {
             byte readComponentSumAsInt,
             MemorySegment scores
         ) {
-            return bbqApplyCorrectionsEuclideanBulkChecked(
-                data,
-                bulkSize,
-                vectorSizeInBytes,
-                pitchInBytes,
-                dimensions,
-                queryLowerInterval,
-                queryUpperInterval,
-                queryComponentSum,
-                queryAdditionalCorrection,
-                queryBitScale,
-                indexBitScale,
-                centroidDp,
-                readComponentSumAsInt,
-                scores
-            );
+            try {
+                return (float) bbqApplyCorrectionsEuclideanBulk$mh.invokeExact(
+                    data,
+                    bulkSize,
+                    vectorSizeInBytes,
+                    pitchInBytes,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    readComponentSumAsInt,
+                    scores
+                );
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
         }
 
         @Override
@@ -2479,22 +2183,26 @@ public final class JdkVectorLibrary implements VectorLibrary {
             byte readComponentSumAsInt,
             MemorySegment scores
         ) {
-            return bbqApplyCorrectionsMaxInnerProductBulkChecked(
-                data,
-                bulkSize,
-                vectorSizeInBytes,
-                pitchInBytes,
-                dimensions,
-                queryLowerInterval,
-                queryUpperInterval,
-                queryComponentSum,
-                queryAdditionalCorrection,
-                queryBitScale,
-                indexBitScale,
-                centroidDp,
-                readComponentSumAsInt,
-                scores
-            );
+            try {
+                return (float) bbqApplyCorrectionsMaxInnerProductBulk$mh.invokeExact(
+                    data,
+                    bulkSize,
+                    vectorSizeInBytes,
+                    pitchInBytes,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    readComponentSumAsInt,
+                    scores
+                );
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
         }
 
         @Override
@@ -2514,22 +2222,26 @@ public final class JdkVectorLibrary implements VectorLibrary {
             byte readComponentSumAsInt,
             MemorySegment scores
         ) {
-            return bbqApplyCorrectionsDotProductBulkChecked(
-                data,
-                bulkSize,
-                vectorSizeInBytes,
-                pitchInBytes,
-                dimensions,
-                queryLowerInterval,
-                queryUpperInterval,
-                queryComponentSum,
-                queryAdditionalCorrection,
-                queryBitScale,
-                indexBitScale,
-                centroidDp,
-                readComponentSumAsInt,
-                scores
-            );
+            try {
+                return (float) bbqApplyCorrectionsDotProductBulk$mh.invokeExact(
+                    data,
+                    bulkSize,
+                    vectorSizeInBytes,
+                    pitchInBytes,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    readComponentSumAsInt,
+                    scores
+                );
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
         }
     }
 }

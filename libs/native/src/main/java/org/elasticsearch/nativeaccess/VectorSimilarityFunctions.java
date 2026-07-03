@@ -229,18 +229,6 @@ public interface VectorSimilarityFunctions {
 
     MethodHandle getHandle(Function function, BBQType bbqType, Operation operation);
 
-    MethodHandle applyCorrectionsEuclideanBulk();
-
-    MethodHandle applyCorrectionsMaxInnerProductBulk();
-
-    MethodHandle applyCorrectionsDotProductBulk();
-
-    MethodHandle bbqApplyCorrectionsEuclideanBulk();
-
-    MethodHandle bbqApplyCorrectionsMaxInnerProductBulk();
-
-    MethodHandle bbqApplyCorrectionsDotProductBulk();
-
     // --- INT7U: dot product and square distance ---
 
     int dotProductI7u(MemorySegment a, MemorySegment b, int length);

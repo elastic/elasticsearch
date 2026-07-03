@@ -92,8 +92,8 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
     /// that this test reproduce.
     public void testRaceFailRecoveryWithCancelRecoveriesForShard() throws Exception {
         ContenderTuple cancelRecoveriesForShard = new ContenderTuple(
-            (collection, shardId, recoveryId) -> () -> collection.cancelRecoveriesForShard(shardId, "cancel multiple"),
-            "cancel multiple"
+            (collection, shardId, recoveryId) -> () -> collection.cancelRecoveriesForShard(shardId, "cancel for shard"),
+            "cancel for shard"
         );
 
         ContenderTuple raceContender = switch (randomInt(2)) {
@@ -102,8 +102,8 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
                 " marking recovery from"
             );
             case 1 -> new ContenderTuple(
-                (collection, shardId, recoveryId) -> () -> collection.cancelRecovery(recoveryId, "single cancel"),
-                "single cancel"
+                (collection, shardId, recoveryId) -> () -> collection.cancelRecovery(recoveryId, "cancel by recovery id"),
+                "cancel by recovery id"
             );
             case 2 -> new ContenderTuple(
                 (collection, shardId, recoveryId) -> () -> collection.failRecovery(

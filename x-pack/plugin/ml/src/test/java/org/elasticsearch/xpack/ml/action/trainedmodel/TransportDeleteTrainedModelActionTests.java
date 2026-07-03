@@ -298,8 +298,7 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
             mockFilters,
             configProvider,  // TrainedModelProvider
             auditor,         // InferenceAuditor
-            mock(org.elasticsearch.ingest.IngestService.class),
-            mock(org.elasticsearch.cluster.project.ProjectResolver.class)
+            mock(org.elasticsearch.ingest.IngestService.class)
         );
     }
 

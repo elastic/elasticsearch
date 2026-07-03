@@ -2089,6 +2089,11 @@ public class EsqlCapabilities {
         GLOBAL_TIMEZONE_PARAMETER_WITH_OUTPUT(Build.current().isSnapshot()),
 
         /**
+         * Top-level {@code settings} object on the {@code _query} request body, mirroring in-query SET keys.
+         */
+        QUERY_SETTINGS_REQUEST_BODY,
+
+        /**
          * Optional options argument for DATE_PARSE
          */
         DATE_PARSE_OPTIONS,
@@ -3084,6 +3089,11 @@ public class EsqlCapabilities {
          * see <a href="https://github.com/elastic/elasticsearch/issues/142026">Issue #142026</a>
          */
         OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN,
+
+        /**
+         * Support for {@code unmapped_fields="load"} with {@code FORK}, subqueries and views (previously rejected). See #142033.
+         */
+        OPTIONAL_FIELDS_LOAD_WITH_FORK_SUBQUERIES_AND_VIEWS,
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.

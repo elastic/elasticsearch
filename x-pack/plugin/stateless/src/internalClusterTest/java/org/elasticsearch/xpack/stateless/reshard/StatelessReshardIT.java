@@ -68,10 +68,13 @@ import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateReshardSplitTargetPrimaryCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
@@ -4549,6 +4552,44 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         if (failure.get() != null) {
             throw failure.get();
         }
+    }
+
+    public void testRecoveryFromTargetShardEmptyPrimaryAllocation() {
+        String indexNode = startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"));
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
+
+        awaitClusterState(state -> {
+            if (state.projectState().metadata().index(indexName).getReshardingMetadata() == null) {
+                return false;
+            }
+            ShardRouting targetShardRouting = state.routingTable().index(indexName).shard(1).primaryShard();
+            return targetShardRouting.unassigned()
+                && targetShardRouting.recoverySource() instanceof RecoverySource.ReshardSplitRecoverySource;
+        });
+
+        ClusterRerouteUtils.reroute(client(), new AllocateEmptyPrimaryAllocationCommand(indexName, 1, indexNode, true));
+
+        updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.enable"));
+
+        // Wait until the allocation tries to allocate the shard and fails (replicate the real world scenario).
+        awaitClusterState(state -> {
+            ShardRouting targetShardRouting = state.routingTable().index(indexName).shard(1).primaryShard();
+            return targetShardRouting.unassigned() && targetShardRouting.unassignedInfo().failedAllocations() == 5;
+        });
+
+        ClusterRerouteUtils.reroute(client(), new AllocateReshardSplitTargetPrimaryCommand(indexName, 1, indexNode, true));
+
+        // Target shard successfully performs recovery with correct recovery source and resharding eventually completes.
+        waitForReshardCompletion(indexName);
     }
 
     @Override

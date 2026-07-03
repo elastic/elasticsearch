@@ -7,22 +7,17 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -40,32 +35,14 @@ import static org.hamcrest.Matchers.containsString;
  * surface is exercised end-to-end by {@code ParquetFormatSpecIT} via the
  * {@code parquet-multifile.csv-spec} FFW tests.
  */
-public class ExternalSchemaResolutionErrorIT extends AbstractEsqlIntegTestCase {
+public class ExternalSchemaResolutionErrorIT extends AbstractExternalDataSourceIT {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(CsvDataSourcePlugin.class);
-        return plugins;
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
-            .build();
-    }
-
-    @Before
-    public void requireLocalFilesEnabled() {
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(CsvDataSourcePlugin.class);
     }
 
     public void testStrictOnDivergentCsvTypedHeaders() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         Path dir = createTempDir().resolve("strict_csv_typed");
         Files.createDirectories(dir);
         Files.writeString(dir.resolve("a.csv"), "name:keyword,age:integer\nalice,30\nbob,40\n", StandardCharsets.UTF_8);
@@ -79,8 +56,6 @@ public class ExternalSchemaResolutionErrorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testStrictOnDivergentCsvHeaderless() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         Path dir = createTempDir().resolve("strict_csv_headerless");
         Files.createDirectories(dir);
         Files.writeString(dir.resolve("a.csv"), "abc,1\nxyz,2\n", StandardCharsets.UTF_8);
@@ -90,8 +65,6 @@ public class ExternalSchemaResolutionErrorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testStrictOnCsvTypeDrift() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         Path dir = createTempDir().resolve("strict_csv_type_drift");
         Files.createDirectories(dir);
         Files.writeString(dir.resolve("a.csv"), "id,col,note\n1,123,alpha\n2,456,gamma\n", StandardCharsets.UTF_8);
@@ -101,19 +74,16 @@ public class ExternalSchemaResolutionErrorIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Runs {@code EXTERNAL "<dir>/*.csv" WITH {"schema_resolution":"strict", "header_row":<headerRow>} | STATS …}
-     * and asserts the request fails with an {@link IllegalArgumentException} from
-     * {@code SchemaReconciliation#validateStrictMatch} whose message identifies a schema mismatch
-     * and points at the {@code union_by_name} escape hatch. This maps to HTTP 400 on the wire.
+     * Registers a {@code *.csv} glob dataset with {@code {"schema_resolution":"strict", "header_row":<headerRow>}}
+     * settings, runs {@code FROM <dataset> | STATS …}, and asserts the request fails with an
+     * {@link IllegalArgumentException} from {@code SchemaReconciliation#validateStrictMatch} whose message
+     * identifies a schema mismatch and points at the {@code union_by_name} escape hatch. This maps to HTTP 400
+     * on the wire.
      */
     private void assertStrictSchemaMismatch(Path dir, boolean headerRow) {
         String glob = StoragePath.fileUri(dir) + "/*.csv";
-        String query = "EXTERNAL \""
-            + glob
-            + "\" WITH {\"schema_resolution\": \"strict\", \"header_row\": "
-            + headerRow
-            + "}"
-            + " | STATS count = COUNT(*)";
+        String dataset = registerDataset("strict_csv", glob, Map.of("schema_resolution", "strict", "header_row", headerRow));
+        String query = "FROM " + dataset + " | STATS count = COUNT(*)";
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
             try (var response = run(syncEsqlQueryRequest(query))) {

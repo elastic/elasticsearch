@@ -188,7 +188,7 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
             // The per-mode branches above already forbid secret+federated for every explicit mode; auto is the only
             // path where the two can arrive together, so the conflict check is scoped here.
             if (secrets && federatedAuth) {
-                errors.addValidationError(credentialSource() + " cannot be combined with keyless authentication settings");
+                errors.addValidationError(credentialSource() + " cannot be combined with federated authentication settings");
             }
         }
         validateCredentials(errors);

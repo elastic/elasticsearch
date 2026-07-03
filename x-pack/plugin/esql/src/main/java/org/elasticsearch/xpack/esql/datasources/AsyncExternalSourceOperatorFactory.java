@@ -717,6 +717,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             long maxBufferBytes = (long) maxBufferSize * Operator.TARGET_PAGE_SIZE;
             AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
             driverContext.addAsyncAction();
+            // Implements async STOP semantics for coordinator-only EXTERNAL plans: when the user fires
+            // {@code POST /_query/async/{id}/stop}, the task's stop-hook list fans out to each driver's
+            // {@link DriverContext}, which calls this hook. {@code buffer.finish(false)} flips
+            // {@code noMoreInputs} on the buffer — pages already accepted into the queue stay reachable
+            // to the driver loop and flow through the pipeline, while producer threads observe the flag
+            // and exit instead of accepting more pages.
+            //
+            // {@code finish} performs a CAS on {@code noMoreInputs} and returns {@code true} only when
+            // it actually made the running→finishing transition; if the producer already EOF'd (natural
+            // completion) or another thread finished the buffer first, it returns {@code false}. That
+            // eliminates the check-then-act race between {@code buffer.noMoreInputs()} and
+            // {@code buffer.finish(false)}: STOP marking the response {@code is_partial=true} now
+            // requires a genuine live cut, not merely observing "already finished".
+            driverContext.addStopHook(() -> buffer.finish(false));
 
             if (sliceQueue != null) {
                 startSliceQueueRead(buffer, driverContext);

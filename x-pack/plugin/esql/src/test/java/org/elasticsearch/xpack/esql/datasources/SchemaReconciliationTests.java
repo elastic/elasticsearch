@@ -373,7 +373,7 @@ public class SchemaReconciliationTests extends ESTestCase {
 
         StoragePath a = path("s3://b/a.ndjson");
         StoragePath b = path("s3://b/b.ndjson");
-        Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(scalarFile), b, meta(objectFile));
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(scalarFile, "ndjson"), b, meta(objectFile, "ndjson"));
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
 
         assertThat(
@@ -395,7 +395,7 @@ public class SchemaReconciliationTests extends ESTestCase {
 
         StoragePath a = path("s3://b/a.ndjson");
         StoragePath b = path("s3://b/b.ndjson");
-        Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(objectFile), b, meta(scalarFile));
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(objectFile, "ndjson"), b, meta(scalarFile, "ndjson"));
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
 
         assertThat(
@@ -423,7 +423,7 @@ public class SchemaReconciliationTests extends ESTestCase {
 
         StoragePath a = path("s3://b/a.ndjson");
         StoragePath b = path("s3://b/b.ndjson");
-        Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(scalarFile), b, meta(objectFile));
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(scalarFile, "ndjson"), b, meta(objectFile, "ndjson"));
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
 
         List<Attribute> losingReadSchema = result.perFileInfo().get(b).fileSchema().attributes();
@@ -446,7 +446,7 @@ public class SchemaReconciliationTests extends ESTestCase {
 
         StoragePath a = path("s3://b/a.ndjson");
         StoragePath b = path("s3://b/b.ndjson");
-        Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(scalarFile), b, meta(objectFile));
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(scalarFile, "ndjson"), b, meta(objectFile, "ndjson"));
         SchemaReconciliation.reconcileUnionByName(metadata);
 
         List<String> warnings = drainWarningMessages();
@@ -467,9 +467,9 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath b = path("s3://b/b.ndjson");
         StoragePath c = path("s3://b/c.ndjson");
         Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
-        metadata.put(a, meta(objectFile1));
-        metadata.put(b, meta(scalarFile));
-        metadata.put(c, meta(objectFile2));
+        metadata.put(a, meta(objectFile1, "ndjson"));
+        metadata.put(b, meta(scalarFile, "ndjson"));
+        metadata.put(c, meta(objectFile2, "ndjson"));
 
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
 
@@ -511,9 +511,9 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath objectPath = path("s3://b/b.ndjson");
         StoragePath bothPath = path("s3://b/c.ndjson");
         Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
-        metadata.put(scalarPath, meta(scalarFile));
-        metadata.put(objectPath, meta(objectFile));
-        metadata.put(bothPath, meta(bothShapesFile));
+        metadata.put(scalarPath, meta(scalarFile, "ndjson"));
+        metadata.put(objectPath, meta(objectFile, "ndjson"));
+        metadata.put(bothPath, meta(bothShapesFile, "ndjson"));
 
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
 
@@ -554,9 +554,9 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath scalarPath = path("s3://b/b.ndjson");
         StoragePath bothPath = path("s3://b/c.ndjson");
         Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
-        metadata.put(objectPath, meta(objectFile));
-        metadata.put(scalarPath, meta(scalarFile));
-        metadata.put(bothPath, meta(bothShapesFile));
+        metadata.put(objectPath, meta(objectFile, "ndjson"));
+        metadata.put(scalarPath, meta(scalarFile, "ndjson"));
+        metadata.put(bothPath, meta(bothShapesFile, "ndjson"));
 
         SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
 
@@ -604,6 +604,95 @@ public class SchemaReconciliationTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SchemaReconciliation.reconcileStrict(a, metadata));
         assertThat(e.getMessage(), containsString("Schema mismatch"));
+    }
+
+    /**
+     * Regression for the review feedback on #152775: {@link SchemaReconciliation#resolveFamily}
+     * only has flattened column names to work with, so a {@code root}/{@code root.*} pair can be a
+     * genuine cross-file scalar/object conflict (NDJSON) or two entirely unrelated, independent
+     * columns that merely share a naming prefix — e.g. a CSV file whose header is literally
+     * {@code user.tag} next to another CSV file's ordinary {@code user} column. CSV headers are
+     * never nested, so these must both survive in the unified schema, NULL-filled in whichever
+     * file lacks them, exactly like any other unrelated pair of column names — not be treated as a
+     * shape conflict that silently drops one of them.
+     */
+    public void testUnionByNameScalarAndDottedLiteralCoexistForNonNdjsonFormat() {
+        List<Attribute> scalarFile = List.of(attr("event", DataType.INTEGER), attr("user", DataType.KEYWORD));
+        List<Attribute> literalDottedFile = List.of(attr("event", DataType.INTEGER), attr("user.tag", DataType.KEYWORD));
+
+        StoragePath a = path("s3://b/a.csv");
+        StoragePath b = path("s3://b/b.csv");
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(scalarFile, "csv"), b, meta(literalDottedFile, "csv"));
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+
+        assertThat(
+            "both the literal [user] and [user.tag] columns must survive independently, not collapse to one shape",
+            userFamily(result),
+            equalTo(List.of("user", "user.tag"))
+        );
+        List<Attribute> unifiedAttributes = result.unifiedSchema().attributes();
+        assertThat(
+            unifiedAttributes.stream().filter(at -> at.name().equals("user")).findFirst().orElseThrow().nullable(),
+            equalTo(Nullability.TRUE)
+        );
+        assertThat(
+            unifiedAttributes.stream().filter(at -> at.name().equals("user.tag")).findFirst().orElseThrow().nullable(),
+            equalTo(Nullability.TRUE)
+        );
+        assertThat(result.perFileInfo().get(a).fileSchema().attributes(), equalTo(scalarFile));
+        assertThat(result.perFileInfo().get(b).fileSchema().attributes(), equalTo(literalDottedFile));
+        assertNoResponseWarnings();
+    }
+
+    /**
+     * Same regression as {@link #testUnionByNameScalarAndDottedLiteralCoexistForNonNdjsonFormat}
+     * but for Parquet: unlike CSV, Parquet's reader genuinely flattens nested structs into dotted
+     * names, but it has no equivalent of NDJSON's {@code shapeConflict} read-time fallback for a
+     * column pinned to a shape that disagrees with the file's own footer-declared type — so this
+     * pass must not touch Parquet files either. See {@code supportsShapeConflictResolution}.
+     */
+    public void testUnionByNameScalarVsObjectConflictIgnoredForParquetFormat() {
+        List<Attribute> scalarFile = List.of(attr("event", DataType.INTEGER), attr("user", DataType.KEYWORD));
+        List<Attribute> objectFile = List.of(
+            attr("event", DataType.INTEGER),
+            attr("user.id", DataType.KEYWORD),
+            attr("user.tier", DataType.KEYWORD)
+        );
+
+        StoragePath a = path("s3://b/a.parquet");
+        StoragePath b = path("s3://b/b.parquet");
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(scalarFile, "parquet"), b, meta(objectFile, "parquet"));
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+
+        assertThat(userFamily(result), equalTo(List.of("user", "user.id", "user.tier")));
+        assertThat(result.perFileInfo().get(a).fileSchema().attributes(), equalTo(scalarFile));
+        assertThat(result.perFileInfo().get(b).fileSchema().attributes(), equalTo(objectFile));
+        assertNoResponseWarnings();
+    }
+
+    /**
+     * A single NDJSON file's nested {@code user.*} shape must not be treated as conflicting with a
+     * literal {@code user.tag} column from an unrelated CSV file in the same query — only files
+     * whose format actually supports shape-conflict resolution ever enter the family vote, and one
+     * ndjson contributor alone (agreeing with itself) is not a conflict.
+     */
+    public void testUnionByNameMixedFormatsOnlyNdjsonParticipatesInFamily() {
+        List<Attribute> ndjsonFile = List.of(
+            attr("event", DataType.INTEGER),
+            attr("user.id", DataType.KEYWORD),
+            attr("user.tier", DataType.KEYWORD)
+        );
+        List<Attribute> csvFile = List.of(attr("event", DataType.INTEGER), attr("user.tag", DataType.KEYWORD));
+
+        StoragePath a = path("s3://b/a.ndjson");
+        StoragePath b = path("s3://b/b.csv");
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(ndjsonFile, "ndjson"), b, meta(csvFile, "csv"));
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+
+        assertThat(userFamily(result), equalTo(List.of("user.id", "user.tier", "user.tag")));
+        assertThat(result.perFileInfo().get(a).fileSchema().attributes(), equalTo(ndjsonFile));
+        assertThat(result.perFileInfo().get(b).fileSchema().attributes(), equalTo(csvFile));
+        assertNoResponseWarnings();
     }
 
     /** The {@code [user]}-family column names present in the unified schema, in schema order. */
@@ -1013,7 +1102,12 @@ public class SchemaReconciliationTests extends ESTestCase {
     }
 
     private static SourceMetadata meta(List<Attribute> schema) {
-        return new SimpleMetadata(schema);
+        return new SimpleMetadata(schema, "parquet");
+    }
+
+    /** Like {@link #meta(List)} but with an explicit {@code sourceType}, e.g. {@code "ndjson"}. */
+    private static SourceMetadata meta(List<Attribute> schema, String sourceType) {
+        return new SimpleMetadata(schema, sourceType);
     }
 
     private static Map<StoragePath, SourceMetadata> orderedMap(StoragePath k1, SourceMetadata v1, StoragePath k2, SourceMetadata v2) {
@@ -1025,9 +1119,11 @@ public class SchemaReconciliationTests extends ESTestCase {
 
     private static class SimpleMetadata implements SourceMetadata {
         private final List<Attribute> schema;
+        private final String sourceType;
 
-        SimpleMetadata(List<Attribute> schema) {
+        SimpleMetadata(List<Attribute> schema, String sourceType) {
             this.schema = schema;
+            this.sourceType = sourceType;
         }
 
         @Override
@@ -1037,7 +1133,7 @@ public class SchemaReconciliationTests extends ESTestCase {
 
         @Override
         public String sourceType() {
-            return "parquet";
+            return sourceType;
         }
 
         @Override

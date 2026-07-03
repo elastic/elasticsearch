@@ -17,6 +17,7 @@ import com.fasterxml.jackson.dataformat.csv.CsvSchema;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
@@ -981,6 +982,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * True when the failure chain carries a {@link CsvRecordTooLargeException} — an over-{@code max_record_size}
+     * record dropped by the record-reader path and laundered into an unchecked wrapper by
+     * {@link ExternalFailures#surface} (see {@link CsvRecordIterator#hasNext}). Detected by cause-walk so the
+     * pragma-dependent survivor loss can safe-miss the stats publish, matching the bracket path's typed catch.
+     */
+    private static boolean isRecordCapDrop(Throwable e) {
+        return ExceptionsHelper.unwrap(e, CsvRecordTooLargeException.class) != null;
+    }
+
+    /**
      * Bulk-path iterator: hands the raw {@link Reader} straight to Jackson's {@link CsvParser} so the
      * per-row hot loop tokenizes characters in Jackson's internal char buffer instead of re-materializing
      * each logical record into a {@link StringBuilder} for a follow-up Jackson parse. The byte-level
@@ -1024,7 +1035,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@code metadata()} path discards the sample after type inference, so the offsets are dead
      * data and skipping their capture keeps that call site allocation-free.
      */
-    record SchemaSample(List<String[]> rows, long reservedBytes, long[] rowStartBytes) {}
+    record SchemaSample(List<String[]> rows, long reservedBytes, long[] rowStartBytes, boolean recordCapDropped) {}
 
     /** Hard cap on consecutive parse failures during schema sampling, applied INDEPENDENTLY of
      *  the user's {@link ErrorPolicy}. Jackson's stream-based CSV parser cannot guarantee
@@ -1089,6 +1100,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         List<Long> rowStartBytesList = trackOffsets ? new ArrayList<>() : null;
         long reservedBytes = 0;
         boolean success = false;
+        boolean capDropped = false;
         List<String> capturedErrors = null;
         Throwable firstCause = null;
         long errorCount = 0;
@@ -1129,6 +1141,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 } catch (RuntimeException e) {
                     totalRowCount++;
                     errorCount++;
+                    if (isRecordCapDrop(e)) {
+                        // A cap-dropped row within the sampling window is a pragma-dependent survivor loss that
+                        // would replay N-1 into the batch and publish with recordCapDropped still false; propagate
+                        // so the caller safe-misses the stats publish. (FAIL_FAST throws below and never publishes.)
+                        capDropped = true;
+                    }
                     if (failFast) {
                         // Single point of truth for FAIL_FAST: same exception type and hint as
                         // the data-row path so users see consistent error messages whether
@@ -1167,7 +1185,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     offsets[i] = rowStartBytesList.get(i);
                 }
             }
-            return new SchemaSample(sampleRows, reservedBytes, offsets);
+            return new SchemaSample(sampleRows, reservedBytes, offsets, capDropped);
         } finally {
             if (success == false) {
                 breaker.addWithoutBreaking(-reservedBytes);
@@ -2554,6 +2572,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                 }
                             } catch (RuntimeException e) {
                                 totalRowCount++;
+                                if (isRecordCapDrop(e)) {
+                                    // An over-max_record_size record dropped by the record-reader path
+                                    // (rowPositionSlot >= 0): CsvRecordIterator.hasNext launders the typed
+                                    // CsvRecordTooLargeException through ExternalFailures.surface, so it arrives
+                                    // here as the cause of an unchecked wrapper. Same survivor loss as
+                                    // readBracketAwareRecord's typed catch: the cap is a query pragma outside the
+                                    // cache fingerprint, so the whole publish must safe-miss rather than cache a
+                                    // pragma-dependent count.
+                                    recordCapDropped = true;
+                                }
                                 onRowError("CSV parse error: " + CsvErrorMessages.summarize(e.getMessage()), e, EMPTY_ROW, true);
                             }
                         }
@@ -2660,6 +2688,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             prefetchedRows = sample.rows();
             prefetchedRowsBytes = sample.reservedBytes();
             prefetchedRowStartBytes = sample.rowStartBytes();
+            if (sample.recordCapDropped()) {
+                recordCapDropped = true; // cap-determined survivor loss during sampling — publish must safe-miss
+            }
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
             return CsvSchemaInferrer.inferSchema(columnNames, sample.rows());
         }
@@ -2683,6 +2714,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             prefetchedRows = sample.rows();
             prefetchedRowsBytes = sample.reservedBytes();
             prefetchedRowStartBytes = sample.rowStartBytes();
+            if (sample.recordCapDropped()) {
+                recordCapDropped = true; // cap-determined survivor loss during sampling — publish must safe-miss
+            }
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
             return inferSyntheticSchema(sample.rows(), options.columnPrefix());
         }

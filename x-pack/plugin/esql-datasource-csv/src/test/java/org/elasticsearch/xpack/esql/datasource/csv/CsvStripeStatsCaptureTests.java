@@ -628,6 +628,113 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         );
     }
 
+    public void testMaxRecordSizeDropOnRecordReaderPathSafeMissesStripeCapture() throws Exception {
+        // reader-B1 (elastic/elasticsearch#150920): the NON-bracket record-reader path (rowPositionSlot >= 0, no
+        // multi_value_syntax) drops an over-max_record_size record via CsvLogicalRecordReader, but the typed
+        // CsvRecordTooLargeException is laundered by ExternalFailures.surface into an unchecked wrapper, so the
+        // batch loop's catch treated it as an ordinary skip and never set recordCapDropped -> N-1 published under a
+        // fingerprint that ignores the cap. Must safe-miss. A provided schema means no sampling, so the drop lands
+        // in the batch loop (pins the loop set-site). Proven to publish 19 rows without the fix.
+        int total = 20;
+        int badRow = total / 2;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < total; i++) {
+            String id = i == badRow ? "9".repeat(40) : Integer.toString(i);
+            sb.append(id).append(",x\n");
+        }
+        byte[] data = sb.toString().getBytes(StandardCharsets.UTF_8);
+        List<Attribute> schema = List.of(
+            intCol("id"),
+            new ReferenceAttribute(Source.EMPTY, null, "tags", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+        ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 100, 1.0, false);
+        List<Map<String, Object>> frags = captureRecordReaderPath(data, 0, true, true, 3, 8, schema, skipRow, 24);
+        assertTrue(
+            "an over-max_record_size drop on the record-reader path must safe-miss the whole publish, got: " + frags,
+            frags.isEmpty()
+        );
+    }
+
+    public void testMaxRecordSizeDropDuringSamplingSafeMissesPublish() throws Exception {
+        // reader-B1 second set-site: with NO provided schema, headerless inference SAMPLES the file through the
+        // same CsvRecordIterator; a cap-dropped row inside the sample window vanishes and the whole-file publish
+        // would carry N-1 with recordCapDropped still false. Must safe-miss. Red if only the batch-loop set-site
+        // (B1.1) is applied.
+        int total = 20;
+        int badRow = total / 2;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < total; i++) {
+            String id = i == badRow ? "9".repeat(40) : Integer.toString(i);
+            sb.append(id).append(",x\n");
+        }
+        byte[] data = sb.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject o = memoryObject(data);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(List.of(ColumnExtractor.ROW_POSITION_COLUMN, "col0")) // headerless synthetic name
+            .batchSize(1000)
+            .recordAligned(false) // whole-file read -> wholeFileRead publish path, headerless inference samples
+            .firstSplit(true)
+            .lastSplit(true)
+            .stats(0, 1000, true)
+            .errorPolicy(new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 100, 1.0, false))
+            .maxRecordBytes(24)
+            .statsColumnScope(StripeColumnScope.PROJECTED)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false)
+            ).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        assertNull("a cap drop during schema sampling must safe-miss the whole publish", sink.get(o.path().toString()));
+    }
+
+    /** Drives the NON-bracket record-reader path (_rowPosition projected, no multi_value_syntax) with a cap. */
+    private List<Map<String, Object>> captureRecordReaderPath(
+        byte[] bytes,
+        long baseOffset,
+        boolean firstSplit,
+        boolean fileFinal,
+        int batchSize,
+        long stripeSize,
+        List<Attribute> readSchema,
+        ErrorPolicy policy,
+        int maxRecordBytes
+    ) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(List.of(ColumnExtractor.ROW_POSITION_COLUMN, "id")) // routes to CsvRecordIterator
+            .batchSize(batchSize)
+            .recordAligned(true)
+            .firstSplit(firstSplit)
+            .lastSplit(fileFinal)
+            .readSchema(readSchema)
+            .splitStartByte(baseOffset)
+            .stats(baseOffset, stripeSize, fileFinal)
+            .errorPolicy(policy)
+            .maxRecordBytes(maxRecordBytes)
+            .statsColumnScope(StripeColumnScope.PROJECTED)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false) // NO multi_value_syntax -> non-bracket record-reader path
+            ).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
+    }
+
     private List<Map<String, Object>> captureFusedBracket(
         byte[] bytes,
         long baseOffset,

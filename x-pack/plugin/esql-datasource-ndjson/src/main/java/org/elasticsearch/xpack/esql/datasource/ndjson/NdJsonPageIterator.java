@@ -629,6 +629,15 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         if (stripeCaptureDisabled) {
             return;
         }
+        if (pageDecoder.offsetBaselineLost()) {
+            // A streaming-path recovery reset the parser byte baseline; every record offset recorded after it is
+            // short by the pre-recovery bytes, so attribution would commit records to EARLIER stripes. forEachRun's
+            // alignment check is count-only and cannot catch value skew, and NDJSON has no emit-time byte tripwire —
+            // safe-miss the whole file. (Recovery happens during decode; this runs after the page returns, so the
+            // flag is set before the first skewed row is accumulated.)
+            stripeCaptureDisabled = true;
+            return;
+        }
         long[] offsets = pageDecoder.lastPageRecordOffsets();
         boolean aligned = stripeHarvester.forEachRun(
             offsets,

@@ -181,6 +181,37 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         assertNull("byte-array cap-drop must publish no stats (max_record_size is not fingerprinted)", sink.get(o.path().toString()));
     }
 
+    /**
+     * G2 (elastic/elasticsearch#150920): a {@code rowLimit} slice truncates a page after the decoder recorded its
+     * full record count, which would desync the per-record offset array from the sliced page and trip
+     * {@code forEachRun}'s {@code recordCount == positionCount} assert on a legitimate truncation. So stripe
+     * tracking must be disabled under a rowLimit ({@code statsStripeSize -> -1}) — a recordAligned context WITH a
+     * rowLimit must publish no stripe stats (safe-miss), never harvest and risk the assert. Proven to harvest
+     * (non-null publish) without the {@code rowLimit == NO_LIMIT} conjunct.
+     */
+    public void testRowLimitDisablesStripeCapture() throws Exception {
+        byte[] bytes = ndjson(0, 20);
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(3) // small batch so a rowLimit slice lands mid-page
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .stats(0, 8, true)
+            .rowLimit(5)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        assertNull("a rowLimit read must not harvest stripe stats (safe-miss)", sink.get(o.path().toString()));
+    }
+
     private List<Map<String, Object>> captureRaw(
         byte[] bytes,
         long baseOffset,
@@ -543,6 +574,106 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         byte[] out = new byte[to - from];
         System.arraycopy(src, from, out, 0, to - from);
         return out;
+    }
+
+    public void testStreamingRecoverySkewSafeMissesStripeCapture() throws Exception {
+        // reader-B2 (elastic/elasticsearch#150920): on the STREAMING decoder path a lenient parse-error recovery
+        // rebuilds the parser and resets the byte baseline (parserSliceStart stays 0), so every record after the
+        // malformed line is attributed a stripe TOO EARLY. forEachRun's alignment is count-only and NDJSON has no
+        // emit-time byte tripwire, so the mis-attributed stripes would commit. Must safe-miss. Proven to publish
+        // skewed fragments without the offsetBaselineLost gate.
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 30; i++) {
+            sb.append(i == 6 ? "{\"a\":!}\n" : "{\"a\":" + (i % 10) + "}\n"); // record 6 malformed, same 8-byte width
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject o = streamingMemoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .stats(0, 16, true) // 16-byte grid = 2 records/stripe -> the collapse is real
+            .errorPolicy(new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 100, 1.0, false))
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        assertNull("a streaming-recovery offset-baseline reset must safe-miss the whole stripe publish", sink.get(o.path().toString()));
+    }
+
+    public void testCleanStreamingScanStillHarvestsStripes() throws Exception {
+        // Over-suppression guard: offsetBaselineLost fires ONLY on recovery, so a clean streaming scan (no
+        // malformed line) still harvests + publishes stripe stats. Also the suite's first streaming-path coverage.
+        byte[] bytes = ndjson(0, 12);
+        StorageObject o = streamingMemoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .stats(0, 24, true)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        assertNotNull("a clean streaming scan must still harvest stripe stats", raw);
+        assertFalse("clean streaming scan must publish stripe fragments", raw.isEmpty());
+        long totalRows = raw.stream().mapToLong(m -> ((Number) m.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()).sum();
+        assertEquals("harvested rows total the file", 12L, totalRows);
+    }
+
+    /**
+     * As {@link #memoryObject}, but {@code length()} is unavailable so the read takes the STREAMING decoder path
+     * (same as a >16 MiB parallel segment whose byte-array fast path is declined).
+     */
+    private StorageObject streamingMemoryObject(byte[] bytes) {
+        String uniquePath = "memory://" + UUID.randomUUID() + ".ndjson";
+        Instant fixedMtime = Instant.ofEpochMilli(1000L);
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(bytes);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException("Range reads not needed");
+            }
+
+            @Override
+            public long length() {
+                throw new UnsupportedOperationException("streaming-only");
+            }
+
+            @Override
+            public Instant lastModified() {
+                return fixedMtime;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of(uniquePath);
+            }
+        };
     }
 
     private StorageObject memoryObject(byte[] bytes) {

@@ -194,6 +194,16 @@ public class NdJsonPageDecoder implements Closeable {
      * this scan out of the stats cache (safe-miss). Mirrors CSV's {@code recordCapDropped} guard.
      */
     private boolean capDropped = false;
+    /**
+     * Set when a lenient-mode parse-error recovery on the STREAMING ({@link InputStream}) path rebuilt the parser
+     * over the remaining stream ({@link #recoverFromParseException}'s {@code sourceBytes == null} branch): the new
+     * parser's byte offsets restart at the recovery point while {@link #parserSliceStart} stays 0, so every
+     * subsequent {@link #tokenStartOffset()} is short by the bytes consumed before recovery — record offsets are no
+     * longer file-global. Per-stripe attribution derived from them would commit records to EARLIER stripes, and
+     * NDJSON has no emit-time byte-exactness tripwire (unlike CSV), so {@link NdJsonPageIterator} must safe-miss
+     * stripe capture. The byte-array recovery path re-anchors {@link #parserSliceStart} exactly and is immune.
+     */
+    private boolean offsetBaselineLost = false;
 
     /** Page block layout: index {@code i} corresponds to {@code projectedAttributes().get(i)}. */
     List<Attribute> projectedAttributes() {
@@ -467,6 +477,11 @@ public class NdJsonPageDecoder implements Closeable {
         } else {
             this.input = NdJsonUtils.moveToNextLine(failedParser, this.input);
             this.parser = jsonFactory.createParser(this.input);
+            // The fresh parser's byte offsets restart at the recovery point while parserSliceStart stays 0, so
+            // every subsequent tokenStartOffset() is short by the pre-recovery bytes. Record offsets are no longer
+            // file-global — any per-stripe attribution derived from them is skewed; NdJsonPageIterator safe-misses
+            // stripe capture. (The byte-array branch above re-anchors parserSliceStart exactly, so it is immune.)
+            this.offsetBaselineLost = true;
         }
     }
 
@@ -621,6 +636,11 @@ public class NdJsonPageDecoder implements Closeable {
      */
     boolean capDropped() {
         return capDropped;
+    }
+
+    /** Whether a streaming-path recovery reset the parser byte baseline (record offsets no longer file-global). */
+    boolean offsetBaselineLost() {
+        return offsetBaselineLost;
     }
 
     /**

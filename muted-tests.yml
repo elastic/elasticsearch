@@ -211,9 +211,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testDataStreamStatsActionBroadcastedToSearchNodesOnly
   issue: https://github.com/elastic/elasticsearch/issues/147973
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
-  issue: https://github.com/elastic/elasticsearch/issues/147988
 - class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
   method: plugin projects are wired into test cluster setup
   issue: https://github.com/elastic/elasticsearch/issues/148014
@@ -250,9 +247,6 @@ tests:
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test20RunWithBootstrapChecks
   issue: https://github.com/elastic/elasticsearch/issues/149040
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {csv-spec:fuse.fuseWithRowRRFAndMultiValueGroupColumn}
-  issue: https://github.com/elastic/elasticsearch/issues/149046
 - class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
   method: testRetainCommitForReadersAfterShardMovedAway
   issue: https://github.com/elastic/elasticsearch/issues/149083
@@ -524,9 +518,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.precommit.PomValidationPrecommitPluginFuncTest
   method: detects missing POM elements and reports structured problems
   issue: https://github.com/elastic/elasticsearch/issues/151636
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
-  issue: https://github.com/elastic/elasticsearch/issues/151709
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testRerouteRecovery
   issue: https://github.com/elastic/elasticsearch/issues/151731
@@ -823,3 +814,6 @@ tests:
 - class: org.elasticsearch.common.lucene.LuceneTests
   method: testSearchWithoutBulkScorer
   issue: https://github.com/elastic/elasticsearch/issues/152898
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:unmapped-type-conflicts.noTypeConflictKeywordKeepTriggersLoadInlineStats}
+  issue: https://github.com/elastic/elasticsearch/issues/152904

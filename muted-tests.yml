@@ -113,9 +113,6 @@ tests:
 - class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
   method: testHAProxyModeConnectionWorks
   issue: https://github.com/elastic/elasticsearch/issues/139171
-- class: org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExecSerializationTests
-  method: testEncryptedDatasourceSecretStrippedForOlderTransportVersion
-  issue: https://github.com/elastic/elasticsearch/issues/152657
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:PROMQL}
   issue: https://github.com/elastic/elasticsearch/issues/146923
@@ -734,36 +731,6 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityBWCToRCS1ClusterRestIT
   method: testBwcCCSViaRCS1orRCS2
   issue: https://github.com/elastic/elasticsearch/issues/152645
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityBWCToRCS2ClusterRestIT
-  method: testBwcCCSViaRCS1orRCS2
-  issue: https://github.com/elastic/elasticsearch/issues/152646
-- class: org.elasticsearch.xpack.logsdb.PatternTextRollingUpgradeIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/152652
-- class: org.elasticsearch.xpack.logsdb.MatchOnlyTextRollingUpgradeIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/152653
-- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
-  method: testIndexingSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/152654
-- class: org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/152655
-- class: org.elasticsearch.xpack.logsdb.TsdbIndexingRollingUpgradeIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/152656
-- class: org.elasticsearch.xpack.logsdb.KeywordRollingUpgradeIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/152659
-- class: org.elasticsearch.xpack.logsdb.SyntheticSourceRollingUpgradeIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/152660
-- class: org.elasticsearch.xpack.logsdb.TextRollingUpgradeIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/152661
-- class: org.elasticsearch.xpack.logsdb.StandardToLogsDbIndexModeRollingUpgradeIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/152662
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/152671
@@ -832,12 +799,15 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: initializationError
   issue: https://github.com/elastic/elasticsearch/issues/152849
-- class: org.elasticsearch.xpack.esql.action.NdJsonCrossFileScalarObjectConflictIT
-  method: testDefaultSettingsFailsOnCrossFileScalarObjectConflict
-  issue: https://github.com/elastic/elasticsearch/issues/152865
-- class: org.elasticsearch.xpack.esql.action.NdJsonCrossFileScalarObjectConflictIT
-  method: testSkipRowPolicyNullFillsAndWarnsClient
-  issue: https://github.com/elastic/elasticsearch/issues/152866
 - class: org.elasticsearch.xpack.diskbbq.DiskBBQClientYamlTestSuiteIT
   method: test {yaml=search.vectors/47_knn_search_bbq_disk_slice/KNN search with multiple _slice values searches across the requested slices}
   issue: https://github.com/elastic/elasticsearch/issues/152870
+- class: org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatTests
+  method: testConjunctionOfRangeFiltersMatchesBruteForce
+  issue: https://github.com/elastic/elasticsearch/issues/152886
+- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
+  method: testConjunctionOfRangeFiltersMatchesBruteForce
+  issue: https://github.com/elastic/elasticsearch/issues/152887
+- class: org.elasticsearch.xpack.esql.action.NdJsonScalarObjectConflictIT
+  method: testSkipRowPolicyNullFillsAndWarnsClient
+  issue: https://github.com/elastic/elasticsearch/issues/152891

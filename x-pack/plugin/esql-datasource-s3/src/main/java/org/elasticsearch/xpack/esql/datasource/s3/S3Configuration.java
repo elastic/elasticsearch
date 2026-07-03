@@ -25,8 +25,8 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  * {@code auto}, which infers the mode from the fields present. Supported modes:
  * <ul>
  *   <li>{@code auth=static_credentials} — access_key + secret_key (optionally session_token for STS temporary credentials)</li>
- *   <li>{@code auth=federated_identity} — keyless workload-identity federation via {@code role_arn} and
- *       {@code jwt_audience} (optionally {@code role_session_name} and {@code sts_endpoint})</li>
+ *   <li>{@code auth=federated_identity} — keyless workload-identity federation via {@code role_arn} (and optionally
+ *       {@code jwt_audience}, {@code role_session_name} and {@code sts_endpoint})</li>
  *   <li>{@code auth=anonymous} — anonymous access to public buckets</li>
  *   <li>{@code auth=managed_identity} — the node's instance credentials via the IMDS-family chain
  *       (ECS task role, then EC2 instance profile). Requires the
@@ -66,14 +66,11 @@ public class S3Configuration extends FileDataSourceConfiguration {
 
     @Override
     protected void validateCredentials(ValidationException errors) {
-        // role_session_name and sts_endpoint are optional; role_arn and jwt_audience are the minimum
+        // role_session_name, sts_endpoint, and jwt_audience are optional; role_arn is the minimum
         // needed to mint an OIDC token and exchange it for credentials via STS AssumeRoleWithWebIdentity.
         if (hasKeylessAuth()) {
             if (roleArn() == null) {
                 errors.addValidationError("role_arn is required when keyless authentication settings are configured");
-            }
-            if (jwtAudience() == null) {
-                errors.addValidationError("jwt_audience is required when keyless authentication settings are configured");
             }
         }
     }
@@ -186,7 +183,8 @@ public class S3Configuration extends FileDataSourceConfiguration {
         return get(ROLE_SESSION_NAME.name());
     }
 
-    /** Audience passed to the workload-identity issuer when minting the OIDC token presented to STS. */
+    /** Optional override for audience passed to the workload-identity issuer when minting the OIDC token
+     *  presented to STS; defaults to {@code sts.amazonaws.com}. */
     public String jwtAudience() {
         return get(JWT_AUDIENCE.name());
     }

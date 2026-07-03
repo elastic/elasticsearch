@@ -13,50 +13,79 @@
 #   pull-request-fix       — self-heal a failing pull request    (needs PR_URL)
 #   pull-request-creation  — implement a task and open a PR      (needs ISSUE_URL)
 #
-# Trigger from the Buildkite UI (set WORKFLOW in the Environment Variables field
-# of the New Build dialog) or via the Buildkite API, e.g.:
+# Trigger from the UI (fill the input step) or via the Buildkite API with the
+# vars pre-set so the input step is skipped, e.g.:
 #   curl -X POST ".../pipelines/elasticsearch-agentic-workflow/builds" \
 #     -H "Authorization: Bearer $BUILDKITE_API_TOKEN" \
 #     -d '{"branch":"main","env":{
 #            "WORKFLOW":"test-analysis",
 #            "ISSUE_URL":"https://github.com/elastic/elasticsearch/issues/150989"}}'
 
-# Expose trigger vars at pipeline level so they are visible to step `if`
-# conditions and are shown in the Buildkite UI for API-triggered builds.
-# WORKFLOW must be set explicitly when triggering — this pipeline does not
-# run on branch pushes and has no input step (Buildkite skips input steps
-# for webhook-triggered builds, making them unreliable for this use case).
+# Surface trigger vars at pipeline level so env() in step `if` conditions can
+# see them on API-triggered builds.
 env:
   WORKFLOW:  "${WORKFLOW:-}"
   ISSUE_URL: "${ISSUE_URL:-}"
   PR_URL:    "${PR_URL:-}"
 
 steps:
+  # ── Optional input (skipped when WORKFLOW + a URL are already set) ───────────
+  - input: ":pencil: Pi — configure workflow"
+    key: pi-input
+    if: build.env("WORKFLOW") == null || build.env("WORKFLOW") == ""
+    fields:
+      - select: "Workflow"
+        key:     WORKFLOW
+        default: "test-analysis"
+        options:
+          - { label: "Test failure analysis", value: "test-analysis"         }
+          - { label: "Fix a pull request",    value: "pull-request-fix"       }
+          - { label: "Create a pull request", value: "pull-request-creation"  }
+      - text: "Issue URL"
+        key:  ISSUE_URL
+        hint: "https://github.com/elastic/elasticsearch/issues/N (test-analysis / pull-request-creation)"
+        required: false
+      - text: "Pull request URL"
+        key:  PR_URL
+        hint: "https://github.com/elastic/elasticsearch/pull/N (pull-request-fix)"
+        required: false
+
   # ── Run pi-agent ─────────────────────────────────────────────────────────────
   - label: ":robot_face: Pi — :workflow:"
     key: pi-run
-    # Serialise the whole pipeline to one run at a time. The agent sessions share
-    # a single LiteLLM service-account key, and per-session cost is measured as a
-    # /key/info spend delta — concurrent runs would contaminate each other's
-    # delta. concurrency_method: ordered keeps queued builds in submission order.
-    concurrency: 1
-    concurrency_group: "elasticsearch-agentic-workflow/pi-run"
-    concurrency_method: ordered
+    depends_on: pi-input
     timeout_in_minutes: 60
     env:
       USE_PI_AGENT: "true"
-      PI_AGENT_SESSION_DIR: "/tmp/pi-agent-sessions"
     agents:
       provider:       gcp
       image:          family/elasticsearch-ubuntu-2404
-      # The pi-run agent is an I/O-bound orchestrator (LLM/gh/git calls); it does
-      # NOT build Elasticsearch — reproduction runs on its own n4-standard-64 job.
-      # 4 vCPU is plenty; the full-history mirror checkout is the only heavy step.
-      machineType:    n4-standard-4
+      machineType:    n4-standard-16
       diskType:       hyperdisk-balanced
       buildDirectory: /dev/shm/bk
     retry:
       automatic:
         - exit_status: "*"
           limit: 1
-    command: bash .buildkite/scripts/run-pi-agent.sh
+    command: |
+      set -euo pipefail
+
+      case "${WORKFLOW}" in
+        test-analysis)
+          [[ -n "${ISSUE_URL:-}" ]] || { echo "ISSUE_URL is required for test-analysis" >&2; exit 1; }
+          pi-agent analyze --issue-url "${ISSUE_URL}"
+          ;;
+        pull-request-fix)
+          [[ -n "${PR_URL:-}" ]] || { echo "PR_URL is required for pull-request-fix" >&2; exit 1; }
+          pi-agent fix-pr --pr-url "${PR_URL}"
+          ;;
+        pull-request-creation)
+          [[ -n "${ISSUE_URL:-}" ]] || { echo "ISSUE_URL is required for pull-request-creation" >&2; exit 1; }
+          pi-agent create --issue-url "${ISSUE_URL}"
+          ;;
+        *)
+          echo "Unknown or unset WORKFLOW: '${WORKFLOW:-}'" >&2
+          echo "Expected one of: test-analysis, pull-request-fix, pull-request-creation" >&2
+          exit 1
+          ;;
+      esac

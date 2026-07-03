@@ -48,7 +48,7 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
  * partition the vector space, and then stores the centroids and posting list in a sequential
  * fashion.
  */
-public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
+public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVectorsWriter.CentroidGroups> {
     private static final Logger logger = LogManager.getLogger(ES920DiskBBQVectorsWriter.class);
 
     private final int vectorPerCluster;
@@ -418,14 +418,14 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    public CentroidSupplier createCentroidSupplier(
-        IndexInput centroidsInput,
-        CentroidSlices centroidSlices,
-        int numCentroids,
-        FieldInfo fieldInfo,
-        float[] globalCentroid
-    ) throws IOException {
-        CentroidSupplier supplier = new OffHeapCentroidSupplier(centroidsInput, numCentroids, KMeansResult.emptyFloat(), fieldInfo);
+    public CentroidSupplier createCentroidSupplier(IndexInput centroidsInput, CentroidAssignments centroidAssignments, FieldInfo fieldInfo)
+        throws IOException {
+        CentroidSupplier supplier = new OffHeapCentroidSupplier(
+            centroidsInput,
+            centroidAssignments.numCentroids(),
+            KMeansResult.emptyFloat(),
+            fieldInfo
+        );
         if (supplier.size() > centroidsPerParentCluster * centroidsPerParentCluster) {
             final KMeansResult<float[]> centroidGroups = buildSecondLevelClusters(fieldInfo, supplier, true);
             return new CentroidSupplier() {
@@ -487,42 +487,28 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         // no-op
     }
 
-    @Override
-    public void writeCentroids(
-        FieldInfo fieldInfo,
-        CentroidSupplier centroidSupplier,
-        int[] centroidAssignments,
-        float[] globalCentroid,
-        CentroidOffsetAndLength centroidOffsetAndLength,
-        IndexOutput centroidOutput
-    ) throws IOException {
-        doWriteCentroids(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput);
-    }
+    record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
 
     @Override
-    public void writeCentroids(
-        FieldInfo fieldInfo,
-        CentroidSupplier centroidSupplier,
-        int[] centroidAssignments,
-        float[] globalCentroid,
-        CentroidOffsetAndLength centroidOffsetAndLength,
-        IndexOutput centroidOutput,
-        MergeState mergeState
-    ) throws IOException {
-        doWriteCentroids(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput);
-    }
-
-    private record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
-
-    private void doWriteCentroids(
-        FieldInfo fieldInfo,
-        CentroidSupplier centroidSupplier,
-        float[] globalCentroid,
-        CentroidOffsetAndLength centroidOffsetAndLength,
-        IndexOutput centroidOutput
-    ) throws IOException {
+    protected CentroidGroups writeCentroidIndex(CentroidSupplier centroidSupplier, int[] centroidAssignments, IndexOutput centroidOutput)
+        throws IOException {
         if (centroidSupplier.secondLevelClusters().centroidsSupplier().size() > 1) {
-            final CentroidGroups centroidGroups = buildCentroidGroups(centroidSupplier);
+            return buildCentroidGroups(centroidSupplier);
+        } else {
+            return null;
+        }
+    }
+
+    @Override
+    protected void writeCentroidData(
+        FieldInfo fieldInfo,
+        CentroidSupplier centroidSupplier,
+        float[] globalCentroid,
+        CentroidOffsetAndLength centroidOffsetAndLength,
+        CentroidGroups centroidGroups,
+        IndexOutput centroidOutput
+    ) throws IOException {
+        if (centroidGroups != null) {
             writeCentroidsWithParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput, centroidGroups);
         } else {
             writeCentroidsWithoutParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput);
@@ -665,7 +651,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues, MergeState mergeState)
+    public CentroidInformation calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues, MergeState mergeState)
         throws IOException {
         // 9.2 indices intentionally do not participate in the tiered merge strategy: the on-disk
         // layout would require a bespoke streaming centroid reader to surface priors, and the
@@ -684,12 +670,12 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
      * @throws IOException if an I/O error occurs
      */
     @Override
-    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues) throws IOException {
+    public CentroidInformation calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues) throws IOException {
         HierarchicalKMeans<float[]> hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
         return calculateCentroids(hierarchicalKMeans, floatVectorValues, fieldInfo);
     }
 
-    private CentroidAssignments calculateCentroids(
+    private CentroidInformation calculateCentroids(
         HierarchicalKMeans<float[]> hierarchicalKMeans,
         KMeansFloatVectorValues floatVectorValues,
         FieldInfo fieldInfo
@@ -701,7 +687,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
         int[] assignments = kMeansResult.assignments();
         int[] soarAssignments = kMeansResult.soarAssignments();
-        return new CentroidAssignments(fieldInfo.getVectorDimension(), centroids, assignments, new SoarAssignments(soarAssignments));
+        return new CentroidInformation(fieldInfo.getVectorDimension(), centroids, assignments, new SoarAssignments(soarAssignments));
     }
 
     static void writeQuantizedValue(IndexOutput indexOutput, byte[] binaryValue, OptimizedScalarQuantizer.QuantizationResult corrections)

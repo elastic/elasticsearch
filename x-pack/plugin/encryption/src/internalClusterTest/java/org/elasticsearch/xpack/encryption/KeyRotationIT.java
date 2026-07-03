@@ -70,7 +70,10 @@ public class KeyRotationIT extends SecurityIntegTestCase {
      * but cannot atomically abort a tick that is already executing on the generic thread pool. The
      * {@code assertBusy} wait ensures any task that slipped into the master-service queue after
      * {@code close()} has been executed and its cluster-state publication committed before we hand
-     * off to the framework — whose own {@code safeGet} has only a 10-second budget.
+     * off to the framework's own consistency check. Publishing a retire/re-encrypt task can take
+     * several seconds on loaded CI (especially right after the master failover exercised by
+     * {@code testRotationContinuesAfterMasterFailover}), so this waits generously rather than racing
+     * a tight budget — every second spent draining here is a second the framework's check won't need.
      */
     @After
     public void stopKeyRotationCoordinators() throws Exception {
@@ -90,7 +93,7 @@ public class KeyRotationIT extends SecurityIntegTestCase {
                     .toList(),
                 empty()
             ),
-            5,
+            30,
             TimeUnit.SECONDS
         );
     }

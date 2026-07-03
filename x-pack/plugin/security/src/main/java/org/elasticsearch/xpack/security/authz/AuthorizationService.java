@@ -26,6 +26,7 @@ import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
+import org.elasticsearch.action.datastreams.PastTimeSeriesIndexCreationAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -758,10 +759,12 @@ public class AuthorizationService {
         final TransportRequest request = requestInfo.getRequest();
         assert (request instanceof CreateIndexRequest)
             || (request instanceof MigrateToDataStreamAction.Request)
-            || (request instanceof CreateDataStreamAction.Request);
+            || (request instanceof CreateDataStreamAction.Request)
+            || (request instanceof PastTimeSeriesIndexCreationAction.Request);
         if (request instanceof CreateDataStreamAction.Request
             || (request instanceof MigrateToDataStreamAction.Request)
-            || ((CreateIndexRequest) request).aliases().isEmpty()) {
+            || ((CreateIndexRequest) request).aliases().isEmpty()
+            || (request instanceof PastTimeSeriesIndexCreationAction.Request)) {
             runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
             return;
         }

@@ -5,55 +5,46 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql;
+package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
-import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Map;
 
 /**
- * Builder to modify configurations on tests.
- * <p>
- *     The {@link Configuration#now()} field is actually modified, so built configurations will also differ there.
- * </p>
+ * Builder for {@link Configuration}. Use {@link #ConfigurationBuilder(Configuration)} to copy an
+ * existing configuration and override individual fields before calling {@link #build()}.
  */
 public class ConfigurationBuilder {
 
     private Instant now;
-
     private String clusterName;
     private String username;
-    private ZoneId zoneId;
-
+    private ResolvedSettings resolvedSettings;
     private QueryPragmas pragmas;
-
     private int resultTruncationMaxSizeRegular;
     private int resultTruncationDefaultSizeRegular;
     private int resultTruncationMaxSizeTimeseries;
     private int resultTruncationDefaultSizeTimeseries;
-
     private Locale locale;
-
     private String query;
-
     private boolean profile;
     private boolean allowPartialResults;
     private boolean explainOnly;
-
     private Map<String, Map<String, Column>> tables;
     private long queryStartTimeNanos;
-
-    private String projectRouting;
+    private Map<String, String> viewQueries;
 
     public ConfigurationBuilder(Configuration configuration) {
         now = configuration.now();
         clusterName = configuration.clusterName();
         username = configuration.username();
-        zoneId = configuration.zoneId();
+        resolvedSettings = configuration.resolvedSettings();
         pragmas = configuration.pragmas();
         resultTruncationMaxSizeRegular = configuration.resultTruncationMaxSize(false);
         resultTruncationDefaultSizeRegular = configuration.resultTruncationDefaultSize(false);
@@ -66,7 +57,7 @@ public class ConfigurationBuilder {
         explainOnly = configuration.explainOnly();
         tables = configuration.tables();
         queryStartTimeNanos = configuration.queryStartTimeNanos();
-        projectRouting = configuration.projectRouting();
+        viewQueries = configuration.viewQueries();
     }
 
     public ConfigurationBuilder now(Instant now) {
@@ -81,11 +72,6 @@ public class ConfigurationBuilder {
 
     public ConfigurationBuilder username(String username) {
         this.username = username;
-        return this;
-    }
-
-    public ConfigurationBuilder zoneId(ZoneId zoneId) {
-        this.zoneId = zoneId;
         return this;
     }
 
@@ -134,6 +120,11 @@ public class ConfigurationBuilder {
         return this;
     }
 
+    public ConfigurationBuilder explainOnly(boolean explainOnly) {
+        this.explainOnly = explainOnly;
+        return this;
+    }
+
     public ConfigurationBuilder tables(Map<String, Map<String, Column>> tables) {
         this.tables = tables;
         return this;
@@ -144,19 +135,24 @@ public class ConfigurationBuilder {
         return this;
     }
 
-    public ConfigurationBuilder projectRouting(String projectRouting) {
-        this.projectRouting = projectRouting;
+    public ConfigurationBuilder resolvedSettings(ResolvedSettings resolvedSettings) {
+        this.resolvedSettings = resolvedSettings;
         return this;
     }
 
-    public ConfigurationBuilder explainOnly(boolean explainOnly) {
-        this.explainOnly = explainOnly;
+    /** Override one {@link QuerySettingDef} value on the resolved-settings view. Generic — caller names the setting. */
+    public <T> ConfigurationBuilder setting(QuerySettingDef<T> def, T value) {
+        this.resolvedSettings = resolvedSettings.withOverride(def, value);
+        return this;
+    }
+
+    public ConfigurationBuilder viewQueries(Map<String, String> viewQueries) {
+        this.viewQueries = viewQueries;
         return this;
     }
 
     public Configuration build() {
-        Configuration config = new Configuration(
-            zoneId,
+        return new Configuration(
             now,
             locale,
             username,
@@ -171,10 +167,9 @@ public class ConfigurationBuilder {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
-            projectRouting,
-            null,
-            Map.of()
+            resolvedSettings,
+            viewQueries,
+            explainOnly
         );
-        return explainOnly ? config.withExplainOnly() : config;
     }
 }

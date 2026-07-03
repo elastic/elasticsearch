@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -321,6 +322,13 @@ public final class SchemaReconciliation {
 
         emitKeywordFallbackWarnings(unified, contributions);
 
+        // Resolve esql-planning#1050 before the nullable-fill pass below: collapse any field that
+        // some files infer as a scalar leaf and others infer as a nested object (dotted-prefix
+        // parent) to a single shape, dropping the losing shape's entries from `unified` in place.
+        // The nullable-fill pass then naturally marks the surviving name nullable for the losing
+        // files (their original schema genuinely lacks it), which is exactly what we want.
+        Map<StoragePath, List<Attribute>> shapeConflictOverrides = resolveShapeConflicts(unified, fileMetadata);
+
         // Mark columns as nullable when missing from any file
         for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
             Set<String> fileColumnNames = new HashSet<>();
@@ -346,7 +354,11 @@ public final class SchemaReconciliation {
         for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
             StoragePath filePath = entry.getKey();
             SourceMetadata meta = entry.getValue();
-            List<Attribute> fileSchema = meta.schema();
+            // A file on the losing side of a shape conflict is pinned to the winning shape's
+            // attribute(s) instead of its own inferred sub-schema for that field — see
+            // resolveShapeConflicts for why this is what actually routes the file's real values
+            // through the per-file shape-conflict/ErrorPolicy handling at read time.
+            List<Attribute> fileSchema = shapeConflictOverrides.getOrDefault(filePath, meta.schema());
             SourceStatistics stats = meta.statistics().orElse(null);
 
             ColumnMapping mapping = computeMapping(unifiedSchema, fileSchema);
@@ -354,6 +366,334 @@ public final class SchemaReconciliation {
         }
 
         return new Result(new ExternalSchema(unifiedSchema), Map.copyOf(perFileInfo));
+    }
+
+    /**
+     * Detects and resolves esql-planning#1050: a field that some files infer as a scalar leaf and
+     * others infer as a nested object (a dotted-prefix parent, e.g. {@code user} vs
+     * {@code user.id}/{@code user.tier}) is a schema conflict across files, exactly like a
+     * within-file shape conflict is for a single file (elastic/esql-planning#1028).
+     * {@code UNION_BY_NAME} merges purely by exact name, so the two shapes never collide there and
+     * both get fabricated into the unified schema — this pass collapses each such family to a
+     * single shape: the first file (in {@code fileMetadata} iteration order) to contribute the
+     * family at all wins, mirroring both #1028's first-observed-shape rule and
+     * {@code FIRST_FILE_WINS}'s anchor semantics.
+     * <p>
+     * Mutates {@code unified} in place, removing the losing shape's entries so they never reach
+     * the unified schema. Returns a per-file override of {@link SourceMetadata#schema()} for the
+     * losing files: their own inferred sub-schema for the family is replaced by the winning
+     * attribute(s) taken straight from the (possibly widened) {@code unified} entries. That
+     * override becomes, via the caller, the losing file's {@link FileSchemaInfo#fileSchema()} —
+     * which is exactly what {@code FileSplitProvider} pins the reader's {@code readSchema} to. So
+     * when the reader for a losing file later hits that file's real, differently-shaped JSON
+     * value on the now-pinned winning attribute, the existing per-file shape-conflict handling
+     * (e.g. {@code NdJsonPageDecoder}'s {@code shapeConflict}, added for #1028) fires
+     * automatically and routes it through {@link org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy}
+     * — no format-specific code needed here.
+     * <p>
+     * A file that contributes <em>both</em> the bare name and a dotted child for the same root
+     * (a literal flat key such as {@code "user.tag"} coexisting with scalar {@code "user"} in one
+     * file) still fully participates in the vote above as a leaf-shaped contributor — presence of
+     * the bare name means its dotted column(s) are literal flat keys, not nested children (see
+     * {@code NdJsonPageDecoder#hasDottedPrefixConflict}), so only those unrelated dotted columns
+     * are excluded from the family; see {@link #resolveFamily} for why exempting the file's leaf
+     * contribution too would silently reopen the conflict.
+     * <p>
+     * Only files whose {@link SourceMetadata#sourceType()} is {@link #supportsShapeConflictResolution
+     * shape-conflict-capable} ever enter this family vote — see that method for why. A file from
+     * any other format that happens to carry a name matching {@code root} or {@code root.*} is
+     * therefore never touched here, however it looks lexically: e.g. a CSV file with a literal
+     * {@code user.tag} header alongside another (CSV or NDJSON) file's scalar {@code user} column
+     * is not a shape conflict — both are ordinary, independent columns and both survive in the
+     * unified schema, one NULL-filled in whichever file lacks it, exactly like any other pair of
+     * unrelated column names would.
+     */
+    private static Map<StoragePath, List<Attribute>> resolveShapeConflicts(
+        LinkedHashMap<String, MergeEntry> unified,
+        Map<StoragePath, SourceMetadata> fileMetadata
+    ) {
+        Set<String> namesFromCapableFiles = new LinkedHashSet<>();
+        for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
+            if (supportsShapeConflictResolution(entry.getValue().sourceType()) == false) {
+                continue;
+            }
+            for (Attribute attr : entry.getValue().schema()) {
+                namesFromCapableFiles.add(attr.name());
+            }
+        }
+        List<String> familyRoots = findFamilyRoots(namesFromCapableFiles);
+        if (familyRoots.isEmpty()) {
+            return Map.of();
+        }
+        // Shallowest roots first: once a shallower family is resolved its losing names are
+        // removed from `unified`, so a deeper candidate root re-derives its family membership
+        // from what's actually still there rather than from a stale upfront snapshot.
+        familyRoots.sort(Comparator.comparingInt(SchemaReconciliation::dotDepth));
+
+        Map<StoragePath, List<Attribute>> overrides = new LinkedHashMap<>();
+        List<FamilyConflict> conflicts = new ArrayList<>();
+        for (String root : familyRoots) {
+            FamilyConflict conflict = resolveFamily(root, unified, fileMetadata);
+            if (conflict == null) {
+                continue;
+            }
+            conflicts.add(conflict);
+            for (String droppedName : conflict.droppedNames()) {
+                unified.remove(droppedName);
+            }
+            for (Map.Entry<StoragePath, List<String>> losing : conflict.losingFileNames().entrySet()) {
+                StoragePath losingFile = losing.getKey();
+                List<String> ownFamilyNames = losing.getValue();
+                List<Attribute> override = overrides.computeIfAbsent(losingFile, f -> new ArrayList<>(fileMetadata.get(f).schema()));
+                override.removeIf(a -> ownFamilyNames.contains(a.name()));
+                override.addAll(conflict.winningAttributes());
+            }
+        }
+        emitShapeConflictWarnings(conflicts);
+        return overrides;
+    }
+
+    /**
+     * Whether {@code sourceType} may participate in {@link #resolveShapeConflicts}: its reader
+     * must both (a) genuinely flatten nested objects into dotted attribute names, so a
+     * {@code root}/{@code root.*} pair can actually mean "scalar in one file, object in another"
+     * rather than two unrelated literal names, and (b) have a per-file, read-time mechanism that
+     * routes a pinned-shape mismatch through {@link org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy}
+     * once this pass overrides a losing file's {@code readSchema} — see {@link #resolveShapeConflicts}'s
+     * javadoc for how that override is used downstream.
+     * <p>
+     * Today only NDJSON satisfies both: {@code NdJsonSchemaInferrer} flattens
+     * {@code {"user": {"id": ...}}} into {@code user.id}, and {@code NdJsonPageDecoder}'s
+     * {@code shapeConflict} handling (elastic/esql-planning#1028) is exactly the read-time fallback
+     * (a) needs. Every other format fails at least one requirement, and enabling it there would
+     * silently drop <em>valid</em> UBN columns instead of resolving a real conflict:
+     * <ul>
+     *   <li>CSV/TSV headers are always literal — a {@code "."} never means nesting, so
+     *       {@code user} and {@code user.tag} in two CSV files are simply two unrelated columns,
+     *       not a shape conflict.</li>
+     *   <li>Iceberg never flattens structs (they're skipped as {@code UNSUPPORTED}), so any dotted
+     *       name it does surface is, like CSV, always a literal top-level column name.</li>
+     *   <li>Parquet and ORC <em>do</em> flatten nested structs into dotted names (satisfying (a)),
+     *       but neither reader has an equivalent of NDJSON's {@code shapeConflict} fallback for a
+     *       column pinned to a shape that disagrees with the file's actual footer-declared type
+     *       (failing (b)) — so overriding a losing Parquet/ORC file's {@code readSchema} here would
+     *       misfire (e.g. a read-time type error) instead of gracefully degrading through
+     *       {@code ErrorPolicy}.</li>
+     * </ul>
+     */
+    private static boolean supportsShapeConflictResolution(String sourceType) {
+        return "ndjson".equals(sourceType);
+    }
+
+    private static int dotDepth(String name) {
+        int depth = 0;
+        for (int i = 0; i < name.length(); i++) {
+            if (name.charAt(i) == '.') {
+                depth++;
+            }
+        }
+        return depth;
+    }
+
+    /**
+     * Returns every name in {@code names} that is a "family root": some other name in the set is
+     * {@code root + "." + suffix}. Quadratic in the (typically small, per-query-bounded) column
+     * count — the same trade-off {@link #validateNoDuplicateColumns} and the rest of this class
+     * already make for per-name work at reconciliation time.
+     */
+    private static List<String> findFamilyRoots(Set<String> names) {
+        List<String> roots = new ArrayList<>();
+        for (String candidate : names) {
+            String prefix = candidate + ".";
+            for (String other : names) {
+                if (other.startsWith(prefix)) {
+                    roots.add(candidate);
+                    break;
+                }
+            }
+        }
+        return roots;
+    }
+
+    /**
+     * Classifies every file's contribution to the {@code root} family as leaf-shaped (has the
+     * bare {@code root} name — even if it also carries unrelated {@code root.*} flat keys, see
+     * below), dotted-shaped (has some {@code root.*} name but not {@code root} itself) or absent,
+     * then resolves a conflict when both shapes are contributed by different files. Returns
+     * {@code null} when there is no actual cross-file conflict for this family (a single
+     * contributor, or every contributor agrees).
+     * <p>
+     * A file that has the bare {@code root} name always classifies as leaf-shaped for this
+     * family, full stop, regardless of whether it also happens to carry some unrelated
+     * {@code root.*} column: presence of {@code root} itself means any {@code root.*} names in
+     * that <em>same</em> file are literal flat keys, not nested children of {@code root} (see
+     * {@code NdJsonPageDecoder#hasDottedPrefixConflict}), so they take no part in this family
+     * either way — they are simply excluded from {@code familyNamesInFile} below and therefore
+     * never touched by the winning/losing overrides. The file's actual {@code root} value,
+     * though, is a real, ordinary leaf contribution and must fully participate in the cross-file
+     * win/loss vote like any other file's bare column — exempting it entirely (as an earlier
+     * version of this method did) let such a file's scalar {@code root} silently keep coexisting
+     * with a winning nested shape from another file, reopening the exact ambiguity this method
+     * exists to close.
+     * <p>
+     * A file whose format is not {@link #supportsShapeConflictResolution shape-conflict-capable}
+     * (e.g. CSV, Iceberg, Parquet, ORC) is skipped outright, regardless of whether it happens to
+     * carry {@code root} or a {@code root.*} name — see {@link #resolveShapeConflicts} for why
+     * such names there are always literal/independent, never a genuine shape conflict.
+     */
+    @Nullable
+    private static FamilyConflict resolveFamily(
+        String root,
+        LinkedHashMap<String, MergeEntry> unified,
+        Map<StoragePath, SourceMetadata> fileMetadata
+    ) {
+        String dottedPrefix = root + ".";
+        Boolean winningShapeIsLeaf = null;
+        StoragePath winningFile = null;
+        // Every family-member name (the bare root, or a genuinely nested root.* child) mapped to
+        // the set of files whose own schema contributes it — used below so a name is only ever
+        // dropped from the unified schema when *every* one of its contributors is on the losing
+        // side; a name a kept (non-losing) file also relies on must survive untouched. Note this
+        // never contains a root.* name from a file that also has the bare root itself — see the
+        // class javadoc above for why those are excluded from the family entirely.
+        Map<String, Set<StoragePath>> contributorsByName = new LinkedHashMap<>();
+        // Losing files mapped to exactly the family-member names *they* contribute, so each
+        // file's override only ever removes its own columns, never another file's.
+        LinkedHashMap<StoragePath, List<String>> losingFileNames = new LinkedHashMap<>();
+
+        for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
+            if (supportsShapeConflictResolution(entry.getValue().sourceType()) == false) {
+                continue;
+            }
+            boolean hasLeaf = false;
+            List<String> dottedNames = new ArrayList<>();
+            for (Attribute attr : entry.getValue().schema()) {
+                String name = attr.name();
+                if (name.equals(root)) {
+                    hasLeaf = true;
+                } else if (name.startsWith(dottedPrefix)) {
+                    dottedNames.add(name);
+                }
+            }
+
+            List<String> familyNamesInFile;
+            boolean fileShapeIsLeaf;
+            if (hasLeaf) {
+                familyNamesInFile = List.of(root);
+                fileShapeIsLeaf = true;
+            } else if (dottedNames.isEmpty() == false) {
+                familyNamesInFile = dottedNames;
+                fileShapeIsLeaf = false;
+            } else {
+                continue; // file doesn't touch this family at all
+            }
+
+            for (String name : familyNamesInFile) {
+                contributorsByName.computeIfAbsent(name, n -> new LinkedHashSet<>()).add(entry.getKey());
+            }
+            if (winningShapeIsLeaf == null) {
+                winningShapeIsLeaf = fileShapeIsLeaf;
+                winningFile = entry.getKey();
+            } else if (fileShapeIsLeaf != winningShapeIsLeaf) {
+                losingFileNames.put(entry.getKey(), familyNamesInFile);
+            }
+        }
+
+        if (losingFileNames.isEmpty()) {
+            return null;
+        }
+
+        // Restricted to contributorsByName's keys (true family members only) rather than a plain
+        // name/dottedPrefix match against `unified`: an unrelated root.* flat key owned by some
+        // other leaf-shaped file (excluded above) must never be pulled into the winning shape.
+        List<Attribute> winningAttributes = new ArrayList<>();
+        for (String name : unified.keySet()) {
+            if (contributorsByName.containsKey(name) == false) {
+                continue;
+            }
+            boolean isLeafName = name.equals(root);
+            if (isLeafName == winningShapeIsLeaf) {
+                MergeEntry me = unified.get(name);
+                Nullability nullability = me.nullable ? Nullability.TRUE : Nullability.FALSE;
+                winningAttributes.add(new ReferenceAttribute(Source.EMPTY, null, name, me.type, nullability, null, false));
+            }
+        }
+
+        Set<StoragePath> losingFiles = losingFileNames.keySet();
+        LinkedHashSet<String> droppedNames = new LinkedHashSet<>();
+        for (List<String> ownNames : losingFileNames.values()) {
+            for (String name : ownNames) {
+                if (losingFiles.containsAll(contributorsByName.get(name))) {
+                    droppedNames.add(name);
+                }
+            }
+        }
+
+        return new FamilyConflict(root, winningFile, winningShapeIsLeaf, winningAttributes, droppedNames, losingFileNames);
+    }
+
+    /**
+     * A resolved esql-planning#1050 conflict for one field family: {@code winningFile} kept its
+     * shape ({@code winningAttributes}, family root {@code root}); every file key in
+     * {@code losingFileNames} contributed the other shape and had its own listed family names
+     * removed from the unified schema (to the extent {@code droppedNames} allows — see
+     * {@link #resolveFamily}) and overridden to {@code winningAttributes} in its own
+     * {@code fileSchema()} pin.
+     */
+    private record FamilyConflict(
+        String root,
+        StoragePath winningFile,
+        boolean winningShapeIsLeaf,
+        List<Attribute> winningAttributes,
+        Set<String> droppedNames,
+        Map<StoragePath, List<String>> losingFileNames
+    ) {
+        String buildDetail() {
+            StoragePath losingExample = losingFileNames.keySet().iterator().next();
+            String winningShape = winningShapeIsLeaf ? "a scalar" : "an object";
+            String losingShape = winningShapeIsLeaf ? "an object" : "a scalar";
+            StringBuilder sb = new StringBuilder("Field [").append(root)
+                .append("] is ")
+                .append(winningShape)
+                .append(" in [")
+                .append(winningFile)
+                .append("] but ")
+                .append(losingShape)
+                .append(" in [")
+                .append(losingExample)
+                .append("]");
+            if (losingFileNames.size() > 1) {
+                sb.append(" (+").append(losingFileNames.size() - 1).append(" more)");
+            }
+            sb.append("; kept the [")
+                .append(winningFile)
+                .append("] shape [")
+                .append(String.join(", ", winningAttributes.stream().map(Attribute::name).toList()))
+                .append("], dropped [")
+                .append(String.join(", ", droppedNames))
+                .append("] from the unified schema. The conflicting file(s)' values for [")
+                .append(root)
+                .append("] are handled per the configured error policy at read time.");
+            return sb.toString();
+        }
+    }
+
+    /**
+     * Fire-and-forget emit of one response {@code Warning} per resolved shape conflict, via the
+     * same {@link SkipWarnings} pattern as {@link #emitKeywordFallbackWarnings}.
+     */
+    private static void emitShapeConflictWarnings(List<FamilyConflict> conflicts) {
+        if (conflicts.isEmpty()) {
+            return;
+        }
+        SkipWarnings warnings = new SkipWarnings(
+            "Schema reconciliation resolved cross-file scalar/object shape conflicts (esql-planning#1050) by"
+                + " keeping the first file's shape; make the field's shape consistent across files, or declare it"
+                + " explicitly, to avoid this."
+        );
+        for (FamilyConflict conflict : conflicts) {
+            warnings.add(conflict.buildDetail());
+        }
     }
 
     static ColumnMapping computeMapping(List<Attribute> unifiedSchema, List<Attribute> fileSchema) {

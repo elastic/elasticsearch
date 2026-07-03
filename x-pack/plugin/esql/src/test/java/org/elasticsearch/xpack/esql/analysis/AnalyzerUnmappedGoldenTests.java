@@ -759,6 +759,20 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, STAGES);
     }
 
+    public void testSingleTypeDenseVectorUnmappedNoCastLoadOnly() throws Exception {
+        runTestsLoadOnly("""
+            FROM dense_vector, dense_vector_unmapped
+            | KEEP float_vector
+            """, STAGES);
+    }
+
+    public void testSingleTypeAggregateMetricDoubleUnmappedNoCastLoadOnly() throws Exception {
+        runTestsLoadOnly("""
+            FROM k8s-downsampled, k8s_unmapped
+            | KEEP network.eth0.tx
+            """, STAGES);
+    }
+
     public void testSingleTypeTextUnmappedWithMatchOperatorLoadOnly() throws Exception {
         assumeTrue("Requires match operator", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         runTestsLoadOnly("""

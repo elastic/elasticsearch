@@ -1656,50 +1656,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         }
     }
 
-    /**
-     * Under {@code unmapped_fields="load"}, single-field full-text functions are supported: the match operator, {@code MATCH},
-     * and {@code MATCH_PHRASE} resolve their field and preserve its mapped type ({@code TEXT} here). {@code QSTR} and {@code KQL}
-     * take a query string rather than a field, so they don't block loading unmapped fields referenced elsewhere in the query.
-     * See #141927 (these previously failed at analysis) and #144121 (tracking broader full-text support).
-     */
-    public void testUnmappedFieldsLoadWithSupportedSingleFieldFullTextFunctions() {
-        var analyzer = test();
-        assertSingleOutputType(
-            analyzer.statement(setUnmappedLoad("FROM test | WHERE gender:\"M\" | KEEP gender")),
-            "gender",
-            DataType.TEXT
-        );
-        assertSingleOutputType(
-            analyzer.statement(setUnmappedLoad("FROM test | WHERE match(gender, \"M\") | KEEP gender")),
-            "gender",
-            DataType.TEXT
-        );
-        assertSingleOutputType(
-            analyzer.statement(setUnmappedLoad("FROM test | WHERE match_phrase(gender, \"M\") | KEEP gender")),
-            "gender",
-            DataType.TEXT
-        );
-
-        if (EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled()) {
-            var plan = analyzer.statement(
-                setUnmappedLoad(
-                    "FROM test | WHERE qstr(\"first_name: foo\") | EVAL x = LENGTH(does_not_exist_field) | KEEP does_not_exist_field, x"
-                )
-            );
-            assertOutputContainsType(plan, "does_not_exist_field", DataType.KEYWORD);
-            assertOutputContainsType(plan, "x", DataType.INTEGER);
-        }
-        if (EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled()) {
-            var plan = analyzer.statement(
-                setUnmappedLoad(
-                    "FROM test | WHERE kql(\"first_name: foo\") | EVAL x = LENGTH(does_not_exist_field) | KEEP does_not_exist_field, x"
-                )
-            );
-            assertOutputContainsType(plan, "does_not_exist_field", DataType.KEYWORD);
-            assertOutputContainsType(plan, "x", DataType.INTEGER);
-        }
-    }
-
     public void testUnmappedFieldsDefaultWithQueryStringFullTextFunctionsDoesNotLoadUnmappedFields() {
         var analyzer = test();
         for (var function : List.of(
@@ -1713,17 +1669,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 );
             }
         }
-    }
-
-    private static void assertSingleOutputType(LogicalPlan plan, String fieldName, DataType dataType) {
-        var attribute = EsqlTestUtils.singleValue(plan.output());
-        assertThat(attribute.name(), equalTo(fieldName));
-        assertThat(attribute.dataType(), equalTo(dataType));
-    }
-
-    private static void assertOutputContainsType(LogicalPlan plan, String fieldName, DataType dataType) {
-        var attribute = EsqlTestUtils.singleValue(plan.output().stream().filter(attr -> attr.name().equals(fieldName)).toList());
-        assertThat(attribute.dataType(), is(dataType));
     }
 
     private static EsField textField(String name) {

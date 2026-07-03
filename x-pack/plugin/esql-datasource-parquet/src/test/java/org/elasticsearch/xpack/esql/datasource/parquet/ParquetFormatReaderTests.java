@@ -196,15 +196,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * esql-planning#1056: a top-level list (multivalue) column must be published in the column
-     * statistics under its <em>attribute</em> name (so {@code SplitStats.findColumn} hits), but with
-     * an <em>unknown</em> null count. That combination makes {@code COUNT(list_col)} /
-     * {@code list_col IS NOT NULL} decline the footer fast path and fall back to the (correct) scan,
-     * instead of the "column absent from split -&gt; all rows null" contract answering {@code COUNT} as
-     * {@code rowCount - rowCount = 0}. The stats are keyed by the leaf chunk path
-     * ({@code ints.list.element}), which never matches the attribute name {@code ints} — before the
-     * fix the list column was published under no name at all, so {@code findColumn} missed. The flat
-     * control column keeps its concrete null count, proving the fast path is untouched for it.
+     * esql-planning#1056: a top-level list column must be published under its attribute name (so
+     * {@code findColumn} hits) but with an <em>unknown</em> null count, which makes {@code COUNT} /
+     * {@code IS NOT NULL} decline the footer fast path and scan. Before the fix the list stats were
+     * keyed by the leaf path {@code ints.list.element}, never matching the attribute {@code ints}, so
+     * the column was published under no name at all. The flat control keeps its concrete null count.
      */
     public void testListColumnPublishedWithUnknownNullCount() throws Exception {
         Type intList = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("ints");
@@ -244,13 +240,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * esql-planning#1056 is scoped to <em>top-level</em> list columns. A list nested inside a STRUCT
-     * (chunk path {@code s.blist.list.element}, attribute {@code s.blist}) is left to the
-     * struct-nested-list work (esql-planning#1055, where such columns currently read as null). This
-     * test pins that scoping: the presence marker is keyed by the top-level field name {@code path[0]},
-     * which for a nested list is the struct root {@code s} — never the attribute {@code s.blist} — so we
-     * must NOT publish a marker under {@code s} (a phantom column no query addresses) nor under
-     * {@code s.blist}. The flat struct leaf {@code s.a} still publishes its stats normally.
+     * esql-planning#1056 is scoped to top-level lists. A list nested in a STRUCT keys under the struct
+     * root {@code s} (not the attribute {@code s.blist}), so it is left to esql-planning#1055: we must
+     * publish no marker under {@code s} or {@code s.blist}, while the flat leaf {@code s.a} still publishes.
      */
     public void testStructNestedListIsNotPublished() throws Exception {
         Type blist = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("blist");

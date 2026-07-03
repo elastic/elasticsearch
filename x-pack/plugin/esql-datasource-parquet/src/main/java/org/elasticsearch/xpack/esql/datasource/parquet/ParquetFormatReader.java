@@ -912,15 +912,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Whether a repeated leaf ({@code maxRepetitionLevel > 0}) is a <b>top-level</b> list — one the
-     * planner addresses by the attribute name {@code path[0]}. True for a standard 3-level {@code LIST}
-     * group at the top level (chunk path {@code v.list.element}, attribute {@code v}) and for a legacy
-     * 2-level {@code repeated <primitive>} top-level field (chunk path {@code v}, attribute {@code v}).
-     * <p>
-     * A list nested inside a STRUCT (chunk path {@code s.blist.list.element}) is NOT top-level: its
-     * flattened attribute is {@code s.blist}, not {@code path[0] == "s"}. Those are left untouched here
-     * (their values also read as null today — see the struct-nested-list work, esql-planning#1055) so we
-     * do not publish a presence marker under the wrong (struct-root) name.
+     * Whether a repeated leaf is a <b>top-level</b> list — one addressable by the attribute name
+     * {@code path[0]} (a 3-level {@code LIST} group or a legacy 2-level {@code repeated} field). A list
+     * nested in a STRUCT is not: its attribute is the dotted {@code s.blist}, not {@code path[0] == "s"},
+     * so it is left to the struct-nested-list work (esql-planning#1055) rather than mis-keyed here.
      */
     private static boolean isTopLevelListLeaf(MessageType parquetSchema, String[] path) {
         Type top = parquetSchema.getType(path[0]);
@@ -953,15 +948,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 String[] path = col.getPath().toArray();
                 ColumnDescriptor desc = parquetSchema.getColumnDescription(path);
                 if (desc != null && desc.getMaxRepetitionLevel() > 0 && isTopLevelListLeaf(parquetSchema, path)) {
-                    // A top-level list (multivalue) column. The planner addresses it by the attribute
-                    // name (path[0]) while the chunk lives at the leaf path "<name>.list.element", and
-                    // its leaf null_count/min/max are element-level — they do not answer row-level
-                    // COUNT / IS NOT NULL. Publish only a presence (size) marker under the attribute
-                    // name so the stats layer finds the column (findColumn hits) and COUNT / IS NOT NULL
-                    // decline the footer fast path, falling back to the correct scan — instead of the
-                    // "column absent -> all null" contract answering COUNT as rowCount - rowCount = 0.
-                    // Omitting null_count/min/max keeps them unknown, so those ops fall back too.
-                    // See esql-planning#1056.
+                    // Top-level list column: its leaf null_count/min/max are element-level and don't
+                    // answer row-level COUNT / IS NOT NULL. Publish only a size marker under the attribute
+                    // name (path[0]) so findColumn hits but the unknown null_count makes COUNT decline the
+                    // footer fast path and scan, rather than the absent-column contract answering 0.
+                    // esql-planning#1056.
                     colSizes.merge(path[0], new long[] { col.getTotalUncompressedSize() }, (a, b) -> {
                         a[0] += b[0];
                         return a;
@@ -1223,11 +1214,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             String[] path = col.getPath().toArray();
             ColumnDescriptor desc = parquetSchema.getColumnDescription(path);
             if (desc != null && desc.getMaxRepetitionLevel() > 0 && isTopLevelListLeaf(parquetSchema, path)) {
-                // Top-level list (multivalue) column: publish only a presence (size) marker under the
-                // attribute name (path[0]) — its leaf null_count/min/max are element-level and don't
-                // answer row-level COUNT / IS NOT NULL. Making findColumn hit (with null_count unknown)
-                // forces COUNT / IS NOT NULL to decline the footer fast path and scan, instead of the
-                // "column absent -> all null" contract answering COUNT as 0. See esql-planning#1056.
+                // Top-level list column: size marker only under the attribute name (path[0]); the unknown
+                // null_count makes COUNT decline the footer fast path and scan. Mirrors extractStatistics.
+                // esql-planning#1056.
                 stats.merge(
                     SourceStatisticsSerializer.columnSizeBytesKey(path[0]),
                     col.getTotalUncompressedSize(),

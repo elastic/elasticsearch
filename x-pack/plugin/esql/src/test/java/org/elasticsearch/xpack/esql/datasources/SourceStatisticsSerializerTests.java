@@ -70,14 +70,10 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
     }
 
     /**
-     * esql-planning#1056: a list (multivalue) column is published with a size marker but an unknown
-     * null count (the Parquet reader keys its element-level footer stats at the leaf path, not the
-     * attribute name, so it cannot supply a row-level null count). Across a multi-file UNION merge,
-     * such a column is "present but null-count-less" in every file and must be poisoned — the merged
-     * map keeps the size key (so {@code findColumn} hits) but drops the null_count key (so
-     * {@code COUNT(list_col)} declines the footer fast path and falls back to the scan, instead of
-     * being answered as {@code rowCount - rowCount = 0}). A flat column with a real null count in
-     * every file keeps its summed count — the fast path is preserved for it.
+     * esql-planning#1056: a list column is published with a size marker but no null count. Across a
+     * multi-file UNION merge it is "present but null-count-less" in every file and must be poisoned —
+     * the merged map keeps the size key (so {@code findColumn} hits) but drops the null_count key, so
+     * {@code COUNT} declines and scans instead of being answered as 0. A flat column keeps its count.
      */
     public void testMergeStatisticsListColumnNullCountStaysUnknown() {
         Map<String, Object> s1 = new HashMap<>();

@@ -1073,15 +1073,10 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
     // --- helpers ---
 
-    // --- IS NOT NULL over a top-level list column must NOT push a predicate (esql-planning#1056) ---
-    //
-    // For a top-level 3-level LIST the file's only leaf lives at "<name>.list.element", so the
-    // attribute name resolves to a LIST group (not a primitive). Pushing notEq(column("tags"), null)
-    // names a column absent from every row group and parquet-mr's StatisticsFilter drops them all —
-    // silently returning zero rows. IS NULL / IS NOT NULL therefore decline so the multivalue-safe
-    // null-mask evaluator answers over the decoded block. (Value predicates — comparisons / IN / LIKE
-    // — are intentionally NOT declined here; their decoded-block evaluator is not multivalue-safe, so
-    // that is deferred to a dedicated fix. This test asserts only the null-predicate behavior.)
+    // IS NULL / IS NOT NULL over a top-level list must NOT push a predicate (esql-planning#1056): the
+    // attribute name resolves to a LIST group, so notEq(column("tags"), null) names a leaf-absent
+    // column that parquet-mr drops. They decline so the multivalue-safe null-mask evaluator answers.
+    // (Value predicates — comparisons/IN/LIKE — are NOT declined here; their evaluator is not MV-safe.)
 
     private static MessageType intListSchema() {
         return new MessageType("test", Types.optionalList().optionalElement(INT32).named("ints"));

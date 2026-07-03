@@ -406,16 +406,11 @@ final class ParquetPushedExpressions {
         if (value == null && op.isOrdered()) {
             return null;
         }
-        // A null-valued EQ/NOT_EQ is IS NULL / IS NOT NULL. Over a standard 3-level list column the
-        // attribute name resolves to a LIST group (not a primitive), so decline the pushdown and let
-        // the null-mask evaluator / RECHECK FilterExec answer over the decoded block. Without this,
-        // IS NOT NULL builds notEq(column("v"), null) on a name absent from the file's leaf columns;
-        // parquet-mr treats the unknown column as all-null and drops every row group, returning zero
-        // rows. The null-mask path is multivalue-safe (it reads per-position presence, not values), so
-        // this is the correctness fix for esql-planning#1056. Value predicates (comparisons / IN /
-        // LIKE) over a list are intentionally NOT declined here: their decoded-block evaluator reads
-        // by position index and is not multivalue-safe, so declining them would silently return wrong
-        // rows. Those are left to a dedicated fix for value predicates over list columns.
+        // IS NULL / IS NOT NULL (null-valued EQ/NOT_EQ) over a list column (resolves to a LIST group,
+        // not a primitive) must decline: pushing notEq(column("v"), null) names a leaf-absent column
+        // that parquet-mr drops entirely. The null-mask evaluator that answers instead is multivalue-safe.
+        // esql-planning#1056. Value predicates (comparisons/IN/LIKE) are deliberately NOT declined here —
+        // their decoded-block evaluator reads by position index and is not multivalue-safe.
         if (value == null && resolveNestedPrimitive(schema, columnName) == null) {
             return null;
         }

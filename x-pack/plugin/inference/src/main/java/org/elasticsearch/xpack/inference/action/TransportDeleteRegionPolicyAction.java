@@ -65,12 +65,15 @@ public class TransportDeleteRegionPolicyAction extends HandledTransportAction<De
                         listener.onFailure(TransportGetRegionPolicyAction.noRegionPolicyConfiguredException());
                     } else {
                         inferencePreferencesCache.invalidate(
-                            ActionListener.wrap(
-                                ignored -> {},
-                                e -> logger.warn("Failed to invalidate inference preferences cache after deleting region policy", e)
+                            ActionListener.runAfter(
+                                ActionListener.wrap(
+                                    ignored -> {
+                                    },
+                                    e -> logger.warn("Failed to invalidate inference preferences cache after deleting region policy", e)
+                                ),
+                                () -> listener.onResponse(AcknowledgedResponse.TRUE)
                             )
                         );
-                        listener.onResponse(AcknowledgedResponse.TRUE);
                     }
                 }
 
@@ -84,4 +87,5 @@ public class TransportDeleteRegionPolicyAction extends HandledTransportAction<De
                 }
             });
     }
+
 }

@@ -153,12 +153,14 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
             @Override
             public void onResponse(DocWriteResponse docWriteResponse) {
                 inferencePreferencesCache.invalidate(
-                    ActionListener.wrap(
-                        ignored -> {},
-                        e -> logger.warn("Failed to invalidate inference preferences cache after updating region policy", e)
+                    ActionListener.runAfter(
+                        ActionListener.wrap(
+                            ignored -> {},
+                            e -> logger.warn("Failed to invalidate inference preferences cache after updating region policy", e)
+                        ),
+                        () -> listener.onResponse(new RegionPolicyResponse(doc))
                     )
                 );
-                listener.onResponse(new RegionPolicyResponse(doc));
             }
 
             @Override

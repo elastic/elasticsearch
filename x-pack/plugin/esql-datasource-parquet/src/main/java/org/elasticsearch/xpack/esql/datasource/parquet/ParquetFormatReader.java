@@ -923,6 +923,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         Map<String, Comparable[]> mins = new HashMap<>();
         Map<String, Comparable[]> maxs = new HashMap<>();
         Map<String, long[]> colSizes = new HashMap<>();
+        // Columns for which at least one covering row group did not record a null_count statistic.
+        // The null_count is an optional Parquet footer statistic (a conformant writer may omit it,
+        // e.g. an Arrow null-typed / all-null column), so the per-column count cannot be summed into
+        // a reliable total. We must report the null count as unknown for these rather than treating
+        // a missing value as zero, otherwise COUNT(col) would be answered as the row count downstream.
+        Set<String> unknownNullCounts = new HashSet<>();
 
         for (BlockMetaData rowGroup : rowGroups) {
             totalRows += rowGroup.getRowCount();
@@ -934,13 +940,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     return a;
                 });
                 Statistics stats = col.getStatistics();
+                if (stats == null || stats.isNumNullsSet() == false) {
+                    unknownNullCounts.add(colName);
+                } else {
+                    nullCounts.merge(colName, new long[] { stats.getNumNulls() }, (a, b) -> {
+                        a[0] += b[0];
+                        return a;
+                    });
+                }
                 if (stats == null || stats.isEmpty()) {
                     continue;
                 }
-                nullCounts.merge(colName, new long[] { stats.getNumNulls() }, (a, b) -> {
-                    a[0] += b[0];
-                    return a;
-                });
                 if (stats.hasNonNullValue()) {
                     PrimitiveType pt = col.getPrimitiveType();
                     mins.merge(colName, new Comparable[] { (Comparable) normalizeStatValue(stats.genericGetMin(), pt) }, (a, b) -> {
@@ -978,14 +988,20 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             Comparable[] mx = maxs.get(name);
             long[] cs = colSizes.get(name);
             if (nc != null || mn != null || mx != null || cs != null) {
-                final long nullCount = nc != null ? nc[0] : 0;
+                // The null count is only known when every covering row group recorded it. A missing
+                // statistic in any row group ({@code unknownNullCounts}) leaves the total unknown, so
+                // report {@link OptionalLong#empty()} and let COUNT(col) fall back to a scan rather
+                // than counting the missing nulls as zero (which would return the row count).
+                final OptionalLong nullCount = nc != null && unknownNullCounts.contains(name) == false
+                    ? OptionalLong.of(nc[0])
+                    : OptionalLong.empty();
                 final Object minVal = mn != null ? mn[0] : null;
                 final Object maxVal = mx != null ? mx[0] : null;
                 final long colSize = cs != null ? cs[0] : -1;
                 columnStats.put(name, new SourceStatistics.ColumnStatistics() {
                     @Override
                     public OptionalLong nullCount() {
-                        return OptionalLong.of(nullCount);
+                        return nullCount;
                     }
 
                     @Override
@@ -1172,10 +1188,19 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             String colName = col.getPath().toDotString();
             stats.put(SourceStatisticsSerializer.columnSizeBytesKey(colName), col.getTotalUncompressedSize());
             Statistics colStats = col.getStatistics();
-            if (colStats == null || colStats.isEmpty()) {
+            if (colStats == null) {
                 continue;
             }
-            stats.put(SourceStatisticsSerializer.columnNullCountKey(colName), colStats.getNumNulls());
+            // Publish the null count ahead of the isEmpty() short-circuit, mirroring extractStatistics.
+            // isNumNullsSet() implies isEmpty() == false, so this ordering is a clarity/consistency guard,
+            // not a behaviour change. Omitting the key (unset) signals "unknown" downstream so COUNT(col)
+            // falls back to a scan instead of being answered as num_values.
+            if (colStats.isNumNullsSet()) {
+                stats.put(SourceStatisticsSerializer.columnNullCountKey(colName), colStats.getNumNulls());
+            }
+            if (colStats.isEmpty()) {
+                continue;
+            }
             if (colStats.hasNonNullValue()) {
                 PrimitiveType pt = col.getPrimitiveType();
                 stats.put(SourceStatisticsSerializer.columnMinKey(colName), normalizeStatValue(colStats.genericGetMin(), pt));

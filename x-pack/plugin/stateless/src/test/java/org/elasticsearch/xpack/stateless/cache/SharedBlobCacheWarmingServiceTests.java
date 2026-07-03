@@ -1810,20 +1810,11 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     }
 
     public void testShardRecoveryWarmingPropagatesTimestamp() throws Exception {
-        // The per-file timestamp is resolved and passed to the cache regardless of the cache boost preference setting, randomized here.
-        final boolean boostEnabled = randomBoolean();
         final long primaryTerm = randomLongBetween(1, 42);
         final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
         final long knownTimestamp = randomLongBetween(1, Long.MAX_VALUE);
         final Map<CapturedRegion, Long> capturedTimestamps = new ConcurrentHashMap<>();
-        try (
-            FakeStatelessNode fakeNode = createMaybeFetchRangeCapturingFakeNode(
-                primaryTerm,
-                regionSizeInBytes,
-                boostEnabled,
-                capturedTimestamps
-            )
-        ) {
+        try (FakeStatelessNode fakeNode = createMaybeFetchRangeCapturingFakeNode(primaryTerm, regionSizeInBytes, capturedTimestamps)) {
             var indexCommits = fakeNode.generateIndexCommitsWithoutCompoundFiles(randomIntBetween(1, 5));
             var vbcc = new VirtualBatchedCompoundCommit(
                 fakeNode.shardId,
@@ -1871,7 +1862,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     private FakeStatelessNode createMaybeFetchRangeCapturingFakeNode(
         long primaryTerm,
         long regionSizeInBytes,
-        boolean boostEnabled,
         Map<CapturedRegion, Long> capturedTimestamps
     ) throws IOException {
         return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
@@ -1886,7 +1876,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     // only the ShardWarmer recovery prewarming, whose maybeFetchRange calls are the ones we capture and short-circuit.
                     .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), false)
                     .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING.getKey(), false)
-                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), boostEnabled)
                     .build();
             }
 

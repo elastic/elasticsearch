@@ -195,7 +195,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         commitFiles.put("referenced_c", new BlobLocation(referencedBlobC, 0, 10));
 
         final var notificationRange = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 3000L); // midpoint 2000
-        final StatelessCompoundCommit commit = compoundCommit(commitFiles, Set.of("internal_1", "internal_2"), notificationRange);
+        final StatelessCompoundCommit commit = compoundCommit(4, commitFiles, Set.of("internal_1", "internal_2"), notificationRange);
 
         final Map<String, Long> resolvedTimestamps = Map.of("referenced_a", 500L, "referenced_b1", 1500L, "referenced_b2", 2500L);
         final FileTimestampResolver resolver = fileName -> resolvedTimestamps.getOrDefault(fileName, UNKNOWN_TIMESTAMP);
@@ -226,12 +226,11 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
 
     public void testComputeTimestampPerBlobKeepsUnknownWhenNotificationTimestampUnknown() {
         final BlobFile referencedBlob = blobFile(1);
-
         final Map<String, BlobLocation> commitFiles = new HashMap<>();
         // No internal files: the whole commit has no timestamp range, and the referenced file is unknown too.
         commitFiles.put("referenced", new BlobLocation(referencedBlob, 0, 10));
 
-        final StatelessCompoundCommit commit = compoundCommit(commitFiles, Set.of(), null);
+        final StatelessCompoundCommit commit = compoundCommit(4, commitFiles, Set.of(), null);
         final FileTimestampResolver resolver = fileName -> UNKNOWN_TIMESTAMP;
 
         final Map<BlobFile, Long> timestampPerBlob = SearchCommitPrefetcher.computeTimestampPerBlob(
@@ -248,27 +247,21 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
     }
 
     public void testPrefetchPropagatesPerCcTimestamp() throws Exception {
-        final ShardId shardId = new ShardId("index", "_na_", 0);
-        final BlobFile internalBlob = blobFile(4);
+        long generation = 4L;
+        final BlobFile internalBlob = blobFile(generation);
         final Map<String, BlobLocation> commitFiles = new HashMap<>();
         commitFiles.put("internal_1", new BlobLocation(internalBlob, 0, 10));
         commitFiles.put("internal_2", new BlobLocation(internalBlob, 10, 10));
         final var notificationRange = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 3000L); // midpoint 2000
-        final StatelessCompoundCommit commit = new StatelessCompoundCommit(
-            shardId,
-            new PrimaryTermAndGeneration(1L, 4),
-            1L,
-            "_na_",
+        final StatelessCompoundCommit commit = compoundCommit(
+            generation,
             commitFiles,
-            commitFiles.values().stream().mapToLong(BlobLocation::fileLength).sum(),
             Set.of("internal_1", "internal_2"),
-            0L,
-            InternalFilesReplicatedRanges.EMPTY,
-            Map.of(),
             notificationRange
         );
+        final ShardId shardId = commit.shardId();
         // Mark the BCC as uploaded so the prefetcher proceeds to populate the cache for the current generation.
-        final var notification = new NewCommitNotification(commit, 4L, new PrimaryTermAndGeneration(1L, 4), 0L, "node");
+        final var notification = new NewCommitNotification(commit, generation, new PrimaryTermAndGeneration(1L, generation), 0L, "node");
 
         final Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -380,13 +373,14 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
     }
 
     private StatelessCompoundCommit compoundCommit(
+        long generation,
         Map<String, BlobLocation> commitFiles,
         Set<String> internalFiles,
         StatelessCompoundCommit.TimestampFieldValueRange timestampRange
     ) {
         return new StatelessCompoundCommit(
             new ShardId("index", "_na_", 0),
-            new PrimaryTermAndGeneration(1L, 4),
+            new PrimaryTermAndGeneration(1L, generation),
             1L,
             "_na_",
             commitFiles,

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -99,6 +102,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
      */
     @Nullable
     private final BlockFactory blockFactory;
+    /**
+     * Gate for {@code file://} local-disk reads. Defaults to {@link LocalFileAccess#UNRESTRICTED} in
+     * test-only constructors; production always goes through the full-arg constructor via {@link DataSourceModule}.
+     */
+    private final LocalFileAccess localFileAccess;
     // Node telemetry sink, threaded into the operator factory so opened storage objects publish read metrics.
     private final ExternalSourceMetrics externalSourceMetrics;
 
@@ -108,7 +116,16 @@ final class FileSourceFactory implements ExternalSourceFactory {
         DecompressionCodecRegistry codecRegistry,
         Settings settings
     ) {
-        this(storageRegistry, formatRegistry, codecRegistry, settings, null, null);
+        this(
+            storageRegistry,
+            formatRegistry,
+            codecRegistry,
+            settings,
+            null,
+            null,
+            LocalFileAccess.UNRESTRICTED,
+            ExternalSourceMetrics.NOOP
+        );
     }
 
     FileSourceFactory(
@@ -118,7 +135,16 @@ final class FileSourceFactory implements ExternalSourceFactory {
         Settings settings,
         @Nullable ExecutorService splitDiscoveryExecutor
     ) {
-        this(storageRegistry, formatRegistry, codecRegistry, settings, splitDiscoveryExecutor, null);
+        this(
+            storageRegistry,
+            formatRegistry,
+            codecRegistry,
+            settings,
+            splitDiscoveryExecutor,
+            null,
+            LocalFileAccess.UNRESTRICTED,
+            ExternalSourceMetrics.NOOP
+        );
     }
 
     FileSourceFactory(
@@ -129,7 +155,16 @@ final class FileSourceFactory implements ExternalSourceFactory {
         @Nullable ExecutorService splitDiscoveryExecutor,
         @Nullable BlockFactory blockFactory
     ) {
-        this(storageRegistry, formatRegistry, codecRegistry, settings, splitDiscoveryExecutor, blockFactory, ExternalSourceMetrics.NOOP);
+        this(
+            storageRegistry,
+            formatRegistry,
+            codecRegistry,
+            settings,
+            splitDiscoveryExecutor,
+            blockFactory,
+            LocalFileAccess.UNRESTRICTED,
+            ExternalSourceMetrics.NOOP
+        );
     }
 
     FileSourceFactory(
@@ -139,6 +174,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         Settings settings,
         @Nullable ExecutorService splitDiscoveryExecutor,
         @Nullable BlockFactory blockFactory,
+        LocalFileAccess localFileAccess,
         ExternalSourceMetrics externalSourceMetrics
     ) {
         Check.notNull(storageRegistry, "storageRegistry cannot be null");
@@ -149,6 +185,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.splitDiscoveryExecutor = splitDiscoveryExecutor;
         this.blockFactory = blockFactory;
+        this.localFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
         this.externalSourceMetrics = externalSourceMetrics != null ? externalSourceMetrics : ExternalSourceMetrics.NOOP;
     }
 
@@ -225,6 +262,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     @Override
     public void validateConfig(String location, Map<String, Object> config) {
+        // Gate file:// reads at planning time so the failure is clean and pre-execution.
+        // This check runs before the empty-config early-return so bare file:// reads (no WITH clause)
+        // are also validated — resolveMetadata calls validateConfig first, covering both paths.
+        localFileAccess.check(location);
         if (config == null || config.isEmpty()) {
             return;
         }
@@ -274,6 +315,72 @@ final class FileSourceFactory implements ExternalSourceFactory {
         }
     }
 
+    /**
+     * Async metadata resolution. When {@code hint} is non-null the length/mtime came from a directory
+     * listing: the storage object is built with those values (so {@code length()} serves the cached
+     * value without I/O) and the existence probe is skipped, so no synchronous HEAD/range round-trip
+     * runs on the executor before the async footer read. When {@code hint} is null the object is
+     * created bare and its existence is verified up front, matching the synchronous path.
+     */
+    @Override
+    public void resolveMetadataAsync(
+        String location,
+        @Nullable ListingHint hint,
+        Map<String, Object> config,
+        Executor executor,
+        ActionListener<SourceMetadata> listener
+    ) {
+        final StorageObject storageObject;
+        final FormatReader reader;
+        try {
+            // Reject unknown configuration keys before any provider/reader work — same single source
+            // of truth as the synchronous resolveMetadata path.
+            validateConfig(location, config);
+            StoragePath storagePath = StoragePath.of(location);
+            String scheme = storagePath.scheme();
+
+            StorageProvider provider;
+            if (config != null && config.isEmpty() == false) {
+                provider = storageRegistry.createProviderTrackingConsumedKeys(
+                    scheme,
+                    settings,
+                    ExternalSourceResolver.storageConfig(config)
+                ).value();
+                reader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(config).value();
+            } else {
+                provider = storageRegistry.provider(storagePath);
+                reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
+            }
+
+            if (hint != null) {
+                storageObject = provider.newObject(storagePath, hint.length(), Instant.ofEpochMilli(hint.lastModifiedMillis()));
+            } else {
+                storageObject = provider.newObject(storagePath);
+                if (storageObject.exists() == false) {
+                    listener.onFailure(
+                        new IllegalArgumentException(
+                            "Failed to resolve metadata for [" + location + "]",
+                            new IOException("File does not exist: " + location)
+                        )
+                    );
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        // Map an I/O failure from the async metadata read to the same IllegalArgumentException shape
+        // the synchronous path produces, so callers see identical exceptions regardless of path.
+        reader.metadataAsync(storageObject, executor, listener.delegateResponse((l, e) -> {
+            if (e instanceof IOException) {
+                l.onFailure(new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e));
+            } else {
+                l.onFailure(e);
+            }
+        }));
+    }
+
     @Override
     public SplitProvider splitProvider() {
         return new FileSplitProvider(
@@ -291,6 +398,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
         return context -> {
             StoragePath path = context.path();
             Map<String, Object> config = context.config();
+
+            // Enforce the file:// allowlist confinement at execution time on the data node, before either branch.
+            // The bare-read branch (provider(path)) checks this internally, but the WITH-config branch goes through
+            // createProvider, which only enforces the scheme-level on/off gate; checking here keeps both paths uniform.
+            localFileAccess.check(path);
 
             StorageProvider storage;
             if (config != null && config.isEmpty() == false) {

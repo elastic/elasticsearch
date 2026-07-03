@@ -836,6 +836,21 @@ public class ESVectorUtil {
     }
 
     /**
+     * Narrows each of the first {@code len} ints to a byte by truncating to the low 8 bits,
+     * writing into {@code dst[0..len)}. No bounds check is performed; the caller must ensure
+     * {@code dst.length >= len}.
+     *
+     * @param src int array of quantized values
+     * @param dst byte array to receive the narrowed values
+     * @param len number of elements to convert
+     */
+    public static void packAsBytes(int[] src, byte[] dst, int len) {
+        for (int i = 0; i < len; i++) {
+            dst[i] = (byte) src[i];
+        }
+    }
+
+    /**
      * Packs the provided int array populated with "0" and "1" values into a byte array.
      *
      * @param vector the int array to pack, must contain only "0" and "1" values.

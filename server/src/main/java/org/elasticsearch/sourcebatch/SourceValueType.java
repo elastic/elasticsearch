@@ -7,12 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.eirf;
+package org.elasticsearch.sourcebatch;
 
 /**
- * Type byte constants for the Elastic Internal Row Format (EIRF).
+ * Type byte constants for the {@link SourceBatch}.
  */
-public final class EirfType {
+public final class SourceValueType {
 
     // 0-byte fixed types.
     // ABSENT = 0x00 so a zero-initialized type-byte slot means "column not set in this document",
@@ -41,7 +41,7 @@ public final class EirfType {
     /** Small row threshold: var section must be ≤ 65,535 bytes. */
     public static final int SMALL_ROW_MAX_VAR_SIZE = 65535;
 
-    private EirfType() {}
+    private SourceValueType() {}
 
     /**
      * Fixed-section slot size in bytes for the given type byte and row size.

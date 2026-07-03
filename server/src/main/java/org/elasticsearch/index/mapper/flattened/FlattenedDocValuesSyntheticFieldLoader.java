@@ -245,21 +245,24 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
     }
 
     private FlattenedFieldSyntheticWriterHelper.KeyedValueProducer getKeyedValueProducer() throws IOException {
-        TreeSet<BytesRef> ignoredKeyedValues = collectIgnoredValues();
+        List<BytesRef> rawIgnored = collectIgnoredValues();
 
         if (usesArrayOrderBinaryDocValues) {
             TreeMap<String, List<String>> slotsByKey = (docValues instanceof DocumentOrderKeyedFlattenedDocValues dv)
                 ? dv.slotsByKey
                 : new TreeMap<>();
             TreeMap<String, List<String>> ignoredByKey = new TreeMap<>();
-            if (ignoredKeyedValues != null) {
-                for (BytesRef kv : ignoredKeyedValues) {
+            if (rawIgnored != null) {
+                for (BytesRef kv : rawIgnored) {
                     String key = FlattenedFieldParser.extractKey(kv).utf8ToString();
                     ignoredByKey.computeIfAbsent(key, k -> new ArrayList<>()).add(FlattenedFieldParser.extractValue(kv).utf8ToString());
                 }
             }
             return new FlattenedFieldSyntheticWriterHelper.ArrayOrderKeyedValueProducer(slotsByKey, ignoredByKey);
         }
+
+        // Legacy path: wrap in a TreeSet to restore sorted-unique order for merge with doc values.
+        TreeSet<BytesRef> ignoredKeyedValues = rawIgnored != null ? new TreeSet<>(rawIgnored) : null;
 
         FlattenedFieldSyntheticWriterHelper.SortedKeyedValues sortedKeyedValues = ((SortedKeyedFlattenedDocValues) docValues).getValues();
         if (ignoredKeyedValues != null) {
@@ -273,11 +276,10 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         return new FlattenedFieldSyntheticWriterHelper.OffsetKeyedValueProducer(sortedKeyedValues, keyedOffsetFieldSupplier);
     }
 
-    private TreeSet<BytesRef> collectIgnoredValues() throws IOException {
+    private List<BytesRef> collectIgnoredValues() throws IOException {
         if (storeIgnoredFieldsInBinaryDocValues) {
-            // Ignored values were stored in binary doc values
             if (ignoredDocValues.count() > 0) {
-                var result = new TreeSet<BytesRef>();
+                var result = new ArrayList<BytesRef>();
                 var values = ((SortedKeyedFlattenedDocValues) ignoredDocValues).getValues();
                 for (int i = 0; i < ignoredDocValues.count(); i++) {
                     result.add(BytesRef.deepCopyOf(values.next()));
@@ -285,9 +287,8 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
                 return result;
             }
         } else {
-            // Otherwise, ignored values were stored in StoredFields
             if (ignoredStoredValues.isEmpty() == false) {
-                var result = new TreeSet<BytesRef>();
+                var result = new ArrayList<BytesRef>();
                 for (Object value : ignoredStoredValues) {
                     result.add((BytesRef) value);
                 }

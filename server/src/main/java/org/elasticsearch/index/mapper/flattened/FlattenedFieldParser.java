@@ -197,11 +197,17 @@ class FlattenedFieldParser {
                     context.arrayContext.recordOffset(key, new BytesRef(value));
                 }
                 if (storeIgnoredFieldsInBinaryDocValues) {
+                    // Array-order mode must preserve duplicates; SORTED_UNIQUE would lose them via TreeSet deduplication.
+                    // SORTED (not UNSORTED) because ignored values lose their document position by definition —
+                    // they are tail-appended per key — so we sort them for deterministic reconstruction.
+                    var ordering = usesArrayOrderBinaryDocValues
+                        ? MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
+                        : MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE;
                     MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
                         context.documentParserContext.doc(),
                         keyedIgnoredValuesFieldFullPath,
                         BytesRef.deepCopyOf(bytesKeyedValue),
-                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+                        ordering,
                         indexVersion
                     );
                 } else {

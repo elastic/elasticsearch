@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -82,6 +84,20 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         "| SORT message",
         "| EVAL x = message",
         "| WHERE message IS NOT NULL" };
+
+    private static final Set<DataType> NO_IMPLICIT_KEYWORD_CONVERTER_PUNK_TYPES = Set.of(
+        DataType.AGGREGATE_METRIC_DOUBLE,
+        DataType.COUNTER_DOUBLE,
+        DataType.COUNTER_INTEGER,
+        DataType.COUNTER_LONG,
+        DataType.DENSE_VECTOR,
+        DataType.EXPONENTIAL_HISTOGRAM,
+        DataType.FLATTENED,
+        DataType.HISTOGRAM,
+        DataType.PARTIAL_AGG,
+        DataType.TDIGEST,
+        DataType.TEXT
+    );
 
     public void testFailKeepAndNonMatchingStar() {
         assertUnmappedFailure(test(), """
@@ -892,6 +908,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             DataType.GEOHEX             // ESQL-internal grid type, not a real ES mapped field type
         );
 
+        Set<DataType> noConverterTypes = new HashSet<>();
         for (DataType dataType : DataType.values()) {
             if (excludedTypes.contains(dataType)) {
                 continue;
@@ -931,7 +948,43 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 fieldAttr.dataType(),
                 is(dataType.widenSmallNumeric())
             );
+            if (supportsKeywordConversionUnderLoad(dataType.widenSmallNumeric())) {
+                assertThat(
+                    "Partially-mapped " + dataType + " field with KEYWORD converter should be re-written as UnionTypeEsField",
+                    fieldAttr.field(),
+                    instanceOf(UnionTypeEsField.class)
+                );
+            } else {
+                noConverterTypes.add(dataType);
+                assertThat(
+                    "Partially-mapped " + dataType + " field with no KEYWORD converter should remain a regular EsField",
+                    fieldAttr.field().getClass(),
+                    is(EsField.class)
+                );
+            }
         }
+        assertThat(noConverterTypes, equalTo(NO_IMPLICIT_KEYWORD_CONVERTER_PUNK_TYPES));
+    }
+
+    private static boolean supportsKeywordConversionUnderLoad(DataType mappedType) {
+        if (mappedType == DataType.TEXT) {
+            return false;
+        }
+        if (mappedType == DataType.DENSE_VECTOR) {
+            // #152184: implicit KEYWORD->DENSE_VECTOR is unsafe because source-backed unmapped vectors load as numeric arrays.
+            return false;
+        }
+        var converterFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
+        if (converterFactory == null) {
+            return false;
+        }
+        var keywordField = new FieldAttribute(
+            Source.EMPTY,
+            "dummy",
+            new EsField("dummy", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        AbstractConvertFunction converter = converterFactory.apply(Source.EMPTY, keywordField, EsqlTestUtils.TEST_CFG);
+        return converter.supportedTypes().contains(DataType.KEYWORD);
     }
 
     /**

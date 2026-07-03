@@ -25,8 +25,8 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  * {@code auto}, which infers the mode from the fields present. Supported modes:
  * <ul>
  *   <li>{@code auth=static_credentials} — access_key + secret_key (optionally session_token for STS temporary credentials)</li>
- *   <li>{@code auth=federated_identity} — keyless workload-identity federation via {@code role_arn} and
- *       {@code jwt_audience} (optionally {@code role_session_name} and {@code sts_endpoint})</li>
+ *   <li>{@code auth=federated_identity} workload-identity federation via {@code role_arn} (and optionally
+ *       {@code jwt_audience}, {@code role_session_name} and {@code sts_endpoint})</li>
  *   <li>{@code auth=anonymous} — anonymous access to public buckets</li>
  *   <li>{@code auth=managed_identity} — the node's instance credentials via the IMDS-family chain
  *       (ECS task role, then EC2 instance profile). Requires the
@@ -40,11 +40,11 @@ public class S3Configuration extends FileDataSourceConfiguration {
     private static final DataSourceConfigDefinition SESSION_TOKEN = secret("session_token");
     private static final DataSourceConfigDefinition ENDPOINT = plaintext("endpoint");
     private static final DataSourceConfigDefinition REGION = plaintext("region");
-    private static final DataSourceConfigDefinition ROLE_ARN = plaintext("role_arn").asKeylessAuth();
-    private static final DataSourceConfigDefinition ROLE_SESSION_NAME = plaintext("role_session_name").asKeylessAuth();
-    private static final DataSourceConfigDefinition JWT_AUDIENCE = plaintext("jwt_audience").asKeylessAuth();
-    private static final DataSourceConfigDefinition STS_ENDPOINT = plaintext("sts_endpoint").asKeylessAuth();
-    private static final DataSourceConfigDefinition STS_REGION = plaintext("sts_region").asKeylessAuth();
+    private static final DataSourceConfigDefinition ROLE_ARN = plaintext("role_arn").asFederatedAuth();
+    private static final DataSourceConfigDefinition ROLE_SESSION_NAME = plaintext("role_session_name").asFederatedAuth();
+    private static final DataSourceConfigDefinition JWT_AUDIENCE = plaintext("jwt_audience").asFederatedAuth();
+    private static final DataSourceConfigDefinition STS_ENDPOINT = plaintext("sts_endpoint").asFederatedAuth();
+    private static final DataSourceConfigDefinition STS_REGION = plaintext("sts_region").asFederatedAuth();
 
     private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
         ACCESS_KEY,
@@ -66,14 +66,11 @@ public class S3Configuration extends FileDataSourceConfiguration {
 
     @Override
     protected void validateCredentials(ValidationException errors) {
-        // role_session_name and sts_endpoint are optional; role_arn and jwt_audience are the minimum
+        // role_session_name, sts_endpoint, and jwt_audience are optional; role_arn is the minimum
         // needed to mint an OIDC token and exchange it for credentials via STS AssumeRoleWithWebIdentity.
-        if (hasKeylessAuth()) {
+        if (hasFederatedAuth()) {
             if (roleArn() == null) {
-                errors.addValidationError("role_arn is required when keyless authentication settings are configured");
-            }
-            if (jwtAudience() == null) {
-                errors.addValidationError("jwt_audience is required when keyless authentication settings are configured");
+                errors.addValidationError("role_arn is required when federated authentication settings are configured");
             }
         }
     }
@@ -125,10 +122,10 @@ public class S3Configuration extends FileDataSourceConfiguration {
     }
 
     /**
-     * Builds a keyless workload-identity configuration. {@code roleSessionName}, {@code stsEndpoint}, and
+     * Builds a federated workload-identity configuration. {@code roleSessionName}, {@code stsEndpoint}, and
      * {@code stsRegion} are optional.
      */
-    public static S3Configuration fromKeylessFields(
+    public static S3Configuration fromFederatedFields(
         String roleArn,
         String roleSessionName,
         String jwtAudience,
@@ -176,7 +173,7 @@ public class S3Configuration extends FileDataSourceConfiguration {
         return get(REGION.name());
     }
 
-    /** The IAM role ARN to assume via STS {@code AssumeRoleWithWebIdentity} on the keyless path. */
+    /** The IAM role ARN to assume via STS {@code AssumeRoleWithWebIdentity} on the federated auth path. */
     public String roleArn() {
         return get(ROLE_ARN.name());
     }
@@ -186,7 +183,8 @@ public class S3Configuration extends FileDataSourceConfiguration {
         return get(ROLE_SESSION_NAME.name());
     }
 
-    /** Audience passed to the workload-identity issuer when minting the OIDC token presented to STS. */
+    /** Optional override for audience passed to the workload-identity issuer when minting the OIDC token
+     *  presented to STS; defaults to {@code sts.amazonaws.com}. */
     public String jwtAudience() {
         return get(JWT_AUDIENCE.name());
     }
@@ -217,6 +215,6 @@ public class S3Configuration extends FileDataSourceConfiguration {
             + "set auth=anonymous for public buckets; "
             + "set auth=managed_identity to use the node's instance role "
             + "(requires the esql.datasource.managed_identity.enabled cluster setting); "
-            + "or configure keyless authentication with role_arn and jwt_audience";
+            + "or configure federated authentication with role_arn";
     }
 }

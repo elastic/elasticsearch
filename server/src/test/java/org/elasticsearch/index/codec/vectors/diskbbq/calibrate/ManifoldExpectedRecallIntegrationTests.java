@@ -121,7 +121,7 @@ public class ManifoldExpectedRecallIntegrationTests extends ESTestCase {
     }
 
     private static double[] estimateManifold(CalibrationFixture fixture, VectorSimilarityFunction similarityFunction) throws IOException {
-        return ManifoldModel.estimateManifoldParameters(
+        CalibrationSource source = new CalibrationSource(
             similarityFunction,
             fixture.dim(),
             fixture.fvv(),
@@ -129,10 +129,11 @@ public class ManifoldExpectedRecallIntegrationTests extends ESTestCase {
             fixture.dim(),
             false,
             false,
-            fixture.fvv(),
+            null,
             fixture.corpusOrdinals(),
             CALIBRATION_K
         );
+        return ManifoldModel.estimateManifoldParameters(source);
     }
 
     private static QuantizationErrorStdModel estimateErrorStdModel(

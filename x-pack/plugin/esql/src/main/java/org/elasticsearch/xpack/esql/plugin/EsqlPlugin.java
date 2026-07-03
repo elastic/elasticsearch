@@ -66,6 +66,8 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
 import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
@@ -93,6 +95,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.LocalFileAccess;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.dataset.DatasetService;
@@ -263,6 +266,22 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     );
 
     /**
+     * Maximum time (in milliseconds) that a GROK matcher is allowed to run before being interrupted.
+     * Limits how long a GROK matcher can run to protect against expensive regex patterns. Read directly
+     * from each node's own {@link org.elasticsearch.common.settings.ClusterSettings} wherever the matcher
+     * is built for execution (see {@code LocalExecutionPlanner#planGrok}) rather than being carried in the
+     * ES|QL {@code Configuration} wire format, since every node can resolve this node-scoped setting on
+     * its own — including live updates, since it is also dynamic.
+     */
+    public static final Setting<TimeValue> GROK_WATCHDOG_MAX_EXECUTION_TIME = Setting.timeSetting(
+        "esql.grok.watchdog.max_execution_time",
+        TimeValue.timeValueMillis(1000),
+        TimeValue.timeValueMillis(0),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Tuning parameter for deciding when to use the "merge" stored field loader.
      * Think of it as "how similar to a sequential block of documents do I have to
      * be before I'll use the merge reader?" So a value of {@code 1} means I have to
@@ -333,9 +352,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Build capabilities from plugin declarations (cheap -- no I/O, no heavy deps)
         DataSourceCapabilities dataSourceCapabilities = DataSourceCapabilities.build(allDataSourcePlugins);
 
-        // createComponents can't reach the encryption plugin's binding, so TransportPutDataSourceAction's
-        // ctor pushes the EncryptionService into this shared holder for the read-path wrappers.
-        DataSourceCredentials dataSourceCredentials = new DataSourceCredentials();
+        EncryptionService encryptionService = EncryptionServiceRegistry.getEncryptionService();
+        DataSourceCredentials dataSourceCredentials = new DataSourceCredentials(encryptionService);
 
         boolean isStateless = DiscoveryNode.isStateless(settings);
         // Read through MANAGED_IDENTITY_ENABLED, which falls back to the deprecated workload_identity key, so a
@@ -350,6 +368,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ExternalSourceSettings.MANAGED_IDENTITY_ENABLED,
                 v -> managedIdentityEnabled.set(isStateless == false && v)
             );
+
+        // Local-disk gate: parsed once at startup (NodeScope setting — no update consumer needed).
+        LocalFileAccess localFileAccess = LocalFileAccess.create(settings);
 
         // Kill switch for the flattened data type. The IndexResolver is a node-level singleton, so the dynamic
         // setting is tracked here in an AtomicBoolean and read (at field-caps resolution time) through a supplier.
@@ -371,7 +392,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.threadPool(),
             services.environment(),
             services.resourceWatcherService(),
-            services.telemetryProvider().getMeterRegistry()
+            services.telemetryProvider().getMeterRegistry(),
+            localFileAccess
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -452,7 +474,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             p.datasourceValidators(settings).forEach((type, v) -> {
                 DataSourceValidator effective = v;
                 if (effective instanceof FileDataSourceValidator fdv) {
-                    effective = fdv.withManagedIdentityEnabled(managedIdentityEnabled::get);
+                    effective = fdv.withManagedIdentityEnabled(managedIdentityEnabled::get)
+                        .withFederatedIdentityEnabled(
+                            FileDataSourceValidator.ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY_FEATURE_FLAG::isEnabled
+                        );
                 }
                 if (formatKeyResolver != null && effective instanceof FileDataSourceValidator fdv) {
                     effective = fdv.withFormatConfigKeyResolver(formatKeyResolver, compressionExtensions);
@@ -495,7 +520,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.crossProjectModeDecider()
             ),
             new ViewService(services.clusterService(), parser),
-            new DataSourceService(services.clusterService(), crudValidators),
+            new DataSourceService(services.clusterService(), crudValidators, encryptionService),
             new DatasetService(services.clusterService(), crudValidators)
         );
     }
@@ -538,7 +563,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
                 DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING,
-                DatasetService.MAX_DATASETS_COUNT_SETTING
+                DatasetService.MAX_DATASETS_COUNT_SETTING,
+                GROK_WATCHDOG_MAX_EXECUTION_TIME
             )
         );
         settings.addAll(PlannerSettings.settings());

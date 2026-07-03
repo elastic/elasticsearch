@@ -24,9 +24,7 @@ public interface CentroidSupplier {
 
     float[] centroid(int centroidOrdinal) throws IOException;
 
-    default KMeansResult<float[]> secondLevelClusters() throws IOException {
-        return null;
-    }
+    KMeansResult<float[]> secondLevelClusters() throws IOException;
 
     default CentroidSlices slices() throws IOException {
         return null;

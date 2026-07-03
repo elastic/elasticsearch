@@ -45,7 +45,7 @@ class FlatCentroidIndexWriter {
             }
             writer.finish();
         }
-        if (centroidSupplier.secondLevelClusters().centroidsSupplier().size() > 1) {
+        if (centroidSupplier.secondLevelClusters().centroids().length > 1) {
             final CentroidGroups centroidGroups = buildCentroidGroups(centroidSupplier.secondLevelClusters());
             // write vector ord -> centroid lookup table. We need to remap current centroid ordinals
             // to the ordinals on the parent / child structure.
@@ -205,7 +205,7 @@ class FlatCentroidIndexWriter {
         }
         final int[][] vectorsPerCentroid = new int[kMeansResult.centroids().length][];
         int maxVectorsPerCentroidLength = 0;
-        for (int i = 0; i < kMeansResult.centroidsSupplier().size(); i++) {
+        for (int i = 0; i < kMeansResult.centroids().length; i++) {
             vectorsPerCentroid[i] = new int[centroidVectorCount[i]];
             maxVectorsPerCentroidLength = Math.max(maxVectorsPerCentroidLength, centroidVectorCount[i]);
         }

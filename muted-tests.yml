@@ -778,18 +778,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
   method: testCrankyEvaluateBlockWithoutNulls {TestCase=<long>, <dense_vector>}
   issue: https://github.com/elastic/elasticsearch/issues/152795
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  method: testSourceRelocationDuringReshard
-  issue: https://github.com/elastic/elasticsearch/issues/152800
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.groupByMultipleRenamedColumns_AndTwoExpressions}
   issue: https://github.com/elastic/elasticsearch/issues/152801
 - class: org.elasticsearch.packaging.test.PackageUpgradeTests
   method: test12SetupBwcVersion
   issue: https://github.com/elastic/elasticsearch/issues/152818
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
-  method: testMixedOperationsDuringSplitWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/151090
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: initializationError
   issue: https://github.com/elastic/elasticsearch/issues/152849

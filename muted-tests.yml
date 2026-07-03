@@ -862,3 +862,6 @@ tests:
 - class: org.elasticsearch.packaging.test.PackageUpgradeTests
   method: test12SetupBwcVersion
   issue: https://github.com/elastic/elasticsearch/issues/152818
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
+  method: testMixedOperationsDuringSplitWithDisruption
+  issue: https://github.com/elastic/elasticsearch/issues/151090

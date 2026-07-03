@@ -29,14 +29,17 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
  *   is folded/served.</li>
  * </ul>
  * <p>
- * <b>WARNING — {@code coercion} is ORTHOGONAL to servability; do not derive one from the other.</b>
- * The three flags carry genuinely independent facts:
+ * <b>WARNING — the three flags are ORTHOGONAL; do not derive one from another.</b>
+ * They carry genuinely independent facts:
  * <ul>
- *   <li>{@code UNSIGNED_LONG} is NOT servable ({@code blockKind == null}) yet IS coercible
- *   ({@code coercion == EXACT_LONG}) — the coercion step still runs to neutralize a stale committed
- *   extremum (drop it if it cannot be represented in the resolved type) even though the type is never served.</li>
  *   <li>The counters ({@code COUNTER_LONG}/{@code COUNTER_DOUBLE}) ARE servable (they carry a
- *   {@code blockKind}) yet are NOT coercible ({@code coercion == NONE}) and are NOT harvestable.</li>
+ *   {@code blockKind}) yet are NOT coercible ({@code coercion == NONE}) and NOT harvestable — so servability
+ *   implies neither coercibility nor harvestability.</li>
+ *   <li>{@code UNSIGNED_LONG} is servable ({@code blockKind == LONG}: Parquet sign-flip-encodes its stat into
+ *   ESQL's wire form via {@code ParquetColumnDecoding#encodeUnsignedLong}, exactly as the scan does, so the LONG
+ *   arm serves the encoded value verbatim — byte-identical to the scan) AND coercible
+ *   ({@code coercion == EXACT_LONG}, which still neutralizes a stale committed extremum that cannot be
+ *   represented in the resolved type) yet NOT harvestable (the text accumulator never tracks it).</li>
  * </ul>
  * Deriving coercibility from servability (or vice versa) would break the stale-extremum neutralization that
  * {@code UNSIGNED_LONG} depends on.
@@ -86,7 +89,10 @@ public record ColumnStatTypeSupport(@Nullable StatBlockKind blockKind, boolean h
             case COUNTER_DOUBLE -> new ColumnStatTypeSupport(StatBlockKind.DOUBLE, false, StatCoercion.NONE);
             case BOOLEAN -> new ColumnStatTypeSupport(StatBlockKind.BOOLEAN, true, StatCoercion.NONE);
             case KEYWORD, TEXT, IP -> new ColumnStatTypeSupport(StatBlockKind.BYTES_REF, true, StatCoercion.NONE);
-            case UNSIGNED_LONG -> new ColumnStatTypeSupport(null, false, StatCoercion.EXACT_LONG);
+            // Servable: Parquet sign-flip-encodes the uint64 stat into ESQL's wire form (encodeUnsignedLong),
+            // exactly as the scan does, so the LONG arm serves the encoded value byte-identically to a scan
+            // (elastic/elasticsearch#152858). Not harvestable (text never tracks it); still EXACT_LONG-coercible.
+            case UNSIGNED_LONG -> new ColumnStatTypeSupport(StatBlockKind.LONG, false, StatCoercion.EXACT_LONG);
             default -> null;
         };
     }

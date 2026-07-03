@@ -41,9 +41,10 @@ public class ColumnStatTypeSupportTests extends ESTestCase {
         EXPECTED.put(DataType.KEYWORD, new ColumnStatTypeSupport(StatBlockKind.BYTES_REF, true, StatCoercion.NONE));
         EXPECTED.put(DataType.TEXT, new ColumnStatTypeSupport(StatBlockKind.BYTES_REF, true, StatCoercion.NONE));
         EXPECTED.put(DataType.IP, new ColumnStatTypeSupport(StatBlockKind.BYTES_REF, true, StatCoercion.NONE));
-        // The one coercible-but-not-servable outlier: UNSIGNED_LONG carries a coercion (stale-extremum drop) but
-        // no block kind, so it is never served.
-        EXPECTED.put(DataType.UNSIGNED_LONG, new ColumnStatTypeSupport(null, false, StatCoercion.EXACT_LONG));
+        // UNSIGNED_LONG is servable (Parquet sign-flip-encodes its stat into ESQL's wire form, like the scan, so
+        // the LONG arm serves it verbatim — elastic/elasticsearch#152858), coercible (stale-extremum drop), but
+        // NOT harvestable (text never tracks it).
+        EXPECTED.put(DataType.UNSIGNED_LONG, new ColumnStatTypeSupport(StatBlockKind.LONG, false, StatCoercion.EXACT_LONG));
     }
 
     /** Every DataType maps exactly as the table expects; every other type maps to {@code null}. */
@@ -87,7 +88,8 @@ public class ColumnStatTypeSupportTests extends ESTestCase {
                 DataType.BOOLEAN,
                 DataType.KEYWORD,
                 DataType.TEXT,
-                DataType.IP
+                DataType.IP,
+                DataType.UNSIGNED_LONG
             ),
             servable
         );
@@ -135,11 +137,12 @@ public class ColumnStatTypeSupportTests extends ESTestCase {
 
     /**
      * The orthogonality the record's javadoc warns about, pinned as a test: coercibility is NOT derivable from
-     * servability. UNSIGNED_LONG is coercible-but-unservable; the counters are servable-but-not-coercible.
+     * servability. UNSIGNED_LONG is servable AND coercible; the counters are servable-but-not-coercible — same
+     * servability, different coercibility.
      */
     public void testCoercionOrthogonalToServability() {
         ColumnStatTypeSupport unsignedLong = ColumnStatTypeSupport.of(DataType.UNSIGNED_LONG);
-        assertFalse("UNSIGNED_LONG must be unservable", unsignedLong.servable());
+        assertTrue("UNSIGNED_LONG must be servable (Parquet sign-flip-encodes its stat)", unsignedLong.servable());
         assertEquals("UNSIGNED_LONG must be coercible", StatCoercion.EXACT_LONG, unsignedLong.coercion());
 
         for (DataType counter : EnumSet.of(DataType.COUNTER_LONG, DataType.COUNTER_DOUBLE)) {

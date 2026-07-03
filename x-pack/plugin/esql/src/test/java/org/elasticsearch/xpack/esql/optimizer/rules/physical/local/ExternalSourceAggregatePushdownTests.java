@@ -94,12 +94,14 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         assertNull(ExternalSourceAggregatePushdown.servableExtremum(5_000_000_000L, DataType.INTEGER)); // LONG beyond int range
         assertNull(ExternalSourceAggregatePushdown.servableExtremum(null, DataType.LONG));
 
-        // F1 (elastic/elasticsearch#150920): a type with NO buildBlock arm MUST safe-miss here. The parquet
-        // pushdown gate has no type filter, so MIN(uint64_col) would otherwise reach buildBlock's throwing
-        // default and crash an otherwise-valid query. servableExtremum's servable set MUST equal buildBlock's
-        // arm set — a non-buildable type re-scans (correct) rather than throwing or serving a wrong coercion.
-        assertNull(
-            "UNSIGNED_LONG has no buildBlock arm -> safe-miss",
+        // F1 invariant (elastic/elasticsearch#150920): servableExtremum's servable set MUST equal buildBlock's arm
+        // set — a type with no arm safe-misses (re-scans) rather than throwing or serving a wrong coercion.
+        // UNSIGNED_LONG became servable when elastic/elasticsearch#152858 made Parquet sign-flip-encode its stat
+        // into ESQL's wire form (the LONG arm then serves the encoded value byte-identically to the scan), so it
+        // now serves; VERSION still has no arm and safe-misses, keeping the invariant.
+        assertEquals(
+            "UNSIGNED_LONG serves via the sign-flip-encoded LONG arm",
+            5L,
             ExternalSourceAggregatePushdown.servableExtremum(5L, DataType.UNSIGNED_LONG)
         );
         assertNull(

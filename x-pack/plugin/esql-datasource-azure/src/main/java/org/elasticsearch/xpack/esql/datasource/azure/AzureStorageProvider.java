@@ -131,8 +131,8 @@ public final class AzureStorageProvider implements StorageProvider {
     private final Environment environment;
 
     /**
-     * Data-source pool used by the keyless-auth credential (see {@link #buildClientAssertionCredential}). Non-null
-     * only on keyless code paths.
+     * Data-source pool used by the federated-auth (keyless) credential (see {@link #buildClientAssertionCredential}).
+     * Non-null only on federated code paths.
      */
     private final ExecutorService executor;
 
@@ -333,7 +333,7 @@ public final class AzureStorageProvider implements StorageProvider {
                 if (endpoint == null || endpoint.isEmpty()) {
                     if (account == null) {
                         throw new IllegalStateException(
-                            "Azure keyless authentication requires an account from the path "
+                            "Azure federated authentication requires an account from the path "
                                 + "(wasbs://account.blob.core.windows.net/...) or the account setting"
                         );
                     }
@@ -402,7 +402,7 @@ public final class AzureStorageProvider implements StorageProvider {
     }
 
     /**
-     * Builds a {@link FederatedAssertionCredential} for keyless authentication: it presents a workload-identity JWT,
+     * Builds a {@link FederatedAssertionCredential} for federated (keyless) authentication: it presents a workload-identity JWT,
      * minted by the node's {@link WorkloadIdentityIssuerClient}, as the client assertion in the Azure AD
      * {@code client_credentials} grant. See {@link FederatedAssertionCredential} for how the asynchronous assertion
      * is bridged to the credential's synchronous supplier.
@@ -414,13 +414,13 @@ public final class AzureStorageProvider implements StorageProvider {
         WorkloadIdentityIssuerClient issuerClient = WorkloadIdentityRegistry.getSharedIssuerClient();
         if (issuerClient.isEnabled() == false) {
             throw new IllegalStateException(
-                "Azure keyless authentication requires the workload-identity feature to be enabled on this node"
+                "Azure federated authentication requires the workload-identity feature to be enabled on this node"
             );
         }
         if (executor == null) {
-            // The keyless path always runs with the injected data-source executor; a null pool would let MSAL fall
+            // The federated (keyless) path always runs with the injected data-source executor; a null pool would let MSAL fall
             // back to ForkJoinPool.commonPool, which we deliberately keep token acquisition off of.
-            throw new IllegalStateException("Azure keyless authentication requires a non-null executor for token acquisition");
+            throw new IllegalStateException("Azure federated authentication requires a non-null executor for token acquisition");
         }
         String jwtAudience = Strings.hasText(config.jwtAudience()) ? config.jwtAudience() : DEFAULT_JWT_AUDIENCE;
         // The synchronous clientAssertion supplier the delegate reads is wired by FederatedAssertionCredential itself;
@@ -532,7 +532,7 @@ public final class AzureStorageProvider implements StorageProvider {
         if (config == null || config.resolveAuthModeOrNull() == null) {
             return ". If accessing a public container, set auth=anonymous. "
                 + "Otherwise, provide credentials via account and key, "
-                + "or configure keyless authentication with tenant_id, client_id, and jwt_audience";
+                + "or configure federated authentication with tenant_id and client_id";
         }
         return "";
     }

@@ -754,12 +754,11 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * re-run {@code Analyzer.analyze} on the same parsed plan after a {@code VerificationException},
      * revisiting the {@code ViewUnionAll} built for the two unioned views -- whose
      * {@code namedSubqueries} map {@code asSubqueryMap} already drained on the first pass (see
-     * {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAllTests
-     * #testReplaceChildrenMutatesOriginalInstanceNamedSubqueries}).
-     *
-     * Before we corrected a bug this was failing with an assertion failure
+     * {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAllTests#testReplaceChildrenDoesNotMutateOriginalInstance}).
+     * <p>
+     * Before we corrected a bug this was failing with {@link java.util.NoSuchElementException}.
      */
-    public void testTwoViewsUnionedInInSubqueryRetryDrainsViewUnionAll() {
+    public void testTwoViewsUnionedInInSubqueryRetryDoesNotDrainViewUnionAll() {
         assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
         assumeTrue("Requires IN subquery view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
         try {

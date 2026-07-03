@@ -58,9 +58,12 @@ public class ViewUnionAll extends UnionAll {
     }
 
     private LinkedHashMap<String, LogicalPlan> asSubqueryMap(List<LogicalPlan> children) {
-        assert children.size() == namedSubqueries.size()
-            : "ViewUnionAll.replaceChildren expects a 1:1 positional replacement; use pruneEmptyBranches"
-                + " to drop branches and preserve the named-subqueries invariant.";
+        if (children.size() != namedSubqueries.size()) {
+            throw new IllegalArgumentException(
+                "ViewUnionAll.replaceChildren expects a 1:1 positional replacement; use pruneEmptyBranches"
+                    + " to drop branches and preserve the named-subqueries invariant."
+            );
+        }
         // Read-only iterator: unlike sequencedKeySet(), calling next() here does not remove
         // entries from (and therefore does not corrupt) this instance's own namedSubqueries.
         Iterator<String> names = namedSubqueries.keySet().iterator();

@@ -19,7 +19,6 @@ import org.elasticsearch.core.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
 
 /**
@@ -56,6 +55,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
     private List<PositionAndListener> listeners;
     private long progress;
     private volatile boolean completed;
+    private volatile boolean success;
 
     /**
      * Creates a {@link ProgressListenableActionFuture} that accepts the progression
@@ -114,23 +114,19 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             this::onProgress,
             originalProgressConsumer
         );
-        final var lowerFullyFilled = new AtomicBoolean(false);
-        final ProgressListenableActionFuture upper = new ProgressListenableActionFuture(splitPoint, end, p -> {
-            if (lower.isDone() && lowerFullyFilled.get()) onProgress(p);
-        },
-            originalProgressConsumer == null
-                ? null
-                : p -> { if (lower.isDone() && lowerFullyFilled.get()) originalProgressConsumer.accept(p); }
+        final ProgressListenableActionFuture upper = new ProgressListenableActionFuture(
+            splitPoint,
+            end,
+            p -> { if (lower.success) onProgress(p); },
+            originalProgressConsumer == null ? null : p -> {
+                if (lower.success) originalProgressConsumer.accept(p);
+            }
         );
 
         // When lower completes we catch up to wherever upper has already progressed, not just splitPoint.
         // upper.progress is always < upper.end (onProgress(end) returns early without updating the field),
         // so passing it to onProgressAtLeast is always within the valid [start+1, end-1] range.
-        lower.addListener(ActionListener.wrap(ignored -> {
-            final var set = lowerFullyFilled.compareAndSet(false, true);
-            assert set : lower + " completed twice";
-            onProgressAtLeast(upper.getProgress());
-        }, e -> {}), splitPoint);
+        lower.addListener(ActionListener.wrap(ignored -> onProgressAtLeast(upper.getProgress()), e -> {}), splitPoint);
         try (var bothFiredRef = new RefCountingListener(ActionListener.wrap(v -> onResponse(end), this::onFailure))) {
             lower.addListener(bothFiredRef.acquire(l -> {}), splitPoint);
             upper.addListener(bothFiredRef.acquire(l -> {}), end);
@@ -257,6 +253,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
     @Override
     protected void done(boolean success) {
         super.done(success);
+        this.success = success;
         final List<PositionAndListener> listenersToExecute;
         assert invariant();
         synchronized (this) {

@@ -42,6 +42,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -97,6 +98,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class PlanExecutorMetricsTests extends ESTestCase {
+
+    private static final EncryptionService ENCRYPTION_SERVICE = mock(EncryptionService.class);
 
     private static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = createTransportActionServices();
 
@@ -182,7 +185,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         String[] indices = new String[] { "test" };
 
         Client qlClient = mock(Client.class);
-        IndexResolver idxResolver = new IndexResolver(qlClient);
+        IndexResolver idxResolver = new IndexResolver(qlClient, () -> true);
         // simulate a valid field_caps response so we can parse and correctly analyze de query
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
         when(fieldCapabilitiesResponse.getIndices()).thenReturn(indices);
@@ -196,7 +199,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }).when(qlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
         Client esqlClient = mock(Client.class);
-        IndexResolver indexResolver = new IndexResolver(esqlClient);
+        IndexResolver indexResolver = new IndexResolver(esqlClient, () -> true);
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
@@ -214,7 +217,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(),
+                new DataSourceCredentials(ENCRYPTION_SERVICE),
                 () -> false
             )
         ) {
@@ -244,6 +247,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     groupIndicesByCluster,
                     runPhase,
                     MOCK_TRANSPORT_ACTION_SERVICES,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    1,
                     () -> false,
                     new ActionListener<>() {
                         @Override
@@ -283,6 +288,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     groupIndicesByCluster,
                     runPhase,
                     MOCK_TRANSPORT_ACTION_SERVICES,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    1,
                     () -> false,
                     new ActionListener<>() {
                         @Override
@@ -307,7 +314,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         String[] indices = new String[] { "test" };
 
         Client esqlClient = mock(Client.class);
-        IndexResolver indexResolver = new IndexResolver(esqlClient);
+        IndexResolver indexResolver = new IndexResolver(esqlClient, () -> true);
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
@@ -325,7 +332,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(),
+                new DataSourceCredentials(ENCRYPTION_SERVICE),
                 () -> false
             )
         ) {
@@ -411,7 +418,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         String[] indices = new String[] { "test" };
 
         Client esqlClient = mock(Client.class);
-        IndexResolver indexResolver = new IndexResolver(esqlClient);
+        IndexResolver indexResolver = new IndexResolver(esqlClient, () -> true);
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
@@ -429,7 +436,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(),
+                new DataSourceCredentials(ENCRYPTION_SERVICE),
                 () -> false
             )
         ) {
@@ -489,7 +496,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         String[] indices = new String[] { "test" };
 
         Client esqlClient = mock(Client.class);
-        IndexResolver indexResolver = new IndexResolver(esqlClient);
+        IndexResolver indexResolver = new IndexResolver(esqlClient, () -> true);
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
@@ -507,7 +514,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(),
+                new DataSourceCredentials(ENCRYPTION_SERVICE),
                 () -> false
             )
         ) {
@@ -553,7 +560,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         String[] indices = new String[] { "test" };
 
         Client esqlClient = mock(Client.class);
-        IndexResolver indexResolver = new IndexResolver(esqlClient);
+        IndexResolver indexResolver = new IndexResolver(esqlClient, () -> true);
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<EsqlResolveFieldsResponse> listener = (ActionListener<EsqlResolveFieldsResponse>) invocation.getArguments()[2];
@@ -571,7 +578,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials(),
+                new DataSourceCredentials(ENCRYPTION_SERVICE),
                 () -> false
             )
         ) {
@@ -631,6 +638,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 groupIndicesByCluster,
                 runPhase,
                 MOCK_TRANSPORT_ACTION_SERVICES,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                1,
                 () -> false,
                 listener
             );

@@ -278,7 +278,8 @@ public class LocalExecutionPlanner {
         AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry,
         @Nullable Executor parallelWorkerExecutor,
-        int esqlWorkerPoolSize
+        int esqlWorkerPoolSize,
+        MatcherWatchdog grokMatcherWatchdog
     ) {
 
         this.sessionId = sessionId;
@@ -300,9 +301,10 @@ public class LocalExecutionPlanner {
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.parallelWorkerExecutor = parallelWorkerExecutor;
         this.esqlWorkerPoolSize = esqlWorkerPoolSize;
-        // MatcherWatchdog.Default is a stateless, immutable wrapper around this node's max execution
-        // time, so one instance is shared by every GROK matcher this planner builds.
-        this.grokMatcherWatchdog = MatcherWatchdog.newInstance(EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME.get(settings).millis());
+        // Resolved once by the caller from the live ClusterSettings (the setting is dynamic), then shared
+        // by every GROK matcher this planner builds — MatcherWatchdog.Default is a stateless, immutable
+        // wrapper around a single timeout value.
+        this.grokMatcherWatchdog = grokMatcherWatchdog;
     }
 
     /**

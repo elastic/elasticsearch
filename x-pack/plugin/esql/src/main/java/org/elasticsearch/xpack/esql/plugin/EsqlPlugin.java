@@ -268,15 +268,17 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     /**
      * Maximum time (in milliseconds) that a GROK matcher is allowed to run before being interrupted.
      * Limits how long a GROK matcher can run to protect against expensive regex patterns. Read directly
-     * from the local node's settings wherever the matcher is built for execution (see
-     * {@code LocalExecutionPlanner#planGrok}) rather than being carried in the ES|QL {@code Configuration}
-     * wire format, since every node already has its own copy of this node-scoped setting.
+     * from each node's own {@link org.elasticsearch.common.settings.ClusterSettings} wherever the matcher
+     * is built for execution (see {@code LocalExecutionPlanner#planGrok}) rather than being carried in the
+     * ES|QL {@code Configuration} wire format, since every node can resolve this node-scoped setting on
+     * its own — including live updates, since it is also dynamic.
      */
     public static final Setting<TimeValue> GROK_WATCHDOG_MAX_EXECUTION_TIME = Setting.timeSetting(
         "esql.grok.watchdog.max_execution_time",
         TimeValue.timeValueMillis(1000),
         TimeValue.timeValueMillis(0),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**

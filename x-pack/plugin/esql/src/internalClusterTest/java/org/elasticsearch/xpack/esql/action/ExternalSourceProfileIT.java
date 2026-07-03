@@ -271,20 +271,27 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
         long totalRows = (long) files * rowsPerFile;
 
         // FFW + LIMIT: defer path. Only the anchor footer is needed at planning time, but the page must be correct.
-        try (var response = run(syncEsqlQueryRequest(externalQuery(glob, "first_file_wins", "| LIMIT 10")), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest(datasetQuery(glob, "first_file_wins", "| LIMIT 10")), TIMEOUT)) {
             assertThat(getValuesList(response), hasSize(10));
         }
 
         // FFW + ungrouped COUNT(*): eager path — the global row count must span every file.
-        assertSingleLong(externalQuery(glob, "first_file_wins", "| STATS c = COUNT(*)"), totalRows);
+        assertSingleLong(datasetQuery(glob, "first_file_wins", "| STATS c = COUNT(*)"), totalRows);
 
         // UNION_BY_NAME / STRICT still read every file for schema reconciliation; the count stays correct.
-        assertSingleLong(externalQuery(glob, "union_by_name", "| STATS c = COUNT(*)"), totalRows);
-        assertSingleLong(externalQuery(glob, "strict", "| STATS c = COUNT(*)"), totalRows);
+        assertSingleLong(datasetQuery(glob, "union_by_name", "| STATS c = COUNT(*)"), totalRows);
+        assertSingleLong(datasetQuery(glob, "strict", "| STATS c = COUNT(*)"), totalRows);
     }
 
-    private static String externalQuery(String glob, String schemaResolution, String tail) {
-        return "EXTERNAL \"" + glob + "\" WITH {\"schema_resolution\": \"" + schemaResolution + "\"} " + tail;
+    /**
+     * Registers (or reuses) a dataset over {@code glob} with the given {@code schema_resolution} dataset
+     * setting — the {@code FROM <dataset>} equivalent of the legacy {@code EXTERNAL ... WITH
+     * {"schema_resolution": ...}} clause — and returns a {@code FROM <dataset> <tail>} query. Each
+     * resolution mode gets its own dataset name so the three modes can coexist against the same glob.
+     */
+    private String datasetQuery(String glob, String schemaResolution, String tail) {
+        String dataset = registerDataset("profile_ffw_" + schemaResolution, glob, Map.of("schema_resolution", schemaResolution));
+        return "FROM " + dataset + " " + tail;
     }
 
     private void assertSingleLong(String query, long expected) {

@@ -68,7 +68,7 @@ ext.parquetFixtureOutputDir = file("${buildDir}/parquet-fixtures/iceberg-fixture
 def parquetFixtureDir = file("${ext.parquetFixtureOutputDir}/standalone")
 ext.testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
 ext.testFixturesDataDir = ext.testFixturesProject.file('src/main/resources/data')
-ext.csvToParquetFixtures = ['employees', 'web_logs', 'books', 'nested_events', 'employees_no_mv', 'uint32_pushdown']
+ext.csvToParquetFixtures = ['employees', 'web_logs', 'books', 'nested_events', 'employees_no_mv', 'uint32_pushdown', 'uint64_pushdown']
 
 tasks.register('syncIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')

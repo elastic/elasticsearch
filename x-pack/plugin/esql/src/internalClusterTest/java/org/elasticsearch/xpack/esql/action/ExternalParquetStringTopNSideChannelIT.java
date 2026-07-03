@@ -14,6 +14,7 @@ import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.elasticsearch.core.TimeValue;
@@ -35,6 +36,7 @@ import java.util.Map;
 import java.util.function.IntFunction;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -131,6 +133,67 @@ public class ExternalParquetStringTopNSideChannelIT extends AbstractExternalData
         } finally {
             Files.deleteIfExists(file);
         }
+    }
+
+    /**
+     * Regression for esql-planning#1010: sorting a {@code UTF8}-annotated Parquet column that actually
+     * holds malformed UTF-8 (e.g. Spark output) must not throw {@link ArrayIndexOutOfBoundsException}
+     * from the TopN Utf8 encoder. The reader sanitizes such bytes to {@code U+FFFD} on read, so the sort
+     * completes and every returned value is well-formed UTF-8.
+     */
+    public void testSortOverInvalidUtf8DoesNotCrash() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+        byte[][] names = {
+            { (byte) 0xF8, (byte) 0xFF },              // lead bytes that index past the 248-entry table
+            { (byte) 0xC3, (byte) 0x28 },              // truncated 2-byte sequence
+            "valid".getBytes(java.nio.charset.StandardCharsets.UTF_8),
+            { (byte) 0xED, (byte) 0xA0, (byte) 0x80 }, // surrogate half
+        };
+        Path file = writeParquetFileRawNames(names);
+        try {
+            String query = "EXTERNAL \"" + StoragePath.fileUri(file) + "\" | SORT name ASC | LIMIT 100 | KEEP name";
+            try (var response = run(syncEsqlQueryRequest(query), LONG_TIMEOUT)) {
+                // Reaching this point at all is the regression check: the malformed lead bytes previously
+                // threw ArrayIndexOutOfBoundsException from the TopN Utf8 encoder before any rows returned.
+                List<List<Object>> rows = getValuesList(response);
+                assertEquals(names.length, rows.size());
+                List<String> values = new ArrayList<>(rows.size());
+                for (List<Object> row : rows) {
+                    values.add(row.get(0) == null ? null : bytesRefToString(row.get(0)));
+                }
+                assertTrue("valid value must round-trip unchanged", values.contains("valid"));
+                // Every malformed input surfaces sanitized, carrying the replacement character.
+                long sanitized = values.stream().filter(v -> v != null && v.indexOf('\uFFFD') >= 0).count();
+                assertEquals(names.length - 1L, sanitized);
+            }
+        } finally {
+            Files.deleteIfExists(file);
+        }
+    }
+
+    private Path writeParquetFileRawNames(byte[][] names) throws IOException {
+        Path tempFile = createTempDir().resolve("invalid_utf8_names.parquet");
+        MessageType schema = MessageTypeParser.parseMessageType(
+            "message test { optional binary name (UTF8); required binary payload (UTF8); }"
+        );
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int i = 0; i < names.length; i++) {
+                Group group = factory.newGroup();
+                group.add("name", Binary.fromConstantByteArray(names[i]));
+                group.add("payload", "payload_" + i);
+                writer.write(group);
+            }
+        }
+        Files.write(tempFile, baos.toByteArray());
+        return tempFile;
     }
 
     private QueryResult runTopN(Path file, String order, int limit) throws IOException {

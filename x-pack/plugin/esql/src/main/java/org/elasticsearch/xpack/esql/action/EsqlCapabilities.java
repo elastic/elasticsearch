@@ -2089,6 +2089,11 @@ public class EsqlCapabilities {
         GLOBAL_TIMEZONE_PARAMETER_WITH_OUTPUT(Build.current().isSnapshot()),
 
         /**
+         * Top-level {@code settings} object on the {@code _query} request body, mirroring in-query SET keys.
+         */
+        QUERY_SETTINGS_REQUEST_BODY,
+
+        /**
          * Optional options argument for DATE_PARSE
          */
         DATE_PARSE_OPTIONS,

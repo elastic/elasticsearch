@@ -1435,7 +1435,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             } else {
                 blockSize = defaultBlockSize;
             }
-            return new FieldContext(blockSize, fieldName, null, null, null, false);
+            return new FieldContext(blockSize, fieldName, null, null);
         };
         return new ES95TSDBDocValuesFormat(
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
@@ -1469,15 +1469,15 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
 
     private static final FieldContextResolver ROLE_RESOLVER = (fieldName, blockSize) -> {
         if (DOUBLE_GAUGE_FIELD.equals(fieldName)) {
-            return new FieldContext(blockSize, fieldName, DataType.DOUBLE, MetricRole.GAUGE, null, false);
+            return new FieldContext(blockSize, fieldName, DataType.DOUBLE, MetricRole.GAUGE);
         }
         if (DOUBLE_COUNTER_FIELD.equals(fieldName)) {
-            return new FieldContext(blockSize, fieldName, DataType.DOUBLE, MetricRole.COUNTER, null, false);
+            return new FieldContext(blockSize, fieldName, DataType.DOUBLE, MetricRole.COUNTER);
         }
         if (LONG_COUNTER_FIELD.equals(fieldName)) {
-            return new FieldContext(blockSize, fieldName, DataType.LONG, MetricRole.COUNTER, null, false);
+            return new FieldContext(blockSize, fieldName, DataType.LONG, MetricRole.COUNTER);
         }
-        return new FieldContext(blockSize, fieldName, null, null, null, false);
+        return new FieldContext(blockSize, fieldName, null, null);
     };
 
     private void assertDoubleRoundTrip(final String field, int blockShift, final double[] values) throws IOException {
@@ -1581,7 +1581,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         final DataType dataType,
         final MetricRole metricRole
     ) {
-        final FieldContext context = new FieldContext(1 << blockShift, fieldName, dataType, metricRole, null, false);
+        final FieldContext context = new FieldContext(1 << blockShift, fieldName, dataType, metricRole);
         assertEquals(expectedStages, StaticPipelineConfigResolver.INSTANCE.resolve(context).describeStages());
     }
 

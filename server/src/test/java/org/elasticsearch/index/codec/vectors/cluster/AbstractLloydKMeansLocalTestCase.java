@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.codec.vectors.cluster.KMeansTestData.runKMeans;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -55,7 +56,7 @@ public abstract class AbstractLloydKMeansLocalTestCase<V> extends ESTestCase {
         CentroidOps<V> ops = centroidOps();
         ClusteringVectorValues<V> vectors = generateData(nVectors, dims, nClusters);
         V[] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, ops);
-        LloydKMeansLocal.cluster(vectors, ops, centroids, sampleSize, maxIterations, soarLambda);
+        runKMeans(vectors, new LloydKMeansLocalSerial<>(ops, sampleSize, maxIterations, soarLambda), centroids);
 
         int[] assignments = new int[vectors.size()];
         for (int i = 0; i < vectors.size(); i++) {
@@ -91,7 +92,7 @@ public abstract class AbstractLloydKMeansLocalTestCase<V> extends ESTestCase {
         ClusteringVectorValues<V> vectors = generateZeroData(nVectors, dims);
 
         V[] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, ops);
-        LloydKMeansLocal.cluster(vectors, ops, centroids, nVectors, maxIterations, soarLambda);
+        runKMeans(vectors, new LloydKMeansLocalSerial<>(ops, nVectors, maxIterations, soarLambda), centroids);
 
         int[] assignments = new int[nVectors];
         for (int i = 0; i < nVectors; i++) {

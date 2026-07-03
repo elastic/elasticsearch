@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.codec.vectors.cluster.KMeansTestData.runKMeans;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -76,11 +77,11 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
         ClusteringVectorValues<V> vectors = generateZeroData(nVectors, dims);
 
         V[] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, ops);
-        BalancedOTKMeansLocal.cluster(vectors, ops, centroids, nVectors, maxIterations, soarLambda);
+        runKMeans(vectors, new BalancedOTKMeansLocalSerial<>(ops, nVectors, maxIterations, soarLambda), centroids);
 
-        KMeansResult<V> kMeansIntermediate = new KMeansResult<>(centroids, new int[nVectors]);
+        KMeansResult<V> kMeansResult = new KMeansResult<>(centroids, new int[nVectors]);
         KMeansLocal<V> kMeansLocal = new BalancedOTKMeansLocalSerial<>(ops, nVectors, maxIterations, soarLambda);
-        var result = kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood);
+        var result = kMeansLocal.cluster(vectors, kMeansResult, clustersPerNeighborhood);
 
         assertEquals(nClusters, centroids.length);
         assertNotNull(result.soarAssignments());
@@ -101,7 +102,7 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
         CentroidOps<V> ops = centroidOps();
         ClusteringVectorValues<V> vectors = generateData(nVectors, dims, nClusters);
         V[] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, ops);
-        LloydKMeansLocal.cluster(vectors, ops, centroids, sampleSize, maxIterations, soarLambda);
+        runKMeans(vectors, new LloydKMeansLocalSerial<>(ops, sampleSize, maxIterations, soarLambda), centroids);
 
         int[] assignments = new int[vectors.size()];
         for (int i = 0; i < vectors.size(); i++) {

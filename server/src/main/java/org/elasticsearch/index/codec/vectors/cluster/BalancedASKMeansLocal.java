@@ -266,28 +266,4 @@ abstract class BalancedASKMeansLocal<V> extends KMeansLocal<V> {
             accumulatorState
         );
     }
-
-    /**
-     * helper that calls {@link BalancedASKMeansLocal#cluster(ClusteringVectorValues, KMeansResult)} given a set of initialized
-     * centroids, this call is not neighbor aware
-     *
-     * @param vectors the vectors to cluster
-     * @param ops the type of vectors such as float and associated operations
-     * @param centroids the initialized centroids to be shifted using k-means
-     * @param sampleSize the subset of vectors to use when shifting centroids
-     * @param maxIterations the max iterations to shift centroids
-     * @param soarLambda the lambda value for SOAR (or -1 to disable SOAR)
-     */
-    public static <V> void cluster(
-        ClusteringVectorValues<V> vectors,
-        CentroidOps<V> ops,
-        V[] centroids,
-        int sampleSize,
-        int maxIterations,
-        float soarLambda
-    ) throws IOException {
-        KMeansResult<V> kMeansResult = new KMeansResult<>(centroids, new int[vectors.size()]);
-        BalancedASKMeansLocal<V> kMeans = new BalancedASKMeansLocalSerial<>(ops, sampleSize, maxIterations, soarLambda);
-        kMeans.cluster(vectors, kMeansResult);
-    }
 }

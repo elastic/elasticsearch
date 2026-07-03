@@ -42,6 +42,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SILENT;
 import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.RETRY;
 import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.RETRY_BACKOFF;
 import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING;
@@ -692,6 +694,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         taskQueue.runAllRunnableTasks();
         assertThat("Expected to retry on failure but did not", retryCounter.get(), equalTo(2));
         countingListener.assertCount(1, 1, 0);
+        assertThat(service.currentQueueSize(), equalTo(0));
     }
 
     public void testRetryPutTaskAtBackOfQueue() {
@@ -735,6 +738,77 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         taskQueue.runAllTasksInTimeOrder();
         assertThat("Expected to retry on failure but did not", retryCounter.get(), equalTo(2));
         countingListener.assertCount(1, 1, 0);
+        assertThat(service.currentQueueSize(), equalTo(0));
+    }
+
+    public void testNonRetryableFailureDoesNotRetry() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            newClusterService(1),
+            new CompositeRecoverySchedulingListener()
+        );
+        RecoveryState recoveryState = newRecoveryState();
+
+        final var taskRunCounter = new AtomicInteger();
+        final var countingListener = new CountingRecoveryListener();
+        final var nonRetryStrategy = randomFrom(FAIL_SILENT, FAIL_SEND);
+        service.enqueue(countingListener, recoveryState, stats, l -> {
+            taskRunCounter.incrementAndGet();
+            l.onRecoveryFailure(new RecoveryFailedException(recoveryState, "", new Throwable("cause")), nonRetryStrategy);
+        });
+
+        taskQueue.runAllRunnableTasks();
+        assertThat("Non-retryable failure should not re-execute the task", taskRunCounter.get(), equalTo(1));
+        countingListener.assertCount(0, 1, 0);
+        assertThat(service.currentQueueSize(), equalTo(0));
+    }
+
+    public void testRetryThenCloseAbortsRetried() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            newClusterService(1),
+            new CompositeRecoverySchedulingListener()
+        );
+        RecoveryState recoveryState = newRecoveryState();
+
+        // First task fails and retries
+        final var firstTaskRunCounter = new AtomicInteger();
+        final var firstListener = new CountingRecoveryListener();
+        service.enqueue(firstListener, recoveryState, stats, l -> {
+            firstTaskRunCounter.incrementAndGet();
+            l.onRecoveryFailure(
+                new RecoveryFailedException(recoveryState, "", new Throwable("cause")),
+                randomBoolean() ? RETRY : RETRY_BACKOFF
+            );
+        });
+
+        // Second task holds the slot so that the retry queues up behind it instead of dispatching immediately.
+        service.enqueue(
+            RecoveryListener.NOOP,
+            recoveryState,
+            stats,
+            l -> taskQueue.scheduleAt(
+                taskQueue.getCurrentTimeMillis() + 100,
+                () -> l.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+            )
+        );
+
+        // Dispatch: first task runs and fails, releasing the slot to the second task.
+        // The retry of the first task is placed at the back of the queue behind the running second task.
+        taskQueue.runAllRunnableTasks();
+        assertThat("First task should have run once", firstTaskRunCounter.get(), equalTo(1));
+        firstListener.assertCount(0, 1, 0);
+        assertThat("Retried task should be sitting in the queue", service.currentQueueSize(), equalTo(1));
+
+        // Close the service while the retried task is in the queue.
+        service.close();
+        firstListener.assertCount(0, 1, 1); // first attempt failed, retried copy aborted
+        assertThat(service.currentQueueSize(), equalTo(0));
+
+        // Let the second task complete normally to balance stats.
+        taskQueue.runAllTasks();
     }
 
     /// Stress one [ThrottlingRecoveryService] by enqueueing many tasks with randomized completion times,

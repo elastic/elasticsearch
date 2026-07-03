@@ -267,19 +267,22 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     /**
      * Executor for external blob-store access: connector handshakes, registry wiring, source resolution (glob
      * expansion, footer reads, schema reconciliation performed by
-     * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver}), and the blocking data reads routed
-     * through {@link OperatorFactoryRegistry#fileReadExecutor} — all share one pool.
+     * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver}), and the blocking data reads and
+     * streaming parse pipeline routed through {@link OperatorFactoryRegistry#fileReadExecutor}.
      * <p>
-     * Backed by {@link EsqlPlugin#externalBlobStorePool()} (the {@code esql_worker} pool today, default sizing
-     * {@code (1.5*cpu)+1} via {@link ThreadPool#searchOrGetThreadPoolSize} or the {@code esql.worker.thread_pool_size}
-     * setting override, with a heap-scaled queue). Isolated from {@link ThreadPool.Names#SEARCH} to prevent heavy
-     * external queries (glob expansion over thousands of files, S3 footer reads) from starving regular ES searches —
-     * the reported production regression. The resolver's join pattern needs up to {@code MAX_PARALLEL_METADATA_READS + 1}
-     * running slots; on nodes where that exceeds the pool size the
-     * {@link org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather} runner throttles submission rather
-     * than overflowing the queue, and on saturation across concurrent ES|QL queries it fails fast per-slot rather than
-     * deadlocking. In-flight reads are bounded by the per-scheme permit semaphore in {@code StorageProviderRegistry}
-     * rather than by a dedicated thread pool.
+     * Backed by {@link EsqlPlugin#externalBlobStorePool()} — the dedicated {@code esql_external_io} scaling pool,
+     * sized {@code 0..}{@link ExternalSourceSettings#blobStoreConcurrency(org.elasticsearch.common.settings.Settings)}
+     * (the single CPU-scaled concurrency knob). It is deliberately separate from the {@code esql_worker} compute pool
+     * ({@link EsqlPlugin#computePool()}): the blocking parse pipeline (segmentator + parser tasks) must not occupy the
+     * same threads as the compute drivers that consume its output, or the parser starves its consumer and deadlocks
+     * the query. Isolated from {@link ThreadPool.Names#SEARCH} to prevent heavy external queries (glob expansion over
+     * thousands of files, S3 footer reads) from starving regular ES searches — the reported production regression. The
+     * resolver's join pattern needs up to {@code MAX_PARALLEL_METADATA_READS + 1} running slots; on nodes where that
+     * exceeds the pool size the {@link org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather} runner
+     * throttles submission rather than overflowing the queue, and on saturation across concurrent ES|QL queries it
+     * fails fast per-slot rather than deadlocking. In-flight cloud API calls are additionally bounded by the per-scheme
+     * permit semaphore in {@code StorageProviderRegistry} — permits govern concurrency fairness, the pool governs
+     * thread isolation.
      * <p>
      * This method is the coordinator-side hook: overriding it lets tests or a future re-routing move external
      * blob-store access to a different pool without touching call sites.

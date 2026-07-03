@@ -50,6 +50,25 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertEquals(0, (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings));
     }
 
+    public void testExternalIoThreadsTracksPositiveConcurrency() {
+        int override = randomIntBetween(1, 500);
+        Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", override).build();
+        assertEquals(override, ExternalSourceSettings.externalIoThreads(settings));
+    }
+
+    public void testExternalIoThreadsFallsBackToCpuDefaultWhenLimiterDisabled() {
+        // 0 disables the permit limiter but the I/O pool still needs threads: it must not resolve to a zero-thread
+        // pool, so externalIoThreads falls back to the CPU-scaled default.
+        Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 0).build();
+        assertEquals(ExternalSourceSettings.defaultBlobStoreConcurrency(settings), ExternalSourceSettings.externalIoThreads(settings));
+        assertTrue("external I/O pool must always have at least one thread", ExternalSourceSettings.externalIoThreads(settings) >= 1);
+    }
+
+    public void testExternalIoThreadsDefaultsToCpuFormula() {
+        Settings settings = Settings.EMPTY;
+        assertEquals(ExternalSourceSettings.defaultBlobStoreConcurrency(settings), ExternalSourceSettings.externalIoThreads(settings));
+    }
+
     public void testMaxConcurrentRequestsRejectsNegativeAndOverMax() {
         expectThrows(
             IllegalArgumentException.class,

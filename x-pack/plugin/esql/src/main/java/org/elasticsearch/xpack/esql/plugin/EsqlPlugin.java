@@ -58,6 +58,7 @@ import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -175,28 +176,47 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
     /**
-     * Name of the thread pool backing all external blob-store access: metadata discovery (glob expansion, footer
-     * reads, and schema reconciliation performed by {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver})
-     * as well as the blocking data reads routed through {@code OperatorFactoryRegistry#fileReadExecutor}. Returns the
-     * {@code esql_worker} pool today — external access deliberately shares the compute pool, with in-flight reads
-     * bounded by the per-scheme permit semaphore in {@code StorageProviderRegistry} rather than by a dedicated pool.
-     * Exposed as its own accessor, distinct from {@link #computePool()}, so the two logical uses can be split onto
-     * separate pools later without touching call sites. Must never resolve to {@link ThreadPool.Names#SEARCH} or
-     * {@link ThreadPool.Names#GENERIC}: a single heavy external query would otherwise starve regular searches or the
-     * rest of the node.
+     * Name of the dedicated thread pool backing all external blob-store access: metadata discovery (glob expansion,
+     * footer reads, and schema reconciliation performed by
+     * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver}) as well as the blocking data reads and
+     * the streaming parse pipeline (segmentator + parser tasks of
+     * {@link org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator}) routed through
+     * {@code OperatorFactoryRegistry#fileReadExecutor}.
+     * <p>
+     * This is a separate pool from {@link #computePool()} on purpose. These tasks block their thread on network I/O
+     * (a sequential decompressed stream read pulls compressed bytes from the object store) and on the parser's bounded
+     * hand-off queues; the compute {@code Driver} that consumes the parsed pages runs on {@link #computePool()}. If the
+     * two shared a fixed pool, the segmentator plus {@code parsing_parallelism} parser tasks would occupy every slot
+     * and starve their own consumer, deadlocking the query (observed as a stalled heap-attack external query). Keeping
+     * them apart also prevents a single heavy external query from starving compute. In-flight cloud API calls are still
+     * bounded by the per-scheme permit semaphore in {@code StorageProviderRegistry}; the permits and this pool solve
+     * different problems — concurrency fairness/back-pressure versus thread isolation.
+     * <p>
+     * Must never resolve to {@link ThreadPool.Names#SEARCH} or {@link ThreadPool.Names#GENERIC}: a single heavy
+     * external query would otherwise starve regular searches or the rest of the node.
      */
     public static String externalBlobStorePool() {
-        return ESQL_WORKER_THREAD_POOL_NAME;
+        return EXTERNAL_IO_THREAD_POOL_NAME;
     }
 
     /**
      * Name of the thread pool backing ES|QL compute — driver execution and the parallel worker fan-out. Returns the
-     * {@code esql_worker} pool today. Exposed as its own accessor, distinct from {@link #externalBlobStorePool()}, so
-     * compute and external blob-store access can be split onto separate pools later without touching call sites.
+     * {@code esql_worker} pool. Distinct from {@link #externalBlobStorePool()} so the blocking external I/O and parse
+     * pipeline cannot starve the compute drivers that consume its output (and vice versa).
      */
     public static String computePool() {
         return ESQL_WORKER_THREAD_POOL_NAME;
     }
+
+    /**
+     * Name of the dedicated scaling pool for blocking external blob-store I/O and the streaming parse pipeline. Sized
+     * {@code 0..}{@link org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings#externalIoThreads(Settings)}
+     * — tracking the same single CPU-scaled knob ({@code snapshot_meta} shape, capped at 100, or the
+     * {@code esql.external.max_concurrent_requests} operator override) that sizes the permit semaphore and the S3/Azure
+     * SDK connection pools, so the pool cannot diverge from the concurrency the reads are permitted. Scales from 0 so
+     * idle nodes pay nothing. See {@link #externalBlobStorePool()} for why this is separate from {@code esql_worker}.
+     */
+    public static final String EXTERNAL_IO_THREAD_POOL_NAME = "esql_external_io";
 
     public static final Setting<Integer> ESQL_WORKER_THREAD_POOL_SIZE = Setting.intSetting(
         "esql.worker.thread_pool_size",
@@ -727,6 +747,18 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 queueSize,
                 ESQL_WORKER_THREAD_POOL_NAME,
                 EsExecutors.TaskTrackingConfig.DEFAULT
+            ),
+            // Dedicated scaling pool for blocking external blob-store I/O and the streaming parse pipeline, kept
+            // separate from esql_worker so the segmentator/parser tasks cannot starve the compute drivers that
+            // consume their output. Max is the single CPU-scaled concurrency knob (snapshot_meta shape, capped at
+            // 100, or the esql.external.max_concurrent_requests override) that also sizes the permit semaphore, so
+            // pool capacity tracks the concurrency the reads are permitted. Scales from 0 so idle nodes pay nothing.
+            new ScalingExecutorBuilder(
+                EXTERNAL_IO_THREAD_POOL_NAME,
+                0,
+                ExternalSourceSettings.externalIoThreads(settings),
+                TimeValue.timeValueSeconds(30),
+                false
             )
         );
     }

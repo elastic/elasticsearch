@@ -70,6 +70,20 @@ public final class ExternalSourceSettings {
     }
 
     /**
+     * Thread count for the dedicated {@code esql_external_io} pool ({@code EsqlPlugin}) and the ceiling the
+     * streaming parse pipeline clamps its parallelism against ({@code LocalExecutionPlanner}). Tracks the single
+     * concurrency knob {@link #blobStoreConcurrency(Settings)} so the pool cannot outgrow the concurrency the reads
+     * are permitted, with one exception: {@code max_concurrent_requests=0} disables the <em>permit</em> limiter
+     * (unbounded in-flight reads), but the I/O pool still needs threads to run the reads and parse pipeline, so it
+     * falls back to the CPU-scaled {@link #defaultBlobStoreConcurrency(Settings)} default rather than a zero-thread
+     * pool. Always {@code >= 1}.
+     */
+    public static int externalIoThreads(Settings settings) {
+        int concurrency = blobStoreConcurrency(settings);
+        return concurrency > 0 ? concurrency : defaultBlobStoreConcurrency(settings);
+    }
+
+    /**
      * The single external-read concurrency knob, per scheme, per node. It sizes both the per-scheme permit semaphore
      * that bounds in-flight data reads ({@code StorageProviderRegistry}) and the backend SDK HTTP connection pools
      * (S3 Netty {@code maxConcurrency}, Azure reactor-netty {@code ConnectionProvider}), and — via

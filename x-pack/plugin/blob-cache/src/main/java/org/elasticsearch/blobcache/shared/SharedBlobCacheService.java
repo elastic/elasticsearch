@@ -2411,7 +2411,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         boolean evicted = entry.chunk.forceEvict();
                         if (evicted && entry.chunk.volatileIO() != null) {
                             assert shardId == null || shardId.equals(entry.chunk.regionKey.file.shardId())
-                                    : shardId + " != " + entry.chunk.regionKey.file.shardId();
+                                : shardId + " != " + entry.chunk.regionKey.file.shardId();
                             unlinkAndRemoveForEviction(entry);
                             evictedCount++;
                             if (frequency > 0) {

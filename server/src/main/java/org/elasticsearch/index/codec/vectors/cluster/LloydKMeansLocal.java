@@ -47,7 +47,7 @@ abstract class LloydKMeansLocal<V> extends KMeansLocal<V> {
     ) throws IOException;
 
     /** assign to each vector the soar assignment */
-    protected abstract void assignSpilled(
+    protected abstract int[] assignSpilled(
         ClusteringVectorValues<V> vectors,
         KMeansIntermediate<V> kmeansIntermediate,
         NeighborHood[] neighborhoods,

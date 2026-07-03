@@ -20,18 +20,19 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
 /**
  * Configuration for Google Cloud Storage access including credentials and endpoint settings.
  * <p>
- * Supports authentication modes:
+ * The {@code auth} setting selects the mode explicitly — {@code auto}, {@code anonymous},
+ * {@code static_credentials}, {@code federated_identity}, or {@code managed_identity}. When omitted it defaults to
+ * {@code auto}, which infers the mode from the fields present. Supported modes:
  * <ul>
- *   <li>Service account JSON credentials (inline)</li>
- *   <li>Short-lived OAuth2 access token</li>
- *   <li>Workload identity federation via {@code jwt_audience}, {@code sts_audience}, and
- *       {@code service_account_impersonation_url}</li>
- *   <li>{@code auth=none} for anonymous access to public buckets</li>
- *   <li>{@code auth=workload_identity} to use the node's own GCE/GKE metadata-server credentials,
- *       gated by the {@code esql.datasource.workload_identity.enabled} cluster setting</li>
+ *   <li>{@code auth=static_credentials} — service account JSON credentials (inline) or a short-lived OAuth2 access token</li>
+ *   <li>{@code auth=federated_identity} — workload identity federation via {@code sts_audience}
+ *       (and optionally {@code service_account_impersonation_url}, and {@code jwt_audience})</li>
+ *   <li>{@code auth=anonymous} — anonymous access to public buckets</li>
+ *   <li>{@code auth=managed_identity} — the node's own GCE/GKE metadata-server credentials,
+ *       gated by the {@code esql.datasource.managed_identity.enabled} cluster setting</li>
  * </ul>
- * Apart from {@code auth=workload_identity}, a data source must carry its own credentials, since the node may run
- * in a different cloud than the bucket it targets. {@code auth=workload_identity} is the deliberate exception: it
+ * Apart from {@code auth=managed_identity}, a data source must carry its own credentials, since the node may run
+ * in a different cloud than the bucket it targets. {@code auth=managed_identity} is the deliberate exception: it
  * is intended for single-cloud, single-tenant deployments where the node's metadata-server credentials are the
  * intended identity, which is why it is disabled by default.
  */
@@ -68,9 +69,6 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
         // service_account_impersonation_url is optional: direct workload-identity federation maps the
         // federated identity straight to a principal without impersonating a service account.
         if (hasKeylessAuth()) {
-            if (jwtAudience() == null) {
-                errors.addValidationError("jwt_audience is required when keyless authentication settings are configured");
-            }
             if (stsAudience() == null) {
                 errors.addValidationError("sts_audience is required when keyless authentication settings are configured");
             }
@@ -160,7 +158,8 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
     }
 
     /**
-     * Audience passed to the workload-identity issuer {@code IssueTokenRequest} when minting a JWT.
+     * Audience override passed to the workload-identity issuer {@code IssueTokenRequest} when minting a JWT.
+     * By default, it mirrors the value of {@link #stsAudience()}.
      */
     public String jwtAudience() {
         return get(JWT_AUDIENCE.name());
@@ -182,7 +181,18 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
         return get(SERVICE_ACCOUNT_IMPERSONATION_URL.name());
     }
 
+    @Override
     public boolean hasCredentials() {
         return Strings.hasText(serviceAccountCredentials()) || Strings.hasText(accessToken());
+    }
+
+    @Override
+    public String unresolvedAuthMessage() {
+        return "GCS data source requires credentials: set credentials (a service-account JSON key) "
+            + "or access_token for short-lived OAuth credentials; "
+            + "set auth=anonymous for public buckets; "
+            + "set auth=managed_identity to use the node's metadata-server credentials "
+            + "(requires the esql.datasource.managed_identity.enabled cluster setting); "
+            + "or configure keyless authentication with jwt_audience and sts_audience";
     }
 }

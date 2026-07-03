@@ -707,3 +707,171 @@ FROM flattened_many
 first_flat:flattened
 "{""k"":""v1""}"
 ;
+
+Test last aggregation on extended scalar types
+required_capability: last_agg_extended_types
+
+ROW rows = [
+"1.0.0 | 100 | 1",
+"2.0.0 | 200 | 2",
+"3.0.0 | 300 | 3"
+]
+| MV_EXPAND rows
+| DISSECT rows """%{ver} | %{ul} | %{n}"""
+| EVAL v = TO_VERSION(ver), ulong = TO_UNSIGNED_LONG(ul), sort =
+TO_LONG(n)
+| STATS last_v = LAST(v, sort), last_ul = LAST(ulong, sort)
+;
+
+last_v:version | last_ul:unsigned_long
+3.0.0          | 300
+;
+
+Test last aggregation on spatial types
+required_capability: last_agg_extended_types
+
+FROM k8s
+| STATS
+  last_geo_pt   = LAST(event_city, @timestamp),
+  last_cart_pt  = LAST(event_location, @timestamp),
+  last_cart_shp = LAST(event_shape, @timestamp)
+;   
+
+last_geo_pt:geo_point | last_cart_pt:cartesian_point | last_cart_shp:cartesian_shape
+POINT (35.932799968868494 31.949699968099594) | POINT (9202465.000000 7363726.500000) | POLYGON ((0.0 2.0, 1.0 2.0, 1.0 3.0, 0.0 3.0, 0.0 2.0), (0.4 2.4, 0.6 2.4, 0.6 2.6, 0.4 2.6, 0.4 2.4))
+;
+
+Test last aggregation on geo_shape type
+required_capability: last_agg_extended_types
+required_capability: fix_agg_first_last_foldables_in_sort_field
+
+FROM airport_city_boundaries
+| WHERE abbrev == "PMI"
+| EVAL sort = 1::long
+| STATS last_shape = LAST(city_boundary, sort)
+; 
+
+last_shape:geo_shape
+POLYGON((2.6674 39.6334, 2.687 39.5836, 2.7976 39.614, 2.7504 39.6587, 2.6674 39.6334))
+;
+
+Test last aggregation on spatial grid types
+required_capability: last_agg_extended_types
+required_capability: spatial_grid_types
+
+ROW rows = [
+"1 | u3bu | 4/8/5 | 841f059ffffffff",
+"3 | dr5r | 3/4/2 | 812bbffffffffff",
+"2 | 9q8y | 2/2/1 | 81397ffffffffff"
+] 
+| MV_EXPAND rows
+| DISSECT rows "%{n} | %{hash} | %{tile} | %{hex}"
+| EVAL sort = TO_LONG(n), gh = TO_GEOHASH(hash), gt = TO_GEOTILE(tile), ghex = TO_GEOHEX(hex)
+| STATS
+  last_gh   = LAST(gh, sort),
+  last_gt   = LAST(gt, sort),
+  last_ghex = LAST(ghex, sort)
+;   
+
+last_gh:geohash | last_gt:geotile | last_ghex:geohex
+dr5r            | 3/4/2           | 812bbffffffffff
+;
+
+Test last aggregation on dense_vector type
+required_capability: last_agg_extended_types
+
+FROM colors
+| WHERE id < 5
+| STATS last_rgb = LAST(rgb_vector, id)
+;
+
+last_rgb:dense_vector
+[255.0, 0.0, 0.0]
+;
+
+Test last aggregation on exponential_histogram type (NULL sort)
+required_capability: last_agg_extended_types
+
+FROM exp_histo_sample
+| WHERE instance == "dummy-empty"
+| STATS last_hist = LAST(responseTime, NULL)
+;
+
+last_hist:exponential_histogram
+"{""scale"":0}"
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test last aggregation on exponential_histogram type with grouping (NULL sort)
+required_capability: last_agg_extended_types
+
+FROM exp_histo_sample
+| WHERE instance IN ("dummy-empty", "dummy-zero_threshold_only")
+| STATS last_hist = LAST(responseTime, NULL) BY instance
+| SORT instance
+;
+
+last_hist:exponential_histogram | instance:keyword
+"{""scale"":0}" | dummy-empty
+"{""scale"":0,""zero"":{""threshold"":2.0E-5}}" | dummy-zero_threshold_only
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test last aggregation on tdigest type (NULL sort)
+required_capability: last_agg_extended_types
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance == "hand-rolled-empty"
+| STATS last_td = LAST(responseTime, NULL)
+;
+
+last_td:tdigest
+"{""centroids"":[], ""counts"":[]}"
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test last aggregation on tdigest type with grouping (NULL sort)
+required_capability: last_agg_extended_types
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance IN ("hand-rolled", "hand-rolled-empty")
+| STATS last_td = LAST(responseTime, NULL) BY instance
+| SORT instance
+;
+
+last_td:tdigest | instance:keyword
+"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}" | hand-rolled
+"{""centroids"":[], ""counts"":[]}" | hand-rolled-empty
+;
+
+Test last aggregation on flattened type
+required_capability: flattened_datatype
+required_capability: last_agg_extended_types
+
+FROM flattened_many
+| STATS last_flat = LAST(flat_a, id)
+; 
+
+last_flat:flattened
+"{""k"":""same""}"
+;
+  
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test last aggregation on flattened type (NULL sort)
+required_capability: flattened_datatype 
+required_capability: last_agg_extended_types
+
+FROM flattened_many
+| WHERE id == 1
+| STATS last_flat = LAST(flat_a, NULL)
+; 
+
+last_flat:flattened
+"{""k"":""v1""}"
+;

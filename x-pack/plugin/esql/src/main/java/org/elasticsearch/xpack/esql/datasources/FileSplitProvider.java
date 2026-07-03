@@ -12,6 +12,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -63,6 +64,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 
 /**
  * Default {@link SplitProvider} for file-based sources.
@@ -135,6 +137,8 @@ public class FileSplitProvider implements SplitProvider {
 
     /** Maximum parallel per-file I/O tasks during split discovery (Parquet footer reads, etc.). */
     static final int MAX_PARALLEL_SPLIT_DISCOVERY = 16;
+
+    private static final String DISCOVERY_CANCELLED_MESSAGE = "ES|QL external split discovery cancelled";
 
     private final long targetSplitSizeBytes;
     private final DecompressionCodecRegistry codecRegistry;
@@ -227,6 +231,9 @@ public class FileSplitProvider implements SplitProvider {
         // still works, the on-wire cost is just slightly higher.
         ExternalSchema unifiedSchema = context.unifiedSchema();
 
+        // Bail before doing any per-file work if the originating query is already cancelled.
+        throwIfCancelled(context);
+
         // Phase 1: sequential filtering — cheap, in-memory predicates applied per file to
         // build the list of FileTask items that need I/O (footer reads, boundary scans).
         List<FileTask> tasks = new ArrayList<>(fileList.fileCount());
@@ -312,19 +319,20 @@ public class FileSplitProvider implements SplitProvider {
 
         // Phase 2: I/O-bound split discovery — parallelize when executor is available.
         final StorageProvider hoistedProvider = sharedProvider;
+        final BooleanSupplier isCancelled = context.isCancelled();
         List<List<ExternalSplit>> perFileSplits;
         try {
             if (executor != null && tasks.size() > 1) {
                 perFileSplits = BoundedParallelGather.gather(
                     tasks,
-                    task -> processFileForSplits(task, hoistedProvider),
+                    task -> processFileForSplits(task, hoistedProvider, isCancelled),
                     MAX_PARALLEL_SPLIT_DISCOVERY,
                     executor
                 );
             } else {
                 perFileSplits = new ArrayList<>(tasks.size());
                 for (FileTask task : tasks) {
-                    perFileSplits.add(processFileForSplits(task, hoistedProvider));
+                    perFileSplits.add(processFileForSplits(task, hoistedProvider, isCancelled));
                 }
             }
         } catch (IOException e) {
@@ -343,6 +351,20 @@ public class FileSplitProvider implements SplitProvider {
         // Each surviving task produces at least one split, so the task count is the number of
         // distinct files that are actually scanned after coordinator-side pruning.
         return new SplitDiscoveryResult(splits, tasks.size());
+    }
+
+    /**
+     * Throws {@link TaskCancelledException} when the originating query has been cancelled, so that a
+     * long-running split discovery (e.g. thousands of Parquet footer reads) aborts promptly. Mirrors
+     * {@code ExternalSourceResolver.throwIfCancelled}. Thrown from {@code processFileForSplits} it is
+     * the {@code fn} passed to {@link BoundedParallelGather#gather}, whose documented fast-fail
+     * short-circuits not-yet-started files and rethrows the exception, so cancel latency is bounded to
+     * the in-flight slots.
+     */
+    private static void throwIfCancelled(SplitDiscoveryContext context) {
+        if (context.isCancelled().getAsBoolean()) {
+            throw new TaskCancelledException(DISCOVERY_CANCELLED_MESSAGE);
+        }
     }
 
     /**
@@ -365,6 +387,16 @@ public class FileSplitProvider implements SplitProvider {
      * otherwise falls back to the registry for per-call provider resolution.
      * This method is safe to call concurrently from multiple threads.
      */
+    private List<ExternalSplit> processFileForSplits(FileTask task, @Nullable StorageProvider hoistedProvider, BooleanSupplier isCancelled)
+        throws IOException {
+        if (isCancelled.getAsBoolean()) {
+            throw new TaskCancelledException(DISCOVERY_CANCELLED_MESSAGE);
+        }
+        // Carry the cancellation signal as ambient thread-local state so the synchronous retry/throttle
+        // backoff inside the footer reads below can abort a parked sleep on cancel.
+        return StorageRetryCancellation.callWithCancellation(isCancelled, () -> processFileForSplits(task, hoistedProvider));
+    }
+
     private List<ExternalSplit> processFileForSplits(FileTask task, @Nullable StorageProvider hoistedProvider) throws IOException {
         List<ExternalSplit> fileSplits = new ArrayList<>();
 

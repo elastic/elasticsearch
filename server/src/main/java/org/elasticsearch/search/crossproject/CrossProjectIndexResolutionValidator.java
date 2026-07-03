@@ -16,6 +16,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
+import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -89,12 +91,27 @@ public class CrossProjectIndexResolutionValidator {
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
         Map<String, Exception> remoteExceptions
     ) {
-        // Check for remote view exceptions that may not have been caught by the per-expression checks above.
-        // This can happen for flat expressions where the resolved expressions don't include remote expressions for views.
+        // Check for remote view/dataset exceptions that may not have been caught by the per-expression checks above.
+        // This can happen for flat expressions where the resolved expressions don't include remote expressions for them.
+        // Both kinds are collected and reported together so a query matching a remote view on one project and a remote
+        // dataset on another surfaces both at once rather than whichever project's exception is iterated first.
+        List<String> remoteViews = new ArrayList<>();
+        List<String> remoteDatasets = new ArrayList<>();
         for (Exception remoteEx : remoteExceptions.values()) {
-            if (ExceptionsHelper.unwrapCause(remoteEx) instanceof RemoteViewNotSupportedException viewException) {
-                return viewException;
+            Throwable cause = ExceptionsHelper.unwrapCause(remoteEx);
+            // A remote that hosts both kinds already combined them into RemoteResourceNotSupportedException; a remote with
+            // a single kind reports the per-kind exception. Collect from whichever shape arrived.
+            if (cause instanceof RemoteResourceNotSupportedException resourceException) {
+                remoteViews.addAll(resourceException.views());
+                remoteDatasets.addAll(resourceException.datasets());
+            } else if (cause instanceof RemoteViewNotSupportedException viewException) {
+                remoteViews.addAll(viewException.views());
+            } else if (cause instanceof RemoteDatasetNotSupportedException datasetException) {
+                remoteDatasets.addAll(datasetException.datasets());
             }
+        }
+        if (remoteViews.isEmpty() == false || remoteDatasets.isEmpty() == false) {
+            return new RemoteResourceNotSupportedException(remoteViews, remoteDatasets);
         }
 
         if (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable()) {
@@ -345,8 +362,15 @@ public class CrossProjectIndexResolutionValidator {
         if (resolvedExpressionsInProject == null) {
             // if we're missing results from the remote because of a connection error, report it; else assume we have an exclusion
             if (remoteExceptions.containsKey(projectAlias)) {
-                if (ExceptionsHelper.unwrapCause(remoteExceptions.get(projectAlias)) instanceof RemoteViewNotSupportedException viewEx) {
-                    return viewEx;
+                Throwable cause = ExceptionsHelper.unwrapCause(remoteExceptions.get(projectAlias));
+                if (cause instanceof RemoteResourceNotSupportedException resourceEx) {
+                    return resourceEx;
+                }
+                if (cause instanceof RemoteViewNotSupportedException viewEx) {
+                    return new RemoteResourceNotSupportedException(viewEx.views(), List.of());
+                }
+                if (cause instanceof RemoteDatasetNotSupportedException datasetEx) {
+                    return new RemoteResourceNotSupportedException(List.of(), datasetEx.datasets());
                 }
                 return new IndexNotFoundException(remoteExpression);
             } else {

@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
@@ -444,23 +445,23 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.
          */
-        FLATTENED_DATATYPE(Build.current().isSnapshot()),
+        FLATTENED_DATATYPE,
 
         /**
          * Flattened field keys are returned in alphabetical order.
          */
-        FLATTENED_DATATYPE_SORTED_KEYS(Build.current().isSnapshot()),
+        FLATTENED_DATATYPE_SORTED_KEYS,
 
         /**
          * Flattened fields apply {@code null_value} replacement when loading from {@code _source},
          * matching the doc-values behaviour applied at index time.
          */
-        FLATTENED_DATATYPE_NULL_VALUE(Build.current().isSnapshot()),
+        FLATTENED_DATATYPE_NULL_VALUE,
 
         /**
          * Support for the {@code field_extract} function, which reads a sub-key from a {@code flattened} field root.
          */
-        FIELD_EXTRACT_FUNCTION(Build.current().isSnapshot()),
+        FIELD_EXTRACT_FUNCTION,
 
         /**
          * Pushdown optimizations for {@code field_extract(<flattened root>, "<literal key>")}: block-loader
@@ -474,7 +475,7 @@ public class EsqlCapabilities {
          * must require this capability so they skip on mixed clusters where any data node still
          * runs the per-row evaluator.
          */
-        FIELD_EXTRACT_FLATTENED_PUSHDOWN(Build.current().isSnapshot()),
+        FIELD_EXTRACT_FLATTENED_PUSHDOWN,
 
         /**
          * The per-row evaluator for {@code field_extract(<flattened root>, "<key>")} returns a multi-value
@@ -498,7 +499,7 @@ public class EsqlCapabilities {
          * Lucene, must require this capability so they skip on mixed clusters where any data node still fuses
          * mapped sub-keys and returns {@code null}.
          */
-        FIELD_EXTRACT_MAPPED_SUBFIELD_RETURNS_VALUE(Build.current().isSnapshot()),
+        FIELD_EXTRACT_MAPPED_SUBFIELD_RETURNS_VALUE,
 
         /**
          * A {@code flattened} root that declares mapped sub-fields (e.g. {@code KEEP attributes}) is always loaded
@@ -510,7 +511,7 @@ public class EsqlCapabilities {
          * shape must require this capability so they skip on mixed clusters where an older data node still builds the
          * root from doc values, rendering mapped sub-fields with their native type and dropping a bare text sub-field.
          */
-        FLATTENED_ROOT_STRINGIFIES_MAPPED_SUBFIELDS(Build.current().isSnapshot()),
+        FLATTENED_ROOT_STRINGIFIES_MAPPED_SUBFIELDS,
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -1414,12 +1415,12 @@ public class EsqlCapabilities {
         /**
          * Support ROW as a source command inside subquery in the from command.
          */
-        SUBQUERY_WITH_ROW(Build.current().isSnapshot()),
+        SUBQUERY_WITH_ROW,
 
         /**
          * Support TS as a source command inside subquery in the from command.
          */
-        SUBQUERY_WITH_TS(Build.current().isSnapshot()),
+        SUBQUERY_WITH_TS,
 
         /**
          * Fixed {@code TranslateTimeSeriesWithout} and {@code TranslateTimeSeriesAggregate} to associate time-series attributes with the
@@ -1439,6 +1440,13 @@ public class EsqlCapabilities {
          * Views crud actions as index actions
          */
         VIEWS_CRUD_AS_INDEX_ACTIONS(VIEWS_WITH_NO_BRANCHING.isEnabled()),
+        /**
+         * Signals that {@code PUT /_query/view/{name}} is exposed with {@code @ServerlessScope(Scope.PUBLIC)}.
+         * Old nodes in a mixed cluster predate this annotation and will not report this capability via
+         * {@code /_capabilities}, so any mixed cluster containing such a node correctly returns
+         * {@code supported=false}.
+         */
+        VIEWS_PUT_SERVERLESS_SCOPE(VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled()),
         /**
          * Views with branching (requires subqueries/FORK).
          */
@@ -1847,6 +1855,13 @@ public class EsqlCapabilities {
          * Support lower-open upper-closed boundaries (*;*] in addition to lower-closed upper-open [*;*)
          */
         FIX_TSTEP_BUCKET_ROUNDING(TSTEP.isEnabled()),
+
+        /**
+         * Fix windowed over-time/rate aggregations whose window is smaller than the time bucket when the bucket is
+         * end-labeled (right-closed), as produced by {@code TSTEP} and PromQL range queries. Previously such queries
+         * returned empty results because the per-sample window filter looked one bucket past the correct boundary.
+         */
+        FIX_TSTEP_WINDOW_FILTER_ROUNDING(TSTEP.isEnabled()),
 
         /**
          * Allow qualifiers in attribute names.
@@ -2328,6 +2343,12 @@ public class EsqlCapabilities {
          * also match time series where the label is absent ({@code NULL}), per PromQL spec.
          */
         PROMQL_ABSENT_LABEL_MATCHING,
+
+        /**
+         * Support for the PromQL {@code offset} modifier, implemented as a constant time shift of the evaluation
+         * timestamp. Heterogeneous offsets within a single source-backed binary operator remain unsupported.
+         */
+        PROMQL_OFFSET_MODIFIER(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results
@@ -3067,18 +3088,18 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
-        FN_EQUALS_FLATTENED(Build.current().isSnapshot()),
+        FN_EQUALS_FLATTENED,
 
         /**
          * Support for the {@code !=} operator on the root of a {@code flattened} field in ES|QL.
          */
-        FN_NOT_EQUALS_FLATTENED(Build.current().isSnapshot()),
+        FN_NOT_EQUALS_FLATTENED,
 
         /**
          * Support for using a {@code flattened} field as a grouping key in
          * {@code STATS … BY} and {@code LIMIT N BY}.
          */
-        GROUP_BY_FLATTENED(Build.current().isSnapshot()),
+        GROUP_BY_FLATTENED,
 
         /**
          * Fix for {@code ReorderLimitProjectAndOrderBy} unconditionally lifting an {@code OrderBy} above a renaming/dropping
@@ -3237,6 +3258,11 @@ public class EsqlCapabilities {
         PROMQL_HISTOGRAM_QUANTILE_IMPLICIT_LE,
 
         /**
+         * Support for PromQL {@code histogram_quantile()} over exponential (native) histograms.
+         */
+        PROMQL_HISTOGRAM_QUANTILE_EXPONENTIAL,
+
+        /**
          * Fixes a bug in the planner where {@code TS} queries without an outer aggregation (group by all)
          * would wrongly fail with an {@link IllegalStateException} if any aggregation had a filter.
          */
@@ -3249,6 +3275,21 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/151540
          */
         FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING,
+
+        /**
+         * Support for the {@code _slice} metadata field in ES|QL, available on indices with
+         * {@code index.slice.enabled: true}. Backed by the {@code _routing} sorted doc values field.
+         * Enables {@code FROM index METADATA _slice}, {@code KEEP _slice}, and pushable
+         * {@code WHERE _slice ==} / {@code LIKE} / {@code RLIKE} filters.
+         */
+        METADATA_SLICE(SliceIndexing.SLICE_FEATURE_FLAG),
+
+        /**
+         * Support LAST and LATEST aggregation on the same extended field types as FIRST and EARLIEST
+         * (version, unsigned_long, spatial, spatial-grid, dense_vector, exponential_histogram, tdigest,
+         * flattened).
+         */
+        LAST_AGG_EXTENDED_TYPES,
 
         /**
          * An empty list passed as a query parameter (named or positional) is treated as null

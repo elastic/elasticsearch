@@ -32,12 +32,12 @@ public final class ScanningBinaryDocValuesTermInSetQuery extends AbstractBinaryD
     private final PrefixCodedTerms termData;
     private final int termDataHashCode;
 
-    public ScanningBinaryDocValuesTermInSetQuery(String fieldName, List<BytesRef> terms) {
-        this(fieldName, packTerms(fieldName, Objects.requireNonNull(terms)));
+    public ScanningBinaryDocValuesTermInSetQuery(String fieldName, List<BytesRef> terms, boolean arrayOrderInlineNull) {
+        this(fieldName, packTerms(fieldName, Objects.requireNonNull(terms)), arrayOrderInlineNull);
     }
 
-    private ScanningBinaryDocValuesTermInSetQuery(String fieldName, PrefixCodedTerms termData) {
-        super(fieldName, buildMatchPredicate(termData));
+    private ScanningBinaryDocValuesTermInSetQuery(String fieldName, PrefixCodedTerms termData, boolean arrayOrderInlineNull) {
+        super(fieldName, buildMatchPredicate(termData), arrayOrderInlineNull);
         this.termData = termData;
         this.termDataHashCode = termData.hashCode();
     }

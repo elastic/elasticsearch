@@ -37,7 +37,9 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ProjectClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -1559,13 +1561,14 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         // "saving" the index name here so we don't capture the entire request
         String targetIndex = deleteIndexRequest.indices()[0];
         logger.trace("Data stream lifecycle issues request to delete index [{}]", targetIndex);
-        client.projectClient(projectId).admin().indices().delete(deleteIndexRequest, new ActionListener<>() {
+        ProjectClient projectClient = client.projectClient(projectId);
+        projectClient.admin().indices().delete(deleteIndexRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 if (acknowledgedResponse.isAcknowledged()) {
                     logger.info("Data stream lifecycle successfully deleted index [{}] due to {}", targetIndex, reason);
                     if (backingSnapshot != null) {
-                        deleteBackingSnapshot(backingSnapshot, targetIndex);
+                        deleteBackingSnapshot(backingSnapshot, targetIndex, projectClient);
                     }
                 } else {
                     logger.trace(
@@ -1584,7 +1587,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     // index was already deleted, treat this as a success
                     errorStore.clearRecordedError(projectId, targetIndex);
                     if (backingSnapshot != null) {
-                        deleteBackingSnapshot(backingSnapshot, targetIndex);
+                        deleteBackingSnapshot(backingSnapshot, targetIndex, projectClient);
                     }
                     listener.onResponse(null);
                     return;
@@ -1612,13 +1615,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * the latter would attempt to nest a second project context inside the one the index delete's listener is already
      * executing in, which is rejected.
      */
-    private void deleteBackingSnapshot(FrozenBackingSnapshot backingSnapshot, String sourceIndex) {
+    private void deleteBackingSnapshot(FrozenBackingSnapshot backingSnapshot, String sourceIndex, Client projectClient) {
         DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest(
-            TimeValue.MAX_VALUE,
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             backingSnapshot.repository(),
             backingSnapshot.snapshotName()
         );
-        client.admin().cluster().deleteSnapshot(deleteSnapshotRequest, new ActionListener<>() {
+        projectClient.admin().cluster().deleteSnapshot(deleteSnapshotRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 logger.info(

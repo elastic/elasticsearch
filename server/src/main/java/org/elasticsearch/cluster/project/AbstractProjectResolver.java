@@ -99,4 +99,5 @@ public abstract class AbstractProjectResolver implements ProjectResolver {
     protected String getProjectIdFromThreadContext() {
         return threadContext.get().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
     }
+
 }

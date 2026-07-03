@@ -188,6 +188,10 @@ public class KibanaCasesImplicitPrivilegesProvider implements ImplicitPrivileges
             }
 
             String[] privileges = arp.getPrivileges();
+            // Built once per block and reused across all three owner actions below, rather than
+            // rebuilding it per action - StringMatcher.of constructs an Automaton for wildcard
+            // patterns, and that cost shouldn't be paid three times for the same privileges array.
+            StringMatcher privilegeMatcher = StringMatcher.of(privileges);
             for (Map.Entry<String, String> actionAndOwner : GET_CASE_ACTIONS_BY_OWNER.entrySet()) {
                 String action = actionAndOwner.getKey();
                 String owner = actionAndOwner.getValue();
@@ -203,7 +207,7 @@ public class KibanaCasesImplicitPrivilegesProvider implements ImplicitPrivileges
                     }
                 }
 
-                if (grantsActionByName || StringMatcher.of(privileges).test(action)) {
+                if (grantsActionByName || privilegeMatcher.test(action)) {
                     Collections.addAll(resourcesByOwner.computeIfAbsent(owner, k -> new HashSet<>()), arp.getResources());
                 }
             }

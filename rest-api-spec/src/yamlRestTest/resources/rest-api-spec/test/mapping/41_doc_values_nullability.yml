@@ -113,8 +113,7 @@
         index: test_nullability_nested
         body:
           settings:
-            # Strict columnar modes flatten subobjects and reject nested objects, so this case uses plain logsdb instead.
-            index.mode: logsdb
+            index.mode: logsdb_columnar
           mappings:
             properties:
               a:

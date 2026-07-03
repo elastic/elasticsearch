@@ -1459,6 +1459,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     name(),
                     ignoreAbove,
                     usesBinaryDocValues,
+                    usesArrayOrderBinaryDocValues,
                     toSubFieldLoaders(mappedSubFields),
                     storeIgnoredFieldsInBinaryDocValues,
                     preserveLeafArrays

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
+import org.elasticsearch.xpack.esql.datasources.ColumnStatTypeSupport;
 import org.elasticsearch.xpack.esql.datasources.MergedSplitStats;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
@@ -88,16 +89,20 @@ public final class ExternalSourceAggregatePushdown {
         if (value == null) {
             return null;
         }
-        return switch (type) {
-            case INTEGER -> exactIntegerInRange(value, Integer.MIN_VALUE, Integer.MAX_VALUE) ? value : null;
-            case LONG, DATETIME, DATE_NANOS, COUNTER_LONG -> exactIntegerInRange(value, Long.MIN_VALUE, Long.MAX_VALUE) ? value : null;
+        ColumnStatTypeSupport support = ColumnStatTypeSupport.of(type);
+        if (support == null || support.blockKind() == null) {
+            // A null support (or a support with no block kind — UNSIGNED_LONG) has NO buildBlock arm: serving it
+            // would hit buildBlock's throwing default, a crash on an otherwise-valid query (e.g. MIN(uint64) on
+            // parquet, whose pushdown gate has no type filter). Safe-miss instead so the aggregate re-scans and
+            // answers correctly. INVARIANT: this servable set MUST equal buildBlock's arm set (both dispatch on
+            // ColumnStatTypeSupport.of, so they cannot drift).
+            return null;
+        }
+        return switch (support.blockKind()) {
+            case INT -> exactIntegerInRange(value, Integer.MIN_VALUE, Integer.MAX_VALUE) ? value : null;
+            case LONG -> exactIntegerInRange(value, Long.MIN_VALUE, Long.MAX_VALUE) ? value : null;
             // The non-integral buildBlock arms coerce without integral truncation, so these serve as-is.
-            case DOUBLE, COUNTER_DOUBLE, BOOLEAN, KEYWORD, TEXT, IP -> value;
-            // Any other type has NO buildBlock arm — serving it would hit buildBlock's throwing default, a crash on
-            // an otherwise-valid query (e.g. MIN(uint64) on parquet, whose pushdown gate has no type filter, or a
-            // future type added to buildBlock but not here). Safe-miss instead so the aggregate re-scans and answers
-            // correctly. INVARIANT: this servable set MUST equal buildBlock's arm set (see buildBlock).
-            default -> null;
+            case DOUBLE, BOOLEAN, BYTES_REF -> value;
         };
     }
 
@@ -276,12 +281,22 @@ public final class ExternalSourceAggregatePushdown {
         if (value == null) {
             return blockFactory.newConstantNullBlock(1);
         }
-        return switch (dataType) {
-            case INTEGER -> blockFactory.newConstantIntBlockWith(((Number) value).intValue(), 1);
+        ColumnStatTypeSupport support = ColumnStatTypeSupport.of(dataType);
+        if (support == null || support.blockKind() == null) {
+            // Fail loud rather than serve a silent NULL/long coercion for an unhandled type: every harvestable
+            // type (TextAggregatePushdownSupport) must resolve to a StatBlockKind. A silent default is how
+            // MIN/MAX(ip) once served NULL. servableExtremum gates on the same ColumnStatTypeSupport.of, so a
+            // type reaching here without a block kind is a genuine invariant break.
+            throw new IllegalStateException("buildBlock has no arm for pushed aggregate type [" + dataType + "]");
+        }
+        // Exhaustive over StatBlockKind (no default): adding a new StatBlockKind without a buildBlock arm is a
+        // compile error, guaranteeing every servable type materializes into a block.
+        return switch (support.blockKind()) {
+            case INT -> blockFactory.newConstantIntBlockWith(((Number) value).intValue(), 1);
             // DATE_NANOS, like DATETIME, is a nanos/millis-since-epoch long — served as a constant long block;
             // the coordinator renders it per the column's resolved type.
-            case LONG, COUNTER_LONG, DATETIME, DATE_NANOS -> blockFactory.newConstantLongBlockWith(((Number) value).longValue(), 1);
-            case DOUBLE, COUNTER_DOUBLE -> blockFactory.newConstantDoubleBlockWith(((Number) value).doubleValue(), 1);
+            case LONG -> blockFactory.newConstantLongBlockWith(((Number) value).longValue(), 1);
+            case DOUBLE -> blockFactory.newConstantDoubleBlockWith(((Number) value).doubleValue(), 1);
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith(
                 value instanceof Boolean b ? b : Booleans.parseBoolean(value.toString()),
                 1
@@ -289,11 +304,7 @@ public final class ExternalSourceAggregatePushdown {
             // IP is harvested as its 16-byte InetAddressPoint encoding (ColumnStatsAccumulator maps
             // KEYWORD/TEXT/IP -> T_BYTESREF, whose byte-lex order matches IP address order), which is exactly
             // the representation an ES|QL IP block holds, so it round-trips through a constant BytesRef block.
-            case KEYWORD, TEXT, IP -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(value), 1);
-            // Fail loud rather than serve a silent NULL/long coercion for an unhandled type: every type in
-            // MIN_MAX_TYPES (TextAggregatePushdownSupport) must have an explicit arm above. A silent default is
-            // how MIN/MAX(ip) once served NULL — adding a type to MIN_MAX_TYPES without an arm now fails here.
-            default -> throw new IllegalStateException("buildBlock has no arm for pushed aggregate type [" + dataType + "]");
+            case BYTES_REF -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(value), 1);
         };
     }
 

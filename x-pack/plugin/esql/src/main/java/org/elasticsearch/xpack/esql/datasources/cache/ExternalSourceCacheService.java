@@ -18,6 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ColumnStatTypeSupport;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -568,10 +569,11 @@ public class ExternalSourceCacheService implements Closeable {
 
     /** True for the types whose min/max is a numeric value that can flap Long/Double across sampled reads. */
     private static boolean isNumericStatType(DataType type) {
-        return switch (type) {
-            case INTEGER, LONG, DOUBLE, DATETIME, DATE_NANOS, UNSIGNED_LONG -> true;
-            default -> false;
-        };
+        // A type is numeric-coercible iff the shared table assigns it a non-NONE coercion. This is ORTHOGONAL
+        // to servability (UNSIGNED_LONG is unservable but EXACT_LONG-coercible — it still needs the stale-extremum
+        // drop), so it dispatches on coercion(), not servable().
+        ColumnStatTypeSupport support = ColumnStatTypeSupport.of(type);
+        return support != null && support.coercion() != ColumnStatTypeSupport.StatCoercion.NONE;
     }
 
     /**
@@ -580,15 +582,15 @@ public class ExternalSourceCacheService implements Closeable {
      * (widening is exact for an extremum); LONG-family and INTEGER accept only values that round-trip exactly.
      */
     private static Object coerceNumberToType(Number value, DataType type) {
-        return switch (type) {
-            case DOUBLE -> value.doubleValue();
-            case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG -> toExactLong(value);
-            case INTEGER -> {
+        return switch (ColumnStatTypeSupport.of(type).coercion()) {
+            case WIDEN_DOUBLE -> value.doubleValue();
+            case EXACT_LONG -> toExactLong(value);
+            case EXACT_INT -> {
                 Long l = toExactLong(value);
                 yield (l != null && l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE) ? Integer.valueOf(l.intValue()) : null;
             }
-            // Unreachable: callers gate on isNumericStatType, so only the numeric types above reach here.
-            default -> throw new AssertionError("coerceNumberToType called for non-numeric stat type: " + type);
+            // Unreachable: callers gate on isNumericStatType, so only non-NONE coercions reach here.
+            case NONE -> throw new AssertionError("coerceNumberToType called for non-numeric stat type: " + type);
         };
     }
 

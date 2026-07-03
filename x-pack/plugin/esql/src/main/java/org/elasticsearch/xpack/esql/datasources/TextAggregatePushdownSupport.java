@@ -9,16 +9,13 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 
-import java.util.EnumSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Aggregate-pushdown opt-in for the line-oriented text-format readers (CSV / TSV / NDJSON).
@@ -33,18 +30,6 @@ import java.util.Set;
  * statistics layer cannot answer about them — same gate Parquet uses.
  */
 public class TextAggregatePushdownSupport implements AggregatePushdownSupport {
-
-    private static final Set<DataType> MIN_MAX_TYPES = EnumSet.of(
-        DataType.BOOLEAN,
-        DataType.INTEGER,
-        DataType.LONG,
-        DataType.DOUBLE,
-        DataType.DATETIME,
-        DataType.DATE_NANOS,
-        DataType.KEYWORD,
-        DataType.TEXT,
-        DataType.IP
-    );
 
     @Override
     public Pushability canPushAggregates(List<Expression> aggregates, List<Expression> groupings) {
@@ -89,7 +74,14 @@ public class TextAggregatePushdownSupport implements AggregatePushdownSupport {
 
     private static boolean rejectMinMaxField(Expression field) {
         if (field instanceof Attribute attr) {
-            return PushdownPredicates.isVirtualColumn(attr) || MIN_MAX_TYPES.contains(attr.dataType()) == false;
+            if (PushdownPredicates.isVirtualColumn(attr)) {
+                return true;
+            }
+            // Text formats can push MIN/MAX only for types the cold-scan ColumnStatsAccumulator harvests
+            // (harvestable == text-pushable); the same ColumnStatTypeSupport table drives the accumulator's
+            // classification, so the two cannot drift.
+            ColumnStatTypeSupport support = ColumnStatTypeSupport.of(attr.dataType());
+            return support == null || support.harvestable() == false;
         }
         return true;
     }

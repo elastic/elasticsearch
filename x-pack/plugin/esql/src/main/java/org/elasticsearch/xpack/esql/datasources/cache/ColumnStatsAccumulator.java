@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ColumnStatTypeSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.util.LinkedHashMap;
@@ -162,19 +163,25 @@ public final class ColumnStatsAccumulator {
 
         private static byte classify(DataType type) {
             // Min/max bucketing is keyed strictly on whether the SIGNED comparator on the stored
-            // representation matches the type's semantic order. Types where that contract fails
-            // are pinned to T_UNTRACKED so the cache never captures wrong-ordering min/max:
+            // representation matches the type's semantic order. Types where that contract fails are
+            // T_UNTRACKED so the cache never captures wrong-ordering min/max:
             // - UNSIGNED_LONG: stored as signed long; signed compare flips for values >= 2^63.
             // - VERSION: byte-lex (e.g. "1.10" < "1.2") disagrees with semver ordering.
+            // - counters: no MIN/MAX harvest.
             // IP stays in T_BYTESREF because the 16-byte InetAddressPoint encoding's byte-lex
             // order matches IPv4/IPv6 address order by construction.
-            return switch (type) {
+            // The harvestable + blockKind facts come from the shared ColumnStatTypeSupport table so this
+            // classification cannot drift from the warm-path serving / text-pushdown gates.
+            ColumnStatTypeSupport support = ColumnStatTypeSupport.of(type);
+            if (support == null || support.harvestable() == false) {
+                return T_UNTRACKED;
+            }
+            return switch (support.blockKind()) {
                 case BOOLEAN -> T_BOOLEAN;
-                case INTEGER -> T_INT;
-                case LONG, DATETIME, DATE_NANOS -> T_LONG;
+                case INT -> T_INT;
+                case LONG -> T_LONG;
                 case DOUBLE -> T_DOUBLE;
-                case KEYWORD, TEXT, IP -> T_BYTESREF;
-                default -> T_UNTRACKED;
+                case BYTES_REF -> T_BYTESREF;
             };
         }
 

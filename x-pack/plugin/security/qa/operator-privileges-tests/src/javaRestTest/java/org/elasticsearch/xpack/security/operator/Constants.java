@@ -513,6 +513,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/sql",
         "cluster:monitor/xpack/usage/transform",
         "cluster:monitor/xpack/usage/universal_profiling",
+        "cluster:monitor/xpack/usage/vectordb_document",
         "cluster:monitor/xpack/usage/voting_only",
         "cluster:monitor/xpack/usage/watcher",
         "cluster:monitor/xpack/usage/time_series",

@@ -113,9 +113,6 @@ tests:
 - class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
   method: testHAProxyModeConnectionWorks
   issue: https://github.com/elastic/elasticsearch/issues/139171
-- class: org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExecSerializationTests
-  method: testEncryptedDatasourceSecretStrippedForOlderTransportVersion
-  issue: https://github.com/elastic/elasticsearch/issues/152657
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:PROMQL}
   issue: https://github.com/elastic/elasticsearch/issues/146923

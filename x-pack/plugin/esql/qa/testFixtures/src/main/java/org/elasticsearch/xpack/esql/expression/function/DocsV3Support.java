@@ -232,7 +232,7 @@ public abstract class DocsV3Support {
     /**
      * Operators are unregistered functions.
      */
-    static final Map<String, OperatorConfig> OPERATORS = Map.ofEntries(
+    public static final Map<String, OperatorConfig> OPERATORS = Map.ofEntries(
         // Binary
         operatorEntry("equals", "==", Equals.class, OperatorCategory.BINARY),
         operatorEntry("not_equals", "!=", NotEquals.class, OperatorCategory.BINARY),
@@ -1847,6 +1847,13 @@ public abstract class DocsV3Support {
                                 builder.field(constraint.getKey(), constraint.getValue());
                             }
                             builder.endObject();
+                        }
+                        if (arg.hint.allowedValues() != null && arg.hint.allowedValues().isEmpty() == false) {
+                            builder.startArray("allowedValues");
+                            for (String v : arg.hint.allowedValues()) {
+                                builder.value(v);
+                            }
+                            builder.endArray();
                         }
                         builder.endObject();
                     }

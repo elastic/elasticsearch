@@ -20,9 +20,12 @@ import java.util.List;
 /**
  * Runs the {@code csv-spec} tests while <strong>requesting</strong> all values to
  * be loaded from {@code stored} fields. This should mostly not change the results.
- * BUT it changes the order of multivalued fields, so:
+ * BUT it changes the order of multivalued fields, and the order in which values
+ * are fed into floating-point aggregations (leading to slightly different results),
+ * so:
  * <ul>
  *     <li>We ignore the order of multivalued fields in the results.</li>
+ *     <li>We allow some tolerance for floating-point results.</li>
  *     <li>
  *         We skip a few tests that have no chance of working with the changed order.
  *     </li>
@@ -69,6 +72,11 @@ public class EsqlSpecForceStoredLoadingIT extends EsqlSpecIT {
 
     @Override
     protected boolean ignoreValueOrder() {
+        return true;
+    }
+
+    @Override
+    protected boolean enableRoundingDoubleValuesOnAsserting() {
         return true;
     }
 }

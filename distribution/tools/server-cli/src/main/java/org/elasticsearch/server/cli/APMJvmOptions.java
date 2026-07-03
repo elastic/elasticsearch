@@ -16,7 +16,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
@@ -31,9 +30,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.StringJoiner;
-
-import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
-import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_SYSTEM_PROPERTY;
 
 /**
  * This class is responsible for working out if APM telemetry is configured and if so, preparing
@@ -139,17 +135,32 @@ class APMJvmOptions {
      * @param secrets a wrapper to access the secrets, or null if there is no secrets
      * @param logsDir the directory to write the apm log into
      * @param tmpdir Elasticsearch's temporary directory, where the config file will be written
+     * @param otelMetricsEnabled whether the OTel SDK owns metrics; when {@code true} the APM agent's metrics path is disabled
+     * @param otelTracesEnabled whether the OTel SDK owns traces; when {@code true} the APM agent's trace sampling is disabled
      */
-    static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path logsDir, Path tmpdir) throws UserException,
-        IOException {
-        return apmJvmOptions(settings, secrets, logsDir, tmpdir, System.getProperty("user.dir"));
+    static List<String> apmJvmOptions(
+        Settings settings,
+        @Nullable SecureSettings secrets,
+        Path logsDir,
+        Path tmpdir,
+        boolean otelMetricsEnabled,
+        boolean otelTracesEnabled
+    ) throws UserException, IOException {
+        return apmJvmOptions(settings, secrets, logsDir, tmpdir, System.getProperty("user.dir"), otelMetricsEnabled, otelTracesEnabled);
     }
 
     // for testing
-    static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path logsDir, Path tmpdir, String installDir)
-        throws UserException, IOException {
-        boolean agentMetricsEnabled = Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false")) == false;
-        boolean agentTracesEnabled = Booleans.parseBoolean(System.getProperty(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY, "false")) == false;
+    static List<String> apmJvmOptions(
+        Settings settings,
+        @Nullable SecureSettings secrets,
+        Path logsDir,
+        Path tmpdir,
+        String installDir,
+        boolean otelMetricsEnabled,
+        boolean otelTracesEnabled
+    ) throws UserException, IOException {
+        boolean agentMetricsEnabled = otelMetricsEnabled == false;
+        boolean agentTracesEnabled = otelTracesEnabled == false;
 
         final Path agentJar = findAgentJar(installDir);
 

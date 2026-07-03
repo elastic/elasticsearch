@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -83,6 +84,8 @@ import static org.hamcrest.Matchers.instanceOf;
 public class TestAnalyzer {
     private Configuration configuration = EsqlTestUtils.TEST_CFG;
     private EsqlFunctionRegistry functionRegistry = EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+    private AnalysisRegistry analysisRegistry = EsqlTestUtils.TEST_ANALYSIS_REGISTRY;
+
     private final Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
     private final Map<String, IndexResolution> lookupResolution = new HashMap<>();
     private final Map<LinkedIndexPattern, IndexResolution> lenientResolution = new HashMap<>();
@@ -114,6 +117,15 @@ public class TestAnalyzer {
      */
     public TestAnalyzer functionRegistry(EsqlFunctionRegistry functionRegistry) {
         this.functionRegistry = functionRegistry;
+        return this;
+    }
+
+    /**
+     * Set the {@link AnalysisRegistry} used to resolve analyzer names during verification.
+     * Defaults to {@link EsqlTestUtils#TEST_ANALYSIS_REGISTRY} (prebuilt analyzers only).
+     */
+    public TestAnalyzer analysisRegistry(AnalysisRegistry analysisRegistry) {
+        this.analysisRegistry = analysisRegistry;
         return this;
     }
 
@@ -452,8 +464,11 @@ public class TestAnalyzer {
     }
 
     /**
-     * Set external source resolution. Enriches the schema with {@code _file.*} metadata columns
-     * to mirror the production path in {@link ExternalSourceResolver}.
+     * Set external source resolution from a bare data-only schema, mirroring the production path in
+     * {@link ExternalSourceResolver}: the schema is used as-is, with no {@code _file.*} auto-attach.
+     * External metadata columns are request-driven now — they reach the relation only through the
+     * METADATA clause (FROM path) or the temporary EXTERNAL-command shim that injects {@code _file.*}
+     * into the relation's metadataFields at parse time.
      */
     public TestAnalyzer externalSourceResolution(String path, List<Attribute> schema, FileList fileSet) {
         var metadata = new ExternalSourceMetadata() {
@@ -472,8 +487,7 @@ public class TestAnalyzer {
                 return "parquet";
             }
         };
-        var enriched = ExternalSourceResolver.enrichSchemaWithFileMetadataColumns(metadata);
-        var resolvedSource = new ExternalSourceResolution.ResolvedSource(enriched, fileSet, java.util.Map.of());
+        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, fileSet, java.util.Map.of());
         return externalSourceResolution(new ExternalSourceResolution(Map.of(path, resolvedSource)));
     }
 
@@ -874,6 +888,7 @@ public class TestAnalyzer {
             configuration,
             functionRegistry,
             PromqlFunctionRegistry.INSTANCE,
+            analysisRegistry,
             null,
             indexResolutions,
             lookupResolution,

@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.vectors.cluster;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
+import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,11 +28,20 @@ class BalancedASKMeansLocalConcurrent<V> extends BalancedASKMeansLocal<V> {
 
     final TaskExecutor executor;
     final int numWorkers;
+    final Soar<V> soar;
 
-    BalancedASKMeansLocalConcurrent(CentroidOps<V> ops, TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations) {
+    BalancedASKMeansLocalConcurrent(
+        CentroidOps<V> ops,
+        TaskExecutor executor,
+        int numWorkers,
+        int sampleSize,
+        int maxIterations,
+        float soarLambda
+    ) {
         super(ops, sampleSize, maxIterations);
         this.executor = executor;
         this.numWorkers = numWorkers;
+        this.soar = soarLambda < 0 ? Soar.none() : Soar.ofConcurrent(executor, numWorkers, ops, soarLambda);
     }
 
     @Override
@@ -73,27 +83,16 @@ class BalancedASKMeansLocalConcurrent<V> extends BalancedASKMeansLocal<V> {
     }
 
     @Override
-    protected void assignSpilled(
+    protected OverspillAssignments assignSpilled(
         ClusteringVectorValues<V> vectors,
-        KMeansIntermediate<V> kmeansIntermediate,
-        NeighborHood[] neighborhoods,
-        float soarLambda
+        KMeansIntermediate<V> kMeansIntermediate,
+        NeighborHood[] neighborhoods
     ) throws IOException {
-        final int len = vectors.size() / numWorkers;
-        final List<Callable<Void>> runners = new ArrayList<>(numWorkers);
-        for (int i = 0; i < numWorkers; i++) {
-            final int start = i * len;
-            final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
-            runners.add(() -> {
-                assignSpilledSlice(vectors.copy(), ops, kmeansIntermediate, neighborhoods, soarLambda, start, end);
-                return null;
-            });
-        }
-        executor.invokeAll(runners);
+        return soar.assignSpilled(vectors, kMeansIntermediate, neighborhoods);
     }
 
     @Override
     protected NeighborHood[] computeNeighborhoods(V[] centroids, int clustersPerNeighborhood) throws IOException {
-        return NeighborHood.computeNeighborhoods(executor, numWorkers, ops.toFloatCentroids(centroids), clustersPerNeighborhood);
+        return NeighborHood.computeNeighborhoods(ops, executor, numWorkers, centroids, clustersPerNeighborhood);
     }
 }

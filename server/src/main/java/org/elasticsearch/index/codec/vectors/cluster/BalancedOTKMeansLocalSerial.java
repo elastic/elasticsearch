@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
+import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 
 import java.io.IOException;
 
@@ -21,8 +22,11 @@ import java.io.IOException;
  */
 class BalancedOTKMeansLocalSerial<V> extends BalancedOTKMeansLocal<V> {
 
-    BalancedOTKMeansLocalSerial(CentroidOps<V> ops, int sampleSize, int maxIterations) {
+    private final Soar<V> soar;
+
+    BalancedOTKMeansLocalSerial(CentroidOps<V> ops, int sampleSize, int maxIterations, float soarLambda) {
         super(ops, sampleSize, maxIterations);
+        soar = soarLambda < 0 ? Soar.none() : Soar.ofSerial(ops, soarLambda);
     }
 
     @Override
@@ -44,17 +48,16 @@ class BalancedOTKMeansLocalSerial<V> extends BalancedOTKMeansLocal<V> {
     }
 
     @Override
-    protected void assignSpilled(
+    protected OverspillAssignments assignSpilled(
         ClusteringVectorValues<V> vectors,
-        KMeansIntermediate<V> kmeansIntermediate,
-        NeighborHood[] neighborhoods,
-        float soarLambda
+        KMeansIntermediate<V> kMeansIntermediate,
+        NeighborHood[] neighborhoods
     ) throws IOException {
-        assignSpilledSlice(vectors, ops, kmeansIntermediate, neighborhoods, soarLambda, 0, vectors.size());
+        return soar.assignSpilled(vectors, kMeansIntermediate, neighborhoods);
     }
 
     @Override
     protected NeighborHood[] computeNeighborhoods(V[] centroids, int clustersPerNeighborhood) throws IOException {
-        return NeighborHood.computeNeighborhoods(ops.toFloatCentroids(centroids), clustersPerNeighborhood);
+        return NeighborHood.computeNeighborhoods(ops, centroids, clustersPerNeighborhood);
     }
 }

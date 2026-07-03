@@ -41,6 +41,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
+import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
@@ -929,6 +930,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // a reliable total. We must report the null count as unknown for these rather than treating
         // a missing value as zero, otherwise COUNT(col) would be answered as the row count downstream.
         Set<String> unknownNullCounts = new HashSet<>();
+        // Columns whose footer statistics are temporal but not representable in the scan's output unit
+        // (a timestamp[us] value outside the date_nanos range, which the scan nulls out). For these the
+        // physical min/max and null_count disagree with what a scan produces, so min/max are dropped and
+        // the null count is treated as unknown — MIN/MAX/COUNT then fall back to a scan for that column.
+        Set<String> poisonedTemporalStats = new HashSet<>();
 
         for (BlockMetaData rowGroup : rowGroups) {
             totalRows += rowGroup.getRowCount();
@@ -953,18 +959,24 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 }
                 if (stats.hasNonNullValue()) {
                     PrimitiveType pt = col.getPrimitiveType();
-                    mins.merge(colName, new Comparable[] { (Comparable) normalizeStatValue(stats.genericGetMin(), pt) }, (a, b) -> {
-                        @SuppressWarnings("unchecked")
-                        int cmp = a[0].compareTo(b[0]);
-                        if (cmp > 0) a[0] = b[0];
-                        return a;
-                    });
-                    maxs.merge(colName, new Comparable[] { (Comparable) normalizeStatValue(stats.genericGetMax(), pt) }, (a, b) -> {
-                        @SuppressWarnings("unchecked")
-                        int cmp = a[0].compareTo(b[0]);
-                        if (cmp < 0) a[0] = b[0];
-                        return a;
-                    });
+                    Object minVal = normalizeStatValue(stats.genericGetMin(), pt);
+                    Object maxVal = normalizeStatValue(stats.genericGetMax(), pt);
+                    if (minVal == null || maxVal == null) {
+                        poisonedTemporalStats.add(colName);
+                    } else {
+                        mins.merge(colName, new Comparable[] { (Comparable) minVal }, (a, b) -> {
+                            @SuppressWarnings("unchecked")
+                            int cmp = a[0].compareTo(b[0]);
+                            if (cmp > 0) a[0] = b[0];
+                            return a;
+                        });
+                        maxs.merge(colName, new Comparable[] { (Comparable) maxVal }, (a, b) -> {
+                            @SuppressWarnings("unchecked")
+                            int cmp = a[0].compareTo(b[0]);
+                            if (cmp < 0) a[0] = b[0];
+                            return a;
+                        });
+                    }
                 }
             }
         }
@@ -988,15 +1000,18 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             Comparable[] mx = maxs.get(name);
             long[] cs = colSizes.get(name);
             if (nc != null || mn != null || mx != null || cs != null) {
+                // A poisoned temporal column has an out-of-range timestamp[us] stat: the scan nulls those
+                // values out, so both the physical min/max and the physical null count are unusable.
+                final boolean poisoned = poisonedTemporalStats.contains(name);
                 // The null count is only known when every covering row group recorded it. A missing
                 // statistic in any row group ({@code unknownNullCounts}) leaves the total unknown, so
                 // report {@link OptionalLong#empty()} and let COUNT(col) fall back to a scan rather
                 // than counting the missing nulls as zero (which would return the row count).
-                final OptionalLong nullCount = nc != null && unknownNullCounts.contains(name) == false
+                final OptionalLong nullCount = nc != null && unknownNullCounts.contains(name) == false && poisoned == false
                     ? OptionalLong.of(nc[0])
                     : OptionalLong.empty();
-                final Object minVal = mn != null ? mn[0] : null;
-                final Object maxVal = mx != null ? mx[0] : null;
+                final Object minVal = mn != null && poisoned == false ? mn[0] : null;
+                final Object maxVal = mx != null && poisoned == false ? mx[0] : null;
                 final long colSize = cs != null ? cs[0] : -1;
                 columnStats.put(name, new SourceStatistics.ColumnStatistics() {
                     @Override
@@ -1203,22 +1218,58 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             }
             if (colStats.hasNonNullValue()) {
                 PrimitiveType pt = col.getPrimitiveType();
-                stats.put(SourceStatisticsSerializer.columnMinKey(colName), normalizeStatValue(colStats.genericGetMin(), pt));
-                stats.put(SourceStatisticsSerializer.columnMaxKey(colName), normalizeStatValue(colStats.genericGetMax(), pt));
+                Object minVal = normalizeStatValue(colStats.genericGetMin(), pt);
+                Object maxVal = normalizeStatValue(colStats.genericGetMax(), pt);
+                if (minVal == null || maxVal == null) {
+                    // Out-of-range timestamp[us] stat: the scan nulls those values out, so the physical
+                    // min/max and null count disagree with the scan. Drop min/max and the (already-published)
+                    // null count so MIN/MAX/COUNT fall back to a scan for this column. Map values may not be
+                    // null anyway (Map.copyOf below rejects nulls).
+                    stats.remove(SourceStatisticsSerializer.columnNullCountKey(colName));
+                } else {
+                    stats.put(SourceStatisticsSerializer.columnMinKey(colName), minVal);
+                    stats.put(SourceStatisticsSerializer.columnMaxKey(colName), maxVal);
+                }
             }
         }
         return Map.copyOf(stats);
     }
 
     /**
-     * Normalizes Parquet-specific stat values to types that Elasticsearch can serialize.
-     * Temporal types (date32, timestamp, INT96) are decoded to epoch-millis.
-     * Parquet {@link Binary} (used for BYTE_ARRAY / string columns) is converted to String.
+     * Normalizes Parquet-specific stat values to types that Elasticsearch can serialize, in the same unit
+     * the scan path emits: date32 and {@code timestamp[ms]} to epoch-millis (DATETIME), {@code timestamp[us|ns]}
+     * to epoch-nanos (DATE_NANOS), and TIME to its scan unit. Parquet {@link Binary} (BYTE_ARRAY / string) is
+     * converted to String.
+     * <p>
+     * Returns {@code null} for a scaled-temporal column (see {@link ParquetColumnDecoding#hasTemporalStatEncoding})
+     * whose statistic is not representable in the scan's output unit — i.e. a {@code timestamp[us]} value beyond
+     * the {@code date_nanos} range, which the scan nulls out. Callers must treat {@code null} as "poison this
+     * column's min/max and null count" so MIN/MAX/COUNT fall back to a scan rather than trusting a physical value
+     * that disagrees with what the scan produces. A raw physical value is only returned for non-temporal columns
+     * (and INT96, whose non-chronological footer stats keep their pre-existing fallback).
+     * <p>
+     * A {@code uint32} column's raw {@code INT32} stat is widened to its true unsigned magnitude
+     * (see {@link ParquetColumnDecoding#isUnsignedInt32}), matching the SPI contract that stat
+     * values must already be in ESQL's in-memory representation (here, the widened {@code LONG})
+     * — otherwise a value above {@link Integer#MAX_VALUE} would sign-extend into a negative
+     * {@code long} downstream (aggregate pushdown, split-skip classification), mirroring the fix
+     * in {@link ParquetPushedExpressions#narrowLongToPhysicalInt32}.
+     * <p>
+     * Similarly, a {@code uint64} column's raw {@code INT64} stat is sign-flip-encoded (see
+     * {@link ParquetColumnDecoding#encodeUnsignedLong}) to match ESQL's {@code UNSIGNED_LONG}
+     * in-memory representation — the scan path already applies this same encoding to every value
+     * it reads, so stats must match or MIN/MAX pushdown and split-skip classification would
+     * compare against the wrong domain.
      */
     private static Object normalizeStatValue(Object value, PrimitiveType primitiveType) {
-        Long temporal = ParquetColumnDecoding.decodeTemporalStat(value, primitiveType);
-        if (temporal != null) {
-            return temporal;
+        if (ParquetColumnDecoding.hasTemporalStatEncoding(primitiveType)) {
+            return ParquetColumnDecoding.decodeTemporalStat(value, primitiveType);
+        }
+        if (value instanceof Integer i && ParquetColumnDecoding.isUnsignedInt32(primitiveType)) {
+            return Integer.toUnsignedLong(i);
+        }
+        if (value instanceof Long l && ParquetColumnDecoding.isUnsignedInt64(primitiveType)) {
+            return ParquetColumnDecoding.encodeUnsignedLong(l);
         }
         if (value instanceof Binary binary) {
             return binary.toStringUsingUTF8();
@@ -2121,8 +2172,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     if (intLogical.isSigned() == false && intLogical.getBitWidth() == 64) {
                         yield DataType.UNSIGNED_LONG;
                     }
-                } else if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
-                    yield DataType.DATETIME;
+                } else if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+                    // Map by unit so sub-millisecond precision is preserved: MILLIS fits DATETIME (epoch-millis),
+                    // while MICROS/NANOS require DATE_NANOS (epoch-nanos). See ParquetColumnDecoding#convertTimestampToNanos.
+                    yield switch (ts.getUnit()) {
+                        case MILLIS -> DataType.DATETIME;
+                        case MICROS, NANOS -> DataType.DATE_NANOS;
+                    };
                 } else if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
                     yield DataType.DOUBLE;
                 }
@@ -2139,6 +2195,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     yield DataType.DOUBLE;
                 }
                 if (logical instanceof LogicalTypeAnnotation.BsonLogicalTypeAnnotation) {
+                    // BSON is a binary document container, not UTF-8 text, so it is not KEYWORD-safe.
                     yield DataType.UNSUPPORTED;
                 }
                 if (logical instanceof LogicalTypeAnnotation.IntervalLogicalTypeAnnotation) {
@@ -2146,6 +2203,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     // DATE_PERIOD is year/quarter/months/week/days, and TIME_DURATION is hours/minutes/secs/millis.
                     yield DataType.UNSUPPORTED;
                 }
+                // Everything else maps to KEYWORD: string/enum/json annotations, UUID (rendered as a hex
+                // string), and un-annotated BINARY/FIXED_LEN_BYTE_ARRAY. Legacy writers (Impala, older Spark)
+                // and much real-world data store strings as un-annotated BINARY, so mapping those to
+                // UNSUPPORTED would silently drop legitimate string columns. ES|QL requires KEYWORD bytes to
+                // be valid UTF-8 (the TopN Utf8 encoders index a table by the raw lead byte), so the reader
+                // sanitizes malformed bytes to U+FFFD on read, keeping KEYWORD operations total even when a
+                // column genuinely holds arbitrary bytes.
                 yield DataType.KEYWORD;
             }
             default -> DataType.UNSUPPORTED;
@@ -2576,6 +2640,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     yield readBytesRefColumn(cr, info, rowsToRead, scaledHint);
                 }
                 case DATETIME -> readDatetimeColumn(cr, info, rowsToRead);
+                case DATE_NANOS -> readDateNanosColumn(cr, info, rowsToRead);
                 default -> {
                     ParquetColumnDecoding.skipValues(cr, rowsToRead);
                     yield blockFactory.newConstantNullBlock(rowsToRead);
@@ -2744,7 +2809,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     } else if (isUuid) {
                         builder.appendBytesRef(new BytesRef(ParquetColumnDecoding.formatUuid(cr.getBinary().getBytes())));
                     } else {
-                        builder.appendBytesRef(new BytesRef(cr.getBinary().getBytes()));
+                        builder.appendBytesRef(Utf8Sanitizer.sanitize(new BytesRef(cr.getBinary().getBytes())));
                     }
                     cr.consume();
                 }
@@ -2770,6 +2835,44 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     values[i] = ParquetColumnDecoding.convertTimestampToMillis(cr.getLong(), info.logicalType());
                 }
                 cr.consume();
+            }
+            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull, false);
+        }
+
+        /**
+         * Reads an INT64 {@code TIMESTAMP(MICROS|NANOS)} column into a {@code DATE_NANOS} block of epoch-nanoseconds.
+         * {@code NANOS} passes through; {@code MICROS} is scaled ×1_000. A {@code MICROS} value whose scaled instant
+         * would fall outside the representable {@code date_nanos} range (~1677-2262) has no nanosecond representation,
+         * so it is emitted as null (with a single deduplicated response warning) rather than silently wrapping around.
+         */
+        private Block readDateNanosColumn(ColumnReader cr, ColumnInfo info, int rows) {
+            LogicalTypeAnnotation logical = info.logicalType();
+            boolean micros = ParquetColumnDecoding.isMicrosTimestamp(logical);
+            long[] values = UninitializedArrays.newLongArray(rows);
+            BitSet isNull = info.maxDefLevel() > 0 ? new BitSet(rows) : null;
+            boolean noNulls = true;
+            boolean anyOverflow = false;
+            for (int i = 0; i < rows; i++) {
+                if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
+                    isNull.set(i);
+                    noNulls = false;
+                } else {
+                    long raw = cr.getLong();
+                    if (micros && ParquetColumnDecoding.microsOverflowsNanos(raw)) {
+                        if (isNull == null) {
+                            isNull = new BitSet(rows);
+                        }
+                        isNull.set(i);
+                        noNulls = false;
+                        anyOverflow = true;
+                    } else {
+                        values[i] = ParquetColumnDecoding.convertTimestampToNanos(raw, logical);
+                    }
+                }
+                cr.consume();
+            }
+            if (anyOverflow) {
+                ParquetColumnDecoding.warnTimestampOutOfRange(info);
             }
             return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }

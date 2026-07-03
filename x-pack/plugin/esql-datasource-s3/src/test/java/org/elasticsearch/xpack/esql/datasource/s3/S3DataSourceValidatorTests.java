@@ -186,6 +186,55 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
     }
 
+    public void testValidateDatasourceRejectsExplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var federatedConfig = Map.<String, Object>of(
+            "auth",
+            "federated_identity",
+            "role_arn",
+            "arn:aws:iam::123456789012:role/example",
+            "jwt_audience",
+            "sts.amazonaws.com",
+            "region",
+            "us-east-1"
+        );
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
+        assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
+    }
+
+    public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var federatedConfig = Map.<String, Object>of(
+            "role_arn",
+            "arn:aws:iam::123456789012:role/example",
+            "jwt_audience",
+            "sts.amazonaws.com",
+            "region",
+            "us-east-1"
+        );
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
+        assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
+    }
+
+    public void testValidateDatasourceAcceptsFederatedWhenEnabled() {
+        var federatedValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withFederatedIdentityEnabled(() -> true);
+        var result = federatedValidator.validateDatasource(
+            Map.of(
+                "auth",
+                "federated_identity",
+                "role_arn",
+                "arn:aws:iam::123456789012:role/example",
+                "jwt_audience",
+                "sts.amazonaws.com",
+                "region",
+                "us-east-1"
+            )
+        );
+        assertEquals("arn:aws:iam::123456789012:role/example", result.get("role_arn").nonSecretValue());
+        assertFalse(result.get("role_arn").secret());
+    }
+
     public void testValidateDatasourceWithSessionToken() {
         var result = validator.validateDatasource(
             Map.of("access_key", "AKIA123", "secret_key", "secret", "session_token", "FwoGZXIvYXdz", "region", "us-east-1")

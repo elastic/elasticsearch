@@ -272,7 +272,7 @@ public class AzureConfigurationTests extends ESTestCase {
         assertEquals(Set.of(), result.consumedKeys());
     }
 
-    public void testKeylessAuthWithAllFields() {
+    public void testFederatedAuthWithAllFields() {
         AzureConfiguration config = AzureConfiguration.fromMap(
             Map.of("tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "api://AzureADTokenExchange")
         );
@@ -281,42 +281,42 @@ public class AzureConfigurationTests extends ESTestCase {
         assertEquals("my-tenant", config.tenantId());
         assertEquals("my-client", config.clientId());
         assertEquals("api://AzureADTokenExchange", config.jwtAudience());
-        assertTrue(config.hasKeylessAuth());
+        assertTrue(config.hasFederatedAuth());
         assertFalse(config.hasCredentials());
     }
 
-    public void testKeylessAuthRequiresClientId() {
+    public void testFederatedAuthRequiresClientId() {
         ValidationException e = expectThrows(ValidationException.class, () -> AzureConfiguration.fromMap(Map.of("tenant_id", "my-tenant")));
-        assertThat(e.getMessage(), containsString("client_id is required when keyless authentication settings are configured"));
+        assertThat(e.getMessage(), containsString("client_id is required when federated authentication settings are configured"));
     }
 
-    public void testKeylessAuthAllowsOmittingJwtAudience() {
+    public void testFederatedAuthAllowsOmittingJwtAudience() {
         AzureConfiguration config = AzureConfiguration.fromMap(Map.of("tenant_id", "my-tenant", "client_id", "my-client"));
         assertNotNull(config);
         assertEquals("my-tenant", config.tenantId());
         assertEquals("my-client", config.clientId());
         assertNull(config.jwtAudience());
-        assertTrue(config.hasKeylessAuth());
+        assertTrue(config.hasFederatedAuth());
     }
 
-    public void testKeylessAuthConflictsWithExplicitCredentials() {
+    public void testFederatedAuthConflictsWithExplicitCredentials() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> AzureConfiguration.fromMap(
                 Map.of("account", "acc", "key", "k", "tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "aud")
             )
         );
-        assertThat(e.getMessage(), containsString("explicit credentials cannot be combined with keyless authentication settings"));
+        assertThat(e.getMessage(), containsString("explicit credentials cannot be combined with federated authentication settings"));
     }
 
-    public void testKeylessAuthConflictsWithAuthAnonymous() {
+    public void testFederatedAuthConflictsWithAuthAnonymous() {
         ValidationException e = expectThrows(
             ValidationException.class,
             () -> AzureConfiguration.fromMap(
                 Map.of("auth", "anonymous", "tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "aud")
             )
         );
-        assertThat(e.getMessage(), containsString("auth=anonymous cannot be combined with keyless authentication settings"));
+        assertThat(e.getMessage(), containsString("auth=anonymous cannot be combined with federated authentication settings"));
     }
 
     public void testAuthFederatedIdentityExplicit() {
@@ -324,7 +324,7 @@ public class AzureConfigurationTests extends ESTestCase {
             Map.of("auth", "federated_identity", "tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "aud")
         );
         assertTrue(config.isFederatedIdentity());
-        assertTrue(config.hasKeylessAuth());
+        assertTrue(config.hasFederatedAuth());
         assertEquals("federated_identity", config.auth());
     }
 

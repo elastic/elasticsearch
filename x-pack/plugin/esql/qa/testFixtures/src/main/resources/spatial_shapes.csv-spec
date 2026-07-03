@@ -320,6 +320,7 @@ wkt:keyword                               |pt:geo_shape
 
 convertFromStringInvertedBBoxRuntime
 required_capability: spatial_shapes
+required_capability: spatial_bbox_validation_fix
 
 // An inverted BBOX (maxY < minY) computed per-row from a field is a runtime failure: it fails to
 // parse, and to_geoshape returns null for that row (with a warning), while other rows are unaffected.
@@ -338,6 +339,7 @@ wkt:keyword                     |shape:geo_shape
 
 convertFromStringInvertedBBoxLiteralFold
 required_capability: spatial_shapes
+required_capability: spatial_bbox_validation_fix
 
 // The same invalid envelope, but as a pure literal: this is folded at plan time rather than evaluated
 // per row, and must behave identically -- null result plus a registered warning, not a query failure.
@@ -646,6 +648,7 @@ wkt:keyword          | point:cartesian_point | shape:cartesian_shape
 
 convertCartesianFromStringInvertedXBBoxRuntime
 required_capability: spatial_shapes
+required_capability: spatial_bbox_validation_fix
 
 // A BBOX with maxX < minX has no antimeridian-crossing meaning for cartesian coordinates and is invalid.
 // Computed per-row from a field, this is a runtime failure: it fails to parse, and to_cartesianshape
@@ -665,6 +668,7 @@ wkt:keyword                   |shape:cartesian_shape
 
 convertCartesianFromStringInvertedXBBoxLiteralFold
 required_capability: spatial_shapes
+required_capability: spatial_bbox_validation_fix
 
 // The same invalid envelope, but as a pure literal: this is folded at plan time rather than evaluated
 // per row, and must behave identically -- null result plus a registered warning, not a query failure.

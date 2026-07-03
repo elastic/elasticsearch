@@ -292,6 +292,7 @@ count:long | centroid:geo_point                            | geohashString:keywo
 
 gridGeohashInvalidBoundsLiteral
 required_capability: spatial_grid_types
+required_capability: spatial_bbox_validation_fix
 
 // An inverted BBOX (maxY < minY) is an invalid envelope. The literal fails to parse into a geo_shape,
 // so it folds to null (with a warning), and ST_GEOHASH returns null for every row rather than failing the query.
@@ -308,6 +309,7 @@ total:long | nonNull:long
 
 gridGeotileInvalidBoundsLiteral
 required_capability: spatial_grid_types
+required_capability: spatial_bbox_validation_fix
 
 FROM airports
 | EVAL geotile = ST_GEOTILE(location, 3, TO_GEOSHAPE("BBOX(0.0, 12.0, 30.0, 60.0)"))
@@ -322,6 +324,7 @@ total:long | nonNull:long
 
 gridGeohexInvalidBoundsLiteral
 required_capability: spatial_grid_types
+required_capability: spatial_bbox_validation_fix
 
 FROM airports
 | EVAL geohex = ST_GEOHEX(location, 1, TO_GEOSHAPE("BBOX(0.0, 12.0, 30.0, 60.0)"))

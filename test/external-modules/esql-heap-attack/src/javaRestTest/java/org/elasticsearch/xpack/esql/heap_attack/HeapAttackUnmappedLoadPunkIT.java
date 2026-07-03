@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.heap_attack;
 
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-
-import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -22,7 +19,6 @@ import java.util.Map;
  * Heap-attack coverage for PUNK (partially unmapped non-keyword) fields that are made
  * legal by explicit casts under {@code SET unmapped_fields="load"}.
  */
-@TimeoutSuite(millis = 10 * TimeUnits.MINUTE)
 public class HeapAttackUnmappedLoadPunkIT extends HeapAttackTestCase {
     private static final String MAPPED_LONG_INDEX = "a_punk_mapped_long";
     private static final String SOURCE_ONLY_INDEX = "z_punk_unmapped_source";

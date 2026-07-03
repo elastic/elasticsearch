@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.heap_attack;
 
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-
-import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -23,7 +20,6 @@ import java.util.Map;
  * Heap-attack coverage for {@code SET unmapped_fields="load"} when values come
  * from synthetic {@code _source}.
  */
-@TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 public class HeapAttackUnmappedLoadSyntheticSourceIT extends HeapAttackTestCase {
     private static final String MANY_SYNTHETIC_SOURCE_ONLY_FIELDS_INDEX = "unmapped_load_many_synthetic_source_fields";
 

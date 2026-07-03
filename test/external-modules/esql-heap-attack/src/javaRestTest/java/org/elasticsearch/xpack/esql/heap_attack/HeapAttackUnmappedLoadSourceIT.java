@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.heap_attack;
 
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-
-import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -29,7 +26,6 @@ import static org.hamcrest.Matchers.equalTo;
  * Heap-attack coverage for {@code SET unmapped_fields="load"} paths that read
  * values from stored {@code _source}.
  */
-@TimeoutSuite(millis = 10 * TimeUnits.MINUTE)
 public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
     private static final String HUGE_SOURCE_INDEX = "unmapped_load_huge_source";
     private static final String MANY_SOURCE_ONLY_FIELDS_INDEX = "unmapped_load_many_source_fields";

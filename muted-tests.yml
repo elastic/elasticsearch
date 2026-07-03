@@ -829,9 +829,6 @@ tests:
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testEachInstallOrRotationAddsExactlyOneNewKey
   issue: https://github.com/elastic/elasticsearch/issues/152776
-- class: org.elasticsearch.transport.RemoteClusterClientTests
-  method: testGetConnectionFailureCompletesOnResponseExecutor
-  issue: https://github.com/elastic/elasticsearch/issues/152779
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/kNN search only}
   issue: https://github.com/elastic/elasticsearch/issues/152784

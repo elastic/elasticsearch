@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  * Parameterized integration tests for standalone CSV files.

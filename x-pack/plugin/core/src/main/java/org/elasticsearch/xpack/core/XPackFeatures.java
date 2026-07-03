@@ -21,8 +21,15 @@ public class XPackFeatures implements FeatureSpecification {
         "aggregate_metric_double.default_metric.deprecated"
     );
 
+    public static final NodeFeature VECTORDB_DOCUMENT_USAGE = new NodeFeature("vectordb_document.usage");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(AGGREGATE_METRIC_DOUBLE_DEPRECATED_DEFAULT_METRIC);
+    }
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(VECTORDB_DOCUMENT_USAGE);
     }
 }

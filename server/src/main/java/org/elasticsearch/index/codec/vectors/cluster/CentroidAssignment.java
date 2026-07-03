@@ -10,10 +10,10 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.hnsw.IntToIntFunction;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Generic centroid assignment and update operations for k-means clustering.
@@ -49,7 +49,7 @@ public final class CentroidAssignment {
         int startOrd,
         int endOrd,
         V[] centroids,
-        IntToIntFunction ordTranslator,
+        IntUnaryOperator ordTranslator,
         FixedBitSet centroidChanged,
         int[] results
     ) throws IOException {
@@ -58,7 +58,7 @@ public final class CentroidAssignment {
         boolean changed = false;
         for (int i = startOrd; i < endOrd; i++) {
             V vector = vectors.vectorValue(i);
-            final int translatedOrd = ordTranslator.apply(i);
+            final int translatedOrd = ordTranslator.applyAsInt(i);
             final int assignment = results[translatedOrd];
             final int bestCentroid = computeBestCentroid(vector, centroids, distances, prefixScratch, ops);
             if (bestCentroid != assignment) {
@@ -83,7 +83,7 @@ public final class CentroidAssignment {
         int startOrd,
         int endOrd,
         V[] centroids,
-        IntToIntFunction ordTranslator,
+        IntUnaryOperator ordTranslator,
         FixedBitSet centroidChanged,
         NeighborHood[] neighborhoods,
         int[] results
@@ -93,7 +93,7 @@ public final class CentroidAssignment {
         boolean changed = false;
         for (int i = startOrd; i < endOrd; i++) {
             V vector = vectors.vectorValue(i);
-            final int translatedOrd = ordTranslator.apply(i);
+            final int translatedOrd = ordTranslator.applyAsInt(i);
             final int assignment = results[translatedOrd];
             assert assignment != -1 : "vector is not assigned to any cluster: ord=" + translatedOrd;
             final int bestCentroid = computeBestCentroidFromNeighbours(
@@ -128,7 +128,7 @@ public final class CentroidAssignment {
     static <V> void updateCentroids(
         ClusteringVectorValues<V> vectors,
         V[] centroids,
-        IntToIntFunction ordTranslator,
+        IntUnaryOperator ordTranslator,
         FixedBitSet[] centroidChangedSlices,
         int[] centroidCounts,
         int[] assignments,
@@ -142,7 +142,7 @@ public final class CentroidAssignment {
         int dim = vectors.dimension();
 
         for (int idx = 0; idx < vectors.size(); idx++) {
-            final int assignment = assignments[ordTranslator.apply(idx)];
+            final int assignment = assignments[ordTranslator.applyAsInt(idx)];
             if (centroidChanged.get(assignment)) {
                 V vector = vectors.vectorValue(idx);
                 if (centroidCounts[assignment]++ == 0) {
@@ -190,13 +190,13 @@ public final class CentroidAssignment {
         int startOrd,
         int endOrd,
         V[] centroids,
-        IntToIntFunction assigner,
+        IntUnaryOperator assigner,
         NeighborHood[] neighborhoods,
         float[][] squaredDistances
     ) throws IOException {
         for (int i = startOrd; i < endOrd; i++) {
             V vector = vectors.vectorValue(i);
-            int bestCentroid = assigner.apply(i);
+            int bestCentroid = assigner.applyAsInt(i);
 
             float[] ordDists = squaredDistances[i];
             ordDists[0] = ops.squareDistance(vector, centroids[bestCentroid]);

@@ -453,6 +453,40 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testMatchRuntimeEvalWithOptionsThrowsError() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
+        var query = """
+            FROM test
+            | EVAL new_content = to_text(concat(content, " extra"))
+            | WHERE match(new_content, "fox", {"analyzer": "standard"})
+            | KEEP new_content
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        assertThat(
+            error.getMessage(),
+            containsString("Options are not supported for [MATCH] function call on non-index-mapped field [new_content]")
+        );
+    }
+
+    public void testMatchRuntimeRowWithOptionsThrowsError() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
+        var query = """
+            ROW content = to_text("This is a brown fox")
+            | WHERE match(content, "fox AND brown", {"operator": "AND"})
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        var error = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)));
+        assertThat(
+            error.getMessage(),
+            containsString("Options are not supported for [MATCH] function call on non-index-mapped field [content]")
+        );
+    }
+
     static void createAndPopulateIndex(Consumer<String[]> ensureYellow) {
         var indexName = "test";
         var client = client().admin().indices();

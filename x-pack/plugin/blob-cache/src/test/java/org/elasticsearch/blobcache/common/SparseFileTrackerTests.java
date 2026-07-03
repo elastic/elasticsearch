@@ -728,7 +728,6 @@ public class SparseFileTrackerTests extends ESTestCase {
         // Trigger split at a position that is different from the firstReadPosition so that the new split
         // listeners forward to firstReadListener
         final int firstSplitPosition = randomValueOtherThan(firstReadPosition, () -> between(1, length - 1));
-        between(1, firstReadPosition);
         final var lowerOptGaps = tracker.waitForRange(
             ByteRange.of(0, firstSplitPosition),
             ByteRange.of(0, firstSplitPosition),

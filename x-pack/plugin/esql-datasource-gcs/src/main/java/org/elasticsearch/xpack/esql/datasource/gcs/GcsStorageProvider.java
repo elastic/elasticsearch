@@ -188,7 +188,9 @@ public class GcsStorageProvider implements StorageProvider {
     private static GoogleCredentials buildIdentityPoolCredentials(GcsConfiguration config) throws IOException {
         WorkloadIdentityIssuerClient issuerClient = WorkloadIdentityRegistry.getSharedIssuerClient();
         if (issuerClient.isEnabled() == false) {
-            throw new IllegalStateException("GCS keyless authentication requires the workload-identity feature to be enabled on this node");
+            throw new IllegalStateException(
+                "GCS federated authentication requires the workload-identity feature to be enabled on this node"
+            );
         }
 
         String jwtAudience = Strings.hasText(config.jwtAudience()) ? config.jwtAudience() : config.stsAudience();
@@ -281,7 +283,7 @@ public class GcsStorageProvider implements StorageProvider {
         if (config == null || config.resolveAuthModeOrNull() == null) {
             return ". If accessing a public bucket, set auth=anonymous. "
                 + "Otherwise, provide credentials via credentials or access_token, "
-                + "or configure keyless authentication with jwt_audience and sts_audience";
+                + "or configure federated authentication with sts_audience";
         }
         return "";
     }

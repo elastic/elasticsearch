@@ -1345,7 +1345,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             && useBracketAware == false
             && rowPositionProjected == false
             && options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.NONE
-            && options.decodesEscapes() == false;
+            && options.decodesEscapes() == false
+            // ALL scope harvests EVERY file column (incl. unprojected) from the raw String[] via
+            // harvestAllColumns; the direct path stages only projected typed values (no String[]), so ALL
+            // routes to the String[]-materialising path instead — matching the fused bracket path's ALL exclusion.
+            && context.statsColumnScope() != StripeColumnScope.ALL;
         boolean useDirectBlockPlain = directEligible && options.quoting() == false;
         boolean useDirectBlockQuoted = directEligible && options.quoting();
         boolean useDirectBlock = useDirectBlockPlain || useDirectBlockQuoted;
@@ -2705,13 +2709,22 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             // Direct-block fast path (elastic/elasticsearch#152300): drain the schema-sample's prefetched rows
             // through the shared String[] conversion so the row sequence (parity) is identical regardless of
-            // path, then run the direct-block batch loop. Both branches return before the stripe-harvest paths
-            // below, so a direct-block read relies on main's inline whole-file stat accumulation
-            // (accumulateDirectStats) and the per-record byte-offset stripe harvest simply does not run on it
-            // (stripe-level aggregates safe-miss / re-scan for direct-block reads — never a wrong value).
+            // path, then run the direct-block batch loop. Stripe capture composes on this path: nextRecord()
+            // commits byte-exact per-record accounting, so convertDirectBatchToPage attributes each record to its
+            // canonical stripe by its own file-global byte start (COUNT/PROJECTED); ALL scope, which needs the
+            // raw String[] for every file column, routes to the non-direct harvest path (directEligible excludes
+            // it). The emit-time byte-exactness tripwire safe-misses on any skew — never a wrong value.
             if (useDirectBlock && prefetchedRows != null) {
                 List<String[]> rows = new ArrayList<>(prefetchedRows);
+                // Stripe capture: the sampled rows carry their own file-global byte offsets (captured at
+                // sampling time, parallel to prefetchedRows). Hand them to convertRowsToPage via rowStartBytes so
+                // the prefetched rows are stripe-attributed exactly like the direct loop's records, then null the
+                // parallel arrays so the next batch (the direct loop) re-derives offsets from the record reader.
+                if (statsStripeSize > 0 && cacheableObject != null && stripeCaptureDisabled == false) {
+                    rowStartBytes = prefetchedRowStartBytes;
+                }
                 prefetchedRows = null;
+                prefetchedRowStartBytes = null;
                 blockFactory.breaker().addWithoutBreaking(-prefetchedRowsBytes);
                 prefetchedRowsBytes = 0;
                 Page page = convertRowsToPage(rows);
@@ -3498,6 +3511,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private Page convertDirectBatchToPage(int batchSize) throws IOException {
             directBatchRecordsRead = 0;
             lastBatchAccumulatedStats = accumulateDirectStats;
+            // Stripe capture on the direct path: record each data record's file-global byte start (the same
+            // splitStartByte + bytesRead - lastRecordBytes axis the record-reader path uses, now byte-exact on
+            // the bulk reader once nextRecord() commits byte accounting), then hand the SURVIVING rows' offsets to
+            // captureBlockStats->accumulateStripes via rowStartBytes/acceptedRowStartBytes. The emit-time
+            // byte-exactness tripwire safe-misses on any skew, so a misattribution never serves a wrong value.
+            final boolean captureStripeOffsets = statsStripeSize > 0 && cacheableObject != null && stripeCaptureDisabled == false;
+            final long[] directOffsets = captureStripeOffsets ? new long[batchSize] : null;
+            final boolean[] directSurvived = captureStripeOffsets ? new boolean[batchSize] : null;
             if (columnCount == 0) {
                 int acceptedRows = 0;
                 while (directBatchRecordsRead < batchSize) {
@@ -3508,11 +3529,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (status == DIRECT_SKIP) {
                         continue;
                     }
+                    int dataIdx = directBatchRecordsRead;
                     directBatchRecordsRead++;
                     totalRowCount++;
+                    if (captureStripeOffsets) {
+                        directOffsets[dataIdx] = splitStartByte + recordReader.bytesRead() - recordReader.lastRecordBytes();
+                    }
                     if (splitAndConvertDirect(recordReader.recordBuffer(), 0, recordReader.recordLength())) {
+                        if (captureStripeOffsets) {
+                            directSurvived[dataIdx] = true;
+                        }
                         acceptedRows++;
                     }
+                }
+                if (captureStripeOffsets) {
+                    setDirectStripeOffsets(directOffsets, directSurvived, directBatchRecordsRead);
                 }
                 return acceptedRows == 0 ? null : new Page(acceptedRows);
             }
@@ -3547,16 +3578,26 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (status == DIRECT_SKIP) {
                         continue;
                     }
+                    int dataIdx = directBatchRecordsRead;
                     directBatchRecordsRead++;
                     totalRowCount++;
+                    if (captureStripeOffsets) {
+                        directOffsets[dataIdx] = splitStartByte + recordReader.bytesRead() - recordReader.lastRecordBytes();
+                    }
                     if (splitAndConvertDirect(recordReader.recordBuffer(), 0, recordReader.recordLength())) {
                         if (useByteHint) {
                             appendStagedRowDeferringByteHint(builders);
                         } else {
                             appendStagedRow(builders);
                         }
+                        if (captureStripeOffsets) {
+                            directSurvived[dataIdx] = true;
+                        }
                         acceptedRows++;
                     }
+                }
+                if (captureStripeOffsets) {
+                    setDirectStripeOffsets(directOffsets, directSurvived, directBatchRecordsRead);
                 }
                 if (acceptedRows == 0) {
                     return null;
@@ -3572,6 +3613,24 @@ public class CsvFormatReader implements SegmentableFormatReader {
             } finally {
                 Releasables.closeExpectNoException(builders);
             }
+        }
+
+        /**
+         * Publishes the direct path's per-record stripe offsets: {@link #rowStartBytes} (every data record, in
+         * read order) gates the {@link #captureBlockStats} -> {@link #accumulateStripes} branch, and
+         * {@link #acceptedRowStartBytes} (page-aligned survivors, via the shared {@link SurvivorOffsets}) is what
+         * accumulateStripes attributes by — exactly as {@link #convertRowsToPage} builds them on the non-direct
+         * path. A record dropped by the error policy is absent from both the page and the survivor offsets.
+         */
+        private void setDirectStripeOffsets(long[] offsets, boolean[] survived, int dataRecords) {
+            rowStartBytes = Arrays.copyOf(offsets, dataRecords);
+            SurvivorOffsets survivors = SurvivorOffsets.of(rowStartBytes, dataRecords);
+            for (int i = 0; i < dataRecords; i++) {
+                if (survived[i]) {
+                    survivors.accept(i);
+                }
+            }
+            acceptedRowStartBytes = survivors.finish();
         }
 
         /** Resets the per-batch byte-hint retain buffers, allocating them on first use and reusing them after. */

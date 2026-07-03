@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.PutRegionPolicyAction;
+import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
@@ -101,6 +102,7 @@ import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportPutRegionPolicyAction;
+import org.elasticsearch.xpack.inference.action.TransportRefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.inference.action.TransportRerankAction;
 import org.elasticsearch.xpack.inference.action.TransportStoreEndpointsAction;
 import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInferenceAction;
@@ -328,7 +330,8 @@ public class InferencePlugin extends Plugin
                 new ActionHandler(AuthorizationTaskExecutor.Action.INSTANCE, AuthorizationTaskExecutor.Action.class),
                 new ActionHandler(GetInferenceFieldsInternalAction.INSTANCE, TransportGetInferenceFieldsInternalAction.class),
                 new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class),
-                new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class)
+                new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class),
+                new ActionHandler(RefreshAuthorizedEndpointsAction.INSTANCE, TransportRefreshAuthorizedEndpointsAction.class)
             )
         );
         if (INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
@@ -555,23 +558,21 @@ public class InferencePlugin extends Plugin
             services.featureService(),
             ccmEnablementService,
             ccmFeature,
-            new AuthorizationPoller.Parameters(
-                serviceComponents,
-                authorizationHandler,
-                sender,
-                inferenceServiceSettings,
-                modelRegistry,
-                services.client(),
-                ccmFeature,
-                ccmService,
-                inferenceFeatureService
-            )
+            new AuthorizationPoller.Parameters(serviceComponents, inferenceServiceSettings, services.client(), ccmFeature, ccmService)
         );
         authorizationTaskExecutorRef.set(authTaskExecutor);
         authTaskExecutor.startAndLazilyCreateTask();
 
         return new CCMRelatedComponents(
-            List.of(authorizationHandler, authTaskExecutor, ccmService, ccmPersistentStorageService, ccmCache, ccmEnablementService),
+            List.of(
+                authorizationHandler,
+                authTaskExecutor,
+                ccmService,
+                ccmPersistentStorageService,
+                ccmCache,
+                ccmEnablementService,
+                inferenceFeatureService
+            ),
             ccmAuthApplierFactory
         );
     }

@@ -84,6 +84,13 @@ import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
 
+    /**
+     * Cluster feature that gates {@code BulkOperation}'s use of this action. Guards against calling this action on an old master that
+     * does not have it registered, which would happen during a rolling upgrade.
+     */
+    public static final NodeFeature TIME_SERIES_PAST_INDEX_CREATION_FEATURE = new NodeFeature(
+        "data_stream.time_series.past_index_creation"
+    );
     private static final Logger LOGGER = LogManager.getLogger(DataStream.class);
 
     private static final TransportVersion SETTINGS_IN_DATA_STREAMS = TransportVersion.fromName("settings_in_data_streams");
@@ -1093,6 +1100,24 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         // ensure that no aliases reference index
         ensureNoAliasesOnIndex(project, index);
+
+        return unsafeAddBackingIndex(index);
+    }
+
+    /**
+     * Adds the specified index as a backing index and returns a new {@code DataStream} instance with the new combination
+     * of backing indices. This should be used only for just created indices because it does not check if the backing
+     * index belongs to another data stream. For any other case, use {@link #addBackingIndex(ProjectMetadata, Index)} instead.
+     *
+     * @param index index to add to the data stream
+     * @return new {@code DataStream} instance with the added backing index
+     */
+    public DataStream unsafeAddBackingIndex(Index index) {
+        // We do not use the contain method of DataStreamIndices because it will create a set,
+        // but we only need to check a single index and then we create a new DataStream.
+        if (backingIndices.indices.contains(index)) {
+            return this;
+        }
 
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices.size() + 1);
         backingIndices.add(index);

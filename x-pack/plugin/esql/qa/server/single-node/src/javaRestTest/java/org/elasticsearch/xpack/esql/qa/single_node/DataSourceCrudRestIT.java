@@ -61,7 +61,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
     public void testLifecycle() throws IOException {
         final String name = "lifecycle_ds";
 
-        putDataSource(name, "s3", Map.of("region", "us-east-1"));
+        putDataSource(name, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
 
         Map<String, Object> got = getDataSource(name);
         @SuppressWarnings("unchecked")
@@ -140,7 +140,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
     public void testDatasetLifecycle() throws IOException {
         final String parent = "ds_lifecycle_parent";
         final String dataset = "ds_lifecycle_child";
-        putDataSource(parent, "s3", Map.of("region", "us-east-1"));
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
         putDataset(dataset, parent, "s3://bucket/x/*.parquet", Map.of());
 
         Map<String, Object> got = getDataset(dataset);
@@ -171,7 +171,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
 
         final String parent = "coresident_parent";
         final String dataset = "cloudtrail_logs";
-        putDataSource(parent, "s3", Map.of("region", "us-east-1"));
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
         putDataset(dataset, parent, "s3://bucket/cloudtrail/*.json.gz", Map.of());
 
         // GET /_query/dataset (list all == "*") — this is the exact request from the bug report.
@@ -227,7 +227,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         assertThat(client().performRequest(createDs).getStatusLine().getStatusCode(), equalTo(200));
         final String parent = "mixed_parent";
         final String dataset = "valid_ds";
-        putDataSource(parent, "s3", Map.of("region", "us-east-1"));
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
         putDataset(dataset, parent, "s3://bucket/x/*.parquet", Map.of());
         try {
             ResponseException ex = expectThrows(
@@ -253,9 +253,57 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("data source [no_such_parent] not found"));
     }
 
+    public void testPutDatasetAcceptsExplicitFormatOnExtensionlessResource() throws IOException {
+        // The headline fix: an extensionless resource carries no inferable format, but an explicit
+        // `format` dataset setting lets the validator accept that format's settings (here CSV's
+        // `delimiter`). Both must round-trip into cluster state so they reach the reader at query time.
+        final String parent = "explicit_format_parent";
+        final String dataset = "explicit_format_child";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+        putDataset(dataset, parent, "s3://bucket/data", Map.of("format", "csv", "delimiter", "|"));
+
+        Map<String, Object> got = getDataset(dataset);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> hits = (List<Map<String, Object>>) got.get("datasets");
+        assertThat(hits, hasSize(1));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> settings = (Map<String, Object>) hits.get(0).get("settings");
+        assertThat("explicit format round-trips in its canonical lowercase form", settings.get("format"), equalTo("csv"));
+        assertThat("the csv-specific delimiter round-trips", settings.get("delimiter"), equalTo("|"));
+
+        deleteDataset(dataset);
+        deleteDataSource(parent);
+    }
+
+    public void testPutDatasetRejectsUnknownFormat() throws IOException {
+        final String parent = "unknown_format_parent";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> putDataset("unknown_format_child", parent, "s3://bucket/data", Map.of("format", "bogus"))
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("unknown format [bogus]"));
+        deleteDataSource(parent);
+    }
+
+    public void testPutDatasetRejectsFormatSpecificSettingWithoutResolvableFormat() throws IOException {
+        // Extensionless resource + a format-specific setting but no `format`: the validator cannot tell
+        // which format the setting belongs to, so it fails with the targeted "cannot determine format" hint.
+        final String parent = "no_format_parent";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> putDataset("no_format_child", parent, "s3://bucket/data", Map.of("delimiter", "|"))
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("cannot determine format"));
+        deleteDataSource(parent);
+    }
+
     public void testPutDatasetRejectsUnknownTopLevelField() throws IOException {
         final String parent = "reject_field_parent";
-        putDataSource(parent, "s3", Map.of("region", "us-east-1"));
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
         Request req = new Request("PUT", "/_query/dataset/reject_field_ds");
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject().field("data_source", parent).field("resource", "s3://x/").field("not_a_real_field", "x").endObject();
@@ -269,7 +317,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
     public void testDeleteDataSourceWithDependentsReturns409() throws IOException {
         final String parent = "delete_blocked_parent";
         final String dataset = "delete_blocked_child";
-        putDataSource(parent, "s3", Map.of("region", "us-east-1"));
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
         putDataset(dataset, parent, "s3://x/", Map.of());
 
         ResponseException ex = expectThrows(

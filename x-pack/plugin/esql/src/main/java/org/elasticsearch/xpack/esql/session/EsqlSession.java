@@ -103,9 +103,11 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -151,6 +153,7 @@ import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
 
 /**
@@ -384,29 +387,27 @@ public class EsqlSession {
             ? statement.setting(QuerySettings.TIME_ZONE)
             : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone());
 
-        Configuration configuration = new ConfigurationBuilder(
-            new Configuration(
-                timeZone,
-                Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
-                request.locale() != null ? request.locale() : Locale.US,
-                // TODO: plug-in security
-                null,
-                clusterName,
-                request.pragmas(),
-                analyzerSettings.resultTruncationMaxSize(),
-                analyzerSettings.resultTruncationDefaultSize(),
-                request.query(),
-                request.profile(),
-                request.tables(),
-                System.nanoTime(),
-                request.allowPartialResults(),
-                analyzerSettings.timeseriesResultTruncationMaxSize(),
-                analyzerSettings.timeseriesResultTruncationDefaultSize(),
-                projectRouting(request, statement),
-                approximationSettings(request, statement),
-                viewResolution.viewQueries()
-            )
-        ).grokMatcherWatchdogMs(parser.grokMatcherWatchdog().maxExecutionTimeInMillis()).build();
+        Configuration configuration = new Configuration(
+            timeZone,
+            Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
+            request.locale() != null ? request.locale() : Locale.US,
+            // TODO: plug-in security
+            null,
+            clusterName,
+            request.pragmas(),
+            analyzerSettings.resultTruncationMaxSize(),
+            analyzerSettings.resultTruncationDefaultSize(),
+            request.query(),
+            request.profile(),
+            request.tables(),
+            System.nanoTime(),
+            request.allowPartialResults(),
+            analyzerSettings.timeseriesResultTruncationMaxSize(),
+            analyzerSettings.timeseriesResultTruncationDefaultSize(),
+            projectRouting(request, statement),
+            approximationSettings(request, statement),
+            viewResolution.viewQueries()
+        );
 
         // Pre-analysis pass over the uncompacted plan from ViewResolver: reshape user-written
         // Subquery/UnionAll structures into ViewUnionAll. ViewShadowRelation siblings and nested
@@ -440,13 +441,21 @@ public class EsqlSession {
                     assert ThreadPool.assertCurrentThreadPool(
                         ThreadPool.Names.SEARCH,
                         ThreadPool.Names.SEARCH_COORDINATION,
-                        ThreadPool.Names.SYSTEM_READ
+                        ThreadPool.Names.SYSTEM_READ,
+                        // External source resolution ({@link ExternalSourceResolver}) dispatches through esql_worker
+                        // and this callback is reached on that thread.
+                        ESQL_WORKER_THREAD_POOL_NAME
                     );
 
                     LogicalPlan plan = analyzedPlan.inner();
                     // Capture the analyzed plan for failure-path logging: schema-resolved,
                     // PROMQL→TS conversion done, but surrogate rewrites haven't fired yet.
                     planSnapshot = planSnapshot.withAnalyzed(plan);
+                    // Flag external-source usage on the shared telemetry so the coordinator emits
+                    // external-source-scoped operational metrics only for queries that scanned one.
+                    if (plan.anyMatch(ExternalRelation.class::isInstance)) {
+                        planTelemetry.externalSource(true);
+                    }
                     TransportVersion minimumVersion = analyzedPlan.minimumVersion();
 
                     var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
@@ -530,7 +539,9 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION,
-            ThreadPool.Names.SYSTEM_READ
+            ThreadPool.Names.SYSTEM_READ,
+            // Downstream of the analyzed-plan callback, which may complete on esql_worker after external source resolution.
+            ESQL_WORKER_THREAD_POOL_NAME
         );
         var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion));
 
@@ -1416,7 +1427,11 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION,
-            ThreadPool.Names.SYSTEM_READ
+            ThreadPool.Names.SYSTEM_READ,
+            // Typically entered from a field-caps completion on SEARCH_COORDINATION, but on analyzer retry
+            // (analyzeWithRetry -> resolveIndicesAndAnalyze) with a synchronous main-index forAll (e.g. no FROM
+            // indices) the resolver's continuation reaches this on esql_worker.
+            ESQL_WORKER_THREAD_POOL_NAME
         );
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.
@@ -1443,6 +1458,8 @@ public class EsqlSession {
      * Derives the scope (set of clusters) where the lookup join index needs to be found.
      * For example for a query like `FROM (FROM cluster-1:index-1 | LOOKUP JOIN dictionary-1),(FROM cluster-2:index-2)`
      * `dictionary-1` must be found only on `cluster-1` as joining is not performed on `cluster-2`.
+     * <p>
+     * Only the data-bearing left subtree of each matching LOOKUP JOIN is considered, see {@link #collectLookupJoinLeftScope}.
      */
     static Set<String> computeLookupJoinIndexScope(
         LogicalPlan plan,
@@ -1452,15 +1469,46 @@ public class EsqlSession {
         Set<String> scope = new LinkedHashSet<>();
         plan.forEachUp(LookupJoin.class, lj -> {
             if (lj.right() instanceof UnresolvedRelation ur && ur.indexPattern().indexPattern().equals(lookupPattern)) {
-                lj.left().forEachDown(UnresolvedRelation.class, source -> {
-                    IndexResolution resolution = indexResolution.get(source.indexPattern());
-                    if (resolution != null && resolution.isValid()) {
-                        scope.addAll(resolution.get().originalIndices().keySet());
-                    }
-                });
+                collectLookupJoinLeftScope(lj.left(), scope, indexResolution);
             }
         });
         return scope;
+    }
+
+    /**
+     * Collects the clusters that feed rows into a LOOKUP JOIN by walking only the data-bearing spine of its left subtree.
+     * <p>
+     * For any {@link AbstractSubqueryJoin} (SEMI/ANTI/MARK) that {@code InSubqueryResolver} produces for {@code field IN (subquery)}, only
+     * the left child carries rows into the subsequent plan; the right child does not contribute source clusters to this join.
+     * So {@code ... | WHERE x IN (FROM remote:idx) | LOOKUP JOIN ...} scopes the lookup to the outer source only, not to {@code remote}.
+     * A {@code FROM a, b} union ({@code Fork}/{@code UnionAll}) instead reads from every branch, so all of its children are followed.
+     * The behavior is validated by {@code CrossClusterInSubqueryIT.testMissingLookupIndexAfterWhereInSubquery}
+     * <p>
+     * Each index source contributes the clusters its pattern resolved to; a {@link Row} - a coordinator-only source carrying no index
+     * relation - contributes the local cluster. The behavior is validated by
+     * {@code CrossClusterInSubqueryIT.testMissingLookupIndexInsideWhereInSubquery} and
+     * {@code CrossClusterSubqueryIT.testSubqueryWithRowAndLookupIndicesMissingOnClustersReferencedBySubquery}.
+     */
+    private static void collectLookupJoinLeftScope(
+        LogicalPlan plan,
+        Set<String> scope,
+        Map<IndexPattern, IndexResolution> indexResolution
+    ) {
+        switch (plan) {
+            case UnresolvedRelation source -> {
+                IndexResolution resolution = indexResolution.get(source.indexPattern());
+                if (resolution != null && resolution.isValid()) {
+                    scope.addAll(resolution.get().originalIndices().keySet());
+                }
+            }
+            case Row row -> scope.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            case AbstractSubqueryJoin subqueryJoin -> collectLookupJoinLeftScope(subqueryJoin.left(), scope, indexResolution);
+            default -> {
+                for (LogicalPlan child : plan.children()) {
+                    collectLookupJoinLeftScope(child, scope, indexResolution);
+                }
+            }
+        }
     }
 
     /**
@@ -1730,7 +1778,10 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION,
-            ThreadPool.Names.SYSTEM_READ
+            ThreadPool.Names.SYSTEM_READ,
+            // On analyzer retry (analyzeWithRetry -> resolveIndicesAndAnalyze) this may be re-entered on esql_worker,
+            // the thread the external source resolver continued on.
+            ESQL_WORKER_THREAD_POOL_NAME
         );
         if (crossProjectModeDecider.crossProjectEnabled() == false) {
             EsqlCCSUtils.initCrossClusterState(

@@ -79,7 +79,7 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
     public void testFetchTooManySourceOnlyUnmappedFields() throws IOException {
         int fields = 1000;
         initManySourceOnlyFieldsIndex(500, fields);
-        assertCircuitBreaks(attempt -> fetchManySourceOnlyFields(fields, attempt * 100));
+        assertCircuitBreaksVia(attempt -> fetchManySourceOnlyFields(fields, attempt * 100), "ValuesSourceReaderOperator");
     }
 
     /**
@@ -224,7 +224,11 @@ public class HeapAttackUnmappedLoadSourceIT extends HeapAttackTestCase {
         logger.info("loading {} documents with one {}MB source-only field across multiple segments", docs, sourceSizeMb);
         CreateIndexResponse response = createIndex(
             MULTI_SEGMENT_SOURCE_INDEX,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(),
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                // Keep the fixture multi-segment instead of letting background merges collapse it.
+                .put("index.merge.policy.segments_per_tier", 1000)
+                .build(),
             """
                 {
                   "dynamic": false,

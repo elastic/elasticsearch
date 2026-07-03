@@ -1215,30 +1215,33 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * Temporal types (date32, timestamp, INT96) are decoded to epoch-millis.
      * Parquet {@link Binary} (used for BYTE_ARRAY / string columns) is converted to String.
      * A {@code uint32} column's raw {@code INT32} stat is widened to its true unsigned magnitude
-     * (see {@link #isUnsignedInt32}), matching the SPI contract that stat values must already be
-     * in ESQL's in-memory representation (here, the widened {@code LONG}) — otherwise a value
-     * above {@link Integer#MAX_VALUE} would sign-extend into a negative {@code long} downstream
-     * (aggregate pushdown, split-skip classification), mirroring the fix in
-     * {@link ParquetPushedExpressions#narrowLongToPhysicalInt32}.
+     * (see {@link ParquetColumnDecoding#isUnsignedInt32}), matching the SPI contract that stat
+     * values must already be in ESQL's in-memory representation (here, the widened {@code LONG})
+     * — otherwise a value above {@link Integer#MAX_VALUE} would sign-extend into a negative
+     * {@code long} downstream (aggregate pushdown, split-skip classification), mirroring the fix
+     * in {@link ParquetPushedExpressions#narrowLongToPhysicalInt32}.
+     * <p>
+     * Similarly, a {@code uint64} column's raw {@code INT64} stat is sign-flip-encoded (see
+     * {@link ParquetColumnDecoding#encodeUnsignedLong}) to match ESQL's {@code UNSIGNED_LONG}
+     * in-memory representation — the scan path already applies this same encoding to every value
+     * it reads, so stats must match or MIN/MAX pushdown and split-skip classification would
+     * compare against the wrong domain.
      */
     private static Object normalizeStatValue(Object value, PrimitiveType primitiveType) {
         Long temporal = ParquetColumnDecoding.decodeTemporalStat(value, primitiveType);
         if (temporal != null) {
             return temporal;
         }
-        if (value instanceof Integer i && isUnsignedInt32(primitiveType)) {
+        if (value instanceof Integer i && ParquetColumnDecoding.isUnsignedInt32(primitiveType)) {
             return Integer.toUnsignedLong(i);
+        }
+        if (value instanceof Long l && ParquetColumnDecoding.isUnsignedInt64(primitiveType)) {
+            return ParquetColumnDecoding.encodeUnsignedLong(l);
         }
         if (value instanceof Binary binary) {
             return binary.toStringUsingUTF8();
         }
         return value;
-    }
-
-    private static boolean isUnsignedInt32(PrimitiveType primitiveType) {
-        return primitiveType.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical
-            && intLogical.isSigned() == false
-            && intLogical.getBitWidth() == 32;
     }
 
     static List<SplitRange> coalesceRowGroupRanges(List<SplitRange> rowGroupRanges, long targetBytes) {

@@ -118,6 +118,33 @@ final class ParquetColumnDecoding {
         return time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS ? 1_000L : 1L;
     }
 
+    // ---- Unsigned integer logical-type checks ----
+
+    /**
+     * Returns {@code true} when {@code primitiveType} carries the Parquet {@code UINT_32} logical
+     * annotation (physical {@code INT32}, {@code intType(32, false)}) — the shape that widens to
+     * ESQL {@code LONG} because unsigned 32-bit values can exceed signed {@code int} range. Shared
+     * by the predicate pushdown and stats-normalization code paths so the two cannot drift.
+     */
+    static boolean isUnsignedInt32(PrimitiveType primitiveType) {
+        return isUnsignedInt(primitiveType, 32);
+    }
+
+    /**
+     * Returns {@code true} when {@code primitiveType} carries the Parquet {@code UINT_64} logical
+     * annotation (physical {@code INT64}, {@code intType(64, false)}) — the shape that maps to ESQL
+     * {@code UNSIGNED_LONG}, which ESQL stores sign-flip-encoded via {@link #encodeUnsignedLong}.
+     */
+    static boolean isUnsignedInt64(PrimitiveType primitiveType) {
+        return isUnsignedInt(primitiveType, 64);
+    }
+
+    private static boolean isUnsignedInt(PrimitiveType primitiveType, int bitWidth) {
+        return primitiveType.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical
+            && intLogical.isSigned() == false
+            && intLogical.getBitWidth() == bitWidth;
+    }
+
     // ---- Unsigned long encoding ----
 
     /**

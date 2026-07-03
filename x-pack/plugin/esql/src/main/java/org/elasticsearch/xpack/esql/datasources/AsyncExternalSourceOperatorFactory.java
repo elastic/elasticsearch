@@ -1362,6 +1362,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }
         FileSplit fileSplit = (FileSplit) leaf;
         List<String> cols = dataProjectedColumns();
+        // Per-file view of the projection, used identically by the reader call (range or non-range
+        // branch) and by the adapter below. Sourced from the FileSplit: readSchema() is this file's
+        // physical schema the coordinator inferred (null when no pin is set — single-file / legacy —
+        // in which case the reader falls back to per-file inference). Under UBN the query projection
+        // may include columns absent from this file; perFileQueryProjection narrows to the columns
+        // actually present, and the adapter (SchemaAdaptingIterator) null-fills the rest.
+        List<Attribute> perFileReadSchema = fileSplit.readSchema();
+        List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
 
         CloseableIterator<Page> pages = null;
         try {
@@ -1374,15 +1382,26 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     : storageProvider.newObject(fileSplit.path());
                 long rangeEnd = fileSplit.offset() + fileSplit.length();
                 Object fileContext = fileSplit.path().equals(state.lastRangeFilePath) ? state.lastFileContext : null;
-                // Pass {@link #readerResolvedAttributes} — i.e. {@link #attributes} minus the
-                // deferred-extraction synthetic — so the reader's view of "the file's resolved
-                // schema" stays free of optimizer-injected channels.
+                // Pin the reader to this file's physical projection/schema — mirroring the non-range
+                // branch below. The per-file ColumnMapping applied by adaptSchema is built against the
+                // file's physical column order and types, so the reader must deliver its page in that
+                // same shape. Feeding the query-unified projection/attributes here instead makes the
+                // reader emit columns in unified order and at unified (widened) types, and ColumnMapping
+                // then re-permutes/re-casts an already-adapted page — silently swapping columns whose
+                // per-file order differs from the query, or failing with an "Unsupported block cast"
+                // when a per-file type was widened. Fall back to the query-unified attributes only when
+                // no per-file pin is present (single-file / legacy). readSchema() is already free of the
+                // _rowPosition synthetic (that channel is optimizer-injected later), so it can serve as
+                // the RangeReadContext resolved attributes directly.
+                List<Attribute> perFileResolvedAttributes = perFileReadSchema != null && perFileReadSchema.isEmpty() == false
+                    ? perFileReadSchema
+                    : readerResolvedAttributes;
                 RangeReadContext rangeCtx = new RangeReadContext(
-                    cols,
+                    perFileCols,
                     batchSize,
                     fileSplit.offset(),
                     rangeEnd,
-                    readerResolvedAttributes,
+                    perFileResolvedAttributes,
                     errorPolicy
                 );
                 if (fileContext != null) {
@@ -1414,13 +1433,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         state.lastBoundSchema = cachedSchema;
                     }
                 }
-                // The reader is pinned to the per-file schema the coordinator inferred for this file.
-                // Sourced from FileSplit; null when no pin is set (reader falls back to per-file inference).
-                List<Attribute> perFileReadSchema = fileSplit.readSchema();
-                // Narrow the unified query projection to this file's own columns before reaching the reader.
-                // Under UBN, the query projection may include columns missing from this file; the adapter
-                // (SchemaAdaptingIterator wrapping the reader output below) null-fills those.
-                List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
                 pages = openWithParallelism(
                     fileReader,
                     obj,
@@ -1450,19 +1462,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 state.currentObjectBytesSnapshot = readBytesOrZero(obj);
                 pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
             }
-            // Resolve the file's read schema and the reader's projected column order so the
-            // adapter can disambiguate LongBlock sources when stringifying under UBN. Pulled
-            // off the FileSplit because both the range and non-range branches above already
-            // pinned the reader to that schema (or fell back to inference); the same source of
-            // truth keeps the cast's source-type view consistent.
-            List<Attribute> perFileReadSchemaForAdapter = fileSplit.readSchema();
-            List<String> perFileColsForAdapter = perFileQueryProjection(cols, perFileReadSchemaForAdapter);
+            // The adapter uses the same per-file schema and projected column order pinned above so it
+            // can disambiguate LongBlock sources when stringifying under UBN; sharing the one source of
+            // truth keeps the cast's source-type view consistent with what the reader was told to emit.
             CloseableIterator<Page> adapted = adaptSchema(
                 pages,
                 fileSplit.columnMapping(),
                 state.driverContext,
-                perFileReadSchemaForAdapter,
-                perFileColsForAdapter
+                perFileReadSchema,
+                perFileCols
             );
             // Deferred extraction: register one extractor per opened file split. Range-splits of
             // the same file therefore register multiple extractors; this is benign — each row's

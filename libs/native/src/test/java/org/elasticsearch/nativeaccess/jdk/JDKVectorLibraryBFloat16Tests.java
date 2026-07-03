@@ -504,18 +504,28 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
                 switch (function) {
                     case DOT_PRODUCT -> getVectorDistance().dotProductDBF16QF32BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
                     case SQUARE_DISTANCE -> getVectorDistance().squareDistanceDBF16QF32BulkWithOffsets(
-                        a, b, dims, pitch, offsets, count, result
+                        a,
+                        b,
+                        dims,
+                        pitch,
+                        offsets,
+                        count,
+                        result
                     );
                     case COSINE -> throw new UnsupportedOperationException(function.toString());
                 }
             }
             case BFLOAT16 -> {
                 switch (function) {
-                    case DOT_PRODUCT -> getVectorDistance().dotProductDBF16QBF16BulkWithOffsets(
-                        a, b, dims, pitch, offsets, count, result
-                    );
+                    case DOT_PRODUCT -> getVectorDistance().dotProductDBF16QBF16BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
                     case SQUARE_DISTANCE -> getVectorDistance().squareDistanceDBF16QBF16BulkWithOffsets(
-                        a, b, dims, pitch, offsets, count, result
+                        a,
+                        b,
+                        dims,
+                        pitch,
+                        offsets,
+                        count,
+                        result
                     );
                     case COSINE -> throw new UnsupportedOperationException(function.toString());
                 }

@@ -10,7 +10,6 @@
 package org.elasticsearch.nativeaccess;
 
 import java.lang.foreign.MemorySegment;
-import java.lang.invoke.MethodHandle;
 
 /**
  * Utility interface providing vector similarity functions.
@@ -222,12 +221,6 @@ public interface VectorSimilarityFunctions {
          */
         BULK_SPARSE
     }
-
-    MethodHandle getHandle(Function function, DataType dataType, Operation operation);
-
-    MethodHandle getBFloat16Handle(Function function, BFloat16QueryType queryType, Operation operation);
-
-    MethodHandle getHandle(Function function, BBQType bbqType, Operation operation);
 
     // --- INT7U: dot product and square distance ---
 

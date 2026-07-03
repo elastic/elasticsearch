@@ -244,16 +244,19 @@ public final class MergedSplitStats implements org.elasticsearch.xpack.esql.data
         Object result = null;
         for (int i = 0; i < children.size(); i++) {
             org.elasticsearch.xpack.esql.datasources.spi.SplitStats child = children.get(i);
-            long nc = child.columnNullCount(name);
-            if (nc < 0) {
-                return null;
-            }
-            if (nc == child.rowCount()) {
-                continue;
-            }
+            // Value-first: a known extremum is a valid candidate regardless of this child's null_count. MIN/MAX
+            // ignore nulls, so the min/max of the non-null values is correct even when null_count is unknown (-1)
+            // — this preserves the multi-file warm short-circuit when a per-file fold dropped only the null_count
+            // (see MergedSplitStatsTests.testColumnMinMaxUsesChildValueWhenNullCountUnknownButMinMaxPresent).
             Object value = wantMin ? child.columnMin(name) : child.columnMax(name);
             if (value == null) {
-                // Present, not all-null, but reader produced no extremum — inconsistent; poison defensively.
+                // No extremum candidate. All-null (null_count == rowCount) contributes nothing → skip. Otherwise
+                // the column is present without an extremum, or its null_count is unknown so all-null-ness can't be
+                // proven — either way poison defensively (safe-miss, never a wrong value).
+                long nc = child.columnNullCount(name);
+                if (nc == child.rowCount()) {
+                    continue;
+                }
                 return null;
             }
             if (temporal) {

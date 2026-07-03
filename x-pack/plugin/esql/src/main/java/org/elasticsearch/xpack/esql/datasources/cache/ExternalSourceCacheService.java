@@ -570,8 +570,9 @@ public class ExternalSourceCacheService implements Closeable {
     /** True for the types whose min/max is a numeric value that can flap Long/Double across sampled reads. */
     private static boolean isNumericStatType(DataType type) {
         // A type is numeric-coercible iff the shared table assigns it a non-NONE coercion. This is ORTHOGONAL
-        // to servability (UNSIGNED_LONG is unservable but EXACT_LONG-coercible — it still needs the stale-extremum
-        // drop), so it dispatches on coercion(), not servable().
+        // to servability — the counters are servable but NOT numeric-coercible (dispatching on servable() would
+        // wrongly coerce them), while UNSIGNED_LONG is both servable and EXACT_LONG-coercible (it still needs the
+        // stale-extremum drop) — so it dispatches on coercion(), not servable().
         ColumnStatTypeSupport support = ColumnStatTypeSupport.of(type);
         return support != null && support.coercion() != ColumnStatTypeSupport.StatCoercion.NONE;
     }

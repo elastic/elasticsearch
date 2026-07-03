@@ -168,6 +168,7 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiService;
 import org.elasticsearch.xpack.inference.services.custom.CustomService;
 import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekService;
+import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
@@ -645,6 +646,7 @@ public class InferencePlugin extends Plugin
             context -> new JinaAIService(httpFactory.get(), serviceComponents.get(), context),
             context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context),
             context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new TencentCloudService(httpFactory.get(), serviceComponents.get(), context),
             context -> new LlamaService(httpFactory.get(), serviceComponents.get(), context),
             context -> new Ai21Service(httpFactory.get(), serviceComponents.get(), context),
             context -> new OpenShiftAiService(httpFactory.get(), serviceComponents.get(), context),

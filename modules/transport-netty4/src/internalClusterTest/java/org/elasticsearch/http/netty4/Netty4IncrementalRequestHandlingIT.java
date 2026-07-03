@@ -614,7 +614,9 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         try (var clientContext = newClientContext(nodeName, cause -> ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError(cause)))) {
             final var request = new DefaultHttpRequest(HTTP_1_1, POST, "/_bulk");
             request.headers().add(CONTENT_TYPE, APPLICATION_JSON);
-            HttpUtil.setTransferEncodingChunked(request, true);
+
+            final var bulkContent = buffered(bulkRandomDoc(randomIndexName(), randomUUID()));
+            HttpUtil.setContentLength(request, bulkContent.readableBytes());
 
             // Sending the headers makes RestBulkAction accept the channel, build the Handler and arm the request timeout.
             final var channel = clientContext.channel();
@@ -625,10 +627,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // The whole body arrives as a single last chunk: no sub-request is ever submitted, so the cancelled session
             // produces a top-level failure -> HTTP 429 (the globalFailure path).
-            channel.writeAndFlush(new DefaultLastHttpContent(Unpooled.wrappedBuffer(Strings.format("""
-                {"index":{"_index":"%s"}}
-                {"field":"%s"}
-                """, randomIndexName(), randomAlphaOfLength(10)).getBytes(StandardCharsets.UTF_8))));
+            channel.writeAndFlush(new DefaultLastHttpContent(bulkContent));
 
             final var response = clientContext.getNextResponse();
             try {
@@ -639,6 +638,21 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         } finally {
             updateClusterSettings(Settings.builder().putNull(IncrementalBulkService.REQUEST_TIMEOUT.getKey()));
         }
+    }
+
+    private static byte[] utf8bytes(String s) {
+        return s.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static String bulkRandomDoc(String index, String docId) {
+        return Strings.format("""
+             {"index":{"_index":"%s","_id":"%s"}}
+             {"field":"%s"}
+            """, index, docId, randomAlphanumericOfLength(between(10, 100)));
+    }
+
+    private static ByteBuf buffered(String s) {
+        return Unpooled.wrappedBuffer(utf8bytes(s));
     }
 
     /**
@@ -662,30 +676,28 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         );
         final var index = randomIndexName();
         createIndex(index);
-        final var timeout = TimeValue.timeValueSeconds(2);
+        final var timeout = TimeValue.timeValueSeconds(between(1, 3));
         updateClusterSettings(Settings.builder().put(IncrementalBulkService.REQUEST_TIMEOUT.getKey(), timeout));
         try (var clientContext = newClientContext(nodeName, cause -> ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError(cause)))) {
             final var request = new DefaultHttpRequest(HTTP_1_1, POST, "/_bulk");
             request.headers().add(CONTENT_TYPE, APPLICATION_JSON);
-            HttpUtil.setTransferEncodingChunked(request, true);
+
+            final var beforeTimeoutDoc = buffered(bulkRandomDoc(index, "before-timeout"));
+            final var afterTimeoutDoc = buffered(bulkRandomDoc(index, "after-timeout"));
+            HttpUtil.setContentLength(request, beforeTimeoutDoc.readableBytes() + afterTimeoutDoc.readableBytes());
+
             final var channel = clientContext.channel();
             channel.writeAndFlush(request);
 
             // First chunk: 1b watermarks force an immediate split -> sub-request submitted, doc indexed.
-            channel.writeAndFlush(new DefaultHttpContent(Unpooled.wrappedBuffer(Strings.format("""
-                {"index":{"_index":"%s","_id":"before-timeout"}}
-                {"field":"%s"}
-                """, index, randomAlphaOfLength(10)).getBytes(StandardCharsets.UTF_8))));
+            channel.writeAndFlush(new DefaultHttpContent(beforeTimeoutDoc));
 
             // Wait until the first sub-request committed so the doc is durable and survives the descendant-cancellation
             // that fires with the timeout, then wait past the timeout so the session is cancelled before the final chunk.
             assertBusy(() -> assertTrue(client().prepareGet(index, "before-timeout").setRealtime(true).get().isExists()));
             safeSleep(timeout);
 
-            channel.writeAndFlush(new DefaultLastHttpContent(Unpooled.wrappedBuffer(Strings.format("""
-                {"index":{"_index":"%s","_id":"after-timeout"}}
-                {"field":"%s"}
-                """, index, randomAlphaOfLength(10)).getBytes(StandardCharsets.UTF_8))));
+            channel.writeAndFlush(new DefaultLastHttpContent(afterTimeoutDoc));
 
             final var response = clientContext.getNextResponse();
             try {

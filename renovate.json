@@ -14,7 +14,7 @@
     "Team:Delivery",
     "auto-merge-without-approval"
   ],
-  "baseBranches": [
+  "baseBranchPatterns": [
     "main",
     "9.4",
     "9.3",
@@ -37,8 +37,12 @@
     },
     {
       "description": "Gradle wrapper: one rolling PR per release train (e.g. 9.5.x patch lane and 9.6.x minor/RC lane), lockstep across all wrapper.properties files; manual fix commits preserved",
-      "matchManagers": ["gradle-wrapper"],
-      "matchBaseBranches": ["main"],
+      "matchManagers": [
+        "gradle-wrapper"
+      ],
+      "matchBaseBranches": [
+        "main"
+      ],
       "enabled": true,
       "ignoreUnstable": false,
       "separateMinorPatch": true,
@@ -46,8 +50,14 @@
       "rebaseWhen": "behind-base-branch",
       "branchTopic": "gradle-wrapper-{{{newMajor}}}.{{{newMinor}}}.x",
       "commitMessageTopic": "Gradle wrapper {{{newMajor}}}.{{{newMinor}}}.x",
-      "schedule": ["at any time"],
-      "labels": [":Delivery/Build", ">non-issue", "auto-backport"]
+      "schedule": [
+        "at any time"
+      ],
+      "labels": [
+        ":Delivery/Build",
+        ">non-issue",
+        "auto-backport"
+      ]
     }
   ]
 }

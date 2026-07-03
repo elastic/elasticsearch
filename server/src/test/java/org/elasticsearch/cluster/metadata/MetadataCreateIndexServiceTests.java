@@ -1804,7 +1804,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         settings = Settings.EMPTY;
         tier = aggregatedTierPreference(settings, true);
-        assertEquals(DataTier.DATA_HOT, tier.get());
+        assertEquals(String.join(",", DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD), tier.get());
 
         // an explicit tier is respected
         settings = Settings.builder().put(DataTier.TIER_PREFERENCE, DataTier.DATA_COLD).build();

@@ -1409,6 +1409,9 @@ partial_mapping_sample_data    | 42              | null
 ;
 
 
+//
+// unmapped_fields="load" across FORK branches.
+//
 loadUnmappedFieldAcrossForkBranches
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: fork_v9
@@ -1426,6 +1429,78 @@ fork1         | Connection error? | Disconnection error      | 5033756
 fork1         | Connection error? | Disconnection error      | 725449
 fork1         | Connection error? | Disconnection error      | 8268154
 fork2         | 42                | 43                       | 1232383
+;
+
+loadUnmappedFieldAcrossForkBranchesWildcardKeep
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "Disconnection error")
+       (WHERE message == "42")
+| KEEP _fork, messag*, unmapped_mess*
+| SORT _fork, unmapped_message
+;
+
+_fork:keyword | message:keyword   | unmapped_message:keyword
+fork1         | Connection error? | Disconnection error
+fork1         | Connection error? | Disconnection error
+fork1         | Connection error? | Disconnection error
+fork2         | 42                | 43
+;
+
+loadUnmappedFieldInsideForkBranchNoKeepDropsOthers
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "Disconnection error")
+       (WHERE message == "42")
+| DROP @timestamp, client_ip, event_duration
+| SORT _fork, message, unmapped_message
+;
+
+message:keyword   | unmapped_message:keyword | _fork:keyword
+Connection error? | Disconnection error      | fork1
+Connection error? | Disconnection error      | fork1
+Connection error? | Disconnection error      | fork1
+42                | 43                       | fork2
+;
+
+loadUnmappedFieldAboveForkNoKeepDropsOthers
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE message == "42")
+       (WHERE message == "Connected to 10.1.0.1!")
+| DROP @timestamp, client_ip, event_duration
+| SORT _fork, unmapped_message
+;
+
+message:keyword        | _fork:keyword | unmapped_message:keyword
+42                     | fork1         | 43
+Connected to 10.1.0.1! | fork2         | Disconnected from 10.1.0.1
+;
+
+loadUnmappedFieldReferencedBeforeForkAppearsInBothBranches
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| WHERE unmapped_message == "43" OR unmapped_message == "Disconnected from 10.1.0.1"
+| FORK (WHERE message == "42") (WHERE message == "Connected to 10.1.0.1!")
+| KEEP _fork, messag*, unmapped_mess*
+| SORT _fork
+;
+
+_fork:keyword | message:keyword        | unmapped_message:keyword
+fork1         | 42                     | 43
+fork2         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
 ;
 
 loadAbsentFieldAcrossForkBranches
@@ -1572,6 +1647,109 @@ fork1         | 42                     | null
 fork2         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
 ;
 
+loadUnmappedFieldDropInOneForkBranchLoadsNonDroppedBranch
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| WHERE message == "42"
+| FORK (DROP unmapped_message) (WHERE true)
+| KEEP _fork, message, unmapped_message
+| SORT _fork
+;
+
+_fork:keyword | message:keyword | unmapped_message:keyword
+fork1         | 42              | null
+fork2         | 42              | 43
+;
+
+loadUnmappedFieldDropInOneForkBranchWildcardKeepDoesNotLoad
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| WHERE message == "42"
+| FORK (DROP unmapped_message) (WHERE true)
+| KEEP _fork, *message
+| SORT _fork
+;
+
+_fork:keyword | message:keyword
+fork1         | 42
+fork2         | 42
+;
+
+loadUnmappedFieldForkDropInOneBranchNoKeepLoadsNoBranch
+// this is a bug, see https://github.com/elastic/elasticsearch/issues/152843
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| FORK (DROP unmapped_message) (WHERE true)
+| SORT @timestamp, _fork
+;
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | _fork:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | fork1
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | fork2
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | fork1
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | fork2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | fork1
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | fork2
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | fork1
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | fork2
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | fork1
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | fork2
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | fork1
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | fork2
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | fork1
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | fork2
+;
+
+loadUnmappedFieldForkWhereRefThenDropInOneBranchNoKeep
+// this is a bug - see https://github.com/elastic/elasticsearch/issues/152843
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "foo" | DROP unmapped_message) (WHERE true)
+| SORT @timestamp, _fork
+;
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | _fork:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | fork2
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | fork2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | fork2
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | fork2
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | fork2
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | fork2
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | fork2
+;
+
+loadUnmappedFieldForkWhereRefInOneBranchNoKeep
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "foo") (WHERE true)
+| SORT @timestamp, _fork
+;
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | unmapped_message:keyword   | _fork:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | fork2
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | fork2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                         | fork2
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | fork2
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | fork2
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | fork2
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | fork2
+;
+
 loadUnmappedFieldInOneSubqueryBranch
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: subquery_in_from_command
@@ -1649,6 +1827,21 @@ message:keyword | unmapped_message:keyword
 42              | 43
 ;
 
+loadUnmappedFieldAsInSubqueryLeftKeyNonAlignedNames
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: where_in_subquery_without_view
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| WHERE unmapped_message IN (FROM partial_mapping_sample_data | WHERE message == "42" | RENAME unmapped_message AS other | KEEP other)
+| KEEP message, unmapped_message
+| SORT message
+;
+
+message:keyword | unmapped_message:keyword
+42              | 43
+;
+
 loadUnmappedFieldAsInSubqueryLeftKeyWithSubqueryUnionRhs
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: where_in_subquery_without_view
@@ -1702,7 +1895,7 @@ SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
      (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
 | EVAL upper = TO_UPPER(unmapped_message)
-| KEEP message, unmapped_message, upper
+| KEEP messag*, unmapped_mess*, upper
 | SORT message
 ;
 
@@ -1719,7 +1912,7 @@ SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
      (FROM partial_mapping_sample_data | WHERE message == "Connection error?")
 | WHERE unmapped_message == "Disconnection error"
-| KEEP message, unmapped_message
+| KEEP messag*, unmapped_mess*
 | SORT message
 ;
 
@@ -1753,8 +1946,8 @@ SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
      (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!"),
      (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.2!")
-| KEEP message, unmapped_message
 | SORT unmapped_message DESC
+| KEEP messag*, unmapped_mess*
 ;
 
 message:keyword        | unmapped_message:keyword
@@ -1780,7 +1973,7 @@ message:keyword        | dur:long
 Connected to 10.1.0.1! | 1756468
 ;
 
-loadSubqueryDropInOneBranchMaterializesSibling
+loadSubqueryDropInOneBranchOuterKeepLoadsNonDroppedBranch
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: subquery_in_from_command
 
@@ -1794,6 +1987,60 @@ FROM (FROM partial_mapping_sample_data | WHERE message == "42" | DROP unmapped_m
 message:keyword        | unmapped_message:keyword
 42                     | null
 Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+;
+
+loadSubqueryDropInOneBranchWildcardKeepDoesNotLoadUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | DROP unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP messag*
+| SORT message
+;
+
+message:keyword
+42
+Connected to 10.1.0.1!
+;
+
+loadSubqueryDropInOneBranchTrailingWildcardKeepDoesNotLoadUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | DROP unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP *message
+| SORT message
+;
+
+message:keyword
+42
+Connected to 10.1.0.1!
+;
+
+loadSubquerySortRefInOneBranchTrailingWildcardKeepSurfacesUnmapped
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | SORT unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP *message
+;
+ignoreOrder:true
+
+message:keyword        | unmapped_message:keyword
+42                     | 43
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+Connected to 10.1.0.1! | null
+Connected to 10.1.0.2! | Disconnected from 10.1.0.2
+Connected to 10.1.0.3! | Disconnected from 10.1.0.3
+Connection error?      | Disconnection error
+Connection error?      | Disconnection error
+Connection error?      | Disconnection error
 ;
 
 loadSubqueryRenameAwayOuterReferencesOriginalName
@@ -1812,20 +2059,20 @@ message:keyword        | unmapped_message:keyword   | renamed:keyword
 Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | null
 ;
 
-loadSubqueryWhereThenDropInOneBranchMaterializesSibling
+loadSubqueryWhereRefThenDropInOneBranchDoesNotLoadSibling
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_sample_data | WHERE unmapped_message == "43" | DROP unmapped_message),
      (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
-| KEEP message, unmapped_message
+| KEEP messag*
 | SORT message
 ;
 
-message:keyword        | unmapped_message:keyword
-42                     | null
-Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+message:keyword
+42
+Connected to 10.1.0.1!
 ;
 
 loadSubqueryEvalInOneBranchScopesFieldToBranch
@@ -1835,13 +2082,13 @@ required_capability: subquery_in_from_command
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_sample_data | WHERE message == "42" | EVAL tag = unmapped_message),
      (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
-| KEEP message, unmapped_message, tag
+| KEEP message, tag
 | SORT message
 ;
 
-message:keyword        | unmapped_message:keyword | tag:keyword
-42                     | 43                       | 43
-Connected to 10.1.0.1! | null                     | null
+message:keyword        | tag:keyword
+42                     | 43
+Connected to 10.1.0.1! | null
 ;
 
 loadSubqueryKeepInOneBranchScopesFieldToBranch
@@ -1951,6 +2198,7 @@ FROM employees
 | FORK (STATS c = COUNT(*) BY does_not_exist2) (STATS d = AVG(salary))
 | SORT _fork, does_not_exist2
 ;
+ignoreOrder:true
 
 c:long | does_not_exist2:keyword | _fork:keyword | d:double
 100    | null                    | fork1         | null
@@ -2077,21 +2325,6 @@ c:long
 0
 ;
 
-loadMultiIndexPartialMultiFieldKept
-required_capability: optional_fields_load_with_fork_subqueries_and_views
-
-SET unmapped_fields="load"\;
-FROM employees, languages METADATA _index
-| WHERE emp_no == 10001 OR language_code == 1
-| KEEP emp_no, languages, languages.long, language_code, language_name, _index
-| SORT emp_no NULLS LAST, language_code
-;
-
-emp_no:integer | languages:integer | languages.long:long | language_code:integer | language_name:keyword | _index:keyword
-10001          | 2                 | 2                   | null                  | null                  | employees
-null           | null              | null                | 1                     | English               | languages
-;
-
 loadMultiIndexPartialMultiFieldInSubquery
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: subquery_in_from_command
@@ -2112,19 +2345,17 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="load"\;
-FROM employees, (FROM languages | WHERE does_not_exist::LONG > 0 OR language_code < 3) METADATA _index
-| KEEP emp_no, language_code, languages, _index
-| WHERE emp_no < 10005 OR emp_no IS NULL
-| SORT emp_no, language_code
+FROM employees, (FROM partial_mapping_sample_data | WHERE unmapped_message == "43" OR message == "Connected to 10.1.0.1!") METADATA _index
+| WHERE emp_no < 10003 OR emp_no IS NULL
+| KEEP emp_no, message, unmapped_message, _index
+| SORT emp_no NULLS LAST, message
 ;
 
-emp_no:integer | language_code:integer | languages:integer | _index:keyword
-10001          | null                  | 2                 | employees
-10002          | null                  | 5                 | employees
-10003          | null                  | 4                 | employees
-10004          | null                  | 5                 | employees
-null           | 1                     | null              | null
-null           | 2                     | null              | null
+emp_no:integer | message:keyword        | unmapped_message:keyword   | _index:keyword
+10001          | null                   | null                       | employees
+10002          | null                   | null                       | employees
+null           | 42                     | 43                         | null
+null           | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | null
 ;
 
 loadUnmappedFieldCastInSubquery
@@ -2132,15 +2363,14 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="load"\;
-FROM (FROM employees | EVAL emp_no_plus = emp_no_foo::LONG + 1 | WHERE emp_no < 10003)
-| DROP *_name
-| SORT emp_no, emp_no_plus
-| KEEP emp_no*
+FROM (FROM partial_mapping_sample_data | EVAL dur_plus = unmapped_event_duration::LONG + 1 | WHERE message == "42" OR message == "Connected to 10.1.0.1!")
+| KEEP message, unmapped_event_duration, dur_plus
+| SORT message
 ;
 
-emp_no:integer | emp_no_foo:keyword | emp_no_plus:long
-10001          | null               | null
-10002          | null               | null
+message:keyword        | unmapped_event_duration:keyword | dur_plus:long
+42                     | 1232383                         | 1232384
+Connected to 10.1.0.1! | 1756468                         | 1756469
 ;
 
 loadMvUnmappedFieldExpandInForkBranch
@@ -2270,12 +2500,14 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="load"\;
-FROM (FROM partial_mapping_mv_sample_data | WHERE message == "Connected to 10.1.0.2!" | GROK unmapped_message "%{WORD:action} from %{IP:host}")
+FROM (FROM partial_mapping_mv_sample_data | WHERE message == "Connected to 10.1.0.2!" | GROK unmapped_message "%{WORD:action} from %{IP:host}"),
+     (FROM partial_mapping_mv_sample_data | WHERE message == "Connected to 10.1.0.1!" | KEEP message)
 | KEEP message, action, host
 | SORT message
 ;
 
 message:keyword        | action:keyword | host:keyword
+Connected to 10.1.0.1! | null           | null
 Connected to 10.1.0.2! | Disconnected   | 10.1.0.2
 ;
 
@@ -2538,6 +2770,11 @@ c:long | missing:long
 100    | 0
 ;
 
+//
+// Baseline: branching (country/language unions), ROW-backed and TS views under unmapped_fields="load".
+// These carry no unmapped-but-indexed fields; they assert that enabling load mode does not change normal
+// view resolution or results (see views.csv-spec for the non-load counterparts).
+//
 loadViewBranchingCountryViewsLoadMode
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
@@ -2690,6 +2927,9 @@ bytes:long | low_tx:long | cluster:keyword
 7403       | 2           | staging
 ;
 
+//
+// unmapped_fields="load": loading unmapped-but-indexed fields from _source through views.
+//
 loadViewPassthroughLoadsFromSource_KeepUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
@@ -2703,6 +2943,21 @@ FROM partial_mapping_view
 
 @timestamp:date          | message:keyword | unmapped_message:keyword
 2024-10-23T13:33:34.937Z | 42              | 43
+;
+
+loadViewDefinitionWildcardKeepPermitsUnmappedLoad
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_view_message_wildcard
+| WHERE message == "42"
+| KEEP message, unmapped_message
+;
+
+message:keyword | unmapped_message:keyword
+42              | 43
 ;
 
 loadViewPassthroughLoadsFromSource_WithStatsUnmapped

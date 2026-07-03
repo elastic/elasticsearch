@@ -65,6 +65,15 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
+/**
+ * Fold-resolution tests for {@link ExternalSourceAggregatePushdown} — the shared COUNT/MIN/MAX-from-stats
+ * resolution ({@code resolveFromStats}, {@code servableExtremum}, {@code buildBlock}, {@code canServeAllFromStats},
+ * {@code partitionColumnNames}) plus the helper-level matrices. Exercised through the {@link PushStatsToExternalSource}
+ * rule (the sole ES stats-serving rule; the former {@code PushAggregatesToExternalSource} was collapsed into it, and
+ * these are its migrated fold-behavior tests). {@link PushStatsToExternalSourceTests} is the sibling that covers the
+ * rule's own wiring (alias/Eval/Project/Filter unwrapping, mode/grouping bails, the format pushability gate); a few
+ * shared-shape scenarios appear in both by design — the split is fold-resolution (here) vs rule-plumbing (there).
+ */
 public class ExternalSourceAggregatePushdownTests extends ESTestCase {
 
     private static final ReferenceAttribute AGE = referenceAttribute("age", DataType.INTEGER);

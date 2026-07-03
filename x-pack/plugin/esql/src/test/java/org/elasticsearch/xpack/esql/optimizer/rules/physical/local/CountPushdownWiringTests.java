@@ -342,7 +342,7 @@ public class CountPushdownWiringTests extends ESTestCase {
     /**
      * #985 regression: the gate must consult per-column SERVABILITY, not only the type-level
      * {@code canPushAggregates}. {@code MIN(age)} is type-pushable, but with no harvested {@code age} stats
-     * the fold rule ({@code PushAggregatesToExternalSource}) safe-misses. If the gate skipped discovery here
+     * the fold rule ({@code PushStatsToExternalSource}) safe-misses. If the gate skipped discovery here
      * while the fold bailed, the query would run a zero-split scan that crashes under union_by_name
      * ({@code SchemaAdaptingIterator} width guard). The gate now shares the fold's resolution, so it declines.
      */

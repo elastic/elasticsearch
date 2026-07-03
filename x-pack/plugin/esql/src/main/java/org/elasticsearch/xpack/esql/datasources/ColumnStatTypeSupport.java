@@ -43,6 +43,13 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
  */
 public record ColumnStatTypeSupport(@Nullable StatBlockKind blockKind, boolean harvestable, StatCoercion coercion) {
 
+    public ColumnStatTypeSupport {
+        // A harvestable type is always servable. ColumnStatsAccumulator.classify relies on this: it maps every
+        // harvestable type to a tracked block kind, so a harvestable-but-not-servable entry would have no arm.
+        assert harvestable == false || blockKind != null
+            : "harvestable type must have a blockKind (be servable): " + blockKind + "/" + harvestable + "/" + coercion;
+    }
+
     /** The block flavour a served MIN/MAX extremum is materialized into. */
     public enum StatBlockKind {
         INT,

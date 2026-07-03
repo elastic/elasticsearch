@@ -124,7 +124,7 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         var agg = aggregateExec(externalSource(statsMetadata(1000L, null, null, null)), countStarAlias());
 
         // NONE context carries no registry: consulting external capabilities is impossible, so the rule bails
-        // (the ExternalOptimizerContext.NONE contract), mirroring PushAggregatesToExternalSource.
+        // (the ExternalOptimizerContext.NONE contract).
         as(new PushStatsToExternalSource().apply(agg, nullRegistryContext()), AggregateExec.class);
     }
 

@@ -41,7 +41,7 @@ public class ColumnStatTypeSupportTests extends ESTestCase {
         EXPECTED.put(DataType.KEYWORD, new ColumnStatTypeSupport(StatBlockKind.BYTES_REF, true, StatCoercion.NONE));
         EXPECTED.put(DataType.TEXT, new ColumnStatTypeSupport(StatBlockKind.BYTES_REF, true, StatCoercion.NONE));
         EXPECTED.put(DataType.IP, new ColumnStatTypeSupport(StatBlockKind.BYTES_REF, true, StatCoercion.NONE));
-        // The one servable-but-not-servable outlier: UNSIGNED_LONG carries a coercion (stale-extremum drop) but
+        // The one coercible-but-not-servable outlier: UNSIGNED_LONG carries a coercion (stale-extremum drop) but
         // no block kind, so it is never served.
         EXPECTED.put(DataType.UNSIGNED_LONG, new ColumnStatTypeSupport(null, false, StatCoercion.EXACT_LONG));
     }

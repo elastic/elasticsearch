@@ -202,8 +202,13 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
         return findNodeId((version, buildHash) -> versionPredicate.test(Version.fromString(version)));
     }
 
-    private String getUpgradedNodeId() throws IOException {
-        return findNodeId((version, buildHash) -> isOldClusterVersion(version, buildHash) == false);
+    private String tryGetUpgradedNodeId() throws IOException {
+        var nodeId = findNodeId((version, buildHash) -> isOldClusterVersion(version, buildHash) == false);
+        if (nodeId == null) {
+            // This means we "upgraded" to the same version, or have not yet upgraded any nodes, take any node ID
+            nodeId = findNodeId((version, buildHash) -> true);
+        }
+        return nodeId;
     }
 
     private String getOldNodeId() throws IOException {
@@ -214,6 +219,12 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
         Response response = client().performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
+        for (var node : nodesAsMap.entrySet()) {
+            logger.warn((Map) objectPath.evaluate("nodes." + node.getKey()));
+            String version = objectPath.evaluate("nodes." + node.getKey() + ".version");
+            String buildHash = objectPath.evaluate("nodes." + node.getKey() + ".build_hash");
+            logger.warn("Found node [{}/{}/{}]", node.getKey(), version, buildHash);
+        }
         for (String id : nodesAsMap.keySet()) {
             String version = objectPath.evaluate("nodes." + id + ".version");
             String buildHash = objectPath.evaluate("nodes." + id + ".build_hash");
@@ -242,7 +253,7 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
             // node stops, we lose the master too, so a replica will not be promoted)
             updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
         } else if (isMixedCluster()) {
-            final String newNode = getUpgradedNodeId();
+            final String newNode = tryGetUpgradedNodeId();
             final String oldNode = getOldNodeId();
             assertNotNull(newNode);
             assertNotNull(oldNode);
